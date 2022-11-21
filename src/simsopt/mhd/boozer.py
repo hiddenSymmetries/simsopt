@@ -109,14 +109,13 @@ class Boozer(Optimizable):
                         "Normalized toroidal flux values s must lie"
                         "in the interval [0, 1]")
             elif isinstance(self.equil, Spec):
+                # If equil is a SPEC equilibrium, s is an index for the surface.
+                # Boozer transformation can be performed on any plasma inner
+                # interface or the plasma boundary.
                 nvol = self.equil.inputlist.nvol
-                if self.equil.inputlist.lfreebound:
-                    mvol = nvol + 1
-                else:
-                    mvol = nvol
-                if new_s <= 0 or new_s > mvol:
+                if new_s < 1 or new_s > nvol:
                     raise ValueError(
-                        "Surface number must lie within 1 and Mvol-1")
+                        "Surface number must lie within 1 and Nvol.")
 
         logger.info("Adding entries to Boozer registry: {}".format(ss))
         self.s = self.s.union(ss)
@@ -257,66 +256,95 @@ class Boozer(Optimizable):
         elif isinstance(self.equil, Spec):
             self.equil.run()
 
+            # Need py_spec - check that it is loaded.
             if py_spec is None:
                 raise RuntimeError(
                     "Using Spec requires py_spec to be installed.")
 
+            # load SPEC output 
             d = self.equil.results
+            
             # Seek on which surface the boozer coordinate is required
+            # The convention is that the inner side of an interface is an odd index,
+            # while the outer side is an even index. Magnetic axis is index 0.
             compute_surfs = []
             for ss in s:
-                compute_surfs.append(ss * 2 - 1)  # inner side of interface
+                compute_surfs.append((ss-1) * 2)  # inner side of interface
 
                 if ss != d.output.Mvol:
-                    compute_surfs.append(ss * 2)  # outer side of interface
+                    compute_surfs.append(ss * 2-1)  # outer side of interface
 
             # Eliminate any duplicates
             compute_surfs = sorted(list(set(compute_surfs)))
             logger.info("compute_surfs={}".format(compute_surfs))
 
-            self.bx.asym = not bool(d.input.physics.Istellsym)
-            self.bx.nfp = d.input.physics.Nfp
+            # Assign boozer inputs from SPEC outputs
+            self.bx.asym = not bool(d.input.physics.Istellsym) # Stellarator symmetry flag
+            if self.bx.asym: 
+                raise ValueError('Boozer transform not implemented for non stellarator symmetric SPEC equilibria')
 
-            mpol = d.input.physics.Mpol + 1
+            self.bx.nfp = d.input.physics.Nfp # Number of field periods
+
+            mpol = d.input.physics.Mpol + 1 # Poloidal resolution. Boozer xform needs Mpol+1 for execution
             self.bx.mpol = mpol
-            ntor = d.input.physics.Ntor
+            ntor = d.input.physics.Ntor # Toroidal resolution
             self.bx.ntor = ntor
             mnmax = ntor + 1 + (mpol - 1) * (2 * ntor + 1)
             self.bx.mnmax = mnmax
 
+            # Nyquist Fourier resolution. For now, set to the same as mpol, ntor.
             self.bx.mpol_nyq = mpol
             self.bx.ntor_nyq = ntor
             self.bx.mnmax_nyq = mnmax
 
+            # n-mode number, packed in a single array of size mnmax
             self.bx.xn = d.output.in_
             self.bx.xn_nyq = d.output.in_
 
+            # m-mode number, packed in a single array of size mnmax
             self.bx.xm = d.output.im
             self.bx.xm_nyq = d.output.im
 
+            # Fourier resolution for the boozer transform
             self.bx.mboz = self.mpol
             self.bx.nboz = self.ntor
 
-            ns_in = int(2 * d.output.Mvol - 1)
+            # Number of surfaces. In case of fixed-boundary, we have Nvol-1 interfaces
+            # with 2 sides each plus the inner side of the plasma boundary, leading to 
+            # 2Nvol-1 surfaces in total
+            # In the case of free-boundary calculations, the computational boundary is
+            # not a magnetic surfaces; only the outer side of the plasma boundary is an
+            # additional surface, giving 2Nvol surfaces.
+            ns_in = int(2 * d.input.physics.Nvol-1)
+            if d.input.physics.Lfreebound==1:
+                ns_in += 1
             self.bx.ns_in = ns_in
 
-            iota = np.zeros((ns_in,))
-            s_in = np.zeros((ns_in,))
+            iota = np.zeros((ns_in,)) #iota on each surface
+            s_in = np.zeros((ns_in,)) #square root of normalized toroidal flux at each interface
 
-            rmnc = np.zeros((ns_in, d.output.mn))
-            rmns = np.zeros((ns_in, d.output.mn))
-            zmnc = np.zeros((ns_in, d.output.mn))
-            zmns = np.zeros((ns_in, d.output.mn))
+            # Rmn, Zmn harmonics of each surface
+            rmnc = np.zeros((d.output.mn,ns_in))
+            rmns = np.zeros((d.output.mn,ns_in))
+            zmnc = np.zeros((d.output.mn,ns_in))
+            zmns = np.zeros((d.output.mn,ns_in))
 
-            subumnc = np.zeros((ns_in, d.output.mn))
-            subvmnc = np.zeros((ns_in, d.output.mn))
-            subumns = np.zeros((ns_in, d.output.mn))
-            subvmns = np.zeros((ns_in, d.output.mn))
+            # Covariant component of the magnetic field
+            bsubumnc = np.zeros((d.output.mn,ns_in)) # B_theta, even modes
+            bsubvmnc = np.zeros((d.output.mn,ns_in)) # B_zeta, even modes
+            bsubumns = np.zeros((d.output.mn,ns_in)) # B_theta, odd modes
+            bsubvmns = np.zeros((d.output.mn,ns_in)) # B_zeta, odd modes
 
-            lambdamn = np.zeros((ns_in, d.output.lmns))
+            # Fourier harmonics of the lambda function used to transform general 
+            # poloidal angle to straight field line angle
+            lambdamn = np.zeros((d.output.lmns, ns_in))
             index = 0
 
             def surf_to_vol_indices( ):
+                # Surface indices go from 0 (magnetic axis) to Nvol (plasma boundary)
+                # Volume indices fo from 0 to Mvol-1
+                # innout=0 for the inner side of a surface, =1 for the outer
+                # innout_vol=0 for the inner side of the volume, =1 for the outer
                 if innout == 0:
                     ind_vol = ind_surf-1
                     innout_vol = 1
@@ -326,14 +354,20 @@ class Boozer(Optimizable):
                 return ind_vol, innout_vol
 
             def index_is_valid():
+                # Check if volume index is valid for the Boozer transform.
+                # Boozer transform is not defined on the magnetic axis nor on
+                # the computational boundary.
+
                 if ind_vol>=d.output.Mvol: return False # Outside bound
                 elif ind_vol<0: return False # Outside bound
                 elif ind_vol==0 and innout_vol==0: return False # magnetic axis
+                elif ind_vol==d.input.physics.Nvol and innout_vol==1: return False # computational boundary
                 else: return True
 
-            # Surfaces are numbered from 0 to Mvol; 0 is the magnetic axis, 
-            # and Mvol is the plasma / computational boundary
-            for ind_surf in range(1, d.output.Mvol+1):
+
+            # Surfaces are numbered from 0 to Nvol; 0 is the magnetic axis, 
+            # and Nvol is the plasma boundary
+            for ind_surf in range(1, d.input.physics.Nvol+1):
                 # innout=0 means the inner side of an interface, =1 means the 
                 # outer side.
                 for innout in range(0, 2):
@@ -344,52 +378,54 @@ class Boozer(Optimizable):
                     # on magnetic axis nor comp. bound.
                     if not index_is_valid(): continue
 
-                    rmnc[index] = np.array([list(d.output.Rbc[ind_surf, :])])
-                    rmns[index] = np.array([list(d.output.Rbs[ind_surf, :])])
-                    zmnc[index] = np.array([list(d.output.Zbc[ind_surf, :])])
-                    zmns[index] = np.array([list(d.output.Zbs[ind_surf, :])])
+                    # Populate geometry harmonics
+                    rmnc[:,index] = np.array([list(d.output.Rbc[ind_surf, :])])
+                    rmns[:,index] = np.array([list(d.output.Rbs[ind_surf, :])])
+                    zmnc[:,index] = np.array([list(d.output.Zbc[ind_surf, :])])
+                    zmns[:,index] = np.array([list(d.output.Zbs[ind_surf, :])])
 
-                    subumnc[index] = np.array(
+                    # Populate field harmonics
+                    bsubumnc[:,index] = np.array(
                         [list(d.output.Btemn[ind_vol, innout_vol])])
-                    subvmnc[index] = np.array(
+                    bsubvmnc[:,index] = np.array(
                         [list(d.output.Bzemn[ind_vol, innout_vol])])
-                    subumns[index] = np.array(
+                    bsubumns[:,index] = np.array(
                         [list(d.output.Btomn[ind_vol, innout_vol])])
-                    subvmns[index] = np.array(
+                    bsubvmns[:,index] = np.array(
                         [list(d.output.Bzomn[ind_vol, innout_vol])])
 
-                    lambdamn[index] = np.array(
+                    # Populate lambda harmonics
+                    lambdamn[:,index] = np.array(
                         [list(d.output.lambdamn[innout_vol, ind_vol])] )
 
                     iota[index] = d.output.lambdamn[innout_vol, ind_vol, 0]
                     s_in[index] = d.output.tflux[ind_surf-1]
 
-                    index = index + 1
+                    index += 1
 
-            self.bx.rmnc = rmnc.transpose()
-            self.bx.rmns = rmns.transpose()
-            self.bx.zmnc = zmnc.transpose()
-            self.bx.zmns = zmns.transpose()
-
-            self.bx.bsubumnc = subumnc.transpose()
-            self.bx.bsubvmnc = subvmnc.transpose()
-            self.bx.bsubumns = subumns.transpose()
-            self.bx.bsubvmns = subvmns.transpose()
-
+            self.bx.rmnc = rmnc
+            self.bx.rmns = rmns
+            self.bx.zmnc = zmnc
+            self.bx.zmns = zmns
+            self.bx.bsubumnc = bsubumnc
+            self.bx.bsubumns = bsubumns
+            self.bx.bsubvmnc = bsubvmnc
+            self.bx.bsubvmns = bsubvmns
             self.bx.iota = iota
             self.bx.s_in = s_in
 
+            # Build lmns - not all modes outputted by SPEC are required, we 
+            # need to select only the necessary one.
             lmns = np.zeros([mnmax, ns_in])
             lmnc = np.zeros([mnmax, ns_in])
 
-            # Build lmns
-            xms = d.output.ims
-            xns = d.output.ins
-            mns = d.output.mns
+            xms = d.output.ims # m-mode of lambdamn
+            xns = d.output.ins # n-mode of lambdamn
+            mns = d.output.mns # number of Fourier harmonics of lambda mn
 
             index = 0
-            for ind_surf in range(1, d.output.Mvol+1):
-                for innout in range(0, 2):
+            for ind_surf in range(1, d.input.physics.Nvol+1): #loop on surfaces
+                for innout in range(0, 2): # loop on inner and outer side
                     # Translate interface indices into volume indices
                     ind_vol, innout_vol = surf_to_vol_indices()
                     if not index_is_valid(): continue
@@ -407,7 +443,7 @@ class Boozer(Optimizable):
 
                         for jj in range(0, mnmax):
                             if mm == self.bx.xm[jj] and nn == self.bx.xn[jj]:
-                                lmns[jj][index] = lambdamn[index][ii]
+                                lmns[jj][index] = lambdamn[ii][index]
 
                     index = index + 1
 
@@ -415,27 +451,33 @@ class Boozer(Optimizable):
             self.bx.lmnc = lmnc
 
             # Evaluation of modB
-            Nt = d.grid.Nt
+            # Construction of a grid in real space on which modB will be evaluated
+            Nt = d.grid.Nt # We use SPEC number of grid points
             Nz = d.grid.Nz
-            tarr = np.linspace(0, 2 * np.pi, Nt)
-            zarr = np.linspace(0, 2 * np.pi / self.bx.nfp, Nz)
+            tarr = np.linspace(0, 2 * np.pi, Nt) # theta array
+            zarr = np.linspace(0, 2 * np.pi / self.bx.nfp, Nz) # phi array
 
+            # Allocate memory for storing modB Fourier harmonics
             Bmnc = np.zeros((mnmax, ns_in))
 
             index = 0
-            for ind_surf in range(1, d.output.Mvol+1):
-                for innout in range(0, 2):
+            for ind_surf in range(1, d.input.physics.Nvol+1): # loop on interfaces
+                for innout in range(0, 2): # loop on inner and outer side of interfaces
                     # Translate interface indices into volume indices
                     ind_vol, innout_vol = surf_to_vol_indices()
                     if not index_is_valid(): continue
                     sarr = np.asarray([innout_vol])
 
+                    # Get contravariant magnetic field
                     Bcontrav = d.get_B(
                         lvol=ind_vol, sarr=sarr, tarr=tarr, zarr=zarr)
+                    # Get geometrical metric elements
                     g = d.get_grid_and_jacobian_and_metric(
                         lvol=ind_vol, sarr=sarr, tarr=tarr, zarr=zarr)[3]
-
+                    # Get modB
                     modB = d.get_modB(Bcontrav, g)[0]
+
+                    # Fourier transform from real space to Fourier space
                     modBcos = np.zeros(np.shape(modB))
                     K = 2 * np.pi**2 / self.bx.nfp
                     Bmn_ = np.zeros((mpol, 2 * ntor + 1))
@@ -450,19 +492,23 @@ class Boozer(Optimizable):
                                         np.cos(
                                             m * tarr[line] - n * self.bx.nfp * zarr[column])
 
-                            Bmn_[m, n + ntor] = 1 / K * \
-                                np.trapz(
-                                    np.trapz(modBcos, x=tarr, axis=0), x=zarr)
-
+                            if ntor>0:
+                                Bmn_[m, n + ntor] = 1 / K * \
+                                    np.trapz(
+                                        np.trapz(modBcos, x=tarr, axis=0), x=zarr)
+                            else:
+                                Bmn_[m] = np.trapz(modBcos, x=tarr, axis=0)[0]
+                    # Normalize mode m=n=0
                     Bmn_[0, ntor] = 1 / 2 * Bmn_[0, ntor]
 
+                    # Populate one dimensional array
                     for ii in range(0, mnmax):
                         m = self.bx.xm[ii]
                         n = int(self.bx.xn[ii] / self.bx.nfp)
                         Bmnc[ii, index] = Bmn_[m, n + ntor]
 
                     index = index + 1
-
+            # TODO: implement non-stellarator symmetric terms
             Bmns = np.array([])
 
             self.bx.bmnc = Bmnc
