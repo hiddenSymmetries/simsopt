@@ -23,7 +23,7 @@ except ImportError:
 class CurrentPotentialTests(unittest.TestCase):
     def test_compare_K_with_regcoil(self):
         # axisymmetric case with no Phimnc, non-axisymmetric, axisymmetric with Phimnc
-        for filename in ['regcoil_out.axisymmetry.nc','regcoil_out.w7x.nc','regcoil_out.axisymmetry_asym.nc']:
+        for filename in ['regcoil_out.axisymmetry.nc', 'regcoil_out.w7x.nc', 'regcoil_out.axisymmetry_asym.nc']:
             filename = TEST_DIR / filename
             cp = CurrentPotentialFourier.from_netcdf(filename)
             f = netcdf_file(filename, 'r')
@@ -32,6 +32,7 @@ class CurrentPotentialTests(unittest.TestCase):
             K2 = np.sum(K*K, axis=2)
             K2_average = np.mean(K2, axis=(0, 1))
             assert np.allclose(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
+
 
 def get_currentpotential(cptype, stellsym, phis=None, thetas=None):
     np.random.seed(2)

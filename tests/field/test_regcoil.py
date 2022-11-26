@@ -211,23 +211,23 @@ class Testing(unittest.TestCase):
         """
         Here we check the solve with lambda -> infinity to test the K matrices and rhs
         """
-        for filename in ['regcoil_out.li383_infty.nc','regcoil_out.w7x_infty.nc']:
+        for filename in ['regcoil_out.li383_infty.nc', 'regcoil_out.w7x_infty.nc']:
             filename = TEST_DIR / filename
             f = netcdf_file(filename, 'r')
             ilambda = 1
-            Bnormal_regcoil_total = f.variables['Bnormal_total'][()][ilambda,:,:]
+            Bnormal_regcoil_total = f.variables['Bnormal_total'][()][ilambda, :, :]
             Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
             Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]
             r_plasma = f.variables['r_plasma'][()]
             r_coil = f.variables['r_coil'][()]
             nzeta_plasma = f.variables['nzeta_plasma'][()]
-            K2_regcoil = f.variables['K2'][()][ilambda,:,:]
+            K2_regcoil = f.variables['K2'][()][ilambda, :, :]
             lambda_regcoil = f.variables['lambda'][()][ilambda]
             b_rhs_regcoil = f.variables['RHS_B'][()]
             k_rhs_regcoil = f.variables['RHS_regularization'][()]
-            single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][ilambda,:]
+            single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][ilambda, :]
             norm_normal_plasma = f.variables['norm_normal_plasma'][()]
-            current_potential_thetazeta = f.variables['single_valued_current_potential_thetazeta'][()][ilambda,:,:]
+            current_potential_thetazeta = f.variables['single_valued_current_potential_thetazeta'][()][ilambda, :, :]
             f.close()
 
             # initialize a solver object for the cp CurrentPotential
@@ -255,7 +255,7 @@ class Testing(unittest.TestCase):
             assert np.allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
 
             # Compare plasma surface normal
-            assert np.allclose(norm_normal_plasma[0:nzeta_plasma, :], np.linalg.norm(s_plasma.normal(),axis=2)/(2*np.pi*2*np.pi))
+            assert np.allclose(norm_normal_plasma[0:nzeta_plasma, :], np.linalg.norm(s_plasma.normal(), axis=2)/(2*np.pi*2*np.pi))
 
             # Compare winding surface position
             s_coil = cp.winding_surface
@@ -277,7 +277,7 @@ class Testing(unittest.TestCase):
             cp_no_GI.net_toroidal_current_amperes = 0
             cp_no_GI.net_poloidal_current_amperes = 0
             cp_no_GI.set_dofs(optimized_phi_mn)
-            assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :],current_potential_thetazeta)
+            assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta)
 
             # Compare current density
             cp.set_dofs(optimized_phi_mn)
@@ -289,7 +289,7 @@ class Testing(unittest.TestCase):
 
             # Check normal field
             Bfield_opt = WindingSurfaceField(cp)
-            Bfield_opt.set_points(s_plasma.gamma().reshape(-1,3))
+            Bfield_opt.set_points(s_plasma.gamma().reshape(-1, 3))
             B_opt = Bfield_opt.B()
             normal = s_plasma.unitnormal().reshape(-1, 3)
             Bnormal = np.sum(B_opt*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
@@ -302,15 +302,15 @@ class Testing(unittest.TestCase):
                 print(np.max(np.abs(Bnormal-Bnormal_regcoil)))
                 print(np.mean(np.abs(Bnormal)))
                 print(np.mean(np.abs(Bnormal_regcoil)))
-                assert np.allclose(Bnormal,Bnormal_regcoil)
+                assert np.allclose(Bnormal, Bnormal_regcoil)
 
     def test_winding_surface_regcoil(self):
         # This compares the normal field from regcoil with that computed from
         # WindingSurface for W7-X and NCSX configuration
-        for filename in ['regcoil_out.w7x.nc','regcoil_out.axisymmetry.nc','regcoil_out.li383.nc','regcoil_out.axisymmetry_asym.nc']:
-        # for filename in [TEST_DIR / , TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / ]:
-        # for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
-        # for filename in [TEST_DIR / 'regcoil_out.li383.nc']:
+        for filename in ['regcoil_out.w7x.nc', 'regcoil_out.axisymmetry.nc', 'regcoil_out.li383.nc', 'regcoil_out.axisymmetry_asym.nc']:
+            # for filename in [TEST_DIR / , TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / ]:
+            # for filename in [TEST_DIR / 'regcoil_out.li383.nc', TEST_DIR / 'regcoil_out.w7x.nc']:
+            # for filename in [TEST_DIR / 'regcoil_out.li383.nc']:
             print(filename)
             filename = TEST_DIR / filename
             f = netcdf_file(filename, 'r')
@@ -357,7 +357,7 @@ class Testing(unittest.TestCase):
             assert np.allclose(r_plasma[0:nzeta_plasma, :, :], s_plasma.gamma())
 
             # Compare plasma surface normal
-            assert np.allclose(norm_normal_plasma[0:nzeta_plasma, :], np.linalg.norm(s_plasma.normal(),axis=2)/(2*np.pi*2*np.pi))
+            assert np.allclose(norm_normal_plasma[0:nzeta_plasma, :], np.linalg.norm(s_plasma.normal(), axis=2)/(2*np.pi*2*np.pi))
 
             # Compare winding surface position
             s_coil = cp.winding_surface
@@ -377,39 +377,39 @@ class Testing(unittest.TestCase):
             # quadrature points, normal vector, and Bnormal at these quadrature points
             for i, lambda_reg in enumerate(lambda_regcoil):
                 # Set current potential Fourier harmonis from regcoil file
-                cp.set_current_potential_from_regcoil(filename,i)
+                cp.set_current_potential_from_regcoil(filename, i)
 
                 # Compare current potential Fourier harmonics
-                assert np.allclose(cp.get_dofs(), single_valued_current_potential_mn[i,:])
+                assert np.allclose(cp.get_dofs(), single_valued_current_potential_mn[i, :])
 
                 # I'm not sure why I need to make a new object here, but otherwise it doesn't work
                 cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
                 cp_no_GI.net_toroidal_current_amperes = 0
                 cp_no_GI.net_poloidal_current_amperes = 0
                 cp_no_GI.set_dofs(0*cp_no_GI.get_dofs())
-                cp_no_GI.set_current_potential_from_regcoil(filename,i)
+                cp_no_GI.set_current_potential_from_regcoil(filename, i)
 
                 # Compare single-valued current potential
-                assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :],current_potential_thetazeta[i,:,:])
+                assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta[i, :, :])
 
                 # I'm not sure why I need to make a new object here, but otherwise it doesn't work
                 cp = CurrentPotentialFourier.from_netcdf(filename)
-                cp.set_current_potential_from_regcoil(filename,i)
+                cp.set_current_potential_from_regcoil(filename, i)
                 K = cp.K()
                 K2 = np.sum(K*K, axis=2)
                 K2_average = np.mean(K2, axis=(0, 1))
 
-                assert np.allclose(K2[0:nzeta_plasma, :]/K2_average, K2_regcoil[i,:,:]/K2_average)
+                assert np.allclose(K2[0:nzeta_plasma, :]/K2_average, K2_regcoil[i, :, :]/K2_average)
 
                 # Initialize a solver object for the cp CurrentPotential
                 cp = CurrentPotentialFourier.from_netcdf(filename)
-                cp.set_current_potential_from_regcoil(filename,i)
+                cp.set_current_potential_from_regcoil(filename, i)
                 Bfield_opt = WindingSurfaceField(cp)
-                Bfield_opt.set_points(s_plasma.gamma().reshape(-1,3))
+                Bfield_opt.set_points(s_plasma.gamma().reshape(-1, 3))
                 B_opt = Bfield_opt.B()
                 normal = s_plasma.unitnormal().reshape(-1, 3)
                 Bnormal = np.sum(B_opt*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
-                Bnormal_regcoil = Bnormal_regcoil_total[i,:,:] - Bnormal_from_plasma_current
+                Bnormal_regcoil = Bnormal_regcoil_total[i, :, :] - Bnormal_from_plasma_current
 
                 if False:
                     self.assertAlmostEqual(np.sum(Bnormal), 0)
@@ -417,10 +417,11 @@ class Testing(unittest.TestCase):
                     print(np.max(np.abs(Bnormal-Bnormal_regcoil)))
                     print(np.mean(np.abs(Bnormal)))
                     print(np.mean(np.abs(Bnormal_regcoil)))
-                    assert np.allclose(Bnormal,Bnormal_regcoil)
+                    assert np.allclose(Bnormal, Bnormal_regcoil)
 
                     optimized_phi_mn = cpst.solve(lam=lambda_reg)
-                    assert np.allclose(single_valued_current_potential_mn[i,:], optimized_phi_mn)
+                    assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn)
+
 
 if __name__ == "__main__":
     unittest.main()

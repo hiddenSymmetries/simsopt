@@ -114,9 +114,9 @@ class CurrentPotentialSolveTikhonov:
         phi_mesh = np.ravel(phi_mesh)
         theta_mesh = np.ravel(theta_mesh)
         gj, B_matrix = sopp.winding_surface_field_Bn(quadpoints_plasma,
-            quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym,
-            phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n,
-            self.winding_surface.nfp)
+                                                     quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym,
+                                                     phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n,
+                                                     self.winding_surface.nfp)
         Bnormal_plasma = self.Bnormal_plasma
         B_GI = self.B_GI
 
