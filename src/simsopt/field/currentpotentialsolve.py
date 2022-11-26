@@ -1,80 +1,82 @@
 import numpy as np
 from .._core.optimizable import DOFs, Optimizable
 import simsoptpp as sopp
-from simsopt.geo import Surface, SurfaceRZFourier 
+from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.field.currentpotential import CurrentPotentialFourier
 from scipy.io import netcdf_file
+from simsopt.field.magneticfieldclasses import WindingSurfaceField
 
 __all__ = ["CurrentPotentialSolveTikhonov"]
 
 
 class CurrentPotentialSolveTikhonov:
-    def __init__(self, cp):
+    def __init__(self, cp, plasma_surface, Bnormal_plasma, B_GI):
         self.current_potential = cp
         self.winding_surface = self.current_potential.winding_surface
         self.ntheta_coil = len(self.current_potential.quadpoints_theta)
         self.nphi_coil = len(self.current_potential.quadpoints_phi)
         self.ndofs = self.current_potential.num_dofs()
+        self.plasma_surface = plasma_surface
+        self.Bnormal_plasma = Bnormal_plasma
+        self.B_GI = B_GI
 
     @classmethod
     def from_netcdf(cls, filename: str):
         """
         Initialize a CurrentPotentialSolveTikhonov using a CurrentPotentialFourier
-        from a regcoil netcdf output file.
+        from a regcoil netcdf output file. The single_valued_current_potential_mn
+        are set to zero.
 
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
         """
         f = netcdf_file(filename, 'r')
         nfp = f.variables['nfp'][()]
-        mpol_potential = f.variables['mpol_potential'][()]
-        ntor_potential = f.variables['ntor_potential'][()]
-        net_poloidal_current_amperes = f.variables['net_poloidal_current_Amperes'][()]
-        net_toroidal_current_amperes = f.variables['net_toroidal_current_Amperes'][()]
-        xm_potential = f.variables['xm_potential'][()]
-        xn_potential = f.variables['xn_potential'][()]
-        symmetry_option = f.variables['symmetry_option'][()]
-        if symmetry_option == 1:
-            stellsym = True
-        else:
-            stellsym = False
-        rmnc_coil = f.variables['rmnc_coil'][()]
-        zmns_coil = f.variables['zmns_coil'][()]
-        if ('rmns_coil' in f.variables and 'zmnc_coil' in f.variables):
-            rmns_coil = f.variables['rmns_coil'][()]
-            zmnc_coil = f.variables['zmnc_coil'][()]
-            if np.all(zmnc_coil == 0) and np.all(rmns_coil == 0):
-                stellsym_surf = True
+        Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
+        rmnc_plasma = f.variables['rmnc_plasma'][()]
+        zmns_plasma = f.variables['zmns_plasma'][()]
+        xm_plasma = f.variables['xm_plasma'][()]
+        xn_plasma = f.variables['xn_plasma'][()]
+        mpol_plasma = int(np.max(xm_plasma))
+        ntor_plasma = int(np.max(xn_plasma)/nfp)
+        ntheta_plasma = f.variables['ntheta_plasma'][()]
+        nzeta_plasma = f.variables['nzeta_plasma'][()]
+        if ('rmns_plasma' in f.variables and 'zmnc_plasma' in f.variables):
+            rmns_plasma = f.variables['rmns_plasma'][()]
+            zmnc_plasma = f.variables['zmnc_plasma'][()]
+            if np.all(zmnc_plasma == 0) and np.all(rmns_plasma == 0):
+                stellsym_plasma_surf = True
             else:
-                stellsym_surf = False
+                stellsym_plasma_surf = False
         else:
-            rmns_coil = np.zeros_like(rmnc_coil)
-            zmnc_coil = np.zeros_like(zmns_coil)
-            stellsym_surf = True
-        xm_coil = f.variables['xm_coil'][()]
-        xn_coil = f.variables['xn_coil'][()]
-        ntheta_coil = f.variables['ntheta_coil'][()]
-        nzeta_coil = f.variables['nzeta_coil'][()]
-        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
-        mpol_coil = int(np.max(xm_coil))
-        ntor_coil = int(np.max(xn_coil)/nfp)
+            rmns_plasma = np.zeros_like(rmnc_plasma)
+            zmnc_plasma = np.zeros_like(zmns_plasma)
+            stellsym_plasma_surf = True
+        f.close()
 
-        s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
-        s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil*nfp,
-                                         mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
-        s_coil.set_dofs(0*s_coil.get_dofs())
-        for im in range(len(xm_coil)):
-            s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
-            s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
+        cp = CurrentPotentialFourier.from_netcdf(filename)
 
-        cp = CurrentPotentialFourier(s_coil, mpol=mpol_potential, ntor=ntor_potential,
-                                     net_poloidal_current_amperes=net_poloidal_current_amperes,
-                                     net_toroidal_current_amperes=net_toroidal_current_amperes,
-                                     stellsym=stellsym)
-        for im in range(len(xm_potential)):
-            cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
+        s_plasma = SurfaceRZFourier(nfp=nfp,
+                                    mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym_plasma_surf)
+        s_plasma = s_plasma.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
+                                             mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym_plasma_surf, range="field period")
+        s_plasma.set_dofs(0*s_plasma.get_dofs())
+        for im in range(len(xm_plasma)):
+            s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
+            s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im]/nfp), zmns_plasma[im])
+            if not stellsym_plasma_surf:
+                s_plasma.set_rs(xm_plasma[im], int(xn_plasma[im]/nfp), rmns_plasma[im])
+                s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im]/nfp), zmnc_plasma[im])
 
-        return cls(cp)
+        cp_copy = CurrentPotentialFourier.from_netcdf(filename)
+        Bfield = WindingSurfaceField(cp_copy)
+        points = s_plasma.gamma().reshape(-1, 3)
+        Bfield.set_points(points)
+        B = Bfield.B()
+        normal = s_plasma.unitnormal().reshape(-1, 3)
+        B_GI_winding_surface = np.sum(B*normal, axis=1)
+
+        return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface)
 
     def K_rhs_impl(self, K_rhs):
         dg1 = self.winding_surface.gammadash1()
@@ -100,12 +102,46 @@ class CurrentPotentialSolveTikhonov:
         self.K_matrix_impl(K_matrix)
         return K_matrix
 
-    def solve(self, plasma_surface, Bnormal_plasma, B_GI, lam=0):
+    def B_rhs(self):
+        plasma_surface = self.plasma_surface
+        normal = self.winding_surface.normal()
+        Bnormal_plasma = self.Bnormal_plasma
+        normal_plasma = plasma_surface.normal().reshape(-1, 3)
+        quadpoints_plasma = plasma_surface.gamma().reshape(-1, 3)
+        quadpoints_coil = self.winding_surface.gamma().reshape(-1, 3)
+        theta = self.winding_surface.quadpoints_theta
+        phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
+        phi_mesh = np.ravel(phi_mesh)
+        theta_mesh = np.ravel(theta_mesh)
+        gj, B_matrix = sopp.winding_surface_field_Bn(quadpoints_plasma,
+            quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym,
+            phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n,
+            self.winding_surface.nfp)
+        Bnormal_plasma = self.Bnormal_plasma
+        B_GI = self.B_GI
+
+        # set up RHS of optimization
+        b_rhs = np.zeros(self.ndofs)
+        for i in range(self.ndofs):
+            b_rhs[i] = - (B_GI + Bnormal_plasma) @ gj[:, i]
+        dzeta_plasma = (plasma_surface.quadpoints_phi[1] - plasma_surface.quadpoints_phi[0])
+        dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])
+        dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])
+        dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
+
+        b_rhs = b_rhs * dzeta_plasma * dtheta_plasma * dzeta_coil * dtheta_coil
+
+        return b_rhs
+
+    def solve(self, lam=0):
         """
            Bnormal_plasma is the Bnormal component coming from both plasma currents
            and other external coils, so only B^{GI} (Eq. A7) and B^{SV} need to be
            calculated and set up for the least squares solve.
         """
+        plasma_surface = self.plasma_surface
+        B_GI = self.B_GI
+        Bnormal_plasma = self.Bnormal_plasma
         normal_plasma = plasma_surface.normal().reshape(-1, 3)
         quadpoints_plasma = plasma_surface.gamma().reshape(-1, 3)
         quadpoints_coil = self.winding_surface.gamma().reshape(-1, 3)
@@ -129,6 +165,7 @@ class CurrentPotentialSolveTikhonov:
 
         gj, B_matrix = sopp.winding_surface_field_Bn(quadpoints_plasma, quadpoints_coil, normal_plasma, normal, self.winding_surface.stellsym, phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n, self.winding_surface.nfp)
 
+        b_rhs = self.B_rhs()
         #B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
         #B_GI = sopp.winding_surface_field_Bn_GI(quadpoints_plasma, quadpoints_coil, normal_plasma, phi_mesh, theta_mesh, G, I, dg1.reshape(-1, 3), dg2.reshape(-1, 3))
 
@@ -138,13 +175,7 @@ class CurrentPotentialSolveTikhonov:
         dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])
         dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
 
-        # set up RHS of optimization
-        b_rhs = np.zeros(self.ndofs)
-        for i in range(self.ndofs):
-            b_rhs[i] = - (B_GI + Bnormal_plasma) @ gj[:, i]
-
-        b_rhs = b_rhs * dzeta_plasma * dtheta_plasma * dzeta_coil * dtheta_coil
         B_matrix = B_matrix * dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2
 
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
-        return phi_mn_opt, b_rhs
+        return phi_mn_opt

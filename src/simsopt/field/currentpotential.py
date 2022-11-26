@@ -67,38 +67,22 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                                   names=self._make_names())
 
         self._make_mn()
-        # gd1 = winding_surface.gammadash1_impl()
 
     def _make_names(self):
         if self.stellsym:
-            names = self._make_names_helper('Phis', False)
+            names = self._make_names_helper('Phis')
         else:
-            names = self._make_names_helper('Phis', False) \
-                + self._make_names_helper('Phic', True)
+            names = self._make_names_helper('Phis') \
+                + self._make_names_helper('Phic')
         return names
 
-    def _make_names_helper(self, prefix, include0):
-        if include0:
-            names = [prefix + "(0,0)"]
-        else:
-            names = []
+    def _make_names_helper(self, prefix):
+        names = []
 
         names += [prefix + '(0,' + str(n) + ')' for n in range(1, self.ntor + 1)]
         for m in range(1, self.mpol + 1):
             names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
         return names
-
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
-        fn = self.fix if fixed else self.unfix
-        for m in range(mmin, mmax + 1):
-            this_nmin = nmin
-            if m == 0 and nmin < 0:
-                this_nmin = 0
-            for n in range(this_nmin, nmax + 1):
-                if not self.stellsym:
-                    fn(f'Phic({m},{n})')
-                if m > 0 or n != 0:
-                    fn(f'Phis({m},{n})')
 
     def get_dofs(self):
         return np.asarray(sopp.CurrentPotentialFourier.get_dofs(self))
@@ -193,12 +177,12 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         for m in range(mmin, mmax + 1):
             this_nmin = nmin
             if m == 0 and nmin < 0:
-                this_nmin = 0
+                this_nmin = 1
             for n in range(this_nmin, nmax + 1):
-                if not self.stellsym:
-                    fn(f'phic({m},{n})')
                 if m > 0 or n != 0:
                     fn(f'phis({m},{n})')
+                    if not self.stellsym:
+                        fn(f'phic({m},{n})')
 
     def _validate_mn(self, m, n):
         """
@@ -223,14 +207,50 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         n2d, m2d = np.meshgrid(n1d, m1d)
         m0 = m2d.flatten()[self.ntor:]
         n0 = n2d.flatten()[self.ntor:]
-        if not self.stellsym:
-            m = np.concatenate((m0[1:], m0))
-            n = np.concatenate((n0[1:], n0))
+        self.m = m0[1::]
+        self.n = n0[1::]
+
+    def set_current_potential_from_regcoil(self, filename: str, ilambda: int):
+        """
+        Set phic and phis based on a regcoil netcdf file.
+
+        Args:
+            filename: Name of the ``regcoil_out.*.nc`` file to read.
+            ilambda: 0-based index for the lambda array, indicating which current
+                potential solution to use
+        """
+        f = netcdf_file(filename, 'r')
+        nfp = f.variables['nfp'][()]
+        mpol_potential = f.variables['mpol_potential'][()]
+        ntor_potential = f.variables['ntor_potential'][()]
+        xm_potential = f.variables['xm_potential'][()]
+        xn_potential = f.variables['xn_potential'][()]
+        symmetry_option = f.variables['symmetry_option'][()]
+        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][ilambda, :]
+        f.close()
+
+        # Check that correct shape of arrays are being used
+        if mpol_potential != self.mpol:
+            raise ValueError('Incorrect mpol_potential')
+        if ntor_potential != self.ntor:
+            raise ValueError('Incorrect ntor_potential')
+        if nfp != self.nfp:
+            raise ValueError('Incorrect nfp')
+        if symmetry_option == 1:
+            stellsym = True
         else:
-            m = m0[1::]
-            n = n0[1::]
-        self.m = m
-        self.n = n
+            stellsym = False
+        if stellsym != self.stellsym:
+            raise ValueError('Incorrect stellsym')
+
+        count = 0
+        if symmetry_option != 2:
+            for im in range(len(xm_potential)):
+                self.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
+                count += 1
+        if symmetry_option != 1:
+            for im in range(len(xm_potential)):
+                self.set_phic(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[count+im])
 
     @classmethod
     def from_netcdf(cls, filename: str):
@@ -271,6 +291,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         ntheta_coil = f.variables['ntheta_coil'][()]
         nzeta_coil = f.variables['nzeta_coil'][()]
         single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
+        f.close()
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
 
@@ -281,12 +302,13 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         for im in range(len(xm_coil)):
             s_coil.set_rc(xm_coil[im], int(xn_coil[im]/nfp), rmnc_coil[im])
             s_coil.set_zs(xm_coil[im], int(xn_coil[im]/nfp), zmns_coil[im])
+            if not stellsym_surf:
+                s_coil.set_rs(xm_coil[im], int(xn_coil[im]/nfp), rmns_coil[im])
+                s_coil.set_zc(xm_coil[im], int(xn_coil[im]/nfp), zmnc_coil[im])
 
         cp = cls(s_coil, mpol=mpol_potential, ntor=ntor_potential,
                  net_poloidal_current_amperes=net_poloidal_current_amperes,
                  net_toroidal_current_amperes=net_toroidal_current_amperes,
                  stellsym=stellsym)
-        for im in range(len(xm_potential)):
-            cp.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
 
         return cp

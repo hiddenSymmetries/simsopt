@@ -7,10 +7,10 @@
   lambda_min = 1e-50
   lambda_max = 1
 
-  ntheta_plasma=128
-  ntheta_coil  =128
-  nzeta_plasma =128
-  nzeta_coil   =128
+  ntheta_plasma=32
+  ntheta_coil  =32
+  nzeta_plasma =32
+  nzeta_coil   =32
 
   mpol_potential = 4
   ntor_potential = 4
