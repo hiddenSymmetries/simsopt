@@ -47,6 +47,28 @@ void init_tracing(py::module_ &m){
         py::arg("vpars_stop")=false
         );
 
+    m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>,
+        py::arg("field"),
+        py::arg("stz_init"),
+        py::arg("m"),
+        py::arg("q"),
+        py::arg("vtotal"),
+        py::arg("vtang"),
+        py::arg("tmax"),
+        py::arg("tol"),
+        py::arg("vacuum"),
+        py::arg("noK"),
+        py::arg("zetas")=vector<double>{},
+        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
+        py::arg("vpars")=vector<double>{},
+        py::arg("phis_stop")=false,
+        py::arg("vpars_stop")=false,
+        py::arg("alphahat")=0,
+        py::arg("omega")=0,
+        py::arg("alpham")=0,
+        py::arg("alphan")=0
+        );
+
     m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,
         py::arg("field"),
         py::arg("xyz_init"),
