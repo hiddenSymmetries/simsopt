@@ -257,7 +257,9 @@ class QfmSurfaceTests(unittest.TestCase):
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-3
         assert res['fun'] < 1e-5
-        assert np.abs(vol_target - vol.J()) < 1e-5
+        volume_difference = np.abs(vol_target - vol.J())
+        print("np.abs(vol_target - vol.J()):", volume_difference)
+        assert volume_difference < 1e-5
 
         vol_opt1 = vol.J()
 
