@@ -1291,7 +1291,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
 
     def test_adder_dofs_shared_change_vals(self):
         adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
-                            fixed=[False, False, True])
+                                        fixed=[False, False, True])
         adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig._dofs)
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
         adder_orig.x = [11, 12]
@@ -1300,9 +1300,10 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
         adder_orig.set("x", 20)
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+
     def test_adder_dofs_shared_fix_unfix(self):
         adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
-                            fixed=[False, False, True])
+                                        fixed=[False, False, True])
         adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig._dofs)
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
 
