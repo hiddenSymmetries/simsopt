@@ -23,7 +23,7 @@ class SurfaceRZFourier : public Surface<Array> {
        In addition, in the stellsym=True case, we skip the sin terms for r, and
        the cos terms for z.
        */
-
+    
     public:
         using Surface<Array>::quadpoints_phi;
         using Surface<Array>::quadpoints_theta;
