@@ -1276,5 +1276,54 @@ class TestOptimizableSerialize(unittest.TestCase):
         self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
 
 
+class OptClassSharedDOFs(Optimizable):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def J(self):
+        return sum(self.x)
+
+
+class TestOptimizableSharedDOFs(unittest.TestCase):
+    """
+    Test the DOFs sharing for the Optimizable classes
+    """
+
+    def test_adder_dofs_shared_change_vals(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                            fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig._dofs)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.x = [11, 12]
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_shared_dofs.x = [0, 1]
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.set("x", 20)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+    def test_adder_dofs_shared_fix_unfix(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                            fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig._dofs)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+
+        adder_orig.fix("x")
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11, 12]
+        adder_shared_dofs.x = [11]
+
+        adder_orig.unfix("z")
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11]
+        adder_shared_dofs.x = [11, 12]
+
+        adder_shared_dofs.unfix_all()
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11, 12]
+        adder_orig.x = [11, 12, 13]
+
+        adder_orig.fix_all()
+        self.assertTrue(len(adder_shared_dofs.x) == 0)
+
+
 if __name__ == "__main__":
     unittest.main()
