@@ -72,7 +72,7 @@ class DOFs:
     table as properties. Additional methods to update bounds, fix/unfix DOFs,
     etc. are also defined.
     """
-    __slots__ = ["_x", "_free", "_lb", "_ub", "_names"]
+    __slots__ = ["_x", "_free", "_lb", "_ub", "_names", "_dep_opts"]
 
     def __init__(self,
                  x: RealArray = None,  # To enable empty DOFs object
@@ -122,6 +122,24 @@ class DOFs:
         self._lb = lower_bounds
         self._ub = upper_bounds
         self._names = list(names)
+        self._dep_opts = []
+
+    def add_opt(self, opt):
+        weakref_opt = weakref.ref(opt)
+        if weakref_opt not in self._dep_opts:
+            self._dep_opts.append(weakref_opt)
+
+    def _flag_recompute_opt(self):
+        for opt_ref in self._dep_opts:
+            opt = opt_ref()
+            if opt is not None:
+                opt.set_recompute_flag()
+
+    def _update_opt_indices(self):
+        for opt_ref in self._dep_opts:
+            opt = opt_ref()
+            if opt is not None:
+                opt.update_free_dof_size_indices()
 
     def __len__(self):
         return len(self._free)
@@ -136,6 +154,7 @@ class DOFs:
         if isinstance(key, str):
             key = self._names.index(key)
         self._free[key] = False
+        self._update_opt_indices()
 
     def unfix(self, key: Key) -> None:
         """
@@ -147,6 +166,7 @@ class DOFs:
         if isinstance(key, str):
             key = self._names.index(key)
         self._free[key] = True
+        self._update_opt_indices()
 
     def all_free(self) -> bool:
         """
@@ -196,6 +216,7 @@ class DOFs:
         if isinstance(key, str):
             key = self._names.index(key)
         self._x[key] = val
+        self._flag_recompute_opt()
 
     def is_free(self, key: Key) -> bool:
         """
@@ -215,6 +236,7 @@ class DOFs:
         Fixes all the DOFs
         """
         self._free.fill(False)
+        self._update_opt_indices()
 
     def unfix_all(self) -> None:
         """
@@ -222,6 +244,7 @@ class DOFs:
         Caution: Make sure the bounds are well defined
         """
         self._free.fill(True)
+        self._update_opt_indices()
 
     def any_free(self) -> bool:
         """
@@ -265,6 +288,7 @@ class DOFs:
         if self.reduced_len != len(x):
             raise DofLengthMismatchError(len(x), self.reduced_len)
         self._x[self._free] = np.asarray(x, dtype=np.double)
+        self._flag_recompute_opt()
 
     @property
     def full_x(self) -> RealArray:
@@ -290,6 +314,7 @@ class DOFs:
         if len(self._x) != len(x):
             raise DofLengthMismatchError(len(x), len(self._x))
         self._x = np.asarray(x, dtype=np.double)
+        self._flag_recompute_opt()
 
     @property
     def reduced_len(self) -> Integral:
@@ -496,6 +521,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
                  fixed: BoolArray = None,
                  lower_bounds: RealArray = None,
                  upper_bounds: RealArray = None,
+                 dofs: DOFs = None,
                  external_dof_setter: Callable[..., None] = None,
                  depends_on: Sequence[Optimizable] = None,
                  opt_return_fns: Sequence[Sequence[str]] = None,
@@ -508,12 +534,14 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             fixed: Array describing whether the DOFs are free or fixed
             lower_bounds: Lower bounds for the DOFs
             upper_bounds: Upper bounds for the DOFs
+            dofs: Degrees of freedoms as DOFs object
             external_dof_setter: Function used by derivative classes to
-                handle DOFs outside of the _dofs object.
+                handle DOFs outside of the dofs object within the class.
                 Mainly used when the DOFs are primarily handled by C++ code.
-                In that case, for all intents and purposes, the _dofs is a
-                duplication of the DOFs stored elsewhere. In such cases, _dofs
-                is used to handle the dof partitioning, but external dofs are
+                In that case, for all intents and purposes, the internal dofs
+                object is a duplication of the DOFs stored elsewhere. In such
+                cases, the internal dofs object is used to handle the dof
+                partitioning, but external dofs are
                 used for computation of the objective function.
             depends_on: Sequence of Optimizable objects on which the current
                 Optimizable object depends on to define the optimization
@@ -537,11 +565,13 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
                 objects are identified automatically. Doesn't work with
                 funcs_in with a property decorator
         """
-        self._dofs = DOFs(x0,
-                          names,
-                          np.logical_not(fixed) if fixed is not None else None,
-                          lower_bounds,
-                          upper_bounds)
+        if dofs is None:
+            dofs = DOFs(x0,
+                        names,
+                        np.logical_not(fixed) if fixed is not None else None,
+                        lower_bounds,
+                        upper_bounds)
+        self._dofs = dofs
         self.local_dof_setter = external_dof_setter
 
         # Generate unique and immutable representation for different
@@ -592,12 +622,15 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self.ancestors = self._get_ancestors()
 
         # Compute the indices of all the DOFs
-        self._update_free_dof_size_indices()
+        self.update_free_dof_size_indices()
         self._update_full_dof_size_indices()
         # Inform the object that it doesn't have valid cache
-        self._set_new_x()
+        self.set_recompute_flag()
         log.debug(f"Unused arguments for {self.__class__} are {kwargs}")
         super().__init__()
+
+        # Keep this at the end because the function refers to Optimizable object
+        self._dofs.add_opt(self)
 
     def __str__(self):
         return self.name
@@ -680,7 +713,11 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Optimizable objects
 
         Returns:
-            List of methods that return a value when the current Optimizable
+            List of methods that return a value w            x0: Initial state (or initial values of DOFs)
+            names: Human identifiable names for the DOFs
+            fixed: Array describing whether the DOFs are free or fixed
+            lower_bounds: Lower bounds for the DOFs
+            upper_bounds: Upper bounds for the DOFshen the current Optimizable
             object is called from the children.
         """
         return list(self.return_fns.values())
@@ -750,8 +787,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             self.parents.insert(index, other)
             other._add_child(self)
             self._update_full_dof_size_indices()  # Updates ancestors as well
-            self._update_free_dof_size_indices()
-            self._set_new_x()
+            self.update_free_dof_size_indices()
+            self.set_recompute_flag()
         else:
             log.debug("The given Optimizable object is already a parent")
 
@@ -777,8 +814,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         discarded_parent = self.parents.pop(index)
         discarded_parent._remove_child(self)
         self._update_full_dof_size_indices()  # Updates ancestors as well
-        self._update_free_dof_size_indices()
-        self._set_new_x()
+        self.update_free_dof_size_indices()
+        self.set_recompute_flag()
 
         return discarded_parent
 
@@ -792,8 +829,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self.parents.remove(other)
         other._remove_child(self)
         self._update_full_dof_size_indices()  # updates ancestors as well
-        self._update_free_dof_size_indices()
-        self._set_new_x()
+        self.update_free_dof_size_indices()
+        self.set_recompute_flag()
 
     def _get_ancestors(self) -> list[Optimizable]:
         """
@@ -809,7 +846,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         ancestors += self.parents
         return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
 
-    def _update_free_dof_size_indices(self) -> None:
+    def update_free_dof_size_indices(self) -> None:
         """
         Updates the DOFs lengths for the Optimizable object as well as
         those of the descendent (dependent) Optimizable objects.
@@ -835,7 +872,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for weakref_child in self._children:
             child = weakref_child()
             if child is not None:
-                child._update_free_dof_size_indices()
+                child.update_free_dof_size_indices()
 
     def _update_full_dof_size_indices(self) -> None:
         """
@@ -915,7 +952,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             raise ValueError
         for opt, indices in self.dof_indices.items():
             if opt != self:
-                opt._set_local_x(x[indices[0]:indices[1]])
+                opt.local_x = x[indices[0]:indices[1]]
                 opt.new_x = True
                 opt.recompute_bell()
             else:
@@ -943,15 +980,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         Setter for local dofs.
         """
-        self._set_local_x(x)
-        self._set_new_x()
-
-    def _set_local_x(self, x: RealArray) -> None:
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.x = x
         if self.local_dof_setter is not None:
             self.local_dof_setter(self, list(self.local_full_x))
+        self.set_recompute_flag()
 
     @property
     def local_full_x(self):
@@ -978,9 +1012,9 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self._dofs.full_x = x
         if self.local_dof_setter is not None:
             self.local_dof_setter(self, list(self.local_full_x))
-        self._set_new_x()
+        self.set_recompute_flag()
 
-    def _set_new_x(self, parent=None):
+    def set_recompute_flag(self, parent=None):
         self.new_x = True
         self.recompute_bell(parent=parent)
 
@@ -988,7 +1022,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for weakref_child in self._children:
             child = weakref_child()
             if child is not None:
-                child._set_new_x(parent=self)
+                child.set_recompute_flag(parent=self)
 
     def get(self, key: Key) -> Real:
         """
@@ -1012,7 +1046,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self._dofs.set(key, new_val)
         if self.local_dof_setter is not None:
             self.local_dof_setter(self, list(self.local_full_x))
-        self._set_new_x()
 
     def recompute_bell(self, parent=None):
         """
@@ -1180,7 +1213,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: Question: Should we use ifix similar to pandas' loc and iloc?
 
         self._dofs.fix(key)
-        self._update_free_dof_size_indices()
+        self.update_free_dof_size_indices()
 
     def unfix(self, key: Key) -> None:
         """
@@ -1190,7 +1223,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             key: DOF identifier
         """
         self._dofs.unfix(key)
-        self._update_free_dof_size_indices()
+        self.update_free_dof_size_indices()
 
     def local_fix_all(self) -> None:
         """
@@ -1198,11 +1231,11 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         with the current Optimizable object.
         """
         self._dofs.fix_all()
-        self._update_free_dof_size_indices()
+        self.update_free_dof_size_indices()
 
     def fix_all(self) -> None:
         """
-        Set the 'fixed' attribute for all local degrees of freedom associated
+        Set the 'fixed' attribute for all the degrees of freedom associated
         with the current Optimizable object including those of ancestors.
         """
         opts = self.ancestors + [self]
@@ -1215,7 +1248,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         with the current Optimizable object.
         """
         self._dofs.unfix_all()
-        self._update_free_dof_size_indices()
+        self.update_free_dof_size_indices()
 
     def unfix_all(self) -> None:
         """
