@@ -276,7 +276,9 @@ class QfmSurfaceTests(unittest.TestCase):
         assert res['success']
         assert res['fun'] < 1e-5
         assert np.linalg.norm(res['gradient']) < 1e-2
-        assert np.abs(ar_target - ar.J()) < 1e-5
+        ar_difference = np.abs(ar_target - ar.J())
+        print("np.abs(ar_target - ar.J()):", ar_difference)
+        assert ar_difference < 3e-5
 
         res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9,
                                                                maxiter=1000)
