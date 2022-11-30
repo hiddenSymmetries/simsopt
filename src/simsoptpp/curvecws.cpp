@@ -14,22 +14,24 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
     {
         double CWSt = 2 * M_PI * quadpoints[k];
 
-        for (int i = 0; i < CWSorder + 1; ++i)
+        for (int i = 0; i < order + 1; ++i)
         {
             pphi(k) += phi_c[i] * cos(i * CWSt);
             ptheta(k) += theta_c[i] * cos(i * CWSt);
         }
-        for (int i = 1; i < CWSorder + 1; ++i)
+        for (int i = 1; i < order + 1; ++i)
         {
             pphi(k) += phi_s[i - 1] * sin(i * CWSt);
             ptheta(k) += theta_s[i - 1] * sin(i * CWSt);
         }
 
-        pphi(k) += phi_l[0] * CWSt + phi_l[i];
-        ptheta(k) += theta_l[0] * CWSt + theta_l[i]
+        pphi(k) += phi_l[0] * CWSt;
+        ptheta(k) += theta_l[0] * CWSt;
     }
 
-    data *= 0;
+
+
+    /* data *= 0;
     for (int k = 0; k < numquadpoints; ++k)
     {
         double phi = 2 * M_PI * quadpoints[k];
@@ -58,5 +60,5 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
                 data(k, 2) += zc[i] * cos(nfp * i * phi);
             }
         }
-    }
+    } */
 }
