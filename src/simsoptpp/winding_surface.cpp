@@ -11,6 +11,54 @@
 // everything in xyz coordinates
 Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& K)
 {
+    int num_points = points.shape(0);
+    int num_ws_points = ws_points.shape(0);
+    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+    double fak = 1e-7;  // mu0 divided by 4 * pi factor
+
+    // #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; i++) {
+        double x = points(i, 0);
+        double y = points(i, 1);
+        double z = points(i, 2);
+        double B_ix = 0.0;
+        double B_iy = 0.0;
+        double B_iz = 0.0;
+	
+	// Sum contributions from all the winding surface points
+        // i.e. do the surface integral over the winding surface
+        for (int j = 0; j < num_ws_points; ++j) {
+            double xx = ws_points(j, 0);
+            double yy = ws_points(j, 1);
+            double zz = ws_points(j, 2);
+            double nx = ws_normal(j, 0);
+            double ny = ws_normal(j, 1);
+            double nz = ws_normal(j, 2);
+            double Kx = K(j, 0);
+            double Ky = K(j, 1);
+            double Kz = K(j, 2);
+            double rx = x - xx;
+            double ry = y - yy;
+            double rz = z - zz;
+            double rmag_inv = 1.0 / sqrt(rx * rx + ry * ry + rz * rz);
+            double rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+            double nmag = sqrt(nx * nx + ny * ny + nz * nz);
+            double Kcrossr_x = Ky * rz - ry * Kz;
+            double Kcrossr_y = Kz * rx - rz * Kx;
+            double Kcrossr_z = Kx * ry - rx * Ky;
+            B_ix += nmag * Kcrossr_x * rmag_inv_3;
+            B_iy += nmag * Kcrossr_y * rmag_inv_3;
+            B_iz += nmag * Kcrossr_z * rmag_inv_3;
+        }
+        B(i, 0) = fak * B_ix;    
+        B(i, 1) = fak * B_iy;    
+        B(i, 2) = fak * B_iz;    
+    }
+    return B;
+}
+
+Array WindingSurfaceB_SIMD(Array& points, Array& ws_points, Array& ws_normal, Array& K)
+{
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("points needs to be in row-major storage order");

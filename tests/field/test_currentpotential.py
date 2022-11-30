@@ -275,6 +275,7 @@ class CurrentPotentialFourierTests(unittest.TestCase):
 
         # Now try a non-stellarator-symmetric case:
         cp = CurrentPotentialFourier(s, nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        print(cp.local_dof_names)
         assert 'Phic(0,0)' in cp.local_dof_names
         names = [name[4:] for name in cp.local_dof_names]
         names2 = [f'({m},{n})' for m, n in zip(cp.m, cp.n)]

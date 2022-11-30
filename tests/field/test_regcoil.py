@@ -1,5 +1,6 @@
 import unittest
 
+from matplotlib import pyplot as plt
 import numpy as np
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.geo import SurfaceRZFourier
@@ -277,10 +278,14 @@ class Testing(unittest.TestCase):
             cp_no_GI.net_toroidal_current_amperes = 0
             cp_no_GI.net_poloidal_current_amperes = 0
             cp_no_GI.set_dofs(optimized_phi_mn)
+            ###
+            # cp_no_GI.set_current_potential_from_regcoil(filename, ilambda)
+            ###
             assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta)
 
             # Compare current density
             cp.set_dofs(optimized_phi_mn)
+            # cp.set_current_potential_from_regcoil(filename, ilambda)
             K = cp.K()
             K2 = np.sum(K*K, axis=2)
             K2_average = np.mean(K2, axis=(0, 1))
@@ -298,7 +303,23 @@ class Testing(unittest.TestCase):
             self.assertAlmostEqual(np.sum(Bnormal), 0)
             self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
 
-            if False:
+            if True:
+                plt.figure(figsize=(20, 5))
+                plt.subplot(1, 5, 1)
+                plt.imshow(Bnormal-Bnormal_regcoil, origin='lower')
+                plt.colorbar()
+                plt.subplot(1, 5, 2)
+                plt.imshow(K2[0:nzeta_plasma, :]-K2_regcoil, origin='lower')
+                plt.colorbar()
+                plt.subplot(1, 5, 3)
+                plt.imshow(B_GI_winding_surface.reshape(np.shape(s_plasma.gamma()[:, :, 0])) - Bnormal_from_net_coil_currents, origin='lower')
+                plt.colorbar()
+                plt.subplot(1, 5, 4)
+                plt.plot(single_valued_current_potential_mn - optimized_phi_mn)
+                plt.subplot(1, 5, 5)
+                plt.imshow(cp_no_GI.Phi()[0:nzeta_plasma, :] - current_potential_thetazeta)
+                plt.colorbar()
+                plt.show()
                 print(np.max(np.abs(Bnormal-Bnormal_regcoil)))
                 print(np.mean(np.abs(Bnormal)))
                 print(np.mean(np.abs(Bnormal_regcoil)))
@@ -409,7 +430,7 @@ class Testing(unittest.TestCase):
                 B_opt = Bfield_opt.B()
                 normal = s_plasma.unitnormal().reshape(-1, 3)
                 Bnormal = np.sum(B_opt*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
-                Bnormal_regcoil = Bnormal_regcoil_total[i, :, :] - Bnormal_from_plasma_current
+                Bnormal_regcoil = Bnormal_regcoil_total[i, :, :]  #- Bnormal_from_plasma_current
 
                 if False:
                     self.assertAlmostEqual(np.sum(Bnormal), 0)
@@ -421,7 +442,11 @@ class Testing(unittest.TestCase):
 
                     optimized_phi_mn = cpst.solve(lam=lambda_reg)
                     assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn)
-
+#                else:
+#                    plt.figure()
+#                    plt.imshow(Bnormal-Bnormal_regcoil, origin='lower')
+#                    plt.colorbar()
+#                    plt.show()
 
 if __name__ == "__main__":
     unittest.main()
