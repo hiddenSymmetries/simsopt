@@ -1324,6 +1324,40 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
 
         adder_orig.fix_all()
         self.assertTrue(len(adder_shared_dofs.x) == 0)
+    def test_load_save(self):
+        import tempfile
+        from pathlib import Path
+
+        adder1 = OptClassSharedDOFs(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                                    fixed=[False, False, True])
+        adder2 = OptClassSharedDOFs(dofs=adder1._dofs)
+        self.assertAlmostEqual(adder1.J(), adder2.J())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adders.json"
+            save([adder1, adder2], fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+            with open(fpath) as fp:
+                for line in fp.readlines():
+                    print(line)
+            adders = load(fpath)
+            print(adders[0].full_x, '\n', adders[1].full_x)
+            self.assertAlmostEqual(adder1.J(), adders[0].J())
+            self.assertAlmostEqual(adder2.J(), adders[1].J())
+        adders[0].x = [11, 12]
+        self.assertEqual(adders[0].J(), adders[1].J())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adder.json"
+            adder_str = adder1.save(fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+            adder1_str_regen = FAdder.from_str(adder_str)
+            self.assertAlmostEqual(adder1.J(), adder1_str_regen.J())
+            adder1_file_regen = FAdder.from_file(fpath)
+            self.assertAlmostEqual(adder1.J(), adder1_file_regen.J())
+
+        adder_str1 = adder1.save(fmt='json', indent=2)
+        adder1_str_regen1 = Optimizable.from_str(adder_str1)
+        self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
 
 
 if __name__ == "__main__":
