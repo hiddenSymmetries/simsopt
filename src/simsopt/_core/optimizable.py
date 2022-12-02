@@ -393,7 +393,7 @@ class DOFs(GSONable, Hashable):
         Returns:
             (Lower bounds list, Upper bounds list)
         """
-        return (self.lower_bounds, self.upper_bounds)
+        return (self.free_lower_bounds, self.free_upper_bounds)
 
     @property
     def full_bounds(self) -> Tuple[RealArray, RealArray]:
@@ -1335,7 +1335,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
     def as_dict(self, serial_objs_dict=None) -> dict:
         d = super().as_dict(serial_objs_dict)
         if len(self.local_full_x):
-            d["dofs"] = self._dofs.as_dict(serial_objs_dict=serial_objs_dict)
+            d["dofs"] = self._dofs.as_dict2(serial_objs_dict=serial_objs_dict)
             # d["names"] = self.local_full_dof_names
             # d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
             # d["lower_bounds"] = list(self.local_full_lower_bounds)
