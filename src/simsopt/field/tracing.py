@@ -174,7 +174,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     assert mode in ['gc', 'gc_vac', 'gc_nok']
     if alphahat != 0:
         perturbed = True
-        assert mode in ['gc_vac']
+        assert mode in ['gc_vac','gc_nok']
     else:
         perturbed = False
 

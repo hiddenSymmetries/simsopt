@@ -178,17 +178,94 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
             double iota = field->iota_ref()(0);
-            double dmodBds = field->modB_derivs_ref()(0);
+            double diotadpsi = field->diotads_ref()(0)/psi0;
+            double dmodBdpsi = field->modB_derivs_ref()(0)/psi0;
             double dmodBdtheta = field->modB_derivs_ref()(1);
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
+            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time);
             double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time);
 
             dydt[0] = -dmodBdtheta*fak1/(q*psi0) + alpham * alphadot/psi0 * (v_par * modB/omega + G/(iota * alpham - alphan));
-            dydt[1] = dmodBds*fak1/(q*psi0) + iota*v_par*modB/G;
+            dydt[1] = dmodBdpsi*fak1/q + iota*v_par*modB/G + alpha*G*diotadpsi*alpham*omega/(modB*q*(iota*alpham-alphan)*(iota*alpham-alphan));
             dydt[2] = v_par*modB/G;
-            dydt[3] = -(iota*dmodBdtheta + dmodBdzeta)*mu*modB/G + alpham * alphadot * (dmodBds/psi0) * ((G * v_par/modB)/(iota * alpham - alphan) - mu * modB/omega);
+            dydt[3] = (modB*modB*(-mu*m*(iota*alpham-alphan)*(iota*alpham-alphan)*(alphadot*dmodBdpsi*G*alpham + (dmodBdzeta + dmodBdtheta*iota)*omega) \
+                     - alpha*alphadot*G*G*diotadpsi*alpham*alpham*omega*q) + G*G*m*alpham*omega*(alphadot*dmodBdpsi*(iota*alpham-alphan) \
+                    + alpha*dmodBdtheta*diotadpsi*omega)*v_par)/(modB*G*m*(iota*alpham-alphan)*(iota*alpham-alphan)*omega);
+            dydt[4] = 1;
+        }
+};
+
+template<template<class, std::size_t, xt::layout_type> class T>
+class GuidingCenterNoKBoozerPerturbedRHS {
+    /*
+     * The state consists of :math:`[s, t, z, v_par]` with
+     *
+     *    \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+     *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+     *    \dot \zeta = v_{||}|B|/G
+     *    \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
+     *
+     *  where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp = 2\mu|B|`.
+     *
+     */
+    private:
+        typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
+        shared_ptr<BoozerMagneticField<T>> field;
+        double m, q, mu, alphahat, omega;
+        int alpham, alphan;
+    public:
+        static constexpr int Size = 5;
+        using State = std::array<double, Size>;
+
+
+        GuidingCenterNoKBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
+            double m, double q, double mu, double alphahat, double omega, int alpham,
+            int alphan)
+            : field(field), m(m), q(q), mu(mu), alphahat(alphahat), omega(omega),
+              alpham(alpham), alphan(alphan) {
+            }
+
+        void operator()(const State &ys, array<double, 5> &dydt,
+                const double t) {
+            double v_par = ys[3];
+            double time = ys[4];
+
+            stz(0, 0) = ys[0];
+            stz(0, 1) = ys[1];
+            stz(0, 2) = ys[2];
+
+            assert(ys[0]>0);
+
+            field->set_points(stz);
+            auto psi0 = field->psi0;
+            double modB = field->modB_ref()(0);
+            double G = field->G_ref()(0);
+            double I = field->I_ref()(0);
+            double dGdpsi = field->dGds_ref()(0)/psi0;
+            double dIdpsi = field->dIds_ref()(0)/psi0;
+            double iota = field->iota_ref()(0);
+            double diotadpsi = field->diotads_ref()(0)/psi0;
+            double dmodBdpsi = field->modB_derivs_ref()(0)/psi0;
+            double dmodBdtheta = field->modB_derivs_ref()(1);
+            double dmodBdzeta = field->modB_derivs_ref()(2);
+            double v_perp2 = 2*mu*modB;
+            double fak1 = m*v_par*v_par/modB + m*mu;
+            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time);
+            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time);
+            double denom = q*(G + I*(-alpha*dGdpsi + iota) + alpha*G*dIdpsi) + m*v_par/modB * (-dGdpsi*I + G*dIdpsi); // q G in vacuum
+
+            dydt[0] = ((-dmodBdtheta*G + dmodBdzeta*I)*fak1 + alphadot*q*(G*alpham+alphan*I)*(v_par*modB/omega + (G + iota*I)/(iota*alpham - alphan)))/(denom*psi0);
+            dydt[1] = (alpha*q*(G*omega*(G*diotadpsi*alpham - iota*(dGdpsi + iota*dIdpsi)*alpham + (dGdpsi + I*diotadpsi + iota*dIdpsi)*alphan)/((iota*alpham-alphan)*(iota*alpham-alphan)) - modB*dGdpsi*v_par) \
+                + v_par * (modB*iota*q - dGdpsi*m*v_par) + dmodBdpsi*G*fak1)/denom;
+            dydt[2] = (-alpha*q*I*omega*(G*diotadpsi*alpham - iota*(dGdpsi + iota*dIdpsi)*alpham + (dGdpsi + I*diotadpsi + iota*dIdpsi)*alphan)/((iota*alpham-alphan)*(iota*alpham-alphan)) \
+                + alpha*modB*dIdpsi*q*v_par + v_par * (modB*q + dIdpsi*m*v_par) - dmodBdpsi*I*fak1)/denom;
+            dydt[3] = (-alphadot*q*(G*alpham+I*alphan)*(modB*modB*(dmodBdpsi*mu*m*(alphan-iota*alpham)*(alphan-iota*alpham) \
+                + alpha*diotadpsi*omega*q*(G*alpham+I*alphan)) - (dmodBdpsi*(G+iota*I)-modB*(dGdpsi+iota*dIdpsi))*m*(iota*alpham-alphan)*omega*v_par) \
+                /(modB*m*(iota*alpham-alphan)*(iota*alpham-alphan)*omega) \
+                - modB*mu*q*(dmodBdzeta + dmodBdtheta*(iota-alpha*dGdpsi) + alpha*dmodBdzeta*dIdpsi) + (dmodBdtheta*dGdpsi-dmodBdzeta*dIdpsi)*m*mu*v_par \
+                + alpha*omega*q*v_par*(dmodBdtheta*G-dmodBdzeta*I)*(G*diotadpsi*alpham-iota*alpham*(dGdpsi+iota*dIdpsi) + (dGdpsi+diotadpsi*I+iota*dIdpsi)*alphan)/(modB*(iota*alpham-alphan)*(iota*alpham-alphan)))/denom;
             dydt[4] = 1;
         }
 };
@@ -578,12 +655,15 @@ particle_guiding_center_boozer_perturbed_tracing(
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
-    assert(vacuum);
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, alphahat, omega,
         alpham, alphan);
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
-    }
+  } else {
+      auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS<T>(field, m, q, mu, alphahat, omega,
+        alpham, alphan);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
+  }
 }
 
 template<template<class, std::size_t, xt::layout_type> class T>
