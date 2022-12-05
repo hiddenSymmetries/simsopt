@@ -525,7 +525,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
                  names: StrArray = None,
                  fixed: BoolArray = None,
                  lower_bounds: RealArray = None,
-                 upper_bounds: RealArray = None,
+                 upper_bounds: RealArray = None, *,
                  dofs: DOFs = None,
                  external_dof_setter: Callable[..., None] = None,
                  depends_on: Sequence[Optimizable] = None,
@@ -576,6 +576,11 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
                         np.logical_not(fixed) if fixed is not None else None,
                         lower_bounds,
                         upper_bounds)
+        else:
+            # If a DOFs object is supplied, call external dof setter if present
+            if external_dof_setter is not None:
+                external_dof_setter(self, dofs.full_x)
+
         self._dofs = dofs
         self.local_dof_setter = external_dof_setter
 
@@ -903,6 +908,15 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             child = weakref_child()
             if child is not None:
                 child._update_full_dof_size_indices()
+
+    @property
+    def dofs(self) -> DOFs:
+        """
+        Return all the attributes of degrees of freedom via DOFs object.
+        Mainly used to conform with the default as_dict method of GSONable
+        and to share DOFs object between multiple Optimizable objects
+        """
+        return self._dofs
 
     @property
     def full_dof_size(self) -> Integral:
@@ -1336,10 +1350,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         d = super().as_dict(serial_objs_dict)
         if len(self.local_full_x):
             d["dofs"] = self._dofs.as_dict2(serial_objs_dict=serial_objs_dict)
-            # d["names"] = self.local_full_dof_names
-            # d["fixed"] = list(np.logical_not(self.local_dofs_free_status))
-            # d["lower_bounds"] = list(self.local_full_lower_bounds)
-            # d["upper_bounds"] = list(self.local_full_upper_bounds)
 
         return d
 
