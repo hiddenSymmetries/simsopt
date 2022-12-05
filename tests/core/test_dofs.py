@@ -38,7 +38,7 @@ class DOFsTests(unittest.TestCase):
         self.assertFalse(self.adder_dofs.all_free())
         self.assertEqual(self.adder_dofs.reduced_len, 2)
         with self.assertRaises(DofLengthMismatchError):
-            self.adder_dofs.x = np.array([4, 5, 6])
+            self.adder_dofs.free_x = np.array([4, 5, 6])
 
         self.adder_dofs.fix("x")
         self.assertEqual(self.adder_dofs.reduced_len, 2)
