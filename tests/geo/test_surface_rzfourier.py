@@ -3,9 +3,10 @@ from pathlib import Path
 import json
 
 import numpy as np
-from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
+from simsopt import save, load
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
+from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
@@ -53,6 +54,24 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s.zs.shape, (2, 7))
         self.assertEqual(s.rs.shape, (2, 7))
         self.assertEqual(s.zc.shape, (2, 7))
+
+    def test_shared_dof_init(self):
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        s.local_full_x = s.get_dofs()
+
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
+            ntheta=31, nphi=30, range='field period')
+        s2 = SurfaceRZFourier(quadpoints_phi=quadpoints_phi,
+                              quadpoints_theta=quadpoints_theta,
+                              dofs=s.dofs)
+        self.assertIs(s.dofs, s2.dofs)
+        true_area = 15.827322032265993
+        true_volume = 2.0528777154265874
+        self.assertAlmostEqual(s2.area(), true_area, places=4)
+        self.assertAlmostEqual(s2.volume(), true_volume, places=3)
 
     def test_area_volume(self):
         """
@@ -582,6 +601,34 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
+
+    def test_shared_dof_serialization(self):
+        import tempfile
+        from pathlib import Path
+
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        s.local_full_x = s.get_dofs()
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
+            ntheta=31, nphi=30, range='field period')
+        s2 = SurfaceRZFourier(quadpoints_phi=quadpoints_phi,
+                              quadpoints_theta=quadpoints_theta,
+                              dofs=s.dofs)
+
+        self.assertAlmostEqual(s.volume(), s2.volume())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "surf.json"
+            save([s, s2], fpath)
+
+            surf_objs = load(fpath)
+            self.assertAlmostEqual(s.volume(), surf_objs[0].volume())
+            self.assertAlmostEqual(s.area(), surf_objs[0].area())
+            self.assertAlmostEqual(s2.volume(), surf_objs[1].volume())
+            self.assertAlmostEqual(s2.area(), surf_objs[1].area())
+            self.assertIs(surf_objs[0].dofs, surf_objs[1].dofs)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
