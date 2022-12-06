@@ -1292,7 +1292,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
     def test_adder_dofs_shared_change_vals(self):
         adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
                                         fixed=[False, False, True])
-        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig._dofs)
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
         adder_orig.x = [11, 12]
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
@@ -1304,7 +1304,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
     def test_adder_dofs_shared_fix_unfix(self):
         adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
                                         fixed=[False, False, True])
-        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig._dofs)
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
 
         adder_orig.fix("x")
@@ -1330,17 +1330,13 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
 
         adder1 = OptClassSharedDOFs(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
                                     fixed=[False, False, True])
-        adder2 = OptClassSharedDOFs(dofs=adder1._dofs)
+        adder2 = OptClassSharedDOFs(dofs=adder1.dofs)
         self.assertAlmostEqual(adder1.J(), adder2.J())
         with tempfile.TemporaryDirectory() as tmpdir:
             fpath = Path(tmpdir) / "adders.json"
             save([adder1, adder2], fpath, indent=2)
             self.assertTrue(fpath.is_file())
-            with open(fpath) as fp:
-                for line in fp.readlines():
-                    print(line)
             adders = load(fpath)
-            print(adders[0].full_x, '\n', adders[1].full_x)
             self.assertAlmostEqual(adder1.J(), adders[0].J())
             self.assertAlmostEqual(adder2.J(), adders[1].J())
         adders[0].x = [11, 12]

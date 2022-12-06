@@ -50,7 +50,7 @@ __all__ = ['Optimizable', 'make_optimizable', 'load', 'save',
            'OptimizableSum', 'ScaledOptimizable']
 
 
-class DOFs(GSONable, Hashable):
+class DOFs(GSONable):
     """
     Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
 
@@ -123,24 +123,31 @@ class DOFs(GSONable, Hashable):
         self._upper_bounds = upper_bounds
         self._names = list(names)
         self._dep_opts = []
-        self._hash = id(self) % 10**32
         self.name = str(id(self))   # For serialization
 
-    def __hash__(self):
-        return self._hash
-
     def add_opt(self, opt):
+        """
+        Adds the Optimizable object to the list of dependent Optimizable objects
+        """
         weakref_opt = weakref.ref(opt)
         if weakref_opt not in self._dep_opts:
             self._dep_opts.append(weakref_opt)
 
     def _flag_recompute_opt(self):
+        """
+        Sets the recompute flag in the dependent Optimizable objects.
+        This function is called whenever the DOF values are changed.
+        """
         for opt_ref in self._dep_opts:
             opt = opt_ref()
             if opt is not None:
                 opt.set_recompute_flag()
 
     def _update_opt_indices(self):
+        """
+        Updates the free DOF indices in the dependent Optimizable objects.
+        This function is called whenever a DOF is fixed or set free.
+        """
         for opt_ref in self._dep_opts:
             opt = opt_ref()
             if opt is not None:
@@ -723,11 +730,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Optimizable objects
 
         Returns:
-            List of methods that return a value w            x0: Initial state (or initial values of DOFs)
-            names: Human identifiable names for the DOFs
-            fixed: Array describing whether the DOFs are free or fixed
-            lower_bounds: Lower bounds for the DOFs
-            upper_bounds: Upper bounds for the DOFshen the current Optimizable
+            List of methods that return a value when the current Optimizable
             object is called from the children.
         """
         return list(self.return_fns.values())
