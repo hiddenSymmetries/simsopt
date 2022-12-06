@@ -679,13 +679,13 @@ class SurfaceRZPseudospectral(Optimizable):
             if "x0" not in kwargs:
                 kwargs["x0"] = np.zeros(ndofs)
             else:
-                assert(len(kwargs["x0"]) == ndofs)
+                assert (len(kwargs["x0"]) == ndofs)
             if "names" not in kwargs:
                 kwargs["names"] = self._make_names()
             else:
                 assert (len(kwargs["names"]) == ndofs)
         else:
-            assert(len(kwargs["dofs"]) == ndofs)
+            assert (len(kwargs["dofs"]) == ndofs)
         super().__init__(**kwargs)
 
     def _make_names(self):

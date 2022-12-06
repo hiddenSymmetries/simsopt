@@ -1324,6 +1324,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
 
         adder_orig.fix_all()
         self.assertTrue(len(adder_shared_dofs.x) == 0)
+
     def test_load_save(self):
         import tempfile
         from pathlib import Path
