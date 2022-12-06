@@ -184,6 +184,7 @@ class GSONable:
         if isinstance(self, Enum):
             d.update({"value": self.value})  # pylint: disable=E1101
         return d  # , serial_objs_dict
+
     def as_dict2(self, serial_objs_dict):
         """
         This is a slightly modified version of as_dict method to deal with the cases
