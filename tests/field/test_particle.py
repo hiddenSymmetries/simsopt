@@ -418,7 +418,10 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         configuration with and without current terms. Check for a linear relationship
         between time derivative of E and Pphi in QA with an Alfvenic perturbation.
         """
-        # First, test energy and momentum conservation in a QA vacuum field
+
+        """
+        First, test energy and momentum conservation in a QA vacuum field
+        """
         etabar = 1.2
         B0 = 1.0
         Bbar = 1.0
@@ -496,8 +499,10 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert max(max_mu_gc_error) < -8
         assert max(max_p_gc_error) < -8
 
-        # Perform test with perturbation in QA field -> check for linear relation
-        # between time derivatives of E and Pphi
+        """
+        Perform test with perturbation in QA field -> check for linear relation
+        between time derivatives of E and Pphi
+        """
 
         bsh.set_points(stz_inits)
         modB_inits = bsh.modB()
@@ -554,7 +559,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         assert max(max_energy_gc_error) < -8
 
-        # Check QH equilibria with perturbation - relation between energy and Pphi conservation
+        """
+        Check QH equilibria with perturbation - relation between energy and Pphi conservation
+        """
 
         bsh.set_N(1)
         helicity = alphan - alpham
@@ -609,7 +616,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         assert max(max_energy_gc_error) < -8
 
-        # Now perform tests for QH field with G and I terms added
+        """
+        Now perform tests for QH field with G and I terms added
+        """
 
         bsh.set_G1(0.2)
         bsh.set_I1(0.1)
@@ -669,7 +678,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert max(max_mu_gc_error) < -8
         assert max(max_p_gc_error) < -8
 
-        # Now same as above with perturbation
+        """
+        Now same as above with perturbation
+        """
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
@@ -705,14 +716,17 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 alpha = alphahat * np.cos(theta_gc * alpham - zeta_gc * alphan + omega * time_gc)
                 deltaPhi = -omega * (G_gc[j] + iota_gc[j]*I_gc[j]) * alpha/(iota_gc[j]*alpham - alphan)
                 energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
-                p_gc = np.append(p_gc, G_gc[j] * (v_gc*m/AbsBs_gc[j] + q*alpha) + q*(psi[j]-psip[j]))
+                p_gc = np.append(p_gc, (G_gc[j] + helicity*I_gc[j]) * (v_gc*m/AbsBs_gc[j] + q*alpha) + q*(psi[j]*helicity - psip[j]))
 
             energy_gc_error = np.log10(np.abs(energy_gc*helicity-p_gc*omega - (energy_gc[0]*helicity-p_gc[0]*omega))/np.abs(energy_gc[0]*helicity-p_gc[0]*omega))
             max_energy_gc_error = np.append(max_energy_gc_error, max(energy_gc_error[3::]))
 
         assert max(max_energy_gc_error) < -8
 
-        # Now perform same tests for QH field with G, I, and K terms added
+        """
+        Now perform tests without perturbation for QH field with G, I, and K terms added
+        No test with perturbation since the K terms have not been implemented yet.
+        """
 
         bsh.set_K1(0.6)
 
@@ -764,7 +778,10 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert max(max_mu_gc_error) < -8
         assert max(max_p_gc_error) < -8
 
-        # Now trace with forget_exact_path = False. Check that gc_phi_hits is the same
+        """
+        Now trace with forget_exact_path = False. Check that gc_phi_hits is the same
+        """
+
         gc_tys, gc_phi_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                        tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[0], mode='gc',
                                                        stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
