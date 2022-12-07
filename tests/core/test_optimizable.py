@@ -1277,6 +1277,8 @@ class TestOptimizableSerialize(unittest.TestCase):
 
 
 from simsopt._core.derivative import Derivative, derivative_dec
+
+
 class OptClassSharedDOFs(Optimizable):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -1287,6 +1289,7 @@ class OptClassSharedDOFs(Optimizable):
     @derivative_dec
     def dJ(self):
         return Derivative({self: self.local_full_x})
+
 
 class TestOptimizableSharedDOFs(unittest.TestCase):
     """
@@ -1334,7 +1337,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
                                         fixed=[False, False, True])
         adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
         sum_obj = adder_orig + adder_shared_dofs
-        self.assertEqual(adder_orig.dJ()*2, sum_obj.dJ())
+        self.assertTrue((adder_orig.dJ()*2 == sum_obj.dJ()).all())
 
     def test_load_save(self):
         import tempfile
