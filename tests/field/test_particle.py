@@ -721,6 +721,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         bsh.set_G1(0.2)
         bsh.set_I1(0.1)
         bsh.set_I0(0.5)
+        bsh.set_iota1(0.1)
 
         stz_inits = np.random.uniform(size=(nparticles, 3))
         vpar_inits = vpar*np.random.uniform(size=(nparticles, 1))
@@ -739,7 +740,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
-                                                     stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
+                                                     stopping_criteria=[MinToroidalFluxStoppingCriterion(.01),
+                                                     MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
                                                      tol=1e-12)
 
         max_energy_gc_error = np.array([])
@@ -772,6 +774,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             max_energy_gc_error = np.append(max_energy_gc_error, max(energy_gc_error[3::]))
             max_mu_gc_error = np.append(max_mu_gc_error, max(mu_gc_error[3::]))
             max_p_gc_error = np.append(max_p_gc_error, max(p_gc_error[3::]))
+
         assert max(max_energy_gc_error) < -8
         assert max(max_mu_gc_error) < -8
         assert max(max_p_gc_error) < -8

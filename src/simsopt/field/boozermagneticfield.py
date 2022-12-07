@@ -147,7 +147,7 @@ class BoozerAnalytic(BoozerMagneticField):
     """
 
     def __init__(self, etabar, B0, N, G0, psi0, iota0, Bbar=1., I0=0., G1=0.,
-                 I1=0., K1=0.):
+                 I1=0., K1=0., iota1=0.):
         self.etabar = etabar
         self.B0 = B0
         self.Bbar = Bbar
@@ -159,6 +159,7 @@ class BoozerAnalytic(BoozerMagneticField):
         self.K1 = K1
         self.iota0 = iota0
         self.psi0 = psi0
+        self.iota1 = iota1
         BoozerMagneticField.__init__(self, psi0)
 
     def set_etabar(self, etabar):
@@ -201,6 +202,10 @@ class BoozerAnalytic(BoozerMagneticField):
         self.invalidate_cache()
         self.iota0 = iota0
 
+    def set_iota1(self, iota1):
+        self.invalidate_cache()
+        self.iota1 = iota1
+
     def set_psi0(self, psi0):
         self.invalidate_cache()
         self.psi0 = psi0
@@ -208,13 +213,15 @@ class BoozerAnalytic(BoozerMagneticField):
     def _psip_impl(self, psip):
         points = self.get_points_ref()
         s = points[:, 0]
-        psip[:, 0] = self.psi0*s*self.iota0
+        psip[:, 0] = self.psi0*(s*self.iota0 + s**2 * self.iota1/2)
 
     def _iota_impl(self, iota):
-        iota[:, 0] = self.iota0
+        points = self.get_points_ref()
+        s = points[:, 0]
+        iota[:, 0] = self.iota0 + self.iota1*s
 
     def _diotads_impl(self, diotads):
-        diotads[:, 0] = 0
+        diotads[:, 0] = self.iota1
 
     def _G_impl(self, G):
         points = self.get_points_ref()
