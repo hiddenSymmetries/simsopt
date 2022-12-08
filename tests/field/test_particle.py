@@ -428,7 +428,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         G0 = 1.1
         psi0 = 0.8
         iota0 = 0.4
-        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0)
+        iota1 = 0.1
+        bsh = BoozerAnalytic(etabar, B0, 0, G0, psi0, iota0, iota1=iota1)
 
         nparticles = 100
         m = PROTON_MASS
@@ -461,7 +462,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
                                                      tol=1e-12)
-
         # pick 100 random points on each trace, and ensure that
         # the energy is being conserved up to some precision
 

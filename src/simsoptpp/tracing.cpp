@@ -187,12 +187,12 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time);
             double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time);
 
-            dydt[0] = -dmodBdtheta*fak1/(q*psi0) + alpham * alphadot/psi0 * (v_par * modB/omega + G/(iota * alpham - alphan));
-            dydt[1] = dmodBdpsi*fak1/q + iota*v_par*modB/G + alpha*G*diotadpsi*alpham*omega/(modB*q*(iota*alpham-alphan)*(iota*alpham-alphan));
+            dydt[0] = -dmodBdtheta*fak1/(q*psi0) + alpham * alphadot /psi0 * (v_par * modB/omega + G/(iota * alpham - alphan));
+            dydt[1] = dmodBdpsi*fak1/q + iota*v_par*modB/G + alpha*G*diotadpsi*alpham*omega/((iota*alpham-alphan)*(iota*alpham-alphan));
             dydt[2] = v_par*modB/G;
             dydt[3] = (modB*modB*(-mu*m*(iota*alpham-alphan)*(iota*alpham-alphan)*(alphadot*dmodBdpsi*G*alpham + (dmodBdzeta + dmodBdtheta*iota)*omega) \
                      - alpha*alphadot*G*G*diotadpsi*alpham*alpham*omega*q) + G*G*m*alpham*omega*(alphadot*dmodBdpsi*(iota*alpham-alphan) \
-                    + alpha*dmodBdtheta*diotadpsi*omega)*v_par)/(modB*G*m*(iota*alpham-alphan)*(iota*alpham-alphan)*omega);
+                     + alpha*dmodBdtheta*diotadpsi*omega)*v_par)/(modB*G*m*(iota*alpham-alphan)*(iota*alpham-alphan)*omega);
             dydt[4] = 1;
         }
 };
