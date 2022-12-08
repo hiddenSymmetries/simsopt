@@ -2,7 +2,6 @@ import logging
 from math import sqrt
 
 import numpy as np
-# from nptyping import NDArray, Float
 
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
@@ -72,8 +71,8 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
 
 
 def trace_particles_boozer(field: BoozerMagneticField,
-                           stz_inits: RealArray,  # NDArray[Float],
-                           parallel_speeds: RealArray,  # NDArray[Float],
+                           stz_inits: RealArray,  
+                           parallel_speeds: RealArray,
                            tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                            tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False):
@@ -199,8 +198,8 @@ def trace_particles_boozer(field: BoozerMagneticField,
 
 
 def trace_particles(field: MagneticField,
-                    xyz_inits: RealArray,  # NDArray[Float],
-                    parallel_speeds: RealArray,  # NDArray[Float],
+                    xyz_inits: RealArray,
+                    parallel_speeds: RealArray,  
                     tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,

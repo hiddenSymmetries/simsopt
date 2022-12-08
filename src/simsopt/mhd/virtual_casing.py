@@ -179,8 +179,8 @@ class VirtualCasing:
             ran = "half period"
         else:
             ran = "field period"
-        surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                                nphi=src_nphi, ntheta=src_ntheta, range=ran)
+        surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                                 nphi=src_nphi, ntheta=src_ntheta, range=ran)
         for jmn in range(vmec.wout.mnmax):
             surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
             surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
@@ -193,8 +193,8 @@ class VirtualCasing:
             trgt_nphi = src_nphi
         if trgt_ntheta is None:
             trgt_ntheta = src_ntheta
-        trgt_surf = SurfaceRZFourier(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
-                                     nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
+        trgt_surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
+                                                      nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
         trgt_surf.x = surf.x
 
         unit_normal = trgt_surf.unitnormal()

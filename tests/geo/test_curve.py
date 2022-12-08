@@ -3,8 +3,8 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyEncoder, MontyDecoder
 
+from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
@@ -450,8 +450,8 @@ class Testing(unittest.TestCase):
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
         curve = get_curve(curvetype, rotated, x)
 
-        curve_json_str = json.dumps(curve, cls=MontyEncoder)
-        curve_regen = json.loads(curve_json_str, cls=MontyDecoder)
+        curve_json_str = json.dumps(SIMSON(curve), cls=GSONEncoder, indent=2)
+        curve_regen = json.loads(curve_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(curve.gamma(), curve_regen.gamma()))
 
     def test_serialization(self):

@@ -31,7 +31,7 @@ from simsopt.field import BiotSavart
 from simsopt.field import Current, Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
 from simsopt.geo import create_multifilament_grid
-from simsopt.geo import CurveLength, CurveCurveDistance, LpCurveCurvature
+from simsopt.geo import CurveLength, CurveCurveDistance
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
