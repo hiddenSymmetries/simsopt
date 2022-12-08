@@ -643,7 +643,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self.ancestors = self._get_ancestors()
 
         # Compute the indices of all the DOFs
-        self.update_free_dof_size_indices()
+        self.update_free_dof_size_indices() # This order of two lines needs to be preserved
         self._update_full_dof_size_indices()
         # Inform the object that it doesn't have valid cache
         self.set_recompute_flag()
@@ -878,17 +878,17 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         dof_indices = [0]
         free_dof_size = 0
         dof_objs = set()
-        opts = []
+        self._unique_dof_opts = []
         for opt in (self.ancestors + [self]):
             if opt.dofs not in dof_objs:
                 dof_objs.add(opt.dofs)
                 size = opt.local_dof_size
                 free_dof_size += size
                 dof_indices.append(free_dof_size)
-                opts.append(opt)
+                self._unique_dof_opts.append(opt)
 
         self._free_dof_size = free_dof_size
-        self.dof_indices = dict(zip(opts,
+        self.dof_indices = dict(zip(self._unique_dof_opts,
                                     zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the reduced dof length of children
@@ -928,7 +928,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
     @property
     def dofs(self) -> DOFs:
         """
-        Return all the attributes of degrees of freedom via DOFs object.
+        Return all the attributes of local degrees of freedom via DOFs object.
         Mainly used to conform with the default as_dict method of GSONable
         and to share DOFs object between multiple Optimizable objects
         """
@@ -979,7 +979,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Optimizable object and those of its ancestors
         """
         return np.concatenate([opt._dofs.free_x for
-                               opt in (self.ancestors + [self])])
+                               opt in self._unique_dof_opts])
 
     @x.setter
     def x(self, x: RealArray) -> None:
@@ -1000,7 +1000,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         with the current Optimizable object and those of its ancestors
         """
         return np.concatenate([opt._dofs.full_x for
-                               opt in (self.ancestors + [self])])
+                               opt in self._unique_dof_opts])
 
     @property
     def local_x(self) -> RealArray:

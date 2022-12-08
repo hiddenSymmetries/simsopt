@@ -1370,6 +1370,15 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         adder1_str_regen1 = Optimizable.from_str(adder_str1)
         self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
 
+    def test_dof_lengths(self):
+
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        sum_obj = adder_orig + adder_shared_dofs
+        self.assertEqual(sum_obj.dof_size, 2)
+        self.assertEqual(sum_obj.full_dof_size, 3)
+
 
 if __name__ == "__main__":
     unittest.main()
