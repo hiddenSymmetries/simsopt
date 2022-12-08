@@ -178,9 +178,18 @@ class Derivative():
         assert isinstance(optim, Optimizable)
         deps = optim.ancestors + [optim]
         derivs = []
+        
+        dofs_dict = {}
         for k in deps:
             if np.any(k.dofs_free_status):
-                derivs.append(self.data[k][k.local_dofs_free_status])
+                if k.dofs in dofs_dict:
+                    dofs_dict[k.dofs] += self.data[k][k.local_dofs_free_status]
+                else:
+                    dofs_dict[k.dofs] = self.data[k][k.local_dofs_free_status]
+        
+        for k in dofs_dict.values():
+            derivs.append(k)
+
         return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
