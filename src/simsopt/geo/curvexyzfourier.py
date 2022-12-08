@@ -89,7 +89,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         num_coils = coil_data.shape[1]//6
         coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
         for ic in range(num_coils):
-            dofs = coils[ic].dofs
+            dofs = coils[ic].dofs_matrix
             dofs[0][0] = coil_data[0, 6*ic + 1]
             dofs[1][0] = coil_data[0, 6*ic + 3]
             dofs[2][0] = coil_data[0, 6*ic + 5]
