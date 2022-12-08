@@ -50,7 +50,7 @@ __all__ = ['Optimizable', 'make_optimizable', 'load', 'save',
            'OptimizableSum', 'ScaledOptimizable']
 
 
-class DOFs(GSONable):
+class DOFs(GSONable, Hashable):
     """
     Defines the (D)egrees (O)f (F)reedom(s) associated with optimization
 
@@ -123,7 +123,11 @@ class DOFs(GSONable):
         self._upper_bounds = upper_bounds
         self._names = list(names)
         self._dep_opts = []
+        self._hash = id(self) % 10**32  # 32 digit int as hash
         self.name = str(id(self))   # For serialization
+
+    def __hash__(self):
+        return self._hash
 
     def add_opt(self, opt):
         """
@@ -873,12 +877,18 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: node after fixing/unfixing any DOF
         dof_indices = [0]
         free_dof_size = 0
+        dof_objs = set()
+        opts = []
         for opt in (self.ancestors + [self]):
-            size = opt.local_dof_size
-            free_dof_size += size
-            dof_indices.append(free_dof_size)
+            if opt.dofs not in dof_objs:
+                dof_objs.add(opt.dofs)
+                size = opt.local_dof_size
+                free_dof_size += size
+                dof_indices.append(free_dof_size)
+                opts.append(opt)
+
         self._free_dof_size = free_dof_size
-        self.dof_indices = dict(zip(self.ancestors + [self],
+        self.dof_indices = dict(zip(opts,
                                     zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the reduced dof length of children
@@ -901,9 +911,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: Alternatively ask the user to call this manually from the end
         # TODO: node after fixing/unfixing any DOF
         full_dof_size = 0
+        dof_objs = set()
         self.ancestors = self._get_ancestors()
         for opt in (self.ancestors + [self]):
-            full_dof_size += opt.local_full_dof_size
+            if opt.dofs not in dof_objs:
+                dof_objs.add(opt.dofs)
+                full_dof_size += opt.local_full_dof_size
         self._full_dof_size = full_dof_size
 
         # Update the full dof length of children
