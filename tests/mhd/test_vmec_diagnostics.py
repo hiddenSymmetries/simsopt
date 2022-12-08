@@ -5,7 +5,7 @@ import numpy as np
 
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
     B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
-    vmec_fieldlines
+    vmec_splines, vmec_compute_geometry, vmec_fieldlines
 from simsopt.objectives.least_squares import LeastSquaresProblem
 
 try:
@@ -425,6 +425,62 @@ class WellWeightedTests(unittest.TestCase):
         self.assertLessEqual(relative_error, 5.e-2)
 
 
+class VmecComputeGeometryTests(unittest.TestCase):
+    def test_1d_matches_3d(self):
+        """
+        If we call the function with 1d arrays for theta and phi,
+        we should get the same results as if we call the routine with
+        equivalent 3d arrays for theta and phi.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
+        splines = vmec_splines(vmec)
+        s = 0.5
+        theta = [0.2, 0.7, -10.2]
+        phi = [-9.9, -4.4, 0, 3.3, 7.7]
+        ntheta = len(theta)
+        nphi = len(phi)
+
+        theta3d = np.zeros((1, ntheta, nphi))
+        phi3d = np.zeros_like(theta3d)
+        for jtheta in range(ntheta):
+            theta3d[:, jtheta, :] = theta[jtheta]
+        for jphi in range(nphi):
+            phi3d[:, :, jphi] = phi[jphi]
+
+        results1 = vmec_compute_geometry(splines, s, theta, phi)
+        results2 = vmec_compute_geometry(vmec, np.array([s]), theta3d, phi3d)
+
+        variables = ["theta_pest", "grad_psi_dot_grad_psi", "B_cross_kappa_dot_grad_psi"]
+        for v in variables:
+            np.testing.assert_allclose(eval("results1." + v), eval("results2." + v))
+
+    def test_compare_to_desc(self):
+        """
+        Compare some values to an independent calculation in desc.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_lowres.nc"))
+
+        s = [0.25, 1.0]
+        ntheta = 4
+        nphi = 5
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=False)
+
+        simsopt_data = vmec_compute_geometry(vmec, s, theta, phi)
+
+        desc_data = np.zeros((len(s), ntheta, nphi))
+        desc_data[0, :, :] = np.array([[0.0232505427, 0.0136928264, 0.0045250425, 0.0045250425, 0.0136928264],
+                                       [0.001595767, 0.006868957, 0.0126580432, 0.0124698027, 0.0069361438],
+                                       [0.0418344846, 0.0234485798, 0.0058187257, 0.0058187257, 0.0234485798],
+                                       [0.001595767, 0.0069361438, 0.0124698027, 0.0126580432, 0.006868957]])
+        desc_data[1, :, :] = np.array([[0.0682776505, 0.0419440941, 0.0159952307, 0.0159952307, 0.0419440941],
+                                       [0.006650641, 0.0301276863, 0.0552814479, 0.0525678846, 0.0244553647],
+                                       [0.2151059496, 0.1238328858, 0.0297237057, 0.0297237057, 0.1238328858],
+                                       [0.006650641, 0.0244553647, 0.0525678846, 0.0552814479, 0.0301276863]])
+
+        np.testing.assert_allclose(simsopt_data.grad_psi_dot_grad_psi, desc_data, rtol=0.005, atol=0.0005)
+
+
 class VmecFieldlinesTests(unittest.TestCase):
     def test_fieldline_grids(self):
         """
@@ -546,7 +602,7 @@ class VmecFieldlinesTests(unittest.TestCase):
                 np.testing.assert_allclose(fl.B_cross_grad_B_dot_grad_alpha, fl.B_cross_grad_B_dot_grad_alpha_alternate, atol=0.02)
 
                 # Check 2 ways of computing cvdrift:
-                cvdrift_alt = 2 * fl.B_reference * fl.L_reference * fl.L_reference \
+                cvdrift_alt = -1 * 2 * fl.B_reference * fl.L_reference * fl.L_reference \
                     * np.sqrt(fl.s)[:, None, None] * fl.B_cross_kappa_dot_grad_alpha \
                     / (fl.modB * fl.modB) * fl.toroidal_flux_sign
                 np.testing.assert_allclose(fl.cvdrift, cvdrift_alt)
@@ -602,9 +658,9 @@ class VmecFieldlinesTests(unittest.TestCase):
             np.testing.assert_allclose(fl.gds2[0, j, :], np.fromstring(lines[16 + j], sep=' '), rtol=2e-4)
             np.testing.assert_allclose(fl.gds21[0, j, :], np.fromstring(lines[20 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gds22[0, j, :], np.fromstring(lines[24 + j], sep=' '), atol=2e-4)
-            np.testing.assert_allclose(fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gbdrift0[0, j, :], np.fromstring(lines[32 + j], sep=' '), atol=1e-4)
-            np.testing.assert_allclose(fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.cvdrift0[0, j, :], np.fromstring(lines[40 + j], sep=' '), atol=1e-4)
 
     def test_axisymm(self):
