@@ -47,7 +47,7 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python }}
 
@@ -76,7 +76,7 @@ jobs:
       - name: Fetch all history for all tags
         run: git fetch --prune --unshallow
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         name: Install Python
         with:
           python-version: '3.8'
