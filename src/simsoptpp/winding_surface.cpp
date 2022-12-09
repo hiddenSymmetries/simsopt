@@ -17,14 +17,14 @@ Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& 
     double fak = 1e-7;  // mu0 divided by 4 * pi factor
 
     // #pragma omp parallel for schedule(static)
-    for(int i = 0; i < num_points; i++) {
+    for(int i = 0; i < num_points; ++i) {
         double x = points(i, 0);
         double y = points(i, 1);
         double z = points(i, 2);
         double B_ix = 0.0;
         double B_iy = 0.0;
         double B_iz = 0.0;
-	
+
 	// Sum contributions from all the winding surface points
         // i.e. do the surface integral over the winding surface
         for (int j = 0; j < num_ws_points; ++j) {
@@ -50,9 +50,9 @@ Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& 
             B_iy += nmag * Kcrossr_y * rmag_inv_3;
             B_iz += nmag * Kcrossr_z * rmag_inv_3;
         }
-        B(i, 0) = fak * B_ix;    
-        B(i, 1) = fak * B_iy;    
-        B(i, 2) = fak * B_iz;    
+        B(i, 0) = fak * B_ix;
+        B(i, 1) = fak * B_iy;
+        B(i, 2) = fak * B_iz;
     }
     return B;
 }
@@ -349,14 +349,14 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
           throw std::runtime_error("phi needs to be in row-major storage order");
     if(theta_coil.layout() != xt::layout_type::row_major)
           throw std::runtime_error("theta needs to be in row-major storage order");
-    
+
     int num_plasma = normal_plasma.shape(0);
     int num_coil = normal_coil.shape(0);
     Array gij = xt::zeros<double>({num_plasma, num_coil});
     Array gj = xt::zeros<double>({num_plasma, ndofs});
     Array Ajk = xt::zeros<double>({ndofs, ndofs});
-  
-    // initialize pointer to the beginning of the coil quadrature points 
+
+    // initialize pointer to the beginning of the coil quadrature points
     //double* coil_points_ptr = &(points_coil(0, 0));
     //double* normal_coil_ptr = &(normal_coil(0, 0));
     double fak = 1e-7;  // mu0 divided by 4 * pi factor
@@ -366,25 +366,25 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     //for(int i = 0; i < num_plasma; i += simd_size) {
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
-        double npx = normal_plasma(i, 0); 
-        double npy = normal_plasma(i, 1); 
-        double npz = normal_plasma(i, 2); 
-	
+        double npx = normal_plasma(i, 0);
+        double npy = normal_plasma(i, 1);
+        double npz = normal_plasma(i, 2);
+
 	// Loop through the coil quadrature points, using all the symmetries
         for (int j = 0; j < num_coil; ++j) {
-            double ncx = normal_coil(j, 0); 
-            double ncy = normal_coil(j, 1); 
-            double ncz = normal_coil(j, 2); 
-            double rx = points_plasma(i, 0) - points_coil(j, 0); 
-            double ry = points_plasma(i, 1) - points_coil(j, 1); 
+            double ncx = normal_coil(j, 0);
+            double ncy = normal_coil(j, 1);
+            double ncz = normal_coil(j, 2);
+            double rx = points_plasma(i, 0) - points_coil(j, 0);
+            double ry = points_plasma(i, 1) - points_coil(j, 1);
             double rz = points_plasma(i, 2) - points_coil(j, 2);
 	    double rmag2 = rx * rx + ry * ry + rz * rz;
             double rmag_inv = 1.0 / std::sqrt(rmag2);
             double rmag_inv_3 = rmag_inv * rmag_inv * rmag_inv;
             double rmag_inv_5 = rmag_inv_3 * rmag_inv * rmag_inv;
-            double npdotnc = npx * ncx + npy * ncy + npz * ncz; 
-            double rdotnp = rx * npx + ry * npy + rz * npz; 
-            double rdotnc = rx * ncx + ry * ncy + rz * ncz; 
+            double npdotnc = npx * ncx + npy * ncy + npz * ncz;
+            double rdotnp = rx * npx + ry * npy + rz * npz;
+            double rdotnc = rx * ncx + ry * ncy + rz * ncz;
             double G_i = npdotnc * rmag_inv_3 - 3.0 * rdotnp * rdotnc * rmag_inv_5;
             gij(i, j) = fak * G_i;
 	}
@@ -395,7 +395,7 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
         for(int j = 0; j < ndofs; j++){
             for(int k = 0; k < num_coil; k++){
 		double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
-	        double cphi = std::cos(angle); 
+	        double cphi = std::cos(angle);
 	        double sphi = std::sin(angle);
 		if (stellsym) {
 		    gj(i, j) += sphi * gij(i, k);
@@ -414,18 +414,18 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     for(int j = 0; j < ndofs; j++) {
 	for(int k = 0; k < ndofs; k++) {
 	    for(int i = 0; i < num_plasma; i++) {
-                double npx = normal_plasma(i, 0); 
-                double npy = normal_plasma(i, 1); 
-                double npz = normal_plasma(i, 2); 
+                double npx = normal_plasma(i, 0);
+                double npy = normal_plasma(i, 1);
+                double npz = normal_plasma(i, 2);
 	        double n_norm = std::sqrt(npx * npx + npy * npy + npz * npz);
                 Ajk(j, k) += gj(i, j) * gj(i, k) / n_norm;
 	    }
 	}
     }
-    return std::make_tuple(gj, Ajk); 
+    return std::make_tuple(gj, Ajk);
 }
 
-Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& zeta_coil, Array& theta_coil, double G, double I, Array& gammadash1, Array& gammadash2) 
+Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& zeta_coil, Array& theta_coil, double G, double I, Array& gammadash1, Array& gammadash2)
 {
     int num_plasma = normal_plasma.shape(0);
     int num_coil = points_coil.shape(0);

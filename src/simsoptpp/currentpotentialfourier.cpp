@@ -82,13 +82,13 @@ void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
                 // simd_t sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
+                    if (m==0 && n<=0) continue;
                     // recompute the angle from scratch every so often, to
                     // avoid accumulating floating point error
                     // if(i % ANGLE_RECOMPUTE == 0)
                     //     xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
                     double sinterm = sin(m*theta-n*nfp*phi);
                     double costerm = cos(m*theta-n*nfp*phi);
-                    if (m==0 && n<=0) continue;
                     Phidash1 += (-n*nfp) * phis(m, i) * costerm;
                     if(!stellsym) {
                         Phidash1 += - (-n*nfp) * phic(m, i) * sinterm;
@@ -136,13 +136,13 @@ void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
                 // simd_t sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
+                    if (m==0 && n<=0) continue;
                     // recompute the angle from scratch every so often, to
                     // avoid accumulating floating point error
                     // if(i % ANGLE_RECOMPUTE == 0)
                     //     xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
                     double costerm = cos(m*theta-n*nfp*phi);
                     double sinterm = sin(m*theta-n*nfp*phi);
-                    if (m==0 && n<=0) continue;
                     Phidash2 += m * phis(m, i) * costerm;
                     if(!stellsym) {
                         Phidash2 += - m * phic(m, i) * sinterm;
