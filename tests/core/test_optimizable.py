@@ -1378,6 +1378,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         sum_obj = adder_orig + adder_shared_dofs
         self.assertEqual(sum_obj.dof_size, 2)
         self.assertEqual(sum_obj.full_dof_size, 3)
+        self.assertEqual(len(sum_obj.x), 2)
 
 
 if __name__ == "__main__":
