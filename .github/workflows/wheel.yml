@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Fetch all history for all tags
         run: git fetch --prune --unshallow
@@ -41,7 +41,7 @@ jobs:
         python: [3.7, 3.8, 3.9, "3.10"]
         os: [macos-11, macos-12]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Fetch all history for all tags
         run: git fetch --prune --unshallow
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Fetch all history for all tags
         run: git fetch --prune --unshallow
