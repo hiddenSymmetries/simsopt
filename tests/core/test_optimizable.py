@@ -1285,7 +1285,7 @@ class OptClassSharedDOFs(Optimizable):
 
     def J(self):
         return sum(self.x)
-    
+
     @derivative_dec
     def dJ(self):
         return Derivative({self: self.local_full_x})
@@ -1331,7 +1331,7 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
 
         adder_orig.fix_all()
         self.assertTrue(len(adder_shared_dofs.x) == 0)
-    
+
     def test_derivative(self):
         adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
                                         fixed=[False, False, True])

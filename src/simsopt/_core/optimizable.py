@@ -643,7 +643,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self.ancestors = self._get_ancestors()
 
         # Compute the indices of all the DOFs
-        self.update_free_dof_size_indices() # This order of two lines needs to be preserved
+        self.update_free_dof_size_indices()  # This order of two lines needs to be preserved
         self._update_full_dof_size_indices()
         # Inform the object that it doesn't have valid cache
         self.set_recompute_flag()
