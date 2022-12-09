@@ -54,12 +54,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev libopenblas-dev
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Fetch all history for all tags
       run: git fetch --all --tags --prune --unshallow
 
-    # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # We must run actions/checkout@v3 before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
       run: git clone --depth=1 https://github.com/hiddensymmetries/VMEC2000.git
 
@@ -100,7 +100,7 @@ jobs:
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
