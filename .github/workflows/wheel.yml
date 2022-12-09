@@ -27,7 +27,7 @@ jobs:
           CIBW_DEPENDENCY_VERSIONS: latest
           CIBW_BEFORE_BUILD_LINUX: pip install --upgrade pip setuptools wheel numpy cmake ninja setuptools_scm[toml]
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -62,7 +62,7 @@ jobs:
           python -m pip wheel -w wheel --no-deps .
           delocate-wheel --require-archs x86_64 -w ./wheelhouse ./wheel/simsopt*.whl
          
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -90,7 +90,7 @@ jobs:
       - name: Build sdist
         run: python -m build -s -o dist .
         
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: dist/*.tar.gz
 
@@ -102,7 +102,7 @@ jobs:
     # alternatively, to publish when a GitHub Release is created, use the following rule:
     # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
