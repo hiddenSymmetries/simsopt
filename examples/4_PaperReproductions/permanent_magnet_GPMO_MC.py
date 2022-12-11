@@ -37,7 +37,8 @@ input_name = 'input.muse'
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_focus(surface_filename, nphi=nphi, ntheta=ntheta)
+#s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # initialize the coils
 #base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
@@ -48,7 +49,7 @@ IN_DIR = "/global/cscratch1/sd/akaptano/muse_famus_toroidal_nphi" + str(nphi) + 
 bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
 
 # Calculate average, approximate on-axis B field strength
-#calculate_on_axis_B(bs, s)
+calculate_on_axis_B(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -103,8 +104,8 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 50000
-kwargs['nhistory'] = 1000
+kwargs['K'] = 15000
+kwargs['nhistory'] = 100
 #kwargs['verbose'] = False
 
 OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_MC' + '_K' + str(kwargs['K']) + '_output/'
@@ -112,7 +113,9 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 t1 = time.time()
 # Optimize the permanent magnets greedily
-R2_history, m_history = GPMO(pm_opt, algorithm='mutual_coherence', **kwargs)
+#R2_history, m_history = GPMO(pm_opt, algorithm='mutual_coherence', **kwargs)
+algorithm = 'baseline'  # 'mutual_coherence'
+R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm=algorithm, **kwargs)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
@@ -122,6 +125,10 @@ plt.figure()
 plt.semilogy(iterations, R2_history)
 plt.grid(True)
 plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
+
+plt.figure()
+plt.semilogy(iterations, Bn_history)
+plt.grid(True)
 
 min_ind = np.argmin(R2_history)
 pm_opt.m = np.ravel(m_history[:, :, min_ind])
@@ -174,6 +181,21 @@ print('Total volume = ', total_volume)
 
 # write solution to FAMUS-type file
 write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
+
+# Compute the full Bfield and average it over the plasma surface
+Bfield = bs + b_dipole
+Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
+Bmag = np.sqrt(np.sum(Bfield.B().reshape((qphi * ntheta, 3)) ** 2, axis=-1))
+
+# repeat for Bn
+abs_Bnormal = np.ravel(abs(np.sum(Bfield.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)))
+
+Nnorms = np.ravel(np.sqrt(np.sum(s_plot.normal() ** 2, axis=-1)))
+Ngrid = qphi * ntheta
+print('<|Bn|> = ', np.sum(abs_Bnormal * Nnorms) / Ngrid)
+print('<|B|> = ', np.sum(Bmag * Nnorms) / Ngrid)
+print('<|B|^2> = ', np.sum(Bmag ** 2 * Nnorms) / Ngrid)
+print('<|Bn|> / <|B|> = ', np.sum(abs_Bnormal * Nnorms) / np.sum(Bmag * Nnorms))
 
 # Optionally make a QFM and pass it to VMEC
 # This is probably worthless unless plasma

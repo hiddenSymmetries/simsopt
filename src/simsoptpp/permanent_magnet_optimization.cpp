@@ -486,17 +486,20 @@ std::tuple<Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, 
 
 
 // fairly convoluted way to print every ~ K / nhistory iterations
-void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& m_history, double mmax_sum) 
+void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr) 
 {	
     int N = x.shape(0);
+    double sqrtR2 = 0.0;
     double R2 = 0.0;
     double L2 = mmax_sum;
-#pragma omp parallel for schedule(static) reduction(+: R2)
+#pragma omp parallel for schedule(static) reduction(+: R2, sqrtR2)
     for(int i = 0; i < ngrid; ++i) {
 	R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
+	sqrtR2 += abs(Aij_mj_ptr[i]) * sqrt(normal_norms_ptr[i]);
     }
     R2 = 0.5 * R2;
     objective_history(print_iter) = R2;
+    Bn_history(print_iter) = sqrtR2 / sqrt(ngrid);
 #pragma omp parallel for schedule(static) 
     for (int i = 0; i < N; ++i) {
 	for (int ii = 0; ii < 3; ++ii) {
@@ -535,7 +538,7 @@ Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 
 // GPMO algorithm with backtracking to fix wyrms -- close cancellations between
 // two nearby, oppositely oriented magnets. 
-std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
+std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -548,6 +551,7 @@ std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
     Array objective_history = xt::zeros<double>({nhistory + 1});
+    Array Bn_history = xt::zeros<double>({nhistory + 1});
 
     // print out the names of the error columns
     if (verbose)
@@ -574,6 +578,7 @@ std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* normal_norms_ptr = &(normal_norms(0));
 
     // get indices for dipoles that are adjacent to dipole j
     Array Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
@@ -681,7 +686,7 @@ std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_
         }
 
 	if (verbose && ((k % int(4 * K / nhistory)) == 0) || k == 0 || k == 4 * K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history, 0.0);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, 0.0, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
 	    // if get stuck at some number of dipoles, break out of the loop
@@ -702,12 +707,12 @@ std::tuple<Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_
 	}
 	k += 1;
     }
-    return std::make_tuple(objective_history, m_history, num_nonzeros, x);
+    return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
 }
 
 // Run the GPMO algorithm, placing a dipole and all of the closest Nadjacent dipoles down
 // all at once each iteration. All of these dipoles are aligned in the same way by assumption 
-std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bool verbose, int nhistory, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
+std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Array& normal_norms, int K, bool verbose, int nhistory, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -719,6 +724,7 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
     Array objective_history = xt::zeros<double>({nhistory + 1});
+    Array Bn_history = xt::zeros<double>({nhistory + 1});
 
     // print out the names of the error columns
     if (verbose)
@@ -740,6 +746,7 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
     // initialize running matrix-vector product
     Array Aij_mj_sum = -b_obj;
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* normal_norms_ptr = &(normal_norms(0));
 
     // get indices for dipoles that are adjacent to dipole j
     Array Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
@@ -820,16 +827,16 @@ std::tuple<Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, int K, bo
 	    }
 	}
 	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history, 0.0);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, 0.0, normal_norms_ptr);
 	}
     }
-    return std::make_tuple(objective_history, m_history, x);
+    return std::make_tuple(objective_history, Bn_history, m_history, x);
 }
 
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, int K, bool verbose, int nhistory, int single_direction)
+std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -841,6 +848,7 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array&
     // record the history of the algorithm iterations
     Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
     Array objective_history = xt::zeros<double>({nhistory + 1});
+    Array Bn_history = xt::zeros<double>({nhistory + 1});
 
     // print out the names of the error columns
     if (verbose)
@@ -863,6 +871,7 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array&
     Array Aij_mj_sum = -b_obj;
     double mmax_sum = 0.0;
     double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* normal_norms_ptr = &(normal_norms(0));
     double* mmax_ptr = &(mmax(0));
 
     // if using a single direction, increase j by 3 each iteration
@@ -918,10 +927,10 @@ std::tuple<Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array&
         }
 
 	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, m_history, mmax_sum);
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
-    return std::make_tuple(objective_history, m_history, x);
+    return std::make_tuple(objective_history, Bn_history, m_history, x);
 }
 
 // Projected quasi-newton (L-BFGS) method used for convex or nonnconvex problems

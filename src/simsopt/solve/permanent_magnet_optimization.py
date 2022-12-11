@@ -273,24 +273,28 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     # Run one of the greedy algorithm (GPMO) variants
     reg_l2 = algorithm_kwargs["reg_l2"]
     algorithm_kwargs.pop("reg_l2")
+    Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
     if algorithm == 'baseline':  # GPMO
-        algorithm_history, m_history, m = sopp.GPMO_baseline(
+        algorithm_history, Bn_history, m_history, m = sopp.GPMO_baseline(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
+            normal_norms=Nnorms,
             **algorithm_kwargs
         )
     elif algorithm == 'backtracking':  # GPMOb
-        algorithm_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
+        algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            normal_norms=Nnorms,
             **algorithm_kwargs
         )
         pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
     elif algorithm == 'multi':  # GPMOm
-        algorithm_history, m_history, m = sopp.GPMO_multi(
+        algorithm_history, Bn_history, m_history, m = sopp.GPMO_multi(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            normal_norms=Nnorms,
             **algorithm_kwargs
         )
     elif algorithm == 'mutual_coherence':  # GPMO using mutual coherence instead of MSE 
@@ -326,9 +330,10 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     for i in range(m_history.shape[-1]):
         m_history[:, :, i] = m_history[:, :, i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
     errors = algorithm_history[algorithm_history != 0]
+    Bn_errors = Bn_history[Bn_history != 0]
 
     # note m = m_proxy for GPMO because this is not using relax-and-split
     pm_opt.m = np.ravel(m)
     pm_opt.m_proxy = pm_opt.m
-    return errors, m_history
+    return errors, Bn_errors, m_history
 
