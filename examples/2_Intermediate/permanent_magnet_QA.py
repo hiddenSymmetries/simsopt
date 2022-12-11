@@ -8,6 +8,10 @@ For realistic designs, please see the full script in src/simsopt/util,
 which can generate all of the results in the recent relax-and-split
 permanent magnet optimization paper.
 
+This example uses the relax-and-split algorithm for 
+high-dimensional sparse regression. See permanent_magnet_GPMO.py
+for using the greedy GPMO algorithm to solve the problem.
+
 The script should be run as:
     mpirun -n 1 python permanent_magnet_QA.py
 

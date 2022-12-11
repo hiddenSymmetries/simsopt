@@ -967,7 +967,7 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
         kwargs['reg_l2'] = 0.0
     elif algorithm == 'GPMO':
-        kwargs['K'] = 400
+        kwargs['K'] = 1000
         kwargs["reg_l2"] = 0.0 
-        kwargs['nhistory'] = 200  # K > nhistory and nhistory must be divisor of K
+        kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K
     return kwargs

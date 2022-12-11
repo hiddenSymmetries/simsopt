@@ -28,8 +28,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 8  # need to set this to 64 for a real run
-ntheta = 8  # same as above
+nphi = 64  # need to set this to 64 for a real run
+ntheta = 64  # same as above
 dr = 0.02
 coff = 0.02
 poff = 0.1
@@ -71,12 +71,14 @@ pm_opt = PermanentMagnetGrid(
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
+print('NCSX surface area = ', s_plot.area())
 algorithm = 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000  # Number of magnets to place... 50000 for a full run perhaps
+kwargs['K'] = 35000  # Number of magnets to place... 50000 for a full run perhaps
 kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
-kwargs['backtracking'] = 500  # frequency with which to backtrack
+kwargs['backtracking'] = 100  # frequency with which to backtrack
 kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
+kwargs['nhistory'] = 500  # Number of neighbor dipoles to consider as adjacent
 
 # Make the output directory
 OUT_DIR = 'output_permanent_magnet_GPMO_NCSX_' + algorithm + '/'
@@ -84,7 +86,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
-R2_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
+R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
@@ -101,6 +103,14 @@ plt.xlabel('K')
 plt.ylabel('$f_B$')
 plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 
+plt.figure()
+plt.semilogy(Bn_history)
+#plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
+plt.grid(True)
+plt.xlabel('K')
+plt.ylabel('$<|B_n|>$')
+plt.savefig(OUT_DIR + 'GPMO_absBn_history.png')
+
 mu0 = 4 * np.pi * 1e-7
 Bmax = 1.465
 vol_eff = np.sum(np.sqrt(np.sum(m_history ** 2, axis=1)), axis=0) * mu0 * 2 * s.nfp / Bmax
@@ -108,8 +118,8 @@ np.savetxt(OUT_DIR + 'eff_vol_history_K' + str(kwargs['K']) + '_nphi' + str(nphi
 
 # Plot the MSE history versus the effective magnet volume
 plt.figure()
-plt.semilogy(vol_eff, R2_history)
-#plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
+#plt.semilogy(vol_eff, R2_history)
+plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
 plt.grid(True)
 plt.xlabel('$V_{eff}$')
 plt.ylabel('$f_B$')
@@ -129,20 +139,24 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
-for k in range(0, kwargs["nhistory"] + 1, 50):
+Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
+
+for k in range(0, len(R2_history), 5):
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
     print("Total fB = ",
           0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+    print("Total <|Bn|> = ",
+          np.sum(np.abs(pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) * np.sqrt(Nnorms / len(pm_opt.b_obj))))
 
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_total = Bnormal + Bnormal_dipoles
     # For plotting Bn on the full torus surface at the end with just the dipole fields
-    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
-    pointData = {"B_N": Bnormal_total[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)), extra_data=pointData)
+    #make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
+    #pointData = {"B_N": Bnormal_total[:, :, None]}
+    #s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)), extra_data=pointData)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
@@ -161,6 +175,21 @@ print('Total volume = ', total_volume)
 # write solution to FAMUS-type file
 write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
+# Compute the full Bfield and average it over the plasma surface
+Bfield = bs + b_dipole
+Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
+Bmag = np.sqrt(np.sum(Bfield.B().reshape((qphi * ntheta, 3)) ** 2, axis=-1))
+
+# repeat for Bn
+abs_Bnormal = np.ravel(abs(np.sum(Bfield.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)))
+
+Nnorms = np.ravel(np.sqrt(np.sum(s_plot.normal() ** 2, axis=-1)))
+Ngrid = qphi * ntheta
+print('<|Bn|> = ', np.sum(abs_Bnormal * Nnorms) / Ngrid)
+print('<|B|> = ', np.sum(Bmag * Nnorms) / Ngrid)
+print('<|B|^2> = ', np.sum(Bmag ** 2 * Nnorms) / Ngrid)
+print('<|Bn|> / <|B|> = ', np.sum(abs_Bnormal * Nnorms) / np.sum(Bmag * Nnorms))
+
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is 64 x 64 resolution.
@@ -174,8 +203,6 @@ if vmec_flag:
 
     # Make the QFM surfaces
     t1 = time.time()
-    Bfield = bs + b_dipole
-    Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
     qfm_surf = make_qfm(s_plot, Bfield)
     qfm_surf = qfm_surf.surface
     t2 = time.time()
