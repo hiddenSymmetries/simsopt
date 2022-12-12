@@ -271,8 +271,11 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Run one of the greedy algorithm (GPMO) variants
-    reg_l2 = algorithm_kwargs["reg_l2"]
-    algorithm_kwargs.pop("reg_l2")
+    if "reg_l2" in algorithm_kwargs.keys():
+        reg_l2 = algorithm_kwargs["reg_l2"]
+        algorithm_kwargs.pop("reg_l2")
+    else:
+        reg_l2 = 0.0
     Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
 
     # Note, only baseline method has the f_m loss term implemented! 
@@ -319,7 +322,10 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
 
     # check that algorithm worked correctly to generate K binary dipoles
-    print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
+    if "K" in algorithm_kwargs.keys():
+        print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
+    else:
+        print('Number of binary dipoles to use in GPMO algorithm = ', np.count_nonzero(np.sum(m ** 2, axis=-1)))
     print(np.count_nonzero(m))
     print(
         'Number of binary dipoles returned by GPMO algorithm = ',

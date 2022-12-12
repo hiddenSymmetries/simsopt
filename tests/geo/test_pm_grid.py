@@ -125,8 +125,8 @@ class Testing(unittest.TestCase):
             mmax = np.ravel(np.array([pm_opt.m_maxima, pm_opt.m_maxima, pm_opt.m_maxima]).T)
             _, _, _, = relax_and_split(pm_opt, m0=np.ones((pm_opt.ndipoles * 3)) * mmax)
 
-        with self.assertRaises(ValueError):
-            GPMO(pm_opt, algorithm='baseline', kwargs={})
+        kwargs = {}
+        GPMO(pm_opt, algorithm='baseline', **kwargs)
 
         kwargs = initialize_default_kwargs('GPMO')
         with self.assertRaises(ValueError):

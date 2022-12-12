@@ -72,12 +72,12 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 print('NCSX surface area = ', s_plot.area())
-algorithm = 'baseline'  # 'backtracking'
+algorithm = 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = 35000  # Number of magnets to place... 50000 for a full run perhaps
-#kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
-#kwargs['backtracking'] = 100  # frequency with which to backtrack
-#kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
+kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
+kwargs['backtracking'] = 100  # frequency with which to backtrack
+kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
 kwargs['nhistory'] = 500  # Number of neighbor dipoles to consider as adjacent
 
 # Make the output directory
