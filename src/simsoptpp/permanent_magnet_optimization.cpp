@@ -449,22 +449,23 @@ std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array
                     m_history(i, ii, print_iter) = x(i, ii);
 	        }
             }
-	    vector<double> mu(N3);
-	    vector<double> mu_max(N3);
-#pragma omp parallel for schedule(static) 
-	    for(int j = 0; j < N3; ++j) {
-	        for(int i = 0; i < N3; ++i) {
-	            mu[j] = 0.0;
-		    for(int ii = 0; ii < ngrid; ++ii) {
-	                mu[j] += abs(A_obj(ii, i) * A_obj(ii, j)) / Aij_l2[i] / Aij_l2[j];
-	            }
-		    if (mu[j] > mu_max[j]) mu_max[j] = mu[j];
-		}
-	    }
-	    auto mu_result = std::max_element(mu_max.begin(), mu_max.end());
-            int mu_ind = std::distance(mu_max.begin(), mu_result);
-	    double max_mu = mu_max[mu_ind];
-            if (verbose) printf("%d ... %.2e ... %.2e \n", k, R2, max_mu);
+	    //vector<double> mu(N3);
+	    //vector<double> mu_max(N3);
+//#pragma omp parallel for schedule(static) 
+	    //for(int j = 0; j < N3; ++j) {
+	        //for(int i = 0; i < N3; ++i) {
+	            //mu[j] = 0.0;
+		    //for(int ii = 0; ii < ngrid; ++ii) {
+	            //    mu[j] += abs(A_obj(ii, i) * A_obj(ii, j)) / Aij_l2[i] / Aij_l2[j];
+	           // }
+		    //if (mu[j] > mu_max[j]) mu_max[j] = mu[j];
+		//}
+	    //}
+	    //auto mu_result = std::max_element(mu_max.begin(), mu_max.end());
+            //int mu_ind = std::distance(mu_max.begin(), mu_result);
+	    //double max_mu = mu_max[mu_ind];
+            //if (verbose) printf("%d ... %.2e ... %.2e \n", k, R2, max_mu);
+            if (verbose) printf("%d ... %.2e \n", k, R2);
             print_iter += 1;
       	}
     }
