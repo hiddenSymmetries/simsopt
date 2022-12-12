@@ -274,6 +274,8 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     reg_l2 = algorithm_kwargs["reg_l2"]
     algorithm_kwargs.pop("reg_l2")
     Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
+
+    # Note, only baseline method has the f_m loss term implemented! 
     if algorithm == 'baseline':  # GPMO
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_baseline(
             A_obj=np.ascontiguousarray(A_obj.T),
@@ -286,6 +288,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             **algorithm_kwargs
         )
@@ -294,15 +297,17 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_multi(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             **algorithm_kwargs
         )
     elif algorithm == 'mutual_coherence':  # GPMO using mutual coherence instead of MSE 
         ATb = A_obj.T @ pm_opt.b_obj
-        algorithm_history, m_history, m = sopp.GPMO_MC(
+        algorithm_history, Bn_history, m_history, m = sopp.GPMO_MC(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             ATb=np.ascontiguousarray(ATb),
+            normal_norms=Nnorms,
             **algorithm_kwargs
         )
     else:

@@ -27,8 +27,8 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 64
-ntheta = 64
+nphi = 8
+ntheta = 8
 dr = 0.01
 coff = 0.1
 poff = 0.02
@@ -38,15 +38,14 @@ input_name = 'input.muse'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, nphi=nphi, ntheta=ntheta)
-#s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # initialize the coils
-#base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
+OUT_DIR = 'output_permanent_magnets/'
+os.makedirs(OUT_DIR, exist_ok=True)
+base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
 
 # Set up BiotSavart fields
-#bs = BiotSavart(coils)
-IN_DIR = "/global/cscratch1/sd/akaptano/muse_famus_toroidal_nphi" + str(nphi) + "_ntheta" + str(ntheta) + "_dr1.00e-02_coff1.00e-01_poff2.00e-02/"
-bs = Optimizable.from_file(IN_DIR + 'BiotSavart.json')
+bs = BiotSavart(coils)
 
 # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(bs, s)
@@ -61,38 +60,28 @@ s_plot = SurfaceRZFourier.from_focus(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-#make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
+make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 
 # optimize the currents in the TF coils if doing QA/QH
 # s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, 'qa')
-#bs.set_points(s.gamma().reshape((-1, 3)))
-#Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+bs.set_points(s.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # check after-optimization average on-axis magnetic field strength
-#calculate_on_axis_B(bs, s)
+calculate_on_axis_B(bs, s)
 
 # Set up correct Bnormal from TF coils 
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-#pm_opt = PermanentMagnetGrid(
-#    s, coil_offset=coff, dr=dr, plasma_offset=poff,
-#    Bn=Bnormal, surface_flag='focus',
-#    filename=surface_filename,
-#    coordinate_flag='toroidal',
-#    famus_filename='zot80.focus'
-#)
-# Make a subdirectory for the optimization output
-
-#
-pickle_name = IN_DIR + "PM_optimizer_muse_famus.pickle"
-pm_opt = pickle.load(open(pickle_name, "rb", -1))
-pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
-pm_opt.m = np.zeros(pm_opt.ndipoles * 3)
-pm_opt.m_proxy = np.zeros(pm_opt.ndipoles * 3)
-pm_opt.plasma_boundary = s
-#pm_opt.Bn = Bnormal
+pm_opt = PermanentMagnetGrid(
+    s, coil_offset=coff, dr=dr, plasma_offset=poff,
+    Bn=Bnormal, surface_flag='focus',
+    filename=surface_filename,
+    coordinate_flag='toroidal',
+    famus_filename='zot80.focus'
+)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -106,15 +95,14 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = 15000
 kwargs['nhistory'] = 100
-#kwargs['verbose'] = False
 
 OUT_DIR = '/global/cscratch1/sd/akaptano/permanent_magnet_GPMO_MC' + '_K' + str(kwargs['K']) + '_output/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 t1 = time.time()
-# Optimize the permanent magnets greedily
-#R2_history, m_history = GPMO(pm_opt, algorithm='mutual_coherence', **kwargs)
-algorithm = 'baseline'  # 'mutual_coherence'
+
+# Optimize the permanent magnets greedily -- try baseline, mutual coherence doesn't work great
+algorithm = 'mutual_coherence'
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm=algorithm, **kwargs)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
@@ -145,6 +133,7 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
+
 # Plot the SIMSOPT GBPMO solution 
 for k in range(0, kwargs["nhistory"] + 1, 50):
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)

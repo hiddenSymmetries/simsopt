@@ -64,7 +64,7 @@ pm_opt = PermanentMagnetGrid(
     s, coil_offset=coff, dr=dr, plasma_offset=poff,
     Bn=Bnormal, surface_flag='focus',
     filename=surface_filename,
-    coordinate_flag='toroidal',
+    coordinate_flag='cylindrical',
     famus_filename='init_orient_pm_nonorm_5E4_q4_dp.focus'
 )
 
@@ -72,12 +72,12 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 print('NCSX surface area = ', s_plot.area())
-algorithm = 'backtracking'
+algorithm = 'baseline'  # 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = 35000  # Number of magnets to place... 50000 for a full run perhaps
-kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
-kwargs['backtracking'] = 100  # frequency with which to backtrack
-kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
+#kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
+#kwargs['backtracking'] = 100  # frequency with which to backtrack
+#kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
 kwargs['nhistory'] = 500  # Number of neighbor dipoles to consider as adjacent
 
 # Make the output directory
@@ -96,16 +96,20 @@ np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_
 
 # Note backtracking uses num_nonzeros since many magnets get removed 
 plt.figure()
-plt.semilogy(R2_history)
-#plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
+if algorithm != "backtracking":
+    plt.semilogy(R2_history)
+else:
+    plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
 plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('$f_B$')
 plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 
 plt.figure()
-plt.semilogy(Bn_history)
-#plt.semilogy(pm_opt.num_nonzeros, R2_history[1:])
+if algorithm != "backtracking":
+    plt.semilogy(Bn_history)
+else:
+    plt.semilogy(pm_opt.num_nonzeros, Bn_history[1:])
 plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('$<|B_n|>$')
@@ -118,8 +122,10 @@ np.savetxt(OUT_DIR + 'eff_vol_history_K' + str(kwargs['K']) + '_nphi' + str(nphi
 
 # Plot the MSE history versus the effective magnet volume
 plt.figure()
-#plt.semilogy(vol_eff, R2_history)
-plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
+if algorithm != "backtracking":
+    plt.semilogy(vol_eff, R2_history)
+else:
+    plt.semilogy(vol_eff[:len(pm_opt.num_nonzeros) + 1], R2_history)
 plt.grid(True)
 plt.xlabel('$V_{eff}$')
 plt.ylabel('$f_B$')
@@ -193,7 +199,7 @@ print('<|Bn|> / <|B|> = ', np.sum(abs_Bnormal * Nnorms) / np.sum(Bmag * Nnorms))
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is 64 x 64 resolution.
-vmec_flag = False
+vmec_flag = False 
 if vmec_flag:
     from mpi4py import MPI
     from simsopt.util.mpi import MpiPartition
