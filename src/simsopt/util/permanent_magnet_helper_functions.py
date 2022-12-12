@@ -354,6 +354,7 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
         + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 
     def fun(dofs):
+        """ Function for coil optimization grabbed from stage_two_optimization.py """
         JF.x = dofs
         J = JF.J()
         grad = JF.dJ()
@@ -763,7 +764,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
     if len(RS_history) != 0:
 
         m_history = np.array(m_history)
-        #m_history = m_history.reshape(m_history.shape[0] * m_history.shape[1], pm_opt.ndipoles, 3)
+        m_history = m_history.reshape(m_history.shape[0] * m_history.shape[1], pm_opt.ndipoles, 3)
         m_proxy_history = np.array(m_proxy_history).reshape(m_history.shape[0], pm_opt.ndipoles, 3)
 
         for i, datum in enumerate([m_history, m_proxy_history]):

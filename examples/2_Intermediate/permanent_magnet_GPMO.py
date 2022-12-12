@@ -86,7 +86,7 @@ kwargs['K'] = 2000
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
-R2_history, m_history = GPMO(pm_opt, **kwargs)
+R2_history, Bn_history, m_history = GPMO(pm_opt, **kwargs)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
@@ -97,10 +97,12 @@ np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_
 # plot the MSE history
 iterations = np.linspace(0, kwargs['K'], len(R2_history), endpoint=False)
 plt.figure()
-plt.semilogy(iterations, R2_history)
+plt.semilogy(iterations, R2_history, label=r'$f_B$')
+plt.semilogy(iterations, Bn_history, label=r'$<|Bn|>$')
 plt.grid(True)
 plt.xlabel('K')
-plt.ylabel('$f_B$')
+plt.ylabel('Metric values')
+plt.legend()
 plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
 
 # Set final m to the minimum achieved during the optimization
@@ -156,7 +158,7 @@ write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is 64 x 64 resolution.
-vmec_flag = False
+vmec_flag = False 
 if vmec_flag:
     from mpi4py import MPI
     from simsopt.util.mpi import MpiPartition

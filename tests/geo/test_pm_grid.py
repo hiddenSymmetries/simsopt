@@ -5,6 +5,7 @@ from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.solve import relax_and_split, GPMO
+from simsopt.util.permanent_magnet_helper_functions import *
 import simsoptpp as sopp
 import numpy as np
 import unittest
@@ -96,12 +97,14 @@ class Testing(unittest.TestCase):
         nphi = 32
         ntheta = 32
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+
         # Create some initial coils:
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=False, R0=1.0, R1=0.5, order=5)
         base_currents = [Current(1e5) for i in range(2)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
+
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
@@ -123,15 +126,14 @@ class Testing(unittest.TestCase):
             _, _, _, = relax_and_split(pm_opt, m0=np.ones((pm_opt.ndipoles * 3)) * mmax)
 
         with self.assertRaises(ValueError):
-            GPMO(pm_opt, algorithm='baseline', kwargs={}):
+            GPMO(pm_opt, algorithm='baseline', kwargs={})
 
-        from simsopt.util.permanent_magnet_helper_functions import *
         kwargs = initialize_default_kwargs('GPMO')
         with self.assertRaises(ValueError):
-            GPMO(pm_opt, algorithm='backtracking', kwargs):
+            GPMO(pm_opt, algorithm='backtracking', **kwargs)
 
         with self.assertRaises(ValueError):
-            GPMO(pm_opt, algorithm='multi', kwargs):
+            GPMO(pm_opt, algorithm='multi', **kwargs)
 
     def test_projected_normal(self):
         """
@@ -163,12 +165,14 @@ class Testing(unittest.TestCase):
         nphi = 32
         ntheta = 32
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+
         # Create some initial coils:
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=False, R0=1.0, R1=0.5, order=5)
         base_currents = [Current(1e5) for i in range(2)]
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
         bs = BiotSavart(coils)
         bs.set_points(s.gamma().reshape((-1, 3)))
+
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
@@ -181,10 +185,12 @@ class Testing(unittest.TestCase):
         Ngrid = nphi * ntheta
         Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
         assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+
         # check <Bn>
         B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
         B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
         assert np.isclose(B_opt, B_dipole_field)
+
         # check integral Bn^2
         f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
         f_B = SquaredFlux(s, b_dipole, -Bn).J()

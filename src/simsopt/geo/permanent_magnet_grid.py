@@ -436,11 +436,11 @@ class PermanentMagnetGrid:
             theta value.
         """
         if self.surface_flag == 'focus':
-            rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
         elif self.surface_flag == 'wout':
-            rz_inner_surface = SurfaceRZFourier.from_wout(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            rz_inner_surface = SurfaceRZFourier.from_wout(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
         else:
-            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
         rz_inner_surface.extend_via_projected_normal(self.phi, self.plasma_offset)
@@ -454,11 +454,11 @@ class PermanentMagnetGrid:
             theta value.
         """
         if self.surface_flag == 'focus':
-            rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
         elif self.surface_flag == 'wout':
-            rz_outer_surface = SurfaceRZFourier.from_wout(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            rz_outer_surface = SurfaceRZFourier.from_wout(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
         else:
-            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range=self.plasma_boundary.range, nphi=self.nphi, ntheta=self.ntheta)
+            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
         t1 = time.time()
