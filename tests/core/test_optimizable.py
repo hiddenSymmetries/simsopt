@@ -1335,9 +1335,14 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
     def test_derivative(self):
         adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
                                         fixed=[False, False, True])
+        
         adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
         sum_obj = adder_orig + adder_shared_dofs
+        
+        # test that the Derivative class is correctly combining the derivatives
         self.assertTrue((adder_orig.dJ()*2 == sum_obj.dJ()).all())
+        self.assertTrue((sum_obj.dJ(partials=True)(adder_orig) == sum_obj.dJ()).all())
+        self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
 
     def test_load_save(self):
         import tempfile
