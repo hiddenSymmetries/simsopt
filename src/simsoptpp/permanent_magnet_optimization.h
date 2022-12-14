@@ -40,7 +40,7 @@ std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj,
 std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent);
 std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, Array& dipole_grid_xyz, int single_direction, int Nadjacent);
 std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array&mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction);
-std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, Array& normal_norms, int K, bool verbose, int nhistory);
+std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory);
 
 // helper functions for GPMO algorithm
 void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr); 

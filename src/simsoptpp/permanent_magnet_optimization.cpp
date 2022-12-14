@@ -330,7 +330,7 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
 // NOTE: we need a slight change to the algorithm! Once we pick an index to
 // set to one, we need to eliminate the other indices from consideration
 // to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, Array& normal_norms, int K, bool verbose, int nhistory)
+std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -365,7 +365,9 @@ std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array
     double* Gamma_ptr = &(Gamma_complement(0, 0));
     double* uk = &(ATb(0));
     double* normal_norms_ptr = &(normal_norms(0));
-   
+    double mmax_sum = 0.0;
+    double* mmax_ptr = &(mmax(0));
+    
     // compute l2_norm(A(:, j)) for each column j 
     vector<double> Aij_l2(N3);
 #pragma omp parallel for schedule(static) 
@@ -397,16 +399,17 @@ std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array
 	    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
 	    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 	}
+	skjj[k] = (skj[k] % 3); 
+	skj[k] = int(skj[k] / 3.0);
+	R2 = R2 + (mmax_ptr[skj[k]] * mmax_ptr[skj[k]]);
+        R2minus	= R2minus + (mmax_ptr[skj[k]] * mmax_ptr[skj[k]]);
 	if (R2minus < R2) {
 	    sign_fac[k] = -1.0;
 	}
 	else {
             sign_fac[k] = 1.0;
 	}
-
-	skjj[k] = (skj[k] % 3); 
-	skj[k] = int(skj[k] / 3.0);
-        x(skj[k], skjj[k]) = sign_fac[k];
+	x(skj[k], skjj[k]) = sign_fac[k];
        
 	// Add binary magnet and get rid of the magnet (all three components)
         // from the complement of Gamma
@@ -430,44 +433,9 @@ std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array
             }
 	    uk[j] -= ATAij;
 	}
-
-        R2 = 0.0;
-        double sqrtR2 = 0.0;
-      	// fairly convoluted way to print every ~ K / nhistory iterations
-        if (((k % (int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
-#pragma omp parallel for schedule(static) reduction(+: R2, sqrtR2)
-	    for(int i = 0; i < ngrid; ++i) {
-      	        R2 += Aij_mj_ptr[i] * Aij_mj_ptr[i];
-	        sqrtR2 += abs(Aij_mj_ptr[i]) * sqrt(normal_norms_ptr[i]);
-	    }
-            R2 = 0.5 * R2;
-            objective_history(print_iter) = R2;
-            Bn_history(print_iter) = sqrtR2 / sqrt(N);
-#pragma omp parallel for schedule(static) 
-            for (int i = 0; i < N; ++i) {
-                for (int ii = 0; ii < 3; ++ii) {
-                    m_history(i, ii, print_iter) = x(i, ii);
-	        }
-            }
-	    //vector<double> mu(N3);
-	    //vector<double> mu_max(N3);
-//#pragma omp parallel for schedule(static) 
-	    //for(int j = 0; j < N3; ++j) {
-	        //for(int i = 0; i < N3; ++i) {
-	            //mu[j] = 0.0;
-		    //for(int ii = 0; ii < ngrid; ++ii) {
-	            //    mu[j] += abs(A_obj(ii, i) * A_obj(ii, j)) / Aij_l2[i] / Aij_l2[j];
-	           // }
-		    //if (mu[j] > mu_max[j]) mu_max[j] = mu[j];
-		//}
-	    //}
-	    //auto mu_result = std::max_element(mu_max.begin(), mu_max.end());
-            //int mu_ind = std::distance(mu_max.begin(), mu_result);
-	    //double max_mu = mu_max[mu_ind];
-            //if (verbose) printf("%d ... %.2e ... %.2e \n", k, R2, max_mu);
-            if (verbose) printf("%d ... %.2e \n", k, R2);
-            print_iter += 1;
-      	}
+        if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
+	}
     }
     return std::make_tuple(objective_history, Bn_history, m_history, x);
 }
@@ -580,9 +548,9 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
     int num_nonzero = 0;
     int k = 0;
 
-    // Main loop over the optimization iterations
-    while (k < 4 * K and num_nonzero < K) {
-    //for (int k = 0; k < K; ++k) {
+    // Main loop over the optimization iterations to continue
+    // until K dipoles are placed overall 
+    while (num_nonzero < K) {
 #pragma omp parallel for schedule(static)
 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
@@ -597,8 +565,8 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
 		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 		}
-		R2s_ptr[j] = R2;
-		R2s_ptr[j + N3] = R2minus;
+		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
+		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
 	    }
 	}
 
@@ -617,6 +585,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    skj[k] = int(skj[k] / 3.0);
 	    sk_sign_fac[skj[k]] = 1.0;
 	}
+	mmax_sum += mmax_ptr[skj[k]] * mmax_ptr[skj[k]];
 	skjj_ind[skj[k]] = skjj[k];
         x(skj[k], skjj[k]) = sign_fac[k];
 
@@ -634,8 +603,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	}
 
 	// backtrack by removing adjacent dipoles that are equal and opposite
-	if ((k > 0) and ((k % backtracking) == 0)) {
-	//if ((k > 0) and ((k % (int(K / backtracking))) == 0)) {
+	if ((k >= backtracking) and ((k % backtracking) == 0)) {
 	    // Loop over all dipoles placed so far
             int wyrm_sum = 0;
 	    for (int j = 0; j < k; j++) {
@@ -664,6 +632,8 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 			 for(int i = 0; i < ngrid; ++i) {
 		             Aij_mj_ptr[i] -= sk_sign_fac[jk] * Aij_ptr[i + skj_ind1] + sk_sign_fac[cj] * Aij_ptr[i + skj_ind2];
 			 }
+	                 mmax_sum -= mmax_ptr[jk] * mmax_ptr[jk];
+	                 mmax_sum -= mmax_ptr[cj] * mmax_ptr[cj];
 			 // set sign_fac = 0 so that these magnets do not keep getting dewyrmed
 			 sk_sign_fac[jk] = 0.0;
 			 sk_sign_fac[cj] = 0.0;
@@ -675,7 +645,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
-	// if (verbose && ((k % int(4 * K / nhistory)) == 0) || k == 0 || k == 4 * K - 1) {
 	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
@@ -684,6 +653,10 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    num_nonzeros(print_iter) = num_nonzero;
 	    if (print_iter > 10 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) break;
 	}
+	if (print_iter > nhistory) {
+	    printf("Number of iterations has hit the iteration limit, increase the nhistory parameter to continue optimizing.\n");
+            return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
+        }
 
 	// check range here
 	num_nonzero = 0;
@@ -755,8 +728,10 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 	    // Check all the allowed dipole positions
 	    if (Gamma_ptr[j]) {
 		int j_ind = int(j / 3);
+		double mmax_partial_sum = 0.0;
 		double R2 = 0.0;
 		double R2minus = 0.0;
+		int nj = ngrid * j;
 
 		// Compute contribution of jth dipole component, with +- orientation
 		// as well as contributions of all the closest AVAILABLE
@@ -770,16 +745,19 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 		    while (not Gamma_ptr[cj_ind]) {
                         cj = Connect(j_ind, Nadjacent + cj_counter);
 		        cj_ind = 3 * cj + (j % 3);	
-			cj_counter += 1;
+		        cj_counter += 1;
 		    }
-		    int nj = ngrid * cj_ind; // index j and all its neighbors
+		    nj = ngrid * cj_ind; // index j and all its neighbors
+	    
+	    	    // Compute contribution of jth dipole component, either with +- orientation
 		    for(int i = 0; i < ngrid; ++i) {
-			R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
-			R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
+		        R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
+		        R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
 		    }
+		    mmax_partial_sum += mmax_ptr[cj] * mmax_ptr[cj];
 		}
-		R2s_ptr[j] = R2;
-		R2s_ptr[j + N3] = R2minus;
+		R2s_ptr[j] = R2 + mmax_partial_sum; 
+		R2s_ptr[j + N3] = R2minus + mmax_partial_sum; 
 	    }
 	}
 
@@ -794,12 +772,14 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 	}
 	skjj[k] = (skj[k] % 3); 
 	skj[k] = int(skj[k] / 3.0);
+	// printf("%d\n", skj[k]);
 
 	// Add binary magnets and get rid of the neighboring
 	// magnets (all three components) from Gamma_complement
 	int cj_counter = 0;
 	for (int jj = 0; jj < Nadjacent; ++jj) {
 	    int cj = Connect(skj[k], jj); 
+	    // printf("%d %d %d %d \n", k, skj[k], jj, cj);
 	    int cj_ind = 3 * cj + skjj[k];
 	    // if neighbor dipole is already full, look
 	    // for the next closest neighbor 
@@ -809,6 +789,7 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 		cj_counter += 1;
 	    }
 	    x(cj, skjj[k]) = sign_fac[k];	
+	    mmax_sum += mmax_ptr[cj] * mmax_ptr[cj];
 	    int skj_inds = cj_ind * ngrid;
 	    for(int i = 0; i < ngrid; ++i) {
                 Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
@@ -902,7 +883,6 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
             sign_fac[k] = 1.0;
 	}
 	skjj[k] = (skj[k] % 3); 
-	mmax_sum += mmax_ptr[skj[k]] * mmax_ptr[skj[k]];
 	skj[k] = int(skj[k] / 3.0);
         x(skj[k], skjj[k]) = sign_fac[k];
 

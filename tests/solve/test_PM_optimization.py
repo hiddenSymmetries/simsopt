@@ -13,7 +13,7 @@ class Testing(unittest.TestCase):
         """
         ndipoles = 100
         nquad = 1024
-        max_iter = 1000
+        max_iter = 100
         m_maxima = np.random.rand(ndipoles) * 10
         m0 = np.zeros((ndipoles, 3))
         b = np.random.rand(nquad)
@@ -53,52 +53,90 @@ class Testing(unittest.TestCase):
         ndipoles = 1000
         nquad = 1024
         max_iter = 100
-        m_maxima = np.zeros(ndipoles)  # np.random.rand(ndipoles) * 10
-        m0 = np.zeros((ndipoles, 3))
+        nhistory = 10
         b = np.random.rand(nquad)
         A = np.random.rand(nquad, ndipoles, 3)
         ATb = np.tensordot(A, b, axes=([0, 0]))
         t1 = time.time()
         Nnorms = np.random.rand(nquad)
-        _, _, m_hist, _, = sopp.GPMO_baseline(
-            A_obj=A,
-            b_obj=b,
-            mmax=m_maxima,
-            normal_norms=Nnorms,
-            K=max_iter,
-            verbose=True,
-        )
-        _, _, m_hist_multi, _ = sopp.GPMO_multi(
-            A_obj=A,
-            b_obj=b,
-            mmax=m_maxima,
-            normal_norms=Nnorms,
-            K=max_iter,
-            verbose=True,
-            Nadjacent=1,
-            dipole_grid_xyz=np.random.rand(ndipoles, 3)
-        )
-        _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
-            A_obj=A,
-            b_obj=b,
-            mmax=m_maxima,
-            normal_norms=Nnorms,
-            K=max_iter,
-            verbose=True,
-            Nadjacent=1,
-            backtracking=500,
-            dipole_grid_xyz=np.random.rand(ndipoles, 3)
-        )
-        assert np.all(m_hist == m_hist_multi)
-        assert np.all(m_hist == m_hist_backtracking)
-        _, _, _, m_hist_MC = sopp.GPMO_MC(
-            A_obj=A,
-            b_obj=b,
-            ATb=ATb,
-            normal_norms=Nnorms,
-            K=max_iter,
-            verbose=True,
-        )
+        m_random = np.random.rand(ndipoles) * 10
+        m_zeros = np.zeros(ndipoles)
+
+        # Check that baseline, multi, and backtracking variants
+        # of GPMO algorithm all produce same answer in the baseline limit. 
+        for m_maxima in [m_zeros, m_random]:
+            _, _, m_hist_multi, _ = sopp.GPMO_multi(
+                A_obj=A,
+                b_obj=b,
+                mmax=m_maxima,
+                normal_norms=Nnorms,
+                K=max_iter,
+                nhistory=nhistory,
+                verbose=True,
+                Nadjacent=1,
+                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+            )
+            _, _, m_hist, _, = sopp.GPMO_baseline(
+                A_obj=A,
+                b_obj=b,
+                mmax=m_maxima,
+                normal_norms=Nnorms,
+                K=max_iter,
+                nhistory=nhistory,
+                verbose=True,
+            )
+            _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
+                A_obj=A,
+                b_obj=b,
+                mmax=m_maxima,
+                normal_norms=Nnorms,
+                K=max_iter,
+                nhistory=nhistory,
+                verbose=True,
+                Nadjacent=1,
+                backtracking=500,
+                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+            )
+            assert np.allclose(m_hist, m_hist_backtracking)
+
+            print('now testing segfault avoidance.')
+            # test that backtracking quits correctly, no segfault
+            # when nhistory << K
+            _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
+                A_obj=A,
+                b_obj=b,
+                mmax=m_maxima,
+                normal_norms=Nnorms,
+                K=max_iter,
+                nhistory=1,
+                verbose=True,
+                Nadjacent=1,
+                backtracking=500,
+                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+            )
+            _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
+                A_obj=A,
+                b_obj=b,
+                mmax=m_maxima,
+                normal_norms=Nnorms,
+                K=max_iter,
+                nhistory=1,
+                verbose=True,
+                Nadjacent=1,
+                backtracking=1,
+                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+            )
+
+            # Test that mutual coherence optimization works
+            _, _, _, m_hist_MC = sopp.GPMO_MC(
+                A_obj=A,
+                b_obj=b,
+                ATb=ATb,
+                mmax=m_maxima,
+                normal_norms=Nnorms,
+                K=max_iter,
+                verbose=True,
+            )
         t2 = time.time()
         print(t2 - t1) 
 
