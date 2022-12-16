@@ -41,6 +41,7 @@ void init_tracing(py::module_ &m){
         py::arg("vacuum"),
         py::arg("noK"),
         py::arg("zetas")=vector<double>{},
+        py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
         py::arg("vpars")=vector<double>{},
         py::arg("phis_stop")=false,
@@ -59,6 +60,7 @@ void init_tracing(py::module_ &m){
         py::arg("vacuum"),
         py::arg("noK"),
         py::arg("zetas")=vector<double>{},
+        py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
         py::arg("vpars")=vector<double>{},
         py::arg("phis_stop")=false,
@@ -66,7 +68,8 @@ void init_tracing(py::module_ &m){
         py::arg("alphahat")=0,
         py::arg("omega")=0,
         py::arg("alpham")=0,
-        py::arg("alphan")=0
+        py::arg("alphan")=0,
+        py::arg("phase")=0
         );
 
     m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,
@@ -80,6 +83,7 @@ void init_tracing(py::module_ &m){
         py::arg("tol"),
         py::arg("vacuum"),
         py::arg("phis")=vector<double>{},
+        py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
         );
 

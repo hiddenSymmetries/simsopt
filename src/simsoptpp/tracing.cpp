@@ -148,7 +148,7 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
     private:
         typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
         shared_ptr<BoozerMagneticField<T>> field;
-        double m, q, mu, alphahat, omega;
+        double m, q, mu, alphahat, omega, phase;
         int alpham, alphan;
     public:
         static constexpr int Size = 5;
@@ -157,9 +157,9 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
 
         GuidingCenterVacuumBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
             double m, double q, double mu, double alphahat, double omega, int alpham,
-            int alphan)
+            int alphan, double phase)
             : field(field), m(m), q(q), mu(mu), alphahat(alphahat), omega(omega),
-              alpham(alpham), alphan(alphan) {
+              alpham(alpham), alphan(alphan), phase(phase) {
             }
 
         void operator()(const State &ys, array<double, 5> &dydt,
@@ -184,8 +184,8 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time);
-            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time);
+            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
+            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
 
             dydt[0] = -dmodBdtheta*fak1/(q*psi0) + alpham * alphadot /psi0 * (v_par * modB/omega + G/(iota * alpham - alphan));
             dydt[1] = dmodBdpsi*fak1/q + iota*v_par*modB/G + alpha*G*diotadpsi*alpham*omega/((iota*alpham-alphan)*(iota*alpham-alphan));
@@ -213,7 +213,7 @@ class GuidingCenterNoKBoozerPerturbedRHS {
     private:
         typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
         shared_ptr<BoozerMagneticField<T>> field;
-        double m, q, mu, alphahat, omega;
+        double m, q, mu, alphahat, omega, phase;
         int alpham, alphan;
     public:
         static constexpr int Size = 5;
@@ -222,9 +222,9 @@ class GuidingCenterNoKBoozerPerturbedRHS {
 
         GuidingCenterNoKBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
             double m, double q, double mu, double alphahat, double omega, int alpham,
-            int alphan)
+            int alphan, double phase)
             : field(field), m(m), q(q), mu(mu), alphahat(alphahat), omega(omega),
-              alpham(alpham), alphan(alphan) {
+              alpham(alpham), alphan(alphan), phase(phase) {
             }
 
         void operator()(const State &ys, array<double, 5> &dydt,
@@ -252,8 +252,8 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time);
-            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time);
+            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
+            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
             double denom = q*(G + I*(-alpha*dGdpsi + iota) + alpha*G*dIdpsi) + m*v_par/modB * (-dGdpsi*I + G*dIdpsi); // q G in vacuum
 
             dydt[0] = ((-dmodBdtheta*G + dmodBdzeta*I)*fak1 + alphadot*q*(G*alpham+alphan*I)*(v_par*modB/omega + (G + iota*I)/(iota*alpham - alphan)))/(denom*psi0);
@@ -509,8 +509,9 @@ std::array<double, m+n> join(const std::array<double, m>& a, const std::array<do
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool phis_stop=false, bool vpars_stop=false, bool flux=false)
-{
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double tol,
+    vector<double> phis, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+    vector<double> vpars, bool phis_stop=false, bool vpars_stop=false, bool flux=false) {
     vector<array<double, RHS::Size+1>> res = {};
     vector<array<double, RHS::Size+2>> res_phi_hits = {};
     typedef typename RHS::State State;
@@ -520,13 +521,17 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     dense.initialize(y, t, dt);
     int iter = 0;
     bool stop = false;
-    double phi_last = get_phi(y[0], y[1], M_PI);
+    double phi_last;
     double vpar_last = 0;
+    double t_last = 0;
     if (flux) {
+      t_last = t;
       phi_last = y[2];
       vpar_last = y[3];
+    } else {
+      phi_last = get_phi(y[0], y[1], M_PI);
     }
-    double phi_current, vpar_current;
+    double phi_current, vpar_current, t_current;
     boost::math::tools::eps_tolerance<double> roottol(-int(std::log2(tol)));
     uintmax_t rootmaxit = 200;
     State temp;
@@ -536,11 +541,13 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         iter++;
         t = dense.current_time();
         y = dense.current_state();
-        phi_current = get_phi(y[0], y[1], phi_last);
         if (flux) {
+          t_current = t;
           phi_current = y[2];
           vpar_current = y[3];
-        }
+      } else {
+          phi_current = get_phi(y[0], y[1], phi_last);
+      }
         double tlast = std::get<0>(step);
         double tcurrent = std::get<1>(step);
         // Now check whether we have hit any of the vpar planes
@@ -563,23 +570,26 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 }
             }
         }
-        // Now check whether we have hit any of the phi planes
+        // Now check whether we have hit any of the (phi - omega t) planes
         for (int i = 0; i < phis.size(); ++i) {
             double phi = phis[i];
-            if(std::floor((phi_last-phi)/(2*M_PI)) != std::floor((phi_current-phi)/(2*M_PI))){ // check whether phi+k*2pi for some k was crossed
-                int fak = std::round(((phi_last+phi_current)/2-phi)/(2*M_PI));
-                double phi_shift = fak*2*M_PI + phi;
-                assert((phi_last <= phi_shift && phi_shift <= phi_current) || (phi_current <= phi_shift && phi_shift <= phi_last));
+            double omega = omegas[i];
+            double phase_last = phi_last - omega*t_last;
+            double phase_current = phi_current - omega*t_current;
+            if(std::floor((phase_last-phi)/(2*M_PI)) != std::floor((phase_current-phi)/(2*M_PI))) { // check whether phi+k*2pi for some k was crossed
+                int fak = std::round(((phase_last+phase_current)/2-phi)/(2*M_PI));
+                double phase_shift = fak*2*M_PI + phi;
+                assert((phase_last <= phase_shift && phase_shift <= phase_current) || (phase_current <= phase_shift && phase_shift <= phase_last));
 
-                std::function<double(double)> rootfun = [&dense, &phi_shift, &temp, &phi_last, &flux](double t){
+                std::function<double(double)> rootfun = [&phase_shift, &phi_last, &omega, &dense, &temp, &flux](double t){
                     dense.calc_state(t, temp);
-                    double diff = get_phi(temp[0], temp[1], phi_last)-phi_shift;
                     if (flux) {
-                      diff = temp[2]-phi_shift;
+                      return temp[2] - omega*t - phase_shift;
+                    } else {
+                      return get_phi(temp[0], temp[1], phi_last) - omega*t - phase_shift;
                     }
-                    return diff;
                 };
-                auto root = toms748_solve(rootfun, tlast, tcurrent, phi_last - phi_shift, phi_current - phi_shift, roottol, rootmaxit);
+                auto root = toms748_solve(rootfun, tlast, tcurrent, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
                 double f0 = rootfun(root.first);
                 double f1 = rootfun(root.second);
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
@@ -599,6 +609,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 break;
             }
         }
+        t_last = t_current;
         phi_last = phi_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
@@ -613,7 +624,8 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
+        vector<double> phis, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename MagneticField<T>::Tensor2 xyz({{xyz_init[0], xyz_init[1], xyz_init[2]}});
     field->set_points(xyz);
@@ -628,7 +640,7 @@ particle_guiding_center_tracing(
 
     if(vacuum){
         auto rhs_class = GuidingCenterVacuumRHS<T>(field, m, q, mu);
-        return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria, {});
+        return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, omegas, stopping_criteria, {});
     }
     else
         throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
@@ -639,9 +651,10 @@ tuple<vector<array<double, 6>>, vector<array<double, 7>>>
 particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas,
+        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, double alphahat, double omega, int alpham, int alphan)
+        bool phis_stop, bool vpars_stop, double alphahat, double omega, int alpham,
+        int alphan, double phase)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -657,12 +670,12 @@ particle_guiding_center_boozer_perturbed_tracing(
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, alphahat, omega,
-        alpham, alphan);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
+        alpham, alphan, phase);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
   } else {
       auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS<T>(field, m, q, mu, alphahat, omega,
-        alpham, alphan);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
+        alpham, alphan, phase);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
   }
 }
 
@@ -671,7 +684,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas,
+        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
         bool phis_stop, bool vpars_stop)
 {
@@ -689,13 +702,13 @@ particle_guiding_center_boozer_tracing(
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
+      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
     }
 }
 
@@ -703,21 +716,24 @@ template
 tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double alphahat, double omega, int alpham, int alphan);
+        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double alphahat,
+        double omega, int alpham, int alphan, double phase);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         vector<double> vpars={}, bool phis_stop, bool vpars_stop);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
         shared_ptr<MagneticField<xt::pytensor>> field, array<double, 3> xyz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
-        vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        vector<double> phis, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 
 template<template<class, std::size_t, xt::layout_type> class T>
@@ -734,8 +750,8 @@ particle_fullorbit_tracing(
     double r0 = std::sqrt(xyz_init[0]*xyz_init[0] + xyz_init[1]*xyz_init[1]);
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-
-    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria, {});
+    vector<double> omegas(phis.size(), 0);
+    return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, omegas, stopping_criteria, {});
 }
 
 template
@@ -756,7 +772,8 @@ fieldline_tracing(
     double AbsB = field->AbsB_ref()(0);
     double dtmax = r0*0.5*M_PI/AbsB; // can at most do quarter of a revolution per step
     double dt = 1e-5 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-    return solve(rhs_class, xyz_init, tmax, dt, dtmax, tol, phis, stopping_criteria, {});
+    vector<double> omegas(phis.size(), 0);
+    return solve(rhs_class, xyz_init, tmax, dt, dtmax, tol, phis, omegas, stopping_criteria, {});
 }
 
 template
