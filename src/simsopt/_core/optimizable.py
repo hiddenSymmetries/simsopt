@@ -138,10 +138,13 @@ class DOFs(GSONable, Hashable):
             self._dep_opts.append(weakref_opt)
 
     def dep_opts(self):
+        opts = []
         for opt_ref in self._dep_opts:
             opt = opt_ref()
             if opt is not None:
-                yield opt
+                # yield opt
+                opts.append(opt)
+        return opts
 
     def _flag_recompute_opt(self):
         """
