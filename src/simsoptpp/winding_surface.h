@@ -2,6 +2,7 @@
 #include "xtensor-python/pyarray.hpp"
 typedef xt::pyarray<double> Array;
 
+Array WindingSurfaceBn_REGCOIL(Array& points, Array& ws_points, Array& ws_normal, Array& current_potential, Array& plasma_normal);
 Array WindingSurfaceB(Array& points, Array& ws_points, Array& ws_normal, Array& K);
 Array WindingSurfacedB(Array& points, Array& ws_points, Array& ws_normal, Array& K);
 Array WindingSurfaceA(Array& points, Array& ws_points, Array& ws_normal, Array& K);

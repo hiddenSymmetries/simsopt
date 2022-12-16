@@ -51,6 +51,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
 
+    m.def("WindingSurfaceBn_REGCOIL", &WindingSurfaceBn_REGCOIL);
     m.def("WindingSurfaceB", &WindingSurfaceB);
     m.def("WindingSurfacedB", &WindingSurfacedB);
     m.def("WindingSurfaceA", &WindingSurfaceA);
