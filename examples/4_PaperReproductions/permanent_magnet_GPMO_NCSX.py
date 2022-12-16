@@ -28,11 +28,11 @@ t_start = time.time()
 
 # Set some parameters
 comm = None
-nphi = 8  # need to set this to 64 for a real run
-ntheta = 8  # same as above
-dr = 0.02
-coff = 0.02
-poff = 0.1
+nphi = 64  # need to set this to 64 for a real run
+ntheta = 64  # same as above
+dr = 0.01
+coff = 0.05
+poff = 0.01
 surface_flag = 'wout'
 input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 
@@ -74,7 +74,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 print('NCSX surface area = ', s_plot.area())
 algorithm = 'baseline'  # 'backtracking'
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 3000  # Number of magnets to place... 50000 for a full run perhaps
+kwargs['K'] = 35000  # Number of magnets to place... 50000 for a full run perhaps
 #kwargs['dipole_grid_xyz'] = pm_opt.dipole_grid_xyz  # grid data needed for backtracking
 #kwargs['backtracking'] = 200  # frequency with which to backtrack
 #kwargs['Nadjacent'] = 100  # Number of neighbor dipoles to consider as adjacent
@@ -147,7 +147,7 @@ Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
 
-for k in range(0, len(R2_history), 5):
+for k in range(0, len(R2_history), 100):
     pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
     b_dipole = DipoleField(pm_opt)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -160,9 +160,9 @@ for k in range(0, len(R2_history), 5):
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_total = Bnormal + Bnormal_dipoles
     # For plotting Bn on the full torus surface at the end with just the dipole fields
-    #make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
-    #pointData = {"B_N": Bnormal_total[:, :, None]}
-    #s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)), extra_data=pointData)
+    make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)))
+    pointData = {"B_N": Bnormal_total[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / (kwargs['nhistory']) * k)), extra_data=pointData)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
