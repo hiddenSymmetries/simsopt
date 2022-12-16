@@ -550,7 +550,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 
     // Main loop over the optimization iterations to continue
     // until K dipoles are placed overall 
-    while (num_nonzero < K) {
+    while ((k < 2 * K) && (num_nonzero < K)) {
 #pragma omp parallel for schedule(static)
 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
@@ -653,10 +653,10 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    num_nonzeros(print_iter) = num_nonzero;
 	    if (print_iter > 10 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) break;
 	}
-	if (print_iter > nhistory) {
-	    printf("Number of iterations has hit the iteration limit, increase the nhistory parameter to continue optimizing.\n");
-            return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
-        }
+	//if (print_iter > nhistory) {
+	//    printf("Number of iterations has hit the iteration limit, increase the nhistory parameter to continue optimizing.\n");
+        //    return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
+        //}
 
 	// check range here
 	num_nonzero = 0;

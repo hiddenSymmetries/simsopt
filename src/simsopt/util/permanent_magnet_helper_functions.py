@@ -506,7 +506,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         # generate planar TF coils
         ncoils = 4
         R0 = 1.0
-        R1 = 0.5
+        R1 = 0.75
         order = 5
 
         # qh needs to be scaled to 0.1 T on-axis magnetic field strength
@@ -527,13 +527,13 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         # generate planar TF coils
         ncoils = 8
         R0 = 1.0
-        R1 = 0.5
+        R1 = 0.65
         order = 5
 
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QA.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.5
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.2
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
