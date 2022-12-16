@@ -137,6 +137,12 @@ class DOFs(GSONable, Hashable):
         if weakref_opt not in self._dep_opts:
             self._dep_opts.append(weakref_opt)
 
+    def dep_opts(self):
+        for opt_ref in self._dep_opts:
+            opt = opt_ref()
+            if opt is not None:
+                yield opt
+
     def _flag_recompute_opt(self):
         """
         Sets the recompute flag in the dependent Optimizable objects.
@@ -862,6 +868,10 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             ancestors += parent.ancestors
         ancestors += self.parents
         return sorted(dict.fromkeys(ancestors), key=lambda a: a.name)
+
+    @property
+    def unique_dof_lineage(self):
+        return self._unique_dof_opts
 
     def update_free_dof_size_indices(self) -> None:
         """
