@@ -356,9 +356,6 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     //double* normal_coil_ptr = &(normal_coil(0, 0));
     double fak = 1e-7;  // mu0 divided by 4 * pi factor
 
-    // Loop through the evaluation points by chunks of simd_size
-    // #pragma omp parallel for schedule(static)
-    //for(int i = 0; i < num_plasma; i += simd_size) {
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         double npx = normal_plasma(i, 0);

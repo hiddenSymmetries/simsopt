@@ -245,9 +245,8 @@ class Testing(unittest.TestCase):
             cpst = CurrentPotentialSolveTikhonov.from_netcdf(filename)
 
             # Check B and K RHS's -> these are independent of lambda
-            b_rhs_simsopt = cpst.B_rhs()
-            if False:
-                assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)
+            b_rhs_simsopt, _ = cpst.B_matrix_and_rhs()
+            assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)
 
             k_rhs = cpst.K_rhs()
             assert np.allclose(k_rhs, k_rhs_regcoil)
@@ -255,7 +254,7 @@ class Testing(unittest.TestCase):
             # Compare Bnormal from plasma
             assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
 
-            #  Compare optimized dofs
+            # Compare optimized dofs
             optimized_phi_mn = cpst.solve(lam=lambda_regcoil)
             assert np.allclose(single_valued_current_potential_mn, optimized_phi_mn)
 
@@ -366,7 +365,7 @@ class Testing(unittest.TestCase):
             # Compare K and B RHS's -> these are independent of lambda
             cpst = CurrentPotentialSolveTikhonov.from_netcdf(filename)
 
-            b_rhs_simsopt = cpst.B_rhs()
+            b_rhs_simsopt, _ = cpst.B_matrix_and_rhs()
             assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)
 
             # this comparison doesn't work for stellarator asymmetric
@@ -380,10 +379,6 @@ class Testing(unittest.TestCase):
             assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
 
             cp = cpst.current_potential
-            cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
-            cp_no_GI.net_toroidal_current_amperes = 0
-            cp_no_GI.net_poloidal_current_amperes = 0
-
             s_plasma = cpst.plasma_surface
 
             # Compare plasma surface position
@@ -415,7 +410,7 @@ class Testing(unittest.TestCase):
                 # Compare current potential Fourier harmonics
                 assert np.allclose(cp.get_dofs(), single_valued_current_potential_mn[i, :])
 
-                # I'm not sure why I need to make a new object here, but otherwise it doesn't work
+                # Make sure single-valued part of current potential is working 
                 cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
                 cp_no_GI.net_toroidal_current_amperes = 0
                 cp_no_GI.net_poloidal_current_amperes = 0
@@ -425,18 +420,13 @@ class Testing(unittest.TestCase):
                 # Compare single-valued current potential
                 assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta[i, :, :])
 
-                # I'm not sure why I need to make a new object here, but otherwise it doesn't work
+                # Initialize a CurrentPotentialFourier
                 cp = CurrentPotentialFourier.from_netcdf(filename)
                 cp.set_current_potential_from_regcoil(filename, i)
                 K = cp.K()
                 K2 = np.sum(K*K, axis=2)
                 K2_average = np.mean(K2, axis=(0, 1))
-
                 assert np.allclose(K2[0:nzeta_plasma, :]/K2_average, K2_regcoil[i, :, :]/K2_average)
-
-                # Initialize a solver object for the cp CurrentPotential
-                cp = CurrentPotentialFourier.from_netcdf(filename)
-                cp.set_current_potential_from_regcoil(filename, i)
                 Bfield_opt = WindingSurfaceField(cp)
                 Bfield_opt.set_points(s_plasma.gamma().reshape(-1, 3))
                 B_opt = Bfield_opt.B()
@@ -444,7 +434,15 @@ class Testing(unittest.TestCase):
                 Bnormal = np.sum(B_opt*normal, axis=1).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
                 Bnormal_regcoil = Bnormal_regcoil_total[i, :, :] - Bnormal_from_plasma_current
 
-                # REGCOIL calculation in c++ """
+                # check Bnormal and Bnormal_regcoil integrate over the surface to zero
+                self.assertAlmostEqual(np.sum(Bnormal), 0)
+                self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
+
+                # Check the optimization in SIMSOPT is working
+                optimized_phi_mn = cpst.solve(lam=lambda_reg)
+                assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn)
+
+                # check the REGCOIL Bnormal calculation in c++ """
                 points = s_plasma.gamma().reshape(-1, 3)
                 normal = s_plasma.normal().reshape(-1, 3)
                 ws_points = s_coil.gamma().reshape(-1, 3)
@@ -454,12 +452,6 @@ class Testing(unittest.TestCase):
                 Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp.Phi(), normal) * dtheta_coil * dzeta_coil 
                 Bnormal_REGCOIL += B_GI_winding_surface
                 assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_regcoil)) 
-                self.assertAlmostEqual(np.sum(Bnormal), 0)
-                self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
-
-                optimized_phi_mn = cpst.solve(lam=lambda_reg)
-                print(i, optimized_phi_mn, single_valued_current_potential_mn[i, :])
-                assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn)
 
 
 if __name__ == "__main__":
