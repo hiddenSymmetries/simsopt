@@ -361,7 +361,6 @@ class GSONEncoder(json.JSONEncoder):
         Return:
             Python dict representation.
         """
-        print(type(o))
         if isinstance(o, datetime.datetime):
             return {"@module": "datetime", "@class": "datetime",
                     "string": str(o)}
@@ -369,9 +368,8 @@ class GSONEncoder(json.JSONEncoder):
             return {"@module": "uuid", "@class": "UUID", "string": str(o)}
 
         if jax is not None:
-            if isinstance(o, jaxlib.xla_extension.DeviceArray) or \
-                    isinstance(o, jaxlib.xla_extension.Array):
-                o = np.asarray(o)
+            if isinstance(o, jax.Array):
+                    o = np.asarray(o)
 
         if isinstance(o, np.ndarray):
             if str(o.dtype).startswith("complex"):
