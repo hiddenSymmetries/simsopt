@@ -23,7 +23,6 @@ import numpy as np
 
 try:
     import jax
-    import jaxlib.xla_extension
 except ImportError:
     jax = None
 
@@ -367,9 +366,8 @@ class GSONEncoder(json.JSONEncoder):
         if isinstance(o, UUID):
             return {"@module": "uuid", "@class": "UUID", "string": str(o)}
 
-        if jax is not None:
-            if isinstance(o, jax.Array):
-                    o = np.asarray(o)
+        if jax is not None and isinstance(o, jax.Array):
+            o = np.asarray(o)
 
         if isinstance(o, np.ndarray):
             if str(o.dtype).startswith("complex"):
