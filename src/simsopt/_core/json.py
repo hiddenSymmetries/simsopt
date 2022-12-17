@@ -368,27 +368,27 @@ class GSONEncoder(json.JSONEncoder):
         if isinstance(o, UUID):
             return {"@module": "uuid", "@class": "UUID", "string": str(o)}
 
-        if jax is not None and np is not None:
-            if isinstance(o, jaxlib.xla_extension.DeviceArray):
+        if jax is not None:
+            if isinstance(o, jaxlib.xla_extension.DeviceArray) or \
+                    isinstance(o, jaxlib.xla_extension.Array):
                 o = np.asarray(o)
 
-        if np is not None:
-            if isinstance(o, np.ndarray):
-                if str(o.dtype).startswith("complex"):
-                    return {
-                        "@module": "numpy",
-                        "@class": "array",
-                        "dtype": str(o.dtype),
-                        "data": [o.real.tolist(), o.imag.tolist()],
-                    }
+        if isinstance(o, np.ndarray):
+            if str(o.dtype).startswith("complex"):
                 return {
                     "@module": "numpy",
                     "@class": "array",
                     "dtype": str(o.dtype),
-                    "data": o.tolist(),
+                    "data": [o.real.tolist(), o.imag.tolist()],
                 }
-            if isinstance(o, np.generic):
-                return o.item()
+            return {
+                "@module": "numpy",
+                "@class": "array",
+                "dtype": str(o.dtype),
+                "data": o.tolist(),
+            }
+        if isinstance(o, np.generic):
+            return o.item()
 
         if pd is not None:
             if isinstance(o, pd.DataFrame):
