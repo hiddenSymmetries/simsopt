@@ -361,6 +361,7 @@ class GSONEncoder(json.JSONEncoder):
         Return:
             Python dict representation.
         """
+        print(type(o))
         if isinstance(o, datetime.datetime):
             return {"@module": "datetime", "@class": "datetime",
                     "string": str(o)}
