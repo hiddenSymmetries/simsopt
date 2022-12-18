@@ -37,6 +37,26 @@ class CurrentPotential(Optimizable):
 
 
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
+    """
+    Current Potential Fourier object is designed for initializing
+    the winding surface problem, assuming that the current potential
+    will be represented by a Fourier expansion in the toroidal
+    and poloidal modes. 
+
+    Args:
+        winding_surface: SurfaceRZFourier object representing the coil surface.
+        net_poloidal_current_amperes: Net poloidal current in amperes, needed
+            to compute the B_GI contributions to the Bnormal part of the optimization.
+        net_toroidal_current_amperes: Net toroidal current in amperes, needed
+            to compute the B_GI contributions to the Bnormal part of the optimization.
+        nfp: The number of field periods.
+        stellsym: Whether the surface is stellarator-symmetric, i.e.
+          symmetry under rotation by :math:`\pi` about the x-axis.
+        mpol: Maximum poloidal mode number included.
+        ntor: Maximum toroidal mode number included, divided by ``nfp``.
+        quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
+        quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
+    """
 
     def __init__(self, winding_surface, net_poloidal_current_amperes=1,
                  net_toroidal_current_amperes=0, nfp=None, stellsym=None,

@@ -315,13 +315,13 @@ class Testing(unittest.TestCase):
             r_coil = s_coil.gamma().reshape(-1, 3)
             rdiff = r_plasma[None, :, :] - r_coil[:, None, :]
             rdiff_norm = np.linalg.norm(rdiff, axis=2)
-            n_dot_nprime = np.sum(normal_plasma[None, :, :]*normal_coil[:, None, :], axis=2)
-            rdiff_dot_n = np.sum(rdiff*normal_plasma[None, :, :], axis=2)
-            rdiff_dot_nprime = np.sum(rdiff*normal_coil[:, None, :], axis=2)
-            inductance_simsopt = (n_dot_nprime/rdiff_norm**3 - 3*rdiff_dot_n*rdiff_dot_nprime/rdiff_norm**5)*1e-7
+            n_dot_nprime = np.sum(normal_plasma[None, :, :] * normal_coil[:, None, :], axis=2)
+            rdiff_dot_n = np.sum(rdiff * normal_plasma[None, :, :], axis=2)
+            rdiff_dot_nprime = np.sum(rdiff * normal_coil[:, None, :], axis=2)
+            inductance_simsopt = (n_dot_nprime / rdiff_norm ** 3 - 3 * rdiff_dot_n * rdiff_dot_nprime / rdiff_norm ** 5) * 1e-7
             dtheta_coil = s_coil.quadpoints_theta[1]
             dzeta_coil = s_coil.quadpoints_phi[1]
-            Bnormal_g = (np.sum(inductance_simsopt*cp.Phi().reshape(-1)[:, None], axis=0)*dtheta_coil*dzeta_coil/np.linalg.norm(normal_plasma, axis=1)).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
+            Bnormal_g = (np.sum(inductance_simsopt * cp.Phi().reshape(-1)[:, None], axis=0) * dtheta_coil * dzeta_coil / np.linalg.norm(normal_plasma, axis=1)).reshape(np.shape(s_plasma.gamma()[:, :, 0]))
 
             # REGCOIL calculation in c++ """
             points = s_plasma.gamma().reshape(-1, 3)
