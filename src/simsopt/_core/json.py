@@ -187,7 +187,7 @@ class GSONable:
     def as_dict2(self, serial_objs_dict):
         """
         This is a slightly modified version of as_dict method to deal with the cases
-        where the supplied object itself needs to be added to serial_objs_dict when
+        where the supplied object itself needs to be added to serial_objs_dict.
         """
         def recursive_as_dict(obj):
             if isinstance(obj, (list, tuple)):

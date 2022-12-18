@@ -652,8 +652,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         self.ancestors = self._get_ancestors()
 
         # Compute the indices of all the DOFs
-        self.update_free_dof_size_indices()  # This order of two lines needs to be preserved
         self._update_full_dof_size_indices()
+        self.update_free_dof_size_indices()
         # Inform the object that it doesn't have valid cache
         self.set_recompute_flag()
         log.debug(f"Unused arguments for {self.__class__} are {kwargs}")
@@ -891,14 +891,11 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         dof_indices = [0]
         free_dof_size = 0
         dof_objs = set()
-        self._unique_dof_opts = []
-        for opt in (self.ancestors + [self]):
-            if opt.dofs not in dof_objs:
-                dof_objs.add(opt.dofs)
-                size = opt.local_dof_size
-                free_dof_size += size
-                dof_indices.append(free_dof_size)
-                self._unique_dof_opts.append(opt)
+        for opt in self._unique_dof_opts:
+            dof_objs.add(opt.dofs)
+            size = opt.local_dof_size
+            free_dof_size += size
+            dof_indices.append(free_dof_size)
 
         self._free_dof_size = free_dof_size
         self.dof_indices = dict(zip(self._unique_dof_opts,
@@ -926,10 +923,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         full_dof_size = 0
         dof_objs = set()
         self.ancestors = self._get_ancestors()
+        self._unique_dof_opts = []
         for opt in (self.ancestors + [self]):
             if opt.dofs not in dof_objs:
                 dof_objs.add(opt.dofs)
                 full_dof_size += opt.local_full_dof_size
+                self._unique_dof_opts.append(opt)
         self._full_dof_size = full_dof_size
 
         # Update the full dof length of children
