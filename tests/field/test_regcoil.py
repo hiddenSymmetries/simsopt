@@ -378,7 +378,6 @@ class Testing(unittest.TestCase):
             # Compare Bnormal from net coil currents
             assert np.allclose(cpst.B_GI, np.ravel(Bnormal_from_net_coil_currents))
 
-
             cp = cpst.current_potential
             s_plasma = cpst.plasma_surface
 

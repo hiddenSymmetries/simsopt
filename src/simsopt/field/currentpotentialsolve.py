@@ -132,10 +132,19 @@ class CurrentPotentialSolve:
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
         phi_mesh = np.ravel(phi_mesh)
         theta_mesh = np.ravel(theta_mesh)
-        gj, B_matrix = sopp.winding_surface_field_Bn(points_plasma,
-                                                     points_coil, normal_plasma, normal, self.winding_surface.stellsym,
-                                                     phi_mesh, theta_mesh, self.ndofs, self.current_potential.m, self.current_potential.n,
-                                                     self.winding_surface.nfp)
+        gj, B_matrix = sopp.winding_surface_field_Bn(
+            points_plasma,
+            points_coil, 
+            normal_plasma, 
+            normal, 
+            self.winding_surface.stellsym,
+            phi_mesh, 
+            theta_mesh, 
+            self.ndofs, 
+            self.current_potential.m, 
+            self.current_potential.n,
+            self.winding_surface.nfp
+        )
         B_GI = self.B_GI
 
         # set up RHS of optimization
@@ -160,21 +169,50 @@ class CurrentPotentialSolve:
         b_rhs, B_matrix = self.B_matrix_and_rhs()
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
-        return phi_mn_opt
+        f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs, ord=2) ** 2
+        f_K = np.linalg.norm(K_matrix @ phi_mn_opt - K_rhs, ord=2) ** 2
+        return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0):
         """
             Solve the Lasso problem -- winding surface optimization with
             the L1 norm, which should tend to allow stronger current 
-            filaments to form than the L2. 
+            filaments to form than the L2. There are a couple changes to make:
+
+            1. Need to define new optimization variable z = A_k * phi_mn - b_k
+               so that optimization becomes
+               ||AA_k^{-1} * z - (b - A * A_k^{-1] * b_k)||_2^2 + alpha * ||z||_1
+               which is the form required to use the Lasso pre-built optimizer 
+               from sklearn.
+            2. The alpha term should be similar amount of regularization as the L2
+               but Lasso does 1 / (2 * n_samples) normalization in front of the 
+               least-squares term, AND lam -> sqrt(lam) since lam is the same number
+               being used for the L2 norm. So we rescale 
+               alpha = sqrt(lam) / (2 * n_samples) so that the regularization is 
+               similar to the L2 problem, AND so that the 1 / (2 * n_samples)
+               normalization is applied to all terms in the optimization. The
+               result is that the normalization leaves the optimization unaffected.
         """
         K_matrix = self.K_matrix()
         K_rhs = self.K_rhs()
         b_rhs, B_matrix = self.B_matrix_and_rhs()
 
-        # note taking sqrt(lam) to be similar amoun of regularization as the L2
-        solver = Lasso(alpha=np.sqrt(lam))
-        solution = solver.fit(B_matrix + np.sqrt(lam) * K_matrix, b_rhs + np.sqrt(lam) * K_rhs)
-        phi_mn_opt = solution.coef_
+        # define altered least-square matrices
+        K_matrix_inv = np.linalg.pinv(K_matrix, rcond=1e-30)
+        A_new = B_matrix @ K_matrix_inv
+        b_new = b_rhs - A_new @ K_rhs
+
+        # rescale the l1 regularization
+        l1_reg = lam / (2 * b_rhs.shape[0])
+        # l1_reg = np.sqrt(lam) / (2 * b_rhs.shape[0])
+
+        solver = Lasso(alpha=l1_reg)
+        solution = solver.fit(A_new, b_new)
+
+        # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
+        z_opt = solution.coef_
+        phi_mn_opt = K_matrix_inv @ (z_opt + K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
-        return phi_mn_opt
+        f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs, ord=2) ** 2
+        f_K = np.sum(abs(K_matrix @ phi_mn_opt - K_rhs))
+        return phi_mn_opt, f_B, f_K
