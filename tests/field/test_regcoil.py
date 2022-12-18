@@ -335,14 +335,14 @@ class Testing(unittest.TestCase):
             assert np.allclose(np.ravel(Bnormal_g), Bnormal_REGCOIL)
             assert np.allclose(np.ravel(Bnormal_g), np.ravel(Bnormal_regcoil))
 
-            # will be some disagreement here because of the different discretizations, 
-            # so reduce the tolerance 
+            # will be some disagreement here because of the different discretizations,
+            # so reduce the tolerance
             assert np.allclose(Bnormal / np.mean(np.abs(Bnormal_regcoil)), Bnormal_regcoil / np.mean(np.abs(Bnormal_regcoil)), atol=1e-2)
 
     def test_winding_surface_regcoil(self):
         # This compares the normal field from regcoil with that computed from
         # WindingSurface for W7-X and NCSX configuration
-        # for filename in ['regcoil_out.w7x.nc', 'regcoil_out.axisymmetry.nc', 'regcoil_out.li383.nc', 'regcoil_out.axisymmetry_asym.nc']:
+        # for filename in ['regcoil_out.axisymmetry_asym.nc', 'regcoil_out.w7x.nc', 'regcoil_out.axisymmetry.nc', 'regcoil_out.li383.nc']:
         for filename in ['regcoil_out.w7x.nc', 'regcoil_out.axisymmetry.nc', 'regcoil_out.li383.nc']:
             print(filename)
             filename = TEST_DIR / filename
@@ -372,11 +372,12 @@ class Testing(unittest.TestCase):
             k_rhs = cpst.K_rhs()
             assert np.allclose(k_rhs, k_rhs_regcoil)
 
+            # Compare plasma current
+            assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
+
             # Compare Bnormal from net coil currents
             assert np.allclose(cpst.B_GI, np.ravel(Bnormal_from_net_coil_currents))
 
-            # Compare plasma current
-            assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
 
             cp = cpst.current_potential
             s_plasma = cpst.plasma_surface
@@ -401,6 +402,11 @@ class Testing(unittest.TestCase):
             B_GI_winding_surface = np.sum(B*normal, axis=1)
             assert np.allclose(B_GI_winding_surface, np.ravel(Bnormal_from_net_coil_currents))
 
+            # Make sure single-valued part of current potential is working
+            cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
+            cp_no_GI.net_toroidal_current_amperes = 0
+            cp_no_GI.net_poloidal_current_amperes = 0
+
             # Solve the least-squares problem with the specified plasma
             # quadrature points, normal vector, and Bnormal at these quadrature points
             for i, lambda_reg in enumerate(lambda_regcoil):
@@ -410,18 +416,12 @@ class Testing(unittest.TestCase):
                 # Compare current potential Fourier harmonics
                 assert np.allclose(cp.get_dofs(), single_valued_current_potential_mn[i, :])
 
-                # Make sure single-valued part of current potential is working 
-                cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
-                cp_no_GI.net_toroidal_current_amperes = 0
-                cp_no_GI.net_poloidal_current_amperes = 0
-                cp_no_GI.set_dofs(0*cp_no_GI.get_dofs())
                 cp_no_GI.set_current_potential_from_regcoil(filename, i)
 
                 # Compare single-valued current potential
                 assert np.allclose(cp_no_GI.Phi()[0:nzeta_plasma, :], current_potential_thetazeta[i, :, :])
 
                 # Initialize a CurrentPotentialFourier
-                cp = CurrentPotentialFourier.from_netcdf(filename)
                 cp.set_current_potential_from_regcoil(filename, i)
                 K = cp.K()
                 K2 = np.sum(K*K, axis=2)
@@ -449,9 +449,9 @@ class Testing(unittest.TestCase):
                 ws_normal = s_coil.normal().reshape(-1, 3)
                 dtheta_coil = s_coil.quadpoints_theta[1]
                 dzeta_coil = s_coil.quadpoints_phi[1]
-                Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp.Phi(), normal) * dtheta_coil * dzeta_coil 
+                Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp.Phi(), normal) * dtheta_coil * dzeta_coil
                 Bnormal_REGCOIL += B_GI_winding_surface
-                assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_regcoil)) 
+                assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_regcoil))
 
 
 if __name__ == "__main__":
