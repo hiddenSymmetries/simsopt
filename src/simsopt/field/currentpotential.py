@@ -87,9 +87,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def get_dofs(self):
         return np.asarray(sopp.CurrentPotentialFourier.get_dofs(self))
 
-    def set_dofs(self, dofs):
-        self.local_full_x = dofs
-
     def change_resolution(self, mpol, ntor):
         """
         Modeled after SurfaceRZFourier
@@ -151,6 +148,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self._validate_mn(m, n)
         self.phic[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
+        self.invalidate_cache()
 
     def set_phis(self, m, n, val):
         """
@@ -159,6 +157,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self._validate_mn(m, n)
         self.phis[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
+        self.invalidate_cache()
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
@@ -210,20 +209,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.m = m0[1::]
         self.n = n0[1::]
 
-    def set_current_potential(self, single_valued_current_potential_mn):
-        nfp = self.winding_surface.nfp
-        symmetry_option = int(not self.winding_surface.stellsym) + 1
-        xm_potential = self.m
-        xn_potential = self.n
-        count = 0
-        if symmetry_option != 2:
-            for im in range(len(xm_potential)):
-                self.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
-                count += 1
-        if symmetry_option != 1:
-            for im in range(len(xm_potential)):
-                self.set_phic(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[count+im])
-
     def set_current_potential_from_regcoil(self, filename: str, ilambda: int):
         """
         Set phic and phis based on a regcoil netcdf file.
@@ -257,14 +242,16 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         if stellsym != self.stellsym:
             raise ValueError('Incorrect stellsym')
 
-        count = 0
-        if symmetry_option != 2:
-            for im in range(len(xm_potential)):
-                self.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
-                count += 1
-        if symmetry_option != 1:
-            for im in range(len(xm_potential)):
-                self.set_phic(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[count+im])
+        self.set_dofs(single_valued_current_potential_mn)
+
+        # count = 0
+        # if symmetry_option != 2:
+        #     for im in range(len(xm_potential)):
+        #         self.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
+        #         count += 1
+        # if symmetry_option != 1:
+        #     for im in range(len(xm_potential)):
+        #         self.set_phic(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[count+im])
 
     @classmethod
     def from_netcdf(cls, filename: str):
