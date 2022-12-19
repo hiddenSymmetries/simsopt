@@ -287,7 +287,7 @@ class IotasTests(unittest.TestCase):
         Taylor test for derivative of surface rotational transform wrt coil parameters
         """
 
-        for label in ["Volume", "ToroidalFlux"]:
+        for label in ["ToroidalFlux", "Volume"]:
             with self.subTest(label=label):
                 self.subtest_iotas_derivative(label)
 
