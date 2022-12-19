@@ -134,10 +134,9 @@ class ToroidalFlux(Optimizable):
 
     @derivative_dec
     def dJ(self):
-        return Derivative({
-            self.surface: self.dJ_by_dsurfacecoefficients(),
-            self.biotsavart: self.dJ_by_dcoils()
-        })
+        d_s = Derivative({self.surface: self.dJ_by_dsurfacecoefficients()})
+        d_c = self.dJ_by_dcoils()
+        return d_s + d_c
 
     def dJ_by_dsurfacecoefficients(self):
         """
@@ -820,6 +819,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
     lm_times_dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
     lm_times_dlabel_dcoils = lm_label*booz_surf.label.dJ(partials=True)(biotsavart, as_derivative=True)
+    
     return lm_times_dres_dcoils+lm_times_dlabel_dcoils
 
 
