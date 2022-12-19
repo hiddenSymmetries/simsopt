@@ -91,31 +91,29 @@ class CurrentPotentialSolve:
         B_GI_winding_surface = np.sum(B*normal, axis=1)
         return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface)
 
-    def K_rhs(self):
-        """
-            Wrapper function for computing the right-hand-side part
-            that corresponds to the L2 norm of the current density. 
-        """
-        K_rhs = np.zeros((self.current_potential.num_dofs(),))
+    def K_rhs_impl(self, K_rhs):
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
         self.current_potential.K_rhs_impl_helper(K_rhs, dg1, dg2, normal)
         K_rhs *= self.winding_surface.quadpoints_theta[1]*self.winding_surface.quadpoints_phi[1]/self.winding_surface.nfp
+
+    def K_rhs(self):
+        K_rhs = np.zeros((self.current_potential.num_dofs(),))
+        self.K_rhs_impl(K_rhs)
         return K_rhs
 
-    def K_matrix(self):
-        """
-            Wrapper function for computing the matrix corresponding to the
-            L2 norm of the current density. 
-        """
-        K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
+    def K_matrix_impl(self, K_matrix):
         dg1 = self.winding_surface.gammadash1()
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
         self.current_potential.K_matrix_impl_helper(K_matrix, dg1, dg2, normal)
         K_matrix *= self.winding_surface.quadpoints_theta[1]*self.winding_surface.quadpoints_phi[1]/self.winding_surface.nfp
-        return K_matrix
+
+    def K_matrix(self):
+        K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
+        self.K_matrix_impl(K_matrix)
+        return 
 
     def B_matrix_and_rhs(self):
         """
