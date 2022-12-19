@@ -1,9 +1,9 @@
 import numpy as np
-from monty.json import MontyDecoder, MSONable
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
+from .._core.json import GSONDecoder, GSONable
 
 __all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
 
@@ -126,17 +126,17 @@ class MagneticFieldMultiply(MagneticField):
     def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        Bfield = decoder.process_decoded(d["Bfield"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        Bfield = decoder.process_decoded(d["Bfield"], serial_objs_dict, recon_objs)
         field = cls(d["scalar"], Bfield)
-        xyz = decoder.process_decoded(d["points"])
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -178,19 +178,17 @@ class MagneticFieldSum(MagneticField):
     def B_vjp(self, v):
         return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        Bfields = []
-        for field in d["Bfields"]:
-            Bfields.append(decoder.process_decoded(field))
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        Bfields = decoder.process_decoded(d["Bfields"], serial_objs_dict, recon_objs)
         field_sum = cls(Bfields)
-        xyz = decoder.process_decoded(d["points"])
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field_sum.set_points_cart(xyz)
         return field_sum
 

@@ -1,5 +1,5 @@
 import numpy as np
-from monty.json import MSONable, MontyDecoder
+# from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
@@ -110,23 +110,6 @@ class QuadraticPenalty(Optimizable):
             return diff*dval
         else:
             raise Exception('incorrect wrapping function f provided')
-
-    def as_dict(self) -> dict:
-        d = {}
-        d["@class"] = self.__class__.__name__
-        d["@module"] = self.__class__.__module__
-        d["obj"] = self.obj
-        d["cons"] = np.array([self.cons])
-        d["f"] = self.f
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        obj = decoder.process_decoded(d["obj"])
-        cons = decoder.process_decoded(d["cons"])
-        f = decoder.process_decoded(d["f"])
-        return cls(obj, cons=cons, f=f)
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
