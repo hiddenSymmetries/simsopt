@@ -724,7 +724,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             numnc_half = np.zeros((len(self.xm_b),))
             kmnc_all = []
 
-        first, last = parallel_loop_bounds(self.mpi.comm_world, len(self.s_half_ext))
+        if (self.mpi is not None):
+            first, last = parallel_loop_bounds(self.mpi.comm_world, len(self.s_half_ext))
+        else:
+            first = 0
+            last = len(self.s_half_ext)
         for isurf in range(first,last):
             for im in range(len(self.xm_b)):
                 mn_factor = self.mn_factor_splines[im](self.s_half_ext[isurf])
