@@ -113,7 +113,7 @@ class CurrentPotentialSolve:
     def K_matrix(self):
         K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
         self.K_matrix_impl(K_matrix)
-        return 
+        return K_matrix 
 
     def B_matrix_and_rhs(self):
         """
