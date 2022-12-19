@@ -425,7 +425,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if self.proc0:
             self.asym = self.bx.asym  # Bool for stellarator asymmetry
             self.init_splines()
-            self.phi = self.bx.phi[-1]/(2*np.pi)
+            self.psi0 = self.bx.phi[-1]/(2*np.pi)
             self.nfp = self.bx.nfp
         else:
             self.psip_spline = None
@@ -458,10 +458,10 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.kmns_splines = None
             self.kmnc_splines = None
             self.asym = None
-            self.phi = None
+            self.psi0 = None
             self.nfp = None
         if self.mpi is not None:
-            self.phi = self.mpi.comm_world.bcast(self.phi, root=0)
+            self.psi0 = self.mpi.comm_world.bcast(self.psi0, root=0)
             self.nfp = self.mpi.comm_world.bcast(self.nfp, root=0)
             self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
             self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
@@ -496,7 +496,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if (not self.no_K):
             self.compute_K()
 
-        BoozerMagneticField.__init__(self, self.phi)
+        BoozerMagneticField.__init__(self, self.psi0)
 
     def init_splines(self):
         self.xm_b = self.bx.xm_b
