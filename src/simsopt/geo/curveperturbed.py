@@ -1,6 +1,6 @@
 import numpy as np
 from sympy import Symbol, lambdify, exp
-from monty.json import MSONable, MontyDecoder
+from .._core.json import GSONable, GSONDecoder
 
 import simsoptpp as sopp
 from simsopt.geo.curve import Curve
@@ -8,7 +8,7 @@ from simsopt.geo.curve import Curve
 __all__ = ['GaussianSampler', 'PerturbationSample', 'CurvePerturbed']
 
 
-class GaussianSampler(MSONable):
+class GaussianSampler(GSONable):
 
     def __init__(self, points, sigma, length_scale, n_derivs=1):
         r"""
@@ -80,7 +80,7 @@ class GaussianSampler(MSONable):
         return [curve_and_derivs[(i*n):((i+1)*n), :] for i in range(n_derivs+1)]
 
 
-class PerturbationSample(MSONable):
+class PerturbationSample(GSONable):
     """
     This class represents a single sample of a perturbation.  The point of
     having a dedicated class for this is so that we can apply the same
@@ -196,17 +196,3 @@ class CurvePerturbed(sopp.Curve, Curve):
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["curve"] = self.curve.as_dict()
-        d["sample"] = self.sample.as_dict()
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        curve = decoder.process_decoded(d["curve"])
-        sample = decoder.process_decoded(d["sample"])
-        return cls(curve, sample)

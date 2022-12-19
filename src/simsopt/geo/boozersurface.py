@@ -1,14 +1,14 @@
-from scipy.optimize import minimize, least_squares
-import numpy as np
 from scipy.linalg import lu
 from simsopt.geo.surfaceobjectives import boozer_surface_residual, Area, Volume, ToroidalFlux
+from scipy.optimize import minimize, least_squares
+import numpy as np
+from .._core.json import GSONDecoder, GSONable
 from simsopt._core.optimizable import Optimizable
-from monty.json import MontyDecoder
 
 __all__ = ['BoozerSurface']
 
 
-class BoozerSurface(Optimizable):
+class BoozerSurface(Optimizable, GSONable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -41,8 +41,9 @@ class BoozerSurface(Optimizable):
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
+        self.name = id(self)
         Optimizable.__init__(self, depends_on=[biotsavart])
-        self.bs = biotsavart
+        self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
@@ -85,11 +86,11 @@ class BoozerSurface(Optimizable):
 
         nsurfdofs = sdofs.size
         s = self.surface
-        bs = self.bs
+        biotsavart = self.biotsavart
 
         s.set_dofs(sdofs)
 
-        boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives)
 
         r = boozer[0]
 
@@ -170,11 +171,11 @@ class BoozerSurface(Optimizable):
             G = None
         lm = xl[-2:]
         s = self.surface
-        bs = self.bs
+        biotsavart = self.biotsavart
         s.set_dofs(sdofs)
         nsurfdofs = sdofs.size
 
-        boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives+1)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives+1)
         r, J = boozer[0:2]
 
         dl = np.zeros((xl.shape[0]-2,))
@@ -510,10 +511,10 @@ class BoozerSurface(Optimizable):
 
         label = self.label
         if G is None:
-            G = 2. * np.pi * np.sum(np.abs(self.bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs(self.biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
-        r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+        r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
         norm = 1e6
         while i < maxiter:
             if s.stellsym:
@@ -541,7 +542,7 @@ class BoozerSurface(Optimizable):
             iota = x[-2]
             G = x[-1]
             i += 1
-            r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+            r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
         if s.stellsym:
             J = np.vstack((
@@ -563,46 +564,3 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         return res
-   
-    def as_dict(self) -> dict:
-        d = {}
-        d["@class"] = self.__class__.__name__
-        d["@module"] = self.__class__.__module__
-        d["bs"] = self.bs
-        d["surface"] = self.surface
-        
-        # this needs to be rewritten so that labels are MSONable.  The problem
-        # is that both BoozerSurface and BoozerSurface.label depend on the *same*
-        # surface object.  So a naive implementation of as_dict and from_dict would
-        # generate a label and BoozerSurface that depend on *separate* surface objects.
-
-        if isinstance(self.label, Volume):
-            d["label"] = "Volume"
-        elif isinstance(self.label, Area):
-            d["label"] = "Area"
-        elif isinstance(self.label, ToroidalFlux):
-            d["label"] = "ToroidalFlux"
-        else:
-            raise Exception("label not serializable yet")
-        d["targetlabel"] = self.targetlabel
-        return d
-    
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        bs = decoder.process_decoded(d["bs"])
-        surf = decoder.process_decoded(d["surface"])
-        label = decoder.process_decoded(d["label"])
-        if label == "Volume":
-            label = Volume(surf)
-        elif label == "Area":
-            label = Area(surf)
-        elif label == "ToroidalFlux":
-            from simsopt.field import BiotSavart
-            bs_tf = BiotSavart(bs.coils)
-            label = ToroidalFlux(surf, bs_tf)
-        else:
-            raise Exception("label not serializable yet")
-
-        targetlabel = decoder.process_decoded(d["targetlabel"])
-        return cls(bs, surf, label, targetlabel)

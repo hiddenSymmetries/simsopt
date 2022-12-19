@@ -1,12 +1,11 @@
 import unittest
-import json
-
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
-from simsopt.field import coils_via_symmetries, BiotSavart
-from simsopt.geo import BoozerSurface, ToroidalFlux, Area
-from simsopt.configs import get_ncsx_data
-from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
+from simsopt.field.coil import coils_via_symmetries
+from simsopt.geo.boozersurface import BoozerSurface
+from simsopt.field.biotsavart import BiotSavart
+from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
+from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_giuliani_data
+from .surface_test_helpers import get_surface, get_exact_surface
 
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -230,19 +229,19 @@ class BoozerSurfaceTests(unittest.TestCase):
             ("SurfaceXYZFourier", True, False, 'ls'),  # noqa
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
-            with self.subTest(
-                surfacetype=surfacetype, stellsym=stellsym,
-                    optimize_G=optimize_G, second_stage=second_stage):
-                self.subtest_boozer_surface_optimisation_convergence(
-                    surfacetype, stellsym, optimize_G, second_stage)
+            for get_data in [get_giuliani_data]:
+                with self.subTest(
+                    surfacetype=surfacetype, stellsym=stellsym,
+                        optimize_G=optimize_G, second_stage=second_stage, get_data=get_data):
+                    self.subtest_boozer_surface_optimisation_convergence(
+                        surfacetype, stellsym, optimize_G, second_stage, get_data)
 
     def subtest_boozer_surface_optimisation_convergence(self, surfacetype,
                                                         stellsym, optimize_G,
-                                                        second_stage):
-        curves, currents, ma = get_ncsx_data()
-
+                                                        second_stage, get_data):
+        curves, currents, ma = get_data()
         if stellsym:
-            coils = coils_via_symmetries(curves, currents, 3, True)
+            coils = coils_via_symmetries(curves, currents, ma.nfp, True)
         else:
             # Create a stellarator that still has rotational symmetry but
             # doesn't have stellarator symmetry. We do this by first applying
@@ -256,14 +255,21 @@ class BoozerSurfaceTests(unittest.TestCase):
                                                     size=c.rotmat.shape)
                 c.rotmatT = c.rotmat.T
             coils = coils_via_symmetries(curves + curves_flipped,
-                                         currents + currents_flipped, 3, False)
+                                         currents + currents_flipped, ma.nfp, False)
         current_sum = sum(abs(c.current.get_value()) for c in coils)
 
         bs = BiotSavart(coils)
 
-        s = get_surface(surfacetype, stellsym)
+        s = get_surface(surfacetype, stellsym, nfp=ma.nfp)
         s.fit_to_curve(ma, 0.1)
-        iota = -0.3
+        if get_data is get_ncsx_data:
+            iota = -0.3
+        elif get_data is get_giuliani_data:
+            iota = 0.4
+        elif get_data is get_hsx_data:
+            iota = 1.
+        else:
+            raise Exception("initial guess for rotational transform for this config not given")
 
         ar = Area(s)
         ar_target = ar.J()
@@ -278,23 +284,25 @@ class BoozerSurfaceTests(unittest.TestCase):
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
+
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-                tol=1e-11, maxiter=100, constraint_weight=100.,
+                tol=1e-11, maxiter=100, constraint_weight=1000.,
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-9, maxiter=10, constraint_weight=100.,
+                tol=1e-9, maxiter=15, constraint_weight=100.,
                 iota=res['iota'], G=res['G'], stab=1e-4)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
-                tol=1e-9, maxiter=10, iota=res['iota'], G=res['G'])
+                tol=1e-9, maxiter=15, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':
             res = boozer_surface.solve_residual_equation_exactly_newton(
-                tol=1e-12, maxiter=10, iota=res['iota'], G=res['G'])
+                tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
+
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
         gammazero = s.gamma()[0, 0, :]
@@ -313,35 +321,6 @@ class BoozerSurfaceTests(unittest.TestCase):
             assert np.abs(ar_target - ar.J()) < 1e-9
         else:
             assert np.abs(ar_target - ar.J()) < 1e-4
-
-    def test_boozer_serialization(self):
-        """
-        Test to verify the serialization capability of a BoozerSurface.
-        """
-        for label in ['Volume', 'Area', 'ToroidalFlux']:
-            with self.subTest(label=label):
-                self.subtest_boozer_serialization(label)
-
-    def subtest_boozer_serialization(self, label):
-        if label == "NotInList":
-            with self.assertRaises(Exception):
-                bs, boozer_surface = get_boozer_surface(label="Volume")
-                boozer_surface.label = None
-                bs_str = json.dumps(boozer_surface, cls=MontyEncoder)
-        else:
-            bs, boozer_surface = get_boozer_surface(label=label)
-            
-            # test serialization of BoozerSurface here too
-            bs_str = json.dumps(boozer_surface, cls=MontyEncoder)
-            bs_regen = json.loads(bs_str, cls=MontyDecoder)
-            
-            diff = boozer_surface.surface.x - bs_regen.surface.x
-            self.assertAlmostEqual(np.linalg.norm(diff.ravel()), 0)
-            self.assertAlmostEqual(boozer_surface.label.J(), bs_regen.label.J())
-            self.assertAlmostEqual(boozer_surface.targetlabel, bs_regen.targetlabel)
-            
-            # check that BoozerSurface.surface and label.surface are the same surfaces
-            assert bs_regen.label.surface is bs_regen.surface
 
 
 if __name__ == "__main__":

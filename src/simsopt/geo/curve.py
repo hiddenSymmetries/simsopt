@@ -3,8 +3,6 @@ from math import sin, cos
 import numpy as np
 from jax import vjp, jacfwd, jvp
 import jax.numpy as jnp
-from monty.dev import requires
-from monty.json import MontyDecoder
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
@@ -814,19 +812,9 @@ class RotatedCurve(sopp.Curve, Curve):
         v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["curve"] = self.curve.as_dict()
-        d["phi"] = self._phi
-        d["flip"] = True if self.rotmat[2][2] == -1 else False
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["phi"], d["flip"])
+    @property
+    def flip(self):
+        return True if self.rotmat[2][2] == -1 else False
 
 
 def curves_to_vtk(curves, filename, close=False):

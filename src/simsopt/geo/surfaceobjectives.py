@@ -737,7 +737,7 @@ class Iotas(Optimizable):
     def __init__(self, boozer_surface):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[boozer_surface])
         self.boozer_surface = boozer_surface
-        self.biotsavart = boozer_surface.bs 
+        self.biotsavart = boozer_surface.biotsavart 
         self.recompute_bell()
 
     def J(self):
@@ -798,7 +798,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
         G: constant on boozer surface,
     """
     surface = booz_surf.surface
-    biotsavart = booz_surf.bs
+    biotsavart = booz_surf.biotsavart
     user_provided_G = G is not None
     if not user_provided_G:
         G = 2. * np.pi * np.sum(np.abs(biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))

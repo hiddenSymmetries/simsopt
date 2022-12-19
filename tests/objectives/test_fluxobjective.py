@@ -2,7 +2,6 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.coil import coils_via_symmetries, Current
@@ -10,6 +9,7 @@ from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.geo.curveobjectives import CurveLength
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.objectives.fluxobjective import SquaredFlux
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 
 
 from pathlib import Path
@@ -40,8 +40,8 @@ class FluxObjectiveTests(unittest.TestCase):
                 assert err < 0.6 ** 2 * err_old
                 err_old = err
 
-            J_str = json.dumps(J, cls=MontyEncoder)
-            J_regen = json.loads(J_str, cls=MontyDecoder)
+            J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+            J_regen = json.loads(J_str, cls=GSONDecoder)
             self.assertAlmostEqual(J.J(), J_regen.J())
 
         s = SurfaceRZFourier.from_vmec_input(filename)
