@@ -310,7 +310,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         xn_coil = f.variables['xn_coil'][()]
         ntheta_coil = f.variables['ntheta_coil'][()]
         nzeta_coil = f.variables['nzeta_coil'][()]
-        single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
+        #single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
         f.close()
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)

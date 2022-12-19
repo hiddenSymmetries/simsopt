@@ -168,7 +168,9 @@ class CurrentPotentialSolve:
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
         nfp = self.plasma_surface.nfp
-        f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs, ord=2) ** 2
+        ##### TEMPORARY CHANGE TO DEBUG
+        #f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs, ord=2) ** 2
+        f_B = np.linalg.norm(B_matrix @ phi_mn_opt, ord=2) ** 2
         f_K = np.linalg.norm(K_matrix @ phi_mn_opt - K_rhs, ord=2) ** 2
         return phi_mn_opt, f_B, f_K
 
