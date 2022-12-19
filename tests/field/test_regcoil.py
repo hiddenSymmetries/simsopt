@@ -5,7 +5,7 @@ import numpy as np
 from simsoptpp import WindingSurfaceBn_REGCOIL
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier, CurrentPotentialSolveTikhonov
+from simsopt.field import BiotSavart, CurrentPotential, CurrentPotentialFourier, CurrentPotentialSolve
 from scipy.special import ellipk, ellipe
 from pathlib import Path
 from scipy.io import netcdf_file
@@ -242,7 +242,7 @@ class Testing(unittest.TestCase):
             f.close()
 
             # initialize a solver object for the cp CurrentPotential
-            cpst = CurrentPotentialSolveTikhonov.from_netcdf(filename)
+            cpst = CurrentPotentialSolve.from_netcdf(filename)
 
             # Check B and K RHS's -> these are independent of lambda
             b_rhs_simsopt, _ = cpst.B_matrix_and_rhs()
@@ -363,7 +363,7 @@ class Testing(unittest.TestCase):
             f.close()
 
             # Compare K and B RHS's -> these are independent of lambda
-            cpst = CurrentPotentialSolveTikhonov.from_netcdf(filename)
+            cpst = CurrentPotentialSolve.from_netcdf(filename)
 
             b_rhs_simsopt, _ = cpst.B_matrix_and_rhs()
             assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)

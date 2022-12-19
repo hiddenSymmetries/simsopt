@@ -327,7 +327,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         #   quadpoints_theta=quadpoints_theta
         #)
         s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
-        s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil * nfp,
+        s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=2 * ntheta_coil, nphi=2 * nzeta_coil * nfp,
                                          mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
         s_coil.set_dofs(0*s_coil.get_dofs())
         for im in range(len(xm_coil)):
