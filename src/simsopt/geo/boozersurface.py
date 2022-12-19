@@ -542,7 +542,7 @@ class BoozerSurface(Optimizable, GSONable):
             iota = x[-2]
             G = x[-1]
             i += 1
-            r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+            r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
         if s.stellsym:
             J = np.vstack((
