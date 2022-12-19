@@ -666,13 +666,13 @@ class Spec(Optimizable):
             si.curtor = si.ivolume[nvol - 1] + np.sum(si.isurf)
 
         if self.iota_profile is not None:
-            si.iota[0:nvol] = self.iota_profile.get(np.arange(0, nvol))
+            si.iota[0:nvol+1] = self.iota_profile.get(np.arange(0, nvol))
 
         if self.oita_profile is not None:
-            si.oita[0:nvol] = self.oita_profile.get(np.arange(0, nvol))
+            si.oita[0:nvol+1] = self.oita_profile.get(np.arange(0, nvol))
 
         if self.mu_profile is not None:
-            si.mu[0:nvol - 1] = self.mu_profile.get(np.arange(0, nvol))
+            si.mu[0:nvol] = self.mu_profile.get(np.arange(0, nvol))
             if si.lfreebound:
                 si.mu[mvol] = 0
 
