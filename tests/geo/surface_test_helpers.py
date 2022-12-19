@@ -9,8 +9,7 @@ TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 
 def get_surface(surfacetype, stellsym, phis=None, thetas=None, mpol=5, ntor=5,
-                nphi=None, ntheta=None, full=False):
-    nfp = 3
+                nphi=None, ntheta=None, full=False, nfp=3):
     if nphi is None:
         nphi = 11 if surfacetype == "SurfaceXYZTensorFourier" else 15
     if ntheta is None:

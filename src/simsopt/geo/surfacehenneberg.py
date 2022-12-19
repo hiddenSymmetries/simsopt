@@ -10,6 +10,7 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +74,12 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     ``R0nH``, ``Z0nH``, and ``bn`` since these arrays all have a first
     index corresponding to ``n=0``.
 
-    For more information about the arguments ``nphi``, ``ntheta``,
-    ``range``, ``quadpoints_phi``, and ``quadpoints_theta``, see the
-    general documentation on :ref:`surfaces`.
+    For more information about the arguments ``quadpoints_phi``, and
+    ``quadpoints_theta``, see the general documentation on :ref:`surfaces`.
+    Instead of supplying the quadrature point arrays along :math:`\phi` and
+    :math:`\theta` directions, one could also specify the number of
+    quadrature points for :math:`\phi` and :math:`\theta` using the
+    class method :py:meth:`~simsopt.geo.surface.Surface.from_nphi_ntheta`.
 
     Args:
         nfp: The number of field periods.
@@ -83,17 +87,6 @@ class SurfaceHenneberg(sopp.Surface, Surface):
           by which the elongation rotates, or 0 for axisymmetry.
         mmax: Maximum poloidal mode number included.
         nmax: Maximum toroidal mode number included, divided by ``nfp``.
-        nphi: Number of grid points :math:`\phi_j` in the toroidal angle :math:`\phi`.
-        ntheta: Number of grid points :math:`\theta_j` in the toroidal angle :math:`\theta`.
-        range: Toroidal extent of the :math:`\phi` grid.
-          Set to ``"full torus"`` (or equivalently ``SurfaceHenneberg.RANGE_FULL_TORUS``)
-          to generate points up to 1 (with no point at 1).
-          Set to ``"field period"`` (or equivalently ``SurfaceHenneberg.RANGE_FIELD_PERIOD``)
-          to generate points up to :math:`1/n_{fp}` (with no point at :math:`1/n_{fp}`).
-          Set to ``"half period"`` (or equivalently ``SurfaceHenneberg.RANGE_HALF_PERIOD``)
-          to generate points up to :math:`1/(2 n_{fp})`, with all grid points shifted by half
-          of the grid spacing in order to provide spectral convergence of integrals.
-          If ``quadpoints_phi`` is specified, ``range`` is irrelevant.
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
@@ -103,11 +96,9 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  alpha_fac: int = 1,
                  mmax: int = 1,
                  nmax: int = 0,
-                 nphi: int = None,
-                 ntheta: int = None,
-                 range: str = "full torus",
                  quadpoints_phi: RealArray = None,
-                 quadpoints_theta: RealArray = None):
+                 quadpoints_theta: RealArray = None
+                 ):
 
         if alpha_fac > 1 or alpha_fac < -1:
             raise ValueError('alpha_fac must be 1, 0, or -1')
@@ -119,10 +110,11 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.stellsym = True
         self.allocate()
 
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(nfp=nfp,
-                                                                  nphi=nphi, ntheta=ntheta, range=range,
-                                                                  quadpoints_phi=quadpoints_phi,
-                                                                  quadpoints_theta=quadpoints_theta)
+        if quadpoints_theta is None:
+            quadpoints_theta = Surface.get_theta_quadpoints()
+        if quadpoints_phi is None:
+            quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
+
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
@@ -742,19 +734,19 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         data[:, :, 1] = (2 * np.pi * d_R_d_theta * np.sin(phi)).T
         data[:, :, 2] = 2 * np.pi * d_Z_d_theta.T
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["alpha_fac"] = self.alpha_fac
-        d["mmax"] = self.mmax
-        d["nmax"] = self.nmax
-        return d
-
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        quadpoints_phi = decoder.process_decoded(d["quadpoints_phi"],
+                                                 serial_objs_dict=serial_objs_dict,
+                                                 recon_objs=recon_objs)
+        quadpoints_theta = decoder.process_decoded(d["quadpoints_theta"],
+                                                   serial_objs_dict=serial_objs_dict,
+                                                   recon_objs=recon_objs)
         surf = cls(nfp=d["nfp"], alpha_fac=d["alpha_fac"],
                    mmax=d["mmax"], nmax=d["nmax"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
+                   quadpoints_phi=quadpoints_phi,
+                   quadpoints_theta=quadpoints_theta)
         surf.local_full_x = d["x0"]
         return surf
 
