@@ -16,7 +16,16 @@ class Area(Optimizable):
     Wrapper class for surface area label.
     """
 
-    def __init__(self, surface):
+    def __init__(self, in_surface, range=None, nphi=None, ntheta=None):
+        if range is None:
+            range = Surface.RANGE_HALF_PERIOD
+        if nphi is None:
+            nphi = len(in_surface.quadpoints_phi)
+        if ntheta is None:
+            ntheta = len(in_surface.quadpoints_theta)
+        surface = in_surface.__class__.from_nphi_ntheta(
+                nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, \
+                mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
         super().__init__(depends_on=[surface])
 
@@ -44,10 +53,19 @@ class Volume(Optimizable):
     Wrapper class for volume label.
     """
 
-    def __init__(self, surface):
+    def __init__(self, in_surface, range=None, nphi=None, ntheta=None):
+        if range is None:
+            range = Surface.RANGE_HALF_PERIOD
+        if nphi is None:
+            nphi = len(in_surface.quadpoints_phi)
+        if ntheta is None:
+            ntheta = len(in_surface.quadpoints_theta)
+        surface = in_surface.__class__.from_nphi_ntheta( \
+                nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, \
+                mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
         super().__init__(depends_on=[surface])
-
+        
     def J(self):
         """
         Compute the volume enclosed by the surface.
@@ -80,7 +98,16 @@ class ToroidalFlux(Optimizable):
     is the magnetic vector potential.
     """
 
-    def __init__(self, surface, biotsavart, idx=0):
+    def __init__(self, in_surface, biotsavart, idx=0, range=None, nphi=None, ntheta=None):
+        if range is None:
+            range = Surface.RANGE_HALF_PERIOD
+        if nphi is None:
+            nphi = len(in_surface.quadpoints_phi)
+        if ntheta is None:
+            ntheta = len(in_surface.quadpoints_theta)
+        surface = in_surface.__class__.from_nphi_ntheta(
+                nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, \
+                mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
