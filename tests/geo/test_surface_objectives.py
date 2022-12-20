@@ -311,6 +311,7 @@ class IotasTests(unittest.TestCase):
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
 
+
 class NonQSRatioTests(unittest.TestCase):
     def test_nonQSratio_derivative(self):
         """
@@ -342,7 +343,7 @@ class LabelTests(unittest.TestCase):
     def test_label_surface_derivative1(self):
         for label in ["Volume", "ToroidalFlux", "Area"]:
             with self.subTest(label=label):
-               self.subtest_label_derivative1(label)
+                self.subtest_label_derivative1(label)
     
     def subtest_label_derivative1(self, label):
         bs, boozer_surface = get_boozer_surface(label=label)
@@ -364,7 +365,7 @@ class LabelTests(unittest.TestCase):
     def test_label_surface_derivative2(self):
         for label in ["Volume", "ToroidalFlux", "Area"]:
             with self.subTest(label=label):
-               self.subtest_label_derivative2(label)
+                self.subtest_label_derivative2(label)
 
     def subtest_label_derivative2(self, label):
         bs, boozer_surface = get_boozer_surface(label=label)
