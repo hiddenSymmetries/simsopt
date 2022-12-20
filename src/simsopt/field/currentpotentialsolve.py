@@ -165,13 +165,15 @@ class CurrentPotentialSolve:
         K_matrix = self.K_matrix()
         K_rhs = self.K_rhs()
         b_rhs, B_matrix = self.B_matrix_and_rhs()
-        phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
+        print(np.mean(abs(B_matrix)), np.mean(abs(b_rhs)), np.mean(abs(K_matrix)), np.mean(abs(K_rhs)), lam)
+        #phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
+        phi_mn_opt, _, _, _ = np.linalg.lstsq(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
         nfp = self.plasma_surface.nfp
         ##### TEMPORARY CHANGE TO DEBUG
-        #f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs, ord=2) ** 2
-        f_B = np.linalg.norm(B_matrix @ phi_mn_opt, ord=2) ** 2
-        f_K = np.linalg.norm(K_matrix @ phi_mn_opt - K_rhs, ord=2) ** 2
+        #f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs) ** 2
+        f_B = np.linalg.norm(B_matrix @ phi_mn_opt) ** 2
+        f_K = np.linalg.norm(K_matrix @ phi_mn_opt - K_rhs) ** 2
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0):

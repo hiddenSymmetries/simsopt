@@ -63,6 +63,9 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                  mpol=None, ntor=None,
                  quadpoints_phi=None, quadpoints_theta=None):
 
+        # Next two lines are new code
+        self.net_poloidal_current_amperes = net_poloidal_current_amperes
+        self.net_toroidal_current_amperes = net_toroidal_current_amperes
         if nfp is None:
             nfp = winding_surface.nfp
         if stellsym is None:
