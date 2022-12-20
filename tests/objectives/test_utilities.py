@@ -48,9 +48,9 @@ class UtilityObjectiveTesting(unittest.TestCase):
             assert err_new < 0.6 * err or err_new < 1e-13
             err = err_new
 
-        #J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
-        #J_regen = json.loads(J_str, cls=GSONDecoder)
-        #self.assertAlmostEqual(J.J(), J_regen.J())
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
+        self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_quadratic_penalty(self):
         curve = self.create_curve()
