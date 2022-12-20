@@ -348,5 +348,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         # check that BoozerSurface.surface and label.surface are the same surfaces
         assert bs_regen.label.surface is bs_regen.surface
 
+
 if __name__ == "__main__":
     unittest.main()
