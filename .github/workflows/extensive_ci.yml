@@ -63,12 +63,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libopenblas-dev libboost-all-dev
     
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       # If we want submodules downloaded, uncomment the next 2 lines:
       #with:
       #  submodules: true
 
-    # We must run actions/checkout@v2 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # We must run actions/checkout@v3 before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: git clone https://github.com/hiddensymmetries/VMEC2000.git
@@ -80,7 +80,7 @@ jobs:
         pwd
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -112,7 +112,7 @@ jobs:
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
@@ -232,19 +232,19 @@ jobs:
 
     - name: Upload uncombined coverage to github
       if: contains(matrix.test-type, 'unit')
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: gh-actions-parallel-coverage
         path: .coverage.*
         if-no-files-found: error
 
   coverage:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     needs: [ test ]
     steps:
 
     - name: Set up Python 
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: 3.8.15
 
@@ -252,13 +252,13 @@ jobs:
       run: pip install coverage
 
     - name: Checkout simsopt 
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Install simsopt before running coverage
       run: pip install .
 
     - name: Download artifact
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: gh-actions-parallel-coverage
         path: ./
@@ -273,7 +273,7 @@ jobs:
         coverage xml
 
     - name: Upload coverage to github
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: tox-gh-actions-coverage
         path: coverage.xml
@@ -282,7 +282,7 @@ jobs:
     - name: Upload coverage to Codecov
       # The next line prevents github from trying to upload to Codecov on forks of the repository, avoiding a permissions error
       if: github.repository_owner == 'hiddenSymmetries'
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
