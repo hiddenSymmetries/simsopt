@@ -6,6 +6,7 @@ from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.field.currentpotential import CurrentPotentialFourier
 from scipy.io import netcdf_file
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
+from scipy.linalg import sqrtm
 
 __all__ = ["CurrentPotentialSolve"]
 
@@ -165,15 +166,20 @@ class CurrentPotentialSolve:
         K_matrix = self.K_matrix()
         K_rhs = self.K_rhs()
         b_rhs, B_matrix = self.B_matrix_and_rhs()
-        print(np.mean(abs(B_matrix)), np.mean(abs(b_rhs)), np.mean(abs(K_matrix)), np.mean(abs(K_rhs)), lam)
-        #phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
-        phi_mn_opt, _, _, _ = np.linalg.lstsq(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
+        phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
         nfp = self.plasma_surface.nfp
-        ##### TEMPORARY CHANGE TO DEBUG
-        #f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs) ** 2
-        f_B = np.linalg.norm(B_matrix @ phi_mn_opt) ** 2
-        f_K = np.linalg.norm(K_matrix @ phi_mn_opt - K_rhs) ** 2
+
+        # compute matrix square root
+        sqrt_B_matrix = sqrtm(B_matrix) 
+
+        # compute matrix square root
+        sqrt_K_matrix = sqrtm(K_matrix)
+
+        b_orig = np.linalg.inv(sqrt_B_matrix) @ b_rhs 
+        K_orig = np.linalg.inv(sqrt_K_matrix) @ K_rhs
+        f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
+        f_K = 0.5 * np.linalg.norm(sqrt_K_matrix @ phi_mn_opt - K_orig) ** 2 * nfp
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0):
@@ -200,13 +206,25 @@ class CurrentPotentialSolve:
         K_rhs = self.K_rhs()
         b_rhs, B_matrix = self.B_matrix_and_rhs()
 
+        # Computing diagonalization, B_matrix is real, positive definite
+        evalues, evectors = np.linalg.eig(B_matrix)
+        sqrt_B_matrix = evectors @ np.diag(np.sqrt(evalues)) @ np.linalg.inv(evectors) 
+
+        # Computing diagonalization, K_matrix is real, positive definite
+        evalues, evectors = np.linalg.eig(K_matrix)
+
+        # sqrt_K_matrix = A_k, and K_orig = b_k in ||A_k * phi_mn - b_k||
+        sqrt_K_matrix = evectors @ np.diag(np.sqrt(evalues)) @ np.linalg.inv(evectors) 
+        K_orig = np.linalg.inv(sqrt_K_matrix.T) @ K_rhs
+        b_orig = np.linalg.inv(sqrt_B_matrix.T) @ b_rhs
+
         # define altered least-square matrices
-        K_matrix_inv = np.linalg.pinv(K_matrix, rcond=1e-30)
-        A_new = B_matrix @ K_matrix_inv
-        b_new = b_rhs - A_new @ K_rhs
+        sqrt_K_matrix_inv = np.linalg.inv(sqrt_K_matrix)
+        A_new = sqrt_B_matrix @ sqrt_K_matrix_inv
+        b_new = b_orig - A_new @ K_orig
 
         # rescale the l1 regularization
-        l1_reg = lam / (2 * b_rhs.shape[0])
+        l1_reg = lam / (2 * b_new.shape[0])
         # l1_reg = np.sqrt(lam) / (2 * b_rhs.shape[0])
 
         solver = Lasso(alpha=l1_reg)
@@ -214,9 +232,10 @@ class CurrentPotentialSolve:
 
         # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
         z_opt = solution.coef_
-        phi_mn_opt = K_matrix_inv @ (z_opt + K_rhs)
+        phi_mn_opt = sqrt_K_matrix_inv @ (z_opt + K_orig)
         self.current_potential.set_dofs(phi_mn_opt)
         nfp = self.plasma_surface.nfp
-        f_B = np.linalg.norm(B_matrix @ phi_mn_opt - b_rhs, ord=2) ** 2 * nfp
-        f_K = np.sum(abs(K_matrix @ phi_mn_opt - K_rhs)) * nfp
+
+        f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
+        f_K = 0.5 * np.sum(abs(sqrt_K_matrix @ phi_mn_opt - K_orig)) * nfp
         return phi_mn_opt, f_B, f_K
