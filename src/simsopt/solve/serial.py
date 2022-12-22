@@ -54,7 +54,8 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares'):
         total_jac = np.sum(2 * ret * f[:, None],axis=0)
         for total_jacj in total_jac:
             log_file.write(f',{total_jacj:24.16e}')
-        
+        log_file.write('\n')
+        log_file.flush()
         # Compute the derivative of each residual, as required by scipy.optimize.least_squares
         # We don't do this because the QS objective can have thousands of residuals
         # TODO: maybe do it?
