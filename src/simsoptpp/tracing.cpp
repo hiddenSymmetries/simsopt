@@ -576,7 +576,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
             double omega = omegas[i];
             double phase_last = phi_last - omega*t_last;
             double phase_current = phi_current - omega*t_current;
-            if(std::floor((phase_last-phi)/(2*M_PI)) != std::floor((phase_current-phi)/(2*M_PI))) { // check whether phi+k*2pi for some k was crossed
+            if(t_last!=0 && (std::floor((phase_last-phi)/(2*M_PI)) != std::floor((phase_current-phi)/(2*M_PI)))) { // check whether phi+k*2pi for some k was crossed
                 int fak = std::round(((phase_last+phase_current)/2-phi)/(2*M_PI));
                 double phase_shift = fak*2*M_PI + phi;
                 assert((phase_last <= phase_shift && phase_shift <= phase_current) || (phase_current <= phase_shift && phase_shift <= phase_last));
