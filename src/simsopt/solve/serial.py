@@ -51,7 +51,10 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares'):
         # Compute the jacobian of the square-summed residuals
         # for scipy least-squares problem
         f = fd.fn() # function value at x0
-        total_jac = np.sum(2 * ret * f[:, None],axis=0)
+        if problem_type == 'least_squares':
+            total_jac = np.sum(2 * ret * f[:, None],axis=0)
+        else:
+            total_jac = ret
         for total_jacj in total_jac:
             log_file.write(f',{total_jacj:24.16e}')
         log_file.write('\n')
