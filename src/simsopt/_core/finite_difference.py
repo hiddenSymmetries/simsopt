@@ -76,7 +76,12 @@ class FiniteDifference:
         self.jac_size = None
         self.eval_cnt = 1
         self.nparams = self.opt.dof_size
-        
+        if self.diff_method == "centered":
+            self.nevals_jac = 2 * self.nparams
+        else:
+            # 1-sided differences
+            self.nevals_jac = self.nparams + 1
+            
     def init_log(self):
         if isinstance(self.log_file, str):
             datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -107,7 +112,6 @@ class FiniteDifference:
         steps = finite_difference_steps(x0, abs_step=self.abs_step,
                                         rel_step=self.rel_step)
         if self.diff_method == "centered":
-            self.nevals_jac = 2 * self.nparams
             # Centered differences:
             for j in range(self.nparams): # len(x0)
                 x = np.copy(x0)
@@ -127,7 +131,6 @@ class FiniteDifference:
                     
         elif self.diff_method == "forward":
             # 1-sided differences
-            self.nevals_jac = self.nparams + 1
             self.opt.x = x0
             f0 = np.asarray(self.fn())
             for j in range(self.nparams): # len(x0)
@@ -195,7 +198,13 @@ class MPIFiniteDifference:
         self.jac_size = None
         self.eval_cnt = 1
         self.nparams = self.opt.dof_size
-        
+        # set self.nevals_jac here to set it for every process
+        if self.diff_method == "centered":
+            self.nevals_jac = 2 * self.nparams
+        else:
+            # 1-sided differences
+            self.nevals_jac = self.nparams + 1
+            
     def __enter__(self):
         self.mpi_apart()
         self.init_log()
@@ -218,7 +227,7 @@ class MPIFiniteDifference:
         self.mpi.together()
         if self.mpi.proc0_world and self.new_log_file:
             self.log_file.close()
-
+            
     # Called by MPI leaders
     def _jac(self, x: RealArray = None):
         # Use shortcuts for class variables
@@ -246,7 +255,6 @@ class MPIFiniteDifference:
         mpi.comm_leaders.Bcast(steps)
         diff_method = mpi.comm_leaders.bcast(self.diff_method)
         if diff_method == "centered":
-            self.nevals_jac = 2 * self.nparams
             xs = np.zeros((self.nparams, self.nevals_jac))
             for j in range(self.nparams):
                 xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
@@ -255,7 +263,6 @@ class MPIFiniteDifference:
                 xs[j, 2 * j + 1] = x0[j] - steps[j]
         else:  # diff_method == "forward":
             # 1-sided differences
-            self.nevals_jac = self.nparams + 1
             xs = np.zeros((self.nparams, self.nevals_jac))
             xs[:, 0] = x0[:]
             for j in range(self.nparams):
