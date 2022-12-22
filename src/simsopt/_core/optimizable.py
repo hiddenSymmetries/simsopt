@@ -1101,7 +1101,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             if opt.local_dof_setter is not None:
                 opt.local_dof_setter(opt, list(opt.local_full_x))
 
-
     def recompute_bell(self, parent=None):
         """
         Function to be called whenever new DOFs input is given or if the
