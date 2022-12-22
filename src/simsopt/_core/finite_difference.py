@@ -46,7 +46,9 @@ class FiniteDifference:
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
-                 diff_method: str = "forward") -> None:
+                 diff_method: str = "forward",
+                 log_file: Union[str, typing.IO] = "jac_log",
+                 flatten_out: bool = False) -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
@@ -63,29 +65,51 @@ class FiniteDifference:
             raise ValueError(f"Finite difference method {diff_method} not implemented. "
                              "Supported methods are 'centered' and 'forward'.")
         self.diff_method = diff_method
+        self.log_file = log_file
+        self.new_log_file = False
+        self.log_header_written = False
+        self.flatten_out = flatten_out
 
-        self.x0 = np.asarray(x0) if x0 is not None else x0
+        x0 = np.asarray(x0) if x0 is not None else x0
+        self.x0 = x0 if x0 else self.opt.x
 
         self.jac_size = None
+        self.eval_cnt = 1
+        self.nparams = self.opt.dof_size
+        
+    def init_log(self):
+        if isinstance(self.log_file, str):
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            log_file = self.log_file + "_" + datestr + ".dat"
+            self.log_file = open(log_file, 'w')
+            self.new_log_file = True
+        self.start_time = time()
 
-    def jac(self, x: RealArray = None) -> RealArray:
+        
+    def jac(self, x: RealArray = None, *args, **kwargs) -> RealArray:
         if x is not None:
             self.x0 = np.asarray(x)
         x0 = self.x0 if self.x0 is not None else self.opt.x
         opt_x0 = self.opt.x
-
+        
+        self.init_log()
+        
         if self.jac_size is None:
             out = self.fn()
             if not isinstance(out, (np.ndarray, collections.abc.Sequence)):
                 out = [out]
-            self.jac_size = (len(out), self.opt.dof_size)
-
+            if self.flatten_out:
+                self.jac_size = (self.nparams)
+            else:
+                self.jac_size = (len(out), self.nparams)
+                
         jac = np.zeros(self.jac_size)
         steps = finite_difference_steps(x0, abs_step=self.abs_step,
                                         rel_step=self.rel_step)
         if self.diff_method == "centered":
+            self.nevals_jac = 2 * self.nparams
             # Centered differences:
-            for j in range(len(x0)):
+            for j in range(self.nparams): # len(x0)
                 x = np.copy(x0)
 
                 x[j] = x0[j] + steps[j]
@@ -96,20 +120,28 @@ class FiniteDifference:
                 self.opt.x = x
                 fminus = np.asarray(self.fn())
 
-                jac[:, j] = (fplus - fminus) / (2 * steps[j])
-
+                if self.flatten_out:
+                    jac[j] = (fplus - fminus) / (2 * steps[j])
+                else:
+                    jac[:, j] = (fplus - fminus) / (2 * steps[j])
+                    
         elif self.diff_method == "forward":
             # 1-sided differences
+            self.nevals_jac = self.nparams + 1
             self.opt.x = x0
             f0 = np.asarray(self.fn())
-            for j in range(len(x0)):
+            for j in range(self.nparams): # len(x0)
                 x = np.copy(x0)
                 x[j] = x0[j] + steps[j]
                 self.opt.x = x
                 fplus = np.asarray(self.fn())
 
-                jac[:, j] = (fplus - f0) / steps[j]
-
+                if self.flatten_out:
+                    jac[j] = (fplus - f0) / steps[j]
+                else:
+                    jac[:, j] = (fplus - f0) / steps[j]
+                    
+        self.eval_cnt += self.nevals_jac
         # Set the opt.x to the original x
         self.opt.x = opt_x0
 
@@ -162,7 +194,8 @@ class MPIFiniteDifference:
 
         self.jac_size = None
         self.eval_cnt = 1
-
+        self.nparams = self.opt.dof_size
+        
     def __enter__(self):
         self.mpi_apart()
         self.init_log()
@@ -202,10 +235,9 @@ class MPIFiniteDifference:
         logger.info('Beginning parallel finite difference gradient calculation')
 
         x0 = np.copy(opt.x)
-        nparams = opt.dof_size
         # Make sure all leaders have the same x0.
         mpi.comm_leaders.Bcast(x0)
-        logger.info(f'nparams: {nparams}')
+        logger.info(f'nparams: {self.nparams}')
         logger.info(f'x0:  {x0}')
 
         # Set up the list of parameter values to try
@@ -214,19 +246,19 @@ class MPIFiniteDifference:
         mpi.comm_leaders.Bcast(steps)
         diff_method = mpi.comm_leaders.bcast(self.diff_method)
         if diff_method == "centered":
-            nevals_jac = 2 * nparams
-            xs = np.zeros((nparams, nevals_jac))
-            for j in range(nparams):
+            self.nevals_jac = 2 * self.nparams
+            xs = np.zeros((self.nparams, self.nevals_jac))
+            for j in range(self.nparams):
                 xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
                 xs[j, 2 * j] = x0[j] + steps[j]
                 xs[:, 2 * j + 1] = x0[:]
                 xs[j, 2 * j + 1] = x0[j] - steps[j]
         else:  # diff_method == "forward":
             # 1-sided differences
-            nevals_jac = nparams + 1
-            xs = np.zeros((nparams, nevals_jac))
+            self.nevals_jac = self.nparams + 1
+            xs = np.zeros((self.nparams, self.nevals_jac))
             xs[:, 0] = x0[:]
-            for j in range(nparams):
+            for j in range(self.nparams):
                 xs[:, j + 1] = x0[:]
                 xs[j, j + 1] = x0[j] + steps[j]
 
@@ -234,15 +266,15 @@ class MPIFiniteDifference:
         # nvals = None # Work on this later
         if not mpi.proc0_world:
             # All procs other than proc0_world should initialize evals before
-            # the nevals_jac loop, since they may not have any evals.
+            # the self.nevals_jac loop, since they may not have any evals.
             self.jac_size = np.zeros(2, dtype=np.int32)
             self.jac_size = mpi.comm_leaders.bcast(self.jac_size)
-            evals = np.zeros((self.jac_size[0], nevals_jac))
+            evals = np.zeros((self.jac_size[0], self.nevals_jac))
         # Do the hard work of evaluating the functions.
-        logger.info(f'size of evals is ({self.jac_size[0]}, {nevals_jac})')
+        logger.info(f'size of evals is ({self.jac_size[0]}, {self.nevals_jac})')
 
         ARB_VAL = 100
-        for j in range(nevals_jac):
+        for j in range(self.nevals_jac):
             # Handle only this group's share of the work:
             if np.mod(j, mpi.ngroups) == mpi.rank_leaders:
                 mpi.mobilize_workers(ARB_VAL)
@@ -253,7 +285,7 @@ class MPIFiniteDifference:
 
                 if evals is None and mpi.proc0_world:
                     self.jac_size = mpi.comm_leaders.bcast(self.jac_size)
-                    evals = np.zeros((self.jac_size[0], nevals_jac))
+                    evals = np.zeros((self.jac_size[0], self.nevals_jac))
 
                 evals[:, j] = out
                 # evals[:, j] = np.array([f() for f in dofs.funcs])
@@ -270,12 +302,12 @@ class MPIFiniteDifference:
         # Use the evals to form the Jacobian
         jac = np.zeros(self.jac_size)
         if diff_method == "centered":
-            for j in range(nparams):
+            for j in range(self.nparams):
                 jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (
                     2 * steps[j])
         else:  # diff_method == "forward":
             # 1-sided differences:
-            for j in range(nparams):
+            for j in range(self.nparams):
                 jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / steps[j]
 
         # Weird things may happen if we do not reset the state vector
@@ -329,7 +361,7 @@ class MPIFiniteDifference:
             traceback.print_exc()  # Print traceback
 
     # Call to jac function is made in proc0
-    def jac(self, x: RealArray = None, *args, **kwargs):
+    def jac(self, x: RealArray = None, *args, **kwargs) -> RealArray:
         """
         Called by proc0
         """
@@ -356,26 +388,10 @@ class MPIFiniteDifference:
 
         jac, xs, evals = self._jac(x)
         logger.debug(f'jac is {jac}')
+        
+        # Log file is now written externally
+        # by a wrapper in the serial or mpi solver.
 
-        # Write to the log file:
-        logfile = self.log_file
-        if not self.log_header_written:
-            logfile.write(f'Problem type:\nleast_squares\nnparams:\n{len(x)}\n')
-            logfile.write('function_evaluation,seconds')
-            for j in range(len(x)):
-                logfile.write(f',x({j})')
-            logfile.write('\n')
-            self.log_header_written = True
-        nevals = evals.shape[1]
-        for j in range(nevals):
-            del_t = time() - self.start_time
-            j_eval = j + self.eval_cnt - 1
-            logfile.write(f'{j_eval:6d},{del_t:12.4e}')
-            for xj in xs[:, j]:
-                logfile.write(f',{xj:24.16e}')
-            logfile.write('\n')
-            logfile.flush()
-
-        self.eval_cnt += nevals
+        self.eval_cnt += self.nevals_jac
 
         return jac
