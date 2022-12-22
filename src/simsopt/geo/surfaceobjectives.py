@@ -23,7 +23,7 @@ class Area(Optimizable):
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
             ntheta = len(in_surface.quadpoints_theta)
-        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, \
+        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym, \
                                                         mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
         super().__init__(depends_on=[in_surface, surface])
@@ -59,7 +59,7 @@ class Volume(Optimizable):
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
             ntheta = len(in_surface.quadpoints_theta)
-        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, \
+        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym,\
                                                         mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
         super().__init__(depends_on=[in_surface, surface])
@@ -103,9 +103,9 @@ class ToroidalFlux(Optimizable):
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
             ntheta = len(in_surface.quadpoints_theta)
-        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, \
+        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym,\
                                                         mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
-        self.surface = in_surface
+        self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
         super().__init__(depends_on=[in_surface, surface, biotsavart])

@@ -1034,8 +1034,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for opt in self._dofs.dep_opts():
             if opt.local_dof_setter is not None:
                 opt.local_dof_setter(opt, list(opt.local_full_x))
-
-        self.set_recompute_flag()
+                opt.set_recompute_flag()
 
     @property
     def local_full_x(self):
@@ -1064,8 +1063,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for opt in self._dofs.dep_opts():
             if opt.local_dof_setter is not None:
                 opt.local_dof_setter(opt, list(opt.local_full_x))
-
-        self.set_recompute_flag()
+                opt.set_recompute_flag()
 
     def set_recompute_flag(self, parent=None):
         self.new_x = True
@@ -1100,6 +1098,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for opt in self._dofs.dep_opts():
             if opt.local_dof_setter is not None:
                 opt.local_dof_setter(opt, list(opt.local_full_x))
+                opt.set_recompute_flag()
 
     def recompute_bell(self, parent=None):
         """
