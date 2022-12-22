@@ -18,7 +18,10 @@ class Area(Optimizable):
 
     def __init__(self, in_surface, range=None, nphi=None, ntheta=None):
         if range is None:
-            range = Surface.RANGE_HALF_PERIOD
+            if in_surface.stellsym:
+                range = Surface.RANGE_HALF_PERIOD
+            else:
+                range = Surface.RANGE_FIELD_PERIOD
         if nphi is None:
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
@@ -54,7 +57,10 @@ class Volume(Optimizable):
 
     def __init__(self, in_surface, range=None, nphi=None, ntheta=None):
         if range is None:
-            range = Surface.RANGE_HALF_PERIOD
+            if in_surface.stellsym:
+                range = Surface.RANGE_HALF_PERIOD
+            else:
+                range = Surface.RANGE_FIELD_PERIOD
         if nphi is None:
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
