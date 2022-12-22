@@ -161,7 +161,9 @@ class CurrentPotentialSolve:
         """
             Solve the REGCOIL problem -- winding surface optimization with
             the L2 norm. This is tested against REGCOIL runs extensively in
-            tests/field/test_regcoil.py.
+            tests/field/test_regcoil.py. Note that computing f_B and f_K
+            requires that we convert Bmatrix and Kmatrix back into forms
+            suitable for computing the 
         """
         K_matrix = self.K_matrix()
         K_rhs = self.K_rhs()
@@ -179,7 +181,9 @@ class CurrentPotentialSolve:
         b_orig = np.linalg.inv(sqrt_B_matrix) @ b_rhs 
         K_orig = np.linalg.inv(sqrt_K_matrix) @ K_rhs
         f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
-        f_K = 0.5 * np.linalg.norm(sqrt_K_matrix @ phi_mn_opt - K_orig) ** 2 * nfp
+        #f_B = 0.5 * (phi_mn_opt.T @ B_matrix @ phi_mn_opt - 2.0 * phi_mn_opt.T @ b_rhs + b_orig.T @ b_orig)
+        f_K = 0.5 * np.linalg.norm(sqrt_K_matrix @ phi_mn_opt + K_orig) ** 2 * nfp
+        f_K = 0.5 * (phi_mn_opt.T @ K_matrix @ phi_mn_opt + 2.0 * phi_mn_opt.T @ K_rhs + K_orig.T @ K_orig) * nfp
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0):
