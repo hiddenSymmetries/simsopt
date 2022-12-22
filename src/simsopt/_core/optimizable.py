@@ -154,6 +154,9 @@ class DOFs(GSONable, Hashable):
         for opt_ref in self._dep_opts:
             opt = opt_ref()
             if opt is not None:
+                if opt.local_dof_setter is not None:
+                    # opt.local_dof_setter(opt, list(self._x))
+                    opt.local_dof_setter(opt, self._x)
                 opt.set_recompute_flag()
 
     def _update_opt_indices(self):
@@ -998,12 +1001,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         if list(self.dof_indices.values())[-1][-1] != len(x):
             raise ValueError
         for opt, indices in self.dof_indices.items():
-            if opt != self:
-                opt.local_x = x[indices[0]:indices[1]]
-                opt.new_x = True
-                opt.recompute_bell()
-            else:
-                opt.local_x = x[indices[0]:indices[1]]
+            # if opt != self:
+            opt.local_x = x[indices[0]:indices[1]]
+                # opt.new_x = True
+            #    opt.recompute_bell()
+            # else:
+            #     opt.local_x = x[indices[0]:indices[1]]
 
     @property
     def full_x(self) -> RealArray:
@@ -1030,9 +1033,9 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.free_x = x
-        if self.local_dof_setter is not None:
-            self.local_dof_setter(self, list(self.local_full_x))
-        self.set_recompute_flag()
+        # if self.local_dof_setter is not None:
+        #     self.local_dof_setter(self, list(self.local_full_x))
+        # self.set_recompute_flag()
 
     @property
     def local_full_x(self):
@@ -1057,9 +1060,9 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         .. warning:: Even fixed DOFs are assigned.
         """
         self._dofs.full_x = x
-        if self.local_dof_setter is not None:
-            self.local_dof_setter(self, list(self.local_full_x))
-        self.set_recompute_flag()
+        # if self.local_dof_setter is not None:
+        #     self.local_dof_setter(self, list(self.local_full_x))
+        # self.set_recompute_flag()
 
     def set_recompute_flag(self, parent=None):
         self.new_x = True
@@ -1091,8 +1094,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             new_val: New value of the DOF
         """
         self._dofs.set(key, new_val)
-        if self.local_dof_setter is not None:
-            self.local_dof_setter(self, list(self.local_full_x))
+        # if self.local_dof_setter is not None:
+        #     self.local_dof_setter(self, list(self.local_full_x))
 
     def recompute_bell(self, parent=None):
         """
