@@ -56,7 +56,7 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares'):
         #    log_file.write(f',{total_jacj:24.16e}')
         
         # Compute the derivative of each residual, as required by scipy.optimize.least_squares
-        with numpy.printoptions(threshold=numpy.inf):
+        with np.printoptions(threshold=np.inf):
             log_file.write(", " + np.array_str(ret, max_line_width = np.inf, precision = None).replace('\n',','))
         log_file.write('\n')
         log_file.flush()
