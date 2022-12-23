@@ -245,7 +245,7 @@ class LabelTests(unittest.TestCase):
         def df(dofs):
             surface.x = dofs
             return label.dJ_by_dsurfacecoefficients()
-        
+
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
 

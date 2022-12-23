@@ -1003,7 +1003,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         for opt, indices in self.dof_indices.items():
             # if opt != self:
             opt.local_x = x[indices[0]:indices[1]]
-                # opt.new_x = True
+            # opt.new_x = True
             #    opt.recompute_bell()
             # else:
             #     opt.local_x = x[indices[0]:indices[1]]
@@ -1067,7 +1067,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         #     if opt.local_dof_setter is not None:
         #         opt.local_dof_setter(opt, list(opt.local_full_x))
         #         opt.set_recompute_flag()
-
 
     def set_recompute_flag(self, parent=None):
         self.new_x = True

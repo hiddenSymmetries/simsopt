@@ -56,7 +56,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale = 0.01
     order = 4
-    
+
     if curvetype == "CurveXYZFourier":
         curve = CurveXYZFourier(x, order)
     elif curvetype == "JaxCurveXYZFourier":
