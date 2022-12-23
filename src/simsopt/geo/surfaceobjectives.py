@@ -69,7 +69,7 @@ class Volume(Optimizable):
                                                         mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
         super().__init__(depends_on=[in_surface, surface])
-        
+
     def J(self):
         """
         Compute the volume enclosed by the surface.
