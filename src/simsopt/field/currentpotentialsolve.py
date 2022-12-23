@@ -129,16 +129,16 @@ class CurrentPotentialSolve:
         points_coil = self.winding_surface.gamma().reshape(-1, 3)
         theta = self.winding_surface.quadpoints_theta
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
-        phi_mesh = np.ravel(phi_mesh)
-        theta_mesh = np.ravel(theta_mesh)
+        zeta_coil = np.ravel(phi_mesh)
+        theta_coil = np.ravel(theta_mesh)
         gj, B_matrix = sopp.winding_surface_field_Bn(
             points_plasma,
             points_coil, 
             normal_plasma, 
             normal, 
             self.winding_surface.stellsym,
-            phi_mesh, 
-            theta_mesh, 
+            zeta_coil, 
+            theta_coil, 
             self.ndofs, 
             self.current_potential.m, 
             self.current_potential.n,
@@ -152,9 +152,34 @@ class CurrentPotentialSolve:
         dtheta_plasma = (plasma_surface.quadpoints_theta[1] - plasma_surface.quadpoints_theta[0])
         dzeta_coil = (self.winding_surface.quadpoints_phi[1] - self.winding_surface.quadpoints_phi[0])
         dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
+
         # scale bmatrix and b_rhs by factors of the grid spacing
+        # Equivalent to the following 
+        # b_rhs = b_rhs / (nphi * ntheta * nphi_coil * ntheta_coil * nfp) 
         b_rhs = b_rhs * dzeta_plasma * dtheta_plasma * dzeta_coil * dtheta_coil
         B_matrix = B_matrix * dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2
+        normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
+        self.gj = gj * np.sqrt(dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2)
+        self.b_e = - np.sqrt(normN * dzeta_plasma * dtheta_plasma) * (B_GI + Bnormal_plasma)
+
+        normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
+        dr_dzeta = self.winding_surface.gammadash1().reshape(-1, 3)
+        dr_dtheta = self.winding_surface.gammadash2().reshape(-1, 3)
+        G = self.current_potential.net_poloidal_current_amperes
+        I = self.current_potential.net_toroidal_current_amperes
+
+        normal_coil = self.winding_surface.normal().reshape(-1, 3)
+        m = self.current_potential.m
+        n = self.current_potential.n
+        nfp = self.winding_surface.nfp
+
+        contig = np.ascontiguousarray
+        d, fj = sopp.winding_surface_field_K2_matrices(
+            contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym, 
+            contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
+        )
+        self.fj = fj * np.sqrt(dzeta_coil * dtheta_coil)
+        self.d = d * np.sqrt(dzeta_coil * dtheta_coil)
         return b_rhs, B_matrix
 
     def solve_tikhonov(self, lam=0):
@@ -171,19 +196,13 @@ class CurrentPotentialSolve:
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
         nfp = self.plasma_surface.nfp
+        normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
+        A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
+        b_e = self.b_e 
+        f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
 
-        # compute matrix square root
-        sqrt_B_matrix = sqrtm(B_matrix) 
-
-        # compute matrix square root
-        sqrt_K_matrix = sqrtm(K_matrix)
-
-        b_orig = np.linalg.inv(sqrt_B_matrix) @ b_rhs 
-        K_orig = np.linalg.inv(sqrt_K_matrix) @ K_rhs
-        f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
-        #f_B = 0.5 * (phi_mn_opt.T @ B_matrix @ phi_mn_opt - 2.0 * phi_mn_opt.T @ b_rhs + b_orig.T @ b_orig)
-        f_K = 0.5 * np.linalg.norm(sqrt_K_matrix @ phi_mn_opt + K_orig) ** 2 * nfp
-        f_K = 0.5 * (phi_mn_opt.T @ K_matrix @ phi_mn_opt + 2.0 * phi_mn_opt.T @ K_rhs + K_orig.T @ K_orig) * nfp
+        Ak_times_phi = self.fj @ phi_mn_opt
+        f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2 * nfp
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0):
@@ -209,26 +228,11 @@ class CurrentPotentialSolve:
         K_matrix = self.K_matrix()
         K_rhs = self.K_rhs()
         b_rhs, B_matrix = self.B_matrix_and_rhs()
-
-        # Computing diagonalization, B_matrix is real, positive definite
-        evalues, evectors = np.linalg.eig(B_matrix)
-        sqrt_B_matrix = evectors @ np.diag(np.sqrt(evalues)) @ np.linalg.inv(evectors) 
-
-        # Computing diagonalization, K_matrix is real, positive definite
-        evalues, evectors = np.linalg.eig(K_matrix)
-
-        # sqrt_K_matrix = A_k, and K_orig = b_k in ||A_k * phi_mn - b_k||
-        sqrt_K_matrix = evectors @ np.diag(np.sqrt(evalues)) @ np.linalg.inv(evectors) 
-        K_orig = np.linalg.inv(sqrt_K_matrix.T) @ K_rhs
-        b_orig = np.linalg.inv(sqrt_B_matrix.T) @ b_rhs
-
-        # define altered least-square matrices
+        sqrt_K_matrix = sqrtm(K_matrix)
         sqrt_K_matrix_inv = np.linalg.inv(sqrt_K_matrix)
-        A_new = sqrt_B_matrix @ sqrt_K_matrix_inv
-        b_new = b_orig - A_new @ K_orig
 
         # rescale the l1 regularization
-        l1_reg = lam / (2 * b_new.shape[0])
+        l1_reg = lam / (2 * b_rhs.shape[0])
         # l1_reg = np.sqrt(lam) / (2 * b_rhs.shape[0])
 
         solver = Lasso(alpha=l1_reg)
@@ -238,8 +242,12 @@ class CurrentPotentialSolve:
         z_opt = solution.coef_
         phi_mn_opt = sqrt_K_matrix_inv @ (z_opt + K_orig)
         self.current_potential.set_dofs(phi_mn_opt)
-        nfp = self.plasma_surface.nfp
 
-        f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
-        f_K = 0.5 * np.sum(abs(sqrt_K_matrix @ phi_mn_opt - K_orig)) * nfp
-        return phi_mn_opt, f_B, f_K
+        nfp = self.plasma_surface.nfp
+        normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
+        A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
+        b_e = self.b_e 
+        f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
+        #f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
+        #f_K = 0.5 * np.sum(abs(sqrt_K_matrix @ phi_mn_opt - K_orig)) * nfp
+        return phi_mn_opt, f_B

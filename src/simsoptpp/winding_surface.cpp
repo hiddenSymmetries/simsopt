@@ -449,3 +449,56 @@ Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Arra
     }
     return B_GI;
 }
+
+std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil, Array& dr_dtheta_coil, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp, double G, double I)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(dr_dzeta_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("dr_dzeta_coil needs to be in row-major storage order");
+    if(dr_dtheta_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("dr_dtheta_coil needs to be in row-major storage order");
+    if(normal_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("normal_winding_surface needs to be in row-major storage order");
+    if(zeta_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("phi needs to be in row-major storage order");
+    if(theta_coil.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("theta needs to be in row-major storage order");
+
+    int num_coil = normal_coil.shape(0);
+    Array d = xt::zeros<double>({num_coil, 3});
+    Array fj = xt::zeros<double>({num_coil, 3, ndofs});
+
+    // Loop through the coil quadrature points, using all the symmetries
+    #pragma omp parallel for schedule(static)
+    for (int j = 0; j < num_coil; ++j) {
+	double nx = normal_coil(j, 0);
+	double ny = normal_coil(j, 1);
+	double nz = normal_coil(j, 2);
+	double normN = sqrt(nx * nx + ny * ny + nz * nz);  // / (4 * M_PI * M_PI);
+        d(j, 0) = (G * dr_dtheta_coil(j, 0) - I * dr_dzeta_coil(j, 0)) / sqrt(normN); //  / (4 * M_PI * M_PI);
+        d(j, 1) = (G * dr_dtheta_coil(j, 1) - I * dr_dzeta_coil(j, 1)) / sqrt(normN); // / (4 * M_PI * M_PI);
+        d(j, 2) = (G * dr_dtheta_coil(j, 2) - I * dr_dzeta_coil(j, 2)) / sqrt(normN); // / (4 * M_PI * M_PI);
+        for(int k = 0; k < ndofs; k++) {
+	    double angle = 2 * M_PI * m(k) * theta_coil(j) - 2 * M_PI * n(k) * zeta_coil(j) * nfp;
+	    double cphi = std::cos(angle);
+	    double sphi = std::sin(angle);
+            if (stellsym) {
+		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN); // / (2 * M_PI);
+		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN); // / (2 * M_PI);
+		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN); // / (2 * M_PI);
+	    }
+	    else if (k < int(ndofs / 2.0)) {
+		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+	    }
+	    else {
+		fj(j, 0, k) = -sphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+		fj(j, 1, k) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+		fj(j, 2, k) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+	    }
+        }
+    }
+    return std::make_tuple(d, fj);
+}
+

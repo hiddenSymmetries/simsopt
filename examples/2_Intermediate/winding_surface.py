@@ -56,6 +56,8 @@ for file in ['regcoil_out.li383.nc']:
     cp = CurrentPotentialFourier.from_netcdf(filename)
     s_coil = cpst.winding_surface
     s_plasma = cpst.plasma_surface
+    normal_coil = s_coil.normal().reshape(-1, 3)
+    normN = np.linalg.norm(normal_coil, axis=-1)
     nfp = s_plasma.nfp
     nphi = len(s_plasma.quadpoints_phi)
     ntheta = len(s_plasma.quadpoints_theta)
@@ -80,11 +82,14 @@ for file in ['regcoil_out.li383.nc']:
     Bmean_lasso = np.zeros(len(lambdas))
     for i, lambda_reg in enumerate(lambdas):
         # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
-        optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_reg)
+        optimized_phi_mn, f_B = cpst.solve_tikhonov(lam=lambda_reg)
         fB_tikhonov[i] = f_B
-        fK_tikhonov[i] = f_K
         cp_opt = cpst.current_potential
-        K = np.ascontiguousarray(cp_opt.K())
+        K = cp_opt.K()
+        K2 = np.sum(K ** 2, axis=2)
+        f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal_coil.shape[0])
+        fK_tikhonov[i] = f_K_direct
+        K = np.ascontiguousarray(K)
         Kmax_tikhonov[i] = np.max(abs(K))
         Kmean_tikhonov[i] = np.mean(abs(K))
 
@@ -100,7 +105,7 @@ for file in ['regcoil_out.li383.nc']:
             s_plasma, 
             Bfield_opt, 
             contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
-        ).J() * nfp
+        ).J()
         print('f_B from plasma surface = ', f_B_sf)
 
         # make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
@@ -108,13 +113,25 @@ for file in ['regcoil_out.li383.nc']:
         # s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
         # Repeat with the L1 instead of the L2 norm!
-        optimized_phi_mn, f_B, f_K = cpst.solve_lasso(lam=lambda_reg)
+        optimized_phi_mn, f_B = cpst.solve_lasso(lam=lambda_reg)
         fB_lasso[i] = f_B
-        fK_lasso[i] = f_K
+        K = cp_opt.K()
+        K2 = np.sum(K ** 2, axis=2)
+        f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal_coil.shape[0])
+        fK_lasso[i] = f_K_direct
         cp_opt = cpst.current_potential
         K = np.ascontiguousarray(cp_opt.K())
         Kmax_lasso[i] = np.max(abs(K))
         Kmean_lasso[i] = np.mean(abs(K))
+
+        print('f_B from least squares = ', f_B)
+        print(cpst.Bnormal_plasma.shape)
+        f_B_sf = SquaredFlux(
+            s_plasma, 
+            Bfield_opt, 
+            contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
+        ).J()
+        print('f_B from plasma surface = ', f_B_sf)
 
         Bfield_opt = WindingSurfaceField(cp_opt)
         Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))

@@ -481,7 +481,7 @@ class CircularCoil(MagneticField):
         k = np.sqrt(1-np.divide(np.square(alpha), np.square(beta)))
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
-        
+
         num = (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2))
         denom = ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31))
         fak = num/denom

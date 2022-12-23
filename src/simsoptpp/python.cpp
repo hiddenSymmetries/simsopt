@@ -57,6 +57,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("WindingSurfaceA", &WindingSurfaceA);
     m.def("WindingSurfacedA", &WindingSurfacedA);
     m.def("winding_surface_field_Bn", &winding_surface_field_Bn);
+    m.def("winding_surface_field_K2_matrices", &winding_surface_field_K2_matrices);
     m.def("winding_surface_field_Bn_GI", &winding_surface_field_Bn_GI);
 
     m.def("ReimanB" , &ReimanB);
