@@ -424,9 +424,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         if self.proc0:
             self.asym = self.bx.asym  # Bool for stellarator asymmetry
-            self.init_splines()
             self.psi0 = self.bx.phi[-1]/(2*np.pi)
             self.nfp = self.bx.nfp
+            self.mpol = self.bx.mboz
+            self.ntor = self.bx.nboz
+            self.s_half_ext = np.zeros((self.bx.ns_b+2))
+            self.s_half_ext[1:-1] = self.bx.s_b
+            self.s_half_ext[-1] = 1
+            self.init_splines()
         else:
             self.psip_spline = None
             self.G_spline = None
@@ -460,9 +465,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.asym = None
             self.psi0 = None
             self.nfp = None
+            self.mpol = None
+            self.ntor = None
+            self.s_half_ext = None
         if self.mpi is not None:
             self.psi0 = self.mpi.comm_world.bcast(self.psi0, root=0)
             self.nfp = self.mpi.comm_world.bcast(self.nfp, root=0)
+            self.mpol = self.mpi.comm_world.bcast(self.mpol, root=0)
+            self.ntor = self.mpi.comm_world.bcast(self.ntor, root=0)
             self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
             self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
             self.G_spline = self.mpi.comm_world.bcast(self.G_spline, root=0)
@@ -483,6 +493,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
             self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
             self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
+            self.s_half_ext = self.mpi.comm_world.bcast(self.s_half_ext, root=0)
             if self.asym:
                 self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
                 self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
@@ -506,10 +517,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         iota = np.zeros((self.bx.ns_b+2))
         G = np.zeros((self.bx.ns_b+2))
         I = np.zeros((self.bx.ns_b+2))
-
-        self.s_half_ext = np.zeros((self.bx.ns_b+2))
-        self.s_half_ext[1:-1] = self.bx.s_b
-        self.s_half_ext[-1] = 1
 
         ds = self.bx.s_b[1]-self.bx.s_b[0]
 
@@ -695,11 +702,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     self.dzmncds_splines.append(InterpolatedUnivariateSpline(s_full[1:-1], dzmncds[im, :], k=self.order))
 
     def compute_K(self):
-        ntheta = 2 * (2 * self.bx.mboz + 1)
-        nzeta = 2 * (2 * self.bx.nboz + 1)
+        ntheta = 2 * (2 * self.mpol + 1)
+        nzeta = 2 * (2 * self.ntor + 1)
         thetas = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
         dtheta = thetas[1]-thetas[0]
-        zetas = np.linspace(0, 2*np.pi/self.bx.nfp, nzeta, endpoint=False)
+        zetas = np.linspace(0, 2*np.pi/self.nfp, nzeta, endpoint=False)
         dzeta = zetas[1]-zetas[0]
         thetas, zetas = np.meshgrid(thetas, zetas)
         thetas = thetas.flatten()
@@ -761,12 +768,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                                                    iota_half, G_half, I_half, self.xm_b, self.xn_b, thetas, zetas)
                 kmnc = kmnc_kmns[0, :]
                 kmns = kmnc_kmns[1, :]
-                kmnc_all.append(kmnc*dtheta*dzeta*self.bx.nfp/self.psi0)
+                kmnc_all.append(kmnc*dtheta*dzeta*self.nfp/self.psi0)
             else:
                 kmns = sopp.compute_kmns(rmnc_half, drmncds_half, zmns_half, dzmnsds_half,
                                          numns_half, dnumnsds_half, bmnc_half, iota_half, G_half, I_half,
                                          self.xm_b, self.xn_b, thetas, zetas)
-            kmns_all.append(kmns*dtheta*dzeta*self.bx.nfp/self.psi0)
+            kmns_all.append(kmns*dtheta*dzeta*self.nfp/self.psi0)
             s_all.append(self.s_half_ext[isurf])
 
         # Gather all kmns/c entries
