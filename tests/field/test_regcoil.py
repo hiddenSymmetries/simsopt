@@ -506,6 +506,7 @@ class Testing(unittest.TestCase):
                 assert np.isclose(f_B, f_B_sq, rtol=1e-1)
                 assert np.isclose(f_B, f_B_REGCOIL, rtol=1e-2)
                 assert np.isclose(f_K_direct, f_K_REGCOIL, rtol=1e-2)
+                assert np.isclose(f_K, f_K_REGCOIL, rtol=1e-2)
 
                 # check the REGCOIL Bnormal calculation in c++ """
                 points = s_plasma.gamma().reshape(-1, 3)
