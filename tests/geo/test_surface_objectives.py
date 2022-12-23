@@ -185,11 +185,11 @@ class ParameterDerivativesTest(unittest.TestCase):
                     self.subtest_volume(surfacetype, stellsym)
 
     def subtest_volume(self, surfacetype, stellsym):
+        from simsopt.geo import Surface
         s = get_surface(surfacetype, stellsym, mpol=7, ntor=6,
                         ntheta=32, nphi=31, full=True)
         dofs = s.get_dofs()
-
-        vol = Volume(s)
+        vol = Volume(s, range=Surface.RANGE_FIELD_PERIOD)
         dvol_sg = parameter_derivatives(s, np.ones_like(s.gamma()[:, :, 0]))
         dvol = vol.dJ_by_dsurfacecoefficients()
         for i in range(len(dofs)):
