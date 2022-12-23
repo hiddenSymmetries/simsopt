@@ -228,7 +228,7 @@ class QfmTests(unittest.TestCase):
 
 class LabelTests(unittest.TestCase):
     def test_label_surface_derivative1(self):
-        for label in ["Volume", "ToroidalFlux", "Area"]:
+        for label in ["ToroidalFlux", "Volume", "Area"]:
             with self.subTest(label=label):
                 self.subtest_label_derivative1(label)
 
@@ -245,6 +245,7 @@ class LabelTests(unittest.TestCase):
         def df(dofs):
             surface.x = dofs
             return label.dJ_by_dsurfacecoefficients()
+        
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
 

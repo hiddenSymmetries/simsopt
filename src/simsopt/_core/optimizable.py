@@ -1033,8 +1033,11 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         if self.local_dof_size != len(x):
             raise ValueError
         self._dofs.free_x = x
-        # if self.local_dof_setter is not None:
-        #     self.local_dof_setter(self, list(self.local_full_x))
+
+        # for opt in self._dofs.dep_opts():
+        #     if opt.local_dof_setter is not None:
+        #         opt.local_dof_setter(opt, list(opt.local_full_x))
+
         # self.set_recompute_flag()
 
     @property
@@ -1060,8 +1063,11 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         .. warning:: Even fixed DOFs are assigned.
         """
         self._dofs.full_x = x
-        # if self.local_dof_setter is not None:
-        #     self.local_dof_setter(self, list(self.local_full_x))
+
+        # for opt in self._dofs.dep_opts():
+        #     if opt.local_dof_setter is not None:
+        #         opt.local_dof_setter(opt, list(opt.local_full_x))
+
         # self.set_recompute_flag()
 
     def set_recompute_flag(self, parent=None):
@@ -1094,8 +1100,9 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             new_val: New value of the DOF
         """
         self._dofs.set(key, new_val)
-        # if self.local_dof_setter is not None:
-        #     self.local_dof_setter(self, list(self.local_full_x))
+        # for opt in self._dofs.dep_opts():
+        #     if opt.local_dof_setter is not None:
+        #         opt.local_dof_setter(opt, list(opt.local_full_x))
 
     def recompute_bell(self, parent=None):
         """
