@@ -17,8 +17,8 @@ class CurrentPotentialFourier : public CurrentPotential<Array> {
         int mpol;
         int ntor;
         bool stellsym;
-        double net_poloidal_current_amperes;
-        double net_toroidal_current_amperes;
+        using CurrentPotential<Array>::net_poloidal_current_amperes;
+        using CurrentPotential<Array>::net_toroidal_current_amperes;
 
         CurrentPotentialFourier(
                 int _mpol, int _ntor, int _nfp, bool _stellsym,

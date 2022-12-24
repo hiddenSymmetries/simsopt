@@ -35,13 +35,12 @@ class CurrentPotential(Optimizable):
     def num_dofs(self):
         return len(self.get_dofs())
 
-
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     """
     Current Potential Fourier object is designed for initializing
     the winding surface problem, assuming that the current potential
     will be represented by a Fourier expansion in the toroidal
-    and poloidal modes. 
+    and poloidal modes.
 
     Args:
         winding_surface: SurfaceRZFourier object representing the coil surface.
@@ -64,8 +63,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                  quadpoints_phi=None, quadpoints_theta=None):
 
         # Next two lines are new code
-        self.net_poloidal_current_amperes = net_poloidal_current_amperes
-        self.net_toroidal_current_amperes = net_toroidal_current_amperes
+        # self.net_poloidal_current_amperes = net_poloidal_current_amperes
+        # self.net_toroidal_current_amperes = net_toroidal_current_amperes
         if nfp is None:
             nfp = winding_surface.nfp
         if stellsym is None:
@@ -81,8 +80,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             quadpoints_phi = winding_surface.quadpoints_phi
 
         sopp.CurrentPotentialFourier.__init__(self, mpol, ntor, nfp, stellsym,
-                                              quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
-                                              net_toroidal_current_amperes)
+               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
+                                                 net_toroidal_current_amperes)
 
         CurrentPotential.__init__(self, winding_surface, x0=self.get_dofs(),
                                   external_dof_setter=CurrentPotentialFourier.set_dofs_impl,
@@ -179,6 +178,14 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self._validate_mn(m, n)
         self.phis[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
+        self.invalidate_cache()
+
+    def set_net_toroidal_current_amperes(self, val):
+        self.net_toroidal_current_amperes = val
+        self.invalidate_cache()
+
+    def set_net_poloidal_current_amperes(self, val):
+        self.net_poloidal_current_amperes = val
         self.invalidate_cache()
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
@@ -322,9 +329,9 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         #quadpoints_phi = np.linspace(0, 1, nfp * nzeta_coil, endpoint=True)
         #quadpoints_theta = np.linspace(0, 1, ntheta_coil, endpoint=True)
         #s_coil = SurfaceRZFourier(
-        #    nfp=nfp, 
-        #    mpol=mpol_coil, 
-        #    ntor=ntor_coil, 
+        #    nfp=nfp,
+        #    mpol=mpol_coil,
+        #    ntor=ntor_coil,
         #    stellsym=stellsym_surf,
         #   quadpoints_phi=quadpoints_phi,
         #   quadpoints_theta=quadpoints_theta

@@ -288,7 +288,7 @@ class Testing(unittest.TestCase):
             # Compare single-valued current potential
             # Initialization not from netcdf
             cp_no_GI = CurrentPotentialFourier(
-                cp_GI.winding_surface, 
+                cp_GI.winding_surface,
                 net_poloidal_current_amperes=0.0,
                 net_toroidal_current_amperes=0.0,
                 mpol=cp_GI.mpol,  # critical line here
@@ -362,7 +362,7 @@ class Testing(unittest.TestCase):
             ws_points = s_coil.gamma().reshape(-1, 3)
             ws_normal = s_coil.normal().reshape(-1, 3)
             Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, cp.Phi(), normal) * dtheta_coil * dzeta_coil
-            assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_single_valued)) 
+            assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_single_valued))
             normN = np.linalg.norm(normal, axis=-1)
             res = (np.ravel(Bnormal_regcoil_total) ** 2) @ normN
             f_B_manual = 0.5 * res / (nphi * ntheta)
@@ -444,8 +444,8 @@ class Testing(unittest.TestCase):
 
             # Make sure single-valued part of current potential is working
             cp_no_GI = CurrentPotentialFourier.from_netcdf(filename)
-            cp_no_GI.net_toroidal_current_amperes = 0
-            cp_no_GI.net_poloidal_current_amperes = 0
+            cp_no_GI.set_net_toroidal_current_amperes(0)
+            cp_no_GI.set_net_poloidal_current_amperes(0)
 
             # Solve the least-squares problem with the specified plasma
             # quadrature points, normal vector, and Bnormal at these quadrature points
