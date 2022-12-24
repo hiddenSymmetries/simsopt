@@ -14,6 +14,7 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
     double r = 0;
     double z = 0;
 
+#pragma omp parallel for
     for (int k = 0; k < numquadpoints; ++k)
     {
         double CWSt = 2 * M_PI * quadpoints[k];
@@ -47,35 +48,4 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         data(k, 1) = r * sin(pphi);
         data(k, 2) = z;
     }
-
-    /* data *= 0;
-    for (int k = 0; k < numquadpoints; ++k)
-    {
-        double phi = 2 * M_PI * quadpoints[k];
-        for (int i = 0; i < order + 1; ++i)
-        {
-            data(k, 0) += rc[i] * cos(nfp * i * phi) * cos(phi);
-            data(k, 1) += rc[i] * cos(nfp * i * phi) * sin(phi);
-        }
-        for (int i = 1; i < order + 1; ++i)
-        {
-            data(k, 2) += zs[i - 1] * sin(nfp * i * phi);
-        }
-    }
-    if (!stellsym)
-    {
-        for (int k = 0; k < numquadpoints; ++k)
-        {
-            double phi = 2 * M_PI * quadpoints[k];
-            for (int i = 1; i < order + 1; ++i)
-            {
-                data(k, 0) += rs[i - 1] * sin(nfp * i * phi) * cos(phi);
-                data(k, 1) += rs[i - 1] * sin(nfp * i * phi) * sin(phi);
-            }
-            for (int i = 0; i < order + 1; ++i)
-            {
-                data(k, 2) += zc[i] * cos(nfp * i * phi);
-            }
-        }
-    } */
 }

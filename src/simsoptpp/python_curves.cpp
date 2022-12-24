@@ -14,6 +14,32 @@ typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
 #include "curverzfourier.h"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
 
+#include "curvecws.h"
+typedef CurveCWS<PyArray> PyCurveCWS;
+
+template <class PyCurveCWSBase = PyCurveCWS> class PyCurveCWSTrampoline : public PyCurveTrampoline<PyCurveCWSBase> {
+    public:
+        using PyCurveTrampoline<PyCurveCWSBase>::PyCurveTrampoline; // Inherit constructors
+
+        int num_dofs() override {
+            return PyCurveCWSBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PyCurveCWSBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PyCurveCWSBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints) override {
+            PyCurveCWSBase::gamma_impl(data, quadpoints);
+        }
+};
+
+
+
 template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFourierTrampoline : public PyCurveTrampoline<PyCurveXYZFourierBase> {
     public:
         using PyCurveTrampoline<PyCurveXYZFourierBase>::PyCurveTrampoline; // Inherit constructors

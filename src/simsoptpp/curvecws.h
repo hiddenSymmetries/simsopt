@@ -67,15 +67,41 @@ public:
         zs = xt::zeros<double>({mpol + 1, 2 * ntor + 1});
     }
 
-    /*
     inline int num_dofs() override
     {
+        /*
         if (stellsym)
             return 2 * order + 1;
         else
-            return 2 * (2 * order + 1);
+        */
+        return 2 * (2 * order + 1);
     }
-    */
+
+    vector<double> get_dofs() override
+    {
+        auto res = vector<double>(num_dofs(), 0.);
+        int counter = 0;
+        /* if (stellsym)
+        {
+            for (int i = 0; i < order + 1; ++i)
+                res[counter++] = rc[i];
+            for (int i = 0; i < order; ++i)
+                res[counter++] = zs[i];
+        }
+        else */
+        res[counter++] = theta_l;
+        for (int i = 0; i < order + 1; ++i)
+            res[counter++] = theta_c.data()[i];
+        for (int i = 0; i < order; ++i)
+            res[counter++] = theta_s.data()[i];
+        res[counter++] = phi_l;
+        for (int i = 0; i < order + 1; ++i)
+            res[counter++] = phi_c.data()[i];
+        for (int i = 0; i < order; ++i)
+            res[counter++] = phi_s.data()[i];
+
+        return res;
+    }
 
     void set_dofs_impl(const vector<double> &dofs) override
     {
@@ -93,7 +119,7 @@ public:
             phi_s.data()[i] = dofs[counter++];
     }
 
-    void set_dofs_surface(vector<double> &res) override
+    void set_dofs_surface(vector<double> &dofs) override
     {
         int shift = (mpol + 1) * (2 * ntor + 1);
         int counter = 0;
@@ -118,4 +144,13 @@ public:
     }
 
     void gamma_impl(Array &data, Array &quadpoints) override;
+    /*
+    void gammadash_impl(Array &data) override;
+    void gammadashdash_impl(Array &data) override;
+    void gammadashdashdash_impl(Array &data) override;
+    void dgamma_by_dcoeff_impl(Array &data) override;
+    void dgammadash_by_dcoeff_impl(Array &data) override;
+    void dgammadashdash_by_dcoeff_impl(Array &data) override;
+    void dgammadashdashdash_by_dcoeff_impl(Array &data) override;
+    */
 };
