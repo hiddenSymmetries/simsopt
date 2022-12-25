@@ -1125,8 +1125,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Lower bounds of the free DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
-        return np.concatenate([opt._dofs.free_lower_bounds for opt in opts])
+        return np.concatenate([opt._dofs.free_lower_bounds for opt in self.unique_dof_lineage])
 
     @property
     def local_lower_bounds(self) -> RealArray:
@@ -1147,7 +1146,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Optimizable object and those of its ancestors
         """
         opts = self.ancestors + [self]
-        return np.concatenate([opt._dofs.free_upper_bounds for opt in opts])
+        return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
     @property
     def local_upper_bounds(self) -> RealArray:
@@ -1171,9 +1170,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Names (Identifiers) of the DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
         names = []
-        for opt in opts:
+        for opt in self.unique_dof_lineage:
             names += [opt.name + ":" + dname for dname in opt._dofs.free_names]
         return names
 
@@ -1183,9 +1181,8 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Names (Identifiers) of the DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
         names = []
-        for opt in opts:
+        for opt in self.unique_dof_lineage:
             names += [opt.name + ":" + dname for dname in opt._dofs.full_names]
         return names
 
@@ -1212,7 +1209,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         current and ancestors Optimizable objects are free or not
         """
         return np.concatenate(
-            [opt._dofs.free_status for opt in self.ancestors + [self]])
+            [opt._dofs.free_status for opt in self.unique_dof_lineage])
 
     @property
     def local_dofs_free_status(self) -> BoolArray:
@@ -1275,8 +1272,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Set the 'fixed' attribute for all the degrees of freedom associated
         with the current Optimizable object including those of ancestors.
         """
-        opts = self.ancestors + [self]
-        for opt in opts:
+        for opt in self.unique_dof_lineage:
             opt.local_fix_all()
 
     def local_unfix_all(self) -> None:
@@ -1292,8 +1288,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Unset the 'fixed' attribute for all local degrees of freedom associated
         with the current Optimizable object including those of the ancestors.
         """
-        opts = self.ancestors + [self]
-        for opt in opts:
+        for opt in self.unique_dof_lineage:
             opt.local_unfix_all()
 
     def __add__(self, other):
