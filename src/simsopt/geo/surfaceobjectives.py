@@ -29,7 +29,7 @@ class Area(Optimizable):
         surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym, \
                                                         mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
-        super().__init__(depends_on=[in_surface, surface])
+        super().__init__(depends_on=[surface])
 
     def J(self):
         """
@@ -68,7 +68,7 @@ class Volume(Optimizable):
         surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym,\
                                                         mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
         self.surface = surface
-        super().__init__(depends_on=[in_surface, surface])
+        super().__init__(depends_on=[surface])
 
     def J(self):
         """
@@ -114,7 +114,7 @@ class ToroidalFlux(Optimizable):
         self.surface = surface
         self.biotsavart = biotsavart
         self.idx = idx
-        super().__init__(depends_on=[in_surface, surface, biotsavart])
+        super().__init__(depends_on=[surface, biotsavart])
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
