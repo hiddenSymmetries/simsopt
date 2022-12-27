@@ -665,6 +665,19 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # Keep this at the end because the function refers to Optimizable object
         self._dofs.add_opt(self)
 
+    def replace_dofs(self, dofs):
+        """
+        Calls all the required functions in correct order if the DOFs object
+        is replaced manually by the user
+        Args:
+            dofs: DOFs object
+        """
+        self._dofs = dofs
+        self._update_full_dof_size_indices()
+        self.update_free_dof_size_indices()
+        self.set_recompute_flag()
+        self._dofs.add_opt(self)
+
     def __str__(self):
         return self.name
 

@@ -407,11 +407,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._make_mn()
 
         # Update the dofs object
-        self._dofs = DOFs(self.get_dofs(), self._make_names())
-        # The following methods of graph Optimizable framework need to be called
-        Optimizable.update_free_dof_size_indices(self)
-        Optimizable._update_full_dof_size_indices(self)
-        Optimizable.set_recompute_flag(self)
+        self.replace_dofs(DOFs(self.get_dofs(), self._make_names()))
 
     def to_RZFourier(self):
         """
