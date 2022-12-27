@@ -8,6 +8,7 @@ from .curverzfourier import *
 from .curvexyzfourier import *
 from .curveperturbed import *
 from .curveobjectives import *
+from .curvecws import *
 
 from .finitebuild import *
 from .plotting import *
@@ -23,6 +24,7 @@ from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
+           curvecws.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
            curveperturbed.__all__ + curveobjectives.__all__ +
            finitebuild.__all__ + plotting.__all__ +

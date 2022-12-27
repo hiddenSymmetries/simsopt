@@ -13,7 +13,6 @@ namespace py = pybind11;
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
 #include "curverzfourier.h"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
-
 #include "curvecws.h"
 typedef CurveCWS<PyArray> PyCurveCWS;
 
@@ -37,7 +36,6 @@ template <class PyCurveCWSBase = PyCurveCWS> class PyCurveCWSTrampoline : public
             PyCurveCWSBase::gamma_impl(data, quadpoints);
         }
 };
-
 
 
 template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFourierTrampoline : public PyCurveTrampoline<PyCurveXYZFourierBase> {

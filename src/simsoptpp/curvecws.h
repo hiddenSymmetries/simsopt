@@ -54,8 +54,8 @@ public:
              int _nfp,
              bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), res(_res)
     {
-        phi_l = xt::zeros<double>({1});
-        theta_l = xt::zeros<double>({1});
+        phi_l = 0;
+        theta_l = 0;
         phi_s = xt::zeros<double>({order});
         phi_c = xt::zeros<double>({order + 1});
         theta_s = xt::zeros<double>({order});

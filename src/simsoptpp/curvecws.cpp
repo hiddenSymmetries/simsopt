@@ -23,7 +23,6 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         {
             pphi += phi_c[i] * cos(i * CWSt);
             ptheta += theta_c[i] * cos(i * CWSt);
-            data
         }
         for (int i = 1; i < order + 1; ++i)
         {
@@ -31,8 +30,8 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
             ptheta += theta_s[i - 1] * sin(i * CWSt);
         }
 
-        pphi += phi_l[0] * CWSt;
-        ptheta += theta_l[0] * CWSt;
+        pphi += phi_l * CWSt;
+        ptheta += theta_l * CWSt;
 
         // SURFACE
         for (int m = 0; m <= mpol; ++m)
@@ -48,4 +47,4 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         data(k, 1) = r * sin(pphi);
         data(k, 2) = z;
     }
-}
+};
