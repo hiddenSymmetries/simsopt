@@ -68,10 +68,11 @@ class SpecProfile(Profile):
         cumulative quantities in SPEC input file. False by default.
     """
 
-    def __init__(self, data, cumulative:bool=False):
+    def __init__(self, data, cumulative:bool=False, psi_edge:float=None):
         super().__init__(x0=np.array(data))
         self.local_fix_all()
         self.cumulative = cumulative
+        self.psi_edge = psi_edge
 
     def f(self, lvol:int):
         """Return the value of the profile in volume lvol"""
@@ -90,7 +91,9 @@ class SpecProfile(Profile):
 
     def dfds(self, lvol):
         """Return the derivative [[.]] of the profile accross external interface
-        or volume lvol (index starts at 0)
+        or volume lvol (index starts at 0).
+
+        Here s is defined as s = psi_t/psi_edge.
         
         Here lsurf=1 is the surface bounding the first volume. There are, in total,
         Mvol-1 surfaces, thus lsurf has to be in [1,Mvol-1]
@@ -101,17 +104,19 @@ class SpecProfile(Profile):
             raise ValueError('lvol should be larger or equal than zero')
         if (lvol >= self.local_full_x.size-1).any():
             raise ValueError('lvol should be smaller than Mvol-1')
+        if self.psi_edge is None:
+            raise ValueError('Need to provide psi_edge to perform derivatives')
         #if isinstance(lvol,list) or isinstance(lvol,np.ndarray):
         #    lvol = [int(l) for l in lvol]
         #else:
         #    lvol = int(lvol)
 
-        lsurf = [l+1 for l in lvol]
+        lvolout = [l+1 for l in lvol]
 
-        x_out = self.local_full_x[lsurf]
+        x_out = self.local_full_x[lvolout]
         x_in  = self.local_full_x[lvol]
 
-        return x_out-x_in
+        return (x_out-x_in) * self.psi_edge
 
 
 class ProfilePolynomial(Profile):

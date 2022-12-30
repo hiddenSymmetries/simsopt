@@ -909,14 +909,15 @@ class RedlBootstrapMismatch(Optimizable):
                 nz=spec.results.grid.Nz
             )
 
-            # Integrate to get <j.B> (flux surface average)
-            if spec.inputlist.ntor==0:
-                surf_avg = simps(jdotB_spec, tarr, axis=2)[:,:,0]
-            else:
-                surf_avg = simps(simps(jdotB_spec, tarr, axis=2), zarr, axis=2)
+            # Get surface average current
+            jdotB_spec_avg = spec.results.get_flux_surface_average(
+                np.asarray(self.geom.surfaces), 
+                np.squeeze(jdotB_spec[0,0,:,:]), 
+                tarr=tarr, 
+                zarr=zarr)
 
-            # Average between both side of interfaces
-            jdotB_spec_avg = np.mean(surf_avg, axis=1) 
+            # Average between both side of interfaces - no need to average both sides of SPEC,
+            # since j.B is the same on each side.
             jdotB_Redl_avg = np.mean(jdotB_Redl, axis=1)
 
             jdotB_spec_avg = jdotB_spec_avg / MU0 # SPEC current is given as mu0 * I - need to renormalize

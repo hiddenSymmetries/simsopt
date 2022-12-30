@@ -157,7 +157,7 @@ class Spec(Optimizable):
         # Store initial guess data
         nmodes = self.allglobal.num_modes
         mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
-        if nmodes > 0:
+        if nmodes>0:
             # Save inner boundaries geometry
             self.initial_guess = {}
             self.initial_guess['mm'] = np.zeros((mn,), dtype='int')
@@ -619,8 +619,7 @@ class Spec(Optimizable):
                 if si.lfreebound:
                     x = self.initial_guess['rbc'][nvol-1, imn]
                     si.rbc[si.mntor+nn, si.mmpol+mm] = x
-                    si.zbs[si.mntor+nn, si.mmpol +
-                           mm] = self.initial_guess['zbs'][nvol-1, imn]
+                    si.zbs[si.mntor+nn, si.mmpol+mm] = self.initial_guess['zbs'][nvol-1, imn]
 
                     if si.istellsym == 0:
                         si.rbs[si.mntor+nn, si.mmpol +

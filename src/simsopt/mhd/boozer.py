@@ -254,6 +254,8 @@ class Boozer(Optimizable):
             self.bx.nboz = self.ntor
 
         elif isinstance(self.equil, Spec):
+            # Need this for SPEC to compute the straight field line angle
+            self.equil.inputlist.ltransform==1 
             self.equil.run()
 
             # Need py_spec - check that it is loaded.
