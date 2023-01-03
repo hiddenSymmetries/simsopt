@@ -224,6 +224,8 @@ class CurrentPotentialSolve:
                normalization is applied to all terms in the optimization. The
                result is that the normalization leaves the optimization unaffected.
         """
+        # Set up some matrices
+        _, _ = self.B_matrix_and_rhs()
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         A_matrix = self.gj
         for i in range(self.gj.shape[0]):
@@ -243,8 +245,8 @@ class CurrentPotentialSolve:
             b_new = b_e - A_new @ d 
 
             # rescale the l1 regularization
-            # l1_reg = lam / (2 * d.shape[0])
-            l1_reg = np.sqrt(lam) / (2 * d.shape[0])
+            l1_reg = lam / (2 * d.shape[0])
+            # l1_reg = np.sqrt(lam) / (2 * d.shape[0])
 
             solver = Lasso(alpha=l1_reg)
             solution = solver.fit(A_new, b_new)
