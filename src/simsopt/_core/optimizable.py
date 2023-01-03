@@ -139,7 +139,7 @@ class DOFs(GSONable, Hashable):
 
     def remove_opt(self, opt):
         weakref_opt = weakref.ref(opt)
-        if weakref_opt in self._def_opts:
+        if weakref_opt in self._dep_opts:
             self._dep_opts.remove(weakref_opt)
 
     def dep_opts(self):
