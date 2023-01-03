@@ -35,6 +35,7 @@ class CurrentPotential(Optimizable):
     def num_dofs(self):
         return len(self.get_dofs())
 
+
 class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     """
     Current Potential Fourier object is designed for initializing
@@ -80,8 +81,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             quadpoints_phi = winding_surface.quadpoints_phi
 
         sopp.CurrentPotentialFourier.__init__(self, mpol, ntor, nfp, stellsym,
-               quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
-                                                 net_toroidal_current_amperes)
+                                              quadpoints_phi, quadpoints_theta, net_poloidal_current_amperes,
+                                              net_toroidal_current_amperes)
 
         CurrentPotential.__init__(self, winding_surface, x0=self.get_dofs(),
                                   external_dof_setter=CurrentPotentialFourier.set_dofs_impl,

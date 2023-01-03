@@ -81,8 +81,9 @@ for file in ['regcoil_out.li383.nc']:
     Bmax_lasso = np.zeros(len(lambdas))
     Bmean_lasso = np.zeros(len(lambdas))
     for i, lambda_reg in enumerate(lambdas):
+        print(i, lambda_reg)
         # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
-        optimized_phi_mn, f_B = cpst.solve_tikhonov(lam=lambda_reg)
+        optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
         fB_tikhonov[i] = f_B
         cp_opt = cpst.current_potential
         K = cp_opt.K()
@@ -108,12 +109,12 @@ for file in ['regcoil_out.li383.nc']:
         ).J()
         print('f_B from plasma surface = ', f_B_sf)
 
-        # make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
-        # pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
-        # s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+        make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
+        pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
+        s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
         # Repeat with the L1 instead of the L2 norm!
-        optimized_phi_mn, f_B = cpst.solve_lasso(lam=lambda_reg)
+        optimized_phi_mn, f_B, _ = cpst.solve_lasso(lam=lambda_reg)
         fB_lasso[i] = f_B
         K = cp_opt.K()
         K2 = np.sum(K ** 2, axis=2)
@@ -124,23 +125,24 @@ for file in ['regcoil_out.li383.nc']:
         Kmax_lasso[i] = np.max(abs(K))
         Kmean_lasso[i] = np.mean(abs(K))
 
-        print('f_B from least squares = ', f_B)
+        Bfield_opt = WindingSurfaceField(cp_opt)
+        Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
+        Bn_coil = np.sum(Bfield_opt.B().reshape((nphi, ntheta, 3)) * s_plasma.unitnormal(), axis=2)
+        Bmax_lasso[i] = np.max(abs(Bn_coil))
+        Bmean_lasso[i] = np.mean(abs(Bn_coil))
+
+        print('Lasso: f_B from least squares = ', f_B)
         print(cpst.Bnormal_plasma.shape)
         f_B_sf = SquaredFlux(
             s_plasma, 
             Bfield_opt, 
             contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
         ).J()
-        print('f_B from plasma surface = ', f_B_sf)
+        print('Lasso: f_B from plasma surface = ', f_B_sf)
 
-        Bfield_opt = WindingSurfaceField(cp_opt)
-        Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
-        Bn_coil = np.sum(Bfield_opt.B().reshape((nphi, ntheta, 3)) * s_plasma.unitnormal(), axis=2)
-        Bmax_lasso[i] = np.max(abs(Bn_coil))
-        Bmean_lasso[i] = np.mean(abs(Bn_coil))
-        # make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Bnormal_lambda{0:.2e}".format(lambda_reg))
-        # pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
-        # s_coil.to_vtk(OUT_DIR + file + "_lasso_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+        make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Bnormal_lambda{0:.2e}".format(lambda_reg))
+        pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
+        s_coil.to_vtk(OUT_DIR + file + "_lasso_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
     # plot cost function results
     plt.figure(figsize=(14, 4))

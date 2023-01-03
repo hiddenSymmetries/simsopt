@@ -178,8 +178,8 @@ class CurrentPotentialSolve:
             contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym, 
             contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
         )
-        self.fj = fj * np.sqrt(dzeta_coil * dtheta_coil)
-        self.d = d * np.sqrt(dzeta_coil * dtheta_coil)
+        self.fj = fj * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
+        self.d = d * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
         return b_rhs, B_matrix
 
     def solve_tikhonov(self, lam=0):
@@ -200,9 +200,8 @@ class CurrentPotentialSolve:
         A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
         b_e = self.b_e 
         f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
-
         Ak_times_phi = self.fj @ phi_mn_opt
-        f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2 * nfp
+        f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0):
@@ -213,7 +212,7 @@ class CurrentPotentialSolve:
 
             1. Need to define new optimization variable z = A_k * phi_mn - b_k
                so that optimization becomes
-               ||AA_k^{-1} * z - (b - A * A_k^{-1] * b_k)||_2^2 + alpha * ||z||_1
+               ||AA_k^{-1} * z - (b - A * A_k^{-1} * b_k)||_2^2 + alpha * ||z||_1
                which is the form required to use the Lasso pre-built optimizer 
                from sklearn.
             2. The alpha term should be similar amount of regularization as the L2
@@ -225,29 +224,37 @@ class CurrentPotentialSolve:
                normalization is applied to all terms in the optimization. The
                result is that the normalization leaves the optimization unaffected.
         """
-        K_matrix = self.K_matrix()
-        K_rhs = self.K_rhs()
-        b_rhs, B_matrix = self.B_matrix_and_rhs()
-        sqrt_K_matrix = sqrtm(K_matrix)
-        sqrt_K_matrix_inv = np.linalg.inv(sqrt_K_matrix)
-
-        # rescale the l1 regularization
-        l1_reg = lam / (2 * b_rhs.shape[0])
-        # l1_reg = np.sqrt(lam) / (2 * b_rhs.shape[0])
-
-        solver = Lasso(alpha=l1_reg)
-        solution = solver.fit(A_new, b_new)
-
-        # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
-        z_opt = solution.coef_
-        phi_mn_opt = sqrt_K_matrix_inv @ (z_opt + K_orig)
-        self.current_potential.set_dofs(phi_mn_opt)
-
-        nfp = self.plasma_surface.nfp
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
-        A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
+        A_matrix = self.gj
+        for i in range(self.gj.shape[0]):
+            A_matrix[i, :] *= (1.0 / np.sqrt(normN[i]))
         b_e = self.b_e 
-        f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
-        #f_B = 0.5 * np.linalg.norm(sqrt_B_matrix @ phi_mn_opt - b_orig) ** 2 * nfp
-        #f_K = 0.5 * np.sum(abs(sqrt_K_matrix @ phi_mn_opt - K_orig)) * nfp
-        return phi_mn_opt, f_B
+        Ak_matrix = self.fj.reshape(self.fj.shape[0] * 3, self.fj.shape[-1])
+        d = np.ravel(self.d)
+
+        # Lasso doesnt work well if no regularization is used
+        if lam == 0:
+            B_matrix = A_matrix.T @ A_matrix
+            b_rhs = A_matrix.T @ b_e
+            phi_mn_opt = np.linalg.solve(B_matrix, b_rhs)
+        else:
+            Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-30)
+            A_new = A_matrix @ Ak_inv
+            b_new = b_e - A_new @ d 
+
+            # rescale the l1 regularization
+            # l1_reg = lam / (2 * d.shape[0])
+            l1_reg = np.sqrt(lam) / (2 * d.shape[0])
+
+            solver = Lasso(alpha=l1_reg)
+            solution = solver.fit(A_new, b_new)
+
+            # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
+            z_opt = solution.coef_
+            phi_mn_opt = Ak_inv @ (z_opt + d)
+
+        self.current_potential.set_dofs(phi_mn_opt)
+        nfp = self.plasma_surface.nfp
+        f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
+        f_K = 0.5 * np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
+        return phi_mn_opt, f_B, f_K

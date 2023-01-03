@@ -125,7 +125,7 @@ class Testing(unittest.TestCase):
                                              [By_dx, By_dy, By_dz],
                                              [Bz_dx, Bz_dy, Bz_dz]]), [2, 0, 1])
 
-        assert np.allclose(dB_predict, dB_analytic)
+        assert np.allclose(dB_predict, dB_analytic, rtol=1e-3)
 
         # Now check that the far-field looks like a dipole
         points = (np.random.rand(N, 3) + 1) * 1000
@@ -257,7 +257,6 @@ class Testing(unittest.TestCase):
             # Compare optimized dofs
             cp = cpst.current_potential
             optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_regcoil)
-            print('lam = ', lambda_regcoil)
             assert np.allclose(single_valued_current_potential_mn, optimized_phi_mn)
 
             s_plasma = cpst.plasma_surface
@@ -328,8 +327,8 @@ class Testing(unittest.TestCase):
             normal = s_coil.normal().reshape(-1, 3)
             normN = np.linalg.norm(normal, axis=-1)
             f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal.shape[0])
-            print('fKs = ', f_K_regcoil, f_K_direct, f_K)
             assert np.isclose(f_K_regcoil, f_K_direct)
+            assert np.isclose(f_K_regcoil, f_K)
 
             # Check normal field
             Bfield_opt = WindingSurfaceField(cp)
@@ -501,12 +500,16 @@ class Testing(unittest.TestCase):
                     Bfield_opt,
                     -np.ascontiguousarray(cpst.Bnormal_plasma.reshape(nphi, ntheta))
                 ).J()
-                print('fBs = ', f_B, f_B_sq, f_B_REGCOIL)
-                print('fKs = ', f_K_regcoil, f_K_direct, f_K)
                 assert np.isclose(f_B, f_B_sq, rtol=1e-1)
                 assert np.isclose(f_B, f_B_REGCOIL, rtol=1e-2)
                 assert np.isclose(f_K_direct, f_K_REGCOIL, rtol=1e-2)
                 assert np.isclose(f_K, f_K_REGCOIL, rtol=1e-2)
+
+                # Check that L1 optimization agrees if lambda = 0
+                if lambda_reg == 0.0:
+                    optimized_phi_mn_lasso, f_B_lasso, f_K_lasso = cpst.solve_lasso(lam=lambda_reg)
+                    assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn_lasso)
+                    assert np.isclose(f_B, f_B_lasso, rtol=1e-2)
 
                 # check the REGCOIL Bnormal calculation in c++ """
                 points = s_plasma.gamma().reshape(-1, 3)

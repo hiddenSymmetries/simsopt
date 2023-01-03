@@ -484,9 +484,9 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
 	    double cphi = std::cos(angle);
 	    double sphi = std::sin(angle);
             if (stellsym) {
-		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN); // / (2 * M_PI);
-		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN); // / (2 * M_PI);
-		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN); // / (2 * M_PI);
+		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN); // / (2 * M_PI);
+		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN); // / (2 * M_PI);
+		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN); // / (2 * M_PI);
 	    }
 	    else if (k < int(ndofs / 2.0)) {
 		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
