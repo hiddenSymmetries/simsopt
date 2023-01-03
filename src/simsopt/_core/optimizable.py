@@ -137,6 +137,11 @@ class DOFs(GSONable, Hashable):
         if weakref_opt not in self._dep_opts:
             self._dep_opts.append(weakref_opt)
 
+    def remove_opt(self, opt):
+        weakref_opt = weakref.ref(opt)
+        if weakref_opt in self._def_opts:
+            self._dep_opts.remove(weakref_opt)
+
     def dep_opts(self):
         opts = []
         for opt_ref in self._dep_opts:
@@ -672,6 +677,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Args:
             dofs: DOFs object
         """
+        self._dofs.remove_opt(self)
         self._dofs = dofs
         self._update_full_dof_size_indices()
         self.update_free_dof_size_indices()
