@@ -8,6 +8,13 @@ __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
 
 class CurrentPotential(Optimizable):
+    """
+    Current Potential base object, not necessarily assuming 
+    that the current potential will be represented by a 
+    Fourier expansion in the toroidal and poloidal modes.
+    Args:
+        winding_surface: SurfaceRZFourier object representing the coil surface.
+    """
 
     def set_points(self, points):
         return self.set_points(points)
@@ -63,9 +70,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                  mpol=None, ntor=None,
                  quadpoints_phi=None, quadpoints_theta=None):
 
-        # Next two lines are new code
-        # self.net_poloidal_current_amperes = net_poloidal_current_amperes
-        # self.net_toroidal_current_amperes = net_toroidal_current_amperes
         if nfp is None:
             nfp = winding_surface.nfp
         if stellsym is None:
@@ -326,17 +330,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
 
-        # + 1 here to default include the endpoint for nice plot visual
-        #quadpoints_phi = np.linspace(0, 1, nfp * nzeta_coil, endpoint=True)
-        #quadpoints_theta = np.linspace(0, 1, ntheta_coil, endpoint=True)
-        #s_coil = SurfaceRZFourier(
-        #    nfp=nfp,
-        #    mpol=mpol_coil,
-        #    ntor=ntor_coil,
-        #    stellsym=stellsym_surf,
-        #   quadpoints_phi=quadpoints_phi,
-        #   quadpoints_theta=quadpoints_theta
-        #)
         s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
         s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil * nfp,
                                          mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')

@@ -6,7 +6,6 @@ from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.field.currentpotential import CurrentPotentialFourier
 from scipy.io import netcdf_file
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
-from scipy.linalg import sqrtm
 
 __all__ = ["CurrentPotentialSolve"]
 
@@ -97,7 +96,7 @@ class CurrentPotentialSolve:
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
         self.current_potential.K_rhs_impl_helper(K_rhs, dg1, dg2, normal)
-        K_rhs *= self.winding_surface.quadpoints_theta[1]*self.winding_surface.quadpoints_phi[1]/self.winding_surface.nfp
+        K_rhs *= self.winding_surface.quadpoints_theta[1] * self.winding_surface.quadpoints_phi[1] / self.winding_surface.nfp
 
     def K_rhs(self):
         K_rhs = np.zeros((self.current_potential.num_dofs(),))
@@ -109,7 +108,7 @@ class CurrentPotentialSolve:
         dg2 = self.winding_surface.gammadash2()
         normal = self.winding_surface.normal()
         self.current_potential.K_matrix_impl_helper(K_matrix, dg1, dg2, normal)
-        K_matrix *= self.winding_surface.quadpoints_theta[1]*self.winding_surface.quadpoints_phi[1]/self.winding_surface.nfp
+        K_matrix *= self.winding_surface.quadpoints_theta[1] * self.winding_surface.quadpoints_phi[1] / self.winding_surface.nfp
 
     def K_matrix(self):
         K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
@@ -119,7 +118,7 @@ class CurrentPotentialSolve:
     def B_matrix_and_rhs(self):
         """
             Compute the matrix and right-hand-side corresponding the Bnormal part of
-            the optimization.
+            the optimization, both for the Tikhonov and Lasso optimizations.
         """
         plasma_surface = self.plasma_surface
         normal = self.winding_surface.normal().reshape(-1, 3)
@@ -131,6 +130,8 @@ class CurrentPotentialSolve:
         phi_mesh, theta_mesh = np.meshgrid(self.winding_surface.quadpoints_phi, theta, indexing='ij')
         zeta_coil = np.ravel(phi_mesh)
         theta_coil = np.ravel(theta_mesh)
+
+        # Compute terms for the REGCOIL (L2) problem
         gj, B_matrix = sopp.winding_surface_field_Bn(
             points_plasma,
             points_coil, 
@@ -154,8 +155,6 @@ class CurrentPotentialSolve:
         dtheta_coil = (self.winding_surface.quadpoints_theta[1] - self.winding_surface.quadpoints_theta[0])
 
         # scale bmatrix and b_rhs by factors of the grid spacing
-        # Equivalent to the following 
-        # b_rhs = b_rhs / (nphi * ntheta * nphi_coil * ntheta_coil * nfp) 
         b_rhs = b_rhs * dzeta_plasma * dtheta_plasma * dzeta_coil * dtheta_coil
         B_matrix = B_matrix * dzeta_plasma * dtheta_plasma * dzeta_coil ** 2 * dtheta_coil ** 2
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
@@ -174,6 +173,8 @@ class CurrentPotentialSolve:
         nfp = self.winding_surface.nfp
 
         contig = np.ascontiguousarray
+
+        # Compute terms for the Lasso (L1) problem
         d, fj = sopp.winding_surface_field_K2_matrices(
             contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym, 
             contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
@@ -199,8 +200,8 @@ class CurrentPotentialSolve:
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
         b_e = self.b_e 
-        f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
         Ak_times_phi = self.fj @ phi_mn_opt
+        f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
         return phi_mn_opt, f_B, f_K
 

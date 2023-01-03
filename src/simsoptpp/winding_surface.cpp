@@ -474,29 +474,28 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
 	double nx = normal_coil(j, 0);
 	double ny = normal_coil(j, 1);
 	double nz = normal_coil(j, 2);
-	double normN = sqrt(nx * nx + ny * ny + nz * nz);  // / (4 * M_PI * M_PI);
-        d(j, 0) = (G * dr_dtheta_coil(j, 0) - I * dr_dzeta_coil(j, 0)) / sqrt(normN) / (2 * M_PI); //  / (4 * M_PI * M_PI);
-        d(j, 1) = (G * dr_dtheta_coil(j, 1) - I * dr_dzeta_coil(j, 1)) / sqrt(normN) / (2 * M_PI); // / (4 * M_PI * M_PI);
-        d(j, 2) = (G * dr_dtheta_coil(j, 2) - I * dr_dzeta_coil(j, 2)) / sqrt(normN) / (2 * M_PI); // / (4 * M_PI * M_PI);
+	double normN = sqrt(nx * nx + ny * ny + nz * nz);
+        d(j, 0) = (G * dr_dtheta_coil(j, 0) - I * dr_dzeta_coil(j, 0)) / sqrt(normN) / (2 * M_PI);
+        d(j, 1) = (G * dr_dtheta_coil(j, 1) - I * dr_dzeta_coil(j, 1)) / sqrt(normN) / (2 * M_PI);
+        d(j, 2) = (G * dr_dtheta_coil(j, 2) - I * dr_dzeta_coil(j, 2)) / sqrt(normN) / (2 * M_PI);
         for(int k = 0; k < ndofs; k++) {
 	    double angle = 2 * M_PI * m(k) * theta_coil(j) - 2 * M_PI * n(k) * zeta_coil(j) * nfp;
-	    //double angle = 2 * M_PI * m(k) * theta_coil(j) - 2 * M_PI * n(k) * zeta_coil(j);
 	    double cphi = std::cos(angle);
 	    double sphi = std::sin(angle);
             if (stellsym) {
-		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN); // / (2 * M_PI);
-		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN); // / (2 * M_PI);
-		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN); // / (2 * M_PI);
+		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
 	    }
 	    else if (k < int(ndofs / 2.0)) {
-		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
 	    }
 	    else {
-		fj(j, 0, k) = -sphi * (m(k) * dr_dzeta_coil(j, 0) + n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-		fj(j, 1, k) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-		fj(j, 2, k) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+		fj(j, 0, k) = -sphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+		fj(j, 1, k) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+		fj(j, 2, k) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
 	    }
         }
     }

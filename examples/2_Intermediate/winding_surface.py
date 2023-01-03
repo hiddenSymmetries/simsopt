@@ -112,9 +112,9 @@ def run_scan():
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
 
-            make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
-            pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
-            s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+            #make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
+            #pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
+            #s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
             # Repeat with the L1 instead of the L2 norm!
             optimized_phi_mn, f_B, _ = cpst.solve_lasso(lam=lambda_reg)
@@ -143,9 +143,9 @@ def run_scan():
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
 
-            make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Bnormal_lambda{0:.2e}".format(lambda_reg))
-            pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
-            s_coil.to_vtk(OUT_DIR + file + "_lasso_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+            #make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Bnormal_lambda{0:.2e}".format(lambda_reg))
+            #pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
+            #s_coil.to_vtk(OUT_DIR + file + "_lasso_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
         # plot cost function results
         plt.figure(figsize=(14, 4))
@@ -201,18 +201,28 @@ def run_scan():
 
 def run_target():
     # Now repeat, but scan lambda for both until a target fB is achieved
-    fB_target = 1e-2
+    fB_target = 1e-5
+    mpol = 12
+    ntor = 12
 
     for file in files:
         filename = TEST_DIR / file
         cpst = CurrentPotentialSolve.from_netcdf(filename)
         cp = CurrentPotentialFourier.from_netcdf(filename)
+        cp = CurrentPotentialFourier(
+            cpst.winding_surface, mpol=mpol, ntor=ntor,
+            net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
+            net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
+            stellsym=True)
+        cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
+
+        print(cp.m, cp.n, cp.Phi().shape)
         s_coil = cpst.winding_surface
 
         # function needed for saving to vtk after optimizing
         contig = np.ascontiguousarray
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-18, -8, 100))
+        lambdas = np.flip(np.logspace(-22, -10, 40))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
@@ -229,9 +239,17 @@ def run_target():
                 s_coil.to_vtk(OUT_DIR + file + "_tikhonov_Btarget_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
                 break
         print('Now repeating for Lasso: ')
-        cpst = CurrentPotentialSolve.from_netcdf(filename)
-        cp = CurrentPotentialFourier.from_netcdf(filename)
-        s_coil = cpst.winding_surface
+        #cpst = CurrentPotentialSolve.from_netcdf(filename)
+        #cp = CurrentPotentialFourier.from_netcdf(filename)
+        #cp = CurrentPotentialFourier(
+        #    cpst.winding_surface, mpol=mpol, ntor=ntor,
+        #    net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
+        #    net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
+        #    stellsym=True)
+        #cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
+        #cpst = CurrentPotentialSolve.from_netcdf(filename)
+        #cp = CurrentPotentialFourier.from_netcdf(filename)
+        #s_coil = cpst.winding_surface
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem with the Lasso 
             optimized_phi_mn, f_B, _ = cpst.solve_lasso(lam=lambda_reg)
