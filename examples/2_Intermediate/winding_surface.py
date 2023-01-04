@@ -78,11 +78,12 @@ def run_scan():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-22, -8, 60)
+        lambdas = np.logspace(-26, -8, 80)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
         fK_lasso = np.zeros(len(lambdas))
+        fK_l1_lasso = np.zeros(len(lambdas))
         Kmax_tikhonov = np.zeros(len(lambdas))
         Kmean_tikhonov = np.zeros(len(lambdas))
         Kmax_lasso = np.zeros(len(lambdas))
@@ -124,8 +125,9 @@ def run_scan():
             #s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
             # Repeat with the L1 instead of the L2 norm!
-            optimized_phi_mn, f_B, _ = cpst.solve_lasso(lam=lambda_reg)
+            optimized_phi_mn, f_B, f_K = cpst.solve_lasso(lam=lambda_reg)
             fB_lasso[i] = f_B
+            fK_l1_lasso[i] = f_K 
             K = cp_opt.K()
             K2 = np.sum(K ** 2, axis=2)
             f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal_coil.shape[0])
@@ -159,11 +161,11 @@ def run_scan():
         plt.subplot(1, 2, 1)
         plt.suptitle(file)
         plt.plot(lambdas, fB_tikhonov, 'b', label='f_B Tikhonov')
-        plt.plot(lambdas, fK_tikhonov / 1e12, 'r', label='f_K Tikhonov / 1e12')
-        plt.plot(lambdas, fK_tikhonov / 1e12 + fB_tikhonov, 'm', label='Total f Tikhonov')
+        plt.plot(lambdas, fK_tikhonov / 1e14, 'r', label='f_K Tikhonov / 1e14')
+        plt.plot(lambdas, fK_tikhonov / 1e14 + fB_tikhonov, 'm', label='Total f Tikhonov')
         plt.plot(lambdas, fB_lasso, 'b--', label='f_B Lasso')
-        plt.plot(lambdas, fK_lasso / 1e12, 'r--', label='f_K Lasso')
-        plt.plot(lambdas, fK_lasso / 1e12 + fB_lasso, 'm--', label='Total f Lasso')
+        plt.plot(lambdas, fK_lasso / 1e14, 'r--', label='f_K Lasso / 1e14')
+        plt.plot(lambdas, fK_lasso / 1e14 + fB_lasso, 'm--', label='Total f Lasso')
         plt.xscale('log')
         plt.yscale('log')
         plt.grid(True)
@@ -184,7 +186,8 @@ def run_scan():
         plt.figure()
         plt.suptitle(file)
         plt.plot(fK_tikhonov, fB_tikhonov, 'r', label='L2')
-        plt.plot(fK_lasso, fB_lasso, 'b', label='L1')
+        plt.plot(fK_lasso, fB_lasso, 'b', label='L1 (same term as L2)')
+        plt.plot(fK_l1_lasso, fB_lasso, 'm', label='L1 (using the L1 fK)')
         plt.xlabel(r'$f_K$')
         plt.ylabel(r'$f_B$')
         plt.grid(True)
@@ -211,7 +214,7 @@ def run_scan():
                  fB_tikhonov, fK_tikhonov,
                  Bmax_tikhonov, Bmean_tikhonov,
                  Kmax_tikhonov, Kmean_tikhonov,
-                 fB_lasso, fK_lasso,
+                 fB_lasso, fK_lasso, fK_l1_lasso,
                  Bmax_lasso, Bmean_lasso,
                  Kmax_lasso, Kmean_lasso,
                  ]).T
