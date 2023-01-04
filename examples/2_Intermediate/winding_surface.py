@@ -54,10 +54,18 @@ files = ['regcoil_out.li383.nc']
 
 
 def run_scan():
+    mpol = 16
+    ntor = 16
     for file in files:
         filename = TEST_DIR / file
         cpst = CurrentPotentialSolve.from_netcdf(filename)
         cp = CurrentPotentialFourier.from_netcdf(filename)
+        cp = CurrentPotentialFourier(
+            cpst.winding_surface, mpol=mpol, ntor=ntor,
+            net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
+            net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
+            stellsym=True)
+        cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
         s_coil = cpst.winding_surface
         s_plasma = cpst.plasma_surface
         normal_coil = s_coil.normal().reshape(-1, 3)
@@ -70,8 +78,7 @@ def run_scan():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-22, -4, 100)
-        # lambdas = [1, 1e-5, 1e-15, 1e-20, 1e-25, 1e-30]
+        lambdas = np.logspace(-22, -8, 60)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
@@ -155,8 +162,8 @@ def run_scan():
         plt.plot(lambdas, fK_tikhonov / 1e12, 'r', label='f_K Tikhonov / 1e12')
         plt.plot(lambdas, fK_tikhonov / 1e12 + fB_tikhonov, 'm', label='Total f Tikhonov')
         plt.plot(lambdas, fB_lasso, 'b--', label='f_B Lasso')
-        plt.plot(lambdas, fK_lasso, 'r--', label='f_K Lasso')
-        plt.plot(lambdas, fK_lasso + fB_lasso, 'm--', label='Total f Lasso')
+        plt.plot(lambdas, fK_lasso / 1e12, 'r--', label='f_K Lasso')
+        plt.plot(lambdas, fK_lasso / 1e12 + fB_lasso, 'm--', label='Total f Lasso')
         plt.xscale('log')
         plt.yscale('log')
         plt.grid(True)
@@ -197,13 +204,25 @@ def run_scan():
         plt.grid(True)
         plt.legend()
         plt.savefig(OUT_DIR + file + '_Kmax_Bmax.jpg')
+        np.savetxt(
+            OUT_DIR + file + '_metrics.txt', 
+            np.array(
+                [lambdas,
+                 fB_tikhonov, fK_tikhonov,
+                 Bmax_tikhonov, Bmean_tikhonov,
+                 Kmax_tikhonov, Kmean_tikhonov,
+                 fB_lasso, fK_lasso,
+                 Bmax_lasso, Bmean_lasso,
+                 Kmax_lasso, Kmean_lasso,
+                 ]).T
+        )
 
 
 def run_target():
     # Now repeat, but scan lambda for both until a target fB is achieved
-    fB_target = 1e-5
-    mpol = 12
-    ntor = 12
+    fB_target = 5e-5
+    mpol = 16
+    ntor = 16
 
     for file in files:
         filename = TEST_DIR / file
@@ -216,7 +235,6 @@ def run_target():
             stellsym=True)
         cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
 
-        print(cp.m, cp.n, cp.Phi().shape)
         s_coil = cpst.winding_surface
 
         # function needed for saving to vtk after optimizing
@@ -228,15 +246,16 @@ def run_target():
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
+            print(optimized_phi_mn.shape)
 
             if f_B < fB_target:
                 K = cp_opt.K()
                 K = np.ascontiguousarray(K)
                 print('f_B from least squares = ', f_B)
                 print('lambda = ', lambda_reg)
-                make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_Btarget_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
+                make_Bnormal_plots(cpst, OUT_DIR, file + "_tikhonov_fBtarget_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
                 pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
-                s_coil.to_vtk(OUT_DIR + file + "_tikhonov_Btarget_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+                s_coil.to_vtk(OUT_DIR + file + "_tikhonov_fBtarget_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
                 break
         print('Now repeating for Lasso: ')
         #cpst = CurrentPotentialSolve.from_netcdf(filename)
@@ -261,11 +280,12 @@ def run_target():
                 K = np.ascontiguousarray(K)
                 print('f_B from least squares = ', f_B)
                 print('lambda = ', lambda_reg)
-                make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Btarget_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
+                make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_fBtarget_Bnormal_lambda{0:.2e}".format(lambda_reg)) 
                 pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
-                s_coil.to_vtk(OUT_DIR + file + "_lasso_Btarget_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+                s_coil.to_vtk(OUT_DIR + file + "_lasso_fBtarget_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
                 break
 
 
-run_target()
+run_scan()
+# run_target()
 plt.show()

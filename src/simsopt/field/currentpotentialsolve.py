@@ -246,8 +246,8 @@ class CurrentPotentialSolve:
             b_new = b_e - A_new @ d 
 
             # rescale the l1 regularization
-            l1_reg = lam / (2 * d.shape[0])
-            # l1_reg = np.sqrt(lam) / (2 * d.shape[0])
+            # l1_reg = lam / (2 * d.shape[0])
+            l1_reg = np.sqrt(lam) / (2 * d.shape[0])
 
             solver = Lasso(alpha=l1_reg)
             solution = solver.fit(A_new, b_new)
