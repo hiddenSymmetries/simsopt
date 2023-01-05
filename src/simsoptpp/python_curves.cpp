@@ -134,4 +134,24 @@ void init_curves(py::module_ &m) {
         .def_readonly("stellsym", &PyCurveRZFourier::stellsym)
         .def_readonly("nfp", &PyCurveRZFourier::nfp);
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
+
+    auto pycurvecws = py::class_<PyCurveCWS, shared_ptr<PyCurveCWS>, PyCurveCWSTrampoline<PyCurveCWS>, PyCurve>(m, "CurveCWS")
+        .def(py::init<int, int, vector<double>, int, int, int, bool>())
+        .def_readonly("order", &PyCurveCWS::order)
+        .def_readonly("nfp", &PyCurveCWS::nfp)
+        .def_readonly("stellsym", &PyCurveCWS::stellsym)
+        .def_readwrite("phi_l", &PyCurveCWS::phi_l)
+        .def_readwrite("theta_l", &PyCurveCWS::theta_l)
+        .def_readwrite("phi_s", &PyCurveCWS::phi_s)
+        .def_readwrite("phi_c", &PyCurveCWS::phi_c)
+        .def_readwrite("theta_c", &PyCurveCWS::theta_c)
+        .def_readwrite("theta_s", &PyCurveCWS::theta_s)
+        .def_readwrite("mpol", &PyCurveCWS::mpol)
+        .def_readwrite("ntor", &PyCurveCWS::ntor)
+        .def_readwrite("res", &PyCurveCWS::res)
+        .def_readwrite("rc", &PyCurveCWS::rc)
+        .def_readwrite("rs", &PyCurveCWS::rs)
+        .def_readwrite("zc", &PyCurveCWS::zc)
+        .def_readwrite("zs", &PyCurveCWS::zs);
+    register_common_curve_methods<PyCurveCWS>(pycurvecws);
 }
