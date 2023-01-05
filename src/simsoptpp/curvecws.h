@@ -119,7 +119,7 @@ public:
             phi_s.data()[i] = dofs[counter++];
     }
 
-    void set_dofs_surface(vector<double> &dofs) override
+    void set_dofs_surface(vector<double> &dofs)
     {
         int shift = (mpol + 1) * (2 * ntor + 1);
         int counter = 0;
