@@ -24,14 +24,13 @@ import time
 t_start = time.time()
 
 # Set some parameters
-comm = None
-nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 64
-dx = 0.02  # cartesian bricks with extent 2 cm
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
+dx = 0.05
 dy = dx
 dz = dx
-coff = 0.05  # PM grid starts offset ~ 5 cm from the plasma surface
-poff = 0.1  # PM grid end offset ~ 10 cm from the plasma surface
+coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
+poff = 0.2  # PM grid end offset ~ 10 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file
@@ -78,12 +77,16 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the winding volume 
 wv_grid = WindingVolumeGrid(
-    s, coil_offset=coff, dx=dx, dy=dy, dz=dz, plasma_offset=poff,
+    s, coil_offset=coff, 
+    dx=dx, dy=dy, dz=dz, 
+    plasma_offset=poff,
     Bn=Bnormal,
     filename=surface_filename,
 )
 
 wv_grid._toVTK(OUT_DIR + 'grid')
+phis = wv_grid._polynomial_basis(nx=2, ny=2, nz=2)
+print(phis.shape)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

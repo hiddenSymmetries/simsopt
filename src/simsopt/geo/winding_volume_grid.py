@@ -30,15 +30,11 @@ class WindingVolumeGrid:
             rz_inner_surface: SurfaceRZFourier object representing
                               the inner toroidal surface of the volume.
                               Defaults to the plasma boundary, extended
-                              by the boundary normal vector projected on
-                              to the (R, Z) plane to keep the phi = constant
-                              cross-section the same as the plasma surface.
+                              by the boundary normal vector
             rz_outer_surface: SurfaceRZFourier object representing
                               the outer toroidal surface of the volume.
                               Defaults to the inner surface, extended
-                              by the boundary normal vector projected on
-                              to the (R, Z) plane to keep the phi = constant
-                              cross-section the same as the inner surface.
+                              by the boundary normal vector
             plasma_offset:    Offset to use for generating the inner toroidal surface.
             coil_offset:      Offset to use for generating the outer toroidal surface.
             Bn:               Magnetic field (coils and plasma) at the plasma
@@ -79,6 +75,7 @@ class WindingVolumeGrid:
         self.dx = dx
         self.dy = dy
         self.dz = dz
+        self.n_functions = 11  # hard-coded for linear basis
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
             raise ValueError(
@@ -185,7 +182,7 @@ class WindingVolumeGrid:
             for i in reversed(range(1, len(self.inds))):
                 for j in range(0, i):
                     self.inds[i] += self.inds[j]
-            self.ndipoles = self.inds[-1]
+            self.N_grid = self.inds[-1]
             final_grid = []
             for i in range(self.final_RZ_grid.shape[0]):
                 if not np.allclose(self.final_RZ_grid[i, :], 0.0):
@@ -207,7 +204,7 @@ class WindingVolumeGrid:
             self.Ic_inds = nonzero_inds
             premade_dipole_grid = np.array([ox, oy, oz]).T
             self.premade_dipole_grid = premade_dipole_grid
-            self.ndipoles = premade_dipole_grid.shape[0]
+            self.N_grid = premade_dipole_grid.shape[0]
 
             # Not normalized to 1 like quadpoints_phi!
             self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
@@ -218,7 +215,7 @@ class WindingVolumeGrid:
             for i in reversed(range(1, self.pm_nphi)):
                 for j in range(0, i):
                     self.inds[i] += self.inds[j]
-            self.final_RZ_grid = np.zeros((self.ndipoles, 3))
+            self.final_RZ_grid = np.zeros((self.N_grid, 3))
             self.final_RZ_grid[:, 0] = np.sqrt(premade_dipole_grid[:, 0] ** 2 + premade_dipole_grid[:, 1] ** 2)
             self.final_RZ_grid[:, 1] = self.pm_phi
             self.final_RZ_grid[:, 2] = premade_dipole_grid[:, 2]
@@ -228,7 +225,7 @@ class WindingVolumeGrid:
         Zgrid = self.final_RZ_grid[:, 2]
         self.XYZ_flat = np.array([Xgrid, Ygrid, Zgrid]).T
         self.N_grid = self.XYZ_flat.shape[0]
-        # self.XYZ_flat = self.XYZ.reshape(-1, 3)
+        self.alphas = np.random.rand(self.N_grid, self.n_functions)
 
     def _setup_uniform_grid(self):
         """
@@ -274,8 +271,7 @@ class WindingVolumeGrid:
 
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-        # self.XYZ = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0])
-        # self.XYZ_flat = self.XYZ.reshape(-1, 3)
+        self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3) 
 
         # Make 3D mesh in (R, phi, Z)
         Phi = np.arctan2(Y, X)
@@ -300,7 +296,7 @@ class WindingVolumeGrid:
             rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
 
         # extend via the normal vector
-        rz_inner_surface.extend_via_projected_normal(self.phi, self.plasma_offset)
+        rz_inner_surface.extend_via_normal(self.plasma_offset)
         self.rz_inner_surface = rz_inner_surface
 
     def _set_outer_rz_surface(self):
@@ -319,7 +315,7 @@ class WindingVolumeGrid:
 
         # extend via the normal vector
         t1 = time.time()
-        rz_outer_surface.extend_via_projected_normal(self.phi, self.plasma_offset + self.coil_offset)
+        rz_outer_surface.extend_via_normal(self.plasma_offset + self.coil_offset)
         t2 = time.time()
         print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
@@ -344,14 +340,24 @@ class WindingVolumeGrid:
             nsym = nfp
 
         # get the coordinates
-        ox = np.ascontiguousarray(self.XYZ_flat[:, 0])
-        oy = np.ascontiguousarray(self.XYZ_flat[:, 1])
-        oz = np.ascontiguousarray(self.XYZ_flat[:, 2])
+        ox = self.XYZ_flat[:, 0]
+        oy = self.XYZ_flat[:, 1]
+        oz = self.XYZ_flat[:, 2]
 
         # Initialize full grid variables
         ox_full = np.zeros(n * nsym)
         oy_full = np.zeros(n * nsym)
         oz_full = np.zeros(n * nsym)
+
+        Jvec = np.zeros((n, 3))
+        Phi = self._polynomial_basis().reshape(self.n_functions, n, 3)
+        for i in range(3):
+            Jvec[:, i] = np.sum(self.alphas.T * Phi[:, :, i], axis=0) 
+        Jx = Jvec[:, 0]
+        Jy = Jvec[:, 1]
+        Jz = Jvec[:, 2]
+
+        Jvec_full = np.zeros((n * nsym, 3))
 
         index = 0
         # Loop over stellarator and field-period symmetry contributions
@@ -363,13 +369,96 @@ class WindingVolumeGrid:
                 ox_full[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
                 oy_full[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
                 oz_full[index:index + n] = oz * stell
+                # get new vectors by flipping the x component, then rotating by phi0
+                Jvec_full[index:index + n, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
+                Jvec_full[index:index + n, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
+                Jvec_full[index:index + n, 2] = Jz
                 index += n
 
+        Jvec_normalization = 1.0 / np.sum(Jvec_full ** 2, axis=-1)
+        Jx = Jvec_full[:, 0]
+        Jy = Jvec_full[:, 1]
+        Jz = Jvec_full[:, 2]
+
         # Save all the data to a vtk file which can be visualized nicely with ParaView
-        # data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
+        contig = np.ascontiguousarray
+        data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
+                "J_normalized": 
+                (contig(Jx / Jvec_normalization), 
+                 contig(Jy / Jvec_normalization), 
+                 contig(Jz / Jvec_normalization))
+                } 
         pointsToVTK(
-            vtkname, ox_full, oy_full, oz_full,  # data=data
+            #vtkname, contig(ox_full), contig(oy_full), contig(oz_full),  data=data
+            vtkname, 
+            contig(self.XYZ_flat[:, 0]),
+            contig(self.XYZ_flat[:, 1]),
+            contig(self.XYZ_flat[:, 2])
         )
+        pointsToVTK(
+            vtkname + '_uniform', 
+            contig(self.XYZ_uniform[:, 0]),
+            contig(self.XYZ_uniform[:, 1]),
+            contig(self.XYZ_uniform[:, 2])
+        )
+
+    def _polynomial_basis(self, nx=1, ny=1, nz=1):
+        """
+        Evaluate the basis of divergence-free polynomials
+        at a given set of points. For now,
+        the basis is hard-coded as a set of linear polynomials.
+
+        returns:
+            poly_basis, shape (num_basis_functions, N_grid, nx * ny * nz, 3)
+                where N_grid is the number of cells in the winding volume,
+                nx, ny, and nz, are the number of points to evaluate the 
+                function WITHIN a cell, and num_basis_functions is hard-coded
+                to 11 for now while we use a linear basis of polynomials. 
+        """
+        dx = self.dx
+        dy = self.dy
+        dz = self.dz
+        n = self.N_grid
+        x_leftpoints = self.XYZ_flat[:, 0]
+        y_leftpoints = self.XYZ_flat[:, 1]
+        z_leftpoints = self.XYZ_flat[:, 2]
+        xrange = np.zeros((n, nx))
+        yrange = np.zeros((n, ny))
+        zrange = np.zeros((n, nz))
+        for i in range(n):
+            xrange[i, :] = np.linspace(
+                x_leftpoints[i], 
+                x_leftpoints[i] + dx,
+                nx
+            )
+            yrange[i, :] = np.linspace(
+                y_leftpoints[i], 
+                y_leftpoints[i] + dy,
+                ny
+            )
+            zrange[i, :] = np.linspace(
+                z_leftpoints[i], 
+                z_leftpoints[i] + dz,
+                nz
+            )
+        Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
+        zeros = np.zeros(n)
+        ones = np.ones(n)
+        for i in range(nx):
+            for j in range(ny):
+                for k in range(nz):
+                    Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
+                    Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
+                    Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
+                    Phi[3, :, i, j, k, :] = np.array([xrange[:, i], zeros, zeros]).T
+                    Phi[4, :, i, j, k, :] = np.array([yrange[:, j], zeros, zeros]).T
+                    Phi[5, :, i, j, k, :] = np.array([zeros, zeros, xrange[:, i]]).T
+                    Phi[6, :, i, j, k, :] = np.array([zeros, zeros, yrange[:, j]]).T
+                    Phi[7, :, i, j, k, :] = np.array([zeros, zrange[:, k], zeros]).T
+                    Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
+                    Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
+                    Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, i]]).T
+        return Phi
 
     def as_dict(self) -> dict:
         d = {}
