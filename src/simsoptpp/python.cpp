@@ -16,6 +16,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
 #include "dipole_field.h"
+#include "winding_volume.h"
 #include "permanent_magnet_optimization.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
@@ -50,6 +51,9 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
+    
+    // Functions below are implemented for winding VOLUME method
+    m.def("winding_volume_geo_factors", &winding_volume_geo_factors); 
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);
