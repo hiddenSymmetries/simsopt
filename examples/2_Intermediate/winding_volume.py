@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 import numpy as np
 import simsoptpp as sopp
-from simsopt.geo import SurfaceRZFourier
+from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import WindingVolumeGrid
@@ -83,12 +83,30 @@ calculate_on_axis_B(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
+# Define a curve to define a Itarget loss term
+# Make circle at Z = 0
+numquadpoints = nphi * s.nfp * 2
+order = 4
+curve = CurveRZFourier(numquadpoints, order, nfp=1, stellsym=False)
+r_min = 0.4
+curve.rc[0] = r_min
+curve.x = curve.get_dofs()
+curve.x = curve.x  # need to do this to transfer data to C++
+curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
+Itarget = 1e5  # 0.1 MA
+
+# Set up Bnormal on the curve
+bs.set_points(curve.gamma().reshape((-1, 3)))
+Bnormal_Itarget = np.sum((bs.B() * curve.gammadash()).reshape(-1, 3), axis=-1)
+
 # Finally, initialize the winding volume 
 wv_grid = WindingVolumeGrid(
-    s, coil_offset=coff, 
+    s, Itarget_curve=curve, Itarget=Itarget, 
+    coil_offset=coff, 
     dx=dx, dy=dy, dz=dz, 
     plasma_offset=poff,
     Bn=Bnormal,
+    Bn_Itarget=Bnormal_Itarget,
     filename=surface_filename,
     surface_flag='wout',
     OUT_DIR=OUT_DIR
