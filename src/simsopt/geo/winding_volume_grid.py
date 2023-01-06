@@ -2,6 +2,8 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from pyevtk.hl import pointsToVTK
 import simsoptpp as sopp
+from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo import curves_to_vtk
 import time
 import warnings
 
@@ -46,15 +48,18 @@ class WindingVolumeGrid:
             dz:               Z-axis grid spacing in the winding volume grid. 
             filename:         Filename for the file containing the plasma boundary surface.
             surface_flag:     Flag to specify the format of the surface file. Defaults to VMEC.
+            OUT_DIR:          Directory to save files in.
     """
 
     def __init__(
         self, plasma_boundary,
         rz_inner_surface=None,
         rz_outer_surface=None, plasma_offset=0.1,
-        coil_offset=0.2, Bn=None, dx=0.02, dy=0.02, dz=0.02,
+        coil_offset=0.2, Bn=None,
+        dx=0.02, dy=0.02, dz=0.02,
         filename=None, surface_flag='vmec',
         famus_filename=None,
+        OUT_DIR=''
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -75,6 +80,7 @@ class WindingVolumeGrid:
         self.dx = dx
         self.dy = dy
         self.dz = dz
+        self.OUT_DIR = OUT_DIR
         self.n_functions = 11  # hard-coded for linear basis
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
@@ -389,11 +395,11 @@ class WindingVolumeGrid:
                  contig(Jz / Jvec_normalization))
                 } 
         pointsToVTK(
-            #vtkname, contig(ox_full), contig(oy_full), contig(oz_full),  data=data
-            vtkname, 
-            contig(self.XYZ_flat[:, 0]),
-            contig(self.XYZ_flat[:, 1]),
-            contig(self.XYZ_flat[:, 2])
+            vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
+            #vtkname, 
+            #contig(self.XYZ_flat[:, 0]),
+            #contig(self.XYZ_flat[:, 1]),
+            #contig(self.XYZ_flat[:, 2])
         )
         pointsToVTK(
             vtkname + '_uniform', 
@@ -458,7 +464,61 @@ class WindingVolumeGrid:
                     Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
                     Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
                     Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, i]]).T
+        self.Phi = Phi
+
+        # build up array of the integration points
+        XYZ_integration = np.zeros((n, nx * ny * nz, 3))
+        for i in range(n):
+            X_n, Y_n, Z_n = np.meshgrid(
+                xrange[i, :], yrange[i, :], zrange[i, :], 
+                indexing='ij'
+            )
+            XYZ_integration[i, :, :] = np.transpose(np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]).reshape(nx * ny * nz, 3) 
+        self.XYZ_integration = XYZ_integration
+
         return Phi
+
+    def _construct_geo_factor(self):
+        contig = np.ascontiguousarray
+
+        # Compute Bnormal factor of the optimization problem
+        points = contig(self.plasma_boundary.gamma().reshape(-1, 3))
+        plasma_unitnormal = contig(self.plasma_boundary.unitnormal().reshape(-1, 3))
+        coil_points = contig(self.XYZ_flat)
+        integration_points = contig(self.XYZ_integration)
+        self.geo_factor = sopp.winding_volume_geo_factors(points, coil_points, integration_points, plasma_unitnormal, self.Phi)
+        dphi = self.plasma_boundary.quadpoints_phi[1]
+        dtheta = self.plasma_boundary.quadpoints_theta[1]
+        plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
+        normN = np.ravel(np.linalg.norm(plasma_normal, ord=2, axis=-1))
+        B_matrix = (self.geo_factor * 1e-7 * np.sqrt(dphi * dtheta)).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
+        b_rhs = np.ravel(self.Bn * np.sqrt(dphi * dtheta))
+        for i in range(B_matrix.shape[0]):
+            B_matrix[i, :] *= np.sqrt(normN[i])
+            b_rhs[i] *= np.sqrt(normN[i])
+
+        # So far B_matrix has only the contributions from the
+        # 1 / 2 * nfp part of the winding volume
+        self.B_matrix = B_matrix
+        self.Itarget_matrix = B_matrix
+        self.b_rhs = b_rhs
+
+        # Now make the matrices for the Itarget part of the optimization
+        # which gets rid of the trivial solution
+        numquadpoints = 200
+        order = 4
+        curve = CurveRZFourier(numquadpoints, order, nfp=1, stellsym=False)
+
+        # Make circle at Z = 0, with radius small enough that the coil
+        # volume is outside the circle
+        r_min = np.min(abs(self.r_inner))
+        print(r_min)
+        curve.rc[0] = r_min
+        curve.x = curve.get_dofs()
+        curve.x = curve.x  # need to do this to transfer data to C++
+        curve_dl = curve.gammadash().reshape(-1, 3)
+        curves_to_vtk([curve], self.OUT_DIR + f"Itarget_curve")
+        self.Itarget_factor = sopp.winding_volume_geo_factors(points, coil_points, integration_points, curve_dl, self.Phi)
 
     def as_dict(self) -> dict:
         d = {}
