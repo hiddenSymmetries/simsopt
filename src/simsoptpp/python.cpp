@@ -54,6 +54,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     
     // Functions below are implemented for winding VOLUME method
     m.def("winding_volume_geo_factors", &winding_volume_geo_factors); 
+    m.def("winding_volume_flux_jumps", &winding_volume_flux_jumps); 
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

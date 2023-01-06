@@ -2,8 +2,6 @@ import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from pyevtk.hl import pointsToVTK
 import simsoptpp as sopp
-from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo import curves_to_vtk
 import time
 import warnings
 
@@ -52,13 +50,13 @@ class WindingVolumeGrid:
     """
 
     def __init__(
-        self, plasma_boundary,
+        self, plasma_boundary, Itarget_curve, Bn_Itarget, Itarget=1e6,
         rz_inner_surface=None,
         rz_outer_surface=None, plasma_offset=0.1,
         coil_offset=0.2, Bn=None,
         dx=0.02, dy=0.02, dz=0.02,
         filename=None, surface_flag='vmec',
-        famus_filename=None,
+        famus_filename=None, 
         OUT_DIR=''
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
@@ -77,6 +75,9 @@ class WindingVolumeGrid:
         self.plasma_offset = plasma_offset
         self.coil_offset = coil_offset
         self.Bn = Bn
+        self.Bn_Itarget = Bn_Itarget
+        self.Itarget = Itarget
+        self.Itarget_curve = Itarget_curve
         self.dx = dx
         self.dy = dy
         self.dz = dz
@@ -292,14 +293,19 @@ class WindingVolumeGrid:
             If the inner toroidal surface was not specified, this function
             is called and simply takes each (r, z) quadrature point on the
             plasma boundary and shifts it by self.plasma_offset at constant
-            theta value.
+            theta value. Note that, for now, this makes the entire
+            coil surface, not just 1 / 2 nfp of the surface.
         """
+        range_surf = "full torus"
+        nphi = self.nphi
+        ntheta = self.ntheta
+        f = self.filename
         if self.surface_flag == 'focus':
-            rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+            rz_inner_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
         elif self.surface_flag == 'wout':
-            rz_inner_surface = SurfaceRZFourier.from_wout(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+            rz_inner_surface = SurfaceRZFourier.from_wout(f, range=range_surf, nphi=nphi, ntheta=ntheta)
         else:
-            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+            rz_inner_surface = SurfaceRZFourier.from_vmec_input(f, range=range_surf, nphi=nphi, ntheta=ntheta)
 
         # extend via the normal vector
         rz_inner_surface.extend_via_normal(self.plasma_offset)
@@ -312,12 +318,16 @@ class WindingVolumeGrid:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value.
         """
+        range_surf = "full torus"
+        nphi = self.nphi
+        ntheta = self.ntheta
+        f = self.filename
         if self.surface_flag == 'focus':
-            rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+            rz_outer_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
         elif self.surface_flag == 'wout':
-            rz_outer_surface = SurfaceRZFourier.from_wout(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+            rz_outer_surface = SurfaceRZFourier.from_wout(f, range=range_surf, nphi=nphi, ntheta=ntheta)
         else:
-            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
+            rz_outer_surface = SurfaceRZFourier.from_vmec_input(f, range=range_surf, nphi=nphi, ntheta=ntheta)
 
         # extend via the normal vector
         t1 = time.time()
@@ -350,11 +360,6 @@ class WindingVolumeGrid:
         oy = self.XYZ_flat[:, 1]
         oz = self.XYZ_flat[:, 2]
 
-        # Initialize full grid variables
-        ox_full = np.zeros(n * nsym)
-        oy_full = np.zeros(n * nsym)
-        oz_full = np.zeros(n * nsym)
-
         Jvec = np.zeros((n, 3))
         Phi = self._polynomial_basis().reshape(self.n_functions, n, 3)
         for i in range(3):
@@ -362,29 +367,7 @@ class WindingVolumeGrid:
         Jx = Jvec[:, 0]
         Jy = Jvec[:, 1]
         Jz = Jvec[:, 2]
-
-        Jvec_full = np.zeros((n * nsym, 3))
-
-        index = 0
-        # Loop over stellarator and field-period symmetry contributions
-        for stell in stell_list:
-            for fp in range(nfp):
-                phi0 = (2 * np.pi / nfp) * fp
-
-                # get new dipoles locations by flipping the y and z components, then rotating by phi0
-                ox_full[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
-                oy_full[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
-                oz_full[index:index + n] = oz * stell
-                # get new vectors by flipping the x component, then rotating by phi0
-                Jvec_full[index:index + n, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
-                Jvec_full[index:index + n, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
-                Jvec_full[index:index + n, 2] = Jz
-                index += n
-
-        Jvec_normalization = 1.0 / np.sum(Jvec_full ** 2, axis=-1)
-        Jx = Jvec_full[:, 0]
-        Jy = Jvec_full[:, 1]
-        Jz = Jvec_full[:, 2]
+        Jvec_normalization = 1.0 / np.sum(Jvec ** 2, axis=-1)
 
         # Save all the data to a vtk file which can be visualized nicely with ParaView
         contig = np.ascontiguousarray
@@ -395,7 +378,7 @@ class WindingVolumeGrid:
                  contig(Jz / Jvec_normalization))
                 } 
         pointsToVTK(
-            vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
+            vtkname, contig(ox), contig(oy), contig(oz), data=data
             #vtkname, 
             #contig(self.XYZ_flat[:, 0]),
             #contig(self.XYZ_flat[:, 1]),
@@ -490,7 +473,7 @@ class WindingVolumeGrid:
         dphi = self.plasma_boundary.quadpoints_phi[1]
         dtheta = self.plasma_boundary.quadpoints_theta[1]
         plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
-        normN = np.ravel(np.linalg.norm(plasma_normal, ord=2, axis=-1))
+        normN = np.linalg.norm(plasma_normal, ord=2, axis=-1)
         B_matrix = (self.geo_factor * 1e-7 * np.sqrt(dphi * dtheta)).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
         b_rhs = np.ravel(self.Bn * np.sqrt(dphi * dtheta))
         for i in range(B_matrix.shape[0]):
@@ -500,25 +483,15 @@ class WindingVolumeGrid:
         # So far B_matrix has only the contributions from the
         # 1 / 2 * nfp part of the winding volume
         self.B_matrix = B_matrix
-        self.Itarget_matrix = B_matrix
         self.b_rhs = b_rhs
 
-        # Now make the matrices for the Itarget part of the optimization
-        # which gets rid of the trivial solution
-        numquadpoints = 200
-        order = 4
-        curve = CurveRZFourier(numquadpoints, order, nfp=1, stellsym=False)
-
-        # Make circle at Z = 0, with radius small enough that the coil
-        # volume is outside the circle
-        r_min = np.min(abs(self.r_inner))
-        print(r_min)
-        curve.rc[0] = r_min
-        curve.x = curve.get_dofs()
-        curve.x = curve.x  # need to do this to transfer data to C++
-        curve_dl = curve.gammadash().reshape(-1, 3)
-        curves_to_vtk([curve], self.OUT_DIR + f"Itarget_curve")
-        self.Itarget_factor = sopp.winding_volume_geo_factors(points, coil_points, integration_points, curve_dl, self.Phi)
+        curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
+        dphi_loop = np.sqrt(self.plasma_boundary.quadpoints_phi[1])
+        self.Itarget_matrix = sopp.winding_volume_geo_factors(points, coil_points, integration_points, curve_dl, self.Phi).reshape(B_matrix.shape[0], self.N_grid * self.n_functions) * dphi_loop
+        self.Itarget_rhs = self.Bn_Itarget * dphi_loop
+        self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
+        self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
+        # self.flux_jump_matrix = sopp.winding_volume_flux_jumps(coil_points, self.Phi, self.dx, self.dy, self.dz)
 
     def as_dict(self) -> dict:
         d = {}
