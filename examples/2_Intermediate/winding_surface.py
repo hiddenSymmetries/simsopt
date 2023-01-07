@@ -4,8 +4,10 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 from simsopt.field import CurrentPotentialFourier, CurrentPotentialSolve
 from simsopt.geo import SurfaceRZFourier
+from simsoptpp import WindingSurfaceBn_REGCOIL
 from pathlib import Path
 import os
+import time
 from pyevtk.hl import pointsToVTK
 
 TEST_DIR = Path(__file__).parent / ".." / ".." / "tests" / "test_files"
@@ -74,11 +76,19 @@ def run_scan():
         nphi = len(s_plasma.quadpoints_phi)
         ntheta = len(s_plasma.quadpoints_theta)
 
+        # check the REGCOIL Bnormal calculation in c++ """
+        points = s_plasma.gamma().reshape(-1, 3)
+        normal = s_plasma.normal().reshape(-1, 3)
+        normN_plasma = np.linalg.norm(normal, axis=-1)
+        ws_points = s_coil.gamma().reshape(-1, 3)
+        dtheta_coil = s_coil.quadpoints_theta[1]
+        dzeta_coil = s_coil.quadpoints_phi[1]
+
         # function needed for saving to vtk after optimizing
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-26, -8, 80)
+        lambdas = np.logspace(-30, -9, 4)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
@@ -108,15 +118,21 @@ def run_scan():
 
             Bfield_opt = WindingSurfaceField(cp_opt)
             Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
-            Bn_coil = np.sum(Bfield_opt.B().reshape((nphi, ntheta, 3)) * s_plasma.unitnormal(), axis=2)
-            Bmax_tikhonov[i] = np.max(abs(Bn_coil))
-            Bmean_tikhonov[i] = np.mean(abs(Bn_coil))
-
+            # Bn_coil = np.sum(Bfield_opt.B().reshape((nphi, ntheta, 3)) * s_plasma.unitnormal(), axis=2)
+            # Bn = Bn_coil + cpst.Bnormal_plasma.reshape(nphi, ntheta)
+            Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, normal_coil, cp_opt.Phi(), normal) * dtheta_coil * dzeta_coil
+            Bnormal_REGCOIL += cpst.B_GI
+            Bn = Bnormal_REGCOIL + cpst.Bnormal_plasma
+            Bmax_tikhonov[i] = np.max(abs(Bn))
+            Bmean_tikhonov[i] = np.mean(abs(Bn))
+            res = (np.ravel(Bn) ** 2) @ normN_plasma
+            f_B_manual = 0.5 * res / (nphi * ntheta)
             print('f_B from least squares = ', f_B)
+            print('f_B direct = ', f_B_manual)
             f_B_sf = SquaredFlux(
                 s_plasma, 
                 Bfield_opt, 
-                contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
+                -contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
 
@@ -125,7 +141,10 @@ def run_scan():
             #s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
             # Repeat with the L1 instead of the L2 norm!
-            optimized_phi_mn, f_B, f_K = cpst.solve_lasso(lam=lambda_reg)
+            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=2000)
+            plt.figure(100)
+            plt.plot(fB_history)
+            plt.grid(True)
             fB_lasso[i] = f_B
             fK_l1_lasso[i] = f_K 
             K = cp_opt.K()
@@ -139,16 +158,23 @@ def run_scan():
 
             Bfield_opt = WindingSurfaceField(cp_opt)
             Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
-            Bn_coil = np.sum(Bfield_opt.B().reshape((nphi, ntheta, 3)) * s_plasma.unitnormal(), axis=2)
-            Bmax_lasso[i] = np.max(abs(Bn_coil))
-            Bmean_lasso[i] = np.mean(abs(Bn_coil))
+            Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(points, ws_points, normal_coil, cp_opt.Phi(), normal) * dtheta_coil * dzeta_coil
+            Bnormal_REGCOIL += cpst.B_GI
+            # Bn_coil = np.sum(Bfield_opt.B().reshape((nphi, ntheta, 3)) * s_plasma.unitnormal(), axis=2)
+            # Bn = Bn_coil + cpst.Bnormal_plasma.reshape(nphi, ntheta)
+            Bn = Bnormal_REGCOIL + cpst.Bnormal_plasma
+            Bmax_lasso[i] = np.max(abs(Bn))
+            Bmean_lasso[i] = np.mean(abs(Bn))
+            res = (np.ravel(Bn) ** 2) @ normN_plasma
+            f_B_manual = 0.5 * res / (nphi * ntheta)
 
             print('Results from Lasso: ')
             print('f_B from least squares = ', f_B)
+            print('f_B direct = ', f_B_manual)
             f_B_sf = SquaredFlux(
                 s_plasma, 
                 Bfield_opt, 
-                contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
+                -contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
 
@@ -187,7 +213,7 @@ def run_scan():
         plt.suptitle(file)
         plt.plot(fK_tikhonov, fB_tikhonov, 'r', label='L2')
         plt.plot(fK_lasso, fB_lasso, 'b', label='L1 (same term as L2)')
-        plt.plot(fK_l1_lasso, fB_lasso, 'm', label='L1 (using the L1 fK)')
+        # plt.plot(fK_l1_lasso, fB_lasso, 'm', label='L1 (using the L1 fK)')
         plt.xlabel(r'$f_K$')
         plt.ylabel(r'$f_B$')
         plt.grid(True)
@@ -261,20 +287,9 @@ def run_target():
                 s_coil.to_vtk(OUT_DIR + file + "_tikhonov_fBtarget_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
                 break
         print('Now repeating for Lasso: ')
-        #cpst = CurrentPotentialSolve.from_netcdf(filename)
-        #cp = CurrentPotentialFourier.from_netcdf(filename)
-        #cp = CurrentPotentialFourier(
-        #    cpst.winding_surface, mpol=mpol, ntor=ntor,
-        #    net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
-        #    net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
-        #    stellsym=True)
-        #cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
-        #cpst = CurrentPotentialSolve.from_netcdf(filename)
-        #cp = CurrentPotentialFourier.from_netcdf(filename)
-        #s_coil = cpst.winding_surface
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem with the Lasso 
-            optimized_phi_mn, f_B, _ = cpst.solve_lasso(lam=lambda_reg)
+            optimized_phi_mn, f_B, _, _ = cpst.solve_lasso(lam=lambda_reg)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
 
@@ -289,6 +304,9 @@ def run_target():
                 break
 
 
+t1 = time.time()
 run_scan()
 # run_target()
+t2 = time.time()
+print('Total run time = ', t2 - t1)
 plt.show()

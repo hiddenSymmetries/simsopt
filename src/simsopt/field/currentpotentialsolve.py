@@ -205,7 +205,7 @@ class CurrentPotentialSolve:
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
         return phi_mn_opt, f_B, f_K
 
-    def solve_lasso(self, lam=0):
+    def solve_lasso(self, lam=0, max_iter=100):
         """
             Solve the Lasso problem -- winding surface optimization with
             the L1 norm, which should tend to allow stronger current 
@@ -234,6 +234,7 @@ class CurrentPotentialSolve:
         b_e = self.b_e 
         Ak_matrix = self.fj.reshape(self.fj.shape[0] * 3, self.fj.shape[-1])
         d = np.ravel(self.d)
+        nfp = self.plasma_surface.nfp
 
         # Lasso doesnt work well if no regularization is used
         if lam == 0:
@@ -246,18 +247,51 @@ class CurrentPotentialSolve:
             b_new = b_e - A_new @ d 
 
             # rescale the l1 regularization
-            # l1_reg = lam / (2 * d.shape[0])
-            l1_reg = np.sqrt(lam) / (2 * d.shape[0])
+            l1_reg = lam / (2 * d.shape[0])
+            # l1_reg = np.sqrt(lam) / (2 * d.shape[0])
 
-            solver = Lasso(alpha=l1_reg)
-            solution = solver.fit(A_new, b_new)
+            # solver = Lasso(alpha=l1_reg)
+            # solution = solver.fit(A_new, b_new)
+            # z_opt = solution.coef_
+            z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter) 
+            phi_history = []
+            fB_history = []
+            fK_history = []
+            for i in range(len(z_history)):
+                phi_history.append(Ak_inv @ (z_history[i] + d))
+                fB_history.append(0.5 * np.linalg.norm(A_matrix @ phi_history[i] - b_e) ** 2 * nfp)
+                fK_history.append(0.5 * np.linalg.norm(Ak_matrix @ phi_history[i] - d, ord=1))
 
             # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
-            z_opt = solution.coef_
             phi_mn_opt = Ak_inv @ (z_opt + d)
 
         self.current_potential.set_dofs(phi_mn_opt)
-        nfp = self.plasma_surface.nfp
         f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
         f_K = 0.5 * np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
-        return phi_mn_opt, f_B, f_K
+        return phi_mn_opt, f_B, f_K, fB_history, fK_history
+
+    def _FISTA(self, A, b, alpha=0.0, max_iter=100, acceleration=False):
+        """ 
+        This function uses Nesterov's accelerated proximal
+        gradient descent algorithm to solve the Lasso 
+        (L1-regularized) winding surface problem. This is
+        usually called fast iterative soft-thresholding algorithm
+        (FISTA). 
+        """
+        ti = 1.0  # initial step size
+        xi = np.zeros(A.shape[1])
+        x_history = [xi]
+        for i in range(max_iter):
+            if acceleration and i > 0:
+                vi = xi + (i - 1) / (i + 2) * (xi - xi2)
+            else:
+                vi = xi
+            xi2 = xi 
+            xi = self._prox_l1(vi + ti * A.T @ (b - A @ vi), ti * alpha)
+            ti = (1 + np.sqrt(1 + 4 * ti ** 2)) / 2.0
+            x_history.append(xi)
+        return xi, x_history
+
+    def _prox_l1(self, x, threshold):
+        """Proximal operator for L1 regularization."""
+        return np.sign(x) * np.maximum(np.abs(x) - threshold, 0)
