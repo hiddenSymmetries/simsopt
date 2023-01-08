@@ -1,0 +1,32 @@
+Determining if the strtod_l exist failed with the following output:
+Change Dir: /home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_08882/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_08882.dir/build.make CMakeFiles/cmTC_08882.dir/build
+gmake[1]: Entering directory '/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_08882.dir/CheckSymbolExists.c.o
+/usr/bin/cc   -fPIE -o CMakeFiles/cmTC_08882.dir/CheckSymbolExists.c.o -c /home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp/CheckSymbolExists.c: In function ‘main’:
+/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8:19: error: ‘strtod_l’ undeclared (first use in this function); did you mean ‘strtoull’?
+    8 |   return ((int*)(&strtod_l))[argc];
+      |                   ^~~~~~~~
+      |                   strtoull
+/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8:19: note: each undeclared identifier is reported only once for each function it appears in
+gmake[1]: *** [CMakeFiles/cmTC_08882.dir/build.make:78: CMakeFiles/cmTC_08882.dir/CheckSymbolExists.c.o] Error 1
+gmake[1]: Leaving directory '/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_08882/fast] Error 2
+
+
+File /home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <stdlib.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef strtod_l
+  return ((int*)(&strtod_l))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
