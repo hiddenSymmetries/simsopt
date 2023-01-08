@@ -1,9 +1,0 @@
-/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/simsoptpp.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/profiling.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/edit_cache.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/CMakeFiles/rebuild_cache.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/thirdparty/pybind11/CMakeFiles/edit_cache.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/thirdparty/pybind11/CMakeFiles/rebuild_cache.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/thirdparty/fmt/CMakeFiles/fmt.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/thirdparty/fmt/CMakeFiles/edit_cache.dir
-/home/joaobiu/simsopt_curvecws/cmake-build/thirdparty/fmt/CMakeFiles/rebuild_cache.dir

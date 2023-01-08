@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -march=native -mfma -ffp-contract=fast CMakeFiles/profiling.dir/src/profiling/profiling.cpp.o CMakeFiles/profiling.dir/src/simsoptpp/biot_savart_c.cpp.o CMakeFiles/profiling.dir/src/simsoptpp/biot_savart_vjp_c.cpp.o CMakeFiles/profiling.dir/src/simsoptpp/regular_grid_interpolant_3d_c.cpp.o -o profiling  thirdparty/fmt/libfmt.a 
