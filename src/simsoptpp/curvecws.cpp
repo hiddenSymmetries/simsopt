@@ -47,4 +47,4 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         data(k, 1) = r * sin(pphi);
         data(k, 2) = z;
     }
-};
+};  

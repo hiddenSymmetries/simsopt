@@ -16,13 +16,12 @@ using std::logic_error;
 #include <Eigen/QR>
 
 template <class Array>
-Array curve_vjp_contraction(const Array &mat, const Array &v)
-{
+Array curve_vjp_contraction(const Array &mat, const Array &v{
     int numquadpoints = mat.shape(0);
     int numdofs = mat.shape(2);
     Array res = xt::zeros<double>({numdofs});
     // we have to compute the contraction below:
-    // for (int i = 0; i < numdofs; ++i) {
+    //for (int i = 0; i < numdofs; ++i) {
     //    for (int j = 0; j < numquadpoints; ++j) {
     //        for (int k = 0; k < 3; ++k) {
     //            res(i) += mat(j, k, i) * v(j, k);
@@ -32,17 +31,16 @@ Array curve_vjp_contraction(const Array &mat, const Array &v)
     // instead of worrying how to do this efficiently, we map to a eigen
     // matrix, and then write this as a matrix vector product.
 
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eigen_mat(const_cast<double *>(mat.data()), numquadpoints * 3, numdofs);
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eigen_v(const_cast<double *>(v.data()), 1, numquadpoints * 3);
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eigen_res(const_cast<double *>(res.data()), 1, numdofs);
-    eigen_res = eigen_v * eigen_mat;
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(mat.data()), numquadpoints*3, numdofs);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(v.data()), 1, numquadpoints*3);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(res.data()), 1, numdofs);
+    eigen_res = eigen_v*eigen_mat;
 
     return res;
 }
 
 template <class Array>
-class Curve
-{
+class Curve {
 private:
     /* The cache object contains data that has to be recomputed everytime
      * the dofs change.  However, some data does not have to be recomputed,
