@@ -16,7 +16,7 @@ using std::logic_error;
 #include <Eigen/QR>
 
 template <class Array>
-Array curve_vjp_contraction(const Array &mat, const Array &v{
+Array curve_vjp_contraction(const Array &mat, const Array &v){
     int numquadpoints = mat.shape(0);
     int numdofs = mat.shape(2);
     Array res = xt::zeros<double>({numdofs});

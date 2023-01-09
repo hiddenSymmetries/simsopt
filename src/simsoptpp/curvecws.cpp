@@ -1,5 +1,7 @@
 #include "curvecws.h"
 
+
+
 template <class Array>
 void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
 {
@@ -48,3 +50,7 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         data(k, 2) = z;
     }
 };  
+
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
+typedef xt::pyarray<double> Array;
+template class CurveCWS<Array>;

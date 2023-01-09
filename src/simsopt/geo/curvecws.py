@@ -17,8 +17,8 @@ class CurveCWS(sopp.CurveCWS, Curve):
     """
 
     def __init__(self, mpol, ntor, res, numquadpoints, order, nfp, stellsym):
-        numquadpoints = list(np.linspace(0, 1./nfp, numquadpoints, endpoint=False))
-        sopp.CurveCWS.__init__(self, numquadpoints, mpol, ntor, res, numquadpoints, order, nfp, stellsym)
+        #numquadpoints = list(np.linspace(0, 1./nfp, numquadpoints, endpoint=False))
+        sopp.CurveCWS.__init__(self, mpol, ntor, res, numquadpoints, order, nfp, stellsym)
         Curve.__init__(self, external_dof_setter=CurveCWS.set_dofs_impl, x0=self.get_dofs())
 
     def get_dofs(self):

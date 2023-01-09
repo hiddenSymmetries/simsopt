@@ -1,7 +1,6 @@
 #pragma once
 
 #include "curve.h"
-#include "surface.h"
 
 template <class Array>
 class CurveCWS : public Curve<Array>
@@ -31,20 +30,6 @@ public:
     Array rs;
     Array zc;
     Array zs;
-
-    /* CurveCWS(shared_ptr<Surface<Array>> surface,
-             int _numquadpoints,
-             int _order,
-             int _nfp,
-             bool _stellsym) : surface(surface), Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym)
-    {
-        phi_l = xt::zeros<double>({1});
-        theta_l = xt::zeros<double>({1});
-        phi_s = xt::zeros<double>({order});
-        phi_c = xt::zeros<double>({order + 1});
-        theta_s = xt::zeros<double>({order});
-        theta_c = xt::zeros<double>({order + 1});
-    } */
 
     CurveCWS(int _mpol,
              int _ntor,
