@@ -524,8 +524,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
         psip = self.bx.phip/(2*np.pi)
         iota[1:-1] = self.bx.iota
-        G[1:-1] = self.bx.Boozer_G
-        I[1:-1] = self.bx.Boozer_I
+        G[1:-1] = self.bx.Boozer_G_all
+        I[1:-1] = self.bx.Boozer_I_all
         if self.rescale:
             s_half_mn = self.bx.s_b[self.ns_delete::]
             bmnc = np.zeros((len(self.xm_b), self.bx.ns_b-self.ns_delete))
