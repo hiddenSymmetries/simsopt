@@ -485,9 +485,23 @@ class Testing(unittest.TestCase):
                 self.assertAlmostEqual(np.sum(Bnormal), 0)
                 self.assertAlmostEqual(np.sum(Bnormal_regcoil), 0)
 
+                # Check that L1 optimization agrees if lambda = 0
+                if lambda_reg == 0.0:
+                    optimized_phi_mn_lasso, f_B_lasso, f_K_lasso, fB_history, _ = cpst.solve_lasso(lam=lambda_reg, max_iter=10000, acceleration=True)
+                    # Check ISTA (unaccelerated algorithm) eventually 
+                    # converges to FISTA result (accelerated algorithm)
+                    _, f_B_unaccelerated, _, _, _ = cpst.solve_lasso(lam=lambda_reg, max_iter=30000, acceleration=False)
+                    print(f_B_lasso, f_B_unaccelerated)
+                    assert np.isclose(f_B_lasso, f_B_unaccelerated, rtol=1e-2)
+
                 # Check the optimization in SIMSOPT is working
                 optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_reg)
+                print(single_valued_current_potential_mn[i, :], optimized_phi_mn)
                 assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn)
+
+                # Even though fB matches well, current potentials can mismatch substantially because
+                # we are in the ill-conditioned case where many different potentials produce same fB
+                assert np.isclose(f_B, f_B_lasso, rtol=1e-3)
 
                 # Check f_B from SquaredFlux and f_B from least-squares agree
                 Bfield_opt = WindingSurfaceField(cpst.current_potential)
@@ -504,12 +518,6 @@ class Testing(unittest.TestCase):
                 assert np.isclose(f_B, f_B_REGCOIL, rtol=1e-2)
                 assert np.isclose(f_K_direct, f_K_REGCOIL, rtol=1e-2)
                 assert np.isclose(f_K, f_K_REGCOIL, rtol=1e-2)
-
-                # Check that L1 optimization agrees if lambda = 0
-                if lambda_reg == 0.0:
-                    optimized_phi_mn_lasso, f_B_lasso, f_K_lasso = cpst.solve_lasso(lam=lambda_reg)
-                    assert np.allclose(single_valued_current_potential_mn[i, :], optimized_phi_mn_lasso)
-                    assert np.isclose(f_B, f_B_lasso, rtol=1e-2)
 
                 # check the REGCOIL Bnormal calculation in c++ """
                 points = s_plasma.gamma().reshape(-1, 3)

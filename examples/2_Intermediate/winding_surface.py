@@ -88,7 +88,7 @@ def run_scan():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-30, -9, 4)
+        lambdas = np.logspace(-26, -6, 20)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
@@ -113,8 +113,8 @@ def run_scan():
             f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal_coil.shape[0])
             fK_tikhonov[i] = f_K_direct
             K = np.ascontiguousarray(K)
-            Kmax_tikhonov[i] = np.max(abs(K))
-            Kmean_tikhonov[i] = np.mean(abs(K))
+            Kmax_tikhonov[i] = np.max(np.linalg.norm(K, axis=-1))
+            Kmean_tikhonov[i] = np.mean(np.linalg.norm(K, axis=-1))
 
             Bfield_opt = WindingSurfaceField(cp_opt)
             Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
@@ -141,9 +141,13 @@ def run_scan():
             #s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
             # Repeat with the L1 instead of the L2 norm!
-            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=2000)
+            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=5000, acceleration=True)
             plt.figure(100)
-            plt.plot(fB_history)
+            print('fB_history = ', fB_history[::100])
+            plt.semilogy(fB_history)
+            plt.grid(True)
+            plt.figure(101)
+            plt.semilogy(lambda_reg * fK_history, label='{0:.2e}'.format(lambda_reg))
             plt.grid(True)
             fB_lasso[i] = f_B
             fK_l1_lasso[i] = f_K 
@@ -153,8 +157,8 @@ def run_scan():
             fK_lasso[i] = f_K_direct
             cp_opt = cpst.current_potential
             K = np.ascontiguousarray(cp_opt.K())
-            Kmax_lasso[i] = np.max(abs(K))
-            Kmean_lasso[i] = np.mean(abs(K))
+            Kmax_lasso[i] = np.max(np.linalg.norm(K, axis=-1))
+            Kmean_lasso[i] = np.mean(np.linalg.norm(K, axis=-1))
 
             Bfield_opt = WindingSurfaceField(cp_opt)
             Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
@@ -181,6 +185,11 @@ def run_scan():
             #make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Bnormal_lambda{0:.2e}".format(lambda_reg))
             #pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
             #s_coil.to_vtk(OUT_DIR + file + "_lasso_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+        plt.figure(100)
+        plt.savefig(OUT_DIR + 'fB_history.jpg')
+        plt.figure(101)
+        plt.legend()
+        plt.savefig(OUT_DIR + 'fK_history.jpg')
 
         # plot cost function results
         plt.figure(figsize=(14, 4))
@@ -263,19 +272,18 @@ def run_target():
             net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
             stellsym=True)
         cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
-
         s_coil = cpst.winding_surface
 
         # function needed for saving to vtk after optimizing
         contig = np.ascontiguousarray
+
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-22, -10, 40))
+        lambdas = np.flip(np.logspace(-22, -8, 20))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
-            print(optimized_phi_mn.shape)
 
             if f_B < fB_target:
                 K = cp_opt.K()
@@ -289,7 +297,7 @@ def run_target():
         print('Now repeating for Lasso: ')
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem with the Lasso 
-            optimized_phi_mn, f_B, _, _ = cpst.solve_lasso(lam=lambda_reg)
+            optimized_phi_mn, f_B, _, _, _ = cpst.solve_lasso(lam=lambda_reg)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
 

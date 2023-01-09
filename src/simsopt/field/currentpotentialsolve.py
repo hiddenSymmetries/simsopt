@@ -70,17 +70,25 @@ class CurrentPotentialSolve:
 
         cp = CurrentPotentialFourier.from_netcdf(filename)
 
-        s_plasma = SurfaceRZFourier(nfp=nfp,
-                                    mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym_plasma_surf)
-        s_plasma = s_plasma.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_plasma, nphi=nzeta_plasma,
-                                             mpol=mpol_plasma, ntor=ntor_plasma, stellsym=stellsym_plasma_surf, range="field period")
-        s_plasma.set_dofs(0*s_plasma.get_dofs())
+        s_plasma = SurfaceRZFourier(
+            nfp=nfp,
+            mpol=mpol_plasma, 
+            ntor=ntor_plasma, 
+            stellsym=stellsym_plasma_surf
+        )
+        s_plasma = s_plasma.from_nphi_ntheta(
+            nfp=nfp, ntheta=ntheta_plasma, 
+            nphi=nzeta_plasma,
+            mpol=mpol_plasma, ntor=ntor_plasma, 
+            stellsym=stellsym_plasma_surf, range="field period"
+        )
+        s_plasma.set_dofs(0 * s_plasma.get_dofs())
         for im in range(len(xm_plasma)):
-            s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im]/nfp), rmnc_plasma[im])
-            s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im]/nfp), zmns_plasma[im])
+            s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im] / nfp), rmnc_plasma[im])
+            s_plasma.set_zs(xm_plasma[im], int(xn_plasma[im] / nfp), zmns_plasma[im])
             if not stellsym_plasma_surf:
-                s_plasma.set_rs(xm_plasma[im], int(xn_plasma[im]/nfp), rmns_plasma[im])
-                s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im]/nfp), zmnc_plasma[im])
+                s_plasma.set_rs(xm_plasma[im], int(xn_plasma[im] / nfp), rmns_plasma[im])
+                s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im] / nfp), zmnc_plasma[im])
 
         cp_copy = CurrentPotentialFourier.from_netcdf(filename)
         Bfield = WindingSurfaceField(cp_copy)
@@ -117,8 +125,8 @@ class CurrentPotentialSolve:
 
     def B_matrix_and_rhs(self):
         """
-            Compute the matrix and right-hand-side corresponding the Bnormal part of
-            the optimization, both for the Tikhonov and Lasso optimizations.
+            Compute the matrices and right-hand-side corresponding the Bnormal part of
+            the optimization, for both the Tikhonov and Lasso optimizations.
         """
         plasma_surface = self.plasma_surface
         normal = self.winding_surface.normal().reshape(-1, 3)
@@ -187,15 +195,17 @@ class CurrentPotentialSolve:
         """
             Solve the REGCOIL problem -- winding surface optimization with
             the L2 norm. This is tested against REGCOIL runs extensively in
-            tests/field/test_regcoil.py. Note that computing f_B and f_K
-            requires that we convert Bmatrix and Kmatrix back into forms
-            suitable for computing the 
+            tests/field/test_regcoil.py.
         """
         K_matrix = self.K_matrix()
         K_rhs = self.K_rhs()
         b_rhs, B_matrix = self.B_matrix_and_rhs()
+
+        # least-squares solve
         phi_mn_opt = np.linalg.solve(B_matrix + lam * K_matrix, b_rhs + lam * K_rhs)
         self.current_potential.set_dofs(phi_mn_opt)
+
+        # Get other matrices for direct computation of fB and fK loss terms
         nfp = self.plasma_surface.nfp
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
@@ -205,7 +215,7 @@ class CurrentPotentialSolve:
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
         return phi_mn_opt, f_B, f_K
 
-    def solve_lasso(self, lam=0, max_iter=100):
+    def solve_lasso(self, lam=0, max_iter=1000, acceleration=False):
         """
             Solve the Lasso problem -- winding surface optimization with
             the L1 norm, which should tend to allow stronger current 
@@ -215,15 +225,11 @@ class CurrentPotentialSolve:
                so that optimization becomes
                ||AA_k^{-1} * z - (b - A * A_k^{-1} * b_k)||_2^2 + alpha * ||z||_1
                which is the form required to use the Lasso pre-built optimizer 
-               from sklearn.
+               from sklearn (which actually works poorly) or the optimizer used 
+               here (proximal gradient descent for LASSO, also called ISTA or FISTA).
             2. The alpha term should be similar amount of regularization as the L2
-               but Lasso does 1 / (2 * n_samples) normalization in front of the 
-               least-squares term, AND lam -> sqrt(lam) since lam is the same number
-               being used for the L2 norm. So we rescale 
-               alpha = sqrt(lam) / (2 * n_samples) so that the regularization is 
-               similar to the L2 problem, AND so that the 1 / (2 * n_samples)
-               normalization is applied to all terms in the optimization. The
-               result is that the normalization leaves the optimization unaffected.
+               so we rescale lam -> sqrt(lam) since lam is used for the (L2 norm)^2
+               loss term used for Tikhonov regularization. 
         """
         # Set up some matrices
         _, _ = self.B_matrix_and_rhs()
@@ -236,62 +242,97 @@ class CurrentPotentialSolve:
         d = np.ravel(self.d)
         nfp = self.plasma_surface.nfp
 
-        # Lasso doesnt work well if no regularization is used
-        if lam == 0:
-            B_matrix = A_matrix.T @ A_matrix
-            b_rhs = A_matrix.T @ b_e
-            phi_mn_opt = np.linalg.solve(B_matrix, b_rhs)
-        else:
-            Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-30)
-            A_new = A_matrix @ Ak_inv
-            b_new = b_e - A_new @ d 
+        # Ak is non-square so pinv required. Careful with rcond parameter
+        Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-50)
+        A_new = A_matrix @ Ak_inv
+        b_new = b_e - A_new @ d 
 
-            # rescale the l1 regularization
-            l1_reg = lam / (2 * d.shape[0])
-            # l1_reg = np.sqrt(lam) / (2 * d.shape[0])
+        # rescale the l1 regularization
+        l1_reg = lam
+        # l1_reg = np.sqrt(lam)
 
-            # solver = Lasso(alpha=l1_reg)
-            # solution = solver.fit(A_new, b_new)
-            # z_opt = solution.coef_
-            z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter) 
-            phi_history = []
-            fB_history = []
-            fK_history = []
-            for i in range(len(z_history)):
-                phi_history.append(Ak_inv @ (z_history[i] + d))
-                fB_history.append(0.5 * np.linalg.norm(A_matrix @ phi_history[i] - b_e) ** 2 * nfp)
-                fK_history.append(0.5 * np.linalg.norm(Ak_matrix @ phi_history[i] - d, ord=1))
+        # Use FISTA to optimize the L1 problem. Note that 
+        # we tried scikit-learn's Lasso optimizer first, but it works
+        # very poorly at low regularization (l1_reg << 1)
+        z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration)
 
-            # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
-            phi_mn_opt = Ak_inv @ (z_opt + d)
+        # Compute the history of values from the optimizer
+        phi_history = []
+        fB_history = []
+        fK_history = []
+        for i in range(len(z_history)):
+            phi_history.append(Ak_inv @ (z_history[i] + d))
+            fB_history.append(0.5 * np.linalg.norm(A_matrix @ phi_history[i] - b_e) ** 2 * nfp)
+            fK_history.append(0.5 * np.linalg.norm(Ak_matrix @ phi_history[i] - d, ord=1))
+
+        # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
+        phi_mn_opt = Ak_inv @ (z_opt + d)
 
         self.current_potential.set_dofs(phi_mn_opt)
         f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
         f_K = 0.5 * np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
         return phi_mn_opt, f_B, f_K, fB_history, fK_history
 
-    def _FISTA(self, A, b, alpha=0.0, max_iter=100, acceleration=False):
+    def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True):
         """ 
-        This function uses Nesterov's accelerated proximal
-        gradient descent algorithm to solve the Lasso 
-        (L1-regularized) winding surface problem. This is
-        usually called fast iterative soft-thresholding algorithm
-        (FISTA). 
+            This function uses Nesterov's accelerated proximal
+            gradient descent algorithm to solve the Lasso 
+            (L1-regularized) winding surface problem. This is
+            usually called fast iterative soft-thresholding algorithm
+            (FISTA). If acceleration = False, it will use the ISTA
+            algorithm, which tends to converge much slower than FISTA
+            but is a true descent algorithm, unlike FISTA. 
         """
-        ti = 1.0  # initial step size
-        xi = np.zeros(A.shape[1])
+
+        # if abs(current_potential_{k+1} - current_potential_{k}) < tol 
+        # for every element, then algorithm quits in this k-th iteration. 
+        tol = 1
+
+        # pre-compute/load some stuff so for loops (below) are faster
+        ATA = A.T @ A
+        ATb = A.T @ b
+        prox = self._prox_l1
+
+        # An upper bound on the
+        # Lipshitz constant L of the least-squares loss term 
+        # can be computed easily as largest eigenvalue of ATA
+        L = np.linalg.svd(ATA, compute_uv=False)[0]
+
+        # initial step size should be just smaller than 1 / L
+        # which for most of these problems L ~ 1e-13 or smaller
+        # so the step size is enormous
+        ti = 1.0 / L 
+
+        # initialize current potential to random values in [5e-4, 5e4]
+        xi = (np.random.rand(A.shape[1]) - 0.5) * 1e5
         x_history = [xi]
-        for i in range(max_iter):
-            if acceleration and i > 0:
-                vi = xi + (i - 1) / (i + 2) * (xi - xi2)
-            else:
-                vi = xi
-            xi2 = xi 
-            xi = self._prox_l1(vi + ti * A.T @ (b - A @ vi), ti * alpha)
-            ti = (1 + np.sqrt(1 + 4 * ti ** 2)) / 2.0
-            x_history.append(xi)
+        if acceleration:  # FISTA algorithm
+            # first iteration do ISTA
+            x_history.append(prox(xi + ti * (ATb - ATA @ xi), ti * alpha))
+            for i in range(1, max_iter):
+                vi = x_history[i] + (i - 1) / (i + 2) * (x_history[i] - x_history[i - 1])
+                # note l1 'threshold' is rescaled here
+                x_history.append(prox(vi + ti * (ATb - ATA @ vi), ti * alpha))
+                ti = (1 + np.sqrt(1 + 4 * ti ** 2)) / 2.0
+                if (i % 100) == 0:
+                    if np.all(abs(x_history[i + 1] - x_history[i]) < tol):
+                        break
+        else:  # ISTA algorithm
+            alpha = ti * alpha  # ti does not vary in ISTA algorithm
+            ATA = ti * ATA
+            I_ATA = np.eye(ATA.shape[0]) - ATA
+            ATb = ti * ATb
+            for i in range(max_iter):
+                x_history.append(prox(ATb + I_ATA @ x_history[i], alpha))
+                if (i % 100) == 0:
+                    if np.all(abs(x_history[i + 1] - x_history[i]) < tol):
+                        break
+        xi = x_history[-1]
         return xi, x_history
 
     def _prox_l1(self, x, threshold):
-        """Proximal operator for L1 regularization."""
+        """
+            Proximal operator for L1 regularization,
+            which is often called soft-thresholding.
+        """
         return np.sign(x) * np.maximum(np.abs(x) - threshold, 0)
