@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 from .jit import jit
 from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec
+from .._core.derivative import derivative_dec, Derivative
 import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
@@ -478,22 +478,30 @@ class MinimumDistance(CurveCurveDistance):
     pass
 
 
-class LinkingNumber():
+class LinkingNumber(Optimizable):
 
     def __init__(self, curves):
+        Optimizable.__init__(self, depends_on=curves)
         self.curves = curves
         r"""
         Compute the Linking number of a set of curves (whether the curves 
         are interlocked or not).
 
         The value is 1 if the are interlocked, 0 if not.
+        
+        .. math::
+            Link(c1,c2) = \frac{1}{4\pi} \oint_{c1}\oint_{c2}\frac{\textbf{R1} - \textbf{R2}}{|\textbf{R1}-\textbf{R2}|^3} (d\textbf{R1} \cross d\textbf{R2})
+            
+        where :math:'c1' is the first curve and :math:'c2' is the second curve, 
+        :math:'\textbf{R1}' is the radius vector of the first curve, and 
+        :math:'\textbf{R2}' is the radius vector of the second curve
 
         Args:
             curves: the set of curves on which the linking number should be computed.
         
         """
 
-    def linkNumber(self):
+    def J(self):
         ncoils = len(self.curves)
         linkNum = np.zeros([ncoils + 1, ncoils + 1])
         i = 0
@@ -512,5 +520,9 @@ class LinkingNumber():
 
                     integrals = sopp.linkNumber(R1, R2, dR1, dR2) * dS * dT
                     linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
-        linkNumSum = abs(sum(sum(linkNum)))
+        linkNumSum = sum(sum(abs(linkNum)))
         return linkNumSum
+        
+    @derivative_dec
+    def dJ(self):
+        return Derivative({})
