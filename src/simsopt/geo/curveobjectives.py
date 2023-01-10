@@ -477,6 +477,7 @@ class MeanSquaredCurvature(Optimizable):
 class MinimumDistance(CurveCurveDistance):
     pass
 
+
 class LinkingNumber():
 
     def __init__(self, curves):
