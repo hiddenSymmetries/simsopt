@@ -534,3 +534,40 @@ class MeanSquaredCurvature(Optimizable):
 @deprecated("`MinimumDistance` has been deprecated and will be removed. Please use `CurveCurveDistance` instead.")
 class MinimumDistance(CurveCurveDistance):
     pass
+
+class LinkingNumber():
+
+    def __init__(self, curves):
+        self.curves = curves
+        r"""
+        Compute the Linking number of a set of curves (whether the curves 
+        are interlocked or not).
+
+        The value is 1 if the are interlocked, 0 if not.
+
+        Args:
+            curves: the set of curves on which the linking number should be computed.
+        
+        """
+    
+    def linkNumber(self):
+        ncoils = len(self.curves)
+        linkNum = np.zeros([ncoils + 1, ncoils + 1])
+        i = 0
+        for c1 in self.curves[:(ncoils + 1)]:
+            j = 0
+            i = i + 1
+            for c2 in self.curves[:(ncoils + 1)]:
+                j = j + 1
+                if i < j:
+                    R1 = c1.gamma()
+                    R2 = c2.gamma()
+                    dS = c1.quadpoints[1] - c1.quadpoints[0]
+                    dT = c2.quadpoints[1] - c1.quadpoints[0]
+                    dR1 = c1.gammadash()
+                    dR2 = c2.gammadash()
+
+                    integrals = sopp.linkNumber(R1, R2, dR1, dR2) * dS * dT
+                    linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
+        linkNumSum = abs(sum(sum(linkNum)))
+        return linkNumSum
