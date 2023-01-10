@@ -215,7 +215,7 @@ class CurrentPotentialSolve:
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
         return phi_mn_opt, f_B, f_K
 
-    def solve_lasso(self, lam=0, max_iter=1000, acceleration=False):
+    def solve_lasso(self, lam=0, max_iter=1000, acceleration=True):
         """
             Solve the Lasso problem -- winding surface optimization with
             the L1 norm, which should tend to allow stronger current 
