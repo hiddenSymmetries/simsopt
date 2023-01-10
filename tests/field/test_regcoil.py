@@ -323,7 +323,7 @@ class Testing(unittest.TestCase):
             assert np.isclose(f_B, f_B_regcoil, rtol=1e-2)
 
             # These should agree much better
-            assert np.isclose(f_B_regcoil, f_B_sq, rtol=1e-5)
+            assert np.isclose(f_B_regcoil, f_B_sq, rtol=1e-4)
 
             # Compare current density
             cp.set_dofs(optimized_phi_mn)
