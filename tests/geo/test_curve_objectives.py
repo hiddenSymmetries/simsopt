@@ -359,7 +359,7 @@ class Testing(unittest.TestCase):
             err = err_new
 
     def test_linking_number(self):
-        
+
         curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=128)
 
         from simsopt.geo.curvexyzfourier import CurveXYZFourier
@@ -389,6 +389,7 @@ class Testing(unittest.TestCase):
         print(fullArray2)
         self.assertAlmostEqual(fullArray, 0)
         self.assertAlmostEqual(fullArray2, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
