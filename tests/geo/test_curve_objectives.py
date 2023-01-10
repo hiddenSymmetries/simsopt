@@ -382,8 +382,10 @@ class Testing(unittest.TestCase):
         Object1 = LinkingNumber(curves1)
         Object2 = LinkingNumber(curves2)
 
-        fullArray = Object1.linkNumber()
-        fullArray2 = Object2.linkNumber()
+        fullArray = Object1.J()
+        fullArray2 = Object2.J()
+        deriv1 = Object1.dJ()
+        deriv2 = Object2.dJ()
         print("Link Number Testing (should be 0, 1)")
         print(fullArray)
         print(fullArray2)

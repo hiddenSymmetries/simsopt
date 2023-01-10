@@ -170,31 +170,6 @@ PYBIND11_MODULE(simsoptpp, m) {
         }
         return 0.5 * res / (nphi*ntheta);
     });
-    
-    m.def("linkNumber", [](const PyArray& curve1, const PyArray& curve2, const PyArray& curve1dash, const PyArray& curve2dash) {
-        int linknphi1 = curve1.shape(0);
-        int linknphi2 = curve2.shape(0);
-        int linkntheta1 = curve1.shape(1);
-        int linkntheta2 = curve2.shape(1);
-        const double *curve1_ptr = curve1.data();
-        const double *curve2_ptr = curve2.data();
-        const double *curve1dash_ptr = curve1dash.data();
-        const double *curve2dash_ptr = curve2dash.data();
-        double difference[3] = { 0 };
-        double total = 0;
-        for(int i=0; i < linknphi1; i++){
-            for(int j=0; j < linknphi2; j++){
-                difference[0] = (curve1_ptr[3*i+0] - curve2_ptr[3*j+0]);
-                difference[1] = (curve1_ptr[3*i+1] - curve2_ptr[3*j+1]);
-                difference[2] = (curve1_ptr[3*i+2] - curve2_ptr[3*j+2]);
-                double denom = pow(std::sqrt(difference[0]*difference[0] + difference[1]*difference[1] + difference[2]*difference[2]), 3);
-                double det = curve1dash_ptr[3*i+0]*(curve2dash_ptr[3*j+1]*difference[2] - curve2dash_ptr[3*j+2]*difference[1]) - curve1dash_ptr[3*i+1]*(curve2dash_ptr[3*j+0]*difference[2] - curve2dash_ptr[3*j+2]*difference[0]) + curve1dash_ptr[3*i+2]*(curve2dash_ptr[3*j+0]*difference[1] - curve2dash_ptr[3*j+1]*difference[0]);
-                double r = det/denom;
-                total += r;
-            }
-        }
-        return total;
-    });
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
