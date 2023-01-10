@@ -88,7 +88,7 @@ def run_scan():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-26, -6, 20)
+        lambdas = np.logspace(-26, -4, 40)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
@@ -141,13 +141,16 @@ def run_scan():
             #s_coil.to_vtk(OUT_DIR + file + "_tikhonov_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
 
             # Repeat with the L1 instead of the L2 norm!
-            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=5000, acceleration=True)
+            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=1000, acceleration=True)
             plt.figure(100)
             print('fB_history = ', fB_history[::100])
             plt.semilogy(fB_history)
             plt.grid(True)
             plt.figure(101)
-            plt.semilogy(lambda_reg * fK_history, label='{0:.2e}'.format(lambda_reg))
+            plt.semilogy(lambda_reg * np.array(fK_history), label='{0:.2e}'.format(lambda_reg))
+            plt.grid(True)
+            plt.figure(102)
+            plt.semilogy(fB_history + lambda_reg * np.array(fK_history), label='{0:.2e}'.format(lambda_reg))
             plt.grid(True)
             fB_lasso[i] = f_B
             fK_l1_lasso[i] = f_K 
@@ -185,11 +188,15 @@ def run_scan():
             #make_Bnormal_plots(cpst, OUT_DIR, file + "_lasso_Bnormal_lambda{0:.2e}".format(lambda_reg))
             #pointData = {"phi": contig(cp_opt.Phi()[:, :, None]), "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))}
             #s_coil.to_vtk(OUT_DIR + file + "_lasso_winding_surface_lambda{0:.2e}".format(lambda_reg), extra_data=pointData)
+
         plt.figure(100)
         plt.savefig(OUT_DIR + 'fB_history.jpg')
         plt.figure(101)
         plt.legend()
         plt.savefig(OUT_DIR + 'fK_history.jpg')
+        plt.figure(101)
+        plt.legend()
+        plt.savefig(OUT_DIR + 'f_history.jpg')
 
         # plot cost function results
         plt.figure(figsize=(14, 4))
@@ -278,7 +285,7 @@ def run_target():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-22, -8, 20))
+        lambdas = np.flip(np.logspace(-24, -8, 20))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)

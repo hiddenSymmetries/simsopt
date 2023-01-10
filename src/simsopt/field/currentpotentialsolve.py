@@ -230,6 +230,15 @@ class CurrentPotentialSolve:
             2. The alpha term should be similar amount of regularization as the L2
                so we rescale lam -> sqrt(lam) since lam is used for the (L2 norm)^2
                loss term used for Tikhonov regularization. 
+
+
+            We use the FISTA algorithm but you could use scikit-learn's Lasso 
+            optimizer too. Like any gradient-based algorithm, both FISTA
+            and Lasso will work very poorly at low regularization since convergence
+            goes like the condition number of the fB matrix. In both cases,
+            this can be addressed by using the exact Tikhonov solution (obtained
+            with a matrix inverse instead of a gradient-based optimization) as 
+            an initial guess to the optimizers. 
         """
         # Set up some matrices
         _, _ = self.B_matrix_and_rhs()
@@ -243,7 +252,7 @@ class CurrentPotentialSolve:
         nfp = self.plasma_surface.nfp
 
         # Ak is non-square so pinv required. Careful with rcond parameter
-        Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-50)
+        Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-30)
         A_new = A_matrix @ Ak_inv
         b_new = b_e - A_new @ d 
 
@@ -251,10 +260,11 @@ class CurrentPotentialSolve:
         l1_reg = lam
         # l1_reg = np.sqrt(lam)
 
-        # Use FISTA to optimize the L1 problem. Note that 
-        # we tried scikit-learn's Lasso optimizer first, but it works
-        # very poorly at low regularization (l1_reg << 1)
-        z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration)
+        # if alpha << 1, want to use initial guess from the Tikhonov solve,
+        # which is exact since it comes from a matrix inverse. 
+        phi0, _, _, = self.solve_tikhonov(lam=lam)
+        z0 = Ak_matrix @ phi0 - d
+        z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
 
         # Compute the history of values from the optimizer
         phi_history = []
@@ -273,7 +283,7 @@ class CurrentPotentialSolve:
         f_K = 0.5 * np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
         return phi_mn_opt, f_B, f_K, fB_history, fK_history
 
-    def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True):
+    def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True, xi0=None):
         """ 
             This function uses Nesterov's accelerated proximal
             gradient descent algorithm to solve the Lasso 
@@ -286,7 +296,7 @@ class CurrentPotentialSolve:
 
         # if abs(current_potential_{k+1} - current_potential_{k}) < tol 
         # for every element, then algorithm quits in this k-th iteration. 
-        tol = 1
+        tol = 1e1
 
         # pre-compute/load some stuff so for loops (below) are faster
         ATA = A.T @ A
@@ -304,11 +314,12 @@ class CurrentPotentialSolve:
         ti = 1.0 / L 
 
         # initialize current potential to random values in [5e-4, 5e4]
-        xi = (np.random.rand(A.shape[1]) - 0.5) * 1e5
-        x_history = [xi]
+        if xi0 is None:
+            xi0 = (np.random.rand(A.shape[1]) - 0.5) * 1e5
+        x_history = [xi0]
         if acceleration:  # FISTA algorithm
             # first iteration do ISTA
-            x_history.append(prox(xi + ti * (ATb - ATA @ xi), ti * alpha))
+            x_history.append(prox(xi0 + ti * (ATb - ATA @ xi0), ti * alpha))
             for i in range(1, max_iter):
                 vi = x_history[i] + (i - 1) / (i + 2) * (x_history[i] - x_history[i - 1])
                 # note l1 'threshold' is rescaled here
