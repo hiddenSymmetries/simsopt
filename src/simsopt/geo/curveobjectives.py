@@ -492,7 +492,7 @@ class LinkingNumber():
             curves: the set of curves on which the linking number should be computed.
         
         """
-    
+
     def linkNumber(self):
         ncoils = len(self.curves)
         linkNum = np.zeros([ncoils + 1, ncoils + 1])
