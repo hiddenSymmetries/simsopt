@@ -417,12 +417,12 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     return std::make_tuple(gj, Ajk);
 }
 
+// Compute GI part of Bnormal
 Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& zeta_coil, Array& theta_coil, double G, double I, Array& gammadash1, Array& gammadash2)
 {
     int num_plasma = normal_plasma.shape(0);
     int num_coil = points_coil.shape(0);
-    //double fak = 1e-7 / (2.0 * M_PI);  // mu0 divided by 8 * pi^2 factor
-    double fak = 1e-7;  /// (2.0 * M_PI);  // mu0 divided by 8 * pi^2 factor
+    double fak = 1e-7;  // mu0 divided by 8 * pi^2 factor
     Array B_GI = xt::zeros<double>({num_plasma});
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
@@ -450,6 +450,7 @@ Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Arra
     return B_GI;
 }
 
+// Compute the Ak matrix associated with ||K||_2^2 = ||Ak * phi_mn - d||_2^2 term in REGCOIL
 std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil, Array& dr_dtheta_coil, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp, double G, double I)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -483,6 +484,7 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
 	    double cphi = std::cos(angle);
 	    double sphi = std::sin(angle);
             if (stellsym) {
+		// note factor of nfp here that is not written in the REGCOIL paper expression
 		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
 		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
 		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
@@ -501,4 +503,3 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
     }
     return std::make_tuple(d, fj);
 }
-

@@ -6,6 +6,7 @@ from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.field.currentpotential import CurrentPotentialFourier
 from scipy.io import netcdf_file
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
+import warnings
 
 __all__ = ["CurrentPotentialSolve"]
 
@@ -33,6 +34,16 @@ class CurrentPotentialSolve:
         self.plasma_surface = plasma_surface
         self.Bnormal_plasma = Bnormal_plasma
         self.B_GI = B_GI
+        warnings.warn(
+            "Beware: the f_B (also called chi^2_B) computed from the "
+            "CurrentPotentialSolve class will be slightly different than "
+            "the f_B computed using SquaredFlux with the BiotSavart law "
+            "implemented in WindingSurfaceField. This is because the "
+            "optimization formulation and the full BiotSavart calculation "
+            "are discretized in different ways. This disagreement will "
+            "worsen at low regularization, but improve with higher "
+            "resolution on the plasma and coil surfaces. "
+        )
 
     @classmethod
     def from_netcdf(cls, filename: str):
