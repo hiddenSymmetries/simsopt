@@ -4,6 +4,7 @@
 Array connections(Array& coil_points, int Nadjacent, int dx, int dy, int dz)
 {
     int Ndipole = coil_points.shape(0);
+    
     // Last index indicates +- the x/y/z directions
     Array connectivity_inds = xt::zeros<int>({Ndipole, 6, 6});
     
