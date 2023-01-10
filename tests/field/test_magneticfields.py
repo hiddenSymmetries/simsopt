@@ -2,7 +2,6 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyEncoder, MontyDecoder
 try:
     import pyevtk
     pyevtk_found = True
@@ -19,6 +18,7 @@ from simsopt.geo.curvehelical import CurveHelical
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.configs.zoo import get_ncsx_data
+from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 
 
 class Testing(unittest.TestCase):
@@ -36,8 +36,8 @@ class Testing(unittest.TestCase):
         Bfield.set_points(points)
         B1 = Bfield.B()
 
-        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         B1_regen = Bfield_regen.B()
         self.assertTrue(np.allclose(B1, B1_regen))
 
@@ -104,8 +104,8 @@ class Testing(unittest.TestCase):
         B2 = Btotal2.B()
 
         # Verify serialization works
-        field_json_str = json.dumps(Btotal2, cls=MontyEncoder)
-        Btotal_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Btotal2), cls=GSONEncoder)
+        Btotal_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(B2, Btotal_regen.B()))
 
         # Verify
@@ -135,8 +135,8 @@ class Testing(unittest.TestCase):
         dB1_by_dX = np.array(Bscalar.dB_by_dX())
 
         # Verify serialization works
-        field_json_str = json.dumps(Bscalar, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bscalar), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(B1, np.array(Bfield_regen.B())))
 
         # Analytical Formula for B
@@ -209,8 +209,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.B(), [[0, 0, current/1e7*2*np.pi/radius]])
 
         # Verify serialization works
-        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
 
         # Verify that divergence is zero
@@ -265,9 +265,22 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        
+        # one points
         Bfield.set_points(np.asarray([[0.1, 0.2, 0.3]]))
         Afield = Bfield.A()
         assert np.allclose(Afield, [[0, 5.15785, -2.643056]])
+        
+        # two points
+        Bfield.set_points(np.asarray([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]))
+        Afield = Bfield.A()
+        assert np.allclose(Afield, [[0, 5.15785, -2.643056], [0, 5.15785, -2.643056]])
+
+        # three points
+        Bfield.set_points(np.asarray([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]))
+        Afield = Bfield.A()
+        assert np.allclose(Afield, [[0, 5.15785, -2.643056], [0, 5.15785, -2.643056], [0, 5.15785, -2.643056]])
+
         # use normal=[1,0,0]
         normal = [1, 0, 0]
         curve = CurveXYZFourier(300, 1)
@@ -429,8 +442,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bhelical.dB_by_dX(), derivative)
 
         # Verify serialization works
-        field_json_str = json.dumps(Bhelical, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bhelical), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(Bhelical.B(), Bfield_regen.B()))
 
     def test_Dommaschk(self):
@@ -448,8 +461,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[-59.9602, 8.96793, -24.8844], [8.96793, 49.0327, -18.4131], [-24.8844, -18.4131, 10.9275]]))
         # Verify serialization works
-        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
     def test_BifieldMultiply(self):
@@ -485,8 +498,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
         assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
         # Verify serialization works
-        field_json_str = json.dumps(Bfield2, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bfield2), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(Bfield2.B(), Bfield_regen.B()))
 
     def test_Reiman(self):
@@ -507,8 +520,8 @@ class Testing(unittest.TestCase):
         dB1 = Bfield.dB_by_dX()
         assert np.allclose(dB1[:, 0, 0]+dB1[:, 1, 1]+dB1[:, 2, 2], np.zeros((npoints)))
         # Verify serialization works
-        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
-        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(B1, Bfield_regen.B()))
         # Bfield analytical
         x = points[:, 0]
