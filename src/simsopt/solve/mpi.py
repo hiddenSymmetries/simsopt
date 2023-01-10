@@ -79,6 +79,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                             abs_step: float = 1.0e-7,
                             rel_step: float = 0.0,
                             diff_method: str = "forward",
+                            jac_verbose: str = "legacy",
                             **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -101,6 +102,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
              "forward". If ``centered``, centered finite differences will
              be used. If ``forward``, one-sided finite differences will
              be used. Else, error is raised.
+        jac_verbose: Flag controlling how verbose the jacobian log is.   
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -203,7 +205,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                jac = finite_difference_jac_wrapper(fd)
+                jac = finite_difference_jac_wrapper(fd, verbose=jac_verbose, comment="mpi")
                 result = least_squares(_f_proc0, x0, jac=jac, verbose=2,
                                        **kwargs)
 

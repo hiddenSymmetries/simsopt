@@ -70,8 +70,10 @@ class FiniteDifference:
         self.log_header_written = False
         self.flatten_out = flatten_out
 
-        x0 = np.asarray(x0) if x0 is not None else x0
-        self.x0 = x0 if x0 else self.opt.x
+        if x0 is not None:
+            self.x0 = np.asarray(x0)
+        else:
+            self.x0 = self.opt.x
 
         self.jac_size = None
         self.eval_cnt = 1
@@ -81,7 +83,8 @@ class FiniteDifference:
         else:
             # 1-sided differences
             self.nevals_jac = self.nparams + 1
-            
+        self.xs = np.zeros((self.nparams, self.nevals_jac))
+        
     def init_log(self):
         if isinstance(self.log_file, str):
             datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -114,14 +117,13 @@ class FiniteDifference:
         if self.diff_method == "centered":
             # Centered differences:
             for j in range(self.nparams): # len(x0)
-                x = np.copy(x0)
-
-                x[j] = x0[j] + steps[j]
-                self.opt.x = x
+                self.xs[:, 2 * j] = x0[:]
+                self.xs[j, 2 * j] = x0[j] + steps[j]
+                self.opt.x = self.xs[:, 2 * j]
                 fplus = np.asarray(self.fn())
-
-                x[j] = x0[j] - steps[j]
-                self.opt.x = x
+                self.xs[:, 2 * j + 1] = x0[:]
+                self.xs[j, 2 * j + 1] = x0[j] - steps[j]
+                self.opt.x = self.xs[j, 2 * j + 1]
                 fminus = np.asarray(self.fn())
 
                 if self.flatten_out:
@@ -131,12 +133,13 @@ class FiniteDifference:
                     
         elif self.diff_method == "forward":
             # 1-sided differences
-            self.opt.x = x0
+            self.xs[:, 0] = x0[:]
+            self.opt.x = self.xs[:, 0]
             f0 = np.asarray(self.fn())
             for j in range(self.nparams): # len(x0)
-                x = np.copy(x0)
-                x[j] = x0[j] + steps[j]
-                self.opt.x = x
+                self.xs[:, j + 1] = x0[:]
+                self.xs[j, j + 1] = x0[j] + steps[j]
+                self.opt.x = self.xs[:, j + 1]
                 fplus = np.asarray(self.fn())
 
                 if self.flatten_out:
@@ -204,7 +207,8 @@ class MPIFiniteDifference:
         else:
             # 1-sided differences
             self.nevals_jac = self.nparams + 1
-            
+        self.xs = np.zeros((self.nparams, self.nevals_jac))
+        
     def __enter__(self):
         self.mpi_apart()
         self.init_log()
@@ -255,19 +259,19 @@ class MPIFiniteDifference:
         mpi.comm_leaders.Bcast(steps)
         diff_method = mpi.comm_leaders.bcast(self.diff_method)
         if diff_method == "centered":
-            xs = np.zeros((self.nparams, self.nevals_jac))
             for j in range(self.nparams):
-                xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
-                xs[j, 2 * j] = x0[j] + steps[j]
-                xs[:, 2 * j + 1] = x0[:]
-                xs[j, 2 * j + 1] = x0[j] - steps[j]
+                self.xs[:, 2 * j] = x0[:]  # I don't think I need np.copy(), but not 100% sure.
+                self.xs[j, 2 * j] = x0[j] + steps[j]
+                self.xs[:, 2 * j + 1] = x0[:]
+                self.xs[j, 2 * j + 1] = x0[j] - steps[j]
         else:  # diff_method == "forward":
             # 1-sided differences
-            xs = np.zeros((self.nparams, self.nevals_jac))
-            xs[:, 0] = x0[:]
+            self.xs[:, 0] = x0[:]
             for j in range(self.nparams):
-                xs[:, j + 1] = x0[:]
-                xs[j, j + 1] = x0[j] + steps[j]
+                self.xs[:, j + 1] = x0[:]
+                self.xs[j, j + 1] = x0[j] + steps[j]
+        print(self.xs)
+        print(self.xs.shape)
 
         evals = None
         # nvals = None # Work on this later
@@ -285,7 +289,7 @@ class MPIFiniteDifference:
             # Handle only this group's share of the work:
             if np.mod(j, mpi.ngroups) == mpi.rank_leaders:
                 mpi.mobilize_workers(ARB_VAL)
-                x = xs[:, j]
+                x = self.xs[:, j]
                 mpi.comm_groups.bcast(x, root=0)
                 opt.x = x
                 out = np.asarray(self.fn())
@@ -320,7 +324,7 @@ class MPIFiniteDifference:
         # Weird things may happen if we do not reset the state vector
         # to x0:
         opt.x = x0
-        return jac, xs, evals
+        return jac, evals
 
     def mpi_leaders_task(self, *args):
         """
@@ -393,9 +397,11 @@ class MPIFiniteDifference:
         self.mpi.mobilize_leaders(ARB_VAL)  # Any value not equal to STOP
         self.mpi.comm_leaders.bcast(x, root=0)
 
-        jac, xs, evals = self._jac(x)
+        jac, evals = self._jac(x)
         logger.debug(f'jac is {jac}')
-        
+        print("on master")
+        print(self.xs)
+        print(self.xs.shape)
         # Log file is now written externally
         # by a wrapper in the serial or mpi solver.
 
