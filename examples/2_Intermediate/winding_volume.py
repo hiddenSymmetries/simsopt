@@ -14,6 +14,9 @@ import os
 #from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
+from scipy.sparse import csc_matrix
+from scipy.sparse import eye as sparse_eye
+from scipy.sparse.linalg import inv as sparse_inv
 import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
@@ -25,13 +28,13 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
 dx = 0.02
 dy = dx
 dz = dx
-coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
-poff = 0.2  # PM grid end offset ~ 10 cm from the plasma surface
+coff = 0.05  # PM grid starts offset ~ 5 cm from the plasma surface
+poff = 0.1  # PM grid end offset ~ 10 cm from the plasma surface
 #input_name = 'input.LandremanPaul2021_QA'
 input_name = 'wout_LandremanPaul_QH_variant.nc'
 
@@ -117,6 +120,19 @@ phis = wv_grid._polynomial_basis(nx=2, ny=2, nz=2)
 print(phis.shape)
 wv_grid._construct_geo_factor()
 print(wv_grid.geo_factor.shape)
+print(wv_grid.flux_jump_matrix.shape)
+for j in range(6): 
+    for i in range(11 * wv_grid.N_grid):
+        if wv_grid.flux_jump_matrix[j, i] != 0.0:
+            print(j, i, wv_grid.flux_jump_matrix[j, i])
+
+C = csc_matrix(wv_grid.flux_jump_matrix)  # matrix is way too big but it is very sparse
+CT = C.transpose()
+CCT = C @ CT
+CCT_inv = sparse_inv(CCT)
+projection_onto_constraints = sparse_eye(len(wv_grid.alphas), format="csc") - CT @ CCT_inv @ C 
+wv_grid.alphas = projection_onto_constraints.todense() @ wv_grid.alphas
+wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

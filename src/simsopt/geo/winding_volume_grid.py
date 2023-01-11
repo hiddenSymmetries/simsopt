@@ -446,7 +446,7 @@ class WindingVolumeGrid:
                     Phi[7, :, i, j, k, :] = np.array([zeros, zrange[:, k], zeros]).T
                     Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
                     Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
-                    Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, i]]).T
+                    Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
         self.Phi = Phi
 
         # build up array of the integration points
@@ -491,7 +491,18 @@ class WindingVolumeGrid:
         self.Itarget_rhs = self.Bn_Itarget * dphi_loop
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
-        # self.flux_jump_matrix = sopp.winding_volume_flux_jumps(coil_points, self.Phi, self.dx, self.dy, self.dz)
+
+        nx = self.Phi.shape[2]
+        ny = self.Phi.shape[3]
+        nz = self.Phi.shape[4]
+        self.flux_jump_matrix, self.connection_list = sopp.winding_volume_flux_jumps(
+            coil_points, 
+            integration_points.reshape(self.N_grid, nx, ny, nz, 3), 
+            self.Phi, 
+            self.dx, 
+            self.dy, 
+            self.dz
+        )
 
     def as_dict(self) -> dict:
         d = {}

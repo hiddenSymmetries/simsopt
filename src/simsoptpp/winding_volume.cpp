@@ -22,39 +22,28 @@ Array connections(Array& coil_points, int Nadjacent, int dx, int dy, int dz)
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
             int dist_ind = std::distance(dist_ij.begin(), result);
 	    // Get dx, dy, dz from this ind
-	    dxx = coil_points(i, 0) - coil_points(dist_ind, 0);
-	    dyy = coil_points(i, 1) - coil_points(dist_ind, 1);
-	    dzz = coil_points(i, 2) - coil_points(dist_ind, 2);
-	    if (dxx > dx) {
-	        connectivity_inds(j, k, 0) = -1; // -1 to indicate no adjacent cell
-	    }
-	    else if (dxx < -dx) {
-	        connectivity_inds(j, k, 1) = -1;
-	    }
-	    else if (dyy > dy) {
-	        connectivity_inds(j, k, 2) = -1;
-	    }
-	    else if (dyy < -dy) {
-	        connectivity_inds(j, k, 3) = -1;
-	    }
-	    else if (dzz > dz) {
-	        connectivity_inds(j, k, 4) = -1;
-	    }
-	    else if (dzz < -dz) {
-	        connectivity_inds(j, k, 5) = -1;
-	    }
-	    else if ((abs(dxx) > abs(dyy)) && (abs(dxx) > abs(dzz)) && dxx > 0.0) connectivity_inds(j, k, 0) = dist_ind;
-	    else if ((abs(dxx) > abs(dyy)) && (abs(dxx) > abs(dzz)) && dxx < 0.0) connectivity_inds(j, k, 1) = dist_ind;
-	    else if ((abs(dyy) > abs(dxx)) && (abs(dyy) > abs(dzz)) && dyy > 0.0) connectivity_inds(j, k, 2) = dist_ind;
-	    else if ((abs(dyy) > abs(dxx)) && (abs(dyy) > abs(dzz)) && dyy < 0.0) connectivity_inds(j, k, 3) = dist_ind;
-	    else if ((abs(dzz) > abs(dxx)) && (abs(dzz) > abs(dyy)) && dzz > 0.0) connectivity_inds(j, k, 4) = dist_ind;
-	    else if ((abs(dzz) > abs(dxx)) && (abs(dzz) > abs(dyy)) && dzz < 0.0) connectivity_inds(j, k, 5) = dist_ind;
+	    double dxx = coil_points(j, 0) - coil_points(dist_ind, 0);
+	    double dyy = coil_points(j, 1) - coil_points(dist_ind, 1);
+	    double dzz = coil_points(j, 2) - coil_points(dist_ind, 2);
+            // check if this cell is not directly adjacent
+	    if (dxx > dx) connectivity_inds(j, k, 0) = -1; // -1 to indicate no adjacent cell
+	    else if (dxx < -dx) connectivity_inds(j, k, 1) = -1;
+	    else if (dyy > dy) connectivity_inds(j, k, 2) = -1;
+	    else if (dyy < -dy) connectivity_inds(j, k, 3) = -1;
+	    else if (dzz > dz) connectivity_inds(j, k, 4) = -1;
+	    else if (dzz < -dz) connectivity_inds(j, k, 5) = -1;
+	    // okay so the cell is adjacent... which direction is it?
+	    else if ((abs(dxx) > abs(dyy)) && (abs(dxx) > abs(dzz)) && (dxx > 0.0)) connectivity_inds(j, k, 0) = dist_ind;
+	    else if ((abs(dxx) > abs(dyy)) && (abs(dxx) > abs(dzz)) && (dxx < 0.0)) connectivity_inds(j, k, 1) = dist_ind;
+	    else if ((abs(dyy) > abs(dxx)) && (abs(dyy) > abs(dzz)) && (dyy > 0.0)) connectivity_inds(j, k, 2) = dist_ind;
+	    else if ((abs(dyy) > abs(dxx)) && (abs(dyy) > abs(dzz)) && (dyy < 0.0)) connectivity_inds(j, k, 3) = dist_ind;
+	    else if ((abs(dzz) > abs(dxx)) && (abs(dzz) > abs(dyy)) && (dzz > 0.0)) connectivity_inds(j, k, 4) = dist_ind;
+	    else if ((abs(dzz) > abs(dxx)) && (abs(dzz) > abs(dyy)) && (dzz < 0.0)) connectivity_inds(j, k, 5) = dist_ind;
             dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
 	}
     }
     return connectivity_inds;
 }
-
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
@@ -106,7 +95,7 @@ Array winding_volume_geo_factors(Array& points, Array& coil_points, Array& integ
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-Array winding_volume_flux_jumps(Array& coil_points, Array& integration_points, Array& Phi, double dx, double dy, double dz) {
+std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Phi, double dx, double dy, double dz) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(coil_points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("coil_points needs to be in row-major storage order");
@@ -115,88 +104,75 @@ Array winding_volume_flux_jumps(Array& coil_points, Array& integration_points, A
 
     int num_coil_points = coil_points.shape(0);
     // here integration points should be shape (num_coil_points, Nx, Ny, Nz, 3)
-    int Nx = integration_points.shape(1);
-    int Ny = integration_points.shape(2);
-    int Nz = integration_points.shape(3);
+    int Nx = Phi.shape(2);
+    int Ny = Phi.shape(3);
+    int Nz = Phi.shape(4);
     Array Connect = connections(coil_points, 6, dx, dy, dz);
 
     // here Phi should be shape (n_basis_functions, num_coil_points, Nx, Ny, Nz, 3)
     int num_basis_functions = Phi.shape(0);
     Array flux_factor = xt::zeros<double>({6, num_coil_points, num_basis_functions});
+    Array flux_constraint_matrix = xt::zeros<double>({6 * num_coil_points, num_coil_points * num_basis_functions});
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < num_coil_points; i++) {
-        for (int jj = 0; jj < 6; jj++) {
-	    for (int kk = 0; kk < 6; kk++) {
-	        int cj = Connect(i, jj + 1, kk);
-	        if (cj == 0.0) continue
-                int nx = 0;
-                int ny = 0;
-                int nz = 0;
-		if (kk == 0) nx = 1;
-		if (kk == 1) nx = -1;
-		if (kk == 2) ny = 1;
-		if (kk == 3) ny = -1;
-		if (kk == 4) nz = 1;
-		if (kk == 5) nz = -1;
-	        // cj < 0 indicates that the neighbor is further than 
-	        // directly adjacent to cell i (perhaps because 
-	        // the cell is at the end of the mesh), 
-	        // so need to zero the flux on that surface
-	        if (cj < 0) {
-		}
-		// cj > 0 indicates an adjacent neighbor
-		else {
-		}
-	    // figure out where the normal vector points
-	    double dxx = abs(coil_points[i, 0] - coil_points[cj, 0]); 
-	    double dyy = abs(coil_points[i, 1] - coil_points[cj, 1]); 
-	    double dzz = abs(coil_points[i, 2] - coil_points[cj, 2]);
-	    double nx = 0;
-	    double ny = 0;
-	    double nz = 0;
-	    if (dxx > dyy && dxx > dzz) {
-	        nx = 1;
-	        int x_ind = (i % (Ny * Nz));
-                for (int j = 0; j < Ny; j++) {
-                    for (int p = 0; p < Nz; p++) {
-                        double rx = integration_points(i, x_ind, j, p, 0);
-                        double ry = integration_points(i, x_ind, j, p, 1);
-                        double rz = integration_points(i, x_ind, j, p, 2); 
-                        for (int k = 0; k < num_basis_functions; k++) {
-                            flux_factor(jj, i, k) += (nx * (Phi(k, i, x_ind, j, p, 0) - Phi(k, cj, x_ind, j, p, 0)) + ny * (Phi(k, i, x_ind, j, p, 1) - Phi(k, cj, x_ind, j, p, 1)) + nz * (Phi(k, i, x_ind, j, p, 2) - Phi(k, cj, x_ind, j, p, 2)));
-			}
-		    }
-		}
-            }
-	    if (dyy > dxx && dyy > dzz) {
-	        ny = 1;
-	        int y_ind = (i % (Nx * Nz));
-                for (int j = 0; j < Nx; j++) {
-                    for (int p = 0; p < Nz; p++) {
-                        double rx = integration_points(i, j, y_ind, p, 0);
-                        double ry = integration_points(i, j, y_ind, p, 1);
-                        double rz = integration_points(i, j, y_ind, p, 2); 
-                        for (int k = 0; k < num_basis_functions; k++) {
-                            flux_factor(jj, i, k) += (nx * (Phi(k, i, j, y_ind, p, 0) - Phi(k, cj, j, y_ind, p, 0)) + ny * (Phi(k, i, j, y_ind, p, 1) - Phi(k, cj, j, y_ind, p, 1)) + nz * (Phi(k, i, j, y_ind, p, 2) - Phi(k, cj, j, y_ind, p, 2)));
+	for (int kk = 0; kk < 6; kk++) {
+            int nx = 0;
+            int ny = 0;
+            int nz = 0;
+	    if (kk == 0) nx = 1;
+	    if (kk == 1) nx = -1;
+	    if (kk == 2) ny = 1;
+	    if (kk == 3) ny = -1;
+	    if (kk == 4) nz = 1;
+	    if (kk == 5) nz = -1;
+	    if (kk < 2) {
+		int x_ind = 0;
+		if (kk == 0) x_ind = Nx - 1;
+		for (int j = 0; j < Ny; j++) {
+		    for (int p = 0; p < Nz; p++) {
+			for (int k = 0; k < num_basis_functions; k++) {
+			    flux_factor(kk, i, k) += (nx * Phi(k, i, x_ind, j, p, 0) + ny * Phi(k, i, x_ind, j, p, 1) + nz * Phi(k, i, x_ind, j, p, 2)) * dy * dz;
 			}
 		    }
 		}
 	    }
-	    if (dzz > dyy && dzz > dxx) {
-	        nz = 1;
-	        int z_ind = (i % (Ny * Nz));
-                for (int j = 0; j < Nx; j++) {
-                    for (int p = 0; p < Ny; p++) {
-                        double rx = integration_points(i, j, p, z_ind, 0);
-                        double ry = integration_points(i, j, p, z_ind, 1);
-                        double rz = integration_points(i, j, p, z_ind, 2); 
-                        for (int k = 0; k < num_basis_functions; k++) {
-                            flux_factor(jj, i, k) += (nx * (Phi(k, i, j, p, z_ind, 0) - Phi(k, cj, j, p, z_ind, 0)) + ny * (Phi(k, i, j, p, z_ind, 1) - Phi(k, cj, j, p, z_ind, 1)) + nz * (Phi(k, i, j, p, z_ind, 2) - Phi(k, cj, j, p, z_ind, 2)));
+	    else if (kk < 4) {
+		int y_ind = 0;
+		if (kk == 2) y_ind = Ny - 1;
+		for (int j = 0; j < Nx; j++) {
+		    for (int p = 0; p < Nz; p++) {
+			for (int k = 0; k < num_basis_functions; k++) {
+			    flux_factor(kk, i, k) += (nx * Phi(k, i, j, y_ind, p, 0) + ny * Phi(k, i, j, y_ind, p, 1) + nz * Phi(k, i, j, y_ind, p, 2)) * dx * dz;
 			}
+		    }
+		}
+	    }
+	    else {
+		int z_ind = 0;
+		if (kk == 4) z_ind = Nz - 1;
+		for (int j = 0; j < Nx; j++) {
+		    for (int p = 0; p < Ny; p++) {
+			for (int k = 0; k < num_basis_functions; k++) {
+			    flux_factor(kk, i, k) += (nx * Phi(k, i, j, p, z_ind, 0) + ny * Phi(k, i, j, p, z_ind, 1) + nz * Phi(k, i, j, p, z_ind, 2) * dx * dy);
+			}
+		    }
+		}
+            }
+	}
+	for (int k = 0; k < num_basis_functions; k++) {
+            for (int kk = 0; kk < 6; kk++) {  // loop over the 6 possible directions 
+		double Fik = flux_factor(kk, i, k);
+		flux_constraint_matrix(i * 6 + kk, i * num_basis_functions + k) = Fik;
+		for (int j = 0; j < 6; j++) {  // loop over the 6 neighbors
+		    int q = Connect(i, j, kk);
+		    if (q > 0) {
+                        double Fqk = flux_factor(kk, q, k);
+			flux_constraint_matrix(i * 6 + kk, q * num_basis_functions + k) = Fqk;
 		    }
 		}
 	    }
 	}
     }
-    return flux_factor;
+    return std::make_tuple(flux_constraint_matrix, Connect);
 }   
+
