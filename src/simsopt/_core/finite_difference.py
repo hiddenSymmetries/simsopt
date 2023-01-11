@@ -84,7 +84,7 @@ class FiniteDifference:
             # 1-sided differences
             self.nevals_jac = self.nparams + 1
         self.xs = np.zeros((self.nparams, self.nevals_jac))
-        
+
     def init_log(self):
         if isinstance(self.log_file, str):
             datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -93,15 +93,14 @@ class FiniteDifference:
             self.new_log_file = True
         self.start_time = time()
 
-        
     def jac(self, x: RealArray = None, *args, **kwargs) -> RealArray:
         if x is not None:
             self.x0 = np.asarray(x)
         x0 = self.x0 if self.x0 is not None else self.opt.x
         opt_x0 = self.opt.x
-        
+
         self.init_log()
-        
+
         if self.jac_size is None:
             out = self.fn()
             if not isinstance(out, (np.ndarray, collections.abc.Sequence)):
@@ -110,15 +109,15 @@ class FiniteDifference:
                 self.jac_size = (self.nparams)
             else:
                 self.jac_size = (len(out), self.nparams)
-                
+
         jac = np.zeros(self.jac_size)
         steps = finite_difference_steps(x0, abs_step=self.abs_step,
                                         rel_step=self.rel_step)
         if self.diff_method == "centered":
             # Centered differences:
             self.f0 = np.zeros(self.jac_size[0])
-            
-            for j in range(self.nparams): # len(x0)
+
+            for j in range(self.nparams):  # len(x0)
                 self.xs[:, 2 * j] = x0[:]
                 self.xs[j, 2 * j] = x0[j] + steps[j]
                 self.opt.x = self.xs[:, 2 * j]
@@ -134,13 +133,13 @@ class FiniteDifference:
                     jac[:, j] = (fplus - fminus) / (2 * steps[j])
                 self.f0 = self.f0 + (fplus + fminus)/2
             self.f0 = self.f0 / self.nparams
-                    
+
         elif self.diff_method == "forward":
             # 1-sided differences
             self.xs[:, 0] = x0[:]
             self.opt.x = self.xs[:, 0]
             self.f0 = np.asarray(self.fn())
-            for j in range(self.nparams): # len(x0)
+            for j in range(self.nparams):  # len(x0)
                 self.xs[:, j + 1] = x0[:]
                 self.xs[j, j + 1] = x0[j] + steps[j]
                 self.opt.x = self.xs[:, j + 1]
@@ -150,7 +149,7 @@ class FiniteDifference:
                     jac[j] = (fplus - self.f0) / steps[j]
                 else:
                     jac[:, j] = (fplus - self.f0) / steps[j]
-                    
+
         self.eval_cnt += self.nevals_jac
         # Set the opt.x to the original x
         self.opt.x = opt_x0
@@ -212,7 +211,7 @@ class MPIFiniteDifference:
             # 1-sided differences
             self.nevals_jac = self.nparams + 1
         self.xs = np.zeros((self.nparams, self.nevals_jac))
-        
+
     def __enter__(self):
         self.mpi_apart()
         self.init_log()
@@ -235,7 +234,7 @@ class MPIFiniteDifference:
         self.mpi.together()
         if self.mpi.proc0_world and self.new_log_file:
             self.log_file.close()
-            
+
     # Called by MPI leaders
     def _jac(self, x: RealArray = None):
         # Use shortcuts for class variables
@@ -319,13 +318,13 @@ class MPIFiniteDifference:
                 jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (
                     2 * steps[j])
             # approximate f0 as the average of self.fn at stencil points
-            self.f0  = np.sum(evals,axis=1)/self.nevals_jac
+            self.f0 = np.sum(evals, axis=1)/self.nevals_jac
         else:  # diff_method == "forward":
             # 1-sided differences:
             for j in range(self.nparams):
                 jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / steps[j]
             self.f0 = evals[:, 0]
-                
+
         # Weird things may happen if we do not reset the state vector
         # to x0:
         opt.x = x0

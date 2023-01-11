@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 __all__ = ['least_squares_serial_solve', 'serial_solve']
 
 
-def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = "legacy", comment = ""):
+def finite_difference_jac_wrapper(fd, problem_type='least_squares', verbose="legacy", comment=""):
     """Wrapper for the `jac` method of the `MPIFiniteDifference` and `FiniteDifference` classes.
     For logging the jacobian calculation when used with `scipy.optimize.least_squares`.
     Also handles scipy.optimize.minimize.
@@ -38,12 +38,12 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = 
 
     if comment != "":
         comment = " " + comment
-    
+
     if verbose not in ["legacy", 'dfdx', 'dRdx']:
         raise ValueError("Unrecognized verbose flag: '" + verbose + "' Recognized values are 'legacy', dfdx', 'dRdx'.")
     if (verbose == 'dRdx') and (problem_type != 'least_squares'):
         raise ValueError("Verbose flag 'dRdx' is only supported for problem_type 'lest_squares'.")
-    
+
     def jac(x: RealArray = None, *args, **kwargs):
         ret = fd.jac(x, *args, **kwargs)
         log_file = fd.log_file
@@ -66,10 +66,10 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = 
             del_t = time() - fd.start_time
             j_eval = fd.eval_cnt//fd.nevals_jac
             log_file.write(f'{j_eval:6d},{del_t:12.4e}')
-        
+
             if problem_type == 'least_squares':
-                f = fd.f0 # function value at x0
-                total_jac = np.sum(2 * ret * f[:, None],axis=0)                
+                f = fd.f0  # function value at x0
+                total_jac = np.sum(2 * ret * f[:, None], axis=0)                
             else:
                 total_jac = ret
             for total_jacj in total_jac:
@@ -82,7 +82,7 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = 
             j_eval = fd.eval_cnt//fd.nevals_jac
             log_file.write(f'{j_eval:6d},{del_t:12.4e}')
             with np.printoptions(threshold=np.inf):
-                log_file.write(", " + np.array_str(ret, max_line_width = np.inf, precision = None).replace('\n',','))
+                log_file.write(", " + np.array_str(ret, max_line_width=np.inf, precision=None).replace('\n', ','))
                 log_file.write('\n')
                 log_file.flush()
         elif verbose == "legacy":
@@ -95,7 +95,7 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = 
                 log_file.write('\n')
                 log_file.flush()
         return ret
-        
+
     return jac
 
 
@@ -320,10 +320,10 @@ def serial_solve(prob: Union[Optimizable, Callable],
         if grad:
             logger.info("Using derivatives")
             fd = FiniteDifference(prob.J, abs_step=abs_step,
-                                  rel_step=rel_step, diff_method=diff_method, flatten_out = True)
-            jac = finite_difference_jac_wrapper(fd, problem_type='minimize', verbose = jac_verbose, comment="serial")
+                                  rel_step=rel_step, diff_method=diff_method, flatten_out=True)
+            jac = finite_difference_jac_wrapper(fd, problem_type='minimize', verbose=jac_verbose, comment="serial")
             result = minimize(objective, x0, options={'disp': True}, jac=jac,
-                                   **kwargs)
+                              **kwargs)
         else:
             logger.info("Using derivative-free method")
             result = minimize(objective, x0, options={'disp': True}, **kwargs)

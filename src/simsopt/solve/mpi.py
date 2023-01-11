@@ -22,7 +22,7 @@ except ImportError as err:
     MPI = None
 
 from .serial import finite_difference_jac_wrapper
-    
+
 from .._core.types import RealArray
 from .._core.optimizable import Optimizable
 from ..util.mpi import MpiPartition

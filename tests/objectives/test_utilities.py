@@ -60,7 +60,7 @@ class UtilityObjectiveTesting(unittest.TestCase):
         J = CurveLength(curve)
         self.subtest_quadratic_penalty(curve, J.J()+0.1)
         self.subtest_quadratic_penalty(curve, J.J()-0.1)
-        
+
     def test_mpi_objective(self):
         if MPI is None:
             print("skip test_mpi_objective")
@@ -84,6 +84,7 @@ class UtilityObjectiveTesting(unittest.TestCase):
             Jmpi1 = MPIObjective(Js1subset, comm, needs_splitting=False)
             assert abs(Jmpi1.J() - sum(J.J() for J in Js)/n) < 1e-14
             assert np.sum(np.abs(Jmpi1.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
+
 
 if __name__ == "__main__":
     unittest.main()
