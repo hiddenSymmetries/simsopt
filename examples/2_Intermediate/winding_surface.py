@@ -61,8 +61,8 @@ def run_scan():
         problems across a wide range of regularization values,
         and generate comparison plots. 
     """
-    mpol = 16
-    ntor = 16
+    mpol = 8
+    ntor = 8
     for file in files:
         filename = TEST_DIR / file
 
@@ -98,7 +98,7 @@ def run_scan():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.logspace(-26, -4, 40)
+        lambdas = np.logspace(-14, -10, 4)
         fB_tikhonov = np.zeros(len(lambdas))
         fB_lasso = np.zeros(len(lambdas))
         fK_tikhonov = np.zeros(len(lambdas))
@@ -158,7 +158,7 @@ def run_scan():
             print('f_B from plasma surface = ', f_B_sf)
 
             # Repeat with the L1 instead of the L2 norm!
-            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=1000, acceleration=True)
+            optimized_phi_mn, f_B, f_K, fB_history, fK_history = cpst.solve_lasso(lam=lambda_reg, max_iter=10000, acceleration=True)
 
             # Make plots of the history so we can see convergence was achieved
             plt.figure(100)
@@ -214,7 +214,7 @@ def run_scan():
         plt.figure(101)
         plt.legend()
         plt.savefig(OUT_DIR + 'fK_history.jpg')
-        plt.figure(101)
+        plt.figure(102)
         plt.legend()
         plt.savefig(OUT_DIR + 'f_history.jpg')
 
@@ -318,7 +318,7 @@ def run_target():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-19, -14, 10))
+        lambdas = np.flip(np.logspace(-19, -9, 20))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
@@ -377,8 +377,8 @@ def run_target():
 
 # Run one of the functions and time it
 t1 = time.time()
-# run_scan()
-run_target()
+run_scan()
+# run_target()
 t2 = time.time()
 print('Total run time = ', t2 - t1)
 plt.show()

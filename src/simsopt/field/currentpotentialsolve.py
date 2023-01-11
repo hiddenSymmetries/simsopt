@@ -284,14 +284,15 @@ class CurrentPotentialSolve:
         for i in range(len(z_history)):
             phi_history.append(Ak_inv @ (z_history[i] + d))
             fB_history.append(0.5 * np.linalg.norm(A_matrix @ phi_history[i] - b_e) ** 2 * nfp)
-            fK_history.append(0.5 * np.linalg.norm(Ak_matrix @ phi_history[i] - d, ord=1))
+            fK_history.append(np.linalg.norm(z_history[i], ord=1))
+            # fK_history.append(np.linalg.norm(Ak_matrix @ phi_history[i] - d, ord=1))
 
         # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
         phi_mn_opt = Ak_inv @ (z_opt + d)
 
         self.current_potential.set_dofs(phi_mn_opt)
         f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
-        f_K = 0.5 * np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
+        f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
         return phi_mn_opt, f_B, f_K, fB_history, fK_history
 
     def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True, xi0=None):
