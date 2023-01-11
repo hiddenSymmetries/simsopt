@@ -145,7 +145,7 @@ class FiniteDifference:
         if x0 is not None:
             self.x0 = np.asarray(x0)
         else:
-            self.x0 = self.opt.x
+            self.x0 = x0
 
         self.jac_size = None
         self.eval_cnt = 1
@@ -196,7 +196,7 @@ class FiniteDifference:
                 fplus = np.asarray(self.fn())
                 self.xs[:, 2 * j + 1] = x0[:]
                 self.xs[j, 2 * j + 1] = x0[j] - steps[j]
-                self.opt.x = self.xs[j, 2 * j + 1]
+                self.opt.x = self.xs[:, 2 * j + 1]
                 fminus = np.asarray(self.fn())
 
                 if self.flatten_out:
@@ -225,7 +225,6 @@ class FiniteDifference:
         self.eval_cnt += self.nevals_jac
         # Set the opt.x to the original x
         self.opt.x = opt_x0
-
         return jac
 
 
