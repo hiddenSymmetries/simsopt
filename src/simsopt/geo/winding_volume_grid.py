@@ -57,7 +57,8 @@ class WindingVolumeGrid:
         dx=0.02, dy=0.02, dz=0.02,
         filename=None, surface_flag='vmec',
         famus_filename=None, 
-        OUT_DIR=''
+        OUT_DIR='',
+        nphi_coil=8, ntheta_coil=8,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -91,9 +92,10 @@ class WindingVolumeGrid:
         else:
             self.plasma_boundary = plasma_boundary
             self.R0 = plasma_boundary.get_rc(0, 0)
-            self.phi = self.plasma_boundary.quadpoints_phi
+            # unlike plasma surface, use the whole phi and theta grids
+            self.phi = np.linspace(0, 1, nphi_coil)  # self.plasma_boundary.quadpoints_phi
             self.nphi = len(self.phi)
-            self.theta = self.plasma_boundary.quadpoints_theta
+            self.theta = np.linspace(0, 1, ntheta_coil)  # self.plasma_boundary.quadpoints_theta
             self.ntheta = len(self.theta)
 
         if dx <= 0 or dy <= 0 or dz <= 0:
@@ -166,35 +168,28 @@ class WindingVolumeGrid:
                     "same toroidal quadrature points."
                 )
 
-            RPhiZ_grid = self._setup_uniform_grid()
+            self._setup_uniform_grid()
 
             # Have the uniform grid, now need to loop through and eliminate cells.
             t1 = time.time()
 
             if self.surface_flag == 'focus' or self.surface_flag == 'wout':
-                self.final_RZ_grid, self.inds = sopp.make_final_surface(
-                    2 * np.pi * self.phi, self.plasma_boundary.unitnormal(), self.plasma_boundary.unitnormal(),
-                    # self.normal_inner, self.normal_outer,
-                    RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
+                final_grid = sopp.make_winding_volume_grid(
+                    self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
+                    self.XYZ_uniform, self.xyz_inner, self.xyz_outer,
                 )
             else:
-                self.final_RZ_grid, self.inds = sopp.make_final_surface(
-                    2 * np.pi * self.phi, self.normal_inner, self.normal_outer,
-                    RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
+                final_grid = sopp.make_winding_volume_grid(
+                    self.normal_inner.reshape(-1, 3), self.normal_outer.reshape(-1, 3),
+                    self.XYZ_uniform, self.xyz_inner, self.xyz_outer,
                 )
-
-            # make_final_surface only returns the inds to chop at
-            # so need to loop through and chop the grid now
-            self.inds = np.array(self.inds, dtype=int)
-            for i in reversed(range(1, len(self.inds))):
-                for j in range(0, i):
-                    self.inds[i] += self.inds[j]
-            self.N_grid = self.inds[-1]
-            final_grid = []
-            for i in range(self.final_RZ_grid.shape[0]):
-                if not np.allclose(self.final_RZ_grid[i, :], 0.0):
-                    final_grid.append(self.final_RZ_grid[i, :])
-            self.final_RZ_grid = np.array(final_grid)
+            # remove all the grid elements that were omitted
+            XYZ_flat = []
+            for i in range(final_grid.shape[0]):
+                if not np.allclose(final_grid[i, :], 0.0):
+                    XYZ_flat.append(final_grid[i, :])
+            self.XYZ_flat = np.array(XYZ_flat)
+            print(self.XYZ_flat.shape)
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
@@ -209,28 +204,8 @@ class WindingVolumeGrid:
             oy = oy[nonzero_inds]
             oz = oz[nonzero_inds]
             self.Ic_inds = nonzero_inds
-            premade_dipole_grid = np.array([ox, oy, oz]).T
-            self.premade_dipole_grid = premade_dipole_grid
-            self.N_grid = premade_dipole_grid.shape[0]
-
-            # Not normalized to 1 like quadpoints_phi!
-            self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
-            uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
-            self.pm_nphi = len(uniq_phi)
-            self.pm_uniq_phi = uniq_phi
-            self.inds = counts_phi
-            for i in reversed(range(1, self.pm_nphi)):
-                for j in range(0, i):
-                    self.inds[i] += self.inds[j]
-            self.final_RZ_grid = np.zeros((self.N_grid, 3))
-            self.final_RZ_grid[:, 0] = np.sqrt(premade_dipole_grid[:, 0] ** 2 + premade_dipole_grid[:, 1] ** 2)
-            self.final_RZ_grid[:, 1] = self.pm_phi
-            self.final_RZ_grid[:, 2] = premade_dipole_grid[:, 2]
-            self.dipole_grid_xyz = premade_dipole_grid
-        Xgrid = self.final_RZ_grid[:, 0] * np.cos(self.final_RZ_grid[:, 1])
-        Ygrid = self.final_RZ_grid[:, 0] * np.sin(self.final_RZ_grid[:, 1])
-        Zgrid = self.final_RZ_grid[:, 2]
-        self.XYZ_flat = np.array([Xgrid, Ygrid, Zgrid]).T
+            self.XYZ_flat = np.array([ox, oy, oz]).T
+            self.N_grid = self.XYZ_flat.shape[0]
         self.N_grid = self.XYZ_flat.shape[0]
         self.alphas = np.random.rand(self.N_grid, self.n_functions)
 
@@ -241,12 +216,13 @@ class WindingVolumeGrid:
         """
         # Get (X, Y, Z) coordinates of the three boundaries
         xyz_inner = self.rz_inner_surface.gamma()
-        self.r_inner = np.sqrt(xyz_inner[:, :, 0] ** 2 + xyz_inner[:, :, 1] ** 2)
+        self.xyz_inner = xyz_inner.reshape(-1, 3)
         self.x_inner = xyz_inner[:, :, 0]
         self.y_inner = xyz_inner[:, :, 1]
         self.z_inner = xyz_inner[:, :, 2]
         xyz_outer = self.rz_outer_surface.gamma()
-        self.r_outer = np.sqrt(xyz_outer[:, :, 0] ** 2 + xyz_outer[:, :, 1] ** 2)
+        self.xyz_outer = xyz_inner.reshape(-1, 3)
+        self.x_inner = xyz_inner[:, :, 0]
         self.x_outer = xyz_outer[:, :, 0]
         self.y_outer = xyz_outer[:, :, 1]
         self.z_outer = xyz_outer[:, :, 2]
@@ -279,14 +255,6 @@ class WindingVolumeGrid:
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
         self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3) 
-
-        # Make 3D mesh in (R, phi, Z)
-        Phi = np.arctan2(Y, X)
-        R = np.sqrt(X ** 2 + Y ** 2)
-        self.RPhiZ = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
-        RPhiZ_grid = np.transpose(self.RPhiZ, [0, 2, 1, 3])
-        RPhiZ_grid = RPhiZ_grid.reshape(RPhiZ_grid.shape[0] * RPhiZ_grid.shape[1], RPhiZ_grid.shape[2], 3)
-        return RPhiZ_grid
 
     def _set_inner_rz_surface(self):
         """
@@ -345,15 +313,15 @@ class WindingVolumeGrid:
             dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
 
-        nfp = self.plasma_boundary.nfp
-        stellsym = self.plasma_boundary.stellsym
+        # nfp = self.plasma_boundary.nfp
+        # stellsym = self.plasma_boundary.stellsym
         n = self.N_grid 
-        if stellsym:
-            stell_list = [1, -1]
-            nsym = nfp * 2
-        else:
-            stell_list = [1]
-            nsym = nfp
+        # if stellsym:
+        #     stell_list = [1, -1]
+        #     nsym = nfp * 2
+        # else:
+        #     stell_list = [1]
+        #     nsym = nfp
 
         # get the coordinates
         ox = self.XYZ_flat[:, 0]
@@ -497,7 +465,6 @@ class WindingVolumeGrid:
         nz = self.Phi.shape[4]
         self.flux_jump_matrix, self.connection_list = sopp.winding_volume_flux_jumps(
             coil_points, 
-            integration_points.reshape(self.N_grid, nx, ny, nz, 3), 
             self.Phi, 
             self.dx, 
             self.dy, 

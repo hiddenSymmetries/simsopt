@@ -22,14 +22,15 @@ from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import WindingVolumeGrid
+from simsopt.solve import Tikhonov 
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
 dx = 0.02
 dy = dx
 dz = dx
@@ -130,9 +131,15 @@ C = csc_matrix(wv_grid.flux_jump_matrix)  # matrix is way too big but it is very
 CT = C.transpose()
 CCT = C @ CT
 CCT_inv = sparse_inv(CCT)
-projection_onto_constraints = sparse_eye(len(wv_grid.alphas), format="csc") - CT @ CCT_inv @ C 
-wv_grid.alphas = projection_onto_constraints.todense() @ wv_grid.alphas
+projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
+wv_grid.alphas = np.array((projection_onto_constraints.todense() @ np.ravel(wv_grid.alphas))).reshape(wv_grid.alphas.shape)
 wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
+nfp = wv_grid.plasma_boundary.nfp
+print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ np.ravel(wv_grid.alphas) - wv_grid.b_rhs, ord=2) ** 2 * nfp)
+alpha_opt, fB, fK = Tikhonov(wv_grid)
+wv_grid.alphas = alpha_opt.reshape(wv_grid.N_grid, wv_grid.n_functions)
+wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
+print('fB after optimization = ', fB) 
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

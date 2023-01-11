@@ -176,3 +176,121 @@ std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Ph
     return std::make_tuple(flux_constraint_matrix, Connect);
 }   
 
+
+// Takes a uniform CARTESIAN grid of dipoles, and loops through
+// and creates a final set of points which lie between the
+// inner and outer toroidal surfaces defined by extending the plasma
+// boundary by its normal vectors * some minimum distance. 
+Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& dipole_grid_xyz, Array& xyz_inner, Array& xyz_outer)
+{
+    // For each toroidal cross-section:
+    // For each dipole location:
+    //     1. Find nearest point from dipole to the inner surface
+    //     2. Find nearest point from dipole to the outer surface
+    //     3. Select nearest point that is closest to the dipole
+    //     4. Get normal vector of this inner/outer surface point
+    //     5. Draw ray from dipole location in the direction of this normal vector
+    //     6. If closest point between inner surface and the ray is the 
+    //           start of the ray, conclude point is outside the inner surface. 
+    //     7. If closest point between outer surface and the ray is the
+    //           start of the ray, conclude point is outside the outer surface. 
+    //     8. If Step 4 was True but Step 5 was False, add the point to the final grid.
+   	
+    int num_inner = xyz_inner.shape(0);
+    int ngrid = dipole_grid_xyz.shape(0);
+    int num_ray = 500;
+    Array final_grid = xt::zeros<double>({ngrid, 3});
+
+    // Loop through every dipole (cant use openmp because sharing access to the vector final_grid)
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < ngrid; i++) {
+        double X = dipole_grid_xyz(i, 0);
+        double Y = dipole_grid_xyz(i, 1);
+        double Z = dipole_grid_xyz(i, 2);
+           
+	// find nearest point on inner/outer toroidal surface
+	double min_dist_inner = 1e5;
+	double min_dist_outer = 1e5;
+	int inner_loc = 0;
+	int outer_loc = 0;
+        for (int k = 0; k < num_inner; k++) {
+	    double x_inner = xyz_inner(k, 0);
+	    double y_inner = xyz_inner(k, 1);
+	    double z_inner = xyz_inner(k, 2);
+	    double x_outer = xyz_outer(k, 0);
+	    double y_outer = xyz_outer(k, 1);
+	    double z_outer = xyz_outer(k, 2);
+	    double dist_inner = sqrt((x_inner - X) * (x_inner - X) + (y_inner - Y) * (y_inner - Y) + (z_inner - Z) * (z_inner - Z)); 
+	    double dist_outer = sqrt((x_outer - X) * (x_outer - X) + (y_outer - Y) * (y_outer - Y) + (z_outer - Z) * (z_outer - Z)); 
+            if (dist_inner < min_dist_inner) {
+		min_dist_inner = dist_inner;
+	        inner_loc = k;
+	    }
+            if (dist_outer < min_dist_outer) {
+		min_dist_outer = dist_outer;
+	        outer_loc = k;
+	    }
+	}   
+	double nx = 0.0;
+	double ny = 0.0;
+	double nz = 0.0;
+	if (min_dist_inner < min_dist_outer) {
+            nx = normal_inner(inner_loc, 0);
+            ny = normal_inner(inner_loc, 1);
+	    nz = normal_inner(inner_loc, 2);
+	}
+	else {
+            nx = normal_outer(outer_loc, 0);
+            ny = normal_outer(outer_loc, 1);
+	    nz = normal_outer(outer_loc, 2);
+	}
+	// normalize the normal vectors
+	double norm_vec = sqrt(nx * nx + ny * ny + nz * ny);
+        double ray_x = nx / norm_vec;
+        double ray_y = ny / norm_vec;
+        double ray_z = nz / norm_vec;
+           
+	// Compute all the rays and find the location of minimum ray-surface distance
+	double dist_inner_ray = 0.0;
+	double dist_outer_ray = 0.0;
+	double min_dist_inner_ray = 1e5;
+	double min_dist_outer_ray = 1e5;
+        int nearest_loc_inner = 0;
+        int nearest_loc_outer = 0;
+	double ray_equation_x = 0.0;
+	double ray_equation_y = 0.0;
+        double ray_equation_z = 0.0;
+        for (int k = 0; k < num_ray; k++) {
+	    ray_equation_x = X + ray_x * (4.0 / ((double) num_ray)) * k;
+	    ray_equation_y = Y + ray_y * (4.0 / ((double) num_ray)) * k;
+	    ray_equation_z = Z + ray_z * (4.0 / ((double) num_ray)) * k;
+	    dist_inner_ray = sqrt((xyz_inner(inner_loc, 0) - ray_equation_x) * (xyz_inner(inner_loc, 0) - ray_equation_x) + (xyz_inner(inner_loc, 1) - ray_equation_y) * (xyz_inner(inner_loc, 1) - ray_equation_y) + (xyz_inner(inner_loc, 2) - ray_equation_z) * (xyz_inner(inner_loc, 2) - ray_equation_z));
+	    dist_outer_ray = sqrt((xyz_outer(outer_loc, 0) - ray_equation_x) * (xyz_outer(outer_loc, 0) - ray_equation_x) + (xyz_outer(outer_loc, 1) - ray_equation_y) * (xyz_outer(outer_loc, 1) - ray_equation_y) + (xyz_outer(outer_loc, 2) - ray_equation_z) * (xyz_outer(outer_loc, 2) - ray_equation_z));
+            if (dist_inner_ray < min_dist_inner_ray) {
+		min_dist_inner_ray = dist_inner_ray;
+		nearest_loc_inner = k;
+            }
+            if (dist_outer_ray < min_dist_outer_ray) {
+		min_dist_outer_ray = dist_outer_ray;
+		nearest_loc_outer = k;
+	    }
+            
+	    // nearest distance from the inner surface to the ray should be just the original point
+	    if (nearest_loc_inner > 0)
+                continue;
+            
+	    // nearest distance from the outer surface to the ray should NOT be the original point
+            if (nearest_loc_outer > 0) {
+                //vector<double> new_point(3);
+		//new_point[0] = X;
+		//new_point[1] = Y;
+		//new_point[2] = Z;
+		//final_grid.push_back(new_point);
+		final_grid(i, 0) = X;
+		final_grid(i, 1) = Y;
+		final_grid(i, 2) = Z;
+	    }
+	}
+    }
+    return final_grid; 
+}
