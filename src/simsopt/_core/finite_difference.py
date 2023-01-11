@@ -116,6 +116,8 @@ class FiniteDifference:
                                         rel_step=self.rel_step)
         if self.diff_method == "centered":
             # Centered differences:
+            self.f0 = np.zeros(self.jac_size[0])
+            
             for j in range(self.nparams): # len(x0)
                 self.xs[:, 2 * j] = x0[:]
                 self.xs[j, 2 * j] = x0[j] + steps[j]
@@ -130,12 +132,14 @@ class FiniteDifference:
                     jac[j] = (fplus - fminus) / (2 * steps[j])
                 else:
                     jac[:, j] = (fplus - fminus) / (2 * steps[j])
+                self.f0 = self.f0 + (fplus + fminus)/2
+            self.f0 = self.f0 / self.nparams
                     
         elif self.diff_method == "forward":
             # 1-sided differences
             self.xs[:, 0] = x0[:]
             self.opt.x = self.xs[:, 0]
-            f0 = np.asarray(self.fn())
+            self.f0 = np.asarray(self.fn())
             for j in range(self.nparams): # len(x0)
                 self.xs[:, j + 1] = x0[:]
                 self.xs[j, j + 1] = x0[j] + steps[j]
@@ -143,9 +147,9 @@ class FiniteDifference:
                 fplus = np.asarray(self.fn())
 
                 if self.flatten_out:
-                    jac[j] = (fplus - f0) / steps[j]
+                    jac[j] = (fplus - self.f0) / steps[j]
                 else:
-                    jac[:, j] = (fplus - f0) / steps[j]
+                    jac[:, j] = (fplus - self.f0) / steps[j]
                     
         self.eval_cnt += self.nevals_jac
         # Set the opt.x to the original x
@@ -270,8 +274,6 @@ class MPIFiniteDifference:
             for j in range(self.nparams):
                 self.xs[:, j + 1] = x0[:]
                 self.xs[j, j + 1] = x0[j] + steps[j]
-        print(self.xs)
-        print(self.xs.shape)
 
         evals = None
         # nvals = None # Work on this later
@@ -316,11 +318,14 @@ class MPIFiniteDifference:
             for j in range(self.nparams):
                 jac[:, j] = (evals[:, 2 * j] - evals[:, 2 * j + 1]) / (
                     2 * steps[j])
+            # approximate f0 as the average of self.fn at stencil points
+            self.f0  = np.sum(evals,axis=1)/self.nevals_jac
         else:  # diff_method == "forward":
             # 1-sided differences:
             for j in range(self.nparams):
                 jac[:, j] = (evals[:, j + 1] - evals[:, 0]) / steps[j]
-
+            self.f0 = evals[:, 0]
+                
         # Weird things may happen if we do not reset the state vector
         # to x0:
         opt.x = x0
@@ -399,9 +404,6 @@ class MPIFiniteDifference:
 
         jac, evals = self._jac(x)
         logger.debug(f'jac is {jac}')
-        print("on master")
-        print(self.xs)
-        print(self.xs.shape)
         # Log file is now written externally
         # by a wrapper in the serial or mpi solver.
 

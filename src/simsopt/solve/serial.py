@@ -68,7 +68,7 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = 
             log_file.write(f'{j_eval:6d},{del_t:12.4e}')
         
             if problem_type == 'least_squares':
-                f = fd.fn() # function value at x0
+                f = fd.f0 # function value at x0
                 total_jac = np.sum(2 * ret * f[:, None],axis=0)                
             else:
                 total_jac = ret
@@ -89,12 +89,8 @@ def finite_difference_jac_wrapper(fd, problem_type = 'least_squares', verbose = 
             for j in range(fd.nevals_jac):
                 del_t = time() - fd.start_time
                 j_eval = j + fd.eval_cnt - fd.nevals_jac - 1
-                print(fd.eval_cnt)
-                print("^^^")
                 log_file.write(f'{j_eval:6d},{del_t:12.4e}')
-                print(fd.xs[:, j])
                 for xj in fd.xs[:, j]:
-                    print(j)
                     log_file.write(f',{xj:24.16e}')
                 log_file.write('\n')
                 log_file.flush()
