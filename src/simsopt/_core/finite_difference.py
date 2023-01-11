@@ -32,7 +32,79 @@ from .util import finite_difference_steps
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['FiniteDifference']
+__all__ = ['FiniteDifference', 'finite_difference_jac_decorator']
+
+
+def finite_difference_jac_decorator(fd, problem_type='least_squares', verbose="legacy", comment=""):
+    """Wrapper for the `jac` method of the `MPIFiniteDifference` and `FiniteDifference` classes.
+    For logging the jacobian calculation when used with `scipy.optimize.least_squares`.
+    Also handles scipy.optimize.minimize.
+    verbose - controls the amount of information logged.
+            'legacy': Only the points used by the jacobian calculation is logged. The default. 
+            'dfdx': The derivative of the scalar objective is logged.
+            'dRdx': For least_squares problems. Logs the matrix dR_i/dx_j where R_i are the components of the residual vector. WARNING: can result in huge jacobian logs."""
+
+    if comment != "":
+        comment = " " + comment
+
+    if verbose not in ["legacy", 'dfdx', 'dRdx']:
+        raise ValueError("Unrecognized verbose flag: '" + verbose + "' Recognized values are 'legacy', dfdx', 'dRdx'.")
+    if (verbose == 'dRdx') and (problem_type != 'least_squares'):
+        raise ValueError("Verbose flag 'dRdx' is only supported for problem_type 'lest_squares'.")
+
+    def wrapper(x: RealArray = None, *args, **kwargs):
+        ret = fd.jac(x, *args, **kwargs)
+        log_file = fd.log_file
+        nparams = fd.nparams
+        # WRITE HEADER
+        if not fd.log_header_written:
+            log_file.write(f'Problem type:\n{problem_type}{comment}\nnparams:\n{nparams}\n')
+            log_file.write('function_evaluation, seconds')
+            if verbose == "dRdx":
+                log_file.write(', d(residual_j)/d(x_i)')
+            elif verbose == "dfdx":
+                log_file.write(', d(f)/d(x_i)')
+            elif verbose == "legacy":
+                for j in range(nparams):
+                    log_file.write(f', x({j})')
+            log_file.write('\n')
+            fd.log_header_written = True
+        # WRITE DATA
+        if verbose == "dfdx":
+            del_t = time() - fd.start_time
+            j_eval = fd.eval_cnt//fd.nevals_jac
+            log_file.write(f'{j_eval:6d},{del_t:12.4e}')
+
+            if problem_type == 'least_squares':
+                f = fd.f0  # function value at x0
+                total_jac = np.sum(2 * ret * f[:, None], axis=0)                
+            else:
+                total_jac = ret
+            for total_jacj in total_jac:
+                log_file.write(f',{total_jacj:24.16e}')
+            log_file.write('\n')
+            log_file.flush()
+        elif verbose == "dRdx":
+            # only least squares can use verbose = 'dRdx'
+            del_t = time() - fd.start_time
+            j_eval = fd.eval_cnt//fd.nevals_jac
+            log_file.write(f'{j_eval:6d},{del_t:12.4e}')
+            with np.printoptions(threshold=np.inf):
+                log_file.write(", " + np.array_str(ret, max_line_width=np.inf, precision=None).replace('\n', ','))
+                log_file.write('\n')
+                log_file.flush()
+        elif verbose == "legacy":
+            for j in range(fd.nevals_jac):
+                del_t = time() - fd.start_time
+                j_eval = j + fd.eval_cnt - fd.nevals_jac - 1
+                log_file.write(f'{j_eval:6d},{del_t:12.4e}')
+                for xj in fd.xs[:, j]:
+                    log_file.write(f',{xj:24.16e}')
+                log_file.write('\n')
+                log_file.flush()
+        return ret
+
+    return wrapper
 
 
 class FiniteDifference:

@@ -21,12 +21,11 @@ try:
 except ImportError as err:
     MPI = None
 
-from .serial import finite_difference_jac_wrapper
-
 from .._core.types import RealArray
 from .._core.optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from .._core.finite_difference import MPIFiniteDifference
+from .._core.finite_difference import finite_difference_jac_decorator
 from ..objectives.least_squares import LeastSquaresProblem
 
 logger = logging.getLogger(__name__)
@@ -205,7 +204,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                jac = finite_difference_jac_wrapper(fd, verbose=jac_verbose, comment="mpi")
+                jac = finite_difference_jac_decorator(fd, verbose=jac_verbose, comment="mpi")
                 result = least_squares(_f_proc0, x0, jac=jac, verbose=2,
                                        **kwargs)
 
