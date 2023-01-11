@@ -3,8 +3,6 @@ import json
 
 import numpy as np
 
-from simsopt._core import Optimizable
-from simsopt._core.derivative import derivative_dec
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
