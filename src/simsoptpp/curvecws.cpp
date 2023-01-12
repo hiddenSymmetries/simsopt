@@ -10,15 +10,15 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
 
     data *= 0;
 
-    double pphi = 0;
-    double ptheta = 0;
-
-    double r = 0;
-    double z = 0;
 
 #pragma omp parallel for
     for (int k = 0; k < numquadpoints; ++k)
     {
+        double pphi = 0;
+        double ptheta = 0;
+
+        double r = 0;
+        double z = 0;
         double CWSt = 2 * M_PI * quadpoints[k];
 
         for (int i = 0; i < order + 1; ++i)
