@@ -12,7 +12,7 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature']
+           'MeanSquaredCurvature', 'LinkingNumber']
 
 
 @jit
@@ -490,11 +490,11 @@ class LinkingNumber(Optimizable):
         The value is 1 if the are interlocked, 0 if not.
         
         .. math::
-            Link(c1,c2) = \frac{1}{4\pi} \oint_{c1}\oint_{c2}\frac{\textbf{R1} - \textbf{R2}}{|\textbf{R1}-\textbf{R2}|^3} (d\textbf{R1} \cross d\textbf{R2})
+            Link(c1,c2) = \frac{1}{4\pi} \oint_{c1}\oint_{c2}\frac{\textbf{R1} - \textbf{R2}}{|\textbf{R1}-\textbf{R2}|^3} (d\textbf{R1} \times d\textbf{R2})
             
-        where :math:'c1' is the first curve and :math:'c2' is the second curve, 
-        :math:'\textbf{R1}' is the radius vector of the first curve, and 
-        :math:'\textbf{R2}' is the radius vector of the second curve
+        where :math:`c1` is the first curve and :math:`c2` is the second curve, 
+        :math:`\textbf{R1}` is the radius vector of the first curve, and 
+        :math:`\textbf{R2}` is the radius vector of the second curve
 
         Args:
             curves: the set of curves on which the linking number should be computed.

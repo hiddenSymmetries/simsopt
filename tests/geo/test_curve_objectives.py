@@ -361,8 +361,6 @@ class Testing(unittest.TestCase):
     def test_linking_number(self):
 
         curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=128)
-
-        from simsopt.geo.curvexyzfourier import CurveXYZFourier
         curve1 = CurveXYZFourier(200, 3)
         coeffs = curve1.dofs
         coeffs[1][0] = 1.
