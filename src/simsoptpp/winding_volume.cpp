@@ -112,7 +112,6 @@ std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Ph
     // here Phi should be shape (n_basis_functions, num_coil_points, Nx, Ny, Nz, 3)
     int num_basis_functions = Phi.shape(0);
     Array flux_factor = xt::zeros<double>({6, num_coil_points, num_basis_functions});
-    Array flux_constraint_matrix = xt::zeros<double>({6 * num_coil_points, num_coil_points * num_basis_functions});
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < num_coil_points; i++) {
 	for (int kk = 0; kk < 6; kk++) {
@@ -159,21 +158,8 @@ std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Ph
 		}
             }
 	}
-	for (int k = 0; k < num_basis_functions; k++) {
-            for (int kk = 0; kk < 6; kk++) {  // loop over the 6 possible directions 
-		double Fik = flux_factor(kk, i, k);
-		flux_constraint_matrix(i * 6 + kk, i * num_basis_functions + k) = Fik;
-		for (int j = 0; j < 6; j++) {  // loop over the 6 neighbors
-		    int q = Connect(i, j, kk);
-		    if (q > 0) {
-                        double Fqk = flux_factor(kk, q, k);
-			flux_constraint_matrix(i * 6 + kk, q * num_basis_functions + k) = Fqk;
-		    }
-		}
-	    }
-	}
     }
-    return std::make_tuple(flux_constraint_matrix, Connect);
+    return std::make_tuple(flux_factor, Connect);
 }   
 
 
@@ -181,7 +167,7 @@ std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Ph
 // and creates a final set of points which lie between the
 // inner and outer toroidal surfaces defined by extending the plasma
 // boundary by its normal vectors * some minimum distance. 
-Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& dipole_grid_xyz, Array& xyz_inner, Array& xyz_outer)
+Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& xyz_uniform, Array& xyz_inner, Array& xyz_outer)
 {
     // For each toroidal cross-section:
     // For each dipole location:
@@ -197,16 +183,16 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
     //     8. If Step 4 was True but Step 5 was False, add the point to the final grid.
    	
     int num_inner = xyz_inner.shape(0);
-    int ngrid = dipole_grid_xyz.shape(0);
-    int num_ray = 500;
+    int ngrid = xyz_uniform.shape(0);
+    int num_ray = 2000;
     Array final_grid = xt::zeros<double>({ngrid, 3});
 
-    // Loop through every dipole (cant use openmp because sharing access to the vector final_grid)
+    // Loop through every dipole
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < ngrid; i++) {
-        double X = dipole_grid_xyz(i, 0);
-        double Y = dipole_grid_xyz(i, 1);
-        double Z = dipole_grid_xyz(i, 2);
+        double X = xyz_uniform(i, 0);
+        double Y = xyz_uniform(i, 1);
+        double Z = xyz_uniform(i, 2);
            
 	// find nearest point on inner/outer toroidal surface
 	double min_dist_inner = 1e5;
@@ -220,8 +206,8 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
 	    double x_outer = xyz_outer(k, 0);
 	    double y_outer = xyz_outer(k, 1);
 	    double z_outer = xyz_outer(k, 2);
-	    double dist_inner = sqrt((x_inner - X) * (x_inner - X) + (y_inner - Y) * (y_inner - Y) + (z_inner - Z) * (z_inner - Z)); 
-	    double dist_outer = sqrt((x_outer - X) * (x_outer - X) + (y_outer - Y) * (y_outer - Y) + (z_outer - Z) * (z_outer - Z)); 
+	    double dist_inner = (x_inner - X) * (x_inner - X) + (y_inner - Y) * (y_inner - Y) + (z_inner - Z) * (z_inner - Z); 
+	    double dist_outer = (x_outer - X) * (x_outer - X) + (y_outer - Y) * (y_outer - Y) + (z_outer - Z) * (z_outer - Z); 
             if (dist_inner < min_dist_inner) {
 		min_dist_inner = dist_inner;
 	        inner_loc = k;
@@ -245,7 +231,7 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
 	    nz = normal_outer(outer_loc, 2);
 	}
 	// normalize the normal vectors
-	double norm_vec = sqrt(nx * nx + ny * ny + nz * ny);
+	double norm_vec = sqrt(nx * nx + ny * ny + nz * nz);
         double ray_x = nx / norm_vec;
         double ray_y = ny / norm_vec;
         double ray_z = nz / norm_vec;
@@ -261,11 +247,11 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
 	double ray_equation_y = 0.0;
         double ray_equation_z = 0.0;
         for (int k = 0; k < num_ray; k++) {
-	    ray_equation_x = X + ray_x * (4.0 / ((double) num_ray)) * k;
-	    ray_equation_y = Y + ray_y * (4.0 / ((double) num_ray)) * k;
-	    ray_equation_z = Z + ray_z * (4.0 / ((double) num_ray)) * k;
-	    dist_inner_ray = sqrt((xyz_inner(inner_loc, 0) - ray_equation_x) * (xyz_inner(inner_loc, 0) - ray_equation_x) + (xyz_inner(inner_loc, 1) - ray_equation_y) * (xyz_inner(inner_loc, 1) - ray_equation_y) + (xyz_inner(inner_loc, 2) - ray_equation_z) * (xyz_inner(inner_loc, 2) - ray_equation_z));
-	    dist_outer_ray = sqrt((xyz_outer(outer_loc, 0) - ray_equation_x) * (xyz_outer(outer_loc, 0) - ray_equation_x) + (xyz_outer(outer_loc, 1) - ray_equation_y) * (xyz_outer(outer_loc, 1) - ray_equation_y) + (xyz_outer(outer_loc, 2) - ray_equation_z) * (xyz_outer(outer_loc, 2) - ray_equation_z));
+	    ray_equation_x = X + ray_x * (8.0 / ((double) num_ray)) * k;
+	    ray_equation_y = Y + ray_y * (8.0 / ((double) num_ray)) * k;
+	    ray_equation_z = Z + ray_z * (8.0 / ((double) num_ray)) * k;
+	    dist_inner_ray = (xyz_inner(inner_loc, 0) - ray_equation_x) * (xyz_inner(inner_loc, 0) - ray_equation_x) + (xyz_inner(inner_loc, 1) - ray_equation_y) * (xyz_inner(inner_loc, 1) - ray_equation_y) + (xyz_inner(inner_loc, 2) - ray_equation_z) * (xyz_inner(inner_loc, 2) - ray_equation_z);
+	    dist_outer_ray = (xyz_outer(outer_loc, 0) - ray_equation_x) * (xyz_outer(outer_loc, 0) - ray_equation_x) + (xyz_outer(outer_loc, 1) - ray_equation_y) * (xyz_outer(outer_loc, 1) - ray_equation_y) + (xyz_outer(outer_loc, 2) - ray_equation_z) * (xyz_outer(outer_loc, 2) - ray_equation_z);
             if (dist_inner_ray < min_dist_inner_ray) {
 		min_dist_inner_ray = dist_inner_ray;
 		nearest_loc_inner = k;
@@ -274,22 +260,16 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
 		min_dist_outer_ray = dist_outer_ray;
 		nearest_loc_outer = k;
 	    }
+	}
             
-	    // nearest distance from the inner surface to the ray should be just the original point
-	    if (nearest_loc_inner > 0)
-                continue;
+	// nearest distance from the inner surface to the ray should be just the original point
+        if (nearest_loc_inner > 0) continue;
             
-	    // nearest distance from the outer surface to the ray should NOT be the original point
-            if (nearest_loc_outer > 0) {
-                //vector<double> new_point(3);
-		//new_point[0] = X;
-		//new_point[1] = Y;
-		//new_point[2] = Z;
-		//final_grid.push_back(new_point);
-		final_grid(i, 0) = X;
-		final_grid(i, 1) = Y;
-		final_grid(i, 2) = Z;
-	    }
+	// nearest distance from the outer surface to the ray should NOT be the original point
+        if (nearest_loc_outer > 0) {
+            final_grid(i, 0) = X;
+	    final_grid(i, 1) = Y;
+	    final_grid(i, 2) = Z;
 	}
     }
     return final_grid; 

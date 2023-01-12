@@ -29,13 +29,13 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
 dx = 0.02
 dy = dx
 dz = dx
 coff = 0.05  # PM grid starts offset ~ 5 cm from the plasma surface
-poff = 0.1  # PM grid end offset ~ 10 cm from the plasma surface
+poff = 0.075  # PM grid end offset ~ 10 cm from the plasma surface
 #input_name = 'input.LandremanPaul2021_QA'
 input_name = 'wout_LandremanPaul_QH_variant.nc'
 
@@ -121,18 +121,21 @@ phis = wv_grid._polynomial_basis(nx=2, ny=2, nz=2)
 print(phis.shape)
 wv_grid._construct_geo_factor()
 print(wv_grid.geo_factor.shape)
-print(wv_grid.flux_jump_matrix.shape)
+print(wv_grid.flux_constraint_matrix.shape)
 for j in range(6): 
     for i in range(11 * wv_grid.N_grid):
-        if wv_grid.flux_jump_matrix[j, i] != 0.0:
-            print(j, i, wv_grid.flux_jump_matrix[j, i])
+        if wv_grid.flux_constraint_matrix[j, i] != 0.0:
+            print(j, i, wv_grid.flux_constraint_matrix[j, i])
 
-C = csc_matrix(wv_grid.flux_jump_matrix)  # matrix is way too big but it is very sparse
+t1 = time.time()
+C = wv_grid.flux_constraint_matrix  # matrix is way too big but it is very sparse
 CT = C.transpose()
 CCT = C @ CT
 CCT_inv = sparse_inv(CCT)
 projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
-wv_grid.alphas = np.array((projection_onto_constraints.todense() @ np.ravel(wv_grid.alphas))).reshape(wv_grid.alphas.shape)
+wv_grid.alphas = projection_onto_constraints.dot(np.ravel(wv_grid.alphas)).reshape(wv_grid.alphas.shape)
+t2 = time.time()
+print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
 wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
 nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ np.ravel(wv_grid.alphas) - wv_grid.b_rhs, ord=2) ** 2 * nfp)

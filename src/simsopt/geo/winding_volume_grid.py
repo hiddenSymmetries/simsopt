@@ -4,6 +4,7 @@ from pyevtk.hl import pointsToVTK
 import simsoptpp as sopp
 import time
 import warnings
+from scipy.sparse import lil_matrix
 
 __all__ = ['WindingVolumeGrid']
 
@@ -58,7 +59,6 @@ class WindingVolumeGrid:
         filename=None, surface_flag='vmec',
         famus_filename=None, 
         OUT_DIR='',
-        nphi_coil=8, ntheta_coil=8,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -93,9 +93,9 @@ class WindingVolumeGrid:
             self.plasma_boundary = plasma_boundary
             self.R0 = plasma_boundary.get_rc(0, 0)
             # unlike plasma surface, use the whole phi and theta grids
-            self.phi = np.linspace(0, 1, nphi_coil)  # self.plasma_boundary.quadpoints_phi
+            self.phi = self.plasma_boundary.quadpoints_phi
             self.nphi = len(self.phi)
-            self.theta = np.linspace(0, 1, ntheta_coil)  # self.plasma_boundary.quadpoints_theta
+            self.theta = self.plasma_boundary.quadpoints_theta
             self.ntheta = len(self.theta)
 
         if dx <= 0 or dy <= 0 or dz <= 0:
@@ -173,23 +173,27 @@ class WindingVolumeGrid:
             # Have the uniform grid, now need to loop through and eliminate cells.
             t1 = time.time()
 
+            contig = np.ascontiguousarray
             if self.surface_flag == 'focus' or self.surface_flag == 'wout':
                 final_grid = sopp.make_winding_volume_grid(
-                    self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
-                    self.XYZ_uniform, self.xyz_inner, self.xyz_outer,
+                    # self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
+                    contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
+                    contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
                 )
             else:
                 final_grid = sopp.make_winding_volume_grid(
-                    self.normal_inner.reshape(-1, 3), self.normal_outer.reshape(-1, 3),
-                    self.XYZ_uniform, self.xyz_inner, self.xyz_outer,
+                    # self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
+                    contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
+                    contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
                 )
             # remove all the grid elements that were omitted
+            print(final_grid.shape)
             XYZ_flat = []
             for i in range(final_grid.shape[0]):
                 if not np.allclose(final_grid[i, :], 0.0):
                     XYZ_flat.append(final_grid[i, :])
             self.XYZ_flat = np.array(XYZ_flat)
-            print(self.XYZ_flat.shape)
+            print(self.XYZ_flat.shape, self.XYZ_flat)
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
@@ -221,8 +225,7 @@ class WindingVolumeGrid:
         self.y_inner = xyz_inner[:, :, 1]
         self.z_inner = xyz_inner[:, :, 2]
         xyz_outer = self.rz_outer_surface.gamma()
-        self.xyz_outer = xyz_inner.reshape(-1, 3)
-        self.x_inner = xyz_inner[:, :, 0]
+        self.xyz_outer = xyz_outer.reshape(-1, 3)
         self.x_outer = xyz_outer[:, :, 0]
         self.y_outer = xyz_outer[:, :, 1]
         self.z_outer = xyz_outer[:, :, 2]
@@ -265,7 +268,7 @@ class WindingVolumeGrid:
             coil surface, not just 1 / 2 nfp of the surface.
         """
         range_surf = "full torus"
-        nphi = self.nphi
+        nphi = self.nphi * 2 * self.plasma_boundary.nfp
         ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
@@ -287,7 +290,7 @@ class WindingVolumeGrid:
             theta value.
         """
         range_surf = "full torus"
-        nphi = self.nphi
+        nphi = self.nphi * 2 * self.plasma_boundary.nfp
         ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
@@ -463,13 +466,28 @@ class WindingVolumeGrid:
         nx = self.Phi.shape[2]
         ny = self.Phi.shape[3]
         nz = self.Phi.shape[4]
-        self.flux_jump_matrix, self.connection_list = sopp.winding_volume_flux_jumps(
+        flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
             coil_points, 
             self.Phi, 
             self.dx, 
             self.dy, 
             self.dz
         )
+        # Flux matrix is so large we need to use numpy sparse matrices here
+        t1 = time.time()
+        num_basis = self.n_functions
+        flux_constraint_matrix = lil_matrix((6 * self.N_grid, self.N_grid * num_basis))
+        for i in range(self.N_grid):
+            flux_constraint_matrix[i * 6:(i + 1) * 6, i * num_basis:(i + 1) * num_basis] = flux_factor[:, i, :]
+            for kk in range(6):
+                for j in range(6):  # loop over the 6 neighbors
+                    q = self.connection_list[i, j, kk]
+                    if (q > 0):
+                        flux_constraint_matrix[i * 6 + kk, q * num_basis:(q + 1) * num_basis] = flux_factor[kk, q, :]
+        # Once matrix elements are set, convert to CSC for quicker matrix ops
+        self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
+        t2 = time.time()
+        print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 
     def as_dict(self) -> dict:
         d = {}
