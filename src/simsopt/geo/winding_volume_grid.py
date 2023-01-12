@@ -187,15 +187,11 @@ class WindingVolumeGrid:
                     contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
                 )
             # remove all the grid elements that were omitted
-            print(final_grid.shape)
-            XYZ_flat = []
-            for i in range(final_grid.shape[0]):
-                if not np.allclose(final_grid[i, :], 0.0):
-                    XYZ_flat.append(final_grid[i, :])
-            self.XYZ_flat = np.array(XYZ_flat)
+            inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
+            self.XYZ_flat = final_grid[inds, :]
             print(self.XYZ_flat.shape, self.XYZ_flat)
             t2 = time.time()
-            print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
+            print("Took t = ", t2 - t1, " s to perform the total grid cell elimination process.")
         else:
             ox, oy, oz, Ic = np.loadtxt(
                 '../../tests/test_files/' + self.famus_filename,

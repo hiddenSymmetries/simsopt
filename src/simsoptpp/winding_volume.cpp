@@ -184,7 +184,7 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
    	
     int num_inner = xyz_inner.shape(0);
     int ngrid = xyz_uniform.shape(0);
-    int num_ray = 2000;
+    int num_ray = 500;
     Array final_grid = xt::zeros<double>({ngrid, 3});
 
     // Loop through every dipole

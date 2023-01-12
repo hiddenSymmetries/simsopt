@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.sparse import csc_matrix
+from scipy.sparse import vstack
 from scipy.sparse import eye as sparse_eye
 from scipy.sparse.linalg import inv as sparse_inv
 import simsoptpp as sopp
@@ -22,7 +23,7 @@ from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import WindingVolumeGrid
-from simsopt.solve import Tikhonov 
+from simsopt.solve import projected_gradient_descent_Tikhonov 
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 
@@ -35,7 +36,7 @@ dx = 0.02
 dy = dx
 dz = dx
 coff = 0.05  # PM grid starts offset ~ 5 cm from the plasma surface
-poff = 0.075  # PM grid end offset ~ 10 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 10 cm from the plasma surface
 #input_name = 'input.LandremanPaul2021_QA'
 input_name = 'wout_LandremanPaul_QH_variant.nc'
 
@@ -120,29 +121,45 @@ wv_grid._toVTK(OUT_DIR + 'grid')
 phis = wv_grid._polynomial_basis(nx=2, ny=2, nz=2)
 print(phis.shape)
 wv_grid._construct_geo_factor()
-print(wv_grid.geo_factor.shape)
-print(wv_grid.flux_constraint_matrix.shape)
-for j in range(6): 
-    for i in range(11 * wv_grid.N_grid):
-        if wv_grid.flux_constraint_matrix[j, i] != 0.0:
-            print(j, i, wv_grid.flux_constraint_matrix[j, i])
+#print(wv_grid.geo_factor.shape)
+#print(wv_grid.flux_constraint_matrix.shape)
+#for j in range(6): 
+#    for i in range(11 * wv_grid.N_grid):
+#        if wv_grid.flux_constraint_matrix[j, i] != 0.0:
+#            print(j, i, wv_grid.flux_constraint_matrix[j, i])
 
-t1 = time.time()
-C = wv_grid.flux_constraint_matrix  # matrix is way too big but it is very sparse
-CT = C.transpose()
-CCT = C @ CT
-CCT_inv = sparse_inv(CCT)
-projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
-wv_grid.alphas = projection_onto_constraints.dot(np.ravel(wv_grid.alphas)).reshape(wv_grid.alphas.shape)
-t2 = time.time()
-print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
-wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
+if False:
+    t1 = time.time()
+    C = wv_grid.flux_constraint_matrix  # matrix is way too big but it is very sparse
+    # Need to append Itarget constraint to the flux jump constraints
+    C = vstack([C, wv_grid.Itarget_matrix], format="csc")
+    CT = C.transpose()
+    CCT = C @ CT
+    CCT_inv = sparse_inv(CCT)
+    CT_CCT_inv = CT @ CCT_inv
+    CT_CCT_inv_d = CT_CCT_inv[:, -1] * wv_grid.Itarget_rhs
+    projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
+    wv_grid.alphas = projection_onto_constraints.dot(np.ravel(wv_grid.alphas)).reshape(wv_grid.alphas.shape)
+    t2 = time.time()
+    print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
+    wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
 nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ np.ravel(wv_grid.alphas) - wv_grid.b_rhs, ord=2) ** 2 * nfp)
-alpha_opt, fB, fK = Tikhonov(wv_grid)
+t1 = time.time()
+alpha_opt, fB, fK = projected_gradient_descent_Tikhonov(wv_grid)
+print('alpha_opt = ', alpha_opt)
+t2 = time.time()
+print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
+plt.figure()
+plt.semilogy(fB, label='fB')
+plt.semilogy(fK, label='fK')
+plt.semilogy(fB + fK, label='total')
+plt.grid(True)
+plt.legend()
 wv_grid.alphas = alpha_opt.reshape(wv_grid.N_grid, wv_grid.n_functions)
 wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
 print('fB after optimization = ', fB) 
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
+plt.show()
