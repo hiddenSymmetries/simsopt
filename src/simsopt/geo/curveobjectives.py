@@ -522,7 +522,7 @@ class LinkingNumber(Optimizable):
                     linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
         linkNumSum = sum(sum(abs(linkNum)))
         return linkNumSum
-        
+
     @derivative_dec
     def dJ(self):
         return Derivative({})
