@@ -25,7 +25,7 @@ public:
     // const shared_ptr<Surface<Array>> surface;
     int mpol;
     int ntor;
-    vector<double> res = vector<double>(num_dofs(), 0.);
+    vector<double> idofs = vector<double>(num_dofs(), 0.);
     Array rc;
     Array rs;
     Array zc;
@@ -33,11 +33,11 @@ public:
 
     CurveCWS(int _mpol,
              int _ntor,
-             vector<double> _res,
+             vector<double> _idofs,
              int _numquadpoints,
              int _order,
              int _nfp,
-             bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), res(_res)
+             bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), idofs(_idofs)
     {
         phi_l = 0;
         theta_l = 0;
@@ -59,7 +59,7 @@ public:
             return 2 * order + 1;
         else
         */
-        return 2 * (2 * order + 1);
+        return 2 * (2 * order + 1) + 2;
     }
 
     vector<double> get_dofs() override

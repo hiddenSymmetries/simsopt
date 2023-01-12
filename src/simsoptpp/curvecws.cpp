@@ -5,7 +5,7 @@
 template <class Array>
 void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
 {
-    CurveCWS<Array>::set_dofs_surface(res);
+    CurveCWS<Array>::set_dofs_surface(idofs);
     int numquadpoints = quadpoints.size();
 
     data *= 0;

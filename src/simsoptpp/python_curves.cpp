@@ -148,7 +148,7 @@ void init_curves(py::module_ &m) {
         .def_readwrite("theta_s", &PyCurveCWS::theta_s)
         .def_readwrite("mpol", &PyCurveCWS::mpol)
         .def_readwrite("ntor", &PyCurveCWS::ntor)
-        .def_readwrite("res", &PyCurveCWS::res)
+        .def_readwrite("idofs", &PyCurveCWS::idofs)
         .def_readwrite("rc", &PyCurveCWS::rc)
         .def_readwrite("rs", &PyCurveCWS::rs)
         .def_readwrite("zc", &PyCurveCWS::zc)

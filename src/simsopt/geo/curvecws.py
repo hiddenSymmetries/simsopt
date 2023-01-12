@@ -16,9 +16,9 @@ class CurveCWS(sopp.CurveCWS, Curve):
         \theta(t) &= phi_{l} t + \sum_{m=0}^{\text{order}} phi_{c,m}\cos(m t) + \sum_{m=1}^{\text{order}} phi_{s,m}\sin(m t) \\
     """
 
-    def __init__(self, mpol, ntor, res, numquadpoints, order, nfp, stellsym):
+    def __init__(self, mpol, ntor, idofs, numquadpoints, order, nfp, stellsym):
         #numquadpoints = list(np.linspace(0, 1./nfp, numquadpoints, endpoint=False))
-        sopp.CurveCWS.__init__(self, mpol, ntor, res, numquadpoints, order, nfp, stellsym)
+        sopp.CurveCWS.__init__(self, mpol, ntor, idofs, numquadpoints, order, nfp, stellsym)
         Curve.__init__(self, external_dof_setter=CurveCWS.set_dofs_impl, x0=self.get_dofs())
 
     def get_dofs(self):
