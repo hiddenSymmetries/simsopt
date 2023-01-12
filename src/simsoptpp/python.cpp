@@ -1,14 +1,12 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
-#include <iostream>
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
 typedef xt::pyarray<double> PyArray;
 #include <math.h>
 #include <chrono>
-#include <stdio.h>
 
 
 
