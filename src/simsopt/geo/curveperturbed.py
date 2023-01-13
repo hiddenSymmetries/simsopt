@@ -160,7 +160,7 @@ class CurvePerturbed(sopp.Curve, Curve):
         """
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        Curve.__init__(self, x0=np.asarray([]), depends_on=[curve])
+        Curve.__init__(self, depends_on=[curve])
         self.sample = sample
 
     def resample(self):

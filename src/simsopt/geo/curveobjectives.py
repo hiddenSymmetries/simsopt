@@ -294,7 +294,7 @@ class CurveSurfaceDistance(Optimizable):
         self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
         self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.candidates = None
-        super().__init__(depends_on=curves)
+        super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
 
     def recompute_bell(self, parent=None):
         self.candidates = None
@@ -458,7 +458,7 @@ class MeanSquaredCurvature(Optimizable):
         Args:
             curve: the curve of which the curvature should be computed.
         """
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve])
+        super().__init__(depends_on=[curve])
         self.curve = curve
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
         self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
