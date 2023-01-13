@@ -65,6 +65,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveRZFourier(x, order, 2, True)
     elif curvetype == "CurveHelical":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
+    elif curvetype == "CurveHelicalInitx0":
+        curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones((2*order,)))
     else:
         assert False
 
@@ -77,7 +79,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
-    elif curvetype in ["CurveHelical"]:
+    elif curvetype in ["CurveHelical", "CurveHelicalInitx0"]:
         dofs[0] = np.pi/2
     else:
         assert False
@@ -90,7 +92,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical",
+                  "CurveHelicalInitx0"]
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])

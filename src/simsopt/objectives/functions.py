@@ -359,7 +359,7 @@ class Beale(Optimizable):
     """
 
     def __init__(self, x0=None, **kwargs):
-        x = np.zeros(2) if not x0 else x0
+        x = np.zeros(2) if x0 is None else x0
         super().__init__(x0=x, **kwargs)
 
     def J(self):

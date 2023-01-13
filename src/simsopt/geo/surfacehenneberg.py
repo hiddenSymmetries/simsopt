@@ -97,7 +97,8 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  mmax: int = 1,
                  nmax: int = 0,
                  quadpoints_phi: RealArray = None,
-                 quadpoints_theta: RealArray = None
+                 quadpoints_theta: RealArray = None,
+                 dofs=None
                  ):
 
         if alpha_fac > 1 or alpha_fac < -1:
@@ -122,8 +123,12 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
 
-        Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
-                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+        if dofs is None:
+            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
+                             external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+        else:
+            Surface.__init__(self, dofs=dofs,
+                             external_dof_setter=SurfaceHenneberg.set_dofs_impl)
 
     def __repr__(self):
         return f"{self.name} (nfp={self.nfp}, alpha_fac={self.alpha_fac}, " \
@@ -733,20 +738,3 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         data[:, :, 0] = (2 * np.pi * d_R_d_theta * np.cos(phi)).T
         data[:, :, 1] = (2 * np.pi * d_R_d_theta * np.sin(phi)).T
         data[:, :, 2] = 2 * np.pi * d_Z_d_theta.T
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        decoder = GSONDecoder()
-        quadpoints_phi = decoder.process_decoded(d["quadpoints_phi"],
-                                                 serial_objs_dict=serial_objs_dict,
-                                                 recon_objs=recon_objs)
-        quadpoints_theta = decoder.process_decoded(d["quadpoints_theta"],
-                                                   serial_objs_dict=serial_objs_dict,
-                                                   recon_objs=recon_objs)
-        surf = cls(nfp=d["nfp"], alpha_fac=d["alpha_fac"],
-                   mmax=d["mmax"], nmax=d["nmax"],
-                   quadpoints_phi=quadpoints_phi,
-                   quadpoints_theta=quadpoints_theta)
-        surf.local_full_x = d["x0"]
-        return surf
-
