@@ -26,10 +26,15 @@ class Area(Optimizable):
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
             ntheta = len(in_surface.quadpoints_theta)
-        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym, \
-                                                        mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
-        self.surface = surface
-        super().__init__(depends_on=[surface])
+
+        if range is not None or nphi is not None or ntheta is not None:
+            surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym, \
+                                                            mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
+            self.surface = surface
+        else:
+            self.surface = in_surface
+
+        super().__init__(depends_on=[self.surface])
 
     def J(self):
         """
@@ -65,11 +70,15 @@ class Volume(Optimizable):
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
             ntheta = len(in_surface.quadpoints_theta)
-        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym,\
-                                                        mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
-        self.surface = surface
-        super().__init__(depends_on=[surface])
 
+        if range is not None or nphi is not None or ntheta is not None:
+            surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym, \
+                                                            mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
+            self.surface = surface
+        else:
+            self.surface = in_surface
+
+        super().__init__(depends_on=[self.surface])
     def J(self):
         """
         Compute the volume enclosed by the surface.
@@ -104,17 +113,25 @@ class ToroidalFlux(Optimizable):
 
     def __init__(self, in_surface, biotsavart, idx=0, range=None, nphi=None, ntheta=None):
         if range is None:
-            range = Surface.RANGE_FIELD_PERIOD
+            if in_surface.stellsym:
+                range = Surface.RANGE_HALF_PERIOD
+            else:
+                range = Surface.RANGE_FIELD_PERIOD
         if nphi is None:
             nphi = len(in_surface.quadpoints_phi)
         if ntheta is None:
             ntheta = len(in_surface.quadpoints_theta)
-        surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym,\
-                                                        mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
-        self.surface = surface
+
+        if range is not None or nphi is not None or ntheta is not None:
+            surface = in_surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=in_surface.nfp, stellsym=in_surface.stellsym, \
+                                                            mpol=in_surface.mpol, ntor=in_surface.ntor, dofs=in_surface.dofs)
+            self.surface = surface
+        else:
+            self.surface = in_surface
+        
         self.biotsavart = biotsavart
         self.idx = idx
-        super().__init__(depends_on=[surface, biotsavart])
+        super().__init__(depends_on=[self.surface, biotsavart])
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
