@@ -25,6 +25,7 @@ jobs:
           CIBW_BUILD : cp37-* cp38-* cp39-* cp310-*
           # Supports only x86_64 arch for linux
           CIBW_ARCHS_LINUX: x86_64
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
           # Use manylinux2014
           #CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_SKIP: cp27-* cp36-*
