@@ -26,6 +26,9 @@ Array winding_volume_field_B(Array& points, Array& integration_points, Array& J)
 	double rx = points(i, 0);
 	double ry = points(i, 1);
 	double rz = points(i, 2);
+	double Bx = 0.0;
+	double By = 0.0;
+	double Bz = 0.0;
         for (int jj = 0; jj < num_coil_points; jj++) {  // loop through grid cells
             for (int j = 0; j < num_integration_points; j++) {  // integrate within a grid cell
 	        double rprimex = integration_points(jj, j, 0);
@@ -42,11 +45,14 @@ Array winding_volume_field_B(Array& points, Array& integration_points, Array& J)
 		double J_cross_rvec_x = Jy * rvecz - Jz * rvecy;
 	        double J_cross_rvec_y = Jz * rvecx - Jx * rvecz;
 	        double J_cross_rvec_z = Jx * rvecy - Jy * rvecx;
-                B(i, 0) += fak * J_cross_rvec_x * rvec_inv3;
-                B(i, 1) += fak * J_cross_rvec_y * rvec_inv3;
-                B(i, 2) += fak * J_cross_rvec_z * rvec_inv3;
+                Bx += J_cross_rvec_x * rvec_inv3;
+                By += J_cross_rvec_y * rvec_inv3;
+                Bz += J_cross_rvec_z * rvec_inv3;
 	    }
 	}
+	B(i, 0) = fak * Bx;
+	B(i, 1) = fak * By;
+	B(i, 2) = fak * Bz;
     }
     return B;
 } 

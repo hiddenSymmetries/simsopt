@@ -22,7 +22,7 @@ import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field import WindingVolumeField
+from simsopt.field.magneticfieldclasses import WindingVolumeField
 from simsopt.geo import WindingVolumeGrid
 from simsopt.solve import projected_gradient_descent_Tikhonov 
 from simsopt.util.permanent_magnet_helper_functions import *
@@ -31,8 +31,8 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
 dx = 0.025
 dy = dx
 dz = dx
@@ -103,6 +103,7 @@ Itarget = 1e5  # 0.1 MA
 bs.set_points(curve.gamma().reshape((-1, 3)))
 Bnormal_Itarget = np.sum((bs.B() * curve.gammadash()).reshape(-1, 3), axis=-1)
 
+nx = 10
 # Finally, initialize the winding volume 
 wv_grid = WindingVolumeGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
@@ -113,7 +114,8 @@ wv_grid = WindingVolumeGrid(
     Bn_Itarget=Bnormal_Itarget,
     filename=surface_filename,
     surface_flag='wout',
-    OUT_DIR=OUT_DIR
+    OUT_DIR=OUT_DIR,
+    nx=nx, ny=nx, nz=nx
 )
 
 wv_grid._toVTK(OUT_DIR + 'grid')
@@ -162,7 +164,19 @@ plt.legend()
 wv_grid.alphas = alpha_opt.reshape(wv_grid.N_grid, wv_grid.n_functions)
 wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
 # print('fB after optimization = ', fB) 
+
+# set up WindingVolume Bfield
 bs_wv = WindingVolumeField(wv_grid)
+bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+
+# Set up correct Bnormal from TF coils 
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+fB_direct = SquaredFlux(s_plot, bs_wv, -Bnormal).J()
+print('fB_direct = ', fB_direct)
+
+make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_only_winding_volume")
+make_Bnormal_plots(bs + bs_wv, s_plot, OUT_DIR, "biot_savart_total")
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

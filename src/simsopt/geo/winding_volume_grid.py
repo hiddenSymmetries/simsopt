@@ -333,12 +333,15 @@ class WindingVolumeGrid:
         oy = self.XYZ_flat[:, 1]
         oz = self.XYZ_flat[:, 2]
 
-        Jvec = np.zeros((n, 3))
         Phi = self.Phi
-        Phi = Phi.reshape(self.n_functions, n, Phi.shape[2] * Phi.shape[3] * Phi.shape[4], 3)
+        n_interp = Phi.shape[2] * Phi.shape[3] * Phi.shape[4]
+        Jvec = np.zeros((n, n_interp, 3))
+        Phi = Phi.reshape(self.n_functions, n, n_interp, 3)
         # Compute Jvec as average J over the integration points in a cell
         for i in range(3):
-            Jvec[:, i] = np.mean(np.sum(self.alphas.T * Phi[:, :, :, i], axis=0), axis=-1)
+            for j in range(n_interp):
+                Jvec[:, j, i] = np.sum(self.alphas.T * Phi[:, :, j, i], axis=0)
+        Jvec = np.mean(Jvec, axis=-1)
         Jx = Jvec[:, 0]
         Jy = Jvec[:, 1]
         Jz = Jvec[:, 2]
@@ -455,7 +458,7 @@ class WindingVolumeGrid:
         dtheta = self.plasma_boundary.quadpoints_theta[1]
         plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
         normN = np.linalg.norm(plasma_normal, ord=2, axis=-1)
-        B_matrix = (self.geo_factor * 1e-7 * np.sqrt(dphi * dtheta)).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
+        B_matrix = (self.geo_factor * 1e-7 * np.sqrt(dphi * dtheta) * self.dx * self.dy * self.dz).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
         b_rhs = np.ravel(self.Bn * np.sqrt(dphi * dtheta))
         for i in range(B_matrix.shape[0]):
             B_matrix[i, :] *= np.sqrt(normN[i])

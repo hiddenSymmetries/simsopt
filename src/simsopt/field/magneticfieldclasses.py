@@ -504,7 +504,7 @@ class CircularCoil(MagneticField):
         return field
 
 
-def WindingVolumeField(MagneticField):
+class WindingVolumeField(MagneticField):
     r"""
     Computes the MagneticField induced by N grid cells, each with spatially varying and
     locally divergence-free current, for the Winding Volume method. This is done by
@@ -518,31 +518,44 @@ def WindingVolumeField(MagneticField):
     def __init__(self, winding_volume):
         MagneticField.__init__(self)
         self.winding_volume = winding_volume
-        self.integration_points = winding_volume.integration_points
+        self.integration_points = winding_volume.XYZ_integration
         self.num_cells = winding_volume.N_grid
         Phi = winding_volume.Phi
-        Phi = Phi.reshape(winding_volume.n_functions, n, Phi.shape[2] * Phi.shape[3] * Phi.shape[4], 3)
+        Phi = Phi.reshape(winding_volume.n_functions, self.num_cells, Phi.shape[2] * Phi.shape[3] * Phi.shape[4], 3)
         # Compute Jvec as average J over the integration points in a cell
         Jvec = np.zeros((self.num_cells, Phi.shape[2], 3))
         for i in range(3):
-            Jvec[:, :, i] = np.sum(winding_volume.alphas.T * Phi[:, :, :, i], axis=0)
-        self.J = winding_volume.Jvec
+            for j in range(Phi.shape[2]):
+                Jvec[:, j, i] = np.sum(winding_volume.alphas.T * Phi[:, :, j, i], axis=0)
+        self.J = Jvec
+        self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
+        B[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J) * self.grid_scaling
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = sopp.dipole_field_dB(points, self.dipole_grid, self.m_vec)
+        dB[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        A[:] = sopp.dipole_field_A(points, self.dipole_grid, self.m_vec)
+        A[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
-        dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec)
+        dA[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
+
+    def as_dict(self) -> dict:
+        d = {}
+        d["@module"] = self.__class__.__module__
+        d["@class"] = self.__class__.__name__
+        d["winding_volume"] = self.winding_volume
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["winding_volume"])
 
 
 class DipoleField(MagneticField):

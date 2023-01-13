@@ -4,7 +4,7 @@ import simsoptpp as sopp
 __all__ = ['projected_gradient_descent_Tikhonov']
 
 
-def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, max_iter=1000, P=None):
+def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, max_iter=2000, P=None, acceleration=True):
     """
         This function performed projected gradient descent for the Tikhonov-regularized
         winding volume optimization problem (if the flux jump constraints are not used,
@@ -14,7 +14,8 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
         This function is primarily for making sure this sub-problem of the
         winding volume optimization is working correctly. Note that this function
         uses gradient descent even for the unconstrained problem
-        because the matrices are too big for np.linalg.solve!
+        because the matrices are too big for np.linalg.solve. Also, by default it 
+        uses Nesterov acceleration. 
 
         Args:
             P : projection matrix onto the linear equality constraints representing
@@ -37,7 +38,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     #print('B = ', B)
     #print('b = ', b)
 
-    alpha_opt = (np.random.rand(n * num_basis) - 0.5) * 1e4  # set some initial guess
+    alpha_opt = (np.random.rand(n * num_basis) - 0.5) * 1e3  # set some initial guess
     #print('alpha initial = ', alpha_opt)
     B_inv = np.linalg.pinv(B, rcond=1e-30)
     #print('B_inv @ b = ', B_inv @ b)
@@ -47,13 +48,29 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     f_K = []
     #print(np.mean(abs(BTb)), np.mean(abs(BT @ (B @ alpha_opt))))
     if P is None:
-        for i in range(max_iter):
-            alpha_opt = alpha_opt + step_size * (BTb - BT @ (B @ alpha_opt) - lam * alpha_opt)
+        if acceleration:  # Nesterov acceleration 
+            # first iteration do regular GD 
+            alpha_opt_prev = alpha_opt
+            step_size_i = step_size
+            alpha_opt = alpha_opt + step_size_i * (BTb - BT @ (B @ alpha_opt) - lam * alpha_opt)
             f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
             f_K.append(np.linalg.norm(alpha_opt, ord=2))
-            if (i % 100) == 0.0:
-                print(i, f_B[i] ** 2 * nfp * 0.5, alpha_opt[:10])
-                print(np.mean(abs(BTb)), np.mean(abs(BT @ (B @ alpha_opt))))
+            for i in range(1, max_iter):
+                vi = alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev)
+                alpha_opt_prev = alpha_opt
+                alpha_opt = vi + step_size_i * (BTb - BT @ (B @ vi) - lam * vi)
+                step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
+                f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+                f_K.append(np.linalg.norm(alpha_opt, ord=2))
+                if (i % 100) == 0.0:
+                    print(i, f_B[i] ** 2 * nfp * 0.5, alpha_opt[:10])
+        else:
+            for i in range(max_iter):
+                alpha_opt = alpha_opt + step_size * (BTb - BT @ (B @ alpha_opt) - lam * alpha_opt)
+                f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+                f_K.append(np.linalg.norm(alpha_opt, ord=2))
+                if (i % 100) == 0.0:
+                    print(i, f_B[i] ** 2 * nfp * 0.5, alpha_opt[:10])
     else:
         for i in range(max_iter):
             alpha_opt = P.dot(alpha_opt + BTb - BT @ (B @ alpha_opt) - lam * alpha_opt)
