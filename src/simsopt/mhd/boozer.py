@@ -265,7 +265,7 @@ class Boozer(Optimizable):
 
             # load SPEC output 
             d = self.equil.results
-            
+
             # Seek on which surface the boozer coordinate is required
             # The convention is that the inner side of an interface is an odd index,
             # while the outer side is an even index. Magnetic axis is index 0.
@@ -550,6 +550,8 @@ class Quasisymmetry(Optimizable):
            divided by the square root of the sum of the squares of all the symmetric
            modes on the same surface. This is the normalization used in stellopt.
         weight: An option for a m- or n-dependent weight to be applied to the bmnc amplitudes.
+        innout: Only used if Spec equilibrium is used. Decide on which side of the interface
+           the metric is evaluated. (innout=0 means inner side, innout=1 means outer side)
     """
 
     def __init__(self,
@@ -558,7 +560,8 @@ class Quasisymmetry(Optimizable):
                  helicity_m: int,
                  helicity_n: int,
                  normalization: str = "B00",
-                 weight: str = "even") -> None:
+                 weight: str = "even",
+                 innout: int = 0) -> None:
         """
         Constructor
 
@@ -568,6 +571,7 @@ class Quasisymmetry(Optimizable):
         self.helicity_n = helicity_n
         self.normalization = normalization
         self.weight = weight
+        self.innout = innout
 
         # If s is not already iterable, make it so:
         try:
@@ -602,7 +606,11 @@ class Quasisymmetry(Optimizable):
 
         symmetry_error = []
         for js, s in enumerate(self.s):
-            index = self.boozer.s_to_index[s]
+            if isinstance(self.boozer.equil, Vmec):
+                index = self.boozer.s_to_index[s]
+            elif isinstance(self.boozer.equil, Spec):
+                index = 2*s-2 + self.innout
+
             bmnc = self.boozer.bx.bmnc_b[:, index]
             xm = self.boozer.bx.xm_b
             xn = self.boozer.bx.xn_b / self.boozer.bx.nfp
