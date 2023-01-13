@@ -3,7 +3,7 @@ name: Wheel Builder
 on: [push, pull_request]
 
 jobs:
-  linux_wheels:
+  build_wheels:
     name: Build wheels on ubuntu
     # runs-on: ubuntu-latest
     runs-on: ${{ matrix.os }}
@@ -99,7 +99,8 @@ jobs:
           path: dist/*.tar.gz
 
   upload_pypi:
-    needs: [linux_wheels, mac_wheels, build_sdist]
+    # needs: [linux_wheels, mac_wheels, build_sdist]
+    needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     # upload to PyPI on every tag starting with 'v'
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
