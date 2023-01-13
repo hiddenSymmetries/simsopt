@@ -32,6 +32,15 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 class SurfaceHennebergTests(unittest.TestCase):
 
+    def test_repr(self):
+        s = SurfaceHenneberg(nfp=1, alpha_fac=1, mmax=2, nmax=1)
+        s_str = repr(s)
+        self.assertIn("SurfaceHenneberg", s_str)
+        self.assertIn("nfp=1", s_str)
+        self.assertIn("alpha_fac=1", s_str)
+        self.assertIn("mmax=2", s_str)
+        self.assertIn("nmax=1", s_str)
+
     def test_names(self):
         """
         Check that the names of the dofs are set correctly.
