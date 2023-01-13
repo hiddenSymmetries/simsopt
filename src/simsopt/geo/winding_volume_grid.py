@@ -58,7 +58,7 @@ class WindingVolumeGrid:
         dx=0.02, dy=0.02, dz=0.02,
         filename=None, surface_flag='vmec',
         famus_filename=None, 
-        OUT_DIR='',
+        OUT_DIR='', nx=2, ny=2, nz=2,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -209,6 +209,12 @@ class WindingVolumeGrid:
         self.N_grid = self.XYZ_flat.shape[0]
         self.alphas = np.random.rand(self.N_grid, self.n_functions)
 
+        # Initialize Phi
+        self._setup_polynomial_basis(nx=nx, ny=ny, nz=nz)
+
+        # Initialize the factors for optimization
+        self._construct_geo_factor()
+
     def _setup_uniform_grid(self):
         """
             Initializes a uniform grid in cartesian coordinates and sets
@@ -328,9 +334,11 @@ class WindingVolumeGrid:
         oz = self.XYZ_flat[:, 2]
 
         Jvec = np.zeros((n, 3))
-        Phi = self._polynomial_basis().reshape(self.n_functions, n, 3)
+        Phi = self.Phi
+        Phi = Phi.reshape(self.n_functions, n, Phi.shape[2] * Phi.shape[3] * Phi.shape[4], 3)
+        # Compute Jvec as average J over the integration points in a cell
         for i in range(3):
-            Jvec[:, i] = np.sum(self.alphas.T * Phi[:, :, i], axis=0) 
+            Jvec[:, i] = np.mean(np.sum(self.alphas.T * Phi[:, :, :, i], axis=0), axis=-1)
         Jx = Jvec[:, 0]
         Jy = Jvec[:, 1]
         Jz = Jvec[:, 2]
@@ -358,7 +366,7 @@ class WindingVolumeGrid:
             contig(self.XYZ_uniform[:, 2])
         )
 
-    def _polynomial_basis(self, nx=1, ny=1, nz=1):
+    def _setup_polynomial_basis(self, nx=1, ny=1, nz=1):
         """
         Evaluate the basis of divergence-free polynomials
         at a given set of points. For now,
@@ -436,7 +444,13 @@ class WindingVolumeGrid:
         plasma_unitnormal = contig(self.plasma_boundary.unitnormal().reshape(-1, 3))
         coil_points = contig(self.XYZ_flat)
         integration_points = contig(self.XYZ_integration)
-        self.geo_factor = sopp.winding_volume_geo_factors(points, coil_points, integration_points, plasma_unitnormal, self.Phi)
+        print(points.shape, coil_points.shape, integration_points.shape, plasma_unitnormal.shape, self.Phi.shape)
+        self.geo_factor = sopp.winding_volume_geo_factors(
+            points, 
+            integration_points, 
+            plasma_unitnormal, 
+            contig(self.Phi)
+        )
         dphi = self.plasma_boundary.quadpoints_phi[1]
         dtheta = self.plasma_boundary.quadpoints_theta[1]
         plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
@@ -447,14 +461,17 @@ class WindingVolumeGrid:
             B_matrix[i, :] *= np.sqrt(normN[i])
             b_rhs[i] *= np.sqrt(normN[i])
 
-        # So far B_matrix has only the contributions from the
-        # 1 / 2 * nfp part of the winding volume
         self.B_matrix = B_matrix
-        self.b_rhs = b_rhs
+        self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
 
         curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
         dphi_loop = np.sqrt(self.plasma_boundary.quadpoints_phi[1])
-        self.Itarget_matrix = sopp.winding_volume_geo_factors(points, coil_points, integration_points, curve_dl, self.Phi).reshape(B_matrix.shape[0], self.N_grid * self.n_functions) * dphi_loop
+        self.Itarget_matrix = sopp.winding_volume_geo_factors(
+            points, 
+            integration_points, 
+            contig(curve_dl), 
+            contig(self.Phi)
+        ).reshape(B_matrix.shape[0], self.N_grid * self.n_functions) * dphi_loop
         self.Itarget_rhs = self.Bn_Itarget * dphi_loop
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
