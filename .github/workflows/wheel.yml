@@ -29,7 +29,7 @@ jobs:
           #CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_SKIP: cp27-* cp36-*
           CIBW_DEPENDENCY_VERSIONS: latest
-          CIBW_BEFORE_BUILD: pip install --upgrade pip setuptools wheel numpy cmake ninja setuptools_scm[toml]
+          # CIBW_BEFORE_BUILD: pip install --upgrade pip setuptools wheel numpy cmake ninja setuptools_scm[toml]
 
       - uses: actions/upload-artifact@v3
         with:
