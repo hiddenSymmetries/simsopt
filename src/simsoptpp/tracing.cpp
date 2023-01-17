@@ -445,161 +445,122 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     return std::make_tuple(res, res_phi_hits);
 }
 
-/*
-subroutine timestep_euler1_quasi(ierr)
-  !
-  integer, intent(out) :: ierr
-
-  integer, parameter :: n = 2
-  integer, parameter :: maxit = 16
-
-  double precision, dimension(n) :: x
-  double precision :: fvec(n)
-  integer :: ktau, info
-
-  ierr = 0
-  ktau = 0
-  do while(ktau .lt. si%ntau)
-    si%pthold = f%pth
-
-    x(1)=si%z(1)
-    x(2)=si%z(4)
-
-    call hybrd1(f_euler1_quasi, n, x, fvec, si%rtol, info)
-
-    if (x(1) > 1.0) then
-      ierr = 1
-      return
-    end if
-
-    if (x(1) < 0.0) then
-      print *, 'r<0, z = ', x(1), si%z(2), si%z(3), x(2)
-      x(1) = 0.01
-    end if
-
-    si%z(1) = x(1)
-    si%z(4) = x(2)
-
-    call eval_field(f, si%z(1), si%z(2), si%z(3), 0)
-    call get_derivatives(f, si%z(4))
-
-    si%z(2) = si%z(2) + si%dt*f%dH(1)/f%dpth(1)
-    si%z(3) = si%z(3) + si%dt*(f%vpar - f%dH(1)/f%dpth(1)*f%hth)/f%hph
-
-    si%kt = si%kt+1
-    ktau = ktau+1
-  enddo
-
-end subroutine timestep_euler1_quasi
-*/
-
-
 template<template<class, std::size_t, xt::layout_type> class T>
 class SymplField
 {
-    double  Ath, Aph;
-    double  hth, hph;
-    double  Bmod;
+    // Covaraint components of vector potential
+    double  Atheta, Azeta;
+    // htheta = G/B, hzeta = I/B
+    double  htheta, hzeta;
+    double  modB;
 
-    double dAth[3], dAph[3];
-    double dhth[3], dhph[3];
-    double dBmod[3];
+    // Derivatives of above quantities wrt (s, theta, phi)
+    double dAtheta[3], dAzeta[3];
+    double dhtheta[3], dhzeta[3];
+    double dmodB[3];
 
+    // H = vpar^2/2 + mu B
+    // vpar = (pzeta - q Azeta)/(m hzeta)
+    // pzeta = m vpar * hzeta + q Azeta
     double H, pth, vpar;
     double dvpar[4], dH[4], dpth[4];
 
-    double mu, ro0;
+    // mu = vperp^2/(2 B)
+    // q = charge, m = mass
+    double mu, q, m;
 
     shared_ptr<BoozerMagneticField<T>> field;
     typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
 
-    SymplField(shared_ptr<MagneticField<T>> field, double mu, double ro0) :
-        field(field), mu(mu), ro0(ro0) {
-            // TODO: can set ro0 = 1 probably (SI)
-            // and mu to magnetic moment of guiding-center
-            // TODO: add mass and charge everywhere
-            // A* = A*_here/m
+    SymplField(shared_ptr<MagneticField<T>> field, double mu, double q, double m) :
+        field(field), mu(mu), q(q), m(m) {
     }
 
     //
-    // Evaluates magnetic field in Boozer canonical coordinates (r, th_c, ph_c)
+    // Evaluates magnetic field in Boozer canonical coordinates (r, theta, zeta)
     // and stores results in the SymplField object
-    // Works for A_th linear in r (toroidal flux as radial variable)
     //
-    void eval_field(double r, double th_c, double ph_c)
+    void eval_field(double s, double theta, double zeta)
     {
-        double Bth, Bph, dBth, dBph, Bmod2;
+        double Btheta, Bzeta, dBtheta, dBzeta, modB2, Atheta, Azeta;
 
-        for (int i=0; i<3; i++)
-        {
-            dAth[i] = 0.0;
-            dAph[i] = 0.0;
-        }
-
-        stz[0, 0] = r; stz[0, 1] = th_c; stz[0, 2] = ph_c;
+        stz[0, 0] = s; stz[0, 1] = theta; stz[0, 2] = zeta;
         field->set_points(stz);
 
-        // TODO: Get vector potential components Ath, Aph, dAth, dAph via fluxes
+        // A = psi \nabla \theta - psip \nabla \zeta
+        Atheta = field->psi()(0);
+        Azeta = -field->psip()(0);
+        dAtheta[0] = field->psi0()(0); // dAthetads
+        dAzeta[0] = -field->iota()(0)*field->psi0()(0); // dAphids
+        for (int i=1; i<3; i++)
+        {
+            dAtheta[i] = 0.0;
+            dAzeta[i] = 0.0;
+        }
 
-        Bmod = field->modB()(0);
-        dBmod[0] = field->dmodBds()(0);
-        dBmod[1] = field->dmodBdtheta()(0);
-        dBmod[2] = field->dmodBdzeta()(0);
+        modB = field->modB()(0);
+        dmodB[0] = field->dmodBds()(0);
+        dmodB[1] = field->dmodBdtheta()(0);
+        dmodB[2] = field->dmodBdzeta()(0);
 
-        Bth = field->I()(0);
-        Bph = field->G()(0);
-        dBth = field->dIds()(0);
-        dBph = field->dGds()(0);
+        Btheta = field->I()(0);
+        Bzeta = field->G()(0);
+        dBtheta = field->dIds()(0);
+        dBzeta = field->dGds()(0);
 
-        Bmod2 = pow(Bmod, 2);
+        modB2 = pow(modB, 2);
 
-        hth = Bth/Bmod;
-        hph = Bph/Bmod;
-        dhth[0] = dBth/Bmod - Bth*dBmod[0]/Bmod2;
-        dhph[0] = dBph/Bmod - Bph*dBmod[0]/Bmod2;
+        htheta = Btheta/modB;
+        hzeta = Bzeta/modB;
+        dhtheta[0] = dBtheta/modB - Btheta*dmodB[0]/modB2;
+        dhzeta[0] = dBzeta/modB - Bzeta*dmodB[0]/modB2;
 
         for (int i=1; i<3; i++)
         {
-            dhth[i] = -Bth*dBmod[i]/Bmod2;
-            dhph[i] = -Bph*dBmod[i]/Bmod2;
+            dhtheta[i] = -Btheta*dmodB[i]/modB2;
+            dhzeta[i] = -Bzeta*dmodB[i]/modB2;
         }
 
     }
-    // eval_field_booz
 
-    // computes values of H, pth and vpar at z=(r, th, ph, pphi)
-    void get_val(double pphi)
+    // compute pzeta for given vpar
+    double get_pzeta(double vpar)
     {
-        vpar = (pphi - Aph/ro0)/hph;
-        H = pow(vpar,2)/2.0 + mu*Bmod;
-        pth = hth*vpar + Ath/ro0;
+        return vpar*hzeta*m + q*Azeta;
     }
 
-    // computes H, pth and vpar at z=(r, th, ph, pphi) and their derivatives
-    void get_derivatives(double pphi)
+    // computes values of H, ptheta and vpar at z=(s, theta, zeta, pzeta)
+    void get_val(double pzeta)
     {
-        get_val(pphi);
+        vpar = (pzeta - q*Azeta)/(hzeta*m);
+        H = m*pow(vpar,2)/2.0 + m*mu*modB;
+        ptheta = m*htheta*vpar + q*Atheta;
+    }
+
+    // computes H, ptheta and vpar at z=(s, theta, zeta, pzeta) and their derivatives
+    void get_derivatives(double pzeta)
+    {
+        get_val(pzeta);
 
         for (int i=0; i<3; i++)
-            dvpar[i] = -(dAph[i]/ro0 + dhph[i]*vpar)/hph;
+            dvpar[i] = -q*dAzeta[i]/(hzeta*m) - (vpar/hzeta)*dhzeta[i];
 
-        dvpar[3]   = 1.0/hph;
-
-        for (int i=0; i<3; i++)
-            dH[i] = vpar*dvpar[i] + mu*dBmod[i];
-        dH[3]   = vpar/hph;
-
+        dvpar[3]   = 1.0/(hzeta*m); // dvpardpzeta
 
         for (int i=0; i<3; i++)
-            dpth[i] = dvpar[i]*hth + vpar*dhth[i] + dAth[i]/ro0;
+            dH[i] = m*vpar*dvpar[i] + m*mu*dmodB[i];
+        dH[3]   = m*vpar*dvpar[3]; // dHdpzeta
 
-        dpth[3] = hth/hph;
+        for (int i=0; i<3; i++)
+            dptheta[i] = m*dvpar[i]*htheta + m*vpar*dhtheta[i] + q*dAtheta[i];
+
+        dptheta[3] = m*htheta*dvpar[3]; // dpthetadpzeta
     }
 };
 
 template<template<class, std::size_t, xt::layout_type> class T>
 void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
-    double dt, double pthold)
+    double dt, double ptheta_old)
 {
   // Unknowns in 2D nonlinear equation are x[0] = s and x[1] = pphi
   // Used to solve fvec = 0 with (quasi-)Newton in these two variables
@@ -607,10 +568,10 @@ void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
   f.eval_field(x[0], y[1], y[2]);
   f.get_derivatives(x[1]);
 
-  fvec[0] = f.dpth[0]*(f.pth - pthold)
-      + dt*(f.dH[1]*f.dpth[0] - f.dH[0]*f.dpth[1]);
-  fvec[1] = f.dpth[0]*(x[1] - y[3])
-      + dt*(f.dH[2]*f.dpth[0] - f.dH[0]*f.dpth[2]);
+  fvec[0] = f.dptheta[0]*(f.ptheta - ptheta_old)
+      + dt*(f.dH[1]*f.dptheta[0] - f.dH[0]*f.dptheta[1]); // corresponds with (2.6) in JPP 2020
+  fvec[1] = f.dptheta[0]*(x[1] - y[3])
+      + dt*(f.dH[2]*f.dptheta[0] - f.dH[0]*f.dptheta[2]); // corresponds with (2.7) in JPP 2020
 }
 
 // see https://github.com/itpplasma/SIMPLE/blob/master/SRC/
@@ -622,39 +583,62 @@ solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<share
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
     double t = 0.0;
-    double pth_old = 0.0;
-    double pphi;
+    double ptheta_old = 0.0;
+    double pzeta;
     bool stop = false;
 
-    double x[2]; // unknowns (s, pphi) for optimizer
-    double z[4]; // s, th, ph, pphi
+    double x[2]; // unknowns (s, pzeta) for optimizer
+    double z[4]; // s, theta, zeta, pzeta
+    // y = [s, theta, zeta, vpar]
 
     SymplField<T> f;
-
-    // TODO: Initialize f and pphi with vpar and field components
-    // pphi = m*vpar*Bph/B + e/c*Aph
+    // Translate y to z
+    // y = [s, theta, zeta, vpar]
+    // z = [s, theta, zeta, pzeta]
+    // pzeta = m*vpar*hzeta + q*Azeta
+    z[0] = y[0];
+    z[1] = y[1];
+    z[2] = y[2];
+    f.eval_field(z[0], z[1], z[2]);
+    z[3] = f.get_pzeta(y[3]);
+    ptheta_old = f.ptheta;
 
     do {
-        // TODO: Translate y to z
-
         res.push_back(join<1, 4>({t}, y));
-        pth_old = f.pth;
 
         x[0] = z[0];  // s
-        x[1] = z[3];  // pphi
+        x[1] = z[3];  // pzeta
         // TODO: Solve implicit part of time-step with some quasi-Newton
-        //  applied to f_euler1_quasi
+        // applied to f_euler1_quasi. This corresponds with (2.6)-(2.7) in JPP 2020,
+        // which are solved for x = [s, pzeta].
         z[0] = x[0];  // s
-        z[3] = x[1];  // pphi
+        z[3] = x[1];  // pzeta
 
-        // TODO: Evaluate explicit part of time-step
+        // We now evaluate the explicit part of the time-step at [s, pzeta]
+        // given by the Euler step.
         f.eval_field(z[0], z[1], z[2]);
         f.get_derivatives(z[3]);
 
-        z[1] = z[1] + dt*f.dH[0]/f.dpth[0];
-        z[2] = z[2] + dt*(f.vpar - f.dH[0]/f.dpth[0]*f.hth)/f.hph;
+        // z[1] = theta
+        // z[2] = zeta
+        // dH[0] = dH/dr
+        // dptheta[0] = dptheta/dr
+        // htheta = G/B
+        // hzeta = I/B
+        z[1] = z[1] + dt*f.dH[0]/f.dptheta[0]; // (2.9) in JPP 2020
+        z[2] = z[2] + dt*(f.vpar - f.dH[0]/f.dptheta[0]*f.htheta)/f.hzeta; // (2.10) in JPP 2020
 
-        // TODO: Translate z back to y
+        // Translate z back to y
+        // y = [s, theta, zeta, vpar]
+        // z = [s, theta, zeta, pzeta]
+        // pzeta = m*vpar*hzeta + q*Azeta
+        f.eval_field(z[0], z[1], z[2]);
+        f.get_val(z[3]);
+        y[0] = z[0];
+        y[1] = z[1];
+        y[2] = z[2];
+        y[3] = f.vpar;
+        ptheta_old = f.ptheta;
 
         t += dt;
     } while(t < tmax && !stop);
