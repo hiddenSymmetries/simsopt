@@ -83,7 +83,8 @@ Array winding_volume_geo_factors(Array& points, Array& integration_points, Array
 	        double n_cross_rvec_y = nz * rvecx - nx * rvecz;
 	        double n_cross_rvec_z = nx * rvecy - ny * rvecx;
                 for (int k = 0; k < num_basis_functions; k++) {  // loop through the 11 linear basis functions
-                    geo_factor(i, jj, k) += (n_cross_rvec_x * Phi(k, jj, j, 0) + n_cross_rvec_y * Phi(k, jj, j, 1) + n_cross_rvec_z * Phi(k, jj, j, 2)) * rvec_inv3;
+		    // minus sign below because it is really r x nhat but we computed nhat x r
+                    geo_factor(i, jj, k) += - (n_cross_rvec_x * Phi(k, jj, j, 0) + n_cross_rvec_y * Phi(k, jj, j, 1) + n_cross_rvec_z * Phi(k, jj, j, 2)) * rvec_inv3;
                 }
 	    }
 	}

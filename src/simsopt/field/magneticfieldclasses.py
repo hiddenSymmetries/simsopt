@@ -517,18 +517,21 @@ class WindingVolumeField(MagneticField):
 
     def __init__(self, winding_volume):
         MagneticField.__init__(self)
+        contig = np.ascontiguousarray
         self.winding_volume = winding_volume
-        self.integration_points = winding_volume.XYZ_integration
+        self.integration_points = contig(winding_volume.XYZ_integration)
         self.num_cells = winding_volume.N_grid
+        # self.Phi = contig(winding_volume.Phi)
+        # self.alphas = contig(winding_volume.alphas)
         Phi = winding_volume.Phi
         Phi = Phi.reshape(winding_volume.n_functions, self.num_cells, Phi.shape[2] * Phi.shape[3] * Phi.shape[4], 3)
-        # Compute Jvec as average J over the integration points in a cell
         Jvec = np.zeros((self.num_cells, Phi.shape[2], 3))
+        alphas = winding_volume.alphas.reshape(self.num_cells, winding_volume.n_functions)
         for i in range(3):
             for j in range(Phi.shape[2]):
-                Jvec[:, j, i] = np.sum(winding_volume.alphas.T * Phi[:, :, j, i], axis=0)
-        self.J = Jvec
-        self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz
+                Jvec[:, j, i] = np.sum(Phi[:, :, j, i].T * alphas, axis=1)
+        self.J = contig(Jvec)
+        self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()

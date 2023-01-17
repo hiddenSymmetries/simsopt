@@ -207,10 +207,13 @@ class WindingVolumeGrid:
             self.XYZ_flat = np.array([ox, oy, oz]).T
             self.N_grid = self.XYZ_flat.shape[0]
         self.N_grid = self.XYZ_flat.shape[0]
-        self.alphas = np.random.rand(self.N_grid, self.n_functions)
+        self.alphas = np.random.rand(self.n_functions * self.N_grid)
+        self.nx = nx
+        self.ny = ny
+        self.nz = nz
 
         # Initialize Phi
-        self._setup_polynomial_basis(nx=nx, ny=ny, nz=nz)
+        self._setup_polynomial_basis()
 
         # Initialize the factors for optimization
         self._construct_geo_factor()
@@ -337,10 +340,11 @@ class WindingVolumeGrid:
         n_interp = Phi.shape[2] * Phi.shape[3] * Phi.shape[4]
         Jvec = np.zeros((n, n_interp, 3))
         Phi = Phi.reshape(self.n_functions, n, n_interp, 3)
+        alphas = self.alphas.reshape(n, self.n_functions).T
         # Compute Jvec as average J over the integration points in a cell
         for i in range(3):
             for j in range(n_interp):
-                Jvec[:, j, i] = np.sum(self.alphas.T * Phi[:, :, j, i], axis=0)
+                Jvec[:, j, i] = np.sum(alphas * Phi[:, :, j, i], axis=0)
         Jvec = np.mean(Jvec, axis=-1)
         Jx = Jvec[:, 0]
         Jy = Jvec[:, 1]
@@ -369,7 +373,7 @@ class WindingVolumeGrid:
             contig(self.XYZ_uniform[:, 2])
         )
 
-    def _setup_polynomial_basis(self, nx=1, ny=1, nz=1):
+    def _setup_polynomial_basis(self):
         """
         Evaluate the basis of divergence-free polynomials
         at a given set of points. For now,
@@ -385,6 +389,9 @@ class WindingVolumeGrid:
         dx = self.dx
         dy = self.dy
         dz = self.dz
+        nx = self.nx
+        ny = self.ny
+        nz = self.nz
         n = self.N_grid
         x_leftpoints = self.XYZ_flat[:, 0]
         y_leftpoints = self.XYZ_flat[:, 1]
@@ -447,19 +454,23 @@ class WindingVolumeGrid:
         plasma_unitnormal = contig(self.plasma_boundary.unitnormal().reshape(-1, 3))
         coil_points = contig(self.XYZ_flat)
         integration_points = contig(self.XYZ_integration)
-        print(points.shape, coil_points.shape, integration_points.shape, plasma_unitnormal.shape, self.Phi.shape)
         self.geo_factor = sopp.winding_volume_geo_factors(
             points, 
             integration_points, 
             plasma_unitnormal, 
             contig(self.Phi)
         )
-        dphi = self.plasma_boundary.quadpoints_phi[1]
-        dtheta = self.plasma_boundary.quadpoints_theta[1]
+        nphi = len(self.plasma_boundary.quadpoints_phi)
+        ntheta = len(self.plasma_boundary.quadpoints_theta)
+        N_quadrature_inv = 1.0 / (nphi * ntheta)
         plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
         normN = np.linalg.norm(plasma_normal, ord=2, axis=-1)
-        B_matrix = (self.geo_factor * 1e-7 * np.sqrt(dphi * dtheta) * self.dx * self.dy * self.dz).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
-        b_rhs = np.ravel(self.Bn * np.sqrt(dphi * dtheta))
+
+        # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
+        # by self.nx (number of points within a cell)
+        coil_integration_factor = self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
+        B_matrix = (self.geo_factor * 1e-7 * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
+        b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(B_matrix.shape[0]):
             B_matrix[i, :] *= np.sqrt(normN[i])
             b_rhs[i] *= np.sqrt(normN[i])
@@ -468,20 +479,19 @@ class WindingVolumeGrid:
         self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
 
         curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
-        dphi_loop = np.sqrt(self.plasma_boundary.quadpoints_phi[1])
+        nphi_loop_sqrt_inv = np.sqrt(1.0 / nphi) 
         self.Itarget_matrix = sopp.winding_volume_geo_factors(
             points, 
             integration_points, 
             contig(curve_dl), 
             contig(self.Phi)
-        ).reshape(B_matrix.shape[0], self.N_grid * self.n_functions) * dphi_loop
-        self.Itarget_rhs = self.Bn_Itarget * dphi_loop
+        ).reshape(B_matrix.shape[0], self.N_grid * self.n_functions)
+        self.Itarget_matrix *= 1e-7 * nphi_loop_sqrt_inv * coil_integration_factor
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
+
+        self.Itarget_rhs = self.Bn_Itarget * nphi_loop_sqrt_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
 
-        nx = self.Phi.shape[2]
-        ny = self.Phi.shape[3]
-        nz = self.Phi.shape[4]
         flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
             coil_points, 
             self.Phi, 

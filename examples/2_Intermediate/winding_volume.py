@@ -31,9 +31,9 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
-dx = 0.025
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
+dx = 0.035
 dy = dx
 dz = dx
 coff = 0.05  # PM grid starts offset ~ 5 cm from the plasma surface
@@ -61,24 +61,25 @@ bs = BiotSavart(coils)
 calculate_on_axis_B(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
-qphi = 2 * nphi
-quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
-quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+#qphi = 2 * nphi
+#quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
+#quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 
 #s_plot = SurfaceRZFourier.from_vmec_input(
 #    surface_filename, range="full torus",
 #    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 #)
-s_plot = SurfaceRZFourier.from_wout(
-    surface_filename, range="full torus",
-    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
-)
+#s_plot = SurfaceRZFourier.from_wout(
+#    surface_filename, range="full torus",
+#    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+#)
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
+make_Bnormal_plots(bs, s, OUT_DIR, "biot_savart_initial")
+#make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 
 # optimize the currents in the TF coils
-s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, 'qa')
+s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, 'qa')
 
 # check after-optimization average on-axis magnetic field strength
 calculate_on_axis_B(bs, s)
@@ -103,7 +104,7 @@ Itarget = 1e5  # 0.1 MA
 bs.set_points(curve.gamma().reshape((-1, 3)))
 Bnormal_Itarget = np.sum((bs.B() * curve.gammadash()).reshape(-1, 3), axis=-1)
 
-nx = 10
+nx = 8
 # Finally, initialize the winding volume 
 wv_grid = WindingVolumeGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
@@ -149,7 +150,7 @@ if False:
     print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
     wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
 nfp = wv_grid.plasma_boundary.nfp
-print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ np.ravel(wv_grid.alphas) - wv_grid.b_rhs, ord=2) ** 2 * nfp)
+print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
 alpha_opt, fB, fK = projected_gradient_descent_Tikhonov(wv_grid, lam=1e-20)
 print('alpha_opt = ', alpha_opt)
@@ -161,22 +162,24 @@ plt.semilogy(fK, label='fK')
 plt.semilogy(fB + fK, label='total')
 plt.grid(True)
 plt.legend()
-wv_grid.alphas = alpha_opt.reshape(wv_grid.N_grid, wv_grid.n_functions)
+wv_grid.alphas = alpha_opt
 wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
 # print('fB after optimization = ', fB) 
 
 # set up WindingVolume Bfield
 bs_wv = WindingVolumeField(wv_grid)
-bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-
-# Set up correct Bnormal from TF coils 
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-fB_direct = SquaredFlux(s_plot, bs_wv, -Bnormal).J()
+bs_wv.set_points(s.gamma().reshape((-1, 3)))
+Bnormal_wv = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
+print('Bnormal direct = ', Bnormal_wv)
+print('Bnormal lstsq = ', wv_grid.B_matrix @ alpha_opt * np.sqrt(nphi * ntheta) / np.sqrt(normN))
+print('Bnormal coils = ', Bnormal)
+print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta))
+fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()
 print('fB_direct = ', fB_direct)
 
-make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_only_winding_volume")
-make_Bnormal_plots(bs + bs_wv, s_plot, OUT_DIR, "biot_savart_total")
+make_Bnormal_plots(bs_wv, s, OUT_DIR, "biot_savart_only_winding_volume")
+make_Bnormal_plots(bs + bs_wv, s, OUT_DIR, "biot_savart_total")
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

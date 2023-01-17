@@ -281,7 +281,7 @@ def read_focus_coils(filename):
     return coils, base_currents, ncoils
 
 
-def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
+def coil_optimization(s, bs, base_curves, curves, OUT_DIR, config_flag):
     """
         Optimize the coils for the QA, QH, or other configurations.
     """

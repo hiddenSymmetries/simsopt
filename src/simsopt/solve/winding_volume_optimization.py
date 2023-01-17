@@ -35,18 +35,11 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     n = winding_volume.N_grid
     nfp = winding_volume.plasma_boundary.nfp
     num_basis = winding_volume.n_functions
-    #print('B = ', B)
-    #print('b = ', b)
-
+    B_reshaped = B.reshape(B.shape[0], n, num_basis)
     alpha_opt = (np.random.rand(n * num_basis) - 0.5) * 1e3  # set some initial guess
-    #print('alpha initial = ', alpha_opt)
     B_inv = np.linalg.pinv(B, rcond=1e-30)
-    #print('B_inv @ b = ', B_inv @ b)
-    #print('B @ B_inv @ b - b = ', B @ (B_inv @ b) - b)
-    #print('B @ BT = ', B @ BT)
     f_B = []
     f_K = []
-    #print(np.mean(abs(BTb)), np.mean(abs(BT @ (B @ alpha_opt))))
     if P is None:
         if acceleration:  # Nesterov acceleration 
             # first iteration do regular GD 
@@ -60,7 +53,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                 alpha_opt_prev = alpha_opt
                 alpha_opt = vi + step_size_i * (BTb - BT @ (B @ vi) - lam * vi)
                 step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
-                f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+                f_B.append(np.linalg.norm(np.tensordot(B_reshaped, alpha_opt.reshape(n, num_basis), ((1, 2), (0, 1))) - b, ord=2))
                 f_K.append(np.linalg.norm(alpha_opt, ord=2))
                 if (i % 100) == 0.0:
                     print(i, f_B[i] ** 2 * nfp * 0.5, alpha_opt[:10])
