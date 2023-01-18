@@ -33,7 +33,7 @@ t_start = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 32
-dx = 0.035
+dx = 0.015
 dy = dx
 dz = dx
 coff = 0.05  # PM grid starts offset ~ 5 cm from the plasma surface

@@ -189,7 +189,7 @@ class WindingVolumeGrid:
             # remove all the grid elements that were omitted
             inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
             self.XYZ_flat = final_grid[inds, :]
-            print(self.XYZ_flat.shape, self.XYZ_flat)
+            print(self.XYZ_flat.shape)
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the total grid cell elimination process.")
         else:
@@ -510,13 +510,18 @@ class WindingVolumeGrid:
         t1 = time.time()
         num_basis = self.n_functions
         flux_constraint_matrix = lil_matrix((6 * self.N_grid, self.N_grid * num_basis))
+        off_limits = []
         for i in range(self.N_grid):
             flux_constraint_matrix[i * 6:(i + 1) * 6, i * num_basis:(i + 1) * num_basis] = flux_factor[:, i, :]
-            for kk in range(6):
+            for kk in range(6):  # loop over the 6 directions
                 for j in range(6):  # loop over the 6 neighbors
-                    q = self.connection_list[i, j, kk]
-                    if (q > 0):
+                    q = int(self.connection_list[i, j, kk])
+                    if q > 0:
+                    # print(q, q in off_limits)
+                    # if q not in off_limits and q >= 0:
                         flux_constraint_matrix[i * 6 + kk, q * num_basis:(q + 1) * num_basis] = flux_factor[kk, q, :]
+                        off_limits.append(q)
+                    
         # Once matrix elements are set, convert to CSC for quicker matrix ops
         self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
         t2 = time.time()

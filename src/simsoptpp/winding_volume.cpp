@@ -33,12 +33,12 @@ Array connections(Array& coil_points, int Nadjacent, int dx, int dy, int dz)
 	    else if (dzz > dz) connectivity_inds(j, k, 4) = -1;
 	    else if (dzz < -dz) connectivity_inds(j, k, 5) = -1;
 	    // okay so the cell is adjacent... which direction is it?
-	    else if ((abs(dxx) > abs(dyy)) && (abs(dxx) > abs(dzz)) && (dxx > 0.0)) connectivity_inds(j, k, 0) = dist_ind;
-	    else if ((abs(dxx) > abs(dyy)) && (abs(dxx) > abs(dzz)) && (dxx < 0.0)) connectivity_inds(j, k, 1) = dist_ind;
-	    else if ((abs(dyy) > abs(dxx)) && (abs(dyy) > abs(dzz)) && (dyy > 0.0)) connectivity_inds(j, k, 2) = dist_ind;
-	    else if ((abs(dyy) > abs(dxx)) && (abs(dyy) > abs(dzz)) && (dyy < 0.0)) connectivity_inds(j, k, 3) = dist_ind;
-	    else if ((abs(dzz) > abs(dxx)) && (abs(dzz) > abs(dyy)) && (dzz > 0.0)) connectivity_inds(j, k, 4) = dist_ind;
-	    else if ((abs(dzz) > abs(dxx)) && (abs(dzz) > abs(dyy)) && (dzz < 0.0)) connectivity_inds(j, k, 5) = dist_ind;
+	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) connectivity_inds(j, k, 0) = dist_ind;
+	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx < 0.0)) connectivity_inds(j, k, 1) = dist_ind;
+	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy > 0.0)) connectivity_inds(j, k, 2) = dist_ind;
+	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) connectivity_inds(j, k, 3) = dist_ind;
+	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) connectivity_inds(j, k, 4) = dist_ind;
+	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) connectivity_inds(j, k, 5) = dist_ind;
             dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
 	}
     }

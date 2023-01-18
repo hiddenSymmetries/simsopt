@@ -522,11 +522,11 @@ class WindingVolumeField(MagneticField):
         self.integration_points = contig(winding_volume.XYZ_integration)
         self.num_cells = winding_volume.N_grid
         self.Phi = contig(winding_volume.Phi)
-        Jvec = np.zeros((self.num_cells, Phi.shape[2], 3))
+        Jvec = np.zeros((self.num_cells, self.Phi.shape[2], 3))
         self.alphas = winding_volume.alphas.reshape(self.num_cells, winding_volume.n_functions)
         for i in range(3):
-            for j in range(Phi.shape[2]):
-                Jvec[:, j, i] = np.sum(Phi[:, :, j, i].T * self.alphas, axis=1)
+            for j in range(self.Phi.shape[2]):
+                Jvec[:, j, i] = np.sum(self.Phi[:, :, j, i].T * self.alphas, axis=1)
         self.J = contig(Jvec)
         self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
 

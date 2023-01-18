@@ -188,7 +188,7 @@ def read_input():
         coff = 0.1
         poff = 0.04
         if 'qa' in config_flag:
-            input_name = 'input.LandremanPaul2021_' + config_flag[:2].upper()
+            input_name = 'input.LandremanPaul2021'
         else:
             input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
             surface_flag = 'wout'
@@ -532,8 +532,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
 
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul2021_QA.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.2
+        total_current = 4e6 / (2 * s.nfp) / 7.2
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
