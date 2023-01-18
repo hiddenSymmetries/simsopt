@@ -521,21 +521,21 @@ class WindingVolumeField(MagneticField):
         self.winding_volume = winding_volume
         self.integration_points = contig(winding_volume.XYZ_integration)
         self.num_cells = winding_volume.N_grid
-        # self.Phi = contig(winding_volume.Phi)
-        # self.alphas = contig(winding_volume.alphas)
-        Phi = winding_volume.Phi
-        Phi = Phi.reshape(winding_volume.n_functions, self.num_cells, Phi.shape[2] * Phi.shape[3] * Phi.shape[4], 3)
+        self.Phi = contig(winding_volume.Phi)
         Jvec = np.zeros((self.num_cells, Phi.shape[2], 3))
-        alphas = winding_volume.alphas.reshape(self.num_cells, winding_volume.n_functions)
+        self.alphas = winding_volume.alphas.reshape(self.num_cells, winding_volume.n_functions)
         for i in range(3):
             for j in range(Phi.shape[2]):
-                Jvec[:, j, i] = np.sum(Phi[:, :, j, i].T * alphas, axis=1)
+                Jvec[:, j, i] = np.sum(Phi[:, :, j, i].T * self.alphas, axis=1)
         self.J = contig(Jvec)
         self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        B[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J) * self.grid_scaling
+        #B[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J) * self.grid_scaling
+        # function returns factor of shape (num_points, 3, num_cells, n_functions)
+        factor = sopp.winding_volume_field_Bext(points, self.integration_points, self.Phi) * self.grid_scaling
+        B[:] = np.tensordot(factor, self.alphas, ((2, 3), (0, 1)))
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()

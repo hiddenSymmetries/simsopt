@@ -337,9 +337,8 @@ class WindingVolumeGrid:
         oz = self.XYZ_flat[:, 2]
 
         Phi = self.Phi
-        n_interp = Phi.shape[2] * Phi.shape[3] * Phi.shape[4]
+        n_interp = Phi.shape[2]
         Jvec = np.zeros((n, n_interp, 3))
-        Phi = Phi.reshape(self.n_functions, n, n_interp, 3)
         alphas = self.alphas.reshape(n, self.n_functions).T
         # Compute Jvec as average J over the integration points in a cell
         for i in range(3):
@@ -432,7 +431,7 @@ class WindingVolumeGrid:
                     Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
                     Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
                     Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
-        self.Phi = Phi
+        self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
 
         # build up array of the integration points
         XYZ_integration = np.zeros((n, nx * ny * nz, 3))
@@ -443,8 +442,6 @@ class WindingVolumeGrid:
             )
             XYZ_integration[i, :, :] = np.transpose(np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]).reshape(nx * ny * nz, 3) 
         self.XYZ_integration = XYZ_integration
-
-        return Phi
 
     def _construct_geo_factor(self):
         contig = np.ascontiguousarray
@@ -459,7 +456,17 @@ class WindingVolumeGrid:
             integration_points, 
             plasma_unitnormal, 
             contig(self.Phi)
+        ) * 1e-7
+        self.B_factor = sopp.winding_volume_field_Bext(
+            points, 
+            integration_points, 
+            contig(self.Phi)
         )
+        self.geo_factor = np.zeros((self.B_factor.shape[0], self.B_factor.shape[2], self.B_factor.shape[3]))
+        for i in range(self.B_factor.shape[2]):
+            for j in range(self.B_factor.shape[3]):
+                self.geo_factor[:, i, j] = np.sum(self.B_factor[:, :, i, j] * plasma_unitnormal, axis=-1)
+        # print('geo_factor after = ', self.geo_factor)
         nphi = len(self.plasma_boundary.quadpoints_phi)
         ntheta = len(self.plasma_boundary.quadpoints_theta)
         N_quadrature_inv = 1.0 / (nphi * ntheta)
@@ -469,7 +476,7 @@ class WindingVolumeGrid:
         # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
         # by self.nx (number of points within a cell)
         coil_integration_factor = self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
-        B_matrix = (self.geo_factor * 1e-7 * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
+        B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(B_matrix.shape[0]):
             B_matrix[i, :] *= np.sqrt(normN[i])
@@ -494,7 +501,7 @@ class WindingVolumeGrid:
 
         flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
             coil_points, 
-            self.Phi, 
+            self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3), 
             self.dx, 
             self.dy, 
             self.dz

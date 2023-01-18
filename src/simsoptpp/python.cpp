@@ -58,6 +58,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("winding_volume_flux_jumps", &winding_volume_flux_jumps); 
     m.def("make_winding_volume_grid" , &make_winding_volume_grid);
     m.def("winding_volume_field_B" , &winding_volume_field_B);
+    m.def("winding_volume_field_Bext" , &winding_volume_field_Bext);
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

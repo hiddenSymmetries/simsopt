@@ -31,8 +31,8 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 32
 dx = 0.035
 dy = dx
 dz = dx
