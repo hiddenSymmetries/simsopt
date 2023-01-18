@@ -137,6 +137,10 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
         if(z < zmin || z >= zmax)
             throw std::runtime_error(fmt::format("z={} not within [{}, {}]", z, zmin, zmax));
     }
+    std::cout << "nx: " << nx << std::endl;
+    std::cout << "x: " << x << std::endl;
+    std::cout << "xmin: " << xmin << std::endl;
+    std::cout << "xmax: " << xmax << std::endl;
     int xidx = int(nx*(x-xmin)/(xmax-xmin)); // find idx so that xsmesh[xidx] <= x <= xs[xidx+1]
     int yidx = int(ny*(y-ymin)/(ymax-ymin));
     int zidx = int(nz*(z-zmin)/(zmax-zmin));
@@ -190,7 +194,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
         int offset_local = l;
         double* val_ptr = &(vals_local[offset_local]);
         for (int i = 0; i < degree+1; ++i) {
-            simd_t sumj(0.); 
+            simd_t sumj(0.);
             for (int j = 0; j < degree+1; ++j) {
                 simd_t sumk(0.);
                 for (int k = 0; k < degree+1; ++k) {

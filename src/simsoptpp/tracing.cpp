@@ -153,18 +153,18 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
     private:
         typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
         shared_ptr<BoozerMagneticField<T>> field;
-        double m, q, mu, alphahat, omega, phase;
-        int alpham, alphan;
+        double m, q, mu, Phihat, omega, phase;
+        int Phim, Phin;
     public:
         static constexpr int Size = 5;
         using State = std::array<double, Size>;
 
 
         GuidingCenterVacuumBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
-            double m, double q, double mu, double alphahat, double omega, int alpham,
-            int alphan, double phase)
-            : field(field), m(m), q(q), mu(mu), alphahat(alphahat), omega(omega),
-              alpham(alpham), alphan(alphan), phase(phase) {
+            double m, double q, double mu, double Phihat, double omega, int Phim,
+            int Phin, double phase)
+            : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
+              Phim(Phim), Phin(Phin), phase(phase) {
             }
 
         void operator()(const State &ys, array<double, 5> &dydt,
@@ -172,12 +172,6 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double v_par = ys[3];
             double time = ys[4];
             double s = ys[0];
-            if (s < 0) {
-                s = 0.0;
-            }
-            if (s > 1) {
-                s = 1.0;
-            }
 
             stz(0, 0) = s;
             stz(0, 1) = ys[1];
@@ -194,15 +188,25 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
-            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
+            double Phi = Phihat * cos(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double dPhidpsi = 0;
+            double Phidot = - Phihat * omega * sin(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double dPhidtheta = Phidot * Phim / omega;
+            double dPhidzeta = - Phidot * Phin / omega;
+            double alpha = - Phi * (iota*Phim - Phin)/(omega*G);
+            double alphadot = - Phidot * (iota*Phim - Phin)/(omega*G);
+            double dalphadtheta = - dPhidtheta * (iota*Phim - Phin)/(omega*G);
+            double dalphadzeta = - dPhidzeta * (iota*Phim - Phin)/(omega*G);
+            double dalphadpsi = - dPhidpsi * (iota*Phim - Phin)/(omega*G) \
+                - Phi * (diotadpsi*Phim)/(omega*G);
 
-            dydt[0] = -dmodBdtheta*fak1/(q*psi0) + alpham * alphadot /psi0 * (v_par * modB/omega + G/(iota * alpham - alphan));
-            dydt[1] = dmodBdpsi*fak1/q + iota*v_par*modB/G + alpha*G*diotadpsi*alpham*omega/((iota*alpham-alphan)*(iota*alpham-alphan));
+            dydt[0] = (-dmodBdtheta*fak1/q + dalphadtheta*modB*v_par - dPhidtheta)/psi0;
+            dydt[1] = dmodBdpsi*fak1/q + (iota - dalphadpsi*G)*v_par*modB/G + dPhidpsi;
             dydt[2] = v_par*modB/G;
-            dydt[3] = (modB*modB*(-mu*m*(iota*alpham-alphan)*(iota*alpham-alphan)*(alphadot*dmodBdpsi*G*alpham + (dmodBdzeta + dmodBdtheta*iota)*omega) \
-                     - alpha*alphadot*G*G*diotadpsi*alpham*alpham*omega*q) + G*G*m*alpham*omega*(alphadot*dmodBdpsi*(iota*alpham-alphan) \
-                     + alpha*dmodBdtheta*diotadpsi*omega)*v_par)/(modB*G*m*(iota*alpham-alphan)*(iota*alpham-alphan)*omega);
+            dydt[3] = -modB/(G*m) * (m*mu*(dmodBdzeta + dalphadtheta*dmodBdpsi*G \
+                    + dmodBdtheta*(iota - dalphadpsi*G)) + q*(alphadot*G \
+                    + dalphadtheta*G*dPhidpsi + (iota - dalphadpsi*G)*dPhidtheta + dPhidzeta)) \
+                    + v_par/modB * (dmodBdtheta*dPhidpsi - dmodBdpsi*dPhidtheta);
             dydt[4] = 1;
         }
 };
@@ -223,18 +227,17 @@ class GuidingCenterNoKBoozerPerturbedRHS {
     private:
         typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
         shared_ptr<BoozerMagneticField<T>> field;
-        double m, q, mu, alphahat, omega, phase;
-        int alpham, alphan;
+        double m, q, mu, Phihat, omega, phase;
+        int Phim, Phin;
     public:
         static constexpr int Size = 5;
         using State = std::array<double, Size>;
 
-
         GuidingCenterNoKBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
-            double m, double q, double mu, double alphahat, double omega, int alpham,
-            int alphan, double phase)
-            : field(field), m(m), q(q), mu(mu), alphahat(alphahat), omega(omega),
-              alpham(alpham), alphan(alphan), phase(phase) {
+            double m, double q, double mu, double Phihat, double omega, int Phim,
+            int Phin, double phase)
+            : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
+              Phim(Phim), Phin(Phin), phase(phase) {
             }
 
         void operator()(const State &ys, array<double, 5> &dydt,
@@ -242,13 +245,6 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double v_par = ys[3];
             double time = ys[4];
             double s = ys[0];
-
-            if (s < 0) {
-                s = 0.0;
-            }
-            if (s > 1) {
-                s = 1.0;
-            }
 
             stz(0, 0) = s;
             stz(0, 1) = ys[1];
@@ -268,20 +264,35 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double alpha = alphahat * cos(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
-            double alphadot = - alphahat * omega * sin(alpham * ys[1] - alphan * ys[2] + omega * time + phase);
+            double Phi = Phihat * cos(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double dPhidpsi = 0;
+            double Phidot = - Phihat * omega * sin(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double dPhidtheta = Phidot * Phim / omega;
+            double dPhidzeta = - Phidot * Phin / omega;
+            double alpha = - Phi * (iota*Phim - Phin)/(omega*(G+iota*I));
+            double alphadot = - Phidot * (iota*Phim - Phin)/(omega*(G+iota*I));
+            double dalphadtheta = - dPhidtheta * (iota*Phim - Phin)/(omega*(G+iota*I));
+            double dalphadzeta = -dPhidzeta * (iota*Phim - Phin)/(omega*(G+iota*I));
+            double dalphadpsi = - dPhidpsi * (iota*Phim - Phin)/(omega*(G+iota*I)) \
+                - (Phi/omega) * (diotadpsi*Phim/(G+iota*I) \
+                - (iota*Phim - Phin)/((G+iota*I)*(G+iota*I)) * (dGdpsi + diotadpsi*I + iota*dIdpsi));
             double denom = q*(G + I*(-alpha*dGdpsi + iota) + alpha*G*dIdpsi) + m*v_par/modB * (-dGdpsi*I + G*dIdpsi); // q G in vacuum
 
-            dydt[0] = ((-dmodBdtheta*G + dmodBdzeta*I)*fak1 + alphadot*q*(G*alpham+alphan*I)*(v_par*modB/omega + (G + iota*I)/(iota*alpham - alphan)))/(denom*psi0);
-            dydt[1] = (alpha*q*(G*omega*(G*diotadpsi*alpham - iota*(dGdpsi + iota*dIdpsi)*alpham + (dGdpsi + I*diotadpsi + iota*dIdpsi)*alphan)/((iota*alpham-alphan)*(iota*alpham-alphan)) - modB*dGdpsi*v_par) \
-                + v_par * (modB*iota*q - dGdpsi*m*v_par) + dmodBdpsi*G*fak1)/denom;
-            dydt[2] = (-alpha*q*I*omega*(G*diotadpsi*alpham - iota*(dGdpsi + iota*dIdpsi)*alpham + (dGdpsi + I*diotadpsi + iota*dIdpsi)*alphan)/((iota*alpham-alphan)*(iota*alpham-alphan)) \
-                + alpha*modB*dIdpsi*q*v_par + v_par * (modB*q + dIdpsi*m*v_par) - dmodBdpsi*I*fak1)/denom;
-            dydt[3] = (-alphadot*q*(G*alpham+I*alphan)*(modB*modB*(dmodBdpsi*mu*m*(alphan-iota*alpham)*(alphan-iota*alpham) \
-                + alpha*diotadpsi*omega*q*(G*alpham+I*alphan)) - (dmodBdpsi*(G+iota*I)-modB*(dGdpsi+iota*dIdpsi))*m*(iota*alpham-alphan)*omega*v_par) \
-                /(modB*m*(iota*alpham-alphan)*(iota*alpham-alphan)*omega) \
-                - modB*mu*q*(dmodBdzeta + dmodBdtheta*(iota-alpha*dGdpsi) + alpha*dmodBdzeta*dIdpsi) + (dmodBdtheta*dGdpsi-dmodBdzeta*dIdpsi)*m*mu*v_par \
-                + alpha*omega*q*v_par*(dmodBdtheta*G-dmodBdzeta*I)*(G*diotadpsi*alpham-iota*alpham*(dGdpsi+iota*dIdpsi) + (dGdpsi+diotadpsi*I+iota*dIdpsi)*alphan)/(modB*(iota*alpham-alphan)*(iota*alpham-alphan)))/denom;
+            dydt[0] = (-G*dPhidtheta*q + I*dPhidzeta*q + modB*q*v_par*(dalphadtheta*G-dalphadzeta*I) + (-dmodBdtheta*G + dmodBdzeta*I)*fak1)/(denom*psi0);
+            dydt[1] = (G*q*dPhidpsi + modB*q*v_par*(-dalphadpsi*G - alpha*dGdpsi + iota) - dGdpsi*m*v_par*v_par \
+                      + dmodBdpsi*G*fak1)/denom;
+            dydt[2] = (-I*(dmodBdpsi*m*mu + dPhidpsi*q) + modB*q*v_par*(1 + dalphadpsi*I + alpha*dIdpsi) \
+                      + m*v_par*v_par/modB * (modB*dIdpsi - dmodBdpsi*I))/denom;
+            dydt[3] = (modB*q/m * ( -m*mu * (dmodBdzeta*(1 + dalphadpsi*I + alpha*dIdpsi) \
+                      + dmodBdpsi*(dalphadtheta*G - dalphadzeta*I) + dmodBdtheta*(iota - alpha*dGdpsi - dalphadpsi*G)) \
+                      - q*(alphadot*(G + I*(iota - alpha*dGdpsi) + alpha*G*dIdpsi) \
+                      + (dalphadtheta*G - dalphadzeta*I)*dPhidpsi \
+                      + (iota - alpha*dGdpsi - dalphadpsi*G)*dPhidtheta \
+                      + (1 + alpha*dIdpsi + dalphadpsi*I)*dPhidzeta)) \
+                      + q*v_par/modB * ((dmodBdtheta*G - dmodBdzeta*I)*dPhidpsi \
+                      + dmodBdpsi*(I*dPhidzeta - G*dPhidtheta)) \
+                      + v_par*(m*mu*(dmodBdtheta*dGdpsi - dmodBdzeta*dIdpsi) \
+                      + q*(alphadot*(dGdpsi*I-G*dIdpsi) + dGdpsi*dPhidtheta - dIdpsi*dPhidzeta)))/denom;
             dydt[4] = 1;
         }
 };
@@ -680,8 +691,8 @@ particle_guiding_center_boozer_perturbed_tracing(
         double m, double q, double vtotal, double vtang, double tmax, double tol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, double alphahat, double omega, int alpham,
-        int alphan, double phase)
+        bool phis_stop, bool vpars_stop, double Phihat, double omega, int Phim,
+        int Phin, double phase)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -696,12 +707,12 @@ particle_guiding_center_boozer_perturbed_tracing(
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
     if (vacuum) {
-      auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, alphahat, omega,
-        alpham, alphan, phase);
+      auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
+        Phim, Phin, phase);
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
   } else {
-      auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS<T>(field, m, q, mu, alphahat, omega,
-        alpham, alphan, phase);
+      auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
+        Phim, Phin, phase);
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, true);
   }
 }
@@ -745,8 +756,8 @@ tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_cente
         double m, double q, double vtotal, double vtang, double tmax, double tol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double alphahat,
-        double omega, int alpham, int alphan, double phase);
+        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double Phihat,
+        double omega, int Phim, int Phin, double phase);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(

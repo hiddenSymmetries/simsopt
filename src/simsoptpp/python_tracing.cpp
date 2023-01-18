@@ -65,10 +65,10 @@ void init_tracing(py::module_ &m){
         py::arg("vpars")=vector<double>{},
         py::arg("phis_stop")=false,
         py::arg("vpars_stop")=false,
-        py::arg("alphahat")=0,
+        py::arg("Phihat")=0,
         py::arg("omega")=0,
-        py::arg("alpham")=0,
-        py::arg("alphan")=0,
+        py::arg("Phim")=0,
+        py::arg("Phin")=0,
         py::arg("phase")=0
         );
 
