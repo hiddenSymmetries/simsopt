@@ -861,18 +861,43 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
     """
     ndipoles = pm_opt.ndipoles
     m = pm_opt.m.reshape(ndipoles, 3)
-    mx = m[:, 0]
-    my = m[:, 1]
-    mz = m[:, 2]
-    m0 = pm_opt.m_maxima
-    pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
-    Lc = 0
     ox = pm_opt.dipole_grid_xyz[:, 0]
     oy = pm_opt.dipole_grid_xyz[:, 1]
     oz = pm_opt.dipole_grid_xyz[:, 2]
 
-    mt = np.arctan2(my, mx)
-    mp = np.arctan2(np.sqrt(mx ** 2 + my ** 2), mz)
+    # Transform the solution vector to the Cartesian basis if necessary
+    if pm_opt.coordinate_flag == 'cartesian':
+        mx = m[:, 0]
+        my = m[:, 1]
+        mz = m[:, 2]
+    elif pm_opt.coordinate_flag == 'cylindrical':
+        cos_ophi = np.cos(pm_opt.pm_phi)
+        sin_ophi = np.sin(pm_opt.pm_phi)
+        mx = m[:, 0] * cos_ophi - m[:, 1] * sin_ophi
+        my = m[:, 0] * sin_ophi + m[:, 1] * cos_ophi
+        mz = m[:, 2]
+    elif pm_opt.coordinate_flag == 'toroidal':
+        ormajor = np.sqrt(ox**2 + oy**2)
+        otheta = np.atan2(oz, ormajor - pm_opt.R0)
+        cos_ophi = np.cos(pm_opt.pm_phi)
+        sin_ophi = np.sin(pm_opt.pm_phi)
+        cos_otheta = np.cos(otheta)
+        sin_otheta = np.sin(otheta)
+        mx =   m[:, 0] * cos_ophi * cos_otheta \
+             - m[:, 1] * sin_ophi              \
+             - m[:, 2] * cos_ophi * sin_otheta
+        my =   m[:, 0] * sin_ophi * cos_otheta \
+             + m[:, 1] * cos_ophi              \
+             - m[:, 2] * sin_ophi * sin_otheta
+        mz =   m[:, 0] * sin_otheta \
+             + m[:, 2] * cos_otheta
+
+    m0 = pm_opt.m_maxima
+    pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
+    Lc = 0
+
+    mp = np.arctan2(my, mx)
+    mt = np.arctan2(np.sqrt(mx ** 2 + my ** 2), mz)
     coilname = ["pm_{:010d}".format(i) for i in range(1, ndipoles + 1)]
     Ic = 1
     # symmetry = 2 for stellarator symmetry
