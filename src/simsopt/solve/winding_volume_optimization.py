@@ -50,7 +50,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
             step_size_i = step_size
             alpha_opt = alpha_opt + step_size_i * (
                 BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt
-                )
+            )
             f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
             f_I.append((I @ alpha_opt - b_I) ** 2)
             f_K.append(np.linalg.norm(alpha_opt, ord=2))

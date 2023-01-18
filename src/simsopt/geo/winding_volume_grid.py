@@ -517,11 +517,11 @@ class WindingVolumeGrid:
                 for j in range(6):  # loop over the 6 neighbors
                     q = int(self.connection_list[i, j, kk])
                     if q > 0:
-                    # print(q, q in off_limits)
-                    # if q not in off_limits and q >= 0:
+                        # print(q, q in off_limits)
+                        # if q not in off_limits and q >= 0:
                         flux_constraint_matrix[i * 6 + kk, q * num_basis:(q + 1) * num_basis] = flux_factor[kk, q, :]
                         off_limits.append(q)
-                    
+
         # Once matrix elements are set, convert to CSC for quicker matrix ops
         self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
         t2 = time.time()
