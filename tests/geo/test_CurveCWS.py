@@ -3,8 +3,7 @@ from simsopt.geo import SurfaceRZFourier
 import matplotlib.pyplot as plt
 import numpy as np
 
-# filename = "../test_files/wout_circular_tokamak_reference.nc"
-#filename = "../test_files/wout_10x10.nc"
+#filename = "../test_files/wout_circular_tokamak_reference.nc"
 filename = "../test_files/wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc"
 
 s = SurfaceRZFourier.from_wout(

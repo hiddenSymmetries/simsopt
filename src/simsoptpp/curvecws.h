@@ -129,8 +129,8 @@ public:
     }
 
     void gamma_impl(Array &data, Array &quadpoints) override;
-    void gammadash_impl(Array &data) override;
     /*
+    void gammadash_impl(Array &data) override;
     void gammadashdash_impl(Array &data) override;
     void gammadashdashdash_impl(Array &data) override;
     void dgamma_by_dcoeff_impl(Array &data) override;
