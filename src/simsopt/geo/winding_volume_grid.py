@@ -1,6 +1,6 @@
 import numpy as np
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from pyevtk.hl import pointsToVTK
+from pyevtk.hl import pointsToVTK, gridToVTK
 import simsoptpp as sopp
 import time
 import warnings

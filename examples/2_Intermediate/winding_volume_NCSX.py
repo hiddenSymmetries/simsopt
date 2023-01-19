@@ -102,7 +102,7 @@ nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
 
-lam = 1e-15  # Strength of Tikhonov regularization
+lam = 1e-20  # Strength of Tikhonov regularization
 alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam)
 print('alpha_opt = ', alpha_opt)
 t2 = time.time()
