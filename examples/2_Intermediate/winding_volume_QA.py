@@ -37,8 +37,8 @@ ntheta = 16
 dx = 0.05
 dy = dx
 dz = dx
-coff = 0.25  # PM grid starts offset ~ 5 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 10 cm from the plasma surface
+poff = 0.5  # PM grid end offset ~ 10 cm from the plasma surface
+coff = 0.02  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file
@@ -144,8 +144,8 @@ normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
 # print('Bnormal lstsq = ', wv_grid.B_matrix @ alpha_opt * np.sqrt(nphi * ntheta) / np.sqrt(normN))
 # print('Bnormal coils = ', Bnormal)
 print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta))
-# fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()
-# print('fB_direct = ', fB_direct)
+fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()
+print('fB_direct = ', fB_direct)
 
 make_Bnormal_plots(bs_wv, s, OUT_DIR, "biot_savart_only_winding_volume")
 # make_Bnormal_plots(bs + bs_wv, s, OUT_DIR, "biot_savart_total")

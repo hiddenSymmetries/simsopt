@@ -517,25 +517,32 @@ class WindingVolumeField(MagneticField):
 
     def __init__(self, winding_volume):
         MagneticField.__init__(self)
-        contig = np.ascontiguousarray
         self.winding_volume = winding_volume
-        self.integration_points = contig(winding_volume.XYZ_integration)
-        self.num_cells = winding_volume.N_grid
-        self.Phi = contig(winding_volume.Phi)
-        Jvec = np.zeros((self.num_cells, self.Phi.shape[2], 3))
-        self.alphas = winding_volume.alphas.reshape(self.num_cells, winding_volume.n_functions)
-        for i in range(3):
-            for j in range(self.Phi.shape[2]):
-                Jvec[:, j, i] = np.sum(self.Phi[:, :, j, i].T * self.alphas, axis=1)
-        self.J = contig(Jvec)
+        self.s = winding_volume.plasma_boundary
+        self.integration_points = winding_volume.XYZ_integration
+        self.N_grid = winding_volume.N_grid
+        self.Phi = winding_volume.Phi
+        # Jvec = np.zeros((self.N_grid, self.Phi.shape[2], 3))
+        # self.alphas = winding_volume.alphas.reshape(self.N_grid, winding_volume.n_functions)
+        # for i in range(3):
+        #     for j in range(self.Phi.shape[2]):
+        #         Jvec[:, j, i] = np.sum(self.Phi[:, :, j, i].T * self.alphas, axis=1)
+        # self.J = Jvec
         self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
+        self.Phi_full = winding_volume.Phi_full
+        self.integration_points_full = winding_volume.integration_points_full
+        nsym = self.Phi_full.shape[1] // self.N_grid
+        alphas_full = np.zeros((self.N_grid * nsym, self.Phi.shape[0]))
+        for i in range(nsym):
+            alphas_full[i * self.N_grid:(i + 1) * self.N_grid, :] = winding_volume.alphas.reshape(self.N_grid, self.Phi.shape[0])
+        self.alphas_full = alphas_full
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         #B[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J) * self.grid_scaling
         # function returns factor of shape (num_points, 3, num_cells, n_functions)
-        factor = sopp.winding_volume_field_Bext(points, self.integration_points, self.Phi) * self.grid_scaling
-        B[:] = np.tensordot(factor, self.alphas, ((2, 3), (0, 1)))
+        factor = sopp.winding_volume_field_Bext(points, self.integration_points_full, self.Phi_full) * self.grid_scaling
+        B[:] = np.tensordot(factor, self.alphas_full, ((2, 3), (0, 1)))
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()

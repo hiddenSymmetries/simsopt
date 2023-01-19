@@ -272,8 +272,8 @@ class WindingVolumeGrid:
             theta value. Note that, for now, this makes the entire
             coil surface, not just 1 / 2 nfp of the surface.
         """
-        range_surf = "full torus"
-        nphi = self.nphi * 2 * self.plasma_boundary.nfp
+        range_surf = "half period"
+        nphi = self.nphi  # * 2 * self.plasma_boundary.nfp
         ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
@@ -294,8 +294,8 @@ class WindingVolumeGrid:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value.
         """
-        range_surf = "full torus"
-        nphi = self.nphi * 2 * self.plasma_boundary.nfp
+        range_surf = "half period"
+        nphi = self.nphi  # * 2 * self.plasma_boundary.nfp
         ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
@@ -321,15 +321,15 @@ class WindingVolumeGrid:
             dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
 
-        # nfp = self.plasma_boundary.nfp
-        # stellsym = self.plasma_boundary.stellsym
+        nfp = self.plasma_boundary.nfp
+        stellsym = self.plasma_boundary.stellsym
         n = self.N_grid 
-        # if stellsym:
-        #     stell_list = [1, -1]
-        #     nsym = nfp * 2
-        # else:
-        #     stell_list = [1]
-        #     nsym = nfp
+        if stellsym:
+            stell_list = [1, -1]
+            nsym = nfp * 2
+        else:
+            stell_list = [1]
+            nsym = nfp
 
         # get the coordinates
         ox = self.XYZ_flat[:, 0]
@@ -344,13 +344,44 @@ class WindingVolumeGrid:
         for i in range(3):
             for j in range(n_interp):
                 Jvec[:, j, i] = np.sum(alphas * Phi[:, :, j, i], axis=0)
-        Jvec = np.mean(Jvec, axis=-1)
+        Jvec = np.mean(Jvec, axis=1)
         Jx = Jvec[:, 0]
         Jy = Jvec[:, 1]
         Jz = Jvec[:, 2]
-        Jvec_normalization = 1.0 / np.sum(Jvec ** 2, axis=-1)
+
+        # Initialize new grid and current vectors for all the dipoles
+        # after we account for the symmetries below.
+        ox_full = np.zeros(n * nsym)
+        oy_full = np.zeros(n * nsym)
+        oz_full = np.zeros(n * nsym)
+        Jvec_full = np.zeros((n * nsym, 3))
+
+        # loop through the dipoles and repeat for fp and stellarator symmetries
+        index = 0
+
+        # Loop over stellarator and field-period symmetry contributions
+        for stell in stell_list:
+            for fp in range(nfp):
+                phi0 = (2 * np.pi / nfp) * fp
+
+                # get new dipoles locations by flipping the y and z components, then rotating by phi0
+                ox_full[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                oy_full[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                oz_full[index:index + n] = oz * stell
+
+                # get new dipole vectors by flipping the x component, then rotating by phi0
+                Jvec_full[index:index + n, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
+                Jvec_full[index:index + n, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
+                Jvec_full[index:index + n, 2] = Jz
+
+                index += n
+
+        Jvec_normalization = 1.0 / np.sum(Jvec_full ** 2, axis=-1)
 
         # Save all the data to a vtk file which can be visualized nicely with ParaView
+        Jx = Jvec_full[:, 0]
+        Jy = Jvec_full[:, 1]
+        Jz = Jvec_full[:, 2]
         contig = np.ascontiguousarray
         data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
                 "J_normalized": 
@@ -359,7 +390,7 @@ class WindingVolumeGrid:
                  contig(Jz / Jvec_normalization))
                 } 
         pointsToVTK(
-            vtkname, contig(ox), contig(oy), contig(oz), data=data
+            vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
             #vtkname, 
             #contig(self.XYZ_flat[:, 0]),
             #contig(self.XYZ_flat[:, 1]),
@@ -450,22 +481,83 @@ class WindingVolumeGrid:
         points = contig(self.plasma_boundary.gamma().reshape(-1, 3))
         plasma_unitnormal = contig(self.plasma_boundary.unitnormal().reshape(-1, 3))
         coil_points = contig(self.XYZ_flat)
-        integration_points = contig(self.XYZ_integration)
-        self.geo_factor = sopp.winding_volume_geo_factors(
-            points, 
-            integration_points, 
-            plasma_unitnormal, 
-            contig(self.Phi)
-        ) * 1e-7
-        self.B_factor = sopp.winding_volume_field_Bext(
-            points, 
-            integration_points, 
-            contig(self.Phi)
-        )
+        integration_points = self.XYZ_integration
+        # self.geo_factor = sopp.winding_volume_geo_factors(
+        #     points, 
+        #     integration_points, 
+        #     plasma_unitnormal, 
+        #     contig(self.Phi)
+        # ) * 1e-7
+
+        # Read in the required fields from pm_opt object
+        nfp = self.plasma_boundary.nfp
+        stellsym = self.plasma_boundary.stellsym
+        if stellsym:
+            stell_list = [1, -1]
+            nsym = nfp * 2
+        else:
+            stell_list = [1]
+            nsym = nfp
+
+        # get the coordinates
+        ox = integration_points[:, :, 0]
+        oy = integration_points[:, :, 1]
+        oz = integration_points[:, :, 2]
+
+        Phi = self.Phi
+        n = self.N_grid
+        num_basis = Phi.shape[0]
+        n_interp = Phi.shape[2]
+
+        # Initialize new grid and current vectors for all the dipoles
+        # after we account for the symmetries below.
+        ox_full = np.zeros((n * nsym, n_interp))
+        oy_full = np.zeros((n * nsym, n_interp))
+        oz_full = np.zeros((n * nsym, n_interp))
+        Phivec_full = np.zeros((num_basis, n * nsym, n_interp, 3))
+
+        # loop through the dipoles and repeat for fp and stellarator symmetries
+        index = 0
+        contig = np.ascontiguousarray
+
+        # Loop over stellarator and field-period symmetry contributions
+        B_factor = np.zeros((points.shape[0], 3, n, num_basis))
+        for stell in stell_list:
+            for fp in range(nfp):
+                phi0 = (2 * np.pi / nfp) * fp
+
+                # get new dipoles locations by flipping the y and z components, then rotating by phi0
+                ox_full[index:index + n, :] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                oy_full[index:index + n, :] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                oz_full[index:index + n, :] = oz * stell
+
+                # get new dipole vectors by flipping the x component, then rotating by phi0
+                Phivec_full[:, index:index + n, :, 0] = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[:, :, :, 1] * np.sin(phi0)
+                Phivec_full[:, index:index + n, :, 1] = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[:, :, :, 1] * np.cos(phi0)
+                Phivec_full[:, index:index + n, :, 2] = Phi[:, :, :, 2]
+
+                int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
+                B_factor += sopp.winding_volume_field_Bext(
+                    points, 
+                    contig(int_points), 
+                    contig(Phivec_full[:, index:index + n, :, :])
+                )
+                index += n
+
+        self.B_factor = B_factor
+        self.Phi_full = contig(Phivec_full)
+        self.integration_points_full = contig(np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0]))
+
+        # self.B_factor = sopp.winding_volume_field_Bext(
+        #     points, 
+        #     self.integration_points_full, 
+        #     self.Phi_full
+        # )
         self.geo_factor = np.zeros((self.B_factor.shape[0], self.B_factor.shape[2], self.B_factor.shape[3]))
         for i in range(self.B_factor.shape[2]):
             for j in range(self.B_factor.shape[3]):
                 self.geo_factor[:, i, j] = np.sum(self.B_factor[:, :, i, j] * plasma_unitnormal, axis=-1)
+
         # print('geo_factor after = ', self.geo_factor)
         nphi = len(self.plasma_boundary.quadpoints_phi)
         ntheta = len(self.plasma_boundary.quadpoints_theta)
@@ -476,7 +568,9 @@ class WindingVolumeGrid:
         # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
         # by self.nx (number of points within a cell)
         coil_integration_factor = self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
-        B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(self.geo_factor.shape[0], self.N_grid * self.n_functions)
+        B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
+            self.geo_factor.shape[0], self.N_grid * self.n_functions
+        )
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(B_matrix.shape[0]):
             B_matrix[i, :] *= np.sqrt(normN[i])
@@ -495,6 +589,8 @@ class WindingVolumeGrid:
         ).reshape(B_matrix.shape[0], self.N_grid * self.n_functions)
         self.Itarget_matrix *= 1e-7 * nphi_loop_sqrt_inv * coil_integration_factor
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
+
+        # Now need to duplicate for the remaining parts of the plasma surface
 
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_sqrt_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
