@@ -108,12 +108,6 @@ class GuidingCenterVacuumBoozerRHS {
                 const double t) {
             double v_par = ys[3];
             double s = ys[0];
-            if (s < 0) {
-                s = 0.0;
-            }
-            if (s > 1) {
-                s = 1.0;
-            }
 
             stz(0, 0) = s;
             stz(0, 1) = ys[1];
@@ -329,12 +323,6 @@ class GuidingCenterNoKBoozerRHS {
                 const double t) {
             double v_par = ys[3];
             double s = ys[0];
-            if (s < 0) {
-                s = 0.0;
-            }
-            if (s > 1) {
-                s = 1.0;
-            }
 
             stz(0, 0) = s;
             stz(0, 1) = ys[1];
@@ -395,12 +383,6 @@ class GuidingCenterBoozerRHS {
             double v_par = ys[3];
 
             double s = ys[0];
-            if (s < 0) {
-                s = 0.0;
-            }
-            if (s > 1) {
-                s = 1.0;
-            }
 
             stz(0, 0) = s;
             stz(0, 1) = ys[1];
