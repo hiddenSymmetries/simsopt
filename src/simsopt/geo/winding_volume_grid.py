@@ -639,39 +639,44 @@ class WindingVolumeGrid:
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         num_basis = self.n_functions
+        # flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
+
         flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis))
         i_constraint = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
             if np.any(self.connection_list[i, :, 0] > 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 0] > 0))
+                ind = np.ravel(np.where(self.connection_list[i, :, 0] > 0))[0]
                 k_ind = self.connection_list[i, ind, 0]
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[ind, i, :]
+                                       ] = flux_factor[0, i, :]
                 flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[ind, k_ind, :]
+                                       k_ind * num_basis:(k_ind + 1) * num_basis
+                                       ] = flux_factor[1, k_ind, :]
                 i_constraint += 1
             if np.any(self.connection_list[i, :, 2] > 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 2] > 0))
+                ind = np.ravel(np.where(self.connection_list[i, :, 2] > 0))[0]
                 k_ind = self.connection_list[i, ind, 2]
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[ind, i, :]
+                                       ] = flux_factor[2, i, :]
                 flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[ind, k_ind, :]
+                                       k_ind * num_basis:(k_ind + 1) * num_basis
+                                       ] = flux_factor[3, k_ind, :]
                 i_constraint += 1
             if np.any(self.connection_list[i, :, 4] > 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 4] > 0))
+                ind = np.ravel(np.where(self.connection_list[i, :, 4] > 0))[0]
                 k_ind = self.connection_list[i, ind, 4]
+                # print(i_constraint, i, ind, k_ind, k_ind * num_basis, num_basis, (k_ind + 1) * num_basis)
+                # print(i * num_basis, (i + 1) * num_basis)
+
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[ind, i, :]
+                                       ] = flux_factor[4, i, :]
                 flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[ind, k_ind, :]
+                                       k_ind * num_basis:(k_ind + 1) * num_basis
+                                       ] = flux_factor[5, k_ind, :]
                 i_constraint += 1
 
             # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction 
@@ -707,9 +712,18 @@ class WindingVolumeGrid:
                                        ] = flux_factor[4, i, :]
                 i_constraint += 1
 
+        print(flux_constraint_matrix.shape)
+        # constraint_matrix_unique = np.unique(flux_constraint_matrix @ flux_constraint_matrix.T, axis=0)
+        # print(constraint_matrix_unique.shape)
         # Once matrix elements are set, convert to CSC for quicker matrix ops
         self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
-        print(self.flux_constraint_matrix)
+        flux_constraint_matrix = flux_constraint_matrix.todense()
+        CCT = flux_constraint_matrix @ flux_constraint_matrix.T
+        print(CCT.shape[0], np.linalg.matrix_rank(CCT))
+        # CCT_inv = np.linalg.inv(CCT)
+        # for i in range(n_constraints):
+        #     print(i, self.flux_constraint_matrix[i, :], 
+        #           np.count_nonzero(self.flux_constraint_matrix[i, :].todense()))
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 

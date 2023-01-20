@@ -34,7 +34,7 @@ t_start = time.time()
 # Set some parameters
 nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 8
-dx = 0.025
+dx = 0.03
 dy = dx
 dz = dx
 poff = 0.05  # PM grid end offset ~ 10 cm from the plasma surface
@@ -80,7 +80,7 @@ curve.x = curve.x  # need to do this to transfer data to C++
 curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
 Itarget = 1e6  # 1 MA
 
-nx = 8
+nx = 6
 # Finally, initialize the winding volume 
 wv_grid = WindingVolumeGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
