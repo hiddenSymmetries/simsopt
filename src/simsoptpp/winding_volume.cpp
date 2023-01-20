@@ -1,12 +1,12 @@
 #include "winding_volume.h"
 
 // compute which cells are next to which cells 
-Array connections(Array& coil_points, int Nadjacent, double dx, double dy, double dz)
+Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 {
     int Ndipole = coil_points.shape(0);
     
     // Last index indicates +- the x/y/z directions
-    Array connectivity_inds = xt::zeros<int>({Ndipole, 6, 6});
+    Array_INT connectivity_inds = xt::zeros<int>({Ndipole, 6, 6});
     
     // Compute distances between dipole j and all other dipoles
     // By default computes distance between dipole j and itself
@@ -22,20 +22,27 @@ Array connections(Array& coil_points, int Nadjacent, double dx, double dy, doubl
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
             int dist_ind = std::distance(dist_ij.begin(), result);
 	    // Get dx, dy, dz from this ind
-	    double dxx = coil_points(j, 0) - coil_points(dist_ind, 0);
-	    double dyy = coil_points(j, 1) - coil_points(dist_ind, 1);
-	    double dzz = coil_points(j, 2) - coil_points(dist_ind, 2);
+	    double dxx = -(coil_points(j, 0) - coil_points(dist_ind, 0));
+	    double dyy = -(coil_points(j, 1) - coil_points(dist_ind, 1));
+	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
             // check if this cell is not directly adjacent
-	    // printf("%d %d %f %f %f %f %f %f %f\n", j, dist_ind, dist, dxx, dyy, dzz, dx, dy, dz);
-	    if (dist < dx or dist < dy or dist < dz) {
+//  	    printf("%d %d %d %f %f %f %f %f %f %f\n", j, k, dist_ind, dist, dxx, dyy, dzz, dx, dy, dz);
+// 	    printf("%d %d %d %d %d %d %d\n", j, connectivity_inds(j, k, 0), connectivity_inds(j, k, 1), connectivity_inds(j, k, 2), connectivity_inds(j, k, 3), connectivity_inds(j, k, 4), connectivity_inds(j, k, 5));
+	    if (dist < dx || dist < dy || dist < dz) {
         	    // okay so the cell is adjacent... which direction is it?
-        	    if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) connectivity_inds(j, k, 0) = dist_ind;
-        	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx < 0.0)) connectivity_inds(j, k, 1) = dist_ind;
-        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy > 0.0)) connectivity_inds(j, k, 2) = dist_ind;
-        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) connectivity_inds(j, k, 3) = dist_ind;
-        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) connectivity_inds(j, k, 4) = dist_ind;
-        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) connectivity_inds(j, k, 5) = dist_ind;
+        	    int dir_ind = 0;
+        	    if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) dir_ind = 0;
+        	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx < 0.0)) dir_ind = 1;
+        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy > 0.0)) dir_ind = 2;
+        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) dir_ind = 3;
+        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) dir_ind = 4;
+        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) dir_ind = 5;
+//             printf("%d %d %d %d %d %d %d\n", j, connectivity_inds(j, k, 0), connectivity_inds(j, k, 1), connectivity_inds(j, k, 2), connectivity_inds(j, k, 3), connectivity_inds(j, k, 4), connectivity_inds(j, k, 5));
+            	connectivity_inds(j, k, dir_ind) = dist_ind;
+            for (int kk = 0; kk < 6; ++kk) {
+                if (kk != dir_ind) connectivity_inds(j, k, kk) = -1;
+            }
             	}
         else { 
             connectivity_inds(j, k, 0) = -1;
@@ -106,7 +113,7 @@ Array winding_volume_geo_factors(Array& points, Array& integration_points, Array
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Phi, double dx, double dy, double dz) {
+std::tuple<Array, Array_INT> winding_volume_flux_jumps(Array& coil_points, Array& Phi, double dx, double dy, double dz) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(coil_points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("coil_points needs to be in row-major storage order");
@@ -118,7 +125,7 @@ std::tuple<Array, Array> winding_volume_flux_jumps(Array& coil_points, Array& Ph
     int Nx = Phi.shape(2);
     int Ny = Phi.shape(3);
     int Nz = Phi.shape(4);
-    Array Connect = connections(coil_points, 6, dx, dy, dz);
+    Array_INT Connect = connections(coil_points, dx, dy, dz);
 
     // here Phi should be shape (n_basis_functions, num_coil_points, Nx, Ny, Nz, 3)
     int num_basis_functions = Phi.shape(0);

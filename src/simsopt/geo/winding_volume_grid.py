@@ -598,9 +598,23 @@ class WindingVolumeGrid:
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_sqrt_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
 
+        # flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
+        #     coil_points,
+        #     self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3), 
+        #     self.dx,
+        #     self.dy, 
+        #     self.dz
+        # )
+        ########### TEMPORARY TEST
+        # d = 4
+        # self.XYZ_uniform = (self.XYZ_uniform.reshape(self.Nx, self.Ny, self.Nz, 3)[:d, :d, 0, :]).reshape(d ** 2, 3)
+        # print(self.XYZ_uniform)
+        # self.N_grid = self.XYZ_uniform.shape[0]
         flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
+            # contig(self.XYZ_uniform),
             coil_points,
-            self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3), 
+            # contig(np.ones((self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3))), 
+            contig(self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3)), 
             self.dx,
             self.dy, 
             self.dz
@@ -608,19 +622,30 @@ class WindingVolumeGrid:
         t1 = time.time()
 
         # first count the number of constraints
-        self.connection_list = np.array(self.connection_list, dtype=int)
+        # for i in range(self.N_grid):
+        #     print(self.connection_list[i, :, :])
         n_constraints = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
             if np.any(self.connection_list[i, :, 0] > 0):
+                # print(i, self.connection_list[i, :, 0])
                 n_constraints += 1
+        print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
+
+        for i in range(self.N_grid):            
             if np.any(self.connection_list[i, :, 2] > 0):
+                # print(i, self.connection_list[i, :, 2])
                 n_constraints += 1
+        print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
+
+        for i in range(self.N_grid):            
             if np.any(self.connection_list[i, :, 4] > 0):
                 n_constraints += 1
+            # print(i, n_constraints)
 
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
-        for i in range(self.N_grid):            
+        for i in range(self.N_grid):       
+            # print(i, self.connection_list[i, :, 1])
             # Loop through cells and check if does not have a neighboring cell in the - nx, - ny, or - nz direction 
             if np.all(self.connection_list[i, :, 1] < 0):
                 n_constraints += 1
@@ -628,6 +653,9 @@ class WindingVolumeGrid:
                 n_constraints += 1
             if np.all(self.connection_list[i, :, 5] < 0):
                 n_constraints += 1
+        print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
+
+        for i in range(self.N_grid):            
             # Loop through cells and check if does not have a neighboring cell in the + nx, + ny, or + nz direction 
             if np.all(self.connection_list[i, :, 0] < 0):
                 n_constraints += 1
@@ -712,7 +740,7 @@ class WindingVolumeGrid:
                                        ] = flux_factor[4, i, :]
                 i_constraint += 1
 
-        print(flux_constraint_matrix.shape)
+        print(flux_constraint_matrix)
         # constraint_matrix_unique = np.unique(flux_constraint_matrix @ flux_constraint_matrix.T, axis=0)
         # print(constraint_matrix_unique.shape)
         # Once matrix elements are set, convert to CSC for quicker matrix ops

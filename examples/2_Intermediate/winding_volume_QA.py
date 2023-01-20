@@ -32,8 +32,8 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 4
 dx = 0.03
 dy = dx
 dz = dx
@@ -131,7 +131,8 @@ t1 = time.time()
 lam = 1e-18
 alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=True)
 print('alpha_opt = ', alpha_opt)
-print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
+if projection_onto_constraints is not None:
+    print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
 t2 = time.time()
 print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 plt.figure()
