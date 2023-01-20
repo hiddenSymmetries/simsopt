@@ -245,14 +245,15 @@ class WindingVolumeGrid:
         y_min = np.min(self.y_outer)
         z_max = np.max(self.z_outer)
         z_min = np.min(self.z_outer)
+        print(x_min, x_max, y_min, x_max, z_min, z_max)
 
         # Initialize uniform grid
         dx = self.dx
         dy = self.dy
         dz = self.dz
-        Nx = int((x_max - x_min) / dx)
-        Ny = int((y_max - y_min) / dy)
-        Nz = int((z_max - z_min) / dz)
+        Nx = int((x_max - x_min) / dx) + 2
+        Ny = int((y_max - y_min) / dy) + 2
+        Nz = int((z_max - z_min) / dz) + 2
         self.Nx = Nx
         self.Ny = Ny
         self.Nz = Nz
@@ -273,7 +274,7 @@ class WindingVolumeGrid:
             coil surface, not just 1 / 2 nfp of the surface.
         """
         range_surf = "half period"
-        nphi = self.nphi  # * 2 * self.plasma_boundary.nfp
+        nphi = self.nphi
         ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
@@ -295,7 +296,7 @@ class WindingVolumeGrid:
             theta value.
         """
         range_surf = "half period"
-        nphi = self.nphi  # * 2 * self.plasma_boundary.nfp
+        nphi = self.nphi
         ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
@@ -344,10 +345,17 @@ class WindingVolumeGrid:
         for i in range(3):
             for j in range(n_interp):
                 Jvec[:, j, i] = np.sum(alphas * Phi[:, :, j, i], axis=0)
-        Jvec = np.mean(Jvec, axis=1)
-        Jx = Jvec[:, 0]
-        Jy = Jvec[:, 1]
-        Jz = Jvec[:, 2]
+        Jvec_avg = np.mean(Jvec, axis=1)
+        Jvec = Jvec.reshape(n, self.nx, self.ny, self.nz, 3)
+        dJx_dx = -(Jvec[:, 1:, :, :, 0] - Jvec[:, :-1, :, :, 0]) / self.dx
+        dJy_dy = -(Jvec[:, :, 1:, :, 1] - Jvec[:, :, :-1, :, 1]) / self.dy
+        dJz_dz = -(Jvec[:, :, :, 1:, 2] - Jvec[:, :, :, :-1, 2]) / self.dz
+        divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
+        divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
+
+        Jx = Jvec_avg[:, 0]
+        Jy = Jvec_avg[:, 1]
+        Jz = Jvec_avg[:, 2]
 
         # Initialize new grid and current vectors for all the dipoles
         # after we account for the symmetries below.
@@ -382,6 +390,7 @@ class WindingVolumeGrid:
         Jx = Jvec_full[:, 0]
         Jy = Jvec_full[:, 1]
         Jz = Jvec_full[:, 2]
+
         contig = np.ascontiguousarray
         data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
                 "J_normalized": 
@@ -391,10 +400,10 @@ class WindingVolumeGrid:
                 } 
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
-            #vtkname, 
-            #contig(self.XYZ_flat[:, 0]),
-            #contig(self.XYZ_flat[:, 1]),
-            #contig(self.XYZ_flat[:, 2])
+        )
+        data = {"divJ": (contig(divJ)), } 
+        pointsToVTK(
+            vtkname + '_divJ', contig(ox), contig(oy), contig(oz), data=data
         )
         pointsToVTK(
             vtkname + '_uniform', 
@@ -454,14 +463,22 @@ class WindingVolumeGrid:
                     Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
                     Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
                     Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
-                    Phi[3, :, i, j, k, :] = np.array([xrange[:, i], zeros, zeros]).T
-                    Phi[4, :, i, j, k, :] = np.array([yrange[:, j], zeros, zeros]).T
+                    Phi[3, :, i, j, k, :] = np.array([yrange[:, j], zeros, zeros]).T
+                    Phi[4, :, i, j, k, :] = np.array([zrange[:, k], zeros, zeros]).T
                     Phi[5, :, i, j, k, :] = np.array([zeros, zeros, xrange[:, i]]).T
                     Phi[6, :, i, j, k, :] = np.array([zeros, zeros, yrange[:, j]]).T
                     Phi[7, :, i, j, k, :] = np.array([zeros, zrange[:, k], zeros]).T
                     Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
                     Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
                     Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
+
+        for i in range(11):
+            dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / self.dx
+            dJy_dy = -(Phi[i, :, :, 1:, :, 1] - Phi[i, :, :, :-1, :, 1]) / self.dy
+            dJz_dz = -(Phi[i, :, :, :, 1:, 2] - Phi[i, :, :, :, :-1, 2]) / self.dz
+            divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
+            divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
+            assert np.allclose(divJ, 0.0)
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
 
         # build up array of the integration points
@@ -479,17 +496,12 @@ class WindingVolumeGrid:
 
         # Compute Bnormal factor of the optimization problem
         points = contig(self.plasma_boundary.gamma().reshape(-1, 3))
+        points_curve = contig(self.Itarget_curve.gamma().reshape(-1, 3))
         plasma_unitnormal = contig(self.plasma_boundary.unitnormal().reshape(-1, 3))
         coil_points = contig(self.XYZ_flat)
         integration_points = self.XYZ_integration
-        # self.geo_factor = sopp.winding_volume_geo_factors(
-        #     points, 
-        #     integration_points, 
-        #     plasma_unitnormal, 
-        #     contig(self.Phi)
-        # ) * 1e-7
 
-        # Read in the required fields from pm_opt object
+        # Begin computation of the coil fields with all the symmetries
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym
         if stellsym:
@@ -506,8 +518,15 @@ class WindingVolumeGrid:
 
         Phi = self.Phi
         n = self.N_grid
+        nphi = len(self.plasma_boundary.quadpoints_phi)
+        ntheta = len(self.plasma_boundary.quadpoints_theta)
+        N_quadrature_inv = 1.0 / (nphi * ntheta)
+        plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
+        normN = np.linalg.norm(plasma_normal, ord=2, axis=-1)
         num_basis = Phi.shape[0]
         n_interp = Phi.shape[2]
+        nphi_loop_sqrt_inv = np.sqrt(1.0 / nphi) 
+        curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
 
         # Initialize new grid and current vectors for all the dipoles
         # after we account for the symmetries below.
@@ -518,10 +537,11 @@ class WindingVolumeGrid:
 
         # loop through the dipoles and repeat for fp and stellarator symmetries
         index = 0
-        contig = np.ascontiguousarray
+        contig = np.ascontiguousarray    
 
         # Loop over stellarator and field-period symmetry contributions
         B_factor = np.zeros((points.shape[0], 3, n, num_basis))
+        I_factor = np.zeros((points_curve.shape[0], 3, n, num_basis))
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
@@ -542,28 +562,21 @@ class WindingVolumeGrid:
                     contig(int_points), 
                     contig(Phivec_full[:, index:index + n, :, :])
                 )
+                I_factor += sopp.winding_volume_field_Bext(
+                    points_curve, 
+                    contig(int_points), 
+                    contig(Phivec_full[:, index:index + n, :, :])
+                )
                 index += n
 
-        self.B_factor = B_factor
         self.Phi_full = contig(Phivec_full)
         self.integration_points_full = contig(np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0]))
-
-        # self.B_factor = sopp.winding_volume_field_Bext(
-        #     points, 
-        #     self.integration_points_full, 
-        #     self.Phi_full
-        # )
-        self.geo_factor = np.zeros((self.B_factor.shape[0], self.B_factor.shape[2], self.B_factor.shape[3]))
-        for i in range(self.B_factor.shape[2]):
-            for j in range(self.B_factor.shape[3]):
-                self.geo_factor[:, i, j] = np.sum(self.B_factor[:, :, i, j] * plasma_unitnormal, axis=-1)
-
-        # print('geo_factor after = ', self.geo_factor)
-        nphi = len(self.plasma_boundary.quadpoints_phi)
-        ntheta = len(self.plasma_boundary.quadpoints_theta)
-        N_quadrature_inv = 1.0 / (nphi * ntheta)
-        plasma_normal = self.plasma_boundary.normal().reshape(-1, 3)
-        normN = np.linalg.norm(plasma_normal, ord=2, axis=-1)
+        self.geo_factor = np.zeros((points.shape[0], n, num_basis))
+        self.Itarget_matrix = np.zeros((points_curve.shape[0], n, num_basis))
+        for i in range(B_factor.shape[2]):
+            for j in range(B_factor.shape[3]):
+                self.geo_factor[:, i, j] = np.sum(B_factor[:, :, i, j] * plasma_unitnormal, axis=-1)
+                self.Itarget_matrix[:, i, j] = np.sum(I_factor[:, :, i, j] * curve_dl, axis=-1)
 
         # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
         # by self.nx (number of points within a cell)
@@ -578,48 +591,125 @@ class WindingVolumeGrid:
 
         self.B_matrix = B_matrix
         self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
-
-        curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
-        nphi_loop_sqrt_inv = np.sqrt(1.0 / nphi) 
-        self.Itarget_matrix = sopp.winding_volume_geo_factors(
-            points, 
-            integration_points, 
-            contig(curve_dl), 
-            contig(self.Phi)
-        ).reshape(B_matrix.shape[0], self.N_grid * self.n_functions)
-        self.Itarget_matrix *= 1e-7 * nphi_loop_sqrt_inv * coil_integration_factor
+        self.Itarget_matrix = nphi_loop_sqrt_inv * coil_integration_factor * self.Itarget_matrix.reshape(
+            points_curve.shape[0], n * num_basis
+        )
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
-
-        # Now need to duplicate for the remaining parts of the plasma surface
-
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_sqrt_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
 
         flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
-            coil_points, 
+            coil_points,
             self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3), 
-            self.dx, 
+            self.dx,
             self.dy, 
             self.dz
         )
-        # Flux matrix is so large we need to use numpy sparse matrices here
         t1 = time.time()
+
+        # first count the number of constraints
+        self.connection_list = np.array(self.connection_list, dtype=int)
+        n_constraints = 0
+        for i in range(self.N_grid):            
+            # Loop through every cell and check the cell in + nx, + ny, or + nz direction
+            if np.any(self.connection_list[i, :, 0] > 0):
+                n_constraints += 1
+            if np.any(self.connection_list[i, :, 2] > 0):
+                n_constraints += 1
+            if np.any(self.connection_list[i, :, 4] > 0):
+                n_constraints += 1
+
+        print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
+        for i in range(self.N_grid):            
+            # Loop through cells and check if does not have a neighboring cell in the - nx, - ny, or - nz direction 
+            if np.all(self.connection_list[i, :, 1] < 0):
+                n_constraints += 1
+            if np.all(self.connection_list[i, :, 3] < 0):
+                n_constraints += 1
+            if np.all(self.connection_list[i, :, 5] < 0):
+                n_constraints += 1
+            # Loop through cells and check if does not have a neighboring cell in the + nx, + ny, or + nz direction 
+            if np.all(self.connection_list[i, :, 0] < 0):
+                n_constraints += 1
+            if np.all(self.connection_list[i, :, 2] < 0):
+                n_constraints += 1
+            if np.all(self.connection_list[i, :, 4] < 0):
+                n_constraints += 1
+
+        print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
+
         num_basis = self.n_functions
-        flux_constraint_matrix = lil_matrix((6 * self.N_grid, self.N_grid * num_basis))
-        off_limits = []
-        for i in range(self.N_grid):
-            flux_constraint_matrix[i * 6:(i + 1) * 6, i * num_basis:(i + 1) * num_basis] = flux_factor[:, i, :]
-            for kk in range(6):  # loop over the 6 directions
-                for j in range(6):  # loop over the 6 neighbors
-                    q = int(self.connection_list[i, j, kk])
-                    if q > 0:
-                        # print(q, q in off_limits)
-                        # if q not in off_limits and q >= 0:
-                        flux_constraint_matrix[i * 6 + kk, q * num_basis:(q + 1) * num_basis] = flux_factor[kk, q, :]
-                        off_limits.append(q)
+        flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis))
+        i_constraint = 0
+        for i in range(self.N_grid):            
+            # Loop through every cell and check the cell in + nx, + ny, or + nz direction
+            if np.any(self.connection_list[i, :, 0] > 0):
+                ind = np.ravel(np.where(self.connection_list[i, :, 0] > 0))
+                k_ind = self.connection_list[i, ind, 0]
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[ind, i, :]
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[ind, k_ind, :]
+                i_constraint += 1
+            if np.any(self.connection_list[i, :, 2] > 0):
+                ind = np.ravel(np.where(self.connection_list[i, :, 2] > 0))
+                k_ind = self.connection_list[i, ind, 2]
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[ind, i, :]
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[ind, k_ind, :]
+                i_constraint += 1
+            if np.any(self.connection_list[i, :, 4] > 0):
+                ind = np.ravel(np.where(self.connection_list[i, :, 4] > 0))
+                k_ind = self.connection_list[i, ind, 4]
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[ind, i, :]
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[ind, k_ind, :]
+                i_constraint += 1
+
+            # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction 
+            if np.all(self.connection_list[i, :, 1] < 0):
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[1, i, :]
+                i_constraint += 1
+            if np.all(self.connection_list[i, :, 3] < 0):
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[3, i, :]
+                i_constraint += 1
+            if np.all(self.connection_list[i, :, 5] < 0):
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[5, i, :]
+                i_constraint += 1
+            # Loop through cells and check if does not have a cell in the + nx, + ny, or + nz direction 
+            if np.all(self.connection_list[i, :, 0] < 0):
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[0, i, :]
+                i_constraint += 1
+            if np.all(self.connection_list[i, :, 2] < 0):
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[2, i, :]
+                i_constraint += 1
+            if np.all(self.connection_list[i, :, 4] < 0):
+                flux_constraint_matrix[i_constraint, 
+                                       i * num_basis:(i + 1) * num_basis
+                                       ] = flux_factor[4, i, :]
+                i_constraint += 1
 
         # Once matrix elements are set, convert to CSC for quicker matrix ops
         self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
+        print(self.flux_constraint_matrix)
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 

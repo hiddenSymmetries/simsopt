@@ -32,12 +32,12 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
-dx = 0.05
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
+dx = 0.025
 dy = dx
 dz = dx
-poff = 0.5  # PM grid end offset ~ 10 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 10 cm from the plasma surface
 coff = 0.02  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 
@@ -46,7 +46,15 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
-# Make the output directory
+qphi = s.nfp * nphi * 2
+quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
+quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+s_plot = SurfaceRZFourier.from_vmec_input(
+    surface_filename, range="full torus",
+    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+)
+
+# Make the output directoryå
 OUT_DIR = 'wv_QA/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -55,9 +63,8 @@ Bnormal = np.zeros((nphi, ntheta))
 
 # Define a curve to define a Itarget loss term
 # Make circle at Z = 0
-numquadpoints = nphi * 10 * s.nfp * 2
+numquadpoints = nphi * s.nfp * 2
 order = 20
-# curve = Curve(s.gamma()[:, 0, :])
 curve = CurveRZFourier(numquadpoints, order, nfp=1, stellsym=False)
 for m in range(s.mpol + 1):
     if m == 0:
@@ -90,7 +97,7 @@ wv_grid = WindingVolumeGrid(
 
 wv_grid._toVTK(OUT_DIR + 'grid')
 
-if False:
+if True:
     t1 = time.time()
     C = wv_grid.flux_constraint_matrix  # matrix is way too big but it is very sparse
     # Need to append Itarget constraint to the flux jump constraints
@@ -100,10 +107,10 @@ if False:
     t2 = time.time()
     print('Time to make CCT = ', t2 - t1, ' s')
     t1 = time.time()
-    factor = cholesky(CCT)
-    L = factor.L()
-    L_inv = sparse_inv(L)
-    LT_inv = sparse_inv(LT)
+    # factor = cholesky(CCT)
+    # L = factor.L()
+    # L_inv = sparse_inv(L)
+    # LT_inv = sparse_inv(LT)
     CCT_inv = sparse_inv(CCT)
     t2 = time.time()
     print('Time to make CCT_inv = ', t2 - t1, ' s')
@@ -115,13 +122,16 @@ if False:
     t2 = time.time()
     print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
     wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
+else:
+    projection_onto_constraints = None
 
 nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
-lam = 1e-20
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam)
+lam = 1e-18
+alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=True)
 print('alpha_opt = ', alpha_opt)
+print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
 t2 = time.time()
 print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 plt.figure()
@@ -144,10 +154,10 @@ normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
 # print('Bnormal lstsq = ', wv_grid.B_matrix @ alpha_opt * np.sqrt(nphi * ntheta) / np.sqrt(normN))
 # print('Bnormal coils = ', Bnormal)
 print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta))
-fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()
-print('fB_direct = ', fB_direct)
+# fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()
+# print('fB_direct = ', fB_direct)
 
-make_Bnormal_plots(bs_wv, s, OUT_DIR, "biot_savart_only_winding_volume")
+make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_winding_volume")
 # make_Bnormal_plots(bs + bs_wv, s, OUT_DIR, "biot_savart_total")
 
 t_end = time.time()

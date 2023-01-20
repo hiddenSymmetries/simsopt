@@ -1,7 +1,7 @@
 #include "winding_volume.h"
 
 // compute which cells are next to which cells 
-Array connections(Array& coil_points, int Nadjacent, int dx, int dy, int dz)
+Array connections(Array& coil_points, int Nadjacent, double dx, double dy, double dz)
 {
     int Ndipole = coil_points.shape(0);
     
@@ -25,22 +25,34 @@ Array connections(Array& coil_points, int Nadjacent, int dx, int dy, int dz)
 	    double dxx = coil_points(j, 0) - coil_points(dist_ind, 0);
 	    double dyy = coil_points(j, 1) - coil_points(dist_ind, 1);
 	    double dzz = coil_points(j, 2) - coil_points(dist_ind, 2);
+	    double dist = dist_ij[dist_ind];
             // check if this cell is not directly adjacent
-	    if (dxx > dx) connectivity_inds(j, k, 0) = -1; // -1 to indicate no adjacent cell
-	    else if (dxx < -dx) connectivity_inds(j, k, 1) = -1;
-	    else if (dyy > dy) connectivity_inds(j, k, 2) = -1;
-	    else if (dyy < -dy) connectivity_inds(j, k, 3) = -1;
-	    else if (dzz > dz) connectivity_inds(j, k, 4) = -1;
-	    else if (dzz < -dz) connectivity_inds(j, k, 5) = -1;
-	    // okay so the cell is adjacent... which direction is it?
-	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) connectivity_inds(j, k, 0) = dist_ind;
-	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx < 0.0)) connectivity_inds(j, k, 1) = dist_ind;
-	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy > 0.0)) connectivity_inds(j, k, 2) = dist_ind;
-	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) connectivity_inds(j, k, 3) = dist_ind;
-	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) connectivity_inds(j, k, 4) = dist_ind;
-	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) connectivity_inds(j, k, 5) = dist_ind;
-            dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
-	}
+	    // printf("%d %d %f %f %f %f %f %f %f\n", j, dist_ind, dist, dxx, dyy, dzz, dx, dy, dz);
+	    if (dist < dx or dist < dy or dist < dz) {
+        	    // okay so the cell is adjacent... which direction is it?
+        	    if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) connectivity_inds(j, k, 0) = dist_ind;
+        	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx < 0.0)) connectivity_inds(j, k, 1) = dist_ind;
+        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy > 0.0)) connectivity_inds(j, k, 2) = dist_ind;
+        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) connectivity_inds(j, k, 3) = dist_ind;
+        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) connectivity_inds(j, k, 4) = dist_ind;
+        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) connectivity_inds(j, k, 5) = dist_ind;
+            	}
+        else { 
+            connectivity_inds(j, k, 0) = -1;
+            connectivity_inds(j, k, 1) = -1;
+            connectivity_inds(j, k, 2) = -1;
+            connectivity_inds(j, k, 3) = -1;
+            connectivity_inds(j, k, 4) = -1;
+            connectivity_inds(j, k, 5) = -1;
+//        	    if (dxx > dx) connectivity_inds(j, k, 0) = -1; // -1 to indicate no adjacent cell
+//        	    else if (dxx < -dx) connectivity_inds(j, k, 1) = -1;
+//        	    else if (dyy > dy) connectivity_inds(j, k, 2) = -1;
+//        	    else if (dyy < -dy) connectivity_inds(j, k, 3) = -1;
+//        	    else if (dzz > dz) connectivity_inds(j, k, 4) = -1;
+//        	    else if (dzz < -dz) connectivity_inds(j, k, 5) = -1;
+        }
+        dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
+        	}
     }
     return connectivity_inds;
 }

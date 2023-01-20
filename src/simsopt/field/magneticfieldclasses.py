@@ -522,12 +522,6 @@ class WindingVolumeField(MagneticField):
         self.integration_points = winding_volume.XYZ_integration
         self.N_grid = winding_volume.N_grid
         self.Phi = winding_volume.Phi
-        # Jvec = np.zeros((self.N_grid, self.Phi.shape[2], 3))
-        # self.alphas = winding_volume.alphas.reshape(self.N_grid, winding_volume.n_functions)
-        # for i in range(3):
-        #     for j in range(self.Phi.shape[2]):
-        #         Jvec[:, j, i] = np.sum(self.Phi[:, :, j, i].T * self.alphas, axis=1)
-        # self.J = Jvec
         self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
         self.Phi_full = winding_volume.Phi_full
         self.integration_points_full = winding_volume.integration_points_full

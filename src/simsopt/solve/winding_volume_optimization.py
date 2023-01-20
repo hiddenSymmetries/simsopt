@@ -66,14 +66,39 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                     print(i, f_B[i] ** 2 * nfp * 0.5, f_I[i], f_K[i])
         else:
             for i in range(max_iter):
-                alpha_opt = alpha_opt + step_size * (BTb - BT @ (B @ alpha_opt) - lam * alpha_opt)
+                alpha_opt = alpha_opt + step_size * (BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt)
                 f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+                f_I.append((I @ alpha_opt - b_I) ** 2)
                 f_K.append(np.linalg.norm(alpha_opt, ord=2))
                 if (i % 100) == 0.0:
-                    print(i, f_B[i] ** 2 * nfp * 0.5, alpha_opt[:10])
+                    print(i, f_B[i] ** 2 * nfp * 0.5, f_I[i], f_K[i])
     else:
-        for i in range(max_iter):
-            alpha_opt = P.dot(alpha_opt + BTb - BT @ (B @ alpha_opt) - lam * alpha_opt)
+        if acceleration:  # Nesterov acceleration 
+            # first iteration do regular GD 
+            alpha_opt_prev = alpha_opt
+            step_size_i = step_size
+            alpha_opt = alpha_opt + step_size_i * (
+                BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt
+            )
             f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+            f_I.append((I @ alpha_opt - b_I) ** 2)
             f_K.append(np.linalg.norm(alpha_opt, ord=2))
+            for i in range(1, max_iter):
+                vi = alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev)
+                alpha_opt_prev = alpha_opt
+                alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
+                step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
+                f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+                f_I.append((I @ alpha_opt - b_I) ** 2)
+                f_K.append(np.linalg.norm(alpha_opt, ord=2))
+                if (i % 100) == 0.0:
+                    print(i, f_B[i] ** 2 * nfp * 0.5, f_I[i], f_K[i])
+        else:
+            for i in range(max_iter):
+                alpha_opt = P.dot(alpha_opt + step_size * (BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt))
+                f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
+                f_I.append((I @ alpha_opt - b_I) ** 2)
+                f_K.append(np.linalg.norm(alpha_opt, ord=2))
+                if (i % 100) == 0.0:
+                    print(i, f_B[i] ** 2 * nfp * 0.5, f_I[i], f_K[i])
     return alpha_opt, 0.5 * np.array(f_B) ** 2 * nfp, 0.5 * np.array(f_K) ** 2, 0.5 * np.array(f_I)
