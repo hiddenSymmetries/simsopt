@@ -188,13 +188,14 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
                 field, stz_inits[i, :],
                 m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
                 noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
-                phis_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega, Phim=Phim, Phin=Phin, phase=phase)
+                phis_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
+                Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path)
         else:
             res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
                 field, stz_inits[i, :],
                 m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
                 noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
-                phis_stop=zetas_stop,vpars_stop=vpars_stop)
+                phis_stop=zetas_stop,vpars_stop=vpars_stop,forget_exact_path=forget_exact_path)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
