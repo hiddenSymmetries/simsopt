@@ -612,6 +612,8 @@ class WindingVolumeGrid:
             self.dy, 
             self.dz
         )
+        # need to normal flux_factor by 1/nx ** 2 (assuming uniform grid)
+        flux_factor *= 1 / (self.nx ** 2)
         t1 = time.time()
 
         # first count the number of constraints
