@@ -557,7 +557,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     uintmax_t rootmaxit = 200;
     State temp;
     do {
-        if (!forget_exact_path) {
+        if (!forget_exact_path || t==0) {
             res.push_back(join<1, RHS::Size>({t}, y));
         }
         tuple<double, double> step = dense.do_step(rhs);
@@ -588,6 +588,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 dense.calc_state(troot, temp);
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i) + phis.size()}, temp));
                 if (vpars_stop) {
+                    res.push_back(join<1, RHS::Size>({troot}, temp));
                     stop = true;
                     break;
                 }
@@ -619,6 +620,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 dense.calc_state(troot, temp);
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i)}, temp));
                 if (phis_stop) {
+                    res.push_back(join<1, RHS::Size>({troot}, temp));
                     stop = true;
                     break;
                 }
@@ -628,6 +630,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         for (int i = 0; i < stopping_criteria.size(); ++i) {
             if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2], y[3])){
                 stop = true;
+                res.push_back(join<1, RHS::Size>({t}, y));
                 res_phi_hits.push_back(join<2, RHS::Size>({t, -1-double(i)}, y));
                 break;
             }
@@ -638,9 +641,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     } while(t < tmax && !stop);
     if(!stop){
         dense.calc_state(tmax, y);
-        if (!forget_exact_path) {
-            res.push_back(join<1, RHS::Size>({tmax}, y));
-        }
+        res.push_back(join<1, RHS::Size>({tmax}, y));
     }
     return std::make_tuple(res, res_phi_hits);
 }
