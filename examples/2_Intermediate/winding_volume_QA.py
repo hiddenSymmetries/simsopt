@@ -34,11 +34,11 @@ t_start = time.time()
 # Set some parameters
 nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 4
-dx = 0.03
+dx = 0.05
 dy = dx
 dz = dx
 poff = 0.05  # PM grid end offset ~ 10 cm from the plasma surface
-coff = 0.02  # PM grid starts offset ~ 5 cm from the plasma surface
+coff = 0.0025  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file

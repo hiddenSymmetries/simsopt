@@ -598,13 +598,6 @@ class WindingVolumeGrid:
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_sqrt_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
 
-        # flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
-        #     coil_points,
-        #     self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3), 
-        #     self.dx,
-        #     self.dy, 
-        #     self.dz
-        # )
         ########### TEMPORARY TEST
         # d = 4
         # self.XYZ_uniform = (self.XYZ_uniform.reshape(self.Nx, self.Ny, self.Nz, 3)[:d, :d, 0, :]).reshape(d ** 2, 3)
@@ -622,8 +615,8 @@ class WindingVolumeGrid:
         t1 = time.time()
 
         # first count the number of constraints
-        # for i in range(self.N_grid):
-        #     print(self.connection_list[i, :, :])
+        for i in range(self.N_grid):
+            print(self.connection_list[i, :, :])
         n_constraints = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
@@ -740,7 +733,7 @@ class WindingVolumeGrid:
                                        ] = flux_factor[4, i, :]
                 i_constraint += 1
 
-        print(flux_constraint_matrix)
+        # print(flux_constraint_matrix)
         # constraint_matrix_unique = np.unique(flux_constraint_matrix @ flux_constraint_matrix.T, axis=0)
         # print(constraint_matrix_unique.shape)
         # Once matrix elements are set, convert to CSC for quicker matrix ops
@@ -752,6 +745,7 @@ class WindingVolumeGrid:
         # for i in range(n_constraints):
         #     print(i, self.flux_constraint_matrix[i, :], 
         #           np.count_nonzero(self.flux_constraint_matrix[i, :].todense()))
+        exit()
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 
