@@ -47,7 +47,8 @@ class Boozer(Optimizable):
     def __init__(self,
                  equil: Vmec,
                  mpol: int = 32,
-                 ntor: int = 32) -> None:
+                 ntor: int = 32,
+                 verbose: bool = True) -> None:
         """
         Constructor
         """
@@ -60,8 +61,10 @@ class Boozer(Optimizable):
         self.mpol = mpol
         self.ntor = ntor
         self.bx = booz_xform.Booz_xform()
+        if not verbose: self.bx.verbose = False
         self.s = set()
         self.need_to_run_code = True
+        self.verbose = verbose
         self._calls = 0  # For testing, keep track of how many times we call bx.run()
 
         # We may at some point want to allow booz_xform to use a
@@ -170,8 +173,9 @@ class Boozer(Optimizable):
             self.bx.mnmax = wout.mnmax
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
-            print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
-            print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            if self.verbose:
+                print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
+                print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
             assert len(wout.xm) == wout.mnmax
             assert len(wout.xn) == wout.mnmax
             assert len(self.bx.xm) == self.bx.mnmax
