@@ -362,14 +362,14 @@ class Testing(unittest.TestCase):
 
         curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=128)
         curve1 = CurveXYZFourier(200, 3)
-        coeffs = curve1.dofs
+        coeffs = curve1.dofs_matrix
         coeffs[1][0] = 1.
         coeffs[1][1] = 0.5
         coeffs[2][2] = 0.5
         curve1.set_dofs(np.concatenate(coeffs))
 
         curve2 = CurveXYZFourier(150, 3)
-        coeffs = curve2.dofs
+        coeffs = curve2.dofs_matrix
         coeffs[1][0] = 0.5
         coeffs[1][1] = 0.5
         coeffs[0][0] = 0.1
