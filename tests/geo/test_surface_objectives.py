@@ -27,7 +27,7 @@ def taylor_test1(f, df, x, epsilons=None, direction=None):
         fminuseps = f(x - eps * direction)
         dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
-        print(err, err/err_old)
+        print("taylor test1": err, err/err_old)
         assert err < 1e-9 or err < 0.3 * err_old
         err_old = err
     print("###################################################################")
@@ -51,8 +51,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
         fpluseps = df(x + eps * direction2) @ direction1
         d2fest = (fpluseps-df0)/eps
         err = np.abs(d2fest - d2fval)
-        print('err: ', err)
-        print(err/err_old)
+        print('taylor test2: ', err, err/err_old)
         assert err < 0.6 * err_old
         err_old = err
     print("###################################################################")
