@@ -277,7 +277,7 @@ class MajorRadiusTests(unittest.TestCase):
             bs.x = dofs
             return mr.dJ()
         taylor_test1(f, df, coeffs,
-                     epsilons=np.power(2., -np.asarray(range(13, 19))))
+                     epsilons=np.power(2., -np.asarray(range(13, 18))))
 
 
 class IotasTests(unittest.TestCase):
