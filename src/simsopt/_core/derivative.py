@@ -176,13 +176,16 @@ class Derivative():
         """
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
-        deps = optim.ancestors + [optim]
         derivs = []
         keys = []
-        for k in deps:
+        for k in optim.unique_dof_lineage:
             if np.any(k.dofs_free_status):
-                derivs.append(self.data[k][k.local_dofs_free_status])
-                keys.append(k)
+                local_derivs = np.zeros(k.local_dof_size)
+                for opt in k.dofs.dep_opts():
+                    local_derivs += self.data[opt][opt.local_dofs_free_status]
+                    keys.append(opt)
+                derivs.append(local_derivs)
+
         if as_derivative:
             return Derivative({k: d for k, d in zip(keys, derivs)})
         else:
