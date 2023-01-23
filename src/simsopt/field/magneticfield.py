@@ -92,7 +92,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         contig = np.ascontiguousarray
         gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[..., 0]), contig(vals[..., 1]), contig(vals[..., 2]))})
 
-    def to_mgrid(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=2):
+    def to_mgrid(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=2, mgrid_mode='S'):
         """Export the field evaluated on a regular grid for free boundary calculations."""
         from simsopt.field.mgrid import MGrid          # Handles MGRID file I/O
 
@@ -127,7 +127,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
         mgrid = MGrid(nfp=nfp, \
                       nr=nr, nz=nz, nphi=nphi, \
-                      rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
+                      rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax, mgrid_mode=mgrid_mode)
         mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
 
         mgrid.write(filename)  # perhaps mgrid.filename.nc

@@ -48,12 +48,15 @@ class MGrid():
                  rmax: float = 0.40, 
                  zmin: float = -0.10, 
                  zmax: float = 0.10,
+                 mgrid_mode: str = 'S',
                  ):
 
         self.nr = nr
         self.nz = nz
         self.nphi = nphi
         self.nfp = nfp
+
+        self.mgrid_mode = mgrid_mode
 
         self.rmin = rmin
         self.rmax = rmax
@@ -154,7 +157,7 @@ class MGrid():
         var_zmax[:] = self.zmax
 
         var_coil_group[:] = self.coil_names
-        var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
+        var_mgrid_mode[:] = self.mgrid_mode  # R - Raw, S - scaled, N - none (old version)
         var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
 
         # add fields
