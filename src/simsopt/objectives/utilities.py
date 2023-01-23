@@ -3,6 +3,7 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
+from .._core.json import GSONable
 
 __all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight']
 
@@ -64,7 +65,7 @@ class MPIObjective(Optimizable):
         return all_derivs
 
 
-class QuadraticPenalty(Optimizable):
+class QuadraticPenalty(Optimizable, GSONable):
 
     def __init__(self, obj, cons=0., f="min"):
         r"""

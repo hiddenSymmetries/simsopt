@@ -82,8 +82,8 @@ def get_boozer_surface(label="Volume"):
     G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
-    mpol = 6  
-    ntor = 6  
+    mpol = 6
+    ntor = 6
     stellsym = True
     nfp = 3
 
