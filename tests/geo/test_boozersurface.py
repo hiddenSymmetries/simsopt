@@ -1,4 +1,5 @@
 import unittest
+
 import numpy as np
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.boozersurface import BoozerSurface
@@ -302,7 +303,6 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
-
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
         gammazero = s.gamma()[0, 0, :]

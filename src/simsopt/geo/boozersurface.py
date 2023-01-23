@@ -114,7 +114,7 @@ class BoozerSurface(Optimizable, GSONable):
         dl = np.zeros(x.shape)
         drz = np.zeros(x.shape)
 
-        dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
+        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
 
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
         J = np.concatenate((
@@ -181,7 +181,7 @@ class BoozerSurface(Optimizable, GSONable):
         dl = np.zeros((xl.shape[0]-2,))
 
         l = self.label.J()
-        dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
+        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
         drz = np.zeros((xl.shape[0]-2,))
         g = [l-self.targetlabel]
         rz = (s.gamma()[0, 0, 2] - 0.)
@@ -527,12 +527,12 @@ class BoozerSurface(Optimizable, GSONable):
             if s.stellsym:
                 J = np.vstack((
                     J[mask, :],
-                    np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                    np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
                 ))
             else:
                 J = np.vstack((
                     J[mask, :],
-                    np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                    np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
                     np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
                 ))
             dx = np.linalg.solve(J, b)
@@ -547,12 +547,12 @@ class BoozerSurface(Optimizable, GSONable):
         if s.stellsym:
             J = np.vstack((
                 J[mask, :],
-                np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
             ))
         else:
             J = np.vstack((
                 J[mask, :],
-                np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
                 np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
             ))
 
@@ -564,3 +564,4 @@ class BoozerSurface(Optimizable, GSONable):
         self.res = res
         self.need_to_run_code = False
         return res
+ 

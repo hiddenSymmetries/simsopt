@@ -105,7 +105,7 @@ class ToroidalFluxTests(unittest.TestCase):
         """
         Taylor test for partial derivative of toroidal flux with respect to surface coefficients
         """
-        
+
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
@@ -356,7 +356,7 @@ class LabelTests(unittest.TestCase):
 
         def df(dofs):
             surface.x = dofs
-            return label.dJ_by_dsurfacecoefficients()
+            return label.dJ(partials=True)(surface)
 
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
