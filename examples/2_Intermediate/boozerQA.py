@@ -96,7 +96,7 @@ def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    
+
     if not boozer_surface.res['success']:
         # failed, so reset back to previous surface and return a large value
         # of the objective.  The purpose is to trigger the line search to reduce
