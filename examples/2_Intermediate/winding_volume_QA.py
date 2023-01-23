@@ -32,13 +32,13 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 4
-dx = 0.05
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
+dx = 0.1
 dy = dx
 dz = dx
-poff = 0.05  # PM grid end offset ~ 10 cm from the plasma surface
-coff = 0.0025  # PM grid starts offset ~ 5 cm from the plasma surface
+poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
+coff = 0.2  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file
@@ -78,9 +78,9 @@ for m in range(s.mpol + 1):
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
 curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
-Itarget = 1e6  # 1 MA
+Itarget = 1e6
 
-nx = 6
+nx = 10
 # Finally, initialize the winding volume 
 wv_grid = WindingVolumeGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
@@ -111,13 +111,16 @@ if True:
     # L = factor.L()
     # L_inv = sparse_inv(L)
     # LT_inv = sparse_inv(LT)
-    CCT_inv = sparse_inv(CCT)
+
+    #CCT_inv = sparse_inv(CCT)
+    CCT_inv = np.linalg.inv(CCT)
     t2 = time.time()
     print('Time to make CCT_inv = ', t2 - t1, ' s')
     t1 = time.time()
-    CT_CCT_inv = CT @ CCT_inv
-    CT_CCT_inv_d = CT_CCT_inv[:, -1] * wv_grid.Itarget_rhs
-    projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
+    # CT_CCT_inv = CT @ CCT_inv
+    # CT_CCT_inv_d = CT_CCT_inv[:, -1] * wv_grid.Itarget_rhs
+    projection_onto_constraints = np.eye(wv_grid.N_grid * wv_grid.n_functions) - CT @ CCT_inv @ C 
+    # projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
     wv_grid.alphas = projection_onto_constraints.dot(np.ravel(wv_grid.alphas)).reshape(wv_grid.alphas.shape)
     t2 = time.time()
     print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
@@ -128,11 +131,12 @@ else:
 nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
-lam = 1e-18
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=True)
+lam = 1e-20
+alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=True, max_iter=10000)
 print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
     print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
+    print('|P * alpha_opt - alpha_opt| / ||alpha_opt|| = ', abs(projection_onto_constraints.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
 t2 = time.time()
 print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 plt.figure()
@@ -142,6 +146,7 @@ plt.semilogy(fI, label='fI')
 plt.semilogy(fB + fI + lam * fK, label='total')
 plt.grid(True)
 plt.legend()
+plt.savefig(OUT_DIR + 'optimization_progress.jpg')
 wv_grid.alphas = alpha_opt
 wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
 # print('fB after optimization = ', fB) 
@@ -160,6 +165,8 @@ print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 
 
 make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_winding_volume")
 # make_Bnormal_plots(bs + bs_wv, s, OUT_DIR, "biot_savart_total")
+
+wv_grid.check_fluxes()
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

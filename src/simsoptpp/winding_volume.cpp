@@ -20,15 +20,13 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
         }
         for (int k = 0; k < 6; ++k) {
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
-            int dist_ind = std::distance(dist_ij.begin(), result);
+        int dist_ind = std::distance(dist_ij.begin(), result);
+
 	    // Get dx, dy, dz from this ind
 	    double dxx = -(coil_points(j, 0) - coil_points(dist_ind, 0));
 	    double dyy = -(coil_points(j, 1) - coil_points(dist_ind, 1));
 	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
-            // check if this cell is not directly adjacent
-//  	    printf("%d %d %d %f %f %f %f %f %f %f\n", j, k, dist_ind, dist, dxx, dyy, dzz, dx, dy, dz);
-// 	    printf("%d %d %d %d %d %d %d\n", j, connectivity_inds(j, k, 0), connectivity_inds(j, k, 1), connectivity_inds(j, k, 2), connectivity_inds(j, k, 3), connectivity_inds(j, k, 4), connectivity_inds(j, k, 5));
 	    if (dist < dx || dist < dy || dist < dz) {
         	    // okay so the cell is adjacent... which direction is it?
         	    int dir_ind = 0;
@@ -38,7 +36,6 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
         	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) dir_ind = 3;
         	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) dir_ind = 4;
         	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) dir_ind = 5;
-//             printf("%d %d %d %d %d %d %d\n", j, connectivity_inds(j, k, 0), connectivity_inds(j, k, 1), connectivity_inds(j, k, 2), connectivity_inds(j, k, 3), connectivity_inds(j, k, 4), connectivity_inds(j, k, 5));
             	connectivity_inds(j, k, dir_ind) = dist_ind;
             for (int kk = 0; kk < 6; ++kk) {
                 if (kk != dir_ind) connectivity_inds(j, k, kk) = -1;
@@ -51,12 +48,6 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
             connectivity_inds(j, k, 3) = -1;
             connectivity_inds(j, k, 4) = -1;
             connectivity_inds(j, k, 5) = -1;
-//        	    if (dxx > dx) connectivity_inds(j, k, 0) = -1; // -1 to indicate no adjacent cell
-//        	    else if (dxx < -dx) connectivity_inds(j, k, 1) = -1;
-//        	    else if (dyy > dy) connectivity_inds(j, k, 2) = -1;
-//        	    else if (dyy < -dy) connectivity_inds(j, k, 3) = -1;
-//        	    else if (dzz > dz) connectivity_inds(j, k, 4) = -1;
-//        	    else if (dzz < -dz) connectivity_inds(j, k, 5) = -1;
         }
         dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
         	}
@@ -202,11 +193,11 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
    	
     int num_inner = xyz_inner.shape(0);
     int ngrid = xyz_uniform.shape(0);
-    int num_ray = 500;
+    int num_ray = 2000;
     Array final_grid = xt::zeros<double>({ngrid, 3});
 
     // Loop through every dipole
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (int i = 0; i < ngrid; i++) {
         double X = xyz_uniform(i, 0);
         double Y = xyz_uniform(i, 1);
@@ -265,9 +256,9 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
 	double ray_equation_y = 0.0;
         double ray_equation_z = 0.0;
         for (int k = 0; k < num_ray; k++) {
-	    ray_equation_x = X + ray_x * (8.0 / ((double) num_ray)) * k;
-	    ray_equation_y = Y + ray_y * (8.0 / ((double) num_ray)) * k;
-	    ray_equation_z = Z + ray_z * (8.0 / ((double) num_ray)) * k;
+	    ray_equation_x = X + ray_x * (4.0 / ((double) num_ray)) * k;
+	    ray_equation_y = Y + ray_y * (4.0 / ((double) num_ray)) * k;
+	    ray_equation_z = Z + ray_z * (4.0 / ((double) num_ray)) * k;
 	    dist_inner_ray = (xyz_inner(inner_loc, 0) - ray_equation_x) * (xyz_inner(inner_loc, 0) - ray_equation_x) + (xyz_inner(inner_loc, 1) - ray_equation_y) * (xyz_inner(inner_loc, 1) - ray_equation_y) + (xyz_inner(inner_loc, 2) - ray_equation_z) * (xyz_inner(inner_loc, 2) - ray_equation_z);
 	    dist_outer_ray = (xyz_outer(outer_loc, 0) - ray_equation_x) * (xyz_outer(outer_loc, 0) - ray_equation_x) + (xyz_outer(outer_loc, 1) - ray_equation_y) * (xyz_outer(outer_loc, 1) - ray_equation_y) + (xyz_outer(outer_loc, 2) - ray_equation_z) * (xyz_outer(outer_loc, 2) - ray_equation_z);
             if (dist_inner_ray < min_dist_inner_ray) {

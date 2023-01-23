@@ -174,15 +174,16 @@ class WindingVolumeGrid:
             t1 = time.time()
 
             contig = np.ascontiguousarray
+            print(np.shape(self.XYZ_uniform))
             if self.surface_flag == 'focus' or self.surface_flag == 'wout':
                 final_grid = sopp.make_winding_volume_grid(
-                    # self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
+                    #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
                     contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
                     contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
                 )
             else:
                 final_grid = sopp.make_winding_volume_grid(
-                    # self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
+                    #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
                     contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
                     contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
                 )
@@ -401,7 +402,14 @@ class WindingVolumeGrid:
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
         )
-        data = {"divJ": (contig(divJ)), } 
+        data = {"divJ": (contig(divJ)), "num_constraints_per_cell": self.num_constraints_per_cell,
+                "flux_factor0": np.sum(self.flux_factor[0, :, :] * alphas.T, axis=-1), 
+                "flux_factor1": np.sum(self.flux_factor[1, :, :] * alphas.T, axis=-1), 
+                "flux_factor2": np.sum(self.flux_factor[2, :, :] * alphas.T, axis=-1), 
+                "flux_factor3": np.sum(self.flux_factor[3, :, :] * alphas.T, axis=-1), 
+                "flux_factor4": np.sum(self.flux_factor[4, :, :] * alphas.T, axis=-1), 
+                "flux_factor5": np.sum(self.flux_factor[5, :, :] * alphas.T, axis=-1),
+                "index": np.arange(n)} 
         pointsToVTK(
             vtkname + '_divJ', contig(ox), contig(oy), contig(oz), data=data
         )
@@ -598,49 +606,36 @@ class WindingVolumeGrid:
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_sqrt_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
 
-        ########### TEMPORARY TEST
-        # d = 4
-        # self.XYZ_uniform = (self.XYZ_uniform.reshape(self.Nx, self.Ny, self.Nz, 3)[:d, :d, 0, :]).reshape(d ** 2, 3)
-        # print(self.XYZ_uniform)
-        # self.N_grid = self.XYZ_uniform.shape[0]
         flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
-            # contig(self.XYZ_uniform),
             coil_points,
-            # contig(np.ones((self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3))), 
             contig(self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3)), 
             self.dx,
             self.dy, 
             self.dz
         )
-        # need to normal flux_factor by 1/nx ** 2 (assuming uniform grid)
+        # need to normalize flux_factor by 1/nx ** 2 (assuming uniform grid)
         flux_factor *= 1 / (self.nx ** 2)
         t1 = time.time()
 
-        # first count the number of constraints
-        for i in range(self.N_grid):
-            print(self.connection_list[i, :, :])
         n_constraints = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
-            if np.any(self.connection_list[i, :, 0] > 0):
-                # print(i, self.connection_list[i, :, 0])
+            if np.any(self.connection_list[i, :, 0] >= 0):
                 n_constraints += 1
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         for i in range(self.N_grid):            
-            if np.any(self.connection_list[i, :, 2] > 0):
+            if np.any(self.connection_list[i, :, 2] >= 0):
                 # print(i, self.connection_list[i, :, 2])
                 n_constraints += 1
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         for i in range(self.N_grid):            
-            if np.any(self.connection_list[i, :, 4] > 0):
+            if np.any(self.connection_list[i, :, 4] >= 0):
                 n_constraints += 1
-            # print(i, n_constraints)
 
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
         for i in range(self.N_grid):       
-            # print(i, self.connection_list[i, :, 1])
             # Loop through cells and check if does not have a neighboring cell in the - nx, - ny, or - nz direction 
             if np.all(self.connection_list[i, :, 1] < 0):
                 n_constraints += 1
@@ -662,14 +657,14 @@ class WindingVolumeGrid:
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         num_basis = self.n_functions
-        # flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
+        flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
 
-        flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis))
+        #flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis))
         i_constraint = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
-            if np.any(self.connection_list[i, :, 0] > 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 0] > 0))[0]
+            if np.any(self.connection_list[i, :, 0] >= 0):
+                ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 0]
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
@@ -678,8 +673,8 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[1, k_ind, :]
                 i_constraint += 1
-            if np.any(self.connection_list[i, :, 2] > 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 2] > 0))[0]
+            if np.any(self.connection_list[i, :, 2] >= 0):
+                ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 2]
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
@@ -688,12 +683,9 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[3, k_ind, :]
                 i_constraint += 1
-            if np.any(self.connection_list[i, :, 4] > 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 4] > 0))[0]
+            if np.any(self.connection_list[i, :, 4] >= 0):
+                ind = np.ravel(np.where(self.connection_list[i, :, 4] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 4]
-                # print(i_constraint, i, ind, k_ind, k_ind * num_basis, num_basis, (k_ind + 1) * num_basis)
-                # print(i * num_basis, (i + 1) * num_basis)
-
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[4, i, :]
@@ -735,19 +727,19 @@ class WindingVolumeGrid:
                                        ] = flux_factor[4, i, :]
                 i_constraint += 1
 
-        # print(flux_constraint_matrix)
-        # constraint_matrix_unique = np.unique(flux_constraint_matrix @ flux_constraint_matrix.T, axis=0)
-        # print(constraint_matrix_unique.shape)
+        connect_list_zeros = np.copy(self.connection_list)
+        connect_list_zeros[connect_list_zeros >= 0] = 1
+        connect_list_zeros[self.connection_list == -1] = 0
+        self.num_constraints_per_cell = np.sum(np.sum(connect_list_zeros, axis=-1), axis=-1)
+        print(self.num_constraints_per_cell)
+        self.flux_factor = flux_factor
+
         # Once matrix elements are set, convert to CSC for quicker matrix ops
-        self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
-        flux_constraint_matrix = flux_constraint_matrix.todense()
+        #self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
+        #flux_constraint_matrix = flux_constraint_matrix.todense()
+        self.flux_constraint_matrix = flux_constraint_matrix
         CCT = flux_constraint_matrix @ flux_constraint_matrix.T
         print(CCT.shape[0], np.linalg.matrix_rank(CCT))
-        # CCT_inv = np.linalg.inv(CCT)
-        # for i in range(n_constraints):
-        #     print(i, self.flux_constraint_matrix[i, :], 
-        #           np.count_nonzero(self.flux_constraint_matrix[i, :].todense()))
-        exit()
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 
@@ -784,3 +776,79 @@ class WindingVolumeGrid:
             d["filename"],
             d["surface_flag"],
         )
+
+    def check_fluxes(self):
+        Phi = self.Phi
+        n = Phi.shape[1]
+        n_interp = Phi.shape[2]
+        alpha_opt = self.alphas.reshape(n, self.n_functions)
+        # integration_points = self.integration_points
+        Jvec = np.zeros((n, n_interp, 3))
+        Nx = self.nx
+        Ny = self.ny
+        Nz = self.nz
+
+        # Compute Jvec as average J over the integration points in a cell
+        for i in range(3):
+            for j in range(n_interp):
+                for k in range(self.n_functions):
+                    Jvec[:, j, i] += alpha_opt[:, k] * Phi[k, :, j, i]
+        Jvec = Jvec.reshape(n, Nx, Ny, Nz, 3)
+
+        # Compute all the fluxes (unnormalized!)
+        flux = np.zeros((n, 6))
+        for i in range(n):
+            for j in range(6):
+                nx = 0
+                ny = 0
+                nz = 0
+                if j == 0:
+                    nx = 1
+                    x_ind = Nx - 1
+                elif j == 1:
+                    nx = -1
+                    x_ind = 0
+                elif j == 2:
+                    ny = 1
+                    y_ind = Ny - 1
+                elif j == 3:
+                    ny = -1
+                    y_ind = 0
+                elif j == 4:
+                    nz = 1
+                    z_ind = Nz - 1
+                elif j == 5:
+                    nz = -1
+                    z_ind = 0
+                if j < 2:
+                    for l in range(Ny):
+                        for m in range(Nz):
+                            flux[i, j] += nx * Jvec[i, x_ind, l, m, 0] + ny * Jvec[i, x_ind, l, m, 1] + nz * Jvec[i, x_ind, l, m, 2]
+                elif j < 4:
+                    for l in range(Nx):
+                        for m in range(Nz):
+                            flux[i, j] += nx * Jvec[i, l, y_ind, m, 0] + ny * Jvec[i, l, y_ind, m, 1] + nz * Jvec[i, l, y_ind, m, 2]
+                else:
+                    for l in range(Nx):
+                        for m in range(Ny):
+                            flux[i, j] += nx * Jvec[i, l, m, z_ind, 0] + ny * Jvec[i, l, m, z_ind, 1] + nz * Jvec[i, l, m, z_ind, 2]
+
+        # Compare fluxes across adjacent cells
+        print(flux)
+        flux_max = np.max(abs(flux)) / 1e5
+        for i in range(n):
+            for j in range(6):
+                print(i, j, flux[i, j], self.connection_list[i, :, j])
+                if np.any(self.connection_list[i, :, j] >= 0):
+                    inds = np.ravel(np.where(self.connection_list[i, :, j] >= 0))
+                    for ind in inds:
+                        k_ind = self.connection_list[i, ind, j]
+                        if (j % 2) == 0:
+                            j_ind = j + 1
+                        else:
+                            j_ind = j - 1
+                        print(i, j, inds, ind, k_ind, j_ind, flux[i, j], flux[k_ind, j_ind])
+                        assert np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-3)
+                else:
+                    assert np.isclose(flux[i, j], 0.0, atol=flux_max)
+
