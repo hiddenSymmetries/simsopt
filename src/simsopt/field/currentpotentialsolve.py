@@ -16,13 +16,13 @@ class CurrentPotentialSolve:
     Current Potential Solve object is designed for performing
     the winding surface coil optimization. We provide functionality
     for the REGCOIL (tikhonov regularization) and L1 norm (Lasso)
-    variants of the problem. 
+    variants of the problem.
 
     Args:
         cp: CurrentPotential class object containing the winding surface.
         plasma_surface: The plasma surface to optimize Bnormal over.
         Bnormal_plasma: Bnormal coming from plasma currents.
-        B_GI: Bnormal coming from the net coil currents. 
+        B_GI: Bnormal coming from the net coil currents.
     """
 
     def __init__(self, cp, plasma_surface, Bnormal_plasma, B_GI):
@@ -83,14 +83,14 @@ class CurrentPotentialSolve:
 
         s_plasma = SurfaceRZFourier(
             nfp=nfp,
-            mpol=mpol_plasma, 
-            ntor=ntor_plasma, 
+            mpol=mpol_plasma,
+            ntor=ntor_plasma,
             stellsym=stellsym_plasma_surf
         )
         s_plasma = s_plasma.from_nphi_ntheta(
-            nfp=nfp, ntheta=ntheta_plasma, 
+            nfp=nfp, ntheta=ntheta_plasma,
             nphi=nzeta_plasma,
-            mpol=mpol_plasma, ntor=ntor_plasma, 
+            mpol=mpol_plasma, ntor=ntor_plasma,
             stellsym=stellsym_plasma_surf, range="field period"
         )
         s_plasma.set_dofs(0 * s_plasma.get_dofs())
@@ -132,7 +132,7 @@ class CurrentPotentialSolve:
     def K_matrix(self):
         K_matrix = np.zeros((self.current_potential.num_dofs(), self.current_potential.num_dofs()))
         self.K_matrix_impl(K_matrix)
-        return K_matrix 
+        return K_matrix
 
     def B_matrix_and_rhs(self):
         """
@@ -153,14 +153,14 @@ class CurrentPotentialSolve:
         # Compute terms for the REGCOIL (L2) problem
         gj, B_matrix = sopp.winding_surface_field_Bn(
             points_plasma,
-            points_coil, 
-            normal_plasma, 
-            normal, 
-            self.winding_surface.stellsym,
-            zeta_coil, 
-            theta_coil, 
-            self.ndofs, 
-            self.current_potential.m, 
+            points_coil,
+            normal_plasma,
+            normal,
+            self.current_potential.stellsym,
+            zeta_coil,
+            theta_coil,
+            self.current_potential.num_dofs(),
+            self.current_potential.m,
             self.current_potential.n,
             self.winding_surface.nfp
         )
@@ -195,7 +195,7 @@ class CurrentPotentialSolve:
 
         # Compute terms for the Lasso (L1) problem
         d, fj = sopp.winding_surface_field_K2_matrices(
-            contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym, 
+            contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.current_potential.stellsym,
             contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
         )
         self.fj = fj * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
@@ -220,7 +220,7 @@ class CurrentPotentialSolve:
         nfp = self.plasma_surface.nfp
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
         A_times_phi = self.gj @ phi_mn_opt / np.sqrt(normN)
-        b_e = self.b_e 
+        b_e = self.b_e
         Ak_times_phi = self.fj @ phi_mn_opt
         f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
@@ -229,27 +229,27 @@ class CurrentPotentialSolve:
     def solve_lasso(self, lam=0, max_iter=1000, acceleration=True):
         """
             Solve the Lasso problem -- winding surface optimization with
-            the L1 norm, which should tend to allow stronger current 
+            the L1 norm, which should tend to allow stronger current
             filaments to form than the L2. There are a couple changes to make:
 
             1. Need to define new optimization variable z = A_k * phi_mn - b_k
                so that optimization becomes
                ||AA_k^{-1} * z - (b - A * A_k^{-1} * b_k)||_2^2 + alpha * ||z||_1
-               which is the form required to use the Lasso pre-built optimizer 
-               from sklearn (which actually works poorly) or the optimizer used 
+               which is the form required to use the Lasso pre-built optimizer
+               from sklearn (which actually works poorly) or the optimizer used
                here (proximal gradient descent for LASSO, also called ISTA or FISTA).
             2. The alpha term should be similar amount of regularization as the L2
                so we rescale lam -> sqrt(lam) since lam is used for the (L2 norm)^2
-               loss term used for Tikhonov regularization. 
+               loss term used for Tikhonov regularization.
 
 
-            We use the FISTA algorithm but you could use scikit-learn's Lasso 
+            We use the FISTA algorithm but you could use scikit-learn's Lasso
             optimizer too. Like any gradient-based algorithm, both FISTA
             and Lasso will work very poorly at low regularization since convergence
             goes like the condition number of the fB matrix. In both cases,
             this can be addressed by using the exact Tikhonov solution (obtained
-            with a matrix inverse instead of a gradient-based optimization) as 
-            an initial guess to the optimizers. 
+            with a matrix inverse instead of a gradient-based optimization) as
+            an initial guess to the optimizers.
         """
         # Set up some matrices
         _, _ = self.B_matrix_and_rhs()
@@ -257,7 +257,7 @@ class CurrentPotentialSolve:
         A_matrix = self.gj
         for i in range(self.gj.shape[0]):
             A_matrix[i, :] *= (1.0 / np.sqrt(normN[i]))
-        b_e = self.b_e 
+        b_e = self.b_e
         Ak_matrix = self.fj.reshape(self.fj.shape[0] * 3, self.fj.shape[-1])
         d = np.ravel(self.d)
         nfp = self.plasma_surface.nfp
@@ -265,14 +265,14 @@ class CurrentPotentialSolve:
         # Ak is non-square so pinv required. Careful with rcond parameter
         Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-30)
         A_new = A_matrix @ Ak_inv
-        b_new = b_e - A_new @ d 
+        b_new = b_e - A_new @ d
 
         # rescale the l1 regularization
         l1_reg = lam
         # l1_reg = np.sqrt(lam)
 
         # if alpha << 1, want to use initial guess from the Tikhonov solve,
-        # which is exact since it comes from a matrix inverse. 
+        # which is exact since it comes from a matrix inverse.
         phi0, _, _, = self.solve_tikhonov(lam=lam)
         z0 = Ak_matrix @ phi0 - d
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
@@ -296,18 +296,18 @@ class CurrentPotentialSolve:
         return phi_mn_opt, f_B, f_K, fB_history, fK_history
 
     def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True, xi0=None):
-        """ 
+        """
             This function uses Nesterov's accelerated proximal
-            gradient descent algorithm to solve the Lasso 
+            gradient descent algorithm to solve the Lasso
             (L1-regularized) winding surface problem. This is
             usually called fast iterative soft-thresholding algorithm
             (FISTA). If acceleration = False, it will use the ISTA
             algorithm, which tends to converge much slower than FISTA
-            but is a true descent algorithm, unlike FISTA. 
+            but is a true descent algorithm, unlike FISTA.
         """
 
-        # if abs(current_potential_{k+1} - current_potential_{k}) < tol 
-        # for every element, then algorithm quits in this k-th iteration. 
+        # if abs(current_potential_{k+1} - current_potential_{k}) < tol
+        # for every element, then algorithm quits in this k-th iteration.
         tol = 1e1
 
         # pre-compute/load some stuff so for loops (below) are faster
@@ -316,14 +316,14 @@ class CurrentPotentialSolve:
         prox = self._prox_l1
 
         # An upper bound on the
-        # Lipshitz constant L of the least-squares loss term 
+        # Lipshitz constant L of the least-squares loss term
         # can be computed easily as largest eigenvalue of ATA
         L = np.linalg.svd(ATA, compute_uv=False)[0]
 
         # initial step size should be just smaller than 1 / L
         # which for most of these problems L ~ 1e-13 or smaller
         # so the step size is enormous
-        ti = 1.0 / L 
+        ti = 1.0 / L
 
         # initialize current potential to random values in [5e-4, 5e4]
         if xi0 is None:

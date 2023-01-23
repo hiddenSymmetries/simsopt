@@ -40,11 +40,11 @@ Array WindingSurfaceBn_REGCOIL(Array& points, Array& ws_points, Array& ws_normal
             double rz = z - zz;
             double rmag_inv = 1.0 / sqrt(rx * rx + ry * ry + rz * rz);
             double rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-            double rmag_inv_5 = rmag_inv * rmag_inv * rmag_inv_3; 
+            double rmag_inv_5 = rmag_inv * rmag_inv * rmag_inv_3;
 	    double NdotNprime = nx * nxx + ny * nyy + nz * nzz;
 	    double RdotN = rx * nx + ry * ny + rz * nz;
 	    double RdotNprime = rx * nxx + ry * nyy + rz * nzz;
-            double integrand = phi * (NdotNprime * rmag_inv_3 - 3.0 * RdotN * RdotNprime * rmag_inv_5); 
+            double integrand = phi * (NdotNprime * rmag_inv_3 - 3.0 * RdotN * RdotNprime * rmag_inv_5);
             Bi_normal += integrand;
         }
         Bn(i) = fak * Bi_normal / nmag;
@@ -384,20 +384,15 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_plasma; i++) {
         // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
-        for(int j = 0; j < ndofs; j++){
+        for (int j = 0; j < m.size(); j++) {
             for(int k = 0; k < num_coil; k++){
-		double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
+		    double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
 	        double cphi = std::cos(angle);
 	        double sphi = std::sin(angle);
-		if (stellsym) {
 		    gj(i, j) += sphi * gij(i, k);
-		}
-		else if (j < int(ndofs / 2.0)) {
-		    gj(i, j) += sphi * gij(i, k);
-	        }
-		else {
-		    gj(i, j) += cphi * gij(i, k);
-	        }
+            if (!stellsym) {
+                gj(i, j + m.size()) += cphi * gij(i, k);
+            }
 	    }
 	}
     }
@@ -468,7 +463,6 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
     int num_coil = normal_coil.shape(0);
     Array d = xt::zeros<double>({num_coil, 3});
     Array fj = xt::zeros<double>({num_coil, 3, ndofs});
-
     // Loop through the coil quadrature points, using all the symmetries
     #pragma omp parallel for schedule(static)
     for (int j = 0; j < num_coil; ++j) {
@@ -479,26 +473,19 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
         d(j, 0) = (G * dr_dtheta_coil(j, 0) - I * dr_dzeta_coil(j, 0)) / sqrt(normN) / (2 * M_PI);
         d(j, 1) = (G * dr_dtheta_coil(j, 1) - I * dr_dzeta_coil(j, 1)) / sqrt(normN) / (2 * M_PI);
         d(j, 2) = (G * dr_dtheta_coil(j, 2) - I * dr_dzeta_coil(j, 2)) / sqrt(normN) / (2 * M_PI);
-        for(int k = 0; k < ndofs; k++) {
-	    double angle = 2 * M_PI * m(k) * theta_coil(j) - 2 * M_PI * n(k) * zeta_coil(j) * nfp;
-	    double cphi = std::cos(angle);
-	    double sphi = std::sin(angle);
-            if (stellsym) {
-		// note factor of nfp here that is not written in the REGCOIL paper expression
-		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
-	    }
-	    else if (k < int(ndofs / 2.0)) {
-		fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
-	    }
-	    else {
-		fj(j, 0, k) = -sphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-		fj(j, 1, k) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-		fj(j, 2, k) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
-	    }
+
+        for (int k = 0; k < m.size(); k++) {
+            double angle = 2 * M_PI * m(k) * theta_coil(j) - 2 * M_PI * n(k) * zeta_coil(j) * nfp;
+            double cphi = std::cos(angle);
+            double sphi = std::sin(angle);
+            fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+    		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+    		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+            if (! stellsym) {
+                fj(j, 0, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
+        		fj(j, 1, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+        		fj(j, 2, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+            }
         }
     }
     return std::make_tuple(d, fj);
