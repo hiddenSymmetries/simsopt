@@ -30,9 +30,11 @@ void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi
                     // avoid accumulating floating point error
                     if(i % ANGLE_RECOMPUTE == 0)
                         xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
-                    Phi += phis(m, i) * sinterm;
-                    if(!stellsym) {
-                        Phi += phic(m, i) * costerm;
+                    if (! (m == 0 && n <= 0)) {
+                        Phi += phis(m, i) * sinterm;
+                        if(!stellsym) {
+                            Phi += phic(m, i) * costerm;
+                        }
                     }
                     if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
                         simd_t sinterm_old = sinterm;
@@ -76,9 +78,11 @@ void CurrentPotentialFourier<Array>::Phidash1_impl(Array& data) {
                     // avoid accumulating floating point error
                     if(i % ANGLE_RECOMPUTE == 0)
                         xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
-                    Phidash1 += (-n*nfp) * phis(m, i) * costerm;
-                    if(!stellsym) {
-                        Phidash1 += - (-n*nfp) * phic(m, i) * sinterm;
+                    if (! (m == 0 && n <= 0)) {
+                        Phidash1 += (-n*nfp) * phis(m, i) * costerm;
+                        if(!stellsym) {
+                            Phidash1 += - (-n*nfp) * phic(m, i) * sinterm;
+                        }
                     }
                     if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
                         simd_t sinterm_old = sinterm;
@@ -123,9 +127,11 @@ void CurrentPotentialFourier<Array>::Phidash2_impl(Array& data) {
                     // avoid accumulating floating point error
                     if(i % ANGLE_RECOMPUTE == 0)
                         xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
-                    Phidash2 += m * phis(m, i) * costerm;
-                    if(!stellsym) {
-                        Phidash2 += - m * phic(m, i) * sinterm;
+                    if (! (m == 0 && n <= 0)) {
+                        Phidash2 += m * phis(m, i) * costerm;
+                        if(!stellsym) {
+                            Phidash2 += - m * phic(m, i) * sinterm;
+                        }
                     }
                     if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
                         simd_t sinterm_old = sinterm;
