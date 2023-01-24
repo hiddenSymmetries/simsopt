@@ -265,7 +265,7 @@ class MajorRadiusTests(unittest.TestCase):
                 self.subtest_major_radius_surface_derivative(label)
 
     def subtest_major_radius_surface_derivative(self, label):
-        bs, boozer_surface = get_boozer_surface(label=label)
+        bs, boozer_surface = get_boozer_surface(label=label, nphi=51, ntheta=51)
         coeffs = bs.x
         mr = MajorRadius(boozer_surface)
 
