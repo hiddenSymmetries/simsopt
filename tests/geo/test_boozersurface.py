@@ -89,7 +89,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         weight = 11.1232
 
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
@@ -130,7 +130,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
@@ -185,7 +185,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym)
         s.fit_to_curve(ma, 0.1)
 
-        tf = ToroidalFlux(s, bs_tf)
+        tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)

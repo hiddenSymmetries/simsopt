@@ -40,7 +40,7 @@ class Area(Optimizable):
 
         if range is not None or nphi is not None or ntheta is not None:
             if range is None:
-                if in_surface.stellsym:
+                if surface.stellsym:
                     range = Surface.RANGE_HALF_PERIOD
                 else:
                     range = Surface.RANGE_FIELD_PERIOD
