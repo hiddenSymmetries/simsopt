@@ -807,6 +807,121 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
     return std::make_tuple(objective_history, Bn_history, m_history, x);
 }
 
+// Variant of the GPMO algorithm for solving the permanent magnet optimization
+// problem in which the user has the option to specify arbitrary allowable 
+// polarization vectors for each dipole. The A matrix should be rescaled by 
+// m_maxima since we are assuming all ones in m.
+std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& pol_vectors, int K, bool verbose, int nhistory)
+{
+    int ngrid = A_obj.shape(1);
+    int nPolVecs = pol_vectors.shape(1);
+    int N = int(A_obj.shape(0) / 3);
+    int N3 = 3 * N;
+    int NNp = nPolVecs * N;
+    int print_iter = 0;
+
+    Array x = xt::zeros<double>({N, 3});
+
+    // record the history of the algorithm iterations
+    Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
+    Array objective_history = xt::zeros<double>({nhistory + 1});
+    Array Bn_history = xt::zeros<double>({nhistory + 1});
+
+    // print out the names of the error columns
+    if (verbose)
+        printf("Running the GPMO baseline algorithm with arbitrary "
+               "polarization vectors\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+
+    // initialize Gamma_complement with all indices available
+    Array Gamma_complement = xt::ones<bool>({N});
+	
+    // initialize least-square values to large numbers    
+    vector<double> R2s(2*NNp, 1e50);
+    vector<int> skj(K);
+    vector<int> skjj(K);
+    vector<double> sign_fac(K);
+    
+    double* R2s_ptr = &(R2s[0]);
+    double* Aij_ptr = &(A_obj(0, 0));
+    double* Gamma_ptr = &(Gamma_complement(0));
+    double* pol_vec_ptr = &(pol_vectors(0,0,0));
+    
+    // initialize running matrix-vector product
+    Array Aij_mj_sum = -b_obj;
+    double mmax_sum = 0.0;
+    double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* normal_norms_ptr = &(normal_norms(0));
+    double* mmax_ptr = &(mmax(0));
+
+    // Main loop over the optimization iterations
+    for (int k = 0; k < K; ++k) {
+#pragma omp parallel for schedule(static)
+	for (int j = 0; j < N; j += 1) {
+
+	    // Check all the allowed dipole positions
+	    if (Gamma_ptr[j]) {
+
+                for (int m = 0; m < nPolVecs; m++) {
+
+                    int mj = j*nPolVecs + m;
+		    double R2 = 0.0;
+                    double R2minus = 0.0;
+
+                    // Contribution to the normal field from the mth 
+                    // allowable polarization vector
+                    for(int i = 0; i < ngrid; ++i) {
+                        double bnorm = 0.0;
+                        for (int l = 0; l < 3; ++l) {
+                            int nj3 = ngrid * (3*j + l);
+                            double pol_vec_l = pol_vec_ptr[l+3*(nPolVecs*j+m)];
+                            bnorm += pol_vec_l * Aij_ptr[i+nj3];
+                        }
+                        R2 += (Aij_mj_ptr[i] + bnorm) * (Aij_mj_ptr[i] + bnorm);
+                        R2minus += (Aij_mj_ptr[i] - bnorm) * (Aij_mj_ptr[i] - bnorm);
+                    }
+		    R2s_ptr[mj] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
+                    R2s_ptr[mj + NNp] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
+		}
+	    }
+	}
+
+	// find the dipole that most minimizes the least-squares term
+        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
+	if (skj[k] >= NNp) {
+	    skj[k] -= NNp;
+	    sign_fac[k] = -1.0;
+	}
+	else {
+            sign_fac[k] = 1.0;
+	}
+	skjj[k] = (skj[k] % nPolVecs); 
+	skj[k] = int(skj[k] / (double) nPolVecs);
+
+	// Add binary magnet and get rid of the magnet (all three components)
+        // from the complement of Gamma 
+        for (int l = 0; l < 3; ++l) {
+            int pol_ind = l + 3 * (nPolVecs * skj[k] + skjj[k]);
+	    int skj_inds = (3 * skj[k] + l) * ngrid;
+            x(skj[k], l) = sign_fac[k] * pol_vec_ptr[pol_ind];
+#pragma omp parallel for schedule(static)
+	    for(int i = 0; i < ngrid; ++i) {
+                Aij_mj_ptr[i] += sign_fac[k] * pol_vec_ptr[pol_ind] * Aij_ptr[i + skj_inds];
+            }
+	}
+        Gamma_complement(skj[k]) = false;
+        for (int m = 0; m < nPolVecs; ++m) {
+	    R2s[skj[k]*nPolVecs + m] = 1e50;
+	    R2s[NNp + skj[k]*nPolVecs + m] = 1e50;
+        }
+
+	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
+	}
+    }
+    return std::make_tuple(objective_history, Bn_history, m_history, x);
+}
+
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
