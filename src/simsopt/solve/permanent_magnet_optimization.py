@@ -267,7 +267,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     mmax_vec = np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3)
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if (algorithm != 'baseline' and algorithm != 'mutual_coherence') and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
+    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Run one of the greedy algorithm (GPMO) variants
@@ -285,6 +285,15 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
+            **algorithm_kwargs
+        )
+    elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
+        algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            mmax=np.sqrt(reg_l2)*mmax_vec,
+            normal_norms=Nnorms,
+            pol_vectors=np.ascontiguousarray(pm_opt.pol_vectors),
             **algorithm_kwargs
         )
     elif algorithm == 'backtracking':  # GPMOb

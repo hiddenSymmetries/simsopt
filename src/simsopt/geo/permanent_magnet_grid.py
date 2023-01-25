@@ -71,6 +71,7 @@ class PermanentMagnetGrid:
         filename=None, surface_flag='vmec',
         coordinate_flag='cartesian',
         famus_filename=None,
+        pol_vectors=None
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
@@ -249,6 +250,17 @@ class PermanentMagnetGrid:
         xyz_plasma = self.plasma_boundary.gamma()
         self.r_plasma = np.sqrt(xyz_plasma[:, :, 0] ** 2 + xyz_plasma[:, :, 1] ** 2)
         self.z_plasma = xyz_plasma[:, :, 2]
+
+        if pol_vectors is not None:
+            if pol_vectors.shape[0] != self.ndipoles:
+                raise ValueError('First dimension of `pol_vectors` array '
+                                 'must equal the number of dipoles')
+            elif pol_vectors.shape[2] != 3:
+                raise ValueError('Third dimension of `pol_vectors` array '
+                                 'must be 3')
+            else:
+                self.pol_vectors = pol_vectors
+
 
         # Make flattened grids and compute the maximum allowable magnetic moment m_max
         t1 = time.time()
