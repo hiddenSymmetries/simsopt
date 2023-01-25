@@ -32,13 +32,16 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
-dx = 0.1
-dy = dx
-dz = dx
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
+#dx = 0.1
+#dy = dx
+#dz = dx
+Nx = 11
+Ny = Nx
+Nz = Nx
 poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
-coff = 0.2  # PM grid starts offset ~ 5 cm from the plasma surface
+coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file
@@ -85,7 +88,7 @@ nx = 10
 wv_grid = WindingVolumeGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
     coil_offset=coff, 
-    dx=dx, dy=dy, dz=dz, 
+    Nx=Nx, Ny=Ny, Nz=Nz, 
     plasma_offset=poff,
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
@@ -104,6 +107,10 @@ if True:
     # C = vstack([C, wv_grid.Itarget_matrix], format="csc")
     CT = C.transpose()
     CCT = C @ CT
+
+    # regularization required here to make this matrix
+    # truly invertible. If not, can cause instability in the solver
+    CCT += 1e-15 * np.eye(CCT.shape[0])
     t2 = time.time()
     print('Time to make CCT = ', t2 - t1, ' s')
     t1 = time.time()
@@ -132,11 +139,12 @@ nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
 lam = 1e-20
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=True, max_iter=10000)
-print('alpha_opt = ', alpha_opt)
+acceleration = True
+alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=200)
+# print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
-    print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
-    print('|P * alpha_opt - alpha_opt| / ||alpha_opt|| = ', abs(projection_onto_constraints.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
+    # print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
+    print('||P * alpha_opt - alpha_opt|| / ||alpha_opt|| = ', np.linalg.norm(projection_onto_constraints.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
 t2 = time.time()
 print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 plt.figure()

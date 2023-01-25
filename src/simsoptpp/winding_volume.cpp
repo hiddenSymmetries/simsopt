@@ -27,7 +27,8 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	    double dyy = -(coil_points(j, 1) - coil_points(dist_ind, 1));
 	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
-	    if (dist < dx || dist < dy || dist < dz) {
+	    // printf("%d %d %d %f %f %f %f %f %f %f\n", j, dist_ind, k, dist, dxx, dyy, dzz, dx, dy, dz);
+	    if (dist <= dx || dist <= dy || dist <= dz) {
         	    // okay so the cell is adjacent... which direction is it?
         	    int dir_ind = 0;
         	    if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) dir_ind = 0;

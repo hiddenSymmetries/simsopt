@@ -5,6 +5,7 @@ import simsoptpp as sopp
 import time
 import warnings
 from scipy.sparse import lil_matrix
+from matplotlib import pyplot as plt
 
 __all__ = ['WindingVolumeGrid']
 
@@ -42,9 +43,9 @@ class WindingVolumeGrid:
                               boundary. Typically this will be the optimized plasma
                               magnetic field from a stage-1 optimization, and the
                               optimized coils from a basic stage-2 optimization.
-            dx:               X-axis grid spacing in the winding volume grid. 
-            dy:               Y-axis grid spacing in the winding volume grid. 
-            dz:               Z-axis grid spacing in the winding volume grid. 
+            Nx:               Number of X points in winding volume grid. 
+            Ny:               Number of Y points in winding volume grid. 
+            Ny:               Number of Z points in winding volume grid. 
             filename:         Filename for the file containing the plasma boundary surface.
             surface_flag:     Flag to specify the format of the surface file. Defaults to VMEC.
             OUT_DIR:          Directory to save files in.
@@ -55,7 +56,7 @@ class WindingVolumeGrid:
         rz_inner_surface=None,
         rz_outer_surface=None, plasma_offset=0.1,
         coil_offset=0.2, Bn=None,
-        dx=0.02, dy=0.02, dz=0.02,
+        Nx=11, Ny=11, Nz=11,
         filename=None, surface_flag='vmec',
         famus_filename=None, 
         OUT_DIR='', nx=2, ny=2, nz=2,
@@ -67,7 +68,7 @@ class WindingVolumeGrid:
             warnings.warn(
                 'famus_filename variable is set, so a pre-defined grid will be used. '
                 ' so that the following parameters are ignored: '
-                'rz_inner_surface, rz_outer_surface, dx, dy, dz, plasma_offset, '
+                'rz_inner_surface, rz_outer_surface, Nx, Ny, Nz, plasma_offset, '
                 'and coil_offset.'
             )
         self.famus_filename = famus_filename
@@ -79,9 +80,9 @@ class WindingVolumeGrid:
         self.Bn_Itarget = Bn_Itarget
         self.Itarget = Itarget
         self.Itarget_curve = Itarget_curve
-        self.dx = dx
-        self.dy = dy
-        self.dz = dz
+        self.Nx = Nx
+        self.Ny = Ny
+        self.Nz = Nz
         self.OUT_DIR = OUT_DIR
         self.n_functions = 11  # hard-coded for linear basis
 
@@ -98,7 +99,7 @@ class WindingVolumeGrid:
             self.theta = self.plasma_boundary.quadpoints_theta
             self.ntheta = len(self.theta)
 
-        if dx <= 0 or dy <= 0 or dz <= 0:
+        if Nx <= 0 or Ny <= 0 or Nz <= 0:
             raise ValueError('grid spacing must be > 0')
 
         t1 = time.time()
@@ -242,26 +243,26 @@ class WindingVolumeGrid:
 
         x_max = np.max(self.x_outer)
         x_min = np.min(self.x_outer)
+        x_max = max(x_max, abs(x_min))
         y_max = np.max(self.y_outer)
         y_min = np.min(self.y_outer)
+        y_max = max(y_max, abs(y_min))
         z_max = np.max(self.z_outer)
         z_min = np.min(self.z_outer)
+        z_max = max(z_max, abs(z_min))
         print(x_min, x_max, y_min, x_max, z_min, z_max)
 
         # Initialize uniform grid
-        dx = self.dx
-        dy = self.dy
-        dz = self.dz
-        Nx = int((x_max - x_min) / dx) + 2
-        Ny = int((y_max - y_min) / dy) + 2
-        Nz = int((z_max - z_min) / dz) + 2
-        self.Nx = Nx
-        self.Ny = Ny
-        self.Nz = Nz
-        X = np.linspace(x_min, x_max, Nx)
-        Y = np.linspace(y_min, y_max, Ny)
-        Z = np.linspace(z_min, z_max, Nz)
-
+        Nx = self.Nx
+        Ny = self.Ny
+        Nz = self.Nz
+        self.dx = 2 * x_max / (Nx - 1)
+        self.dy = 2 * y_max / (Ny - 1)
+        self.dz = 2 * z_max / (Nz - 1)
+        X = np.linspace(-x_max, x_max, Nx, endpoint=True)
+        Y = np.linspace(-y_max, y_max, Ny, endpoint=True)
+        Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+        print(Nx, Ny, Nz, X, Y, Z)
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
         self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3) 
@@ -617,6 +618,53 @@ class WindingVolumeGrid:
         flux_factor *= 1 / (self.nx ** 2)
         t1 = time.time()
 
+        # Find the coil boundary points at phi = pi / 2
+        minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
+        x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
+        minus_x_indices = np.intersect1d(minus_x_indices, x0_indices)
+        self.minus_x_indices = minus_x_indices 
+        z_flipped_inds_x = []
+        for x_ind in minus_x_indices:
+            ox = coil_points[x_ind, 0]
+            oy = coil_points[x_ind, 1]
+            oz = coil_points[x_ind, 2]
+            z_flipped_point = np.array([ox, oy, -oz]).T
+            z_flipped = None
+            for i in range(self.N_grid):
+                if np.allclose(coil_points[i, :], z_flipped_point):
+                    z_flipped = i 
+                    break
+            if z_flipped is not None:
+                z_flipped_inds_x.append(z_flipped)
+            #print(x_ind, z_flipped_point, coil_points[x_ind, :], coil_points[z_flipped_inds_x, :])
+        #print('minus_x_indices = ', minus_x_indices, len(minus_x_indices), coil_points[minus_x_indices, :], z_flipped_inds_x)
+
+        # Find the coil boundary points at phi = 0
+        minus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 3] < 0, axis=-1)))
+        y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy)))
+        if len(y0_indices) == 0:
+            y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy * 2)))
+        minus_y_indices = np.intersect1d(minus_y_indices, y0_indices)
+        self.minus_y_indices = minus_y_indices 
+        z_flipped_inds_y = []
+
+        for y_ind in minus_y_indices:
+            ox = coil_points[y_ind, 0]
+            oy = coil_points[y_ind, 1]
+            oz = coil_points[y_ind, 2]
+            z_flipped_point = np.array([ox, oy, -oz]).T
+            z_flipped = None
+            for i in range(self.N_grid):
+                if np.allclose(coil_points[i, :], z_flipped_point):
+                    z_flipped = i 
+                    break
+            if z_flipped is not None:
+                z_flipped_inds_y.append(z_flipped)
+            print(y_ind, z_flipped_point, coil_points[y_ind, :], coil_points[z_flipped_inds_y, :])
+        # print('minus_y_indices = ', minus_y_indices, len(minus_y_indices), coil_points[minus_y_indices, :])
+        self.z_flip_x = z_flipped_inds_x
+        self.z_flip_y = z_flipped_inds_y
+        # count the number of constraints
         n_constraints = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
@@ -646,7 +694,7 @@ class WindingVolumeGrid:
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         for i in range(self.N_grid):            
-            # Loop through cells and check if does not have a neighboring cell in the + nx, + ny, or + nz direction 
+            # Loop through cells and check if does not have a neighboring cell in the +x, +y, or +z direction 
             if np.all(self.connection_list[i, :, 0] < 0):
                 n_constraints += 1
             if np.all(self.connection_list[i, :, 2] < 0):
@@ -661,6 +709,8 @@ class WindingVolumeGrid:
 
         #flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis))
         i_constraint = 0
+        q = 0
+        qq = 0
         for i in range(self.N_grid):            
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
             if np.any(self.connection_list[i, :, 0] >= 0):
@@ -695,15 +745,57 @@ class WindingVolumeGrid:
                 i_constraint += 1
 
             # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction 
+            # Special case for Nfp = 2, -x direction and -y direction 
+            # where the half-period boundary is stitched together
             if np.all(self.connection_list[i, :, 1] < 0):
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[1, i, :]
+                ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
+                if (i in minus_x_indices) and (len(ind) > 0):
+                    # Find the NON-ADJACENT cell at (x + delta x, y, -z)
+                    # ind = ind[0]
+                    # k_ind = self.connection_list[i, ind, 0]
+                    flux_constraint_matrix[i_constraint, 
+                                           i * num_basis:(i + 1) * num_basis
+                                           ] = flux_factor[1, i, :]
+                    # Note minus sign because fluxes should be equal
+                    # -- NOT equal and opposite
+                    # z_flipped_inds_x = []
+                    k_ind = z_flipped_inds_x[q]
+                    flux_constraint_matrix[i_constraint, 
+                                           k_ind * num_basis:(k_ind + 1) * num_basis
+                                           ] = -flux_factor[1, k_ind, :]
+                    q = q + 1
+                else:
+                    # If not at the phi = pi / 2 boundary, zero out the -x flux
+                    # If it is at phi = pi / 2 boundary, but there is no 
+                    # adjacent cell at both +- x, just zero out the flux again
+                    flux_constraint_matrix[i_constraint, 
+                                           i * num_basis:(i + 1) * num_basis
+                                           ] = flux_factor[1, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 3] < 0):
-                flux_constraint_matrix[i_constraint, 
-                                       i * num_basis:(i + 1) * num_basis
-                                       ] = flux_factor[3, i, :]
+                ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
+                if (i in minus_y_indices) and (len(ind) > 0):
+                    # Find the adjacent cell at +y location
+                    # ind = ind[0]
+                    # k_ind = self.connection_list[i, ind, 2]
+                    flux_constraint_matrix[i_constraint, 
+                                           i * num_basis:(i + 1) * num_basis
+                                           ] = flux_factor[3, i, :]
+                    # Note minus sign because fluxes should be equal
+                    # -- NOT equal and opposite
+                    print(i, minus_y_indices, qq, z_flipped_inds_y)
+                    k_ind = z_flipped_inds_y[qq]
+                    flux_constraint_matrix[i_constraint, 
+                                           k_ind * num_basis:(k_ind + 1) * num_basis
+                                           ] = -flux_factor[3, k_ind, :]  
+                    qq = qq + 1
+                else:
+                    # If not at the phi = 0 boundary, zero out the -y flux
+                    # If it is at phi = 0 boundary, but there is no 
+                    # adjacent cell at both +- y, just zero out the flux again
+                    flux_constraint_matrix[i_constraint, 
+                                           i * num_basis:(i + 1) * num_basis
+                                           ] = flux_factor[3, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 5] < 0):
                 flux_constraint_matrix[i_constraint, 
@@ -731,7 +823,7 @@ class WindingVolumeGrid:
         connect_list_zeros[connect_list_zeros >= 0] = 1
         connect_list_zeros[self.connection_list == -1] = 0
         self.num_constraints_per_cell = np.sum(np.sum(connect_list_zeros, axis=-1), axis=-1)
-        print(self.num_constraints_per_cell)
+        # print(self.num_constraints_per_cell)
         self.flux_factor = flux_factor
 
         # Once matrix elements are set, convert to CSC for quicker matrix ops
@@ -739,6 +831,13 @@ class WindingVolumeGrid:
         #flux_constraint_matrix = flux_constraint_matrix.todense()
         self.flux_constraint_matrix = flux_constraint_matrix
         CCT = flux_constraint_matrix @ flux_constraint_matrix.T
+        # print(CCT)
+        # S_C = np.linalg.svd(flux_constraint_matrix, compute_uv=False)
+        # S_CCT = np.linalg.svd(CCT, compute_uv=False)
+        # plt.semilogy(S_C)
+        # plt.semilogy(S_CCT)
+        # plt.grid(True)
+        # plt.show()
         print(CCT.shape[0], np.linalg.matrix_rank(CCT))
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
@@ -778,6 +877,13 @@ class WindingVolumeGrid:
         )
 
     def check_fluxes(self):
+        """
+            Post-optimization test function to check that the fluxes between
+            adjacent cells match to a reasonable tolerance (i.e. there is 
+            some flux mismatch in the Amps level, while the overall fluxes
+            are in the MA level). If the constraints were applied correctly
+            in the optimization, this function should run no problem.
+        """
         Phi = self.Phi
         n = Phi.shape[1]
         n_interp = Phi.shape[2]
@@ -834,12 +940,27 @@ class WindingVolumeGrid:
                             flux[i, j] += nx * Jvec[i, l, m, z_ind, 0] + ny * Jvec[i, l, m, z_ind, 1] + nz * Jvec[i, l, m, z_ind, 2]
 
         # Compare fluxes across adjacent cells
-        print(flux)
-        flux_max = np.max(abs(flux)) / 1e5
+        flux_max = np.max(abs(flux)) / 1e4
+        print('flux max = ', flux_max)
+        q = 0
+        qq = 0
         for i in range(n):
+            ind_zero = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
+            ind_two = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
             for j in range(6):
-                print(i, j, flux[i, j], self.connection_list[i, :, j])
-                if np.any(self.connection_list[i, :, j] >= 0):
+                # print(flux[i, j])
+                if (i in self.minus_x_indices) and (j == 1) and (len(ind_zero) > 0):
+                    #ind = ind_zero[0]
+                    #k_ind = self.connection_list[i, ind, 0]
+                    k_ind = self.z_flip_x[q]
+                    # print(i, k_ind, flux[i, 1], flux[k_ind, 1])
+                    assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
+                elif (i in self.minus_y_indices) and (j == 3) and (len(ind_two) > 0):
+                    #ind = ind_two[0]
+                    #k_ind = self.connection_list[i, ind, 2]
+                    k_ind = self.z_flip_y[qq]
+                    assert np.isclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3)
+                elif np.any(self.connection_list[i, :, j] >= 0):
                     inds = np.ravel(np.where(self.connection_list[i, :, j] >= 0))
                     for ind in inds:
                         k_ind = self.connection_list[i, ind, j]
@@ -847,7 +968,7 @@ class WindingVolumeGrid:
                             j_ind = j + 1
                         else:
                             j_ind = j - 1
-                        print(i, j, inds, ind, k_ind, j_ind, flux[i, j], flux[k_ind, j_ind])
+                        print(i, j, k_ind, j_ind, flux[i, j], flux[k_ind, j_ind])
                         assert np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-3)
                 else:
                     assert np.isclose(flux[i, j], 0.0, atol=flux_max)

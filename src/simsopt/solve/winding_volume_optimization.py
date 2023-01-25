@@ -89,7 +89,9 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
             f_K.append(np.linalg.norm(alpha_opt, ord=2))
             print('0', f_B[0] ** 2 * nfp * 0.5, f_I[0], f_K[0])
             for i in range(1, max_iter):
-                vi = alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev)  # This step can be unstable if not careful!
+                # This step can be unstable if P.dot not used here, since then vi can leave the feasible region!
+                vi = alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev)
+                # vi = P.dot(alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev))
                 alpha_opt_prev = alpha_opt
                 alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
                 step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
