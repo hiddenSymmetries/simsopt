@@ -32,14 +32,14 @@ import time
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
 #dx = 0.1
 #dy = dx
 #dz = dx
-Nx = 11
+Nx = 19
 Ny = Nx
-Nz = Nx
+Nz = Nx - 1
 poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
 coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
@@ -47,9 +47,10 @@ input_name = 'input.LandremanPaul2021_QA'
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
+# s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
-qphi = s.nfp * nphi * 2
+qphi = nphi  # s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
@@ -66,7 +67,7 @@ Bnormal = np.zeros((nphi, ntheta))
 
 # Define a curve to define a Itarget loss term
 # Make circle at Z = 0
-numquadpoints = nphi * s.nfp * 2
+numquadpoints = nphi * s.nfp * 2 * 5
 order = 20
 curve = CurveRZFourier(numquadpoints, order, nfp=1, stellsym=False)
 for m in range(s.mpol + 1):
@@ -95,6 +96,7 @@ wv_grid = WindingVolumeGrid(
     filename=surface_filename,
     surface_flag='vmec',
     OUT_DIR=OUT_DIR,
+    RANGE="full torus",
     nx=nx, ny=nx, nz=nx
 )
 
@@ -138,9 +140,10 @@ else:
 nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
-lam = 1e-20
+lam = 1e-25
 acceleration = True
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=200)
+max_iter = 20000
+alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter)
 # print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
     # print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)

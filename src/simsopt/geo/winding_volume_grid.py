@@ -1,5 +1,5 @@
 import numpy as np
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo import Surface, SurfaceRZFourier
 from pyevtk.hl import pointsToVTK, gridToVTK
 import simsoptpp as sopp
 import time
@@ -59,6 +59,7 @@ class WindingVolumeGrid:
         Nx=11, Ny=11, Nz=11,
         filename=None, surface_flag='vmec',
         famus_filename=None, 
+        RANGE='full torus',
         OUT_DIR='', nx=2, ny=2, nz=2,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
@@ -92,6 +93,7 @@ class WindingVolumeGrid:
             )
         else:
             self.plasma_boundary = plasma_boundary
+            self.range = RANGE
             self.R0 = plasma_boundary.get_rc(0, 0)
             # unlike plasma surface, use the whole phi and theta grids
             self.phi = self.plasma_boundary.quadpoints_phi
@@ -243,10 +245,8 @@ class WindingVolumeGrid:
 
         x_max = np.max(self.x_outer)
         x_min = np.min(self.x_outer)
-        x_max = max(x_max, abs(x_min))
         y_max = np.max(self.y_outer)
         y_min = np.min(self.y_outer)
-        y_max = max(y_max, abs(y_min))
         z_max = np.max(self.z_outer)
         z_min = np.min(self.z_outer)
         z_max = max(z_max, abs(z_min))
@@ -256,11 +256,11 @@ class WindingVolumeGrid:
         Nx = self.Nx
         Ny = self.Ny
         Nz = self.Nz
-        self.dx = 2 * x_max / (Nx - 1)
-        self.dy = 2 * y_max / (Ny - 1)
+        self.dx = (x_max - x_min) / (Nx - 1)
+        self.dy = (y_max - y_min) / (Ny - 1)
         self.dz = 2 * z_max / (Nz - 1)
-        X = np.linspace(-x_max, x_max, Nx, endpoint=True)
-        Y = np.linspace(-y_max, y_max, Ny, endpoint=True)
+        X = np.linspace(x_min, x_max, Nx, endpoint=True)
+        Y = np.linspace(y_min, y_max, Ny, endpoint=True)
         Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
         print(Nx, Ny, Nz, X, Y, Z)
         # Make 3D mesh
@@ -275,7 +275,7 @@ class WindingVolumeGrid:
             theta value. Note that, for now, this makes the entire
             coil surface, not just 1 / 2 nfp of the surface.
         """
-        range_surf = "half period"
+        range_surf = self.range
         nphi = self.nphi
         ntheta = self.ntheta
         f = self.filename
@@ -297,7 +297,7 @@ class WindingVolumeGrid:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value.
         """
-        range_surf = "half period"
+        range_surf = self.range
         nphi = self.nphi
         ntheta = self.ntheta
         f = self.filename
@@ -349,6 +349,7 @@ class WindingVolumeGrid:
                 Jvec[:, j, i] = np.sum(alphas * Phi[:, :, j, i], axis=0)
         Jvec_avg = np.mean(Jvec, axis=1)
         Jvec = Jvec.reshape(n, self.nx, self.ny, self.nz, 3)
+
         dJx_dx = -(Jvec[:, 1:, :, :, 0] - Jvec[:, :-1, :, :, 0]) / self.dx
         dJy_dy = -(Jvec[:, :, 1:, :, 1] - Jvec[:, :, :-1, :, 1]) / self.dy
         dJz_dz = -(Jvec[:, :, :, 1:, 2] - Jvec[:, :, :, :-1, 2]) / self.dz
@@ -365,6 +366,7 @@ class WindingVolumeGrid:
         oy_full = np.zeros(n * nsym)
         oz_full = np.zeros(n * nsym)
         Jvec_full = np.zeros((n * nsym, 3))
+        Jvec_full_internal = np.zeros((n * nsym, self.nx, self.ny, self.nz, 3))
 
         # loop through the dipoles and repeat for fp and stellarator symmetries
         index = 0
@@ -380,6 +382,10 @@ class WindingVolumeGrid:
                 oz_full[index:index + n] = oz * stell
 
                 # get new dipole vectors by flipping the x component, then rotating by phi0
+                Jvec_full_internal[index:index + n, :, :, :, 0] = Jvec[:, :, :, :, 0] * np.cos(phi0) * stell - Jvec[:, :, :, :, 1] * np.sin(phi0)
+                Jvec_full_internal[index:index + n, :, :, :, 1] = Jvec[:, :, :, :, 0] * np.sin(phi0) * stell + Jvec[:, :, :, :, 1] * np.cos(phi0)
+                Jvec_full_internal[index:index + n, :, :, :, 2] = Jvec[:, :, :, :, 2]
+
                 Jvec_full[index:index + n, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
                 Jvec_full[index:index + n, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
                 Jvec_full[index:index + n, 2] = Jz
@@ -393,12 +399,25 @@ class WindingVolumeGrid:
         Jy = Jvec_full[:, 1]
         Jz = Jvec_full[:, 2]
 
+        Jvec_xmin = np.mean(np.mean(Jvec_full_internal[:, 0, :, :, :], axis=-2), axis=-2)
+        Jvec_xmax = np.mean(np.mean(Jvec_full_internal[:, -1, :, :, :], axis=-2), axis=-2)
+        Jvec_ymin = np.mean(np.mean(Jvec_full_internal[:, :, 0, :, :], axis=-2), axis=-2)
+        Jvec_ymax = np.mean(np.mean(Jvec_full_internal[:, :, -1, :, :], axis=-2), axis=-2)
+        Jvec_zmin = np.mean(np.mean(Jvec_full_internal[:, :, :, 0, :], axis=-2), axis=-2)
+        Jvec_zmax = np.mean(np.mean(Jvec_full_internal[:, :, :, -1, :], axis=-2), axis=-2)
+
         contig = np.ascontiguousarray
         data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
                 "J_normalized": 
                 (contig(Jx / Jvec_normalization), 
                  contig(Jy / Jvec_normalization), 
-                 contig(Jz / Jvec_normalization))
+                 contig(Jz / Jvec_normalization)),
+                "Jvec_xmin": (contig(Jvec_xmin), contig(Jvec_xmin), contig(Jvec_xmin)), 
+                "Jvec_xmax": (contig(Jvec_xmax), contig(Jvec_xmax), contig(Jvec_xmax)), 
+                "Jvec_ymin": (contig(Jvec_ymin), contig(Jvec_ymin), contig(Jvec_ymin)), 
+                "Jvec_ymax": (contig(Jvec_ymax), contig(Jvec_ymax), contig(Jvec_ymax)), 
+                "Jvec_zmin": (contig(Jvec_zmin), contig(Jvec_zmin), contig(Jvec_zmin)), 
+                "Jvec_zmax": (contig(Jvec_zmax), contig(Jvec_zmax), contig(Jvec_zmax)), 
                 } 
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
@@ -516,6 +535,10 @@ class WindingVolumeGrid:
         if stellsym:
             stell_list = [1, -1]
             nsym = nfp * 2
+        elif self.range == 'full torus':
+            stell_list[1]
+            nfp = 1
+            nsym = nfp
         else:
             stell_list = [1]
             nsym = nfp
@@ -622,8 +645,8 @@ class WindingVolumeGrid:
         minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
         x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
         minus_x_indices = np.intersect1d(minus_x_indices, x0_indices)
-        self.minus_x_indices = minus_x_indices 
         z_flipped_inds_x = []
+        x_inds = []
         for x_ind in minus_x_indices:
             ox = coil_points[x_ind, 0]
             oy = coil_points[x_ind, 1]
@@ -636,19 +659,18 @@ class WindingVolumeGrid:
                     break
             if z_flipped is not None:
                 z_flipped_inds_x.append(z_flipped)
-            #print(x_ind, z_flipped_point, coil_points[x_ind, :], coil_points[z_flipped_inds_x, :])
-        #print('minus_x_indices = ', minus_x_indices, len(minus_x_indices), coil_points[minus_x_indices, :], z_flipped_inds_x)
-
+                x_inds.append(x_ind)
+        self.x_inds = x_inds
         # Find the coil boundary points at phi = 0
         minus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 3] < 0, axis=-1)))
         y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy)))
         if len(y0_indices) == 0:
             y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy * 2)))
         minus_y_indices = np.intersect1d(minus_y_indices, y0_indices)
-        self.minus_y_indices = minus_y_indices 
         z_flipped_inds_y = []
 
-        for y_ind in minus_y_indices:
+        y_inds = []
+        for j, y_ind in enumerate(minus_y_indices):
             ox = coil_points[y_ind, 0]
             oy = coil_points[y_ind, 1]
             oz = coil_points[y_ind, 2]
@@ -660,10 +682,13 @@ class WindingVolumeGrid:
                     break
             if z_flipped is not None:
                 z_flipped_inds_y.append(z_flipped)
-            print(y_ind, z_flipped_point, coil_points[y_ind, :], coil_points[z_flipped_inds_y, :])
+                y_inds.append(y_ind)
+            # print(y_ind, z_flipped_point, coil_points[y_ind, :], coil_points[z_flipped_inds_y, :], y_inds)
+        self.y_inds = y_inds 
         # print('minus_y_indices = ', minus_y_indices, len(minus_y_indices), coil_points[minus_y_indices, :])
         self.z_flip_x = z_flipped_inds_x
         self.z_flip_y = z_flipped_inds_y
+
         # count the number of constraints
         n_constraints = 0
         for i in range(self.N_grid):            
@@ -674,7 +699,6 @@ class WindingVolumeGrid:
 
         for i in range(self.N_grid):            
             if np.any(self.connection_list[i, :, 2] >= 0):
-                # print(i, self.connection_list[i, :, 2])
                 n_constraints += 1
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
@@ -748,17 +772,11 @@ class WindingVolumeGrid:
             # Special case for Nfp = 2, -x direction and -y direction 
             # where the half-period boundary is stitched together
             if np.all(self.connection_list[i, :, 1] < 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
-                if (i in minus_x_indices) and (len(ind) > 0):
-                    # Find the NON-ADJACENT cell at (x + delta x, y, -z)
-                    # ind = ind[0]
-                    # k_ind = self.connection_list[i, ind, 0]
+                # ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
+                if (i in x_inds) and (self.range != 'full torus'):
                     flux_constraint_matrix[i_constraint, 
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[1, i, :]
-                    # Note minus sign because fluxes should be equal
-                    # -- NOT equal and opposite
-                    # z_flipped_inds_x = []
                     k_ind = z_flipped_inds_x[q]
                     flux_constraint_matrix[i_constraint, 
                                            k_ind * num_basis:(k_ind + 1) * num_basis
@@ -773,17 +791,12 @@ class WindingVolumeGrid:
                                            ] = flux_factor[1, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 3] < 0):
-                ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
-                if (i in minus_y_indices) and (len(ind) > 0):
-                    # Find the adjacent cell at +y location
-                    # ind = ind[0]
-                    # k_ind = self.connection_list[i, ind, 2]
+                # ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
+                if (i in y_inds) and (self.range != 'full torus'):
                     flux_constraint_matrix[i_constraint, 
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[3, i, :]
-                    # Note minus sign because fluxes should be equal
-                    # -- NOT equal and opposite
-                    print(i, minus_y_indices, qq, z_flipped_inds_y)
+                    # print(i, y_inds, qq, z_flipped_inds_y)
                     k_ind = z_flipped_inds_y[qq]
                     flux_constraint_matrix[i_constraint, 
                                            k_ind * num_basis:(k_ind + 1) * num_basis
@@ -940,26 +953,28 @@ class WindingVolumeGrid:
                             flux[i, j] += nx * Jvec[i, l, m, z_ind, 0] + ny * Jvec[i, l, m, z_ind, 1] + nz * Jvec[i, l, m, z_ind, 2]
 
         # Compare fluxes across adjacent cells
-        flux_max = np.max(abs(flux)) / 1e4
+        flux_max = 100  # np.max(abs(flux)) / 1e4
         print('flux max = ', flux_max)
         q = 0
         qq = 0
         for i in range(n):
-            ind_zero = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
-            ind_two = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
+            # ind_zero = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
+            # ind_two = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
             for j in range(6):
-                # print(flux[i, j])
-                if (i in self.minus_x_indices) and (j == 1) and (len(ind_zero) > 0):
+                # print(i, j, flux[i, j])
+                if (i in self.x_inds) and (j == 1) and (self.range != 'full torus'):  # and (len(ind_zero) > 0):
                     #ind = ind_zero[0]
                     #k_ind = self.connection_list[i, ind, 0]
                     k_ind = self.z_flip_x[q]
                     # print(i, k_ind, flux[i, 1], flux[k_ind, 1])
                     assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
-                elif (i in self.minus_y_indices) and (j == 3) and (len(ind_two) > 0):
+                    q += 1
+                elif (i in self.y_inds) and (j == 3) and (self.range != 'full torus'):  # and (len(ind_two) > 0):
                     #ind = ind_two[0]
                     #k_ind = self.connection_list[i, ind, 2]
                     k_ind = self.z_flip_y[qq]
                     assert np.isclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3)
+                    qq += 1
                 elif np.any(self.connection_list[i, :, j] >= 0):
                     inds = np.ravel(np.where(self.connection_list[i, :, j] >= 0))
                     for ind in inds:
@@ -968,7 +983,7 @@ class WindingVolumeGrid:
                             j_ind = j + 1
                         else:
                             j_ind = j - 1
-                        print(i, j, k_ind, j_ind, flux[i, j], flux[k_ind, j_ind])
+                        # print(i, j, k_ind, j_ind, flux[i, j], flux[k_ind, j_ind])
                         assert np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-3)
                 else:
                     assert np.isclose(flux[i, j], 0.0, atol=flux_max)
