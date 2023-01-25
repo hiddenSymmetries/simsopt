@@ -4,6 +4,7 @@
 Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 {
     int Ndipole = coil_points.shape(0);
+    double tol = 1e-5;
     
     // Last index indicates +- the x/y/z directions
     Array_INT connectivity_inds = xt::zeros<int>({Ndipole, 6, 6});
@@ -28,7 +29,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
 	    // printf("%d %d %d %f %f %f %f %f %f %f\n", j, dist_ind, k, dist, dxx, dyy, dzz, dx, dy, dz);
-	    if (dist <= dx || dist <= dy || dist <= dz) {
+	    if ((abs(dxx) <= tol && abs(dyy) <= tol) || (abs(dxx) <= tol && abs(dzz) <= tol) || (abs(dyy) <= tol && abs(dzz) <= tol)) {
         	    // okay so the cell is adjacent... which direction is it?
         	    int dir_ind = 0;
         	    if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) dir_ind = 0;
