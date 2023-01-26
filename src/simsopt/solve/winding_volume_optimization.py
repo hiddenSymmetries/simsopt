@@ -28,8 +28,9 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     BT = B.T
     IT = I.T
     L = np.linalg.svd(B @ BT + I @ IT + lam * np.eye(B.shape[0]), compute_uv=False)[0]
+    cond_num = np.linalg.cond(B @ BT + I @ IT + lam * np.eye(B.shape[0]))
     step_size = 1.0 / L  # largest step size suitable for gradient descent
-    print('L, step_size = ', L, step_size)
+    print('L, step_size, condition number = ', L, step_size, cond_num)
     b = winding_volume.b_rhs
     b_I = winding_volume.Itarget_rhs
     BTb = BT @ b
@@ -92,8 +93,9 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                 # This step can be unstable if P.dot not used here, since then vi can leave the feasible region!
                 vi = alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev)
                 # vi = P.dot(alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev))
-                alpha_opt_prev = alpha_opt
+                alpha_opt_prev = np.copy(alpha_opt)
                 alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
+
                 step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
                 if (i % 100) == 0.0:
                     f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
@@ -108,4 +110,11 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                     f_I.append((I @ alpha_opt - b_I) ** 2)
                     f_K.append(np.linalg.norm(alpha_opt, ord=2))
                     print(i, f_B[i // 100] ** 2 * nfp * 0.5, f_I[i // 100], f_K[i // 100])
+    winding_volume.alphas = alpha_opt 
+    winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
+    alphas = alpha_opt.reshape(n, num_basis)
+    for i in range(3):
+        for j in range(winding_volume.Phi.shape[2]):
+            for k in range(num_basis):
+                winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
     return alpha_opt, 0.5 * np.array(f_B) ** 2 * nfp, 0.5 * np.array(f_K) ** 2, 0.5 * np.array(f_I)

@@ -523,20 +523,51 @@ class WindingVolumeField(MagneticField):
         self.N_grid = winding_volume.N_grid
         self.Phi = winding_volume.Phi
         self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
-        self.Phi_full = winding_volume.Phi_full
-        self.integration_points_full = winding_volume.integration_points_full
-        nsym = self.Phi_full.shape[1] // self.N_grid
-        alphas_full = np.zeros((self.N_grid * nsym, self.Phi.shape[0]))
-        for i in range(nsym):
+        # self.Phi_full = winding_volume.Phi_full
+        # self.integration_points_full = winding_volume.integration_points_full
+        self.nsym = winding_volume.Phi_full.shape[1] // self.N_grid
+        alphas_full = np.zeros((self.N_grid * self.nsym, self.Phi.shape[0]))
+        for i in range(self.nsym):
             alphas_full[i * self.N_grid:(i + 1) * self.N_grid, :] = winding_volume.alphas.reshape(self.N_grid, self.Phi.shape[0])
         self.alphas_full = alphas_full
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        #B[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J) * self.grid_scaling
+        Jx = self.winding_volume.J[:, :, 0]
+        Jy = self.winding_volume.J[:, :, 1]
+        Jz = self.winding_volume.J[:, :, 2]
+        J_temp = np.zeros(self.winding_volume.J.shape)
+        contig = np.ascontiguousarray
+        if self.winding_volume.range == 'full torus':
+            stell_list = [1]
+            nfp = 1
+        else:
+            stell_list = [1, -1]
+            nfp = 2
+        for stell in stell_list:
+            for fp in range(nfp):
+                phi0 = (2 * np.pi / nfp) * fp
+
+                # get new dipoles locations by flipping the y and z components, then rotating by phi0
+                ox_temp = self.integration_points[:, :, 0] * np.cos(phi0) - self.integration_points[:, :, 1] * np.sin(phi0) * stell
+                oy_temp = self.integration_points[:, :, 0] * np.sin(phi0) + self.integration_points[:, :, 1] * np.cos(phi0) * stell
+                oz_temp = self.integration_points[:, :, 2] * stell
+
+                # get new dipole vectors by flipping the x component, then rotating by phi0
+                J_temp[:, :, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
+                J_temp[:, :, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
+                J_temp[:, :, 2] = Jz
+
+                int_points = np.transpose(np.array([ox_temp, oy_temp, oz_temp]), [1, 2, 0])
+                B[:] += sopp.winding_volume_field_B(
+                    contig(points), 
+                    contig(int_points), 
+                    contig(J_temp)
+                ) * self.grid_scaling
+
         # function returns factor of shape (num_points, 3, num_cells, n_functions)
-        factor = sopp.winding_volume_field_Bext(points, self.integration_points_full, self.Phi_full) * self.grid_scaling
-        B[:] = np.tensordot(factor, self.alphas_full, ((2, 3), (0, 1)))
+        # factor = sopp.winding_volume_field_Bext(points, self.winding_volume.integration_points_full, self.winding_volume.Phi_full) * self.grid_scaling
+        # B[:] = np.tensordot(factor, self.alphas_full, ((2, 3), (0, 1)))
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()

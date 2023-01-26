@@ -6,8 +6,8 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
     int Ndipole = coil_points.shape(0);
     double tol = 1e-5;
     
-    // Last index indicates +- the x/y/z directions
-    Array_INT connectivity_inds = xt::zeros<int>({Ndipole, 6, 6});
+    // Last index indicates +- the x/y/z directions, -1 indicates no neighbor there
+    Array_INT connectivity_inds = xt::ones<int>({Ndipole, 6, 6}) * (-1);
     
     // Compute distances between dipole j and all other dipoles
     // By default computes distance between dipole j and itself
@@ -28,29 +28,27 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	    double dyy = -(coil_points(j, 1) - coil_points(dist_ind, 1));
 	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
-	    // printf("%d %d %d %f %f %f %f %f %f %f\n", j, dist_ind, k, dist, dxx, dyy, dzz, dx, dy, dz);
-	    if ((abs(dxx) <= tol && abs(dyy) <= tol) || (abs(dxx) <= tol && abs(dzz) <= tol) || (abs(dyy) <= tol && abs(dzz) <= tol)) {
+	    int dir_ind = -1;
+// 	    printf("%f %f %f %d %d %d %d %d %d\n", abs(dxx), abs(dyy), abs(dzz), abs(dxx) <= tol, abs(dyy) <= tol, abs(dzz) <= tol, abs(dxx) <= dx + tol, abs(dyy) <= dy + tol, abs(dzz) <= dz + tol);
+	    if (abs(dxx) <= tol && abs(dyy) <= tol && abs(dzz) <= dz + tol) {
         	    // okay so the cell is adjacent... which direction is it?
-        	    int dir_ind = 0;
-        	    if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx > 0.0)) dir_ind = 0;
-        	    else if ((abs(dxx) >= abs(dyy)) && (abs(dxx) >= abs(dzz)) && (dxx < 0.0)) dir_ind = 1;
-        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy > 0.0)) dir_ind = 2;
-        	    else if ((abs(dyy) >= abs(dxx)) && (abs(dyy) >= abs(dzz)) && (dyy < 0.0)) dir_ind = 3;
-        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz > 0.0)) dir_ind = 4;
-        	    else if ((abs(dzz) >= abs(dxx)) && (abs(dzz) >= abs(dyy)) && (dzz < 0.0)) dir_ind = 5;
+        	    if (dzz > 0) dir_ind = 4;
+        	    else dir_ind = 5;
             	connectivity_inds(j, k, dir_ind) = dist_ind;
-            for (int kk = 0; kk < 6; ++kk) {
-                if (kk != dir_ind) connectivity_inds(j, k, kk) = -1;
-            }
             	}
-        else { 
-            connectivity_inds(j, k, 0) = -1;
-            connectivity_inds(j, k, 1) = -1;
-            connectivity_inds(j, k, 2) = -1;
-            connectivity_inds(j, k, 3) = -1;
-            connectivity_inds(j, k, 4) = -1;
-            connectivity_inds(j, k, 5) = -1;
-        }
+	    else if (abs(dxx) <= tol && abs(dzz) <= tol && abs(dyy) <= dy + tol) {
+        	    // okay so the cell is adjacent... which direction is it?
+        	    if (dyy > 0) dir_ind = 2;
+        	    else dir_ind = 3;
+            	connectivity_inds(j, k, dir_ind) = dist_ind;
+            	}
+	    else if (abs(dyy) <= tol && abs(dzz) <= tol && abs(dxx) <= dx + tol) {
+        	    // okay so the cell is adjacent... which direction is it?
+        	    if (dxx > 0) dir_ind = 0;
+        	    else dir_ind = 1;
+            	connectivity_inds(j, k, dir_ind) = dist_ind;
+            	}
+//  	    printf("%d %d %d %f %f %f %f %f %f %f %d\n", j, dist_ind, k, dist, dxx, dyy, dzz, dx, dy, dz, dir_ind);
         dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
         	}
     }
