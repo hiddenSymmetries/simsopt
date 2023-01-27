@@ -18,8 +18,8 @@ import logging
 from datetime import datetime
 
 import numpy as np
-from scipy.io import netcdf_file
 
+from ..util.netcdf import netcdf_file
 from .vmec_diagnostics import B_cartesian
 from .vmec import Vmec
 from ..geo.surfacerzfourier import SurfaceRZFourier

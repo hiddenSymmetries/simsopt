@@ -12,7 +12,6 @@ from typing import Union
 from datetime import datetime
 
 import numpy as np
-from scipy.io import netcdf_file
 from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
@@ -29,6 +28,7 @@ except ImportError as e:
     vmec = None
     logger.debug(str(e))
 
+from ..util.netcdf import netcdf_file
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier

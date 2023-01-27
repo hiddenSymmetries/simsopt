@@ -2,7 +2,6 @@ import unittest
 import numpy as np
 import os
 import logging
-from scipy.io import netcdf_file
 try:
     import booz_xform
 except ImportError as e:
@@ -18,6 +17,7 @@ try:
 except ImportError as e:
     MPI = None
 
+from simsopt.util.netcdf import netcdf_file
 from simsopt._core.optimizable import Optimizable
 if MPI is not None:
     from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found

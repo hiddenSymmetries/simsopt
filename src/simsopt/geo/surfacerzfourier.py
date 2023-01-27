@@ -7,6 +7,7 @@ import f90nml
 
 import simsoptpp as sopp
 from .surface import Surface
+from ..util.netcdf import netcdf_file
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.json import GSONDecoder
