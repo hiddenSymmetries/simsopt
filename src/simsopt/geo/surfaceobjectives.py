@@ -626,7 +626,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         boozer_surface: input boozer surface on which the penalty term is evaluated,
         biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
         sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.
-        quasi_poloidal: `True` for quasiaxisymmetry and `False` for quasipoloidal symmetry
+        quasi_poloidal: `False` for quasiaxisymmetry and `True` for quasipoloidal symmetry
     """
     def __init__(self, boozer_surface, bs, sDIM=15, quasi_poloidal=False):
         # only BoozerExact surfaces work for now
@@ -643,7 +643,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(in_surface.get_dofs())
 
-        self.axis = quasi_poloidal
+        self.axis = 1 if quasi_poloidal else 0
         self.in_surface = in_surface
         self.surface = s
         self.biotsavart = bs
