@@ -1,4 +1,5 @@
 #include "winding_volume.h"
+#include <Eigen/Dense>
 
 // compute which cells are next to which cells 
 Array_INT connections(Array& coil_points, double dx, double dy, double dz)
@@ -11,7 +12,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
     
     // Compute distances between dipole j and all other dipoles
     // By default computes distance between dipole j and itself
-#pragma omp parallel for schedule(static)
+//#pragma omp parallel for schedule(static)
     for (int j = 0; j < Ndipole; ++j) {
 	vector<double> dist_ij(Ndipole, 1e10);
         for (int i = 0; i < Ndipole; ++i) {
@@ -19,7 +20,10 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	        dist_ij[i] = sqrt((coil_points(i, 0) - coil_points(j, 0)) * (coil_points(i, 0) - coil_points(j, 0)) + (coil_points(i, 1) - coil_points(j, 1)) * (coil_points(i, 1) - coil_points(j, 1)) + (coil_points(i, 2) - coil_points(j, 2)) * (coil_points(i, 2) - coil_points(j, 2)));
 	    }
         }
-        for (int k = 0; k < 6; ++k) {
+	// Need to loop through more than 6 in case some adjacent neighbors are
+	// further away than some of the non-adjacent neighbors
+	int q = 0;
+        for (int k = 0; k < 30; ++k) {
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
         int dist_ind = std::distance(dist_ij.begin(), result);
 
@@ -29,27 +33,32 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
 	    int dir_ind = -1;
-// 	    printf("%f %f %f %d %d %d %d %d %d\n", abs(dxx), abs(dyy), abs(dzz), abs(dxx) <= tol, abs(dyy) <= tol, abs(dzz) <= tol, abs(dxx) <= dx + tol, abs(dyy) <= dy + tol, abs(dzz) <= dz + tol);
 	    if (abs(dxx) <= tol && abs(dyy) <= tol && abs(dzz) <= dz + tol) {
         	    // okay so the cell is adjacent... which direction is it?
         	    if (dzz > 0) dir_ind = 4;
         	    else dir_ind = 5;
-            	connectivity_inds(j, k, dir_ind) = dist_ind;
+            	connectivity_inds(j, q, dir_ind) = dist_ind;
+		q += 1;
             	}
 	    else if (abs(dxx) <= tol && abs(dzz) <= tol && abs(dyy) <= dy + tol) {
         	    // okay so the cell is adjacent... which direction is it?
         	    if (dyy > 0) dir_ind = 2;
         	    else dir_ind = 3;
-            	connectivity_inds(j, k, dir_ind) = dist_ind;
+            	connectivity_inds(j, q, dir_ind) = dist_ind;
+		q += 1;
             	}
 	    else if (abs(dyy) <= tol && abs(dzz) <= tol && abs(dxx) <= dx + tol) {
         	    // okay so the cell is adjacent... which direction is it?
         	    if (dxx > 0) dir_ind = 0;
         	    else dir_ind = 1;
-            	connectivity_inds(j, k, dir_ind) = dist_ind;
+            	connectivity_inds(j, q, dir_ind) = dist_ind;
+		q += 1;
             	}
-//  	    printf("%d %d %d %f %f %f %f %f %f %f %d\n", j, dist_ind, k, dist, dxx, dyy, dzz, dx, dy, dz, dir_ind);
-        dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
+	    //if (dir_ind >= 0) {
+ 	    //    printf("%f %f %f %d %d %d %d %d %d\n", abs(dxx), abs(dyy), abs(dzz), abs(dxx) <= tol, abs(dyy) <= tol, abs(dzz) <= tol, abs(dxx) <= dx + tol, abs(dyy) <= dy + tol, abs(dzz) <= dz + tol);
+  	        //printf("%d %d %d %d %f %f %f %f %f %f %f %d\n", j, dist_ind, k, q, dist, dxx, dyy, dzz, dx, dy, dz, dir_ind);
+            //}
+		dist_ij[dist_ind] = 1e10; // eliminate the min to get the next min
         	}
     }
     return connectivity_inds;
@@ -282,4 +291,46 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
 	}
     }
     return final_grid; 
+}
+
+Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& BTb, Array& ITbI, double lam, double initial_step, int max_iter) 
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(P.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("P needs to be in row-major storage order");
+    if(B.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("B needs to be in row-major storage order");	
+    if(I.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("I needs to be in row-major storage order");
+    if(BTb.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("BTb needs to be in row-major storage order");
+    if(ITbI.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("ITbI needs to be in row-major storage order");
+
+    double step_size_i = initial_step;
+    int N = B.shape(1);
+    int N_plasma = B.shape(0);
+    Array alpha_opt = xt::ones<double>({N});
+    Array vi = xt::zeros<double>({N});
+    Array alpha_temp = xt::zeros<double>({N});
+    Array alpha_opt_prev = xt::zeros<double>({N});
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_B(const_cast<double*>(B.data()), N_plasma, N);
+    Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> eigen_BT = eigen_B.transpose();
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_I(const_cast<double*>(I.data()), 1, N);
+    Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> eigen_IT = eigen_I.transpose();
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_P(const_cast<double*>(P.data()), N, N);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(alpha_opt.data()), N, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(vi.data()), N, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_alpha(const_cast<double*>(alpha_temp.data()), N, 1);
+    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(alpha_opt.data()), N, 1);
+    for (int i = 0; i < max_iter; i++) { 	
+        vi = alpha_opt + std::max(i - 1, 0) / (i + 2) * (alpha_opt - alpha_opt_prev);
+        alpha_opt_prev = alpha_opt;
+        eigen_res = eigen_v - step_size_i * (eigen_BT * (eigen_B * eigen_v) + eigen_IT * (eigen_I * eigen_v) + lam * eigen_v);
+	alpha_temp = alpha_opt + step_size_i * (BTb + ITbI);
+        eigen_res = eigen_P * eigen_alpha;
+        //eigen_res2 = eigen_P * eigen_alpha;
+        step_size_i = (1 + sqrt(1 + 4 * step_size_i * step_size_i)) / 2.0;
+    }
+    return alpha_opt;
 }

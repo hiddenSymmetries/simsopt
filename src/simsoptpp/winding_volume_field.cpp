@@ -1,4 +1,6 @@
 #include "winding_volume_field.h"
+#include "simdhelpers.h"
+#include "vec3dsimd.h"
 
 // Calculate the geometrics factor from the polynomial basis functions 
 Array winding_volume_field_B(Array& points, Array& integration_points, Array& J) 
@@ -58,6 +60,66 @@ Array winding_volume_field_B(Array& points, Array& integration_points, Array& J)
 } 
 
 // Calculate the geometrics factor from the polynomial basis functions 
+Array winding_volume_field_B_SIMD(Array& points, Array& integration_points, Array& J) 
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(integration_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("integration_points needs to be in row-major storage order");
+    if(J.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("J needs to be in row-major storage order");
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+
+    int num_points = points.shape(0);
+
+    // J should be shape (num_coil_points, num_integration_points, 3)
+    int num_coil_points = J.shape(0);
+    double* J_ptr = &(J(0, 0, 0));
+    double* ip_points_ptr = &(integration_points(0, 0, 0));
+
+    // integration points should be shape (num_coil_points, num_integration_points, 3)
+    int num_integration_points = integration_points.shape(1);
+
+    double fak = 1e-7;
+    Array B = xt::zeros<double>({num_points, 3});
+#pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; i += simd_size) {
+        auto point_i = Vec3dSimd();
+        auto B_i = Vec3dSimd();
+        
+	// check that i + k isn't bigger than num_points
+        int klimit = std::min(simd_size, num_points - i);
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_i[d][k] = points(i + k, d);
+            }
+        }
+        for (int jj = 0; jj < num_coil_points; jj++) {  // loop through grid cells
+            for (int j = 0; j < num_integration_points; j++) {  // integrate within a grid cell
+                Vec3dSimd J = Vec3dSimd(J_ptr[jj * num_integration_points * 3 + 3 * j + 0], J_ptr[jj * num_integration_points * 3 + 3 * j + 1], J_ptr[jj * num_integration_points * 3 + 3 * j + 2]);
+                Vec3dSimd point_j = Vec3dSimd(ip_points_ptr[jj * num_integration_points * 3 + 3 * j + 0], ip_points_ptr[jj * num_integration_points * 3 + 3 * j + 1], ip_points_ptr[jj * num_integration_points * 3 + 3 * j + 2]);
+                Vec3dSimd r = point_i - point_j;
+                simd_t rmag_2     = normsq(r);
+                simd_t rmag_inv   = rsqrt(rmag_2);
+                simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+                Vec3dSimd Jcrossr = cross(J, r);
+                B_i.x += Jcrossr.x * rmag_inv_3;
+                B_i.y += Jcrossr.y * rmag_inv_3;
+                B_i.z += Jcrossr.z * rmag_inv_3;
+	    }
+	}
+        for(int k = 0; k < klimit; k++){
+            B(i + k, 0) = fak * B_i.x[k];
+            B(i + k, 1) = fak * B_i.y[k];
+            B(i + k, 2) = fak * B_i.z[k];
+        }
+    }
+    return B;
+} 
+
+
+// Calculate the geometrics factor from the polynomial basis functions 
 Array winding_volume_field_Bext(Array& points, Array& integration_points, Array& Phi) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -99,6 +161,70 @@ Array winding_volume_field_Bext(Array& points, Array& integration_points, Array&
                     B(i, 0, jj, k) += (Jy * rvecz - Jz * rvecy) * rvec_inv3;
                     B(i, 1, jj, k) += (Jz * rvecx - Jx * rvecz) * rvec_inv3;
                     B(i, 2, jj, k) += (Jx * rvecy - Jy * rvecx) * rvec_inv3;
+    	        }
+    	    }
+    	}
+    }
+    return fak * B;
+} 
+
+Array winding_volume_field_Bext_SIMD(Array& points, Array& integration_points, Array& Phi, Array& plasma_unitnormal) 
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(integration_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("integration_points needs to be in row-major storage order");
+    if(Phi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("Phi needs to be in row-major storage order");
+
+    int num_points = points.shape(0);
+    int num_coil_points = integration_points.shape(0);
+    int num_basis_functions = Phi.shape(2);  // Phi.shape(0);
+
+    // integration points should be shape (num_coil_points, num_integration_points, 3)
+    int num_integration_points = integration_points.shape(1);
+
+    double fak = 1e-7;
+
+    double* Phi_ptr = &(Phi(0, 0, 0, 0));
+    double* n_ptr = &(plasma_unitnormal(0, 0));
+    double* ip_points_ptr = &(integration_points(0, 0, 0));
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    
+    Array B = xt::zeros<double>({num_points, num_coil_points, num_basis_functions});
+#pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_points; i += simd_size) {
+        auto point_i = Vec3dSimd();
+        auto n_i = Vec3dSimd();
+        
+	// check that i + k isn't bigger than num_points
+        int klimit = std::min(simd_size, num_points - i);
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_i[d][k] = points(i + k, d);
+                n_i[d][k] = plasma_unitnormal(i + k, d);
+            }
+        }
+        for (int jj = 0; jj < num_coil_points; jj++) {  // loop through grid cells
+            for (int j = 0; j < num_integration_points; j++) {  // integrate within a grid cell
+                Vec3dSimd point_j = Vec3dSimd(ip_points_ptr[jj * num_integration_points * 3 + 3 * j + 0], ip_points_ptr[jj * num_integration_points * 3 + 3 * j + 1], ip_points_ptr[jj * num_integration_points * 3 + 3 * j + 2]);
+                Vec3dSimd r = point_i - point_j;
+                simd_t rmag_2     = normsq(r);
+                simd_t rmag_inv   = rsqrt(rmag_2);
+                simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+    	        for (int kk = 0; kk < num_basis_functions; kk++) {
+		    int ind = jj * num_basis_functions * num_integration_points * 3 + j * num_basis_functions * 3 + kk * 3;  
+                    Vec3dSimd Phi = Vec3dSimd(Phi_ptr[ind + 0], Phi_ptr[ind + 1], Phi_ptr[ind + 2]);
+                    Vec3dSimd Phicrossr = cross(Phi, r);
+                    auto B_i = (Phicrossr.x * n_i.x + Phicrossr.y * n_i.y + Phicrossr.z * n_i.z) * rmag_inv_3;
+                    //B_i.x += Phicrossr.x * rmag_inv_3;
+                    //B_i.y += Phicrossr.y * rmag_inv_3;
+                    //B_i.z += Phicrossr.z * rmag_inv_3;
+
+		    for(int k = 0; k < klimit; k++){
+		        B(i + k, jj, kk) = B_i[k];
+	 	    }
     	        }
     	    }
     	}

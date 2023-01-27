@@ -1,5 +1,6 @@
 import numpy as np
 import simsoptpp as sopp
+import time
 
 __all__ = ['projected_gradient_descent_Tikhonov']
 
@@ -23,14 +24,19 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                 P = I - C.T @ (C * C.T)^{-1} @ C. P is very large but very sparse
                 so is assumed to be stored as a scipy csc_matrix. 
     """
+    t1 = time.time()
     B = winding_volume.B_matrix
     I = winding_volume.Itarget_matrix
     BT = B.T
+    # BTB = BT @ B
     IT = I.T
-    L = np.linalg.svd(B @ BT + I @ IT + lam * np.eye(B.shape[0]), compute_uv=False)[0]
-    cond_num = np.linalg.cond(B @ BT + I @ IT + lam * np.eye(B.shape[0]))
+    # ITI = IT @ I
+    #L = np.linalg.svd(BTB + ITI + lam * np.eye(B.shape[1]), compute_uv=False)[0]
+    L = np.linalg.svd(BT @ B + IT @ I + lam * np.eye(B.shape[1]), compute_uv=False)[0]
+    #cond_num = np.linalg.cond(BTB + ITI + lam * np.eye(B.shape[1]))
+    # cond_num = np.linalg.cond(BT @ B + IT @ I + lam * np.eye(B.shape[1]))
     step_size = 1.0 / L  # largest step size suitable for gradient descent
-    print('L, step_size, condition number = ', L, step_size, cond_num)
+    print('L, step_size, condition number = ', L, step_size)  # , cond_num)
     b = winding_volume.b_rhs
     b_I = winding_volume.Itarget_rhs
     BTb = BT @ b
@@ -44,9 +50,21 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     # feasible region (the area allowed by the equality constraints)
     if P is not None:
         alpha_opt = P.dot(alpha_opt)
+    t2 = time.time()
+    print('Time to setup the algo = ', t2 - t1, ' s')
+    contig = np.ascontiguousarray
+    #t1 = time.time()
+    #Pdense = P.todense()
+    #print(Pdense.shape, B.shape, I.shape, BTb.shape, ITbI.shape)
+    #alpha_opt_cpp = sopp.acc_prox_grad_descent(contig(Pdense), contig(B), contig(I), contig(BTb), contig(ITbI), lam, step_size, max_iter)
+    #t2 = time.time()
+    #print('Time to run algo in C++ = ', t2 - t1, ' s')
+    #print('f_B from c++ calculation = ', 0.5 * nfp * np.linalg.norm(B @ alpha_opt_cpp - b, ord=2) ** 2)
     f_B = []
     f_I = []
     f_K = []
+    print_iter = 200
+    t1 = time.time()
     if P is None:
         if acceleration:  # Nesterov acceleration 
             # first iteration do regular GD 
@@ -66,7 +84,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                 f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
                 f_I.append((I @ alpha_opt - b_I) ** 2)
                 f_K.append(np.linalg.norm(alpha_opt, ord=2))
-                if (i % 100) == 0.0:
+                if (i % print_iter) == 0.0:
                     print(i, f_B[i] ** 2 * nfp * 0.5, f_I[i], f_K[i])
         else:
             for i in range(max_iter):
@@ -74,7 +92,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                 f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
                 f_I.append((I @ alpha_opt - b_I) ** 2)
                 f_K.append(np.linalg.norm(alpha_opt, ord=2))
-                if (i % 100) == 0.0:
+                if (i % print_iter) == 0.0:
                     print(i, f_B[i] ** 2 * nfp * 0.5, f_I[i], f_K[i])
     else:
         if acceleration:  # Nesterov acceleration 
@@ -90,26 +108,28 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
             f_K.append(np.linalg.norm(alpha_opt, ord=2))
             print('0', f_B[0] ** 2 * nfp * 0.5, f_I[0], f_K[0])
             for i in range(1, max_iter):
-                # This step can be unstable if P.dot not used here, since then vi can leave the feasible region!
                 vi = alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev)
-                # vi = P.dot(alpha_opt + (i - 1) / (i + 2) * (alpha_opt - alpha_opt_prev))
-                alpha_opt_prev = np.copy(alpha_opt)
+                alpha_opt_prev = alpha_opt
+                #alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - (BTB + ITI + lam * ident) @ vi))
                 alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
 
                 step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
-                if (i % 100) == 0.0:
+                if (i % print_iter) == 0.0:
                     f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
                     f_I.append((I @ alpha_opt - b_I) ** 2)
                     f_K.append(np.linalg.norm(alpha_opt, ord=2))
-                    print(i, f_B[i // 100] ** 2 * nfp * 0.5, f_I[i // 100], f_K[i // 100])
+                    print(i, f_B[i // print_iter] ** 2 * nfp * 0.5, f_I[i // print_iter], f_K[i // print_iter])
         else:
             for i in range(max_iter):
                 alpha_opt = P.dot(alpha_opt + step_size * (BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt))
-                if (i % 100) == 0.0:
+                if (i % print_iter) == 0.0:
                     f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2))
                     f_I.append((I @ alpha_opt - b_I) ** 2)
                     f_K.append(np.linalg.norm(alpha_opt, ord=2))
-                    print(i, f_B[i // 100] ** 2 * nfp * 0.5, f_I[i // 100], f_K[i // 100])
+                    print(i, f_B[i // print_iter] ** 2 * nfp * 0.5, f_I[i // print_iter], f_K[i // print_iter])
+    t2 = time.time()
+    print('Time to run algo = ', t2 - t1, ' s')
+    t1 = time.time()
     winding_volume.alphas = alpha_opt 
     winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
     alphas = alpha_opt.reshape(n, num_basis)
@@ -117,4 +137,6 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
         for j in range(winding_volume.Phi.shape[2]):
             for k in range(num_basis):
                 winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
+    t2 = time.time()
+    print('Time to compute J = ', t2 - t1, ' s')
     return alpha_opt, 0.5 * np.array(f_B) ** 2 * nfp, 0.5 * np.array(f_K) ** 2, 0.5 * np.array(f_I)

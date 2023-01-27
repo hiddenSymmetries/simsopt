@@ -559,7 +559,7 @@ class WindingVolumeField(MagneticField):
                 J_temp[:, :, 2] = Jz
 
                 int_points = np.transpose(np.array([ox_temp, oy_temp, oz_temp]), [1, 2, 0])
-                B[:] += sopp.winding_volume_field_B(
+                B[:] += sopp.winding_volume_field_B_SIMD(
                     contig(points), 
                     contig(int_points), 
                     contig(J_temp)

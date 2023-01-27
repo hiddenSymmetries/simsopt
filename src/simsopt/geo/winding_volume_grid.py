@@ -351,12 +351,7 @@ class WindingVolumeGrid:
         Phi = self.Phi
         n_interp = Phi.shape[2]
         Jvec = self.J
-        # Jvec = np.zeros((n, n_interp, 3))
         alphas = self.alphas.reshape(n, self.n_functions).T
-        # # Compute Jvec as average J over the integration points in a cell
-        # for i in range(3):
-        #     for j in range(n_interp):
-        #         Jvec[:, j, i] = np.sum(alphas * Phi[:, :, j, i], axis=0)
         Jvec_avg = np.mean(Jvec, axis=1)
         Jvec = Jvec.reshape(n, self.nx, self.ny, self.nz, 3)
 
@@ -585,7 +580,9 @@ class WindingVolumeGrid:
         t1 = time.time()
         num_points = points.shape[0]
         num_points_curve = points_curve.shape[0]
-        B_factor = np.zeros((num_points + num_points_curve, 3, n, num_basis))
+        # B_factor = np.zeros((num_points + num_points_curve, 3, n, num_basis))
+        geo_factor = np.zeros((num_points, n, num_basis))
+        Itarget_matrix = np.zeros((num_points_curve, n, num_basis))
         points_total = np.vstack((points, points_curve))
         for stell in stell_list:
             for fp in range(nfp):
@@ -600,15 +597,33 @@ class WindingVolumeGrid:
                 Phivec_full[:, index:index + n, :, 0] = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[:, :, :, 1] * np.sin(phi0)
                 Phivec_full[:, index:index + n, :, 1] = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[:, :, :, 1] * np.cos(phi0)
                 Phivec_full[:, index:index + n, :, 2] = Phi[:, :, :, 2]
-                Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
 
+                Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
-                B_factor += sopp.winding_volume_field_Bext(
-                    points_total, 
+                geo_factor += sopp.winding_volume_field_Bext_SIMD(
+                    points, 
                     contig(int_points), 
-                    contig(Phivec_transpose)
+                    #contig(Phivec_full[:, index:index + n, :, :])
+                    contig(Phivec_transpose),
+                    plasma_unitnormal
                 )
+                Itarget_matrix += sopp.winding_volume_field_Bext_SIMD(
+                    points_curve, 
+                    contig(int_points), 
+                    #contig(Phivec_full[:, index:index + n, :, :])
+                    contig(Phivec_transpose),
+                    curve_dl
+                )
+
                 index += n
+
+        self.geo_factor = geo_factor
+        self.Itarget_matrix = Itarget_matrix
+        t2 = time.time()
+        print('Computing full coil surface grid took t = ', t2 - t1, ' s')
+        t1 = time.time()
+        Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
+        int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
         t2 = time.time()
         print('Computing B factor and I factor took t = ', t2 - t1, ' s')
 
@@ -620,15 +635,19 @@ class WindingVolumeGrid:
             for j in range(n_interp):
                 for k in range(self.n_functions):
                     self.J[:, j, i] += alphas[:, k] * Phi[k, :, j, i]
-        self.integration_points_full = contig(np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0]))
-        self.geo_factor = np.zeros((points.shape[0], n, num_basis))
-        self.Itarget_matrix = np.zeros((points_curve.shape[0], n, num_basis))
-        for i in range(B_factor.shape[2]):
-            for j in range(B_factor.shape[3]):
-                self.geo_factor[:, i, j] = np.sum(B_factor[:num_points, :, i, j] * plasma_unitnormal, axis=-1)
-                self.Itarget_matrix[:, i, j] = np.sum(B_factor[num_points:, :, i, j] * curve_dl, axis=-1)
+        self.integration_points_full = int_points  # contig(np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0]))
         t2 = time.time()
-        print('Finishing the B and I matrices took t = ', t2 - t1, ' s')
+        print('Computing J took t = ', t2 - t1, ' s')
+        #t1 = time.time()
+        #self.geo_factor = np.zeros((points.shape[0], n, num_basis))
+        #self.Itarget_matrix = np.zeros((points_curve.shape[0], n, num_basis))
+        #self.geo_factor = np.tensordot(B_factor[:num_points, :, :, :], plasma_unitnormal, axes=[
+        #for i in range(B_factor.shape[2]):
+        #    for j in range(B_factor.shape[3]):
+        #        self.geo_factor[:, i, j] = np.sum(B_factor[:num_points, :, i, j] * plasma_unitnormal, axis=-1)
+        #        self.Itarget_matrix[:, i, j] = np.sum(B_factor[num_points:, :, i, j] * curve_dl, axis=-1)
+        #t2 = time.time()
+        #print('Finishing the B and I matrices took t = ', t2 - t1, ' s')
         t1 = time.time()
 
         # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
@@ -925,17 +944,10 @@ class WindingVolumeGrid:
         n_interp = Phi.shape[2]
         alpha_opt = self.alphas.reshape(n, self.n_functions)
         # integration_points = self.integration_points
-        Jvec = self.J  # np.zeros((n, n_interp, 3))
         Nx = self.nx
         Ny = self.ny
         Nz = self.nz
-
-        # Compute Jvec as average J over the integration points in a cell
-        # for i in range(3):
-        #     for j in range(n_interp):
-        #         for k in range(self.n_functions):
-        #             Jvec[:, j, i] += alpha_opt[:, k] * Phi[k, :, j, i]
-        Jvec = Jvec.reshape(n, Nx, Ny, Nz, 3)
+        Jvec = self.J.reshape(n, Nx, Ny, Nz, 3)
 
         # Compute all the fluxes (unnormalized!)
         flux = np.zeros((n, 6))
@@ -981,20 +993,13 @@ class WindingVolumeGrid:
         q = 0
         qq = 0
         for i in range(n):
-            # ind_zero = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
-            # ind_two = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
             for j in range(6):
-                # print(i, j, flux[i, j])
-                if (i in self.x_inds) and (j == 1) and (self.range != 'full torus'):  # and (len(ind_zero) > 0):
-                    #ind = ind_zero[0]
-                    #k_ind = self.connection_list[i, ind, 0]
+                #print(i, j, flux[i, j])
+                if (i in self.x_inds) and (j == 1) and (self.range != 'full torus'):
                     k_ind = self.z_flip_x[q]
-                    # print(i, k_ind, flux[i, 1], flux[k_ind, 1])
                     assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
                     q += 1
-                elif (i in self.y_inds) and (j == 3) and (self.range != 'full torus'):  # and (len(ind_two) > 0):
-                    #ind = ind_two[0]
-                    #k_ind = self.connection_list[i, ind, 2]
+                elif (i in self.y_inds) and (j == 3) and (self.range != 'full torus'):
                     k_ind = self.z_flip_y[qq]
                     assert np.isclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3)
                     qq += 1
@@ -1006,7 +1011,7 @@ class WindingVolumeGrid:
                             j_ind = j + 1
                         else:
                             j_ind = j - 1
-                        # print(i, j, k_ind, j_ind, ind, flux[i, j], flux[k_ind, j_ind])
+                        #print(i, j, k_ind, j_ind, ind, flux[i, j], flux[k_ind, j_ind])
                         assert np.isclose(flux[i, j], -flux[k_ind, j_ind], atol=flux_max, rtol=1e-3)
                 else:
                     assert np.isclose(flux[i, j], 0.0, atol=flux_max)
