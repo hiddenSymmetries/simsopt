@@ -317,7 +317,7 @@ class NonQSRatioTests(unittest.TestCase):
         Taylor test for derivative of surface non QS ratio wrt coil parameters
         """
         for label in ["Volume", "ToroidalFlux"]:
-            for axis in [0, 1]:
+            for axis in [False, True]:
                 with self.subTest(label=label, axis=axis):
                     self.subtest_nonQSratio_derivative(label, axis)
 
