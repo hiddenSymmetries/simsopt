@@ -8,7 +8,7 @@ from simsopt._core.optimizable import Optimizable
 __all__ = ['BoozerSurface']
 
 
-class BoozerSurface(Optimizable, GSONable):
+class BoozerSurface(Optimizable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -41,7 +41,6 @@ class BoozerSurface(Optimizable, GSONable):
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
-        self.name = id(self)
         Optimizable.__init__(self, depends_on=[biotsavart])
         self.biotsavart = biotsavart
         self.surface = surface
@@ -221,6 +220,9 @@ class BoozerSurface(Optimizable, GSONable):
         This is done using LBFGS.
         """
 
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -246,6 +248,8 @@ class BoozerSurface(Optimizable, GSONable):
         resdict['s'] = s
         resdict['iota'] = iota
 
+        self.res = resdict
+        self.need_to_run_code = False
         return resdict
 
     def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
@@ -253,6 +257,9 @@ class BoozerSurface(Optimizable, GSONable):
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
         """
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -289,6 +296,9 @@ class BoozerSurface(Optimizable, GSONable):
             res['G'] = G
         res['s'] = s
         res['iota'] = iota
+        
+        self.res = res
+        self.need_to_run_code = False
         return res
 
     def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
@@ -298,6 +308,10 @@ class BoozerSurface(Optimizable, GSONable):
         are the same as for :mod:`scipy.optimize.least_squares`. If ``method='manual'``, then a 
         damped Gauss-Newton method is used.
         """
+
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -354,6 +368,9 @@ class BoozerSurface(Optimizable, GSONable):
             resdict['G'] = G
         resdict['s'] = s
         resdict['iota'] = iota
+        
+        self.res = resdict
+        self.need_to_run_code = False
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
@@ -376,6 +393,10 @@ class BoozerSurface(Optimizable, GSONable):
         The final constraint is not necessary for stellarator symmetric surfaces as it is automatically
         satisfied by the stellarator symmetric surface parametrization.
         """
+
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is not None:
             xl = np.concatenate((s.get_dofs(), [iota, G], lm))
@@ -419,6 +440,9 @@ class BoozerSurface(Optimizable, GSONable):
             iota = xl[-3]
         res['s'] = s
         res['iota'] = iota
+        
+        self.res = res
+        self.need_to_run_code = False
         return res
 
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
