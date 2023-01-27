@@ -5,9 +5,9 @@ from nptyping import NDArray, Float
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from simsopt.geo.surface import Surface
-from simsopt._core.derivative import Derivative, derivative_dec
-from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from .._core.derivative import Derivative, derivative_dec
+from ..geo.surface import Surface
+from ..geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
 import scipy
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
@@ -31,7 +31,7 @@ def forward_backward(P, L, U, rhs, iterative_refinement=False):
     y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
     z = scipy.linalg.solve_triangular(L.T, y, lower=False)
     adj = P@z
-    
+
     if iterative_refinement:
         yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
         zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
@@ -97,7 +97,7 @@ class Volume(Optimizable):
     """
 
     def __init__(self, surface, range=None, nphi=None, ntheta=None):
-        
+
         if range is not None or nphi is not None or ntheta is not None:
             if range is None:
                 if surface.stellsym:
@@ -118,7 +118,7 @@ class Volume(Optimizable):
         self.ntheta = ntheta
 
         super().__init__(depends_on=[self.surface])
-    
+
     def J(self):
         """
         Compute the volume enclosed by the surface.
@@ -156,7 +156,7 @@ class ToroidalFlux(Optimizable):
     """
 
     def __init__(self, surface, biotsavart, idx=0, range=None, nphi=None, ntheta=None):
-        
+
         if range is not None or nphi is not None or ntheta is not None:
             if range is None:
                 if surface.stellsym:
@@ -171,7 +171,7 @@ class ToroidalFlux(Optimizable):
                                                               mpol=surface.mpol, ntor=surface.ntor, dofs=surface.dofs)
         else:
             self.surface = surface
-        
+
         self.biotsavart = biotsavart
         self.idx = idx
 
@@ -547,7 +547,7 @@ class MajorRadius(Optimizable):
     """
 
     def __init__(self, boozer_surface):
-        Optimizable.__init__(self, depends_on=[boozer_surface])
+        super().__init__(depends_on=[boozer_surface])
         self.boozer_surface = boozer_surface
         self.surface = boozer_surface.surface
         self.recompute_bell()
@@ -595,7 +595,7 @@ class NonQuasiSymmetricRatio(Optimizable):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasisymmetric and
     non-quasisymmetric components.  For quasi-axisymmetry, we compute
-   
+
     .. math::
         B_{\text{QS}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \|\mathbf n\| ~d\varphi} \\
         B_{\text{non-QS}} &= B - B_{\text{QS}}
@@ -620,6 +620,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.  
         quasi_poloidal: `False` for quasiaxisymmetry and `True` for quasipoloidal symmetry
     """
+
     def __init__(self, boozer_surface, bs, sDIM=20, quasi_poloidal=False):
         # only BoozerExact surfaces work for now
         assert boozer_surface.res['type'] == 'exact'
@@ -629,12 +630,12 @@ class NonQuasiSymmetricRatio(Optimizable):
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
         self.boozer_surface = boozer_surface
-        
+
         surface = in_surface
         phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
         thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
         surface = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas, dofs=in_surface.dofs)
-        
+
         self.axis = 1 if quasi_poloidal else 0
         self.in_surface = in_surface
         self.surface = surface
@@ -677,7 +678,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
 
         B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
-        
+
         if axis == 0:
             B_QS = B_QS[None, :]
         else:
@@ -727,7 +728,7 @@ class NonQuasiSymmetricRatio(Optimizable):
             B_QS = B_QS[:, None]
 
         B_nonQS = modB - B_QS
-        
+
         dmodB_dB = B / modB[..., None]
         dnum_by_dB = B_nonQS[..., None] * dmodB_dB * dS[:, :, None] / (nphi * ntheta)  # d J_nonQS / dB_ijk
         ddenom_by_dB = B_QS[..., None] * dmodB_dB * dS[:, :, None] / (nphi * ntheta)  # dJ_QS/dB_ijk
@@ -754,34 +755,34 @@ class NonQuasiSymmetricRatio(Optimizable):
         dS_dc = (nor[:, :, 0, None]*dnor_dc[:, :, 0, :] + nor[:, :, 1, None]*dnor_dc[:, :, 1, :] + nor[:, :, 2, None]*dnor_dc[:, :, 2, :])/dS[:, :, None]
 
         B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
-        
+
         if axis == 0:
             B_QS = B_QS[None, :]
         else:
             B_QS = B_QS[:, None]
 
         B_nonQS = modB - B_QS
-        
+
         dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
         dx_dc = surface.dgamma_by_dcoeff()
         dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
 
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
-        
+
         num = np.mean(modB * dS, axis=axis)
         denom = np.mean(dS, axis=axis)
         dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=axis) 
         ddenom_dc = np.mean(dS_dc, axis=axis)
         B_QS_dc = (dnum_dc * denom[:, None] - ddenom_dc * num[:, None])/denom[:, None]**2
-        
+
         if axis == 0:
             B_QS_dc = B_QS_dc[None, :, :]
         else:
             B_QS_dc = B_QS_dc[:, None, :]
 
         B_nonQS_dc = dmodB_dc - B_QS_dc
-        
+
         num = 0.5*np.mean(dS * B_nonQS**2)
         denom = 0.5*np.mean(dS * B_QS**2)
         dnum_by_dc = np.mean(0.5*dS_dc * B_nonQS[..., None]**2 + dS[..., None] * B_nonQS[..., None] * B_nonQS_dc, axis=(0, 1)) 
@@ -876,7 +877,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
     lm_times_dres_dcoils = biotsavart.B_vjp(lm_times_dres_dB)
     lm_times_dlabel_dcoils = lm_label*booz_surf.label.dJ(partials=True)(biotsavart, as_derivative=True)
-    
+
     return lm_times_dres_dcoils+lm_times_dlabel_dcoils
 
 

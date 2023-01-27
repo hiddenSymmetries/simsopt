@@ -1,9 +1,9 @@
-from scipy.linalg import lu
-from simsopt.geo.surfaceobjectives import boozer_surface_residual, Area, Volume, ToroidalFlux
-from scipy.optimize import minimize, least_squares
 import numpy as np
-from .._core.json import GSONDecoder, GSONable
-from simsopt._core.optimizable import Optimizable
+from scipy.linalg import lu
+from scipy.optimize import minimize, least_squares
+
+from ..geo.surfaceobjectives import boozer_surface_residual
+from .._core.optimizable import Optimizable
 
 __all__ = ['BoozerSurface']
 
@@ -41,7 +41,7 @@ class BoozerSurface(Optimizable):
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
-        Optimizable.__init__(self, depends_on=[biotsavart])
+        super().__init__(depends_on=[biotsavart])
         self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
@@ -296,7 +296,7 @@ class BoozerSurface(Optimizable):
             res['G'] = G
         res['s'] = s
         res['iota'] = iota
-        
+
         self.res = res
         self.need_to_run_code = False
         return res
@@ -368,7 +368,7 @@ class BoozerSurface(Optimizable):
             resdict['G'] = G
         resdict['s'] = s
         resdict['iota'] = iota
-        
+
         self.res = resdict
         self.need_to_run_code = False
         return resdict
@@ -440,7 +440,7 @@ class BoozerSurface(Optimizable):
             iota = xl[-3]
         res['s'] = s
         res['iota'] = iota
-        
+
         self.res = res
         self.need_to_run_code = False
         return res
@@ -588,4 +588,4 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         return res
- 
+

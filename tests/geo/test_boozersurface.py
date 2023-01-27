@@ -285,7 +285,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
             tol=1e-9, maxiter=500, constraint_weight=100., iota=iota, G=G)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
-        
+
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
@@ -301,7 +301,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         elif second_stage == 'residual_exact':
             res = boozer_surface.solve_residual_equation_exactly_newton(
                 tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
-        
+
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
@@ -336,16 +336,16 @@ class BoozerSurfaceTests(unittest.TestCase):
         from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 
         bs, boozer_surface = get_boozer_surface(label=label)
-        
+
         # test serialization of BoozerSurface here too
         bs_str = json.dumps(SIMSON(boozer_surface), cls=GSONEncoder)
         bs_regen = json.loads(bs_str, cls=GSONDecoder)
-        
+
         diff = boozer_surface.surface.x - bs_regen.surface.x
         self.assertAlmostEqual(np.linalg.norm(diff.ravel()), 0)
         self.assertAlmostEqual(boozer_surface.label.J(), bs_regen.label.J())
         self.assertAlmostEqual(boozer_surface.targetlabel, bs_regen.targetlabel)
-        
+
         # check that BoozerSurface.surface and label.surface are the same surfaces
         assert bs_regen.label.surface is bs_regen.surface
 
