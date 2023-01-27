@@ -12,13 +12,15 @@ import logging
 from enum import Enum
 from abc import ABC, abstractmethod
 
+
 class NetCDF(Enum):
     """Supported netCDF libraries."""
     netCDF4 = 0
     scipy = 1
 
+
 logger = logging.getLogger(__name__)
-    
+
 try:
     from netCDF4 import Dataset
 except ImportError as e:
@@ -33,6 +35,7 @@ except ImportError as e:
         netcdf = NetCDF.scipy
 else:
     netcdf = NetCDF.netCDF4
+
 
 class AbstractNetCDF:
     """
@@ -70,7 +73,7 @@ class AbstractNetCDF:
         self.flush()
 
 
-def netcdf_file(filename, mode='r', mmap=None, format ='NETCDF3_CLASSIC'):
+def netcdf_file(filename, mode='r', mmap=None, format='NETCDF3_CLASSIC'):
     """Wrapper around scipy.io's netcdf_file or Dataset from NetCDF4."""
     if netcdf == NetCDF.scipy:
         if format == 'NETCDF3_CLASSIC':
@@ -82,6 +85,6 @@ def netcdf_file(filename, mode='r', mmap=None, format ='NETCDF3_CLASSIC'):
         ret = scipy_netcdf_file(filename, mode, mmap, version)
 
     elif netcdf == NetCDF.netCDF4:
-        ret =  Dataset(filename, mode, format)
+        ret = Dataset(filename, mode, format)
         ret.set_always_mask(False)
     return ret
