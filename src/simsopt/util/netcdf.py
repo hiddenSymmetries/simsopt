@@ -17,6 +17,8 @@ class NetCDF(Enum):
     netCDF4 = 0
     scipy = 1
 
+logger = logging.getLogger(__name__)
+    
 try:
     from netCDF4 import Dataset
 except ImportError as e:
