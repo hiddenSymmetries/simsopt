@@ -65,19 +65,19 @@ class MPIObjective(Optimizable):
         return all_derivs
 
 
-class QuadraticPenalty(Optimizable, GSONable):
+class QuadraticPenalty(Optimizable):
 
     def __init__(self, obj, cons=0., f="min"):
         r"""
-        A quadratic penalty function of the form :math:`0.5*f(obj.J() - \text{cons}, 0)^2` for an underlying objective ``obj``
+        A quadratic penalty function of the form :math:`0.5f(\text{obj}.J() - \text{cons})^2` for an underlying objective ``obj``
         and wrapping function `f`. This can be used to implement a barrier penalty function for (in)equality
         constrained optimization problem. The wrapping function defaults to 'min'.
 
         Args:
             obj: the underlying objective. It should provide a ``.J()`` and ``.dJ()`` function.
             cons: constant
-            f: the function that wraps the difference `obj-\text{cons}`.  The options are 'min', 'max', or 'identity'
-            which respectively return 'min(obj-\text{cons}, 0)', 'max(obj-\text{cons}, 0)', and 'obj-\text{cons}'.
+            f: the function that wraps the difference :math:`obj-\text{cons}`.  The options are 'min', 'max', or 'identity'
+               which respectively return :math:`\min(\text{obj}-\text{cons}, 0)`, :math:`\max(\text{obj}-\text{cons}, 0)`, and :math:`\text{obj}-\text{cons}`.
         """
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
         self.obj = obj

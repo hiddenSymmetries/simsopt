@@ -15,18 +15,27 @@ __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'MajorRadius', 'NonQuasiSymmetricRatio']
 
 
-def forward_backward(P, L, U, rhs):
+def forward_backward(P, L, U, rhs, iterative_refinement=False):
     """
-    Solve a linear system of the form (PLU)^T*adj = rhs for adj
+    Solve a linear system of the form (PLU)^T*adj = rhs for adj.
+
+
+    Args:
+        P: permutation matrix
+        L: lower triangular matrix
+        U: upper triangular matrix
+        iterative_refinement: when true, applies iterative refinement which can improve
+                              the accuracy of the computed solution when the matrix is
+                              particularly ill-conditioned.
     """
     y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
     z = scipy.linalg.solve_triangular(L.T, y, lower=False)
     adj = P@z
-
-    #  iterative refinement
-    yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
-    zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
-    adj += P@zp
+    
+    if iterative_refinement:
+        yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
+        zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
+        adj += P@zp
 
     return adj
 
@@ -617,9 +626,9 @@ class NonQuasiSymmetricRatio(Optimizable):
         boozer_surface: input boozer surface on which the penalty term is evaluated,
         biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
         sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.
-        axis: 0 for quasiaxisymmetry and 1 for quasipoloidal symmetry
+        quasi_poloidal: `True` for quasiaxisymmetry and `False` for quasipoloidal symmetry
     """
-    def __init__(self, boozer_surface, bs, sDIM=15, axis=0):
+    def __init__(self, boozer_surface, bs, sDIM=15, quasi_poloidal=False):
         # only BoozerExact surfaces work for now
         assert boozer_surface.res['type'] == 'exact'
         # only SurfaceXYZTensorFourier for now
@@ -634,7 +643,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(in_surface.get_dofs())
 
-        self.axis = axis
+        self.axis = quasi_poloidal
         self.in_surface = in_surface
         self.surface = s
         self.biotsavart = bs

@@ -324,7 +324,7 @@ class NonQSRatioTests(unittest.TestCase):
     def subtest_nonQSratio_derivative(self, label, axis):
         bs, boozer_surface = get_boozer_surface(label=label)
         coeffs = bs.x
-        io = NonQuasiSymmetricRatio(boozer_surface, bs, axis=axis)
+        io = NonQuasiSymmetricRatio(boozer_surface, bs, quasi_poloidal=axis)
 
         def f(dofs):
             bs.x = dofs
