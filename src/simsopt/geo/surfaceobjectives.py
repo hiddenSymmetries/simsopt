@@ -544,23 +544,12 @@ class MajorRadius(Optimizable):
 
     Args:
         boozer_surface: The surface to use for the computation
-        sDIM: dimensions for the tensor product grid of quadrature points used to evaluate the integrals in the major radius formula
-
     """
 
-    def __init__(self, boozer_surface, sDIM=15):
+    def __init__(self, boozer_surface):
         Optimizable.__init__(self, depends_on=[boozer_surface])
-        in_surface = boozer_surface.surface
-        phis = np.linspace(0, 1/(2*in_surface.nfp), sDIM, endpoint=False)
-        phis += phis[1]/2
-
-        thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
-        s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-        s.set_dofs(in_surface.get_dofs())
-
         self.boozer_surface = boozer_surface
-        self.in_surface = in_surface
-        self.surface = s
+        self.surface = boozer_surface.surface
         self.recompute_bell()
 
     def J(self):
@@ -583,7 +572,6 @@ class MajorRadius(Optimizable):
             res = self.boozer_surface.res
             res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
 
-        self.surface.set_dofs(self.in_surface.get_dofs())
         surface = self.surface
         self._J = surface.major_radius()
 
@@ -619,16 +607,18 @@ class NonQuasiSymmetricRatio(Optimizable):
 
     When :math:`J` is zero, then there is perfect QA on the given boozer surface. The ratio of the QA and non-QA components
     of the field is returned to avoid dependence on the magnitude of the field strength.  Note that this penalty is computed
-    on an auxilliary surface with quadrature points that different from those on the input Boozer surface.  This is to allow
-    for a spectrally accurate evaluation of the above integrals.
+    on an auxilliary surface with quadrature points that are different from those on the input Boozer surface.  This is to allow
+    for a spectrally accurate evaluation of the above integrals. Note that if boozer_surface.surface.stellsym == True, 
+    computing this term on the half-period with shifted quadrature points is ~not~ equivalent to computing on the full-period 
+    with unshifted points.  This is why we compute on an auxilliary surface with quadrature points on the full period.
 
     Args:
         boozer_surface: input boozer surface on which the penalty term is evaluated,
         biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
-        sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.
+        sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.  
         quasi_poloidal: `False` for quasiaxisymmetry and `True` for quasipoloidal symmetry
     """
-    def __init__(self, boozer_surface, bs, sDIM=15, quasi_poloidal=False):
+    def __init__(self, boozer_surface, bs, sDIM=20, quasi_poloidal=False):
         # only BoozerExact surfaces work for now
         assert boozer_surface.res['type'] == 'exact'
         # only SurfaceXYZTensorFourier for now
@@ -637,15 +627,15 @@ class NonQuasiSymmetricRatio(Optimizable):
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
         self.boozer_surface = boozer_surface
-
+        
+        surface = in_surface
         phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
         thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
-        s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
-        s.set_dofs(in_surface.get_dofs())
-
+        surface = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas, dofs=in_surface.dofs)
+        
         self.axis = 1 if quasi_poloidal else 0
         self.in_surface = in_surface
-        self.surface = s
+        self.surface = surface
         self.biotsavart = bs
         self.recompute_bell()
 
@@ -669,9 +659,7 @@ class NonQuasiSymmetricRatio(Optimizable):
             res = self.boozer_surface.res
             res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
 
-        self.surface.set_dofs(self.in_surface.get_dofs())
         self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
-        
         axis = self.axis
 
         # compute J

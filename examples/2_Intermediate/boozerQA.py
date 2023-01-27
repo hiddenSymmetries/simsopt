@@ -74,7 +74,7 @@ ls = [CurveLength(c) for c in base_curves]
 
 J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius is that computed on the initial surface
 J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')  # target rotational transform is that computed on the initial surface
-J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS, axis=0)
+J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS)
 Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max') 
 
 # sum the objectives together
