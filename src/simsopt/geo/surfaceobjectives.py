@@ -594,18 +594,20 @@ class MajorRadius(Optimizable):
 class NonQuasiSymmetricRatio(Optimizable):
     r"""
     This objective decomposes the field magnitude :math:`B(\varphi,\theta)` into quasisymmetric and
-    non-quasisymmetric components, 
+    non-quasisymmetric components.  For quasi-axisymmetry, we compute
    
     .. math::
-        B_{\text{QA}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \|\mathbf n\| ~d\varphi} \\
-        B_{\text{non-QA}} &= B - B_{\text{QA}}
+        B_{\text{QS}} &= \frac{\int_0^1 B \|\mathbf n\| ~d\varphi}{\int_0^1 \|\mathbf n\| ~d\varphi} \\
+        B_{\text{non-QS}} &= B - B_{\text{QS}}
 
-    where :math:`B = \| \mathbf B(\varphi,\theta) \|_2`.  The objective computed by this penalty is
+    where :math:`B = \| \mathbf B(\varphi,\theta) \|_2`.  
+    For quasi-poloidal symmetry, an analagous formula is used, but the integral is computed in the :math:`\theta` direction.
+    The objective computed by this penalty is
 
     .. math::
         J &= \frac{\int_{\Gamma_{s}} B_{\text{non-QS}}^2~dS}{\int_{\Gamma_{s}} B_{\text{QS}}^2~dS} \\
 
-    When :math:`J` is zero, then there is perfect QA on the given boozer surface. The ratio of the QA and non-QA components
+    When :math:`J` is zero, then there is perfect QS on the given boozer surface. The ratio of the QS and non-QS components
     of the field is returned to avoid dependence on the magnitude of the field strength.  Note that this penalty is computed
     on an auxilliary surface with quadrature points that are different from those on the input Boozer surface.  This is to allow
     for a spectrally accurate evaluation of the above integrals. Note that if boozer_surface.surface.stellsym == True, 
