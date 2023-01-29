@@ -8,7 +8,7 @@ from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 from ..geo.surface import Surface
 from ..geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.objectives.utilities import forward_backward
+from ..objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'Iotas', 
