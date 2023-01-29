@@ -8,36 +8,11 @@ from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 from ..geo.surface import Surface
 from ..geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-import scipy
+from simsopt.objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'Iotas', 
            'MajorRadius', 'NonQuasiSymmetricRatio']
-
-
-def forward_backward(P, L, U, rhs, iterative_refinement=False):
-    """
-    Solve a linear system of the form (PLU)^T*adj = rhs for adj.
-
-
-    Args:
-        P: permutation matrix
-        L: lower triangular matrix
-        U: upper triangular matrix
-        iterative_refinement: when true, applies iterative refinement which can improve
-                              the accuracy of the computed solution when the matrix is
-                              particularly ill-conditioned.
-    """
-    y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
-    z = scipy.linalg.solve_triangular(L.T, y, lower=False)
-    adj = P@z
-
-    if iterative_refinement:
-        yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
-        zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
-        adj += P@zp
-
-    return adj
 
 
 class Area(Optimizable):

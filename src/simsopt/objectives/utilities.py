@@ -1,11 +1,37 @@
 import numpy as np
+import scipy
 # from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 from .._core.json import GSONable
 
-__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight']
+__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
+
+
+def forward_backward(P, L, U, rhs, iterative_refinement=False):
+    """
+    Solve a linear system of the form (PLU)^T*adj = rhs for adj.
+
+
+    Args:
+        P: permutation matrix
+        L: lower triangular matrix
+        U: upper triangular matrix
+        iterative_refinement: when true, applies iterative refinement which can improve
+                              the accuracy of the computed solution when the matrix is
+                              particularly ill-conditioned.
+    """
+    y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
+    z = scipy.linalg.solve_triangular(L.T, y, lower=False)
+    adj = P@z
+    
+    if iterative_refinement:
+        yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
+        zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
+        adj += P@zp
+
+    return adj
 
 
 def sum_across_comm(derivative, comm):
