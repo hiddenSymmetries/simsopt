@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import lu
 from scipy.optimize import minimize, least_squares
 
-from ..geo.surfaceobjectives import boozer_surface_residual
+from .surfaceobjectives import boozer_surface_residual
 from .._core.optimizable import Optimizable
 
 __all__ = ['BoozerSurface']
