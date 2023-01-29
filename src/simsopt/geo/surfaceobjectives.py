@@ -6,8 +6,8 @@ from nptyping import NDArray, Float
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
-from ..geo.surface import Surface
-from ..geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from .surface import Surface
+from .surfacexyztensorfourier import SurfaceXYZTensorFourier
 from ..objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
