@@ -9,8 +9,8 @@ __all__ = ['CurrentPotentialFourier', 'CurrentPotential']
 
 class CurrentPotential(Optimizable):
     """
-    Current Potential base object, not necessarily assuming 
-    that the current potential will be represented by a 
+    Current Potential base object, not necessarily assuming
+    that the current potential will be represented by a
     Fourier expansion in the toroidal and poloidal modes.
     Args:
         winding_surface: SurfaceRZFourier object representing the coil surface.
@@ -325,7 +325,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         xn_coil = f.variables['xn_coil'][()]
         ntheta_coil = f.variables['ntheta_coil'][()]
         nzeta_coil = f.variables['nzeta_coil'][()]
-        #single_valued_current_potential_mn = f.variables['single_valued_current_potential_mn'][()][-1, :]
         f.close()
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
