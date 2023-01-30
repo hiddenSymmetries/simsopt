@@ -167,7 +167,7 @@ class Derivative():
             x[k] *= other
         return Derivative(x)
 
-    def __call__(self, optim):
+    def __call__(self, optim, as_derivative=False):
         """
         Get the derivative with respect to all DOFs that ``optim`` depends on.
 
@@ -177,16 +177,19 @@ class Derivative():
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
         derivs = []
-
+        keys = []
         for k in optim.unique_dof_lineage:
             if np.any(k.dofs_free_status):
                 local_derivs = np.zeros(k.local_dof_size)
                 for opt in k.dofs.dep_opts():
                     local_derivs += self.data[opt][opt.local_dofs_free_status]
-
+                    keys.append(opt)
                 derivs.append(local_derivs)
 
-        return np.concatenate(derivs)
+        if as_derivative:
+            return Derivative({k: d for k, d in zip(keys, derivs)})
+        else:
+            return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
     def __radd__(self, other):

@@ -1,10 +1,9 @@
 from pathlib import Path
 
 import numpy as np
-
 from simsopt.configs import get_ncsx_data
 from simsopt.field import coils_via_symmetries, BiotSavart
-from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface
+from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface, MajorRadius
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -41,6 +40,10 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None, mpol=5, ntor=5,
 
 
 def get_exact_surface():
+    """
+    Returns a boozer exact surface that will be used in unit tests.
+    """
+
     filename_X = TEST_DIR / 'NCSX_test_data'/'X.dat'
     filename_Y = TEST_DIR / 'NCSX_test_data'/'Y.dat'
     filename_Z = TEST_DIR / 'NCSX_test_data'/'Z.dat'
@@ -65,7 +68,7 @@ def get_exact_surface():
     return s
 
 
-def get_boozer_surface(label="Volume"):
+def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
     """
     Returns a boozer surface that will be used in unit tests.
     """
@@ -92,14 +95,14 @@ def get_boozer_surface(label="Volume"):
     iota = -0.406
 
     if label == "Volume":
-        lab = Volume(s)
+        lab = Volume(s, nphi=nphi, ntheta=ntheta)
         lab_target = lab.J()
     elif label == "ToroidalFlux":
         bs_tf = BiotSavart(coils)
-        lab = ToroidalFlux(s, bs_tf)
+        lab = ToroidalFlux(s, bs_tf, nphi=nphi, ntheta=ntheta)
         lab_target = lab.J()
     elif label == "Area":
-        lab = Area(s)
+        lab = Area(s, nphi=nphi, ntheta=ntheta)
         lab_target = lab.J()
 
     ## COMPUTE THE SURFACE
