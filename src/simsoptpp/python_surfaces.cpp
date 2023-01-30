@@ -111,7 +111,6 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
 
 template <typename T, typename S> void register_common_surface_methods(S &s) {
     s.def("gamma", &T::gamma)
-     .def("gamma_impl", &T::gamma_impl)
      .def("gamma_lin", &T::gamma_lin)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
      .def("dgamma_by_dcoeff_vjp", &T::dgamma_by_dcoeff_vjp)
