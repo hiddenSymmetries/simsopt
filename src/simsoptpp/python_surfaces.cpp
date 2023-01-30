@@ -164,7 +164,7 @@ void init_surfaces(py::module_ &m){
         .def(py::init<vector<double>,vector<double>>());
     register_common_surface_methods<PySurface>(pysurface);
 
-    auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>>(m, "SurfaceRZFourier")
+    auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>, PySurface>(m, "SurfaceRZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
         .def_readwrite("rc", &PySurfaceRZFourier::rc)
         .def_readwrite("rs", &PySurfaceRZFourier::rs)
@@ -175,9 +175,9 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("nfp", &PySurfaceRZFourier::nfp)
         .def_readwrite("stellsym", &PySurfaceRZFourier::stellsym)
         .def("allocate", &PySurfaceRZFourier::allocate);
-    register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
+    // register_common_surface_methods<PySurfaceRZFourier>(pysurfacerzfourier);
 
-    auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>>(m, "SurfaceXYZFourier")
+    auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>, PySurface>(m, "SurfaceXYZFourier")
         .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
         .def_readwrite("xc", &PySurfaceXYZFourier::xc)
         .def_readwrite("xs", &PySurfaceXYZFourier::xs)
@@ -189,9 +189,9 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("ntor",&PySurfaceXYZFourier::ntor)
         .def_readwrite("nfp", &PySurfaceXYZFourier::nfp)
         .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
-    register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
+    // register_common_surface_methods<PySurfaceXYZFourier>(pysurfacexyzfourier);
 
-    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>>(m, "SurfaceXYZTensorFourier")
+    auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>, PySurface>(m, "SurfaceXYZTensorFourier")
         .def(py::init<int, int, int, bool, vector<bool>, vector<double>, vector<double>>())
         .def_readwrite("xcs", &PySurfaceXYZTensorFourier::x)
         .def_readwrite("ycs", &PySurfaceXYZTensorFourier::y)
@@ -202,5 +202,5 @@ void init_surfaces(py::module_ &m){
         .def_readwrite("nfp", &PySurfaceXYZTensorFourier::nfp)
         .def_readwrite("stellsym", &PySurfaceXYZTensorFourier::stellsym)
         .def_readwrite("clamped_dims", &PySurfaceXYZTensorFourier::clamped_dims);
-    register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
+    // register_common_surface_methods<PySurfaceXYZTensorFourier>(pysurfacexyztensorfourier);
 }
