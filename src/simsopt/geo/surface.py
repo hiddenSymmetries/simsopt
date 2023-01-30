@@ -318,6 +318,7 @@ class Surface(Optimizable):
         This function takes in a cylindrical angle :math:`\phi` and returns
         the cross section of the surface in that plane evaluated at `thetas`.
         This is done using the method of bisection.
+
         This function assumes that the surface intersection with the plane is a
         single curve.
         """
@@ -440,8 +441,79 @@ class Surface(Optimizable):
 
         and :math:`V` is the volume enclosed by the surface, and
         :math:`\overline{A}` is the average cross sectional area.
-        The main difficult part of this calculation is the mean cross
-        sectional area.  This is given by the integral
+
+        """
+
+        R_minor = self.minor_radius()
+        R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
+        AR = R_major/R_minor
+        return AR
+
+    def daspect_ratio_by_dcoeff(self):
+        """
+        Return the derivative of the aspect ratio with respect to the surface coefficients
+        """
+
+        R_minor = self.minor_radius()
+        R_major = self.major_radius()
+        dAR_ds = (self.dmajor_radius_by_dcoeff()*R_minor - self.dminor_radius_by_dcoeff() * R_major)/R_minor**2
+        return dAR_ds
+
+    def minor_radius(self):
+        r"""
+        Return the minor radius of the surface using the formula
+
+        .. math::
+            R_{\text{minor}} &= \sqrt{ \overline{A} / \pi }
+
+        where :math:`\overline{A}` is the average cross sectional area.
+
+        """
+
+        R_minor = np.sqrt(self.mean_cross_sectional_area() / np.pi)
+        return R_minor
+
+    def dminor_radius_by_dcoeff(self):
+        """
+        Return the derivative of the minor radius wrt surface coefficients
+
+        """
+
+        return (0.5/np.pi)*self.dmean_cross_sectional_area_by_dcoeff()/np.sqrt(self.mean_cross_sectional_area() / np.pi)
+
+    def major_radius(self):
+        r"""
+        Return the major radius of the surface using the formula
+
+        .. math::
+            R_{\text{major}} = \frac{V}{2 \pi^2  R_{\text{minor}}^2}
+
+        where :math:`\overline{A}` is the average cross sectional area,
+        and :math:`R_{\text{minor}}` is the minor radius of the surface.
+
+        """
+
+        R_minor = self.minor_radius()
+        R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
+        return R_major
+
+    def dmajor_radius_by_dcoeff(self):
+        """
+        Return the derivative of the major radius wrt surface coefficients
+        """
+
+        mean_area = self.mean_cross_sectional_area()
+        dmean_area_ds = self.dmean_cross_sectional_area_by_dcoeff()
+
+        dR_major_ds = (-self.volume() * dmean_area_ds + self.dvolume_by_dcoeff() * mean_area) / mean_area**2
+        return dR_major_ds * np.sign(self.volume()) / (2. * np.pi)
+
+    def mean_cross_sectional_area(self):
+        r"""
+        Note: cylindrical coordinates are :math:`(R, \phi, Z)`, where
+        :math:`\phi \in [-\pi,\pi)` and the angles that parametrize the
+        surface are :math:`(\varphi, \theta) \in [0,1)^2`.
+        The mean cross sectional area is given by the integral
 
         .. math::
             \overline{A} = \frac{1}{2\pi} \int_{S_{\phi}} ~dS ~d\phi
@@ -489,6 +561,7 @@ class Surface(Optimizable):
             \frac{\partial \varphi}{d \theta} + \frac{\partial Z}{\partial \theta} \right] \text{det} J ~d\theta ~d\varphi
 
         where :math:`\text{det}J` is the determinant of the mapping's Jacobian.
+
         """
 
         xyz = self.gamma()
@@ -507,13 +580,50 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ)) / (2 * np.pi)
+        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
+        return mean_cross_sectional_area
 
-        R_minor = np.sqrt(mean_cross_sectional_area / np.pi)
-        R_major = np.abs(self.volume()) / (2. * np.pi ** 2 * R_minor ** 2)
+    def dmean_cross_sectional_area_by_dcoeff(self):
+        """
+        Return the derivative of the mean cross sectional area wrt surface coefficients
+        """
 
-        AR = R_major / R_minor
-        return AR
+        g = self.gamma()
+        g1 = self.gammadash1()
+        g2 = self.gammadash2()
+
+        dg_ds = self.dgamma_by_dcoeff()
+        dg1_ds = self.dgammadash1_by_dcoeff()
+        dg2_ds = self.dgammadash2_by_dcoeff()
+
+        x = g[:, :, 0, None]
+        y = g[:, :, 1, None]
+
+        dx_ds = dg_ds[:, :, 0, :]
+        dy_ds = dg_ds[:, :, 1, :]
+
+        r = np.sqrt(x**2+y**2)
+        dr_ds = (x*dx_ds+y*dy_ds)/r
+
+        xvarphi = g1[:, :, 0, None]
+        yvarphi = g1[:, :, 1, None]
+        zvarphi = g1[:, :, 2, None]
+
+        xtheta = g2[:, :, 0, None]
+        ytheta = g2[:, :, 1, None]
+        ztheta = g2[:, :, 2, None]
+
+        dxvarphi_ds = dg1_ds[:, :, 0, :]
+        dyvarphi_ds = dg1_ds[:, :, 1, :]
+        dzvarphi_ds = dg1_ds[:, :, 2, :]
+
+        dxtheta_ds = dg2_ds[:, :, 0, :]
+        dytheta_ds = dg2_ds[:, :, 1, :]
+        dztheta_ds = dg2_ds[:, :, 2, :]
+
+        mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
+        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
+        return np.sign(mean_area) * dmean_area_ds/(2*np.pi)
 
     def arclength_poloidal_angle(self):
         """
