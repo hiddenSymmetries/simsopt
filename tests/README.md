@@ -26,6 +26,4 @@ See the [python unittest documentation](https://docs.python.org/3/library/unitte
 
 ### Parallel testing with pytest
 
-Requires installing pytest-xdist or pytest-parallel.  Install either of them with pip. With pytest-xdist, run `pytest -n auto geo` to run all tests in the `geo` folder in parallel. With pytest-parallel run `pytest --workers <N> geo`, where <N> is the number of cores you want to use.
-
-
+Requires installing pytest along with pytest-xdist or pytest-parallel.  Install either of them with pip. With pytest-xdist, run `pytest -n <N> geo` to run all tests in the `geo` folder in parallel. For pytest-parallel, use `pytest --workers <N> geo`. Here <N> is the number of cores you want to use. In place of a specific number for <N>, use `auto` to automatically use all the avaialable cores in the machine.
