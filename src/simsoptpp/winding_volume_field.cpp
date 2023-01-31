@@ -120,7 +120,7 @@ Array winding_volume_field_B_SIMD(Array& points, Array& integration_points, Arra
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-Array winding_volume_field_Bext(Array& points, Array& integration_points, Array& Phi) 
+Array winding_volume_field_Bext(Array& points, Array& integration_points, Array& Phi, Array& plasma_unitnormal) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -138,12 +138,15 @@ Array winding_volume_field_Bext(Array& points, Array& integration_points, Array&
     int num_integration_points = integration_points.shape(1);
 
     double fak = 1e-7;
-    Array B = xt::zeros<double>({num_points, 3, num_coil_points, num_basis_functions});
+    Array B = xt::zeros<double>({num_points, num_coil_points, num_basis_functions});
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < num_points; i++) {  // loop through quadrature points on plasma surface
     	double rx = points(i, 0);
     	double ry = points(i, 1);
     	double rz = points(i, 2);
+    	double nx = plasma_unitnormal(i, 0);
+    	double ny = plasma_unitnormal(i, 1);
+    	double nz = plasma_unitnormal(i, 2);
         for (int jj = 0; jj < num_coil_points; jj++) {  // loop through grid cells
             for (int j = 0; j < num_integration_points; j++) {  // integrate within a grid cell
     	        double rprimex = integration_points(jj, j, 0);
@@ -158,9 +161,7 @@ Array winding_volume_field_Bext(Array& points, Array& integration_points, Array&
         		    double Jx = Phi(jj, j, k, 0);
     	            double Jy = Phi(jj, j, k, 1);
     	            double Jz = Phi(jj, j, k, 2);
-                    B(i, 0, jj, k) += (Jy * rvecz - Jz * rvecy) * rvec_inv3;
-                    B(i, 1, jj, k) += (Jz * rvecx - Jx * rvecz) * rvec_inv3;
-                    B(i, 2, jj, k) += (Jx * rvecy - Jy * rvecx) * rvec_inv3;
+                    B(i, jj, k) += ((Jy * rvecz - Jz * rvecy) * nx + (Jz * rvecx - Jx * rvecz) * ny + (Jx * rvecy - Jy * rvecx) * nz) * rvec_inv3;
     	        }
     	    }
     	}
@@ -188,7 +189,6 @@ Array winding_volume_field_Bext_SIMD(Array& points, Array& integration_points, A
     double fak = 1e-7;
 
     double* Phi_ptr = &(Phi(0, 0, 0, 0));
-    double* n_ptr = &(plasma_unitnormal(0, 0));
     double* ip_points_ptr = &(integration_points(0, 0, 0));
     constexpr int simd_size = xsimd::simd_type<double>::size;
     
@@ -223,7 +223,7 @@ Array winding_volume_field_Bext_SIMD(Array& points, Array& integration_points, A
                     //B_i.z += Phicrossr.z * rmag_inv_3;
 
 		    for(int k = 0; k < klimit; k++){
-		        B(i + k, jj, kk) = B_i[k];
+		        B(i + k, jj, kk) += B_i[k];
 	 	    }
     	        }
     	    }

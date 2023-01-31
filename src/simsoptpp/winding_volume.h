@@ -14,4 +14,4 @@ Array winding_volume_geo_factors(Array& points, Array& integration_points, Array
 std::tuple<Array, Array_INT> winding_volume_flux_jumps(Array& coil_points, Array& Phi, double dx, double dy, double dz);
 Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& dipole_grid_xyz, Array& xyz_inner, Array& xyz_outer);
 Array_INT connections(Array& coil_points, double dx, double dy, double dz);
-Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& BTb, Array& ITbI, double lam, double initial_step, int max_iter);
+Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, Array& inner_index_ptr, Array& outer_index_ptr, Array& alpha_initial, double lam, double initial_step, int max_iter, int num_nonzero); 

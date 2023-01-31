@@ -1,5 +1,6 @@
 #include "winding_volume.h"
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 // compute which cells are next to which cells 
 Array_INT connections(Array& coil_points, double dx, double dy, double dz)
@@ -12,7 +13,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
     
     // Compute distances between dipole j and all other dipoles
     // By default computes distance between dipole j and itself
-//#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (int j = 0; j < Ndipole; ++j) {
 	vector<double> dist_ij(Ndipole, 1e10);
         for (int i = 0; i < Ndipole; ++i) {
@@ -293,7 +294,7 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
     return final_grid; 
 }
 
-Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& BTb, Array& ITbI, double lam, double initial_step, int max_iter) 
+Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, Array& inner_index_ptr, Array& outer_index_ptr, Array& alpha_initial, double lam, double initial_step, int max_iter, int num_nonzero) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(P.layout() != xt::layout_type::row_major)
@@ -302,35 +303,75 @@ Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& BTb, Array& ITb
           throw std::runtime_error("B needs to be in row-major storage order");	
     if(I.layout() != xt::layout_type::row_major)
           throw std::runtime_error("I needs to be in row-major storage order");
-    if(BTb.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("BTb needs to be in row-major storage order");
-    if(ITbI.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("ITbI needs to be in row-major storage order");
+    if(bB.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("bB needs to be in row-major storage order");
+    if(bI.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("bI needs to be in row-major storage order");
+    if(inner_index_ptr.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("inner_index_ptr needs to be in row-major storage order");
+    if(outer_index_ptr.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("outer_index_ptr needs to be in row-major storage order");
+    if(alpha_initial.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alpha_initial needs to be in row-major storage order");
 
     double step_size_i = initial_step;
+    int hist_length = 100;
     int N = B.shape(1);
     int N_plasma = B.shape(0);
-    Array alpha_opt = xt::ones<double>({N});
+    Array alpha_opt = alpha_initial;
     Array vi = xt::zeros<double>({N});
-    Array alpha_temp = xt::zeros<double>({N});
+    Array BTb = xt::zeros<double>({N});
+    Array ITbI = xt::zeros<double>({N});
+    Array vector_constants = xt::zeros<double>({N});
     Array alpha_opt_prev = xt::zeros<double>({N});
+    Array fB = xt::zeros<double>({hist_length + 1});
+    Array fI = xt::zeros<double>({hist_length + 1});
+    Array fK = xt::zeros<double>({hist_length + 1});
+    Array f_B = xt::zeros<double>({1});
+    Array f_I = xt::zeros<double>({1});
+    Array f_K = xt::zeros<double>({1});
+    
+    // Define Eigen objects for optimization steps
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_B(const_cast<double*>(B.data()), N_plasma, N);
-    Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> eigen_BT = eigen_B.transpose();
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_BT(const_cast<double*>(xt::transpose(B).data()), N, N_plasma);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_I(const_cast<double*>(I.data()), 1, N);
-    Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor> eigen_IT = eigen_I.transpose();
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_P(const_cast<double*>(P.data()), N, N);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_IT(const_cast<double*>(xt::transpose(I).data()), N, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_b(const_cast<double*>(bB.data()), N_plasma, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_bI(const_cast<double*>(bI.data()), 1, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_BTb(const_cast<double*>(BTb.data()), N, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_ITbI(const_cast<double*>(ITbI.data()), N, 1);
+    eigen_BTb = eigen_BT * eigen_b;
+    eigen_ITbI = eigen_IT * eigen_bI;
+    
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_BTb_ITbI(const_cast<double*>(vector_constants.data()), N, 1);
+    eigen_BTb_ITbI = eigen_BTb + eigen_ITbI;
+//     Eigen::Map<Eigen::SparseMatrix<double,Eigen::RowMajor>> eigen_P(const_cast<double*>(N, N, num_nonzero, outer_index_ptr, inner_index_ptr, P.data());
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(alpha_opt.data()), N, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(alpha_opt_prev.data()), N, 1);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(vi.data()), N, 1);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_alpha(const_cast<double*>(alpha_temp.data()), N, 1);
-    //Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(alpha_opt.data()), N, 1);
+    
+    // Define Eigen objects for printing
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_fB(const_cast<double*>(f_B.data()), 1, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_fI(const_cast<double*>(f_I.data()), 1, 1);
+    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_fK(const_cast<double*>(f_K.data()), 1, 1);
+
+    int q = 0;
     for (int i = 0; i < max_iter; i++) { 	
-        vi = alpha_opt + std::max(i - 1, 0) / (i + 2) * (alpha_opt - alpha_opt_prev);
-        alpha_opt_prev = alpha_opt;
-        eigen_res = eigen_v - step_size_i * (eigen_BT * (eigen_B * eigen_v) + eigen_IT * (eigen_I * eigen_v) + lam * eigen_v);
-	alpha_temp = alpha_opt + step_size_i * (BTb + ITbI);
-        eigen_res = eigen_P * eigen_alpha;
-        //eigen_res2 = eigen_P * eigen_alpha;
+        if ((i == 0) || (i % (max_iter / 100) == 0)) {
+            eigen_fB = (eigen_B * eigen_res - eigen_b).transpose() * (eigen_B * eigen_res - eigen_b);
+            eigen_fI = (eigen_I * eigen_res - eigen_bI).transpose() * (eigen_I * eigen_res - eigen_bI);
+            eigen_fK = (eigen_res).transpose() * (eigen_res);
+            fB(q) = f_B(0);
+            fI(q) = f_I(0);
+            fK(q) = f_K(0);
+            printf("%d %e %e %e %e\n", i, f_B(0), f_I(0), f_K(0), step_size_i);
+            q += 1;
+        }
+        eigen_v = eigen_res + (i / (i + 3)) * (eigen_res - eigen_res2);
+        eigen_res2 = eigen_res;
+        eigen_res = eigen_v + step_size_i * (eigen_BTb_ITbI - eigen_BT * (eigen_B * eigen_v) - eigen_IT * (eigen_I * eigen_v) - lam * eigen_v);
         step_size_i = (1 + sqrt(1 + 4 * step_size_i * step_size_i)) / 2.0;
+//         eigen_res = eigen_P * (eigen_v + step_size_i * (eigen_BTb_ITBI - eigen_BT * (eigen_B * eigen_v) - eigen_IT * (eigen_I * eigen_v) - lam * eigen_v));
     }
     return alpha_opt;
 }

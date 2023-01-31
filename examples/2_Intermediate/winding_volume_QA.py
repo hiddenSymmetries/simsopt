@@ -35,7 +35,7 @@ t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 16
-Nx = 10
+Nx = 26
 Ny = Nx
 Nz = Nx  # - 1
 poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
@@ -152,10 +152,10 @@ else:
 nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
 t1 = time.time()
-lam = 1e-20
+lam = 0.0  # 1e-20
 acceleration = True
-max_iter = 50000
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter)
+max_iter = 5000
+alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter, cpp=True)
 # print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
     # print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
