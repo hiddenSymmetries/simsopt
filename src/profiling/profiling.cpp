@@ -1,5 +1,6 @@
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xlayout.hpp"
+#include "simdhelpers.h"
 #include "biot_savart_c.h"
 #include "biot_savart_vjp_c.h"
 
@@ -8,13 +9,45 @@
 #include <iomanip>
 #include <cstdlib>
 #include <stdint.h>
+
+
+#ifdef __x86_64__
 uint64_t rdtsc(){
     unsigned int lo,hi;
     __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
     return ((uint64_t)hi << 32) | lo;
 }
+#elif __aarch64__
+uint64_t rdtsc(){
+    uint64_t val;
+    asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+    return val;
+}
+#elif
+uint64_t rdtsc(){
+    uint64_t result=0;
+    unsigned long int upper, lower,tmp;
+    __asm__ volatile(
+                "0:                  \n"
+                "\tmftbu   %0           \n"
+                "\tmftb    %1           \n"
+                "\tmftbu   %2           \n"
+                "\tcmpw    %2,%0        \n"
+                "\tbne     0b         \n"
+                : "=r"(upper),"=r"(lower),"=r"(tmp)
+                );
+    result = upper;
+    result = result << 32;
+    result = result |l ower;
+
+    return(result);
+}
+#endif
+
 
 void profile_biot_savart(int nsources, int ntargets, int nderivatives){ 
+    using vector_type = AlignedPaddedVec;
+
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> gamma          = xt::random::randn<double>({nsources, 3});
     xt::xarray<double> dgamma_by_dphi = xt::random::randn<double>({nsources, 3});
@@ -54,7 +87,8 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
     std::cout << std::setw (10) << nsources*ntargets 
         << std::setw (13) << simdtime/n 
         << std::setw (19) << std::setprecision(5) << (interactions/(1e9 * simdtime/1000.)) 
-        << std::setw (19)<< clockcycles/interactions << std::endl;
+        << std::setw (19)<< clockcycles/interactions 
+        << std::endl;
 }
 
 void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){ 
@@ -64,6 +98,7 @@ void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){
     xt::xarray<double> v = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> vgrad = xt::random::randn<double>({ntargets, 3, 3});
 
+    using vector_type = AlignedPaddedVec;
     auto pointsx = vector_type(points.shape(0), 0);
     auto pointsy = vector_type(points.shape(0), 0);
     auto pointsz = vector_type(points.shape(0), 0);
@@ -96,7 +131,8 @@ void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){
     std::cout << std::setw (10) << nsources*ntargets 
         << std::setw (13) << simdtime/n 
         << std::setw (19) << std::setprecision(5) << (interactions/(1e9 * simdtime/1000.)) 
-        << std::setw (19)<< clockcycles/interactions << std::endl;
+        << std::setw (19)<< clockcycles/interactions 
+        << std::endl;
 }
 
 #include <functional>
@@ -122,6 +158,7 @@ Vec batchify(std::function<Vec(double, double, double)>& f, Vec xs, Vec ys, Vec 
     return res;
 }
 
+/*
 void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
     std::function<Vec(double, double, double)> f = [](double x, double y, double z) { return Vec{x+2*y+3*z, x*x+y*y+z*z, sin(5*x)*cos(x)+sin(y*x)+exp(z)}; };
     double x = 0.13;
@@ -159,6 +196,7 @@ void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
     //    << std::setw (13) << time/samples
     //    << std::setw (19) << std::setprecision(5) << (err.first+err.second)/2 << std::endl;
 }
+*/
 
 
 
@@ -176,6 +214,7 @@ int main() {
         for(int nst=10; nst<=10000; nst*=10)
             profile_biot_savart_vjp(nst, nst, nd);
     }
+    /*
     for (int deg = 1; deg <= 6; ++deg) {
         for (int n = 1; n*deg <= 128; n*=2) {
             profile_interpolation(UniformInterpolationRule(deg), n, n, n);
@@ -183,6 +222,7 @@ int main() {
         }
         std::cout << std::endl;
     }
+    */
     //profile_interpolation(UniformInterpolationRule(2), 64, 64, 64);
     //profile_interpolation(UniformInterpolationRule(8), 2, 2, 2);
 
