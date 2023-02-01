@@ -59,7 +59,7 @@ class WindingVolumeGrid:
         Nx=11, Ny=11, Nz=11,
         filename=None, surface_flag='vmec',
         famus_filename=None, 
-        RANGE='full torus',
+        RANGE='half period',
         OUT_DIR='', nx=2, ny=2, nz=2,
     ):
         if plasma_offset <= 0 or coil_offset <= 0:
@@ -268,10 +268,18 @@ class WindingVolumeGrid:
         self.dx = (x_max - x_min) / (Nx - 1)
         self.dy = (y_max - y_min) / (Ny - 1)
         self.dz = 2 * z_max / (Nz - 1)
-        X = np.linspace(x_min, x_max, Nx, endpoint=True)
-        Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+
+        # Extra work below so that the stitching with the symmetries is done in
+        # such a way that the reflected cells are still dx and dy away from 
+        # the old cells.
+        if self.range != 'full torus':
+            X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
+            Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+        else:
+            X = np.linspace(x_min, x_max, Nx, endpoint=True)
+            Y = np.linspace(y_min, y_max, Ny, endpoint=True)
         Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
-        print(Nx, Ny, Nz, X, Y, Z)
+        print(Nx, Ny, Nz, X, Y, Z, self.dx, self.dy, self.dz)
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
         self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3) 
@@ -684,7 +692,7 @@ class WindingVolumeGrid:
             z_flipped_point = np.array([ox, oy, -oz]).T
             z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
             if len(z_flipped) > 0:
-                z_flipped_inds_x.append(z_flipped)
+                z_flipped_inds_x.append(z_flipped[0])
                 x_inds.append(x_ind)
         self.x_inds = x_inds
 
@@ -704,7 +712,7 @@ class WindingVolumeGrid:
             z_flipped_point = np.array([ox, oy, -oz]).T
             z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
             if len(z_flipped) > 0:
-                z_flipped_inds_y.append(z_flipped)
+                z_flipped_inds_y.append(z_flipped[0])
                 y_inds.append(y_ind)
         self.y_inds = y_inds 
         self.z_flip_x = z_flipped_inds_x

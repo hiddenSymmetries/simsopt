@@ -410,8 +410,8 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 20
-    tmax_fl = 60000
+    nfieldlines = 10
+    tmax_fl = 30000
 
     # Different configurations have different cross-sections
     if 'muse' in config:
@@ -424,6 +424,8 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
         R0 = np.linspace(1.0, 1.75, nfieldlines)
     elif config == 'QH':
         R0 = np.linspace(12.0, 18.0, nfieldlines)
+    elif config == 'axisym':
+        R0 = np.linspace(0.32, 0.34, nfieldlines)
     else:
         raise NotImplementedError(
             'The configuration flag indicates a plasma equilibrium '
@@ -440,7 +442,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
         phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(2000000)])
+        stopping_criteria=[IterationStoppingCriterion(200000)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
 

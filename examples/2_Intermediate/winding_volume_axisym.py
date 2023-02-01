@@ -35,20 +35,20 @@ t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 16
-Nx = 30
+Nx = 26
 Ny = Nx
 Nz = Nx  # - 1
-poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
-coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA'
+poff = 0.5  # PM grid end offset ~ 10 cm from the plasma surface
+coff = 0.8  # PM grid starts offset ~ 5 cm from the plasma surface
+input_name = 'input.circular_tokamak' 
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-# s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
-s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
+# s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
-qphi = s.nfp * nphi * 2
+qphi = nphi  # s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
@@ -60,7 +60,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 s = s_plot
 
 # Make the output directoryå
-OUT_DIR = 'wv_QA/'
+OUT_DIR = 'wv_axisym/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -103,7 +103,7 @@ wv_grid = WindingVolumeGrid(
     filename=surface_filename,
     surface_flag='vmec',
     OUT_DIR=OUT_DIR,
-    # RANGE="full torus",
+    RANGE="full torus",
     nx=nx, ny=nx, nz=nx
 )
 t2 = time.time()
@@ -158,7 +158,7 @@ print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - 
 t1 = time.time()
 lam = 1e-20
 acceleration = True
-max_iter = 2000
+max_iter = 1000
 cpp = True
 alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter, cpp=cpp)
 # print('alpha_opt = ', alpha_opt)
@@ -213,10 +213,6 @@ t1 = time.time()
 wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
-
-# t1 = time.time()
-# trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s, None, OUT_DIR)
-# t2 = time.time()
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

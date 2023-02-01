@@ -76,7 +76,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
 
     # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
     t1 = time.time()
-    L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I, axis=0), axis=-1)
+    L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam, axis=0), axis=-1)
 
     #cond_num = np.linalg.cond(BTB + ITI + lam * np.eye(B.shape[1]))
     # cond_num = np.linalg.cond(BT @ B + IT @ I + lam * np.eye(B.shape[1]))
@@ -135,7 +135,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                     else:
                         f_I.append((I @ alpha_opt - b_I) ** 2)
                     f_K.append(np.linalg.norm(alpha_opt, ord=2) ** 2)
-                    print(i, f_B[i // print_iter], f_I[i // print_iter], f_K[i // print_iter], step_size_i)
+                    print(i, f_B[i // print_iter], f_I[i // print_iter], lam * f_K[i // print_iter], step_size_i)
                 vi = alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev)
                 alpha_opt_prev = alpha_opt
                 if cpp:
@@ -185,7 +185,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                     else:
                         f_I.append((I @ alpha_opt - b_I) ** 2)
                     f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
-                    print(i, f_B[(i + 1) // print_iter], f_I[(i + 1) // print_iter], f_K[(i + 1) // print_iter], step_size_i)  # , alpha_opt.shape)
+                    print(i, f_B[(i + 1) // print_iter], f_I[(i + 1) // print_iter], lam * f_K[(i + 1) // print_iter], step_size_i)  # , alpha_opt.shape)
         else:
             for i in range(max_iter):
                 alpha_opt = P.dot(alpha_opt + step_size * (BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt))
