@@ -23,6 +23,38 @@ if MPI is not None:
 __all__ = ['BoozerMagneticField', 'BoozerAnalytic', 'BoozerRadialInterpolant',
            'InterpolatedBoozerField']
 
+# TODO: need to recompile the c++ code 
+# TODO: remove open MP from the compute_K code
+def inverse_fourier_transform_even(K, kmns,xm,xn,thetas,zetas):
+  """
+  Evaluate the boozer series for each point
+    K = sum_m sum_n kmns[m,n]*cos(m*theta -n*zeta)
+  """
+  num_modes = xm.shape[0];
+  num_points = thetas.shape[0];
+  dim = kmns.ndim
+  if dim == 2:
+    K += np.array([np.sum(kmns[:,ip]*np.cos(xm*thetas[ip]-xn*zetas[ip])) for ip in range(num_points)])
+  else:
+    K += np.array([np.sum(kmns*np.cos(xm*thetas[ip]-xn*zetas[ip])) for ip in range(num_points)])
+  return K
+def inverse_fourier_transform_odd(K, kmns,xm,xn,thetas,zetas):
+  """
+  Evaluate the boozer series for each point
+    K = sum_m sum_n kmns[m,n]*sin(m*theta -n*zeta)
+  """
+  num_modes = xm.shape[0];
+  num_points = thetas.shape[0];
+  dim = kmns.ndim
+  if dim == 2:
+    K += np.array([np.sum(kmns[:,ip]*np.sin(xm*thetas[ip]-xn*zetas[ip])) for ip in range(num_points)])
+  else:
+    K += np.array([np.sum(kmns*np.sin(xm*thetas[ip]-xn*zetas[ip])) for ip in range(num_points)])
+  return K
+
+
+
+
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
     r"""
@@ -733,12 +765,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         kmns = np.zeros((len(self.xm_b), len(s)))
         for im in range(len(self.xm_b)):
             kmns[im, :] = self.kmns_splines[im](s)/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_odd(K[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
+        K[:,0] = inverse_fourier_transform_odd(K[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             kmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 kmnc[im, :] = self.kmnc_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(K[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
+            K[:, 0] = inverse_fourier_transform_even(K[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dKdtheta_impl(self, dKdtheta):
         points = self.get_points_ref()
@@ -751,12 +783,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         kmns = np.zeros((len(self.xm_b), len(s)))
         for im in range(len(self.xm_b)):
             kmns[im, :] = self.kmns_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdtheta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
+        dKdtheta[:, 0] = inverse_fourier_transform_even(dKdtheta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             kmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 kmnc[im, :] = -self.kmnc_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dKdtheta[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
+            dKdtheta[:, 0] = inverse_fourier_transform_odd(dKdtheta[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dKdzeta_impl(self, dKdzeta):
         points = self.get_points_ref()
@@ -769,12 +801,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         kmns = np.zeros((len(self.xm_b), len(s)))
         for im in range(len(self.xm_b)):
             kmns[im, :] = -self.kmns_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdzeta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
+        dKdzeta[:, 0] = inverse_fourier_transform_even(dKdzeta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             kmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 kmnc[im, :] = self.kmnc_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dKdzeta[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
+            dKdzeta[:, 0] = inverse_fourier_transform_odd(dKdzeta[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _nu_impl(self, nu):
         points = self.get_points_ref()
@@ -785,12 +817,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             numns[im, :] = self.numns_splines[im](s)/self.mn_factor_splines[im](s)
         nu[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(nu[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        nu[:, 0]  = inverse_fourier_transform_odd(nu[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             numnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 numnc[im, :] = self.numnc_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(nu[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+            nu[:, 0] = inverse_fourier_transform_even(nu[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dnudtheta_impl(self, dnudtheta):
         points = self.get_points_ref()
@@ -801,12 +833,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             numns[im, :] = self.numns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dnudtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudtheta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        dnudtheta[:, 0] =  inverse_fourier_transform_even(dnudtheta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             numnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 numnc[im, :] = -self.numnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dnudtheta[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+            dnudtheta[:, 0] = inverse_fourier_transform_odd(dnudtheta[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dnudzeta_impl(self, dnudzeta):
         points = self.get_points_ref()
@@ -817,12 +849,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             numns[im, :] = -self.numns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dnudzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudzeta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        dnudzeta[:, 0] = inverse_fourier_transform_even(dnudzeta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             numnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 numnc[im, :] = self.numnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dnudzeta[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+            dnudzeta[:, 0]= inverse_fourier_transform_odd(dnudzeta[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dnuds_impl(self, dnuds):
         points = self.get_points_ref()
@@ -835,14 +867,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             mn_factor = self.mn_factor_splines[im](s)
             numns[im, :] = ((self.dnumnsds_splines[im](s) - self.numns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dnuds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dnuds[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
+        dnuds[:, 0] = inverse_fourier_transform_odd(dnuds[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             numnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 mn_factor = self.mn_factor_splines[im](s)
                 numnc[im, :] = ((self.dnumncds_splines[im](s) - self.numnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_even(dnuds[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+            dnuds[:, 0] = inverse_fourier_transform_even(dnuds[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dRdtheta_impl(self, dRdtheta):
         points = self.get_points_ref()
@@ -853,12 +885,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             rmnc[im, :] = -self.rmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dRdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdtheta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        dRdtheta[:, 0] = inverse_fourier_transform_odd(dRdtheta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             rmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 rmns[im, :] = self.rmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dRdtheta[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+            dRdtheta[:, 0] = inverse_fourier_transform_even(dRdtheta[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dRdzeta_impl(self, dRdzeta):
         points = self.get_points_ref()
@@ -869,12 +901,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             rmnc[im, :] = self.rmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dRdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdzeta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        dRdzeta[:, 0] = inverse_fourier_transform_odd(dRdzeta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             rmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 rmns[im, :] = -self.rmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dRdzeta[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+            dRdzeta[:, 0] = inverse_fourier_transform_even(dRdzeta[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dRds_impl(self, dRds):
         points = self.get_points_ref()
@@ -887,14 +919,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             mn_factor = self.mn_factor_splines[im](s)
             rmnc[im, :] = ((self.drmncds_splines[im](s) - self.rmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dRds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dRds[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        dRds[:, 0] = inverse_fourier_transform_even(dRds[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             rmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 mn_factor = self.mn_factor_splines[im](s)
                 rmns[im, :] = ((self.drmnsds_splines[im](s) - self.rmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_odd(dRds[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+            dRds[:, 0] = inverse_fourier_transform_odd(dRds[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _R_impl(self, R):
         points = self.get_points_ref()
@@ -905,12 +937,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             rmnc[im, :] = self.rmnc_splines[im](s)/self.mn_factor_splines[im](s)
         R[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(R[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
+        R[:, 0] = inverse_fourier_transform_even(R[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             rmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 rmns[im, :] = self.rmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(R[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+            R[:, 0] = inverse_fourier_transform_odd(R[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dZdtheta_impl(self, dZdtheta):
         points = self.get_points_ref()
@@ -921,12 +953,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             zmns[im, :] = self.zmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dZdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdtheta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        dZdtheta[:, 0] = inverse_fourier_transform_even(dZdtheta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             zmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 zmnc[im, :] = -self.zmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dZdtheta[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+            dZdtheta[:, 0] = inverse_fourier_transform_odd(dZdtheta[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dZdzeta_impl(self, dZdzeta):
         points = self.get_points_ref()
@@ -937,12 +969,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             zmns[im, :] = -self.zmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dZdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdzeta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        dZdzeta[:, 0] = inverse_fourier_transform_even(dZdzeta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             zmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 zmnc[im, :] = self.zmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dZdzeta[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+            dZdzeta[:, 0] = inverse_fourier_transform_odd(dZdzeta[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dZds_impl(self, dZds):
         points = self.get_points_ref()
@@ -955,14 +987,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             mn_factor = self.mn_factor_splines[im](s)
             zmns[im, :] = ((self.dzmnsds_splines[im](s) - self.zmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dZds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dZds[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        dZds[:, 0] = inverse_fourier_transform_odd(dZds[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             zmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 mn_factor = self.mn_factor_splines[im](s)
                 zmnc[im, :] = ((self.dzmncds_splines[im](s) - self.zmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_even(dZds[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+           dZds[:, 0] =  inverse_fourier_transform_even(dZds[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _Z_impl(self, Z):
         points = self.get_points_ref()
@@ -973,12 +1005,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             zmns[im, :] = self.zmns_splines[im](s)/self.mn_factor_splines[im](s)
         Z[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(Z[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
+        Z[:, 0] = inverse_fourier_transform_odd(Z[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             zmnc = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 zmnc[im, :] = self.zmnc_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(Z[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+            Z[:, 0] = inverse_fourier_transform_even(Z[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
@@ -1024,12 +1056,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             bmnc[im, :] = self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         modB[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(modB[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        modB[:, 0] = inverse_fourier_transform_even(modB[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             bmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 bmns[im, :] = self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(modB[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            modB[:, 0] = inverse_fourier_transform_odd(modB[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dmodBdtheta_impl(self, dmodBdtheta):
         points = self.get_points_ref()
@@ -1040,12 +1072,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             bmnc[im, :] = -self.xm_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         dmodBdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdtheta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        dmodBdtheta[:, 0] = inverse_fourier_transform_odd(dmodBdtheta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             bmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 bmns[im, :] = self.xm_b[im]*self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dmodBdtheta[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            dmodBdtheta[:, 0] = inverse_fourier_transform_even(dmodBdtheta[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dmodBdzeta_impl(self, dmodBdzeta):
         points = self.get_points_ref()
@@ -1056,12 +1088,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         for im in range(len(self.xm_b)):
             bmnc[im, :] = self.xn_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         dmodBdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdzeta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        dmodBdzeta[:, 0] = inverse_fourier_transform_odd(dmodBdzeta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             bmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 bmns[im, :] = -self.xn_b[im]*self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dmodBdzeta[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            dmodBdzeta[:, 0] = inverse_fourier_transform_even(dmodBdzeta[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
 
     def _dmodBds_impl(self, dmodBds):
         points = self.get_points_ref()
@@ -1074,14 +1106,14 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             bmnc[im, :] = ((self.dbmncds_splines[im](s) - self.bmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
         dmodBds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dmodBds[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        dmodBds[:, 0] = inverse_fourier_transform_even(dmodBds[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
         if not self.stellsym:
             bmns = np.zeros((len(self.xm_b), len(s)))
             for im in range(len(self.xm_b)):
                 mn_factor = self.mn_factor_splines[im](s)
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 bmns[im, :] = ((self.dbmnsds_splines[im](s) - self.bmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_odd(dmodBds[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            dmodBds[:, 0] = inverse_fourier_transform_odd(dmodBds[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
 
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
