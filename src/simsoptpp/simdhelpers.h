@@ -1,5 +1,7 @@
 #pragma once
 #include <iostream>
+#include <limits>
+#include <new>
 
 #include <vector>
 using std::vector;
@@ -38,8 +40,79 @@ class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
         }
 };
 
+/*
+We will implement a custom allocator that mimics aligned_padded_vector using C++17, but without xsimd
+Credits: https://stackoverflow.com/questions/60169819/modern-approach-to-making-stdvector-allocate-aligned-memory
+Credits: https://github.com/Twon/Alignment
+*/
+/**
+ * Returns aligned pointers when allocations are requested. Default alignment
+ * is 64B = 512b, sufficient for AVX-512 and most cache line sizes.
+ *
+ * @tparam ALIGNMENT_IN_BYTES Must be a positive power of 2.
+ */
+template<typename T, std::size_t ALIGNMENT_IN_BYTES = 64>
+class AlignedPaddedAllocator
+{
+private:
+    static_assert(
+        ALIGNMENT_IN_BYTES >= alignof(T),
+        "Beware that types like int have minimum alignment requirements "
+        "or access will result in crashes."
+    );
+
+public:
+    using value_type = T;
+    static std::align_val_t constexpr ALIGNMENT{ALIGNMENT_IN_BYTES};
+
+    /**
+     * This is only necessary because AlignedAllocator has a second template
+     * argument for the alignment that will make the default
+     * std::allocator_traits implementation fail during compilation.
+     * @see https://stackoverflow.com/a/48062758/2191065
+     */
+    template<class U>
+    struct rebind
+    {
+        using other = AlignedPaddedAllocator<U, ALIGNMENT_IN_BYTES>;
+    };
+
+public:
+    constexpr AlignedPaddedAllocator() noexcept = default;
+
+    constexpr AlignedPaddedAllocator(const AlignedPaddedAllocator&) noexcept = default;
+
+    template<typename U>
+    constexpr AlignedPaddedAllocator(AlignedPaddedAllocator<U, ALIGNMENT_IN_BYTES> const&) noexcept
+    {}
+
+    [[nodiscard]] T* allocate(std::size_t n)
+    {
+        int simdcount = ALIGNMENT_IN_BYTES/sizeof(T);
+        int nn = (n + simdcount) - (n % simdcount);
+        if (nn > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+            throw std::bad_array_new_length();
+        }
+
+        auto const nBytesToAllocate = nn * sizeof(T);
+        T* res = reinterpret_cast<T*>(::operator new[](nBytesToAllocate, ALIGNMENT));
+        if (res == nullptr)
+            throw std::bad_alloc();
+        return res;
+    }
+
+    void deallocate(T* ptr, [[maybe_unused]] std::size_t  nBytesAllocated)
+    {
+        /* According to the C++20 draft n4868 § 17.6.3.3, the delete operator
+         * must be called with the same alignment argument as the new expression.
+         * The size argument can be omitted but if present must also be equal to
+         * the one used in new. */
+        ::operator delete[](ptr, ALIGNMENT);
+    }
+};
 
 using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
+using AlignedPaddedVecPortable = std::vector<double, AlignedPaddedAllocator<double>>;
 using simd_t = xs::simd_type<double>;
 
 #if __AVX512F__ 
