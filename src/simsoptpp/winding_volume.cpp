@@ -1,6 +1,4 @@
 #include "winding_volume.h"
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
 
 // compute which cells are next to which cells 
 Array_INT connections(Array& coil_points, double dx, double dy, double dz)
@@ -294,11 +292,9 @@ Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& 
     return final_grid; 
 }
 
-Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, Array& inner_index_ptr, Array& outer_index_ptr, Array& alpha_initial, double lam, double initial_step, int max_iter, int num_nonzero) 
+Array acc_prox_grad_descent(Eigen::SparseMatrix<double, Eigen::RowMajor> eigen_P, Array& B, Array& I, Array& bB, Array& bI, Array& alpha_initial, double lam, double initial_step, int max_iter) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
-    if(P.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("P needs to be in row-major storage order");
     if(B.layout() != xt::layout_type::row_major)
           throw std::runtime_error("B needs to be in row-major storage order");	
     if(I.layout() != xt::layout_type::row_major)
@@ -307,10 +303,6 @@ Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, 
           throw std::runtime_error("bB needs to be in row-major storage order");
     if(bI.layout() != xt::layout_type::row_major)
           throw std::runtime_error("bI needs to be in row-major storage order");
-    if(inner_index_ptr.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("inner_index_ptr needs to be in row-major storage order");
-    if(outer_index_ptr.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("outer_index_ptr needs to be in row-major storage order");
     if(alpha_initial.layout() != xt::layout_type::row_major)
           throw std::runtime_error("alpha_initial needs to be in row-major storage order");
 
@@ -322,7 +314,7 @@ Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, 
     Array vi = xt::zeros<double>({N});
     Array BTb = xt::zeros<double>({N});
     Array ITbI = xt::zeros<double>({N});
-    Array vector_constants = xt::zeros<double>({N});
+//     Array vector_constants = xt::zeros<double>({N});
     Array alpha_opt_prev = xt::zeros<double>({N});
     Array fB = xt::zeros<double>({hist_length + 1});
     Array fI = xt::zeros<double>({hist_length + 1});
@@ -342,14 +334,13 @@ Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, 
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_ITbI(const_cast<double*>(ITbI.data()), N, 1);
     eigen_BTb = eigen_BT * eigen_b;
     eigen_ITbI = eigen_IT * eigen_bI;
+    Array vector_constants = BTb + ITbI;
     
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_BTb_ITbI(const_cast<double*>(vector_constants.data()), N, 1);
-    eigen_BTb_ITbI = eigen_BTb + eigen_ITbI;
-//     Eigen::Map<Eigen::SparseMatrix<double,Eigen::RowMajor>> eigen_P(const_cast<double*>(N, N, num_nonzero, outer_index_ptr, inner_index_ptr, P.data());
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(alpha_opt.data()), N, 1);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(alpha_opt_prev.data()), N, 1);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(vi.data()), N, 1);
-    
+    //     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res2(const_cast<double*>(alpha_opt_prev.data()), N, 1);
+
     // Define Eigen objects for printing
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_fB(const_cast<double*>(f_B.data()), 1, 1);
     Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_fI(const_cast<double*>(f_I.data()), 1, 1);
@@ -357,7 +348,15 @@ Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, 
 
     int q = 0;
     for (int i = 0; i < max_iter; i++) { 	
-        if ((i == 0) || (i % (max_iter / 100) == 0)) {
+        //eigen_v = eigen_res + (i / (i + 3)) * (eigen_res - eigen_res2);
+        vi = alpha_opt + (i / (i + 3)) * (alpha_opt - alpha_opt_prev);
+        alpha_opt_prev = alpha_opt;
+        Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(alpha_opt.data()), N, 1);
+        Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(vi.data()), N, 1);
+        eigen_res = eigen_P * (eigen_v + step_size_i * (eigen_BTb_ITbI - eigen_BT * (eigen_B * eigen_v) - eigen_IT * (eigen_I * eigen_v) - lam * eigen_v));
+        step_size_i = (1 + sqrt(1 + 4 * step_size_i * step_size_i)) / 2.0;
+//         eigen_res = eigen_P * (eigen_v + step_size_i * (eigen_BTb_ITBI - eigen_BT * (eigen_B * eigen_v) - eigen_IT * (eigen_I * eigen_v) - lam * eigen_v));
+        if (i % (max_iter / 100) == 0) {
             eigen_fB = (eigen_B * eigen_res - eigen_b).transpose() * (eigen_B * eigen_res - eigen_b);
             eigen_fI = (eigen_I * eigen_res - eigen_bI).transpose() * (eigen_I * eigen_res - eigen_bI);
             eigen_fK = (eigen_res).transpose() * (eigen_res);
@@ -367,11 +366,6 @@ Array acc_prox_grad_descent(Array& P, Array& B, Array& I, Array& bB, Array& bI, 
             printf("%d %e %e %e %e\n", i, f_B(0), f_I(0), f_K(0), step_size_i);
             q += 1;
         }
-        eigen_v = eigen_res + (i / (i + 3)) * (eigen_res - eigen_res2);
-        eigen_res2 = eigen_res;
-        eigen_res = eigen_v + step_size_i * (eigen_BTb_ITbI - eigen_BT * (eigen_B * eigen_v) - eigen_IT * (eigen_I * eigen_v) - lam * eigen_v);
-        step_size_i = (1 + sqrt(1 + 4 * step_size_i * step_size_i)) / 2.0;
-//         eigen_res = eigen_P * (eigen_v + step_size_i * (eigen_BTb_ITBI - eigen_BT * (eigen_B * eigen_v) - eigen_IT * (eigen_I * eigen_v) - lam * eigen_v));
     }
     return alpha_opt;
 }

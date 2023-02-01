@@ -1,5 +1,5 @@
 import numpy as np
-import simsoptpp as sopp
+from simsoptpp import acc_prox_grad_descent, matmult, matmult_sparseA
 import time
 # from scipy.linalg import svd
 
@@ -29,7 +29,8 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     n = winding_volume.N_grid
     nfp = winding_volume.plasma_boundary.nfp
     num_basis = winding_volume.n_functions
-    alpha_opt = (np.random.rand(n * num_basis) - 0.5) * 1e3  # set some initial guess
+    N = n * num_basis
+    alpha_opt = (np.random.rand(N) - 0.5) * 1e3  # set some initial guess
 
     # Initial guess with projected gradient descent must start inside the
     # feasible region (the area allowed by the equality constraints)
@@ -45,6 +46,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     BTb = BT @ b
     IT = I.T
     ITbI = IT * b_I 
+    contig = np.ascontiguousarray
     if cpp:
         I = I.reshape(1, len(winding_volume.Itarget_matrix))
         IT = I.T
@@ -53,6 +55,13 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
         ITbI = IT * b_I 
         BTb = BTb.reshape(len(BTb), 1)     
         alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
+    IT = contig(IT)
+    BT = contig(BT)
+    I = contig(I)
+    B = contig(B)
+    t2 = time.time()
+
+    print('Time to setup the algo = ', t2 - t1, ' s')
 
     ######## Temporary
     # B = np.zeros(winding_volume.B_matrix.shape)
@@ -66,7 +75,8 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     # L = svd(BT @ B + IT @ I, compute_uv=False, check_finite=False, full_matrices=False)[0] + lam
 
     # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
-    L = np.sqrt(B.shape[1]) * np.max(np.linalg.norm(BT @ B + IT @ I, axis=0), axis=-1)
+    t1 = time.time()
+    L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I, axis=0), axis=-1)
 
     #cond_num = np.linalg.cond(BTB + ITI + lam * np.eye(B.shape[1]))
     # cond_num = np.linalg.cond(BT @ B + IT @ I + lam * np.eye(B.shape[1]))
@@ -74,28 +84,25 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     print('L, step_size = ', L, step_size)  # , cond_num)
     t2 = time.time()
 
-    print('Time to setup the algo = ', t2 - t1, ' s')
-    contig = np.ascontiguousarray
-    # Pdense = P.todense()
+    print('Time to setup step size = ', t2 - t1, ' s')
+
+    # Pdense = contig(P.todense())
     # nonzero_inds = P.nonzero()
     # rows = nonzero_inds[0]
     # cols = nonzero_inds[1]
     # print(rows, cols)
-    # print(Pdense.shape, B.shape, I.shape, BTb.shape, ITbI.shape)
+    # # print(Pdense.shape, B.shape, I.shape, BTb.shape, ITbI.shape)
     # t1 = time.time()
-    # alpha_opt_cpp = sopp.acc_prox_grad_descent(
-    #     contig(Pdense), 
+    # alpha_opt_cpp = acc_prox_grad_descent(
+    #     P, 
     #     contig(B), 
     #     contig(I), 
     #     contig(b), 
     #     contig(b_I), 
-    #     contig(rows), 
-    #     contig(cols), 
     #     contig(alpha_opt),
     #     lam, 
     #     step_size, 
     #     max_iter,
-    #     P.nnz
     # )
     # t2 = time.time()
     # print('Time to run algo in C++ = ', t2 - t1, ' s')
@@ -106,7 +113,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     f_B = []
     f_I = []
     f_K = []
-    print_iter = 100
+    print_iter = 10
     t1 = time.time()
     if P is None:
         if acceleration:  # Nesterov acceleration 
@@ -133,7 +140,7 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
                 alpha_opt_prev = alpha_opt
                 if cpp:
                     vi = vi.reshape(len(vi), 1)
-                    alpha_opt = vi + step_size_i * (BTb + ITbI - sopp.matmult(BT, sopp.matmult(B, vi)) - sopp.matmult(IT, sopp.matmult(I, vi)))
+                    alpha_opt = vi + step_size_i * (BTb + ITbI - matmult(BT, matmult(B, vi)) - matmult(IT, matmult(I, vi)) - lam * vi)
                 else:
                     alpha_opt = vi + step_size_i * (BTb + ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi)
                 # print(vi.shape, alpha_opt.shape, sopp.matmult(IT, sopp.matmult(I, vi)).shape, sopp.matmult(BT, sopp.matmult(B, vi)).shape)
@@ -153,25 +160,32 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
         if acceleration:  # Nesterov acceleration 
             alpha_opt_prev = alpha_opt
             step_size_i = step_size
+            BTB_ITbI = BTb + ITbI
             for i in range(max_iter):
-                if ((i == 0) or (i % print_iter) == 0.0):
-                    f_B.append(np.linalg.norm(B @ alpha_opt - b, ord=2) ** 2)
-                    if cpp: 
-                        f_I.append(np.linalg.norm(I @ alpha_opt - b_I, ord=2) ** 2)
-                    else:
-                        f_I.append((I @ alpha_opt - b_I) ** 2)
-                    f_K.append(np.linalg.norm(alpha_opt, ord=2) ** 2) 
-                    print(i, f_B[i // print_iter], f_I[i // print_iter], f_K[i // print_iter], alpha_opt.shape)
                 vi = alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev)
                 alpha_opt_prev = alpha_opt
                 #alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - (BTB + ITI + lam * ident) @ vi))
                 if cpp:
-                    vi = vi.reshape(len(vi), 1)
-                    alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - sopp.matmult(BT, sopp.matmult(B, vi)) - sopp.matmult(IT, sopp.matmult(I, vi))))
+                    # alpha_opt = matmult_sparseA(
+                    #     P, N,
+                    #     contig(vi + step_size_i * (BTB_ITbI - matmult(BT, matmult(B, contig(vi))) - matmult(IT, matmult(I, contig(vi))) - lam * vi))
+                    # )
+                    alpha_opt = P.dot(
+                        vi + step_size_i * (BTB_ITbI - matmult(BT, matmult(B, contig(vi))) - matmult(IT, matmult(I, contig(vi))) - lam * vi)
+                    )
+                    # alpha_opt = P.dot(vi + step_size_i * (BTB_ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
                 else:
-                    alpha_opt = P.dot(vi + step_size_i * (BTb + ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
+                    alpha_opt = P.dot(vi + step_size_i * (BTB_ITbI - BT @ (B @ vi) - IT * (I @ vi) - lam * vi))
 
                 step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
+                if ((i % print_iter) == 0.0 or i == max_iter - 1):
+                    f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
+                    if cpp: 
+                        f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
+                    else:
+                        f_I.append((I @ alpha_opt - b_I) ** 2)
+                    f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
+                    print(i, f_B[(i + 1) // print_iter], f_I[(i + 1) // print_iter], f_K[(i + 1) // print_iter], step_size_i)  # , alpha_opt.shape)
         else:
             for i in range(max_iter):
                 alpha_opt = P.dot(alpha_opt + step_size * (BTb + ITbI - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam * alpha_opt))
@@ -183,13 +197,14 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     t2 = time.time()
     print('Time to run algo = ', t2 - t1, ' s')
     t1 = time.time()
-    winding_volume.alphas = alpha_opt 
+    alpha_opt = np.ravel(alpha_opt)
+    winding_volume.alphas = alpha_opt
     winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
-    alphas = alpha_opt.reshape(n, num_basis)
+    alphas = winding_volume.alphas.reshape(n, num_basis)
     for i in range(3):
         for j in range(winding_volume.Phi.shape[2]):
             for k in range(num_basis):
                 winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
     t2 = time.time()
     print('Time to compute J = ', t2 - t1, ' s')
-    return alpha_opt, 0.5 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I)
+    return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I)

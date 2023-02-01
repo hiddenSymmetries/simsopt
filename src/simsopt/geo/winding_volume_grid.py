@@ -537,16 +537,13 @@ class WindingVolumeGrid:
         # Begin computation of the coil fields with all the symmetries
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym
-        if stellsym:
-            stell_list = [1, -1]
-            nsym = nfp * 2
-        elif self.range == 'full torus':
-            stell_list[1]
+        if self.range == 'full torus':
+            stell_list = [1]
             nfp = 1
             nsym = nfp
-        else:
-            stell_list = [1]
-            nsym = nfp
+        elif stellsym:
+            stell_list = [1, -1]
+            nsym = nfp * 2
 
         # get the coordinates
         ox = integration_points[:, :, 0]
@@ -583,7 +580,6 @@ class WindingVolumeGrid:
         # B_factor = np.zeros((num_points + num_points_curve, 3, n, num_basis))
         geo_factor = np.zeros((num_points, n, num_basis))
         Itarget_matrix = np.zeros((num_points_curve, n, num_basis))
-        points_total = np.vstack((points, points_curve))
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
@@ -600,6 +596,8 @@ class WindingVolumeGrid:
 
                 Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
+                print(Phivec_transpose.shape, int_points.shape, points.shape, plasma_unitnormal.shape)
+                print(stell_list, nfp, self.range)
                 geo_factor += sopp.winding_volume_field_Bext_SIMD(
                     points, 
                     contig(int_points), 
@@ -612,7 +610,7 @@ class WindingVolumeGrid:
                     contig(int_points), 
                     #contig(Phivec_full[:, index:index + n, :, :])
                     contig(Phivec_transpose),
-                    curve_dl
+                    contig(curve_dl)
                 )
 
                 index += n
@@ -638,16 +636,6 @@ class WindingVolumeGrid:
         self.integration_points_full = int_points  # contig(np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0]))
         t2 = time.time()
         print('Computing J took t = ', t2 - t1, ' s')
-        #t1 = time.time()
-        #self.geo_factor = np.zeros((points.shape[0], n, num_basis))
-        #self.Itarget_matrix = np.zeros((points_curve.shape[0], n, num_basis))
-        #self.geo_factor = np.tensordot(B_factor[:num_points, :, :, :], plasma_unitnormal, axes=[
-        #for i in range(B_factor.shape[2]):
-        #    for j in range(B_factor.shape[3]):
-        #        self.geo_factor[:, i, j] = np.sum(B_factor[:num_points, :, i, j] * plasma_unitnormal, axis=-1)
-        #        self.Itarget_matrix[:, i, j] = np.sum(B_factor[num_points:, :, i, j] * curve_dl, axis=-1)
-        #t2 = time.time()
-        #print('Finishing the B and I matrices took t = ', t2 - t1, ' s')
         t1 = time.time()
 
         # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
@@ -694,18 +682,12 @@ class WindingVolumeGrid:
             oy = coil_points[x_ind, 1]
             oz = coil_points[x_ind, 2]
             z_flipped_point = np.array([ox, oy, -oz]).T
-            # z_flipped = None
-            # print(np.isclose(coil_points, z_flipped_point))
             z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
-            # for i in range(self.N_grid):
-            #     if np.allclose(coil_points[i, :], z_flipped_point):
-            #         z_flipped = i 
-            #         break
-            # print(z_temp, z_flipped)
             if len(z_flipped) > 0:
                 z_flipped_inds_x.append(z_flipped)
                 x_inds.append(x_ind)
         self.x_inds = x_inds
+
         # Find the coil boundary points at phi = 0
         minus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 3] < 0, axis=-1)))
         y0_indices = np.ravel(np.where(np.isclose(coil_points[:, 1], 0.0, atol=self.dy)))
@@ -720,18 +702,11 @@ class WindingVolumeGrid:
             oy = coil_points[y_ind, 1]
             oz = coil_points[y_ind, 2]
             z_flipped_point = np.array([ox, oy, -oz]).T
-            # z_flipped = None
             z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
-            # for i in range(self.N_grid):
-            #     if np.allclose(coil_points[i, :], z_flipped_point):
-            #         z_flipped = i 
-            #         break
             if len(z_flipped) > 0:
                 z_flipped_inds_y.append(z_flipped)
                 y_inds.append(y_ind)
-            # print(y_ind, z_flipped_point, coil_points[y_ind, :], coil_points[z_flipped_inds_y, :], y_inds)
         self.y_inds = y_inds 
-        # print('minus_y_indices = ', minus_y_indices, len(minus_y_indices), coil_points[minus_y_indices, :])
         self.z_flip_x = z_flipped_inds_x
         self.z_flip_y = z_flipped_inds_y
 
@@ -773,7 +748,7 @@ class WindingVolumeGrid:
         num_basis = self.n_functions
         # flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
 
-        flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis))
+        flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis), dtype="double")
         i_constraint = 0
         q = 0
         qq = 0

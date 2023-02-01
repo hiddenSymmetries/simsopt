@@ -119,9 +119,10 @@ if True:
     # regularization required here to make this matrix
     # truly invertible. If not, can cause instability in the solver
     if isinstance(C, csc_matrix): 
+        # CCT_inv = csc_matrix(np.linalg.pinv(CCT.todense(), hermitian=True))
         CCT += 1e-15 * sparse_eye(CCT.shape[0], format="csc")
         CCT_inv = sparse_inv(CCT)
-        projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
+        projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc", dtype="double") - CT @ CCT_inv @ C 
     else:
         CCT += 1e-15 * np.eye(CCT.shape[0])
         CCT_inv = np.linalg.inv(CCT)
@@ -150,12 +151,13 @@ else:
     projection_onto_constraints = None
 
 nfp = wv_grid.plasma_boundary.nfp
-print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs, ord=2) ** 2 * nfp)
+print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs) ** 2 * nfp)
 t1 = time.time()
-lam = 0.0  # 1e-20
+lam = 1e-20
 acceleration = True
-max_iter = 5000
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter, cpp=True)
+max_iter = 1000
+cpp = True
+alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter, cpp=cpp)
 # print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
     # print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
@@ -174,7 +176,8 @@ t1 = time.time()
 wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
 t2 = time.time()
 print('Time to plot the optimized grid = ', t2 - t1, ' s')
-# print('fB after optimization = ', fB) 
+print('fB after optimization = ', fB[-1]) 
+print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * nfp * 2)
 
 # set up WindingVolume Bfield
 bs_wv = WindingVolumeField(wv_grid)
@@ -185,10 +188,13 @@ normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
 # print('Bnormal direct = ', Bnormal_wv)
 # print('Bnormal lstsq = ', wv_grid.B_matrix @ alpha_opt * np.sqrt(nphi * ntheta) / np.sqrt(normN))
 # print('Bnormal coils = ', Bnormal)
+contig = np.ascontiguousarray
 if wv_grid.range == 'full torus':
     print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)
 else:
     print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta))
+print(nphi, ntheta, wv_grid.dx, wv_grid.nx)
+
 t2 = time.time()
 print('Time to compute Bnormal_wv = ', t2 - t1, ' s')
 fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()

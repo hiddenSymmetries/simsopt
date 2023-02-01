@@ -1,11 +1,15 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
+#include "pybind11/eigen.h"
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
+#include <Eigen/Sparse>
 
 typedef xt::pyarray<double> PyArray;
+typedef xt::pyarray<float> PyArray_float;
+typedef xt::pyarray<int> PyArray_int;
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include <math.h>
@@ -174,7 +178,7 @@ PYBIND11_MODULE(simsoptpp, m) {
             return res;
         });
 
-    m.def("matmult", [](PyArray& A, PyArray&B) {
+    m.def("matmult", [](PyArray& A, PyArray& B) {
             // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
             int l = A.shape(0);
             int m = A.shape(1);
@@ -182,6 +186,19 @@ PYBIND11_MODULE(simsoptpp, m) {
             PyArray C = xt::zeros<double>({l, n});
 
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigA(const_cast<double*>(A.data()), l, m);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
+            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), l, n);
+            eigC = eigA*eigB;
+            return C;
+        });
+        
+    m.def("matmult_sparseA", [](Eigen::SparseMatrix<double, Eigen::RowMajor>& eigA, int l, PyArray& B) {
+            // Product of an lxm matrix with an mxn matrix, results in an l x n matrix. Assumes A is sparse.
+            int m = B.shape(0);
+            int n = B.shape(1);
+            PyArray C = xt::zeros<double>({l, n});
+
+//             Eigen::Map<Eigen::SparseMatrix<double,Eigen::RowMajor>> eigA(l, m, nnz, const_cast<int*>(outer_index_ptr.data()), const_cast<int*>(inner_index_ptr.data()), const_cast<double*>(A.data()));
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
             Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), l, n);
             eigC = eigA*eigB;
