@@ -32,6 +32,14 @@ template <class PyCurveCWSBase = PyCurveCWS> class PyCurveCWSTrampoline : public
             return PyCurveCWSBase::get_dofs();
         }
 
+        vector<double> get_dofs_surface() {
+            return PyCurveCWSBase::get_dofs_surface();
+        }
+        
+        int num_dofs_surface() {
+            return PyCurveCWSBase::num_dofs_surface();
+        }
+
         void gamma_impl(PyArray& data, PyArray& quadpoints) override {
             PyCurveCWSBase::gamma_impl(data, quadpoints);
         }

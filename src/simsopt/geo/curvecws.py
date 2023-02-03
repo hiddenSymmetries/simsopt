@@ -33,6 +33,18 @@ class CurveCWS(sopp.CurveCWS, Curve):
         """
         self.local_x = dofs
         sopp.CurveCWS.set_dofs(self, dofs)
+    
+    def get_dofs_surface(self):
+        """
+        This function returns the number of the dofs associated with the Coil Winding Surface
+        """
+        return np.asarray(sopp.CurveCWS.get_dofs_surface(self))
+    
+    def num_dofs_surface(self):
+        """
+        This function returns the number of the dofs associated with the Coil Winding Surface
+        """
+        return sopp.CurveCWS.num_dofs_surface(self)
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):

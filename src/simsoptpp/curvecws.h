@@ -25,19 +25,13 @@ public:
     // const shared_ptr<Surface<Array>> surface;
     int mpol;
     int ntor;
-    vector<double> idofs = vector<double>(num_dofs(), 0.);
+    vector<double> idofs; // = vector<double>(num_dofs(), 0.);
     Array rc;
     Array rs;
     Array zc;
     Array zs;
 
-    CurveCWS(int _mpol,
-             int _ntor,
-             vector<double> _idofs,
-             int _numquadpoints,
-             int _order,
-             int _nfp,
-             bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), idofs(_idofs)
+    CurveCWS(int _mpol, int _ntor, vector<double> _idofs, int _numquadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), idofs(_idofs)
     {
         phi_l = 0;
         theta_l = 0;
@@ -66,14 +60,7 @@ public:
     {
         auto res = vector<double>(num_dofs(), 0.);
         int counter = 0;
-        /* if (stellsym)
-        {
-            for (int i = 0; i < order + 1; ++i)
-                res[counter++] = rc[i];
-            for (int i = 0; i < order; ++i)
-                res[counter++] = zs[i];
-        }
-        else */
+
         res[counter++] = theta_l;
         for (int i = 0; i < order + 1; ++i)
             res[counter++] = theta_c.data()[i];
@@ -107,6 +94,7 @@ public:
     void set_dofs_surface(vector<double> &dofs)
     {
         int shift = (mpol + 1) * (2 * ntor + 1);
+
         int counter = 0;
         if (stellsym)
         {
@@ -126,6 +114,41 @@ public:
             for (int i = ntor + 1; i < shift; ++i)
                 zs.data()[i] = dofs[counter++];
         }
+    }
+
+    int num_dofs_surface()
+    {
+        if (stellsym)
+            return 2 * (mpol + 1) * (2 * ntor + 1) - ntor - (ntor + 1);
+        else
+            return 4 * (mpol + 1) * (2 * ntor + 1) - 2 * ntor - 2 * (ntor + 1);
+    }
+
+    vector<double> get_dofs_surface()
+    {
+        set_dofs_surface(idofs);
+        auto res = vector<double>(num_dofs(), 0.);
+        int shift = (mpol + 1) * (2 * ntor + 1);
+        int counter = 0;
+        if (stellsym)
+        {
+            for (int i = ntor; i < shift; ++i)
+                res[counter++] = rc.data()[i];
+            for (int i = ntor + 1; i < shift; ++i)
+                res[counter++] = zs.data()[i];
+        }
+        else
+        {
+            for (int i = ntor; i < shift; ++i)
+                res[counter++] = rc.data()[i];
+            for (int i = ntor + 1; i < shift; ++i)
+                res[counter++] = rs.data()[i];
+            for (int i = ntor; i < shift; ++i)
+                res[counter++] = zc.data()[i];
+            for (int i = ntor + 1; i < shift; ++i)
+                res[counter++] = zs.data()[i];
+        }
+        return res;
     }
 
     void gamma_impl(Array &data, Array &quadpoints) override;
