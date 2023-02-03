@@ -411,7 +411,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
 
     # set fieldline tracer parameters
     nfieldlines = 10
-    tmax_fl = 30000
+    tmax_fl = 10000
 
     # Different configurations have different cross-sections
     if 'muse' in config:
@@ -440,9 +440,9 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-8, comm=comm,
         phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(200000)])
+        stopping_criteria=[IterationStoppingCriterion(20000)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
 

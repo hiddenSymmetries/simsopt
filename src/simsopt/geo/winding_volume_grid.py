@@ -652,6 +652,7 @@ class WindingVolumeGrid:
         B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
             self.geo_factor.shape[0], self.N_grid * self.n_functions
         )
+        print(B_matrix.shape, self.geo_factor.shape)
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(B_matrix.shape[0]):
             B_matrix[i, :] *= np.sqrt(normN[i])

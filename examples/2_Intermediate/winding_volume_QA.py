@@ -28,14 +28,16 @@ from simsopt.geo import WindingVolumeGrid
 from simsopt.solve import projected_gradient_descent_Tikhonov 
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
 
 t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
-Nx = 30
+ntheta = 32
+Nx = 10
 Ny = Nx
 Nz = Nx  # - 1
 poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
@@ -57,7 +59,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 ####### Temporary
-s = s_plot
+# s = s_plot
 
 # Make the output directoryå
 OUT_DIR = 'wv_QA/'
@@ -71,7 +73,7 @@ print('First setup took time = ', t2 - t1, ' s')
 # Define a curve to define a Itarget loss term
 # Make circle at Z = 0
 t1 = time.time()
-numquadpoints = nphi * s.nfp * 2 * 5
+numquadpoints = nphi * s.nfp * 2  # * 5
 order = 20
 curve = CurveRZFourier(numquadpoints, order, nfp=1, stellsym=False)
 for m in range(s.mpol + 1):
@@ -86,7 +88,7 @@ for m in range(s.mpol + 1):
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
 curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
-Itarget = 1e6
+Itarget = 0.5e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
@@ -214,9 +216,11 @@ wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
-# t1 = time.time()
-# trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s, None, OUT_DIR)
-# t2 = time.time()
+t1 = time.time()
+biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
+# bs_wv.set_points(s.gamma().reshape((-1, 3)))
+# trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s_plot, comm, OUT_DIR)
+t2 = time.time()
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

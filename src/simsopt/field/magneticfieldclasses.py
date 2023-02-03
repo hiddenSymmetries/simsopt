@@ -596,16 +596,19 @@ class WindingVolumeField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
+    def as_dict(self, serial_objs_dict):
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["winding_volume"] = self.winding_volume
+        d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        return cls(d["winding_volume"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        field = cls(d["winding_volume"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
+        field.set_points_cart(xyz)
+        return field
 
 
 class DipoleField(MagneticField):
