@@ -25,7 +25,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import WindingVolumeField
 from simsopt.geo import WindingVolumeGrid
-from simsopt.solve import projected_gradient_descent_Tikhonov 
+from simsopt.solve import relax_and_split 
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
@@ -35,15 +35,16 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 32
-Nx = 30
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
+Nx = 20
 Ny = Nx
 Nz = Nx  # - 1
 poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
 coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
-lam = 1e-18
+lam = 0
+l0_threshold = 0
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -63,7 +64,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 # s = s_plot
 
 # Make the output directoryå
-OUT_DIR = 'wv_QA_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '_N' + str(Nx) + '_Tikhonov{:.2e}'.format(lam) + '/'
+OUT_DIR = 'wv_QA_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '_N' + str(Nx) + '_Tikhonov{:.2e}'.format(lam) + '_l0{:.2e}'.format(l0_threshold) + '/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -93,7 +94,7 @@ Itarget = 0.5e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
-nx = 8
+nx = 6
 # Finally, initialize the winding volume 
 t1 = time.time()
 wv_grid = WindingVolumeGrid(
@@ -135,24 +136,6 @@ if True:
         projection_onto_constraints = np.eye(wv_grid.N_grid * wv_grid.n_functions) - CT @ CCT_inv @ C 
     t2 = time.time()
     print('Time to make CCT_inv = ', t2 - t1, ' s')
-    # t1 = time.time()
-    # factor = cholesky(CCT)
-    # L = factor.L()
-    # L_inv = sparse_inv(L)
-    # LT_inv = sparse_inv(LT)
-
-    #CCT_inv = sparse_inv(CCT)
-    # CCT_inv = np.linalg.inv(CCT)
-    # t2 = time.time()
-    # print('Time to make CCT_inv = ', t2 - t1, ' s')
-    # t1 = time.time()
-    # CT_CCT_inv = CT @ CCT_inv
-    # CT_CCT_inv_d = CT_CCT_inv[:, -1] * wv_grid.Itarget_rhs
-    # projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
-    # wv_grid.alphas = projection_onto_constraints.dot(np.ravel(wv_grid.alphas)).reshape(wv_grid.alphas.shape)
-    # t2 = time.time()
-    # print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
-    # wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
 else:
     projection_onto_constraints = None
 
@@ -160,9 +143,10 @@ nfp = wv_grid.plasma_boundary.nfp
 print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs) ** 2 * nfp)
 t1 = time.time()
 acceleration = True
-max_iter = 1000
+max_iter = 500
 cpp = True
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter, cpp=cpp)
+nu = 1e18
+alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split(wv_grid, lam=lam, nu=nu, P=projection_onto_constraints, max_iter=max_iter, l0_threshold=l0_threshold, rs_max_iter=5)
 # print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
     # print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
@@ -173,7 +157,9 @@ plt.figure()
 plt.semilogy(fB, label=r'$f_B$')
 plt.semilogy(lam * fK, label=r'$\lambda \|\alpha\|^2$')
 plt.semilogy(fI, label=r'$f_I$')
-plt.semilogy(fB + fI + lam * fK, label='Total objective')
+plt.semilogy(fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
+plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
+plt.semilogy(fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
 plt.savefig(OUT_DIR + 'optimization_progress.jpg')
@@ -190,9 +176,6 @@ t1 = time.time()
 bs_wv.set_points(s.gamma().reshape((-1, 3)))
 Bnormal_wv = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
-# print('Bnormal direct = ', Bnormal_wv)
-# print('Bnormal lstsq = ', wv_grid.B_matrix @ alpha_opt * np.sqrt(nphi * ntheta) / np.sqrt(normN))
-# print('Bnormal coils = ', Bnormal)
 contig = np.ascontiguousarray
 if wv_grid.coil_range == 'full torus':
     print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)

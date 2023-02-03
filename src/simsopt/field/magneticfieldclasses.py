@@ -515,27 +515,19 @@ class WindingVolumeField(MagneticField):
                         integration points in each cell, etc.
     """
 
-    def __init__(self, winding_volume):
+    def __init__(self, J, integration_points, grid_scaling, coil_range):
         MagneticField.__init__(self)
-        self.winding_volume = winding_volume
-        self.s = winding_volume.plasma_boundary
-        self.integration_points = winding_volume.XYZ_integration
-        self.N_grid = winding_volume.N_grid
-        self.Phi = winding_volume.Phi
-        self.grid_scaling = winding_volume.dx * winding_volume.dy * winding_volume.dz / (winding_volume.nx * winding_volume.ny * winding_volume.nz)
-        # self.Phi_full = winding_volume.Phi_full
-        # self.integration_points_full = winding_volume.integration_points_full
-        self.nsym = winding_volume.Phi_full.shape[1] // self.N_grid
-        alphas_full = np.zeros((self.N_grid * self.nsym, self.Phi.shape[0]))
-        for i in range(self.nsym):
-            alphas_full[i * self.N_grid:(i + 1) * self.N_grid, :] = winding_volume.alphas.reshape(self.N_grid, self.Phi.shape[0])
-        self.alphas_full = alphas_full
-        ####
-        Jx = self.winding_volume.J[:, :, 0]
-        Jy = self.winding_volume.J[:, :, 1]
-        Jz = self.winding_volume.J[:, :, 2]
+        print(grid_scaling, coil_range)
+        self.integration_points = integration_points
+        self.N_grid = integration_points.shape[0]
+        self.grid_scaling = grid_scaling
+        self.coil_range = coil_range
+        self.J = J
+        Jx = J[:, :, 0]
+        Jy = J[:, :, 1]
+        Jz = J[:, :, 2]
         contig = np.ascontiguousarray
-        if self.winding_volume.range == 'full torus':
+        if coil_range == 'full torus':
             stell_list = [1]
             nfp = 1
             nsym = 1
@@ -543,7 +535,7 @@ class WindingVolumeField(MagneticField):
             stell_list = [1, -1]
             nfp = 2
             nsym = nfp * 2
-        J_temp = np.zeros(self.winding_volume.J.shape)
+        J_temp = np.zeros(J.shape)
         J_full = np.zeros((self.N_grid * nsym, Jx.shape[1], 3))
         int_points_full = np.zeros((self.N_grid * nsym, Jx.shape[1], 3))
 
@@ -596,15 +588,18 @@ class WindingVolumeField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
 
-    def as_dict(self, serial_objs_dict):
+    def as_dict(self, serial_objs_dict) -> dict:
         d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["winding_volume"] = self.winding_volume
         d["points"] = self.get_points_cart()
+        d["J"] = self.J
+        d["integration_points"] = self.integration_points
+        d["grid_scaling"] = self.grid_scaling
+        d["coil_range"] = self.coil_range
         return d
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(d["winding_volume"])
+        field = cls(np.array(d["J"]['data']), np.array(d["integration_points"]['data']), d["grid_scaling"], d["coil_range"])
         decoder = GSONDecoder()
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)

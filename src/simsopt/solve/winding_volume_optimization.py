@@ -3,7 +3,17 @@ from simsoptpp import acc_prox_grad_descent, matmult, matmult_sparseA
 import time
 # from scipy.linalg import svd
 
-__all__ = ['projected_gradient_descent_Tikhonov']
+__all__ = ['projected_gradient_descent_Tikhonov', 'relax_and_split']
+
+
+def prox_group_l0(alpha, threshold, n, num_basis):
+    alpha_mat = alpha.reshape(n, num_basis)
+    print(alpha_mat)
+    for i in range(n):
+        if np.linalg.norm(alpha_mat[i, :]) < threshold:
+            alpha_mat[i, :] = 0.0
+    print(alpha_mat)
+    return alpha_mat.reshape(n * num_basis, 1)
 
 
 def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, max_iter=5000, P=None, acceleration=True, cpp=True):
@@ -76,7 +86,10 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
 
     # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
     t1 = time.time()
-    L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam, axis=0), axis=-1)
+    if False:
+        L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam, axis=0), axis=-1)
+    else:
+        L = 2e-12  # L = 1e-12 for N = 30, L = 2.4e-12 for N = 24, so not a bad guess
 
     #cond_num = np.linalg.cond(BTB + ITI + lam * np.eye(B.shape[1]))
     # cond_num = np.linalg.cond(BT @ B + IT @ I + lam * np.eye(B.shape[1]))
@@ -208,3 +221,123 @@ def projected_gradient_descent_Tikhonov(winding_volume, lam=0.0, alpha0=None, ma
     t2 = time.time()
     print('Time to compute J = ', t2 - t1, ' s')
     return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I)
+
+
+def relax_and_split(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_threshold=0.0):
+    """
+        This function performs a relax-and-split algorithm for solving the 
+        current voxel problem. The convex part of the solve is done with
+        accelerated projected gradient descent and the nonconvex part 
+        can be solved with the prox of the group l0 norm... hard 
+        thresholding on the whole set of alphas in a grid cell. 
+
+        Args:
+            P : projection matrix onto the linear equality constraints representing
+                the flux jump constraints. If C is the flux jump constraint matrix,
+                P = I - C.T @ (C * C.T)^{-1} @ C. P is very large but very sparse
+                so is assumed to be stored as a scipy csc_matrix. 
+    """
+    t1 = time.time()
+    n = winding_volume.N_grid
+    nfp = winding_volume.plasma_boundary.nfp
+    num_basis = winding_volume.n_functions
+    N = n * num_basis
+    alpha_opt = (np.random.rand(N) - 0.5) * 1e3  
+    if P is not None:
+        alpha_opt = P.dot(alpha_opt)
+    alpha_opt_T = alpha_opt.T
+
+    B = winding_volume.B_matrix
+    I = winding_volume.Itarget_matrix
+    BT = B.T
+    b = winding_volume.b_rhs
+    b_I = winding_volume.Itarget_rhs
+    BTb = BT @ b
+    IT = I.T
+    ITbI = IT * b_I 
+    contig = np.ascontiguousarray
+    I = I.reshape(1, len(winding_volume.Itarget_matrix))
+    IT = I.T
+    b_I = b_I.reshape(1, 1)
+    b = b.reshape(len(b), 1)
+    ITbI = IT * b_I 
+    BTb = BTb.reshape(len(BTb), 1)     
+    alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
+    IT = contig(IT)
+    BT = contig(BT)
+    I = contig(I)
+    B = contig(B)
+    t2 = time.time()
+
+    print('Time to setup the algo = ', t2 - t1, ' s')
+
+    # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
+    t1 = time.time()
+    if True:
+        L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * (lam + 1.0 / nu), axis=0), axis=-1)
+    else:
+        L = 2e-12  # L = 1e-12 for N = 30, L = 2.4e-12 for N = 24, so not a bad guess
+
+    step_size = 1.0 / L  # largest step size suitable for gradient descent
+    print('L, step_size = ', L, step_size) 
+    t2 = time.time()
+
+    print('Time to setup step size = ', t2 - t1, ' s')
+
+    f_B = []
+    f_I = []
+    f_K = []
+    f_RS = []
+    f_0 = []
+    f_0w = []
+    print_iter = 10
+    t1 = time.time()
+    # w_opt = np.copy(alpha_opt)  # (np.random.rand(len(alpha_opt), 1) - 0.5) * 1e5
+    w_opt = prox_group_l0(np.copy(alpha_opt), l0_threshold, n, num_basis)
+    for k in range(rs_max_iter):
+        f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) < l0_threshold))
+        step_size_i = step_size
+        alpha_opt_prev = alpha_opt
+        BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
+        # print(w_opt, alpha_opt)
+        for i in range(max_iter):
+            vi = alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev)
+            alpha_opt_prev = alpha_opt
+            alpha_opt = P.dot(
+                vi + step_size_i * (BTB_ITbI_nuw - matmult(BT, matmult(B, contig(vi))) - matmult(IT, matmult(I, contig(vi))) - (lam + 1.0 / nu) * vi)
+            )
+
+            step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
+            if ((i % print_iter) == 0.0 or i == max_iter - 1):
+                f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
+                f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
+                f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
+                f_RS.append(np.linalg.norm(np.ravel(alpha_opt - w_opt) ** 2))
+                f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) < l0_threshold))
+                print(i, f_B[k * max_iter // print_iter + (i + 1) // print_iter], 
+                      f_I[k * max_iter // print_iter + (i + 1) // print_iter], 
+                      lam * f_K[k * max_iter // print_iter + (i + 1) // print_iter], 
+                      f_RS[k * max_iter // print_iter + (i + 1) // print_iter] / nu, 
+                      f_0[k * max_iter // print_iter + (i + 1) // print_iter], 
+                      f_0w[k], step_size_i)  
+
+        # now do the prox step
+        print(np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
+        print(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) < l0_threshold))
+        w_opt = prox_group_l0(np.copy(alpha_opt), l0_threshold, n, num_basis)
+
+    t2 = time.time()
+    print('Time to run algo = ', t2 - t1, ' s')
+    t1 = time.time()
+    alpha_opt = np.ravel(alpha_opt)
+    winding_volume.alphas = alpha_opt
+    winding_volume.w = np.ravel(w_opt)
+    winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
+    alphas = winding_volume.alphas.reshape(n, num_basis)
+    for i in range(3):
+        for j in range(winding_volume.Phi.shape[2]):
+            for k in range(num_basis):
+                winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
+    t2 = time.time()
+    print('Time to compute J = ', t2 - t1, ' s')
+    return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I), 0.5 * np.array(f_RS) / nu, f_0

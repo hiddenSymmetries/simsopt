@@ -6,8 +6,12 @@ import time
 import warnings
 from scipy.sparse import lil_matrix
 from matplotlib import pyplot as plt
+from .._core.json import GSONDecoder, GSONable
+# from .._core.optimizable import Optimizable
 
 __all__ = ['WindingVolumeGrid']
+
+# class WindingVolumeGrid(Optimizable):
 
 
 class WindingVolumeGrid:
@@ -59,9 +63,22 @@ class WindingVolumeGrid:
         Nx=11, Ny=11, Nz=11,
         filename=None, surface_flag='vmec',
         famus_filename=None, 
-        RANGE='half period',
+        coil_range='half period',
         OUT_DIR='', nx=2, ny=2, nz=2,
     ):
+        # super().__init__(
+        #         # depends_on=[
+        #         #     plasma_boundary, Itarget_curve, Bn_Itarget, Itarget,
+        #         #     rz_inner_surface,
+        #         #     rz_outer_surface, plasma_offset,
+        #         #     coil_offset, Bn,
+        #         #     Nx, Ny, Nz,
+        #         #     filename, surface_flag,
+        #         #     famus_filename, 
+        #         #     coil_range,
+        #         #     OUT_DIR, nx, ny, nz
+        #         # ]
+        #     )
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
 
@@ -93,7 +110,7 @@ class WindingVolumeGrid:
             )
         else:
             self.plasma_boundary = plasma_boundary
-            self.range = RANGE
+            self.coil_range = coil_range
             self.R0 = plasma_boundary.get_rc(0, 0)
             # unlike plasma surface, use the whole phi and theta grids
             self.phi = self.plasma_boundary.quadpoints_phi
@@ -272,7 +289,7 @@ class WindingVolumeGrid:
         # Extra work below so that the stitching with the symmetries is done in
         # such a way that the reflected cells are still dx and dy away from 
         # the old cells.
-        if self.range != 'full torus':
+        if self.coil_range != 'full torus':
             X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
             Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
         else:
@@ -292,7 +309,7 @@ class WindingVolumeGrid:
             theta value. Note that, for now, this makes the entire
             coil surface, not just 1 / 2 nfp of the surface.
         """
-        range_surf = self.range
+        range_surf = self.coil_range
         nphi = self.nphi
         ntheta = self.ntheta
         f = self.filename
@@ -314,7 +331,7 @@ class WindingVolumeGrid:
             inner toroidal surface and shifts it by self.coil_offset at constant
             theta value.
         """
-        range_surf = self.range
+        range_surf = self.coil_range
         nphi = self.nphi
         ntheta = self.ntheta
         f = self.filename
@@ -545,7 +562,7 @@ class WindingVolumeGrid:
         # Begin computation of the coil fields with all the symmetries
         nfp = self.plasma_boundary.nfp
         stellsym = self.plasma_boundary.stellsym
-        if self.range == 'full torus':
+        if self.coil_range == 'full torus':
             stell_list = [1]
             nfp = 1
             nsym = nfp
@@ -605,7 +622,7 @@ class WindingVolumeGrid:
                 Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
                 print(Phivec_transpose.shape, int_points.shape, points.shape, plasma_unitnormal.shape)
-                print(stell_list, nfp, self.range)
+                print(stell_list, nfp, self.coil_range)
                 geo_factor += sopp.winding_volume_field_Bext_SIMD(
                     points, 
                     contig(int_points), 
@@ -649,6 +666,7 @@ class WindingVolumeGrid:
         # Delta x from intra-cell integration is self.dx (uniform grid spacing) divided 
         # by self.nx (number of points within a cell)
         coil_integration_factor = self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
+        self.grid_scaling = coil_integration_factor
         B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
             self.geo_factor.shape[0], self.N_grid * self.n_functions
         )
@@ -799,7 +817,7 @@ class WindingVolumeGrid:
             # where the half-period boundary is stitched together
             if np.all(self.connection_list[i, :, 1] < 0):
                 # ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
-                if (i in x_inds) and (self.range != 'full torus'):
+                if (i in x_inds) and (self.coil_range != 'full torus'):
                     flux_constraint_matrix[i_constraint, 
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[1, i, :]
@@ -818,7 +836,7 @@ class WindingVolumeGrid:
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 3] < 0):
                 # ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
-                if (i in y_inds) and (self.range != 'full torus'):
+                if (i in y_inds) and (self.coil_range != 'full torus'):
                     flux_constraint_matrix[i_constraint, 
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[3, i, :]
@@ -881,39 +899,60 @@ class WindingVolumeGrid:
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["plasma_boundary"] = self.plasma_boundary
-        d["rz_inner_surface"] = self.rz_inner_surface
-        d["rz_outer_surface"] = self.rz_outer_surface
-        d["plasma_offset"] = self.plasma_offset
-        d["coil_offset"] = self.coil_offset
-        d["Bn"] = self.Bn
-        d["dx"] = self.dx
-        d["dy"] = self.dy
-        d["dz"] = self.dz
-        d["filename"] = self.filename
-        d["surface_flag"] = self.surface_flag
-        d["coordinate_flag"] = self.coordinate_flag
-        return d
+    # def as_dict(self, serial_objs_dict) -> dict:
+    #     d = super().as_dict(serial_objs_dict=serial_objs_dict)
+    #     d["plasma_boundary"] = self.plasma_boundary
+    #     d["Bn_Itarget"] = self.Bn_Itarget
+    #     d["Itarget"] = self.Itarget
+    #     d["Itarget_curve"] = self.Itarget_curve
+    #     d["rz_inner_surface"] = self.rz_inner_surface
+    #     d["rz_outer_surface"] = self.rz_outer_surface
+    #     d["plasma_offset"] = self.plasma_offset
+    #     d["coil_offset"] = self.coil_offset
+    #     d["Bn"] = self.Bn
+    #     d["Nx"] = self.Nx
+    #     d["Ny"] = self.Ny
+    #     d["Nz"] = self.Nz
+    #     d["filename"] = self.filename
+    #     d["surface_flag"] = self.surface_flag
+    #     d["famus_filename"] = self.famus_filename
+    #     d["coil_range"] = self.coil_range
+    #     d["OUT_DIR"] = self.OUT_DIR
+    #     d["nx"] = self.nx
+    #     d["ny"] = self.ny
+    #     d["nz"] = self.nz
+    #     return d
 
-    @classmethod
-    def from_dict(cls, d):
-        return cls(
-            d["plasma_boundary"],
-            d["rz_inner_surface"],
-            d["rz_outer_surface"],
-            d["plasma_offset"],
-            d["coil_offset"],
-            d["Bn"],
-            d["dx"],
-            d["dy"],
-            d["dz"],
-            d["filename"],
-            d["surface_flag"],
-        )
+    # @classmethod
+    # def from_dict(cls, d, serial_objs_dict, recon_objs):
+    #     decoder = GSONDecoder()
+    #     plasma_surface = decoder.process_decoded(d["plasma_boundary"], serial_objs_dict, recon_objs)
+    #     rz_inner_surface = decoder.process_decoded(d["rz_inner_surface"], serial_objs_dict, recon_objs)
+    #     rz_outer_surface = decoder.process_decoded(d["rz_outer_surface"], serial_objs_dict, recon_objs)
+    #     Itarget_curve = decoder.process_decoded(d["Itarget_curve"], serial_objs_dict, recon_objs)
+    #     field = cls(
+    #         plasma_surface,
+    #         Itarget_curve,
+    #         d["Bn_Itarget"],
+    #         d["Itarget"],
+    #         rz_inner_surface,
+    #         rz_outer_surface,
+    #         d["plasma_offset"],
+    #         d["coil_offset"],
+    #         d["Bn"],
+    #         d["Nx"],
+    #         d["Ny"],
+    #         d["Nz"],
+    #         d["filename"],
+    #         d["surface_flag"],
+    #         d["famus_filename"],
+    #         d["coil_range"],
+    #         d["OUT_DIR"],
+    #         d["nx"],
+    #         d["ny"],
+    #         d["nz"],
+    #     )
+    #     return field
 
     def check_fluxes(self):
         """
@@ -979,11 +1018,11 @@ class WindingVolumeGrid:
         for i in range(n):
             for j in range(6):
                 #print(i, j, flux[i, j])
-                if (i in self.x_inds) and (j == 1) and (self.range != 'full torus'):
+                if (i in self.x_inds) and (j == 1) and (self.coil_range != 'full torus'):
                     k_ind = self.z_flip_x[q]
                     assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
                     q += 1
-                elif (i in self.y_inds) and (j == 3) and (self.range != 'full torus'):
+                elif (i in self.y_inds) and (j == 3) and (self.coil_range != 'full torus'):
                     k_ind = self.z_flip_y[qq]
                     assert np.isclose(flux[i, 3], flux[k_ind, 3], atol=flux_max, rtol=1e-3)
                     qq += 1
