@@ -228,7 +228,7 @@ class PoloidalField(MagneticField):
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["R0"], d["B0"], d["q"])
         decoder = GSONDecoder()
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)

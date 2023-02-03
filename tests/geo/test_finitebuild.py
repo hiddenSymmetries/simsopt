@@ -28,6 +28,9 @@ class MultifilamentTesting(unittest.TestCase):
         if order == 1:
             rotation = FilamentRotation(c.quadpoints, order)
             rotation.x = np.array([0, 0.1, 0.3])
+            rotationShared = FilamentRotation(curves[0].quadpoints, order, dofs=rotation.dofs)
+            assert np.allclose(rotation.x, rotationShared.x)
+            assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
         else:
             rotation = ZeroRotation(c.quadpoints)
 

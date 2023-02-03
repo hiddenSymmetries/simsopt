@@ -24,7 +24,7 @@ class Coil(sopp.Coil, Optimizable):
         self._curve = curve
         self._current = current
         sopp.Coil.__init__(self, curve, current)
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve, current])
+        Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
@@ -82,10 +82,14 @@ class Current(sopp.Current, CurrentBase):
     of coils that are constrained to use the same current.
     """
 
-    def __init__(self, current, **kwargs):
+    def __init__(self, current, dofs=None, **kwargs):
         sopp.Current.__init__(self, current)
-        CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                             x0=self.get_dofs(), **kwargs)
+        if dofs is None:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 x0=self.get_dofs(), **kwargs)
+        else:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 dofs=dofs, **kwargs)
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
@@ -93,11 +97,6 @@ class Current(sopp.Current, CurrentBase):
     @property
     def current(self):
         return self.get_value()
-
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        del d["x0"]
-        return d
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
@@ -110,8 +109,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         self.current_to_scale = current_to_scale
         self.scale = scale
         sopp.CurrentBase.__init__(self)
-        CurrentBase.__init__(self, x0=np.asarray([]),
-                             depends_on=[current_to_scale], **kwargs)
+        CurrentBase.__init__(self, depends_on=[current_to_scale], **kwargs)
 
     def vjp(self, v_current):
         return self.scale * self.current_to_scale.vjp(v_current)
@@ -129,7 +127,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         self.current_a = current_a
         self.current_b = current_b
         sopp.CurrentBase.__init__(self)
-        CurrentBase.__init__(self, x0=np.asarray([]), depends_on=[current_a, current_b], **kwargs)
+        CurrentBase.__init__(self, depends_on=[current_a, current_b])
 
     def vjp(self, v_current):
         return self.current_a.vjp(v_current) + self.current_b.vjp(v_current)
