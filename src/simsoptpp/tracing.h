@@ -144,7 +144,7 @@ particle_guiding_center_boozer_perturbed_tracing(
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
         bool zetas_stop=false, bool vpars_stop=false,
         double alphahat=0, double omega=0, int alpham=0, int alphan=0, double phase=0,
-        bool forget_exact_path=false);
+        bool forget_exact_path=false, bool axis=false);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
@@ -154,7 +154,7 @@ particle_guiding_center_boozer_tracing(
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false,
-        bool forget_exact_path=false);
+        bool forget_exact_path=false, bool axis=false);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
