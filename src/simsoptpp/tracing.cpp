@@ -408,7 +408,7 @@ class GuidingCenterNoKBoozerRHS {
                 dydt[1] = tdot;
             }
             dydt[2] = ((q + m*v_par*dIdpsi/modB)*v_par*modB - dmodBdpsi*fak1*I)/(D*iota);
-            dydt[3] = - (mu / v_par) * (dmodBdpsi * dydt[0] * psi0 + dmodBdtheta * dydt[1] + dmodBdzeta * dydt[2]);
+            dydt[3] = - (mu / v_par) * (dmodBdpsi * sdot * psi0 + dmodBdtheta * tdot + dmodBdzeta * dydt[2]);
         }
 };
 
@@ -804,7 +804,7 @@ particle_guiding_center_boozer_perturbed_tracing(
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
     
     if (axis) {
-      y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang,0};
+      y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang, 0};
     } else {
       y = {stz_init[0], stz_init[1], stz_init[2], vtang, 0};
     }
