@@ -123,3 +123,15 @@ Here is a list of publications in which simsopt results appear:
      `[arXiv version] <https://arxiv.org/pdf/2211.09829>`__
    |
 
+#. | G T Roberg-Clark, G G Plunk, P Xanthopoulos, C Nuhrenberg, S A Henneberg, and H M Smith,
+     "Critical gradient turbulence optimization toward a compact stellarator reactor concept",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2301.06773>`__
+   |
+
+#. | R. Jorge, W Dorland, P Kim, M Landreman, N R Mandell, G Merlo, and T Qian,
+     "Direct Microstability Optimization of Stellarator Devices",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2301.09356>`__
+   |
+
