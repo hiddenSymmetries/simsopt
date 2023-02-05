@@ -487,7 +487,7 @@ class GuidingCenterBoozerRHS {
                 dydt[1] = tdot;
             }
             dydt[2] = (F*v_par*modB - dmodBdpsi*fak1*I + K*fak1*dmodBdtheta)/(D*iota);
-            dydt[3] = - (mu / v_par) * (dmodBdpsi * dydt[0] * psi0 + dmodBdtheta * dydt[1] + dmodBdzeta * dydt[2]);
+            dydt[3] = - (mu / v_par) * (dmodBdpsi * sdot * psi0 + dmodBdtheta * tdot + dmodBdzeta * dydt[2]);
         }
 };
 
