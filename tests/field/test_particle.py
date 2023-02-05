@@ -414,7 +414,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
     def test_energy_momentum_conservation_boozer(self):
         tol = 1e-12
         for axis in [True,False]:
-            print('Axis =',axis)
             if axis:
                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)]
             else:
@@ -512,7 +511,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             assert max(max_energy_gc_error) < -8
             assert max(max_mu_gc_error) < -8
             assert max(max_p_gc_error) < -8
-
             """
             Perform test with perturbation in QA field -> check for linear relation
             between time derivatives of E and Pphi
@@ -751,6 +749,10 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             psip_inits = bsh.psip()[:, 0]
             psi_inits = bsh.psi0*stz_inits[:, 0]
             p_inits = vpar_inits[:, 0]*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
+            iota_inits = bsh.iota()[:,0]    
+
+            # print('s init: ',stz_inits[:,0])
+            # print('iota m - n',iota_inits*Phim-Phin)
 
             gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
@@ -761,6 +763,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             max_mu_gc_error = np.array([])
             max_p_gc_error = np.array([])
             for i in range(nparticles):
+                # print('s init: ',s_inits[i,0])
                 gc_ty = gc_tys[i]
                 idxs = np.random.randint(0, gc_ty.shape[0], size=(N, ))
                 gc_xyzs = gc_ty[idxs, 1:4]
@@ -883,8 +886,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 p_gc_error = np.log10(np.abs(p_gc - p_gc[0])/np.abs(p_gc[0]))
                 max_p_gc_error = np.append(p_gc_error, max(p_gc_error[3::]))
 
-                assert max(max_energy_gc_error) < -8
-                assert max(max_p_gc_error) < -8
+            assert max(max_energy_gc_error) < -8
+            assert max(max_p_gc_error) < -8
 
             """
             Now perform tests without perturbation for QH field with G, I, and K terms added
@@ -946,7 +949,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             """
 
             gc_tys, gc_phi_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
-                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[0], omegas=[0], mode='gc',
+                                                           tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], omegas=[], mode='gc',
                                                            stopping_criteria=stopping_criteria,
                                                            tol=tol, forget_exact_path=True)
 
