@@ -111,8 +111,8 @@ class GuidingCenterVacuumBoozerRHS {
             double v_par = ys[3];
             double s, theta;
             if (axis) {
-                s = std::sqrt(std::pow(ys[0],2)+std::pow(ys[1],2));
-                theta = std::atan2(ys[1],ys[0]);          
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]);          
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -184,8 +184,8 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double time = ys[4];
             double s, theta;
             if (axis) {
-                s = std::sqrt(std::pow(ys[0],2)+std::pow(ys[1],2));
-                theta = std::atan2(ys[1],ys[0]);          
+                s = sqrt(pow(ys[0],2) + pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]);          
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -206,9 +206,9 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = Phihat * cos(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double Phi = Phihat * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidpsi = 0;
-            double Phidot = - Phihat * omega * sin(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double Phidot = - Phihat * omega * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidtheta = Phidot * Phim / omega;
             double dPhidzeta = - Phidot * Phin / omega;
             double alpha = - Phi * (iota*Phim - Phin)/(omega*G);
@@ -273,8 +273,8 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double time = ys[4];
             double s, theta;
             if (axis) {
-                s = std::sqrt(std::pow(ys[0],2)+std::pow(ys[1],2));
-                theta = std::atan2(ys[1],ys[0]);          
+                s = sqrt(pow(ys[0],2) + pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]);          
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -298,9 +298,9 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = Phihat * cos(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double Phi = Phihat * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidpsi = 0;
-            double Phidot = - Phihat * omega * sin(Phim * ys[1] - Phin * ys[2] + omega * time + phase);
+            double Phidot = - Phihat * omega * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidtheta = Phidot * Phim / omega;
             double dPhidzeta = - Phidot * Phin / omega;
             double alpha = - Phi * (iota*Phim - Phin)/(omega*(G+iota*I));
@@ -641,13 +641,18 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
                 ykeep[1] = atan2(y[1],y[0]);
             }
+            // for (int i = 0; i < y.size(); i++) {
+            //   std::cout << "i: " << i << std::endl;
+            //   std::cout << "ykeep: " << ykeep[i] << std::endl;
+            //   std::cout << "y: " << y[i] << std::endl;
+            // }
             res.push_back(join<1, RHS::Size>({t}, ykeep));
         }
         tuple<double, double> step = dense.do_step(rhs);
         iter++;
         t = dense.current_time();
         y = dense.current_state();
-        if (flux) {
+         if (flux) {
           t_current = t;
           phi_current = y[2];
           vpar_current = y[3];
@@ -721,13 +726,13 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         }
         // check whether we have satisfied any of the extra stopping criteria (e.g. left a surface)
         for (int i = 0; i < stopping_criteria.size(); ++i) {
-            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, y[0], y[1], y[2], y[3])){
+            ykeep = y;
+            if (rhs.axis) {
+                ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+                ykeep[1] = atan2(y[1],y[0]);
+            }
+            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
                 stop = true;
-                ykeep = y;
-                if (rhs.axis) {
-                    ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-                    ykeep[1] = atan2(y[1],y[0]);
-                }
                 res.push_back(join<1, RHS::Size>({t}, ykeep));
                 res_phi_hits.push_back(join<2, RHS::Size>({t, -1-double(i)}, ykeep));
                 break;
@@ -744,7 +749,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
             ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
             ykeep[1] = atan2(y[1],y[0]);
         }        
-        res.push_back(join<1, RHS::Size>({tmax}, y));
+        res.push_back(join<1, RHS::Size>({tmax}, ykeep));
     }
     return std::make_tuple(res, res_phi_hits);
 }
@@ -792,13 +797,17 @@ particle_guiding_center_boozer_perturbed_tracing(
     double modB = field->modB()(0);
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*modB);
-
-    array<double, 5> y = {stz_init[0], stz_init[1], stz_init[2], vtang, 0};
+    array<double, 5> y;
     double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
-
+    
+    if (axis) {
+      y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang,0};
+    } else {
+      y = {stz_init[0], stz_init[1], stz_init[2], vtang, 0};
+    }
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
         Phim, Phin, phase, axis);
@@ -810,7 +819,6 @@ particle_guiding_center_boozer_perturbed_tracing(
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria,
         vpars, phis_stop, vpars_stop, true, forget_exact_path);
   }
-
 }
 
 template<template<class, std::size_t, xt::layout_type> class T>
@@ -828,12 +836,17 @@ particle_guiding_center_boozer_tracing(
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*modB);
 
-    array<double, 4> y = {stz_init[0], stz_init[1], stz_init[2], vtang};
+    array<double, 4> y;
     double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
+    if (axis) {
+      y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang};
+    } else {
+      y = {stz_init[0], stz_init[1], stz_init[2], vtang};
+    }
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu, axis);
       return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, omegas, stopping_criteria,
