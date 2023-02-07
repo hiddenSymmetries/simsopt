@@ -13,14 +13,8 @@ except ImportError as e:
     MPI = None
     logger.debug(str(e))
 
-if MPI is not None:
-    try:
-        from simsopt.mhd.vmec import Vmec
-        from simsopt.mhd.boozer import Boozer
-    except ImportError as e:
-        Vmec = None
-        Boozer = None
-        logger.debug(str(e))
+from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.boozer import Boozer
 
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
