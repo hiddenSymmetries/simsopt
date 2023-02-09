@@ -76,7 +76,7 @@ def parallel_loop_bounds(comm, n):
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
                            parallel_speeds: NDArray[Float], tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           abstol=1e-9, reltol=1e-9, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
                            forget_exact_path=False, zetas_stop=False, vpars_stop=False,
                            Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=False):
     r"""
@@ -164,7 +164,10 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
             or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
-
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     nparticles = stz_inits.shape[0]
     assert stz_inits.shape[0] == len(parallel_speeds)
     speed_par = parallel_speeds
@@ -218,7 +221,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    abstol=1e-9, reltol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                    tol=1e-9, abstol=None, reltol=None, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                     phase_angle=0):
     r"""
     Follow particles in a magnetic field.
@@ -284,7 +287,10 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
             or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
-
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     nparticles = xyz_inits.shape[0]
     assert xyz_inits.shape[0] == len(parallel_speeds)
     speed_par = parallel_speeds
@@ -330,7 +336,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
                                       mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                       Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                      abstol=1e-9, reltol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                      tol=1e-9, abstol=None, reltol=None, comm=None, seed=1, umin=-1, umax=+1,
                                       phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                                       phase_angle=0):
     r"""
@@ -369,6 +375,10 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
@@ -385,7 +395,7 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
 def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
                                         mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                         Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                        abstol=1e-9, reltol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                        tol=1e-9, abstol=None, reltol=None, comm=None, seed=1, umin=-1, umax=+1,
                                         phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                                         phase_angle=0):
     r"""
@@ -425,6 +435,10 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
@@ -669,7 +683,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     return ntransits
 
 
-def compute_fieldlines(field, R0, Z0, tmax=200, abstol=1e-7, reltol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, abstol=None, reltol=None, phis=[], stopping_criteria=[], comm=None):
     r"""
     Compute magnetic field lines by solving
 
@@ -704,6 +718,10 @@ def compute_fieldlines(field, R0, Z0, tmax=200, abstol=1e-7, reltol=1e-7, phis=[
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
     assert len(R0) == len(Z0)
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.asarray(R0)
