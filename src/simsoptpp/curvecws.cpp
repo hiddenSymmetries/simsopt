@@ -37,8 +37,8 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         {
             for (int i = 0; i < 2 * ntor + 1; ++i)
             {
-                r += rc(m, i) * cos(m * ptheta - nfp * i * pphi);
-                z += zs(m, i) * sin(m * ptheta - nfp * i * pphi);
+                r += rc(m, i) * cos(m * ptheta - nfp * (i-ntor) * pphi);
+                z += zs(m, i) * sin(m * ptheta - nfp * (i-ntor) * pphi);
             }
         }
         if (!stellsym)
@@ -47,8 +47,8 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
             {
                 for (int i = 0; i < 2 * ntor + 1; ++i)
                 {
-                    r += rs(m, i) * sin(m * ptheta - nfp * i * pphi);
-                    z += zc(m, i) * cos(m * ptheta - nfp * i * pphi);
+                    r += rs(m, i) * sin(m * ptheta - nfp * (i-ntor) * pphi);
+                    z += zc(m, i) * cos(m * ptheta - nfp * (i-ntor) * pphi);
                 }
             }
         }

@@ -127,7 +127,7 @@ public:
     vector<double> get_dofs_surface()
     {
         set_dofs_surface(idofs);
-        auto res = vector<double>(num_dofs(), 0.);
+        auto res = vector<double>(num_dofs_surface(), 0.);
         int shift = (mpol + 1) * (2 * ntor + 1);
         int counter = 0;
         if (stellsym)
