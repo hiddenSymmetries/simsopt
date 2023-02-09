@@ -6,6 +6,7 @@
 #include "xtensor/xview.hpp"
 #include <functional>
 #include <vector>
+#include <math.h>
 
 // Project a 3-vector onto the L2 ball with radius m_maxima
 std::tuple<double, double, double> projection_L2_balls(double x1, double x2, double x3, double m_maxima) {
@@ -805,6 +806,253 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 	}
     }
     return std::make_tuple(objective_history, Bn_history, m_history, x);
+}
+
+// Variant of the GPMO algorithm for solving the permanent magnet optimization 
+// problem in which the user has the option to specify arbitrary allowable 
+// polarization vectors for each dipole. 
+// 
+// For the backtracking approach, pairs of nearby magnets will be eliminated
+// if the angle between their dipole moments meets or exceeds a certain  
+// threshold value specified by the user as thresh_angle (in radians). 
+//
+// The input K specifies the maximum number of iterations to perform. The 
+// algorithm will terminate before K iterations are reached if:
+// (1) the number of magnets placed reaches max_nMagnets, or 
+// (2) the net increase in magnet count following a backtracking step is zero.
+//
+// The A matrix should be rescaled by m_maxima since we are assuming all ones 
+// in m.
+std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
+    Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, 
+    Array& pol_vectors, int K, bool verbose, int nhistory, int backtracking, 
+    Array& dipole_grid_xyz, int Nadjacent, double thresh_angle, 
+    int max_nMagnets)
+{
+    int ngrid = A_obj.shape(1);
+    int nPolVecs = pol_vectors.shape(1);
+    int N = int(A_obj.shape(0) / 3);
+    int N3 = 3 * N;
+    int NNp = nPolVecs * N;
+    int print_iter = 0;
+
+    double cos_thresh_angle = cos(thresh_angle);
+
+    Array x = xt::zeros<double>({N, 3});
+    vector<int> x_vec(N);
+    vector<int> x_sign(N);
+
+    // record the history of the algorithm iterations
+    Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
+    Array objective_history = xt::zeros<double>({nhistory + 1});
+    Array Bn_history = xt::zeros<double>({nhistory + 1});
+
+    // print out the names of the error columns
+    if (verbose)
+        printf("Running the GPMO backtracking algorithm with arbitrary "
+               "polarization vectors\n");
+        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+
+    // initialize Gamma_complement with all indices available
+    Array Gamma_complement = xt::ones<bool>({N});
+	
+    // initialize least-square values to large numbers    
+    vector<double> R2s(2*NNp, 1e50);
+    vector<int> skj(K);
+    vector<int> skjj(K);
+    vector<double> sign_fac(K);
+    
+    double* R2s_ptr = &(R2s[0]);
+    double* Aij_ptr = &(A_obj(0, 0));
+    double* Gamma_ptr = &(Gamma_complement(0));
+    double* pol_vec_ptr = &(pol_vectors(0,0,0));
+    
+    // initialize running matrix-vector product
+    Array Aij_mj_sum = -b_obj;
+    double mmax_sum = 0.0;
+    double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* normal_norms_ptr = &(normal_norms(0));
+    double* mmax_ptr = &(mmax(0));
+
+    // Get indices for dipoles that are adjacent to dipole j
+    Array Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
+
+    int num_nonzero = 0;
+    Array num_nonzeros = xt::zeros<int>({nhistory + 1});
+
+    // Main loop over the optimization iterations
+    for (int k = 0; k < K; ++k) {
+
+#pragma omp parallel for schedule(static)
+
+	for (int j = 0; j < N; j += 1) {
+
+	    // Check all the allowed dipole positions
+	    if (Gamma_ptr[j]) {
+
+                for (int m = 0; m < nPolVecs; m++) {
+
+                    int mj = j*nPolVecs + m;
+		    double R2 = 0.0;
+                    double R2minus = 0.0;
+
+                    // Contribution to the normal field from the mth 
+                    // allowable polarization vector
+                    for(int i = 0; i < ngrid; ++i) {
+                        double bnorm = 0.0;
+                        for (int l = 0; l < 3; ++l) {
+                            int nj3 = ngrid * (3*j + l);
+                            double pol_vec_l = pol_vec_ptr[l+3*(nPolVecs*j+m)];
+                            bnorm += pol_vec_l * Aij_ptr[i+nj3];
+                        }
+                        R2 += (Aij_mj_ptr[i] + bnorm) * (Aij_mj_ptr[i] + bnorm);
+                        R2minus += (Aij_mj_ptr[i] - bnorm) * (Aij_mj_ptr[i] - bnorm);
+                    }
+		    R2s_ptr[mj] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
+                    R2s_ptr[mj + NNp] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
+		}
+	    }
+	}
+
+	// find the dipole that most minimizes the least-squares term
+        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), 
+                     R2s.end())));
+	if (skj[k] >= NNp) {
+	    skj[k] -= NNp;
+	    sign_fac[k] = -1.0;
+	}
+	else {
+            sign_fac[k] = 1.0;
+	}
+	skjj[k] = (skj[k] % nPolVecs); 
+	skj[k] = int(skj[k] / (double) nPolVecs);
+        x_vec[skj[k]] = skjj[k];
+        x_sign[skj[k]] = sign_fac[k];
+
+	// Add binary magnet and get rid of the magnet (all three components)
+        // from the complement of Gamma 
+        for (int l = 0; l < 3; ++l) {
+            int pol_ind = l + 3 * (nPolVecs * skj[k] + skjj[k]);
+	    int skj_inds = (3 * skj[k] + l) * ngrid;
+            x(skj[k], l) = sign_fac[k] * pol_vec_ptr[pol_ind];
+#pragma omp parallel for schedule(static)
+	    for(int i = 0; i < ngrid; ++i) {
+                Aij_mj_ptr[i] += sign_fac[k] * pol_vec_ptr[pol_ind] * Aij_ptr[i + skj_inds];
+            }
+	}
+        Gamma_complement(skj[k]) = false;
+        for (int m = 0; m < nPolVecs; ++m) {
+	    R2s[skj[k]*nPolVecs + m] = 1e50;
+	    R2s[NNp + skj[k]*nPolVecs + m] = 1e50;
+        }
+        num_nonzero += 1;
+
+        // Backtrack by removing adjacent dipoles that are equal and opposite
+        if ((k >= backtracking) and ((k % backtracking) == 0)) {
+
+            int wyrm_sum = 0;
+
+            // Loop over all dipoles placed so far
+            for (int j = 0; j < k; j++) {
+
+                int kj = skj[j];
+                int km = x_vec[kj];
+
+                // Skip if dipole has already been removed
+                if (Gamma_complement(kj)) continue;
+
+                // Loop over adjacent dipoles and check if a nearby one exceeds
+                // the maximum allowable angle difference
+                for (int jj = 0; jj < Nadjacent; ++jj) {
+
+                    int cj = Connect(kj, jj);
+                    int cm = x_vec[cj];
+
+                    // Skip if dipole has not been placed
+                    if (Gamma_complement(cj)) continue;
+
+                    double cos_angle = 0;
+                    for (int l = 0; l < 3; ++l) {
+                        cos_angle += x(kj, l) * x(cj, l);
+                    }
+
+                    if (cos_angle <= cos_thresh_angle) {
+
+                        // Subtract the pair's contribution to Aij * mj
+                        #pragma omp parallel for schedule(static)
+                        for (int i = 0; i < ngrid; ++i) {
+                            for (int l = 0; l < 3; ++l) {
+                                int A_ind_k = ngrid * (3*kj + l);
+                                int A_ind_c = ngrid * (3*cj + l);
+                                int pol_ind_k = l + 3*(kj*nPolVecs + km);
+                                int pol_ind_c = l + 3*(cj*nPolVecs + cm);
+                                Aij_mj_ptr[i] -= 
+                                    x_sign[kj] * pol_vec_ptr[pol_ind_k] 
+                                               * Aij_ptr[i + A_ind_k]
+                                  + x_sign[cj] * pol_vec_ptr[pol_ind_c]
+                                               * Aij_ptr[i + A_ind_c];
+                            }
+                        }
+
+                        // Reset the solution vectors
+                        for (int l = 0; l < 3; ++l) {
+                            x(kj, l) = 0.0;
+                            x(cj, l) = 0.0;
+                        }
+                        x_vec[kj] = 0;
+                        x_vec[cj] = 0;
+                        x_sign[kj] = 0;
+                        x_sign[cj] = 0;
+
+                        // Indicate that the pair is now available
+                        Gamma_complement(kj) = true;
+                        Gamma_complement(cj) = true;
+
+                        // Adjust running totals
+                        num_nonzero -= 2;
+                        wyrm_sum += 1;
+
+                        // Don't check more dipoles in vicinity of removed
+                        // magnet
+                        break;
+                    }
+                }
+            }
+            printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum,
+                   backtracking);
+        }
+
+	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
+                       Bn_history, m_history, mmax_sum, normal_norms_ptr);
+	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", 
+                   k, num_nonzero);
+
+            // if stuck at some number of dipoles, break out of the loop
+            num_nonzeros(print_iter) = num_nonzero;
+            if (print_iter > 10 
+                && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) 
+                && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) {
+
+                printf("Stopping iterations: number of nonzero dipoles "
+                       "unchanged over three backtracking cycles");
+                break;
+            }
+            else if (num_nonzero == N) {
+                printf("Stopping iterations: maximum number of nonzero "
+                       "magnets reached ");
+                break;
+            }
+            else if (num_nonzero == max_nMagnets) {
+                printf("Stopping iterations: all dipoles in grid "
+                       "are populated");
+                break;
+            }
+	}
+    }
+
+    return std::make_tuple(objective_history, Bn_history, m_history, 
+                           num_nonzeros, x);
 }
 
 // Variant of the GPMO algorithm for solving the permanent magnet optimization
