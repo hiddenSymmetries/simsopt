@@ -139,7 +139,7 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 6>>, vector<array<double, 7>>>
 particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol,
+        double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
         bool zetas_stop=false, bool vpars_stop=false,
@@ -150,7 +150,7 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol,
+        double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false,
@@ -160,7 +160,7 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
+        double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol, bool vacuum,
         vector<double> phis, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
@@ -168,11 +168,11 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 7>>, vector<array<double, 8>>>
 particle_fullorbit_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init, array<double, 3> v_init,
-        double m, double q, double tmax, double tol, vector<double> phis,
+        double m, double q, double tmax, double abstol, double reltol, vector<double> phis,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 4>>, vector<array<double, 5>>>
 fieldline_tracing(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        double tmax, double abstol, double reltol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);

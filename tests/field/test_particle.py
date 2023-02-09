@@ -463,9 +463,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             mu_inits = (Ekin/m - 0.5*vpar_inits**2)/modB_inits
             psip_inits = bsh.psip()
             p_inits = vpar_inits*G_inits/modB_inits - q*psip_inits/m
-            # print('p inits: ',p_inits)
-            # print('mu inits: ',mu_inits)
-            # print('Ekin: ',Ekin)
             gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                          stopping_criteria=stopping_criteria,
@@ -497,9 +494,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]))
                     mu_gc = np.append(mu_gc, Ekin/(m*AbsBs_gc[j]) - 0.5*v_gc**2/AbsBs_gc[j])
                     p_gc = np.append(p_gc, v_gc*G_gc[j]/AbsBs_gc[j] - q*psip[j]/m)
-                # print('p: ',p_gc)
-                # print('mu: ',mu_gc)
-                # print('energy: ',energy_gc)
 
                 energy_gc_error = np.log10(np.abs(energy_gc-Ekin)/np.abs(energy_gc[0]))
                 mu_gc_error = np.log10(np.abs(mu_gc-muInitial)/np.abs(mu_gc[0]))
@@ -507,7 +501,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 max_energy_gc_error = np.append(max_energy_gc_error, max(energy_gc_error[3::]))
                 max_mu_gc_error = np.append(max_mu_gc_error, max(mu_gc_error[3::]))
                 max_p_gc_error = np.append(max_p_gc_error, max(p_gc_error[3::]))
-            # print(max_energy_gc_error)
             assert max(max_energy_gc_error) < -8
             assert max(max_mu_gc_error) < -8
             assert max(max_p_gc_error) < -8

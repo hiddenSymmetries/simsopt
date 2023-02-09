@@ -76,7 +76,7 @@ def parallel_loop_bounds(comm, n):
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
                            parallel_speeds: NDArray[Float], tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           abstol=1e-9, reltol=1e-9, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
                            forget_exact_path=False, zetas_stop=False, vpars_stop=False,
                            Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=False):
     r"""
@@ -186,14 +186,14 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         if perturbed:
             res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
                 field, stz_inits[i, :],
-                m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
+                m, charge, speed_total, speed_par[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
                 noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
                 phis_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
                 Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
         else:
             res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
                 field, stz_inits[i, :],
-                m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
+                m, charge, speed_total, speed_par[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
                 noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
                 phis_stop=zetas_stop,vpars_stop=vpars_stop,forget_exact_path=forget_exact_path,axis=axis)
         if not forget_exact_path:
@@ -218,7 +218,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
 def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
                     parallel_speeds: NDArray[Float], tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                    abstol=1e-9, reltol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                     phase_angle=0):
     r"""
     Follow particles in a magnetic field.
@@ -303,12 +303,12 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
         if 'gc' in mode:
             res_ty, res_phi_hit = sopp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
-                m, charge, speed_total, speed_par[i], tmax, tol,
+                m, charge, speed_total, speed_par[i], tmax, abstol, reltol,
                 vacuum=(mode == 'gc_vac'), phis=phis, stopping_criteria=stopping_criteria)
         else:
             res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
                 field, xyz_inits[i, :], v_inits[i, :],
-                m, charge, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+                m, charge, tmax, abstol, reltol, phis=phis, stopping_criteria=stopping_criteria)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
@@ -330,7 +330,7 @@ def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
 def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
                                       mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                       Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                      tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                      abstol=1e-9, reltol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
                                       phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                                       phase_angle=0):
     r"""
@@ -377,7 +377,7 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
     xyz, _ = draw_uniform_on_curve(curve, nparticles, safetyfactor=10)
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
-        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        Ekin=Ekin, abstol=abstol, reltol=reltol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
         phase_angle=phase_angle)
 
@@ -385,7 +385,7 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
 def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
                                         mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                         Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                        tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                        abstol=1e-9, reltol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
                                         phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                                         phase_angle=0):
     r"""
@@ -433,7 +433,7 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
     xyz, _ = draw_uniform_on_surface(surface, nparticles, safetyfactor=10)
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
-        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        Ekin=Ekin, abstol=abstol, reltol=reltol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
         phase_angle=phase_angle)
 
@@ -669,7 +669,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     return ntransits
 
 
-def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def compute_fieldlines(field, R0, Z0, tmax=200, abstol=1e-7, reltol=1e-7, phis=[], stopping_criteria=[], comm=None):
     r"""
     Compute magnetic field lines by solving
 
@@ -714,7 +714,7 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
     for i in range(first, last):
         res_ty, res_phi_hit = sopp.fieldline_tracing(
             field, xyz_inits[i, :],
-            tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+            tmax, abstol, reltol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
