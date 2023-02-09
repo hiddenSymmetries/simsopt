@@ -145,6 +145,8 @@ void init_curves(py::module_ &m) {
 
     auto pycurvecws = py::class_<PyCurveCWS, shared_ptr<PyCurveCWS>, PyCurveCWSTrampoline<PyCurveCWS>, PyCurve>(m, "CurveCWS")
         .def(py::init<int, int, vector<double>, int, int, int, bool>())
+        .def("get_dofs_surface", &PyCurveCWS::get_dofs_surface)
+        .def("num_dofs_surface", &PyCurveCWS::num_dofs_surface)
         .def_readonly("order", &PyCurveCWS::order)
         .def_readonly("nfp", &PyCurveCWS::nfp)
         .def_readonly("stellsym", &PyCurveCWS::stellsym)
