@@ -305,6 +305,15 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             **algorithm_kwargs
         )
         pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
+    elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
+        algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_ArbVec_backtracking(
+            A_obj=np.ascontiguousarray(A_obj.T),
+            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            mmax=np.sqrt(reg_l2)*mmax_vec,
+            normal_norms=Nnorms,
+            pol_vectors=np.ascontiguousarray(pm_opt.pol_vectors),
+            **algorithm_kwargs
+        )
     elif algorithm == 'multi':  # GPMOm
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_multi(
             A_obj=np.ascontiguousarray(A_obj.T),
