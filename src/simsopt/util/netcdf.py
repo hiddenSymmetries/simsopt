@@ -10,7 +10,6 @@ _all__ = ['netcdf_file']
 
 import logging
 from enum import Enum
-from abc import ABC, abstractmethod
 
 
 class NetCDF(Enum):
@@ -25,52 +24,10 @@ try:
     from netCDF4 import Dataset
 except ImportError as e:
     logger.debug(str(e))
-    try:
-        from scipy.io import netcdf_file as scipy_netcdf_file
-    except ImportError as e:
-        # this error is fatal
-        logger.debug(str(e))
-        raise e
-    else:
-        netcdf = NetCDF.scipy
+    from scipy.io import netcdf_file as scipy_netcdf_file
+    netcdf = NetCDF.scipy
 else:
     netcdf = NetCDF.netCDF4
-
-
-class AbstractNetCDF:
-    """
-    This class is not used, it merely defines the interface that
-    the objects 'netcdf_file' from scipy and 'Dataset' from NetCDF4 
-    both satisfy. 
-    """
-    @abstractmethod
-    def __setattr__(self, attr, value):
-        pass
-
-    @abstractmethod
-    def close(self):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.close()
-
-    @abstractmethod
-    def createDimension(self, name, length):
-        pass
-
-    @abstractmethod
-    def createVariable(self, name, type, dimensions):
-        pass
-
-    @abstractmethod
-    def flush(self):
-        pass
-
-    def sync(self):
-        self.flush()
 
 
 def netcdf_file(filename, mode='r', mmap=None, format='NETCDF3_CLASSIC'):

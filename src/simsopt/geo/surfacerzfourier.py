@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
 import f90nml
 
