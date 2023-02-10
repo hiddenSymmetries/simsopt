@@ -177,6 +177,42 @@ class SurfaceTaylorTests(unittest.TestCase):
             return s.dgammadash1dash2_by_dcoeff()[1, 1, :, :].copy()
         taylor_test(f, df, coeffs)
 
+        def f(dofs):
+            s.x = dofs
+            return s.aspect_ratio()
+
+        def df(dofs):
+            s.x = dofs
+            return s.daspect_ratio_by_dcoeff()
+        taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.major_radius()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dmajor_radius_by_dcoeff()
+        taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.minor_radius()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dminor_radius_by_dcoeff()
+        taylor_test(f, df, coeffs)
+
+        def f(dofs):
+            s.x = dofs
+            return s.mean_cross_sectional_area()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dmean_cross_sectional_area_by_dcoeff()
+        taylor_test(f, df, coeffs)
+
     def test_surface_coefficient_derivative(self):
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
