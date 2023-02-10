@@ -25,7 +25,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import WindingVolumeField
 from simsopt.geo import WindingVolumeGrid
-from simsopt.solve import relax_and_split, relax_and_split_wrapper, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split, relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
@@ -35,8 +35,8 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 32
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
 Nx = 16
 Ny = Nx
 Nz = Nx  # - 1
@@ -44,13 +44,12 @@ poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
 coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 lam = 0
-l0_threshold = 1e5
-nu = 1e15
+l0_threshold = 0
+nu = 1e100
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-# s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 qphi = s.nfp * nphi * 2
@@ -60,9 +59,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
-
-####### Temporary
-# s = s_plot
 
 # Make the output directoryå
 OUT_DIR = 'wv_QA_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '_N' + str(Nx) + '_Tikhonov{:.2e}'.format(lam) + '_l0{:.2e}'.format(l0_threshold) + '_nu{:.2e}'.format(nu) + '/'
@@ -146,10 +142,16 @@ t1 = time.time()
 acceleration = True
 max_iter = 200
 cpp = True
-rs_max_iter = 10
+rs_max_iter = 1
 
 # alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split(wv_grid, lam=lam, nu=nu, P=projection_onto_constraints, max_iter=max_iter, l0_threshold=l0_threshold, rs_max_iter=rs_max_iter)
-alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split_increasingl0(wv_grid, lam=lam, nu=nu, P=projection_onto_constraints, max_iter=max_iter, l0_threshold=l0_threshold, rs_max_iter=rs_max_iter)
+l0_thresholds = np.linspace(l0_threshold, 10 * l0_threshold, 10)
+alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split_increasingl0(
+    wv_grid, lam=lam, nu=nu, 
+    P=projection_onto_constraints, 
+    max_iter=max_iter, 
+    # l0_thresholds=l0_thresholds, 
+    rs_max_iter=rs_max_iter)
 
 # print('alpha_opt = ', alpha_opt)
 if projection_onto_constraints is not None:
@@ -161,8 +163,9 @@ plt.figure()
 plt.semilogy(fB, label=r'$f_B$')
 plt.semilogy(lam * fK, label=r'$\lambda \|\alpha\|^2$')
 plt.semilogy(fI, label=r'$f_I$')
-plt.semilogy(fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
-plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
+if l0_threshold > 0:
+    plt.semilogy(fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
+    plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
 plt.semilogy(fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()

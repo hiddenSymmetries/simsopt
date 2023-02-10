@@ -3,7 +3,7 @@ from simsoptpp import acc_prox_grad_descent, matmult, matmult_sparseA
 import time
 # from scipy.linalg import svd
 
-__all__ = ['projected_gradient_descent_Tikhonov', 'relax_and_split', 'relax_and_split_wrapper', 'relax_and_split_increasingl0']
+__all__ = ['projected_gradient_descent_Tikhonov', 'relax_and_split', 'relax_and_split_increasingl0']
 
 
 def prox_group_l0(alpha, threshold, n, num_basis):
@@ -350,29 +350,7 @@ def relax_and_split(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000
     return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I), 0.5 * np.array(f_RS) / nu, f_0
 
 
-def relax_and_split_wrapper(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_threshold=0.0):
-    l0_thresholds = np.linspace(l0_threshold, l0_threshold * 50, 10)
-    fB = []
-    fK = []
-    fI = []
-    fRS = []
-    f0 = []
-    alpha0 = None
-    for threshold in l0_thresholds:
-        print('threshold = ', threshold)
-        alpha_opt, f_B, f_K, f_I, f_RS, f_0 = relax_and_split(
-            winding_volume, lam=lam, nu=nu, alpha0=alpha0, max_iter=max_iter, P=P, rs_max_iter=rs_max_iter, l0_threshold=threshold
-        )
-        fB.append(f_B)
-        fK.append(f_K)
-        fI.append(f_I)
-        fRS.append(f_RS)
-        f0.append(f_0)
-        alpha0 = alpha_opt
-    return alpha_opt, 0.5 * 2 * np.array(fB) * 2, 0.5 * np.array(fK), 0.5 * np.array(fI), 0.5 * np.array(fRS) / nu, f0
-
-
-def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_threshold=0.0):
+def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_thresholds=[0.0]):
     """
         This function performs a relax-and-split algorithm for solving the 
         current voxel problem. The convex part of the solve is done with
@@ -387,7 +365,6 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
                 so is assumed to be stored as a scipy csc_matrix. 
     """
     t1 = time.time()
-    l0_thresholds = np.linspace(l0_threshold, l0_threshold * 50, 10)
     n = winding_volume.N_grid
     nfp = winding_volume.plasma_boundary.nfp
     num_basis = winding_volume.n_functions
