@@ -31,11 +31,22 @@ else:
 
 
 def netcdf_file(filename, mode='r', mmap=None, format='NETCDF3_CLASSIC'):
-    """Wrapper around scipy.io's netcdf_file or Dataset from NetCDF4."""
+    r"""
+    Wrapper that initializes and returns a scipy.io's netcdf_file or Dataset from NetCDF4.
+    See  `scipy.io.netcdf_file <https://docs.scipy.org/doc/scipy/reference/generated/scipy.io.netcdf_file.html#scipy.io.netcdf_file>`_.
+    The output object should satisfy the interface of the object returned by scipy.io.netcdf_file, with methods: close(), flush(), sync(), createDimension(name, length), createVariable(name, type, dimensions), __enter__(), __exit__().
+
+    Args:
+        filename : string or file-like. File to read or write from or to.
+        mode: {'r', 'w', 'a'}. read ('r'), write ('w') or append ('a') mode. Default: 'r'
+        mmap: None or bool. Whether to mmap when reading the file.
+        format: {1, 2, 'NETCDF3_CLASSIC', 'NETCDF3_64BIT_OFFSET'). Netcdf format. Only used when mode='w'.
+
+    """
     if netcdf == NetCDF.scipy:
-        if format == 'NETCDF3_CLASSIC':
+        if (format == 'NETCDF3_CLASSIC') or (format == 1):
             version = 1
-        elif format == 'NETCDF3_64BIT_OFFSET':
+        elif (format == 'NETCDF3_64BIT_OFFSET') or (format == 2):
             version = 2
         else:
             raise ValueError('scipy.io netcdf_file only supports "NETCDF3_CLASSIC" or "NETCDF3_64BIT_OFFSET" formats.')
