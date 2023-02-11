@@ -16,7 +16,6 @@ except ImportError as e:
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.boozer import Boozer
 
-
 class BoozerMagneticField(sopp.BoozerMagneticField):
     r"""
     Generic class that represents a magnetic field in Boozer coordinates
@@ -368,7 +367,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if self.proc0:
                 equil.run()
                 booz = Booz_xform()
-                booz.read_wout(equil.output_file)
+                booz.read_wout(equil.output_file,True)
                 booz.verbose = verbose
                 booz.mboz = mpol
                 booz.nboz = ntor
