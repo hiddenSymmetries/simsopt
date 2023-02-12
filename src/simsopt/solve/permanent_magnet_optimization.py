@@ -306,6 +306,10 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         )
         pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
     elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
+        if pm_opt.coordinate_flag != 'cartesian':
+            raise ValueError('ArbVec_backtracking algorithm currently ' \
+                             'only supports dipole grids with \n'
+                             'moment vectors in the Cartesian basis.')
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_ArbVec_backtracking(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),

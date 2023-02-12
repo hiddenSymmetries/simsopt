@@ -646,12 +646,12 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
-	if (verbose && ((k % int(2*K / nhistory)) == 0) || k == 0) {
+	if (verbose && ((k % int(2*K / nhistory)) == 0) || k == 0 || k == 2*K-1) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
 	    // if get stuck at some number of dipoles, break out of the loop
-	    num_nonzeros(print_iter) = num_nonzero;
+	    num_nonzeros(print_iter-1) = num_nonzero;
 	    if (print_iter > 10 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) break;
 	}
 	//if (print_iter > nhistory) {
@@ -1029,7 +1029,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                    k, num_nonzero);
 
             // if stuck at some number of dipoles, break out of the loop
-            num_nonzeros(print_iter) = num_nonzero;
+            num_nonzeros(print_iter-1) = num_nonzero;
             if (print_iter > 10 
                 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) 
                 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) {
