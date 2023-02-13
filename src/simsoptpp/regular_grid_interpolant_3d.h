@@ -102,7 +102,7 @@ class RegularGridInterpolant3D {
         Vec xdoftensor_reduced, ydoftensor_reduced, zdoftensor_reduced;
 
         Vec vals; // contains the values of the function to be interpolated at the dofs, of size dofs_to_keep * value_size
-        std::unordered_map<int, AlignedPaddedVec> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
+        std::unordered_map<int, AlignedPaddedVecPortable> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
         std::vector<bool> skip_cell; // whether to skip each cell or not
         // since we are skipping some dofs, we need mappings into the list of
         // reduced dofs, e.g. if we skip dofs 3, then reduced to full would

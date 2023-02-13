@@ -46,6 +46,7 @@ uint64_t rdtsc(){
 
 
 void profile_biot_savart(int nsources, int ntargets, int nderivatives){ 
+    // using vector_type = AlignedPaddedVecPortable;
     using vector_type = AlignedPaddedVec;
 
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
@@ -92,13 +93,15 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
 }
 
 void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){ 
+    using vector_type = AlignedPaddedVecPortable;
+    // using vector_type = AlignedPaddedVec;
+
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> gamma          = xt::random::randn<double>({nsources, 3});
     xt::xarray<double> dgamma_by_dphi = xt::random::randn<double>({nsources, 3});
     xt::xarray<double> v = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> vgrad = xt::random::randn<double>({ntargets, 3, 3});
 
-    using vector_type = AlignedPaddedVec;
     auto pointsx = vector_type(points.shape(0), 0);
     auto pointsy = vector_type(points.shape(0), 0);
     auto pointsz = vector_type(points.shape(0), 0);

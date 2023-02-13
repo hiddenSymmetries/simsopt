@@ -141,4 +141,9 @@ inline simd_t rsqrt(const simd_t& r2){
     //simd_t rinv = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2)));
     return 1./sqrt(r2);
 }
+
 #endif
+
+inline double rsqrt(const double& r2){
+    return 1./sqrt(r2);
+}
