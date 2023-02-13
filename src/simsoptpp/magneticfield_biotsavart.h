@@ -7,7 +7,7 @@
 #include "magneticfield.h"
 #include "coil.h"
 
-typedef AlignedPaddedVec AlignedPaddedVector;
+// typedef AlignedPaddedVecPortable AlignedPaddedVector;
 
 template<template<class, std::size_t, xt::layout_type> class T, class Array>
 class BiotSavart : public MagneticField<T> {
