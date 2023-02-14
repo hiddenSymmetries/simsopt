@@ -23,8 +23,8 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
             nderivs = 2;
         }
     }
-
-#pragma omp parallel for
+    /*
+    #pragma omp parallel for
     for(int i=0; i<num_coils; i++) {
         if(nderivs == 2)
             biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], d2B_by_dXdX[i]);
@@ -33,6 +33,18 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
                 biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], dummyhess);
             else
                 biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dummyjac, dummyhess);
+        }
+    }
+    */
+    #pragma omp parallel for
+    for(int i=0; i<num_coils; i++) {
+        if(nderivs == 2)
+            biot_savart_kernel_plain<Array, 2>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], d2B_by_dXdX[i]);
+        else {
+            if(nderivs == 1)
+                biot_savart_kernel_plain<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], dummyhess);
+            else
+                biot_savart_kernel_plain<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dummyjac, dummyhess);
         }
     }
 }
