@@ -5,7 +5,7 @@ from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
-from simsopt.configs.zoo import get_ncsx_data, get_hsx_data
+from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_w7x_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -49,7 +49,7 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                for config in [get_ncsx_data, get_hsx_data]:
+                for config in [get_ncsx_data, get_hsx_data, get_w7x_data]:
                     with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
                         self.subtest_qfm_objective_gradient(surfacetype, stellsym, config)
 
