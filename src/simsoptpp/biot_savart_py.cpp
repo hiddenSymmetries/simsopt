@@ -39,12 +39,12 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
     #pragma omp parallel for
     for(int i=0; i<num_coils; i++) {
         if(nderivs == 2)
-            biot_savart_kernel_plain<Array, 2>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], d2B_by_dXdX[i]);
+            biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], d2B_by_dXdX[i]);
         else {
             if(nderivs == 1)
-                biot_savart_kernel_plain<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], dummyhess);
+                biot_savart_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dB_by_dX[i], dummyhess);
             else
-                biot_savart_kernel_plain<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dummyjac, dummyhess);
+                biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i], B[i], dummyjac, dummyhess);
         }
     }
 }
