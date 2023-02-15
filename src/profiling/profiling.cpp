@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <stdint.h>
 
+using namespace std;
 
 #ifdef __x86_64__
 uint64_t rdtsc(){
@@ -44,10 +45,10 @@ uint64_t rdtsc(){
 }
 #endif
 
-
+template<class vector_type>
 void profile_biot_savart(int nsources, int ntargets, int nderivatives){ 
     // using vector_type = AlignedPaddedVecPortable;
-    using vector_type = AlignedPaddedVec;
+    // using vector_type = AlignedPaddedVec;
 
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> gamma          = xt::random::randn<double>({nsources, 3});
@@ -92,8 +93,9 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
         << std::endl;
 }
 
+template<class vector_type>
 void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){ 
-    using vector_type = AlignedPaddedVecPortable;
+    //using vector_type = AlignedPaddedVecPortable;
     // using vector_type = AlignedPaddedVec;
 
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
@@ -204,18 +206,34 @@ void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
 
 
 int main() {
+    cout << "BiotSavart with XSIMD:\n";
     for(int nd=0; nd<3; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart(nst, nst, nd);
+            profile_biot_savart<AlignedPaddedVec>(nst, nst, nd);
+    }
+    cout << "BiotSavart with Non XSIMD:\n";
+    for(int nd=0; nd<3; nd++) {
+        std::cout << "Number of derivatives: " << nd << std::endl;
+        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
+        for(int nst=10; nst<=10000; nst*=10)
+            profile_biot_savart<AlignedPaddedVecPortable>(nst, nst, nd);
     }
 
+    cout << "BiotSavartVJP with XSIMD:\n";
     for(int nd=0; nd<2; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart_vjp(nst, nst, nd);
+            profile_biot_savart_vjp<AlignedPaddedVec>(nst, nst, nd);
+    }
+    cout << "BiotSavartVJP with Non XSIMD:\n";
+    for(int nd=0; nd<2; nd++) {
+        std::cout << "Number of derivatives: " << nd << std::endl;
+        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
+        for(int nst=10; nst<=10000; nst*=10)
+            profile_biot_savart_vjp<AlignedPaddedVecPortable>(nst, nst, nd);
     }
     /*
     for (int deg = 1; deg <= 6; ++deg) {
