@@ -316,35 +316,30 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
         // vectors. so we have to ignore those results. Disgarding the unneeded
         // entries is actually faster than falling back to scalar operations
         // (which would require treat i = 8, 9, 10 all individually).
-        /*
-        int jlimit = std::min(simd_size, num_points-i);
-        for(int j=0; j<jlimit; j++){
-            B(i+j, 0) = fak * B_i.x[j];
-            B(i+j, 1) = fak * B_i.y[j];
-            B(i+j, 2) = fak * B_i.z[j];
-            if constexpr(derivs > 0) {
-                for(int k=0; k<3; k++) {
-                    dB_by_dX(i+j, k, 0) = fak*dB_dX_i[k].x[j];
-                    dB_by_dX(i+j, k, 1) = fak*dB_dX_i[k].y[j];
-                    dB_by_dX(i+j, k, 2) = fak*dB_dX_i[k].z[j];
-                }
+        B(i, 0) = fak * B_i.x;
+        B(i, 1) = fak * B_i.y;
+        B(i, 2) = fak * B_i.z;
+        if constexpr(derivs > 0) {
+            for(int k=0; k<3; k++) {
+                dB_by_dX(i, k, 0) = fak*dB_dX_i[k].x;
+                dB_by_dX(i, k, 1) = fak*dB_dX_i[k].y;
+                dB_by_dX(i, k, 2) = fak*dB_dX_i[k].z;
             }
-            if constexpr(derivs > 1) {
-                for(int k1=0; k1<3; k1++) {
-                    for(int k2=0; k2<=k1; k2++) {
-                        d2B_by_dXdX(i+j, k1, k2, 0) = fak*d2B_dXdX_i[3*k1 + k2].x[j];
-                        d2B_by_dXdX(i+j, k1, k2, 1) = fak*d2B_dXdX_i[3*k1 + k2].y[j];
-                        d2B_by_dXdX(i+j, k1, k2, 2) = fak*d2B_dXdX_i[3*k1 + k2].z[j];
-                        if(k2 < k1){
-                            d2B_by_dXdX(i+j, k2, k1, 0) = fak*d2B_dXdX_i[3*k1 + k2].x[j];
-                            d2B_by_dXdX(i+j, k2, k1, 1) = fak*d2B_dXdX_i[3*k1 + k2].y[j];
-                            d2B_by_dXdX(i+j, k2, k1, 2) = fak*d2B_dXdX_i[3*k1 + k2].z[j];
-                        }
+        }
+        if constexpr(derivs > 1) {
+            for(int k1=0; k1<3; k1++) {
+                for(int k2=0; k2<=k1; k2++) {
+                    d2B_by_dXdX(i, k1, k2, 0) = fak*d2B_dXdX_i[3*k1 + k2].x;
+                    d2B_by_dXdX(i, k1, k2, 1) = fak*d2B_dXdX_i[3*k1 + k2].y;
+                    d2B_by_dXdX(i, k1, k2, 2) = fak*d2B_dXdX_i[3*k1 + k2].z;
+                    if(k2 < k1){
+                        d2B_by_dXdX(i, k2, k1, 0) = fak*d2B_dXdX_i[3*k1 + k2].x;
+                        d2B_by_dXdX(i, k2, k1, 1) = fak*d2B_dXdX_i[3*k1 + k2].y;
+                        d2B_by_dXdX(i, k2, k1, 2) = fak*d2B_dXdX_i[3*k1 + k2].z;
                     }
                 }
             }
         }
-        */
     }
 }
 
@@ -590,34 +585,29 @@ void biot_savart_kernel_A(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPor
         // vectors. so we have to ignore those results. Disgarding the unneeded
         // entries is actually faster than falling back to scalar operations
         // (which would require treat i = 8, 9, 10 all individually).
-        /*
-        int jlimit = std::min(simd_size, num_points-i);
-        for(int j=0; j<jlimit; j++){
-            A(i+j, 0) = fak * A_i.x[j];
-            A(i+j, 1) = fak * A_i.y[j];
-            A(i+j, 2) = fak * A_i.z[j];
-            if constexpr(derivs > 0) {
-                for(int k=0; k<3; k++) {
-                    dA_by_dX(i+j, k, 0) = fak*dA_dX_i[k].x[j];
-                    dA_by_dX(i+j, k, 1) = fak*dA_dX_i[k].y[j];
-                    dA_by_dX(i+j, k, 2) = fak*dA_dX_i[k].z[j];
-                }
+        A(i, 0) = fak * A_i.x;
+        A(i, 1) = fak * A_i.y;
+        A(i, 2) = fak * A_i.z;
+        if constexpr(derivs > 0) {
+            for(int k=0; k<3; k++) {
+                dA_by_dX(i, k, 0) = fak*dA_dX_i[k].x;
+                dA_by_dX(i, k, 1) = fak*dA_dX_i[k].y;
+                dA_by_dX(i, k, 2) = fak*dA_dX_i[k].z;
             }
-            if constexpr(derivs > 1) {
-                for(int k1=0; k1<3; k1++) {
-                    for(int k2=0; k2<=k1; k2++) {
-                        d2A_by_dXdX(i+j, k1, k2, 0) = fak*d2A_dXdX_i[3*k1 + k2].x[j];
-                        d2A_by_dXdX(i+j, k1, k2, 1) = fak*d2A_dXdX_i[3*k1 + k2].y[j];
-                        d2A_by_dXdX(i+j, k1, k2, 2) = fak*d2A_dXdX_i[3*k1 + k2].z[j];
-                        if(k2 < k1){
-                            d2A_by_dXdX(i+j, k2, k1, 0) = fak*d2A_dXdX_i[3*k1 + k2].x[j];
-                            d2A_by_dXdX(i+j, k2, k1, 1) = fak*d2A_dXdX_i[3*k1 + k2].y[j];
-                            d2A_by_dXdX(i+j, k2, k1, 2) = fak*d2A_dXdX_i[3*k1 + k2].z[j];
-                        }
+        }
+        if constexpr(derivs > 1) {
+            for(int k1=0; k1<3; k1++) {
+                for(int k2=0; k2<=k1; k2++) {
+                    d2A_by_dXdX(i, k1, k2, 0) = fak*d2A_dXdX_i[3*k1 + k2].x;
+                    d2A_by_dXdX(i, k1, k2, 1) = fak*d2A_dXdX_i[3*k1 + k2].y;
+                    d2A_by_dXdX(i, k1, k2, 2) = fak*d2A_dXdX_i[3*k1 + k2].z;
+                    if(k2 < k1){
+                        d2A_by_dXdX(i, k2, k1, 0) = fak*d2A_dXdX_i[3*k1 + k2].x;
+                        d2A_by_dXdX(i, k2, k1, 1) = fak*d2A_dXdX_i[3*k1 + k2].y;
+                        d2A_by_dXdX(i, k2, k1, 2) = fak*d2A_dXdX_i[3*k1 + k2].z;
                     }
                 }
             }
         }
-        */
     }
 }
