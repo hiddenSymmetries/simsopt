@@ -51,12 +51,18 @@ class BiotSavart : public MagneticField<T> {
         inline void fill_points(const Tensor2& points) {
             // allocating these aligned vectors is not super cheap, so reuse
             // whenever possible.
-            if(pointsx.size() != npoints)
-                pointsx = AlignedPaddedVecPortable(npoints, 0.);
-            if(pointsy.size() != npoints)
-                pointsy = AlignedPaddedVecPortable(npoints, 0.);
-            if(pointsz.size() != npoints)
-                pointsz = AlignedPaddedVecPortable(npoints, 0.);
+            if(pointsx.size() != npoints){
+                pointsx.clear();
+                pointsx.resize(npoints, 0.0);
+            }
+            if(pointsy.size() != npoints){
+                pointsy.clear();
+                pointsx.resize(npoints, 0.0);
+            }
+            if(pointsz.size() != npoints){
+                pointsz.clear();
+                pointsx.resize(npoints, 0.0);
+            }
             for (int i = 0; i < npoints; ++i) {
                 pointsx[i] = points(i, 0);
                 pointsy[i] = points(i, 1);
