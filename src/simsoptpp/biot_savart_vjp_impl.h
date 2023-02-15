@@ -201,7 +201,7 @@ void biot_savart_vjp_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecP
         Vec3dSimdPortable point_i = Vec3dSimdPortable(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimdPortable();
         // auto vgrad_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        auto vgrad_i = vector<Vec3dSimdPortable, AlignedPaddedAllocator<Vec3dSimdPortable>>{
+        auto vgrad_i = vector<Vec3dSimdPortable>{
                 Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
             };
 #pragma unroll
@@ -527,7 +527,7 @@ void biot_savart_vector_potential_vjp_kernel(
         Vec3dSimdPortable point_i = Vec3dSimdPortable(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimdPortable();
         // auto vgrad_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        auto vgrad_i = vector<Vec3dSimdPortable, AlignedPaddedAllocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
+        auto vgrad_i = vector<Vec3dSimdPortable>{
                 Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
             };
 #pragma unroll
