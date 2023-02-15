@@ -10,7 +10,6 @@ residuals_20*.dat
 _skbuild/
 build/
 build-cmake/
-cmake-build/
 dist/
 .eggs/
 pip-wheel-metadata/

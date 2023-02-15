@@ -48,6 +48,7 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
             {
                 for (int i = 0; i < 2 * ntor + 1; ++i)
                 {
+                    int n = i - ntor;
                     r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
                     z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
                 }
