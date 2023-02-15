@@ -621,8 +621,6 @@ class WindingVolumeGrid:
 
                 Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
-                print(Phivec_transpose.shape, int_points.shape, points.shape, plasma_unitnormal.shape)
-                print(stell_list, nfp, self.coil_range)
                 geo_factor += sopp.winding_volume_field_Bext_SIMD(
                     points, 
                     contig(int_points), 

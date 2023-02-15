@@ -350,7 +350,7 @@ def relax_and_split(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000
     return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I), 0.5 * np.array(f_RS) / nu, f_0
 
 
-def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_thresholds=[0.0]):
+def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_thresholds=[0.0], print_iter=100):
     """
         This function performs a relax-and-split algorithm for solving the 
         current voxel problem. The convex part of the solve is done with
@@ -373,9 +373,16 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
         alpha_opt = alpha0
     else:
         alpha_opt = (np.random.rand(N) - 0.5) * 1e3  
+
+    print(alpha_opt.shape, P.shape)
+    C = winding_volume.C
+    d = winding_volume.d
+    print(C.dot(alpha_opt)[-1])
+    print(np.linalg.norm(winding_volume.C.dot(alpha_opt) - winding_volume.d))
     if P is not None:
         alpha_opt = P.dot(alpha_opt)
-    alpha_opt_T = alpha_opt.T
+    print(C.dot(alpha_opt)[-1])
+    print(np.linalg.norm(winding_volume.C.dot(alpha_opt) - winding_volume.d))
 
     B = winding_volume.B_matrix
     I = winding_volume.Itarget_matrix
@@ -390,14 +397,16 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
     IT = I.T
     b_I = b_I.reshape(1, 1)
     b = b.reshape(len(b), 1)
-    ITbI = IT * b_I 
-    BTb = BTb.reshape(len(BTb), 1)     
-    alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
+    ITbI = contig(IT * b_I)
+    BTb = contig(BTb.reshape(len(BTb), 1))   
+    alpha_opt = contig(alpha_opt.reshape(len(alpha_opt), 1))
     IT = contig(IT)
     BT = contig(BT)
     I = contig(I)
     B = contig(B)
     t2 = time.time()
+
+    print(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
 
     lam_nu = (lam + 1.0 / nu)
 
@@ -406,7 +415,8 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
     # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
     t1 = time.time()
     if True:
-        L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam_nu, axis=0), axis=-1)
+        # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam_nu, axis=0), axis=-1)
+        L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + np.eye(N) * lam_nu, axis=0), axis=-1)
     else:
         L = 2e-12  # L = 1e-12 for N = 30, L = 2.4e-12 for N = 24, so not a bad guess
 
@@ -422,10 +432,9 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
     f_RS = []
     f_0 = []
     f_0w = []
-    print_iter = 10
     t1 = time.time()
     # w_opt = np.copy(alpha_opt)  # (np.random.rand(len(alpha_opt), 1) - 0.5) * 1e5
-    w_opt = prox_group_l0(np.copy(alpha_opt), l0_thresholds[0], n, num_basis)
+    w_opt = prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     for j, threshold in enumerate(l0_thresholds):
         # alpha0 = alpha_opt
         # w_opt = prox_group_l0(np.copy(alpha0), l0_threshold, n, num_basis)
@@ -434,16 +443,20 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
             f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
             step_size_i = step_size
             alpha_opt_prev = alpha_opt
-            BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
+            BTB_ITbI_nuw = BTb + w_opt / nu
+            # BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
             # print(w_opt, alpha_opt)
             for i in range(max_iter):
-                vi = alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev)
-                alpha_opt_prev = alpha_opt
-                alpha_opt = P.dot(
-                    vi + step_size_i * (BTB_ITbI_nuw - matmult(BT, matmult(B, contig(vi))) - matmult(IT, matmult(I, contig(vi))) - lam_nu * vi)
-                )
-                step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
-                # alpha_opt = P.dot(alpha_opt + step_size * (BTB_ITbI_nuw - BT @ (B ßß@ alpha_opt) - IT * (I @ alpha_opt) - lam_nu * alpha_opt))
+                # vi = contig(alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev))
+                # alpha_opt_prev = alpha_opt
+                # alpha_opt = P.dot(
+                #     vi + step_size_i * (BTB_ITbI_nuw - matmult(BT, matmult(B, vi)) - lam_nu * vi)
+                #     # vi + step_size_i * (BTB_ITbI_nuw - matmult(BT, matmult(B, vi)) - matmult(IT, matmult(I, vi)) - lam_nu * vi)
+                # )
+                # step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
+                # alpha_opt = P.dot(alpha_opt + step_size * (BTB_ITbI_nuw - matmult(BT, matmult(B, contig(alpha_opt))) - matmult(IT, matmult(I, contig(alpha_opt))) - lam_nu * alpha_opt))
+                # alpha_opt = P.dot(alpha_opt + step_size * (BTB_ITbI_nuw - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam_nu * alpha_opt))
+                alpha_opt = alpha_opt + step_size * P.dot(BTB_ITbI_nuw - BT @ (B @ alpha_opt) - lam_nu * alpha_opt)
 
                 # print metrics
                 if ((i % print_iter) == 0.0 or i == max_iter - 1):
