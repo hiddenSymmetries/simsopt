@@ -37,8 +37,9 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
         {
             for (int i = 0; i < 2 * ntor + 1; ++i)
             {
-                r += rc(m, i) * cos(m * ptheta - nfp * (i - ntor) * pphi);
-                z += zs(m, i) * sin(m * ptheta - nfp * (i - ntor) * pphi);
+                int n = i - ntor;
+                r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
+                z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
             }
         }
         if (!stellsym)
@@ -47,8 +48,8 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
             {
                 for (int i = 0; i < 2 * ntor + 1; ++i)
                 {
-                    r += rs(m, i) * sin(m * ptheta - nfp * (i - ntor) * pphi);
-                    z += zc(m, i) * cos(m * ptheta - nfp * (i - ntor) * pphi);
+                    r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
+                    z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
                 }
             }
         }
@@ -111,11 +112,12 @@ void CurveCWS<Array>::gammadash_impl(Array &data)
         {
             for (int i = 0; i < 2 * ntor + 1; ++i)
             {
-                r += rc(m, i) * cos(m * ptheta - nfp * i * pphi);
-                z += zs(m, i) * sin(m * ptheta - nfp * i * pphi);
+                int n = i - ntor;
+                r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
+                z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
 
-                dr += -rc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
-                dz += zs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
+                dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
             }
         }
         if (!stellsym)
@@ -124,11 +126,12 @@ void CurveCWS<Array>::gammadash_impl(Array &data)
             {
                 for (int i = 0; i < 2 * ntor + 1; ++i)
                 {
-                    r += rs(m, i) * sin(m * ptheta - nfp * i * pphi);
-                    z += zc(m, i) * cos(m * ptheta - nfp * i * pphi);
+                    int n = i - ntor;
+                    r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
+                    z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
 
-                    dr += rs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
-                    dz += -zc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
+                    dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                    dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
                 }
             }
         }
@@ -200,14 +203,15 @@ void CurveCWS<Array>::gammadashdash_impl(Array &data)
         {
             for (int i = 0; i < 2 * ntor + 1; ++i)
             {
-                r += rc(m, i) * cos(m * ptheta - nfp * i * pphi);
-                z += zs(m, i) * sin(m * ptheta - nfp * i * pphi);
+                int n = i - ntor;
+                r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
+                z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
 
-                dr += -rc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
-                dz += zs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
+                dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
 
-                ddr += -rc(m, i) * cos(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
-                ddz += -zs(m, i) * sin(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) + zs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
+                ddr += -rc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
+                ddz += -zs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
             }
         }
         if (!stellsym)
@@ -216,14 +220,15 @@ void CurveCWS<Array>::gammadashdash_impl(Array &data)
             {
                 for (int i = 0; i < 2 * ntor + 1; ++i)
                 {
-                    r += rs(m, i) * sin(m * ptheta - nfp * i * pphi);
-                    z += zc(m, i) * cos(m * ptheta - nfp * i * pphi);
+                    int n = i - ntor;
+                    r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
+                    z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
 
-                    dr += rs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
-                    dz += -zc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
+                    dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                    dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
 
-                    ddr += -rs(m, i) * sin(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) + rs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
-                    ddz += -zc(m, i) * cos(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) - zc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
+                    ddr += -rs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
+                    ddz += -zc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
                 }
             }
         }
@@ -305,17 +310,18 @@ void CurveCWS<Array>::gammadashdashdash_impl(Array &data)
         {
             for (int i = 0; i < 2 * ntor + 1; ++i)
             {
-                r += rc(m, i) * cos(m * ptheta - nfp * i * pphi);
-                z += zs(m, i) * sin(m * ptheta - nfp * i * pphi);
+                int n = i - ntor;
+                r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
+                z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
 
-                dr += -rc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
-                dz += zs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
+                dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
 
-                ddr += -rc(m, i) * cos(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
-                ddz += -zs(m, i) * sin(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) + zs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
+                ddr += -rc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
+                ddz += -zs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
 
-                ddd_r += rc(m, i) * sin(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 3) - rc(m, i) * cos(m * ptheta - nfp * i * pphi) * 2 * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) - rc(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) - rc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * ddd_ptheta - nfp * i * ddd_pphi);
-                ddd_z += -zs(m, i) * cos(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 3) - zs(m, i) * sin(m * ptheta - nfp * i * pphi) * 2 * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) - zs(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) + zs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * ddd_ptheta - nfp * i * ddd_pphi);
+                ddd_r += rc(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - rc(m, i) * cos(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - rc(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
+                ddd_z += -zs(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - zs(m, i) * sin(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - zs(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) + zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
             }
         }
         if (!stellsym)
@@ -324,17 +330,18 @@ void CurveCWS<Array>::gammadashdashdash_impl(Array &data)
             {
                 for (int i = 0; i < 2 * ntor + 1; ++i)
                 {
-                    r += rs(m, i) * sin(m * ptheta - nfp * i * pphi);
-                    z += zc(m, i) * cos(m * ptheta - nfp * i * pphi);
+                    int n = i - ntor;
+                    r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
+                    z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
 
-                    dr += rs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
-                    dz += -zc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi);
+                    dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                    dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
 
-                    ddr += -rs(m, i) * sin(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) + rs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
-                    ddz += -zc(m, i) * cos(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 2) - zc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * ddptheta - nfp * i * ddpphi);
+                    ddr += -rs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
+                    ddz += -zc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
 
-                    ddd_r += -rs(m, i) * cos(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 3) - rs(m, i) * sin(m * ptheta - nfp * i * pphi) * 2 * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) - rs(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) + rs(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * ddd_ptheta - nfp * i * ddd_pphi);
-                    ddd_z += zc(m, i) * sin(m * ptheta - nfp * i * pphi) * pow((m * dptheta - nfp * i * dpphi), 3) - zc(m, i) * cos(m * ptheta - nfp * i * pphi) * 2 * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) - zc(m, i) * cos(m * ptheta - nfp * i * pphi) * (m * dptheta - nfp * i * dpphi) * (m * ddptheta - nfp * i * ddpphi) - zc(m, i) * sin(m * ptheta - nfp * i * pphi) * (m * ddd_ptheta - nfp * i * ddd_pphi);
+                    ddd_r += -rs(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - rs(m, i) * sin(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - rs(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) + rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
+                    ddd_z += zc(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - zc(m, i) * cos(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - zc(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
                 }
             }
         }
