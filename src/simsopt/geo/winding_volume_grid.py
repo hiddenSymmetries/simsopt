@@ -771,9 +771,9 @@ class WindingVolumeGrid:
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         num_basis = self.n_functions
-        # flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
+        flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
 
-        flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis), dtype="double")
+        # flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis), dtype="double")
         i_constraint = 0
         q = 0
         qq = 0
@@ -882,9 +882,9 @@ class WindingVolumeGrid:
         self.flux_factor = flux_factor
 
         # Once matrix elements are set, convert to CSC for quicker matrix ops
-        self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
+        # self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
         #flux_constraint_matrix = flux_constraint_matrix.todense()
-        # self.flux_constraint_matrix = flux_constraint_matrix
+        self.flux_constraint_matrix = flux_constraint_matrix
         # CCT = flux_constraint_matrix @ flux_constraint_matrix.T
         # print(CCT)
         # S_C = np.linalg.svd(flux_constraint_matrix, compute_uv=False)

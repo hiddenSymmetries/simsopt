@@ -3,7 +3,7 @@ from simsoptpp import acc_prox_grad_descent, matmult, matmult_sparseA
 import time
 # from scipy.linalg import svd
 
-__all__ = ['projected_gradient_descent_Tikhonov', 'relax_and_split', 'relax_and_split_increasingl0']
+__all__ = ['projected_gradient_descent_Tikhonov', 'relax_and_split', 'relax_and_split_increasingl0', 'relax_and_split_analytic']
 
 
 def prox_group_l0(alpha, threshold, n, num_basis):
@@ -325,7 +325,7 @@ def relax_and_split(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000
                       f_0w[k], step_size_i)  
 
         # now do the prox step
-        print(np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
+        # print(np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
         print('Number of cells below the threshold = ', 
               np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) < l0_threshold), 
               ' / ', n
@@ -350,7 +350,10 @@ def relax_and_split(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000
     return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I), 0.5 * np.array(f_RS) / nu, f_0
 
 
-def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, max_iter=5000, P=None, rs_max_iter=1, l0_thresholds=[0.0], print_iter=100):
+def relax_and_split_increasingl0(
+        winding_volume, lam=0.0, nu=1e20, 
+        alpha0=None, max_iter=5000, P=None, 
+        rs_max_iter=1, l0_thresholds=[0.0], print_iter=1):
     """
         This function performs a relax-and-split algorithm for solving the 
         current voxel problem. The convex part of the solve is done with
@@ -379,8 +382,8 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
     d = winding_volume.d
     print(C.dot(alpha_opt)[-1])
     print(np.linalg.norm(winding_volume.C.dot(alpha_opt) - winding_volume.d))
-    if P is not None:
-        alpha_opt = P.dot(alpha_opt)
+    # if P is not None:
+    #     alpha_opt = P.dot(alpha_opt)
     print(C.dot(alpha_opt)[-1])
     print(np.linalg.norm(winding_volume.C.dot(alpha_opt) - winding_volume.d))
 
@@ -433,6 +436,7 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
     f_0 = []
     f_0w = []
     t1 = time.time()
+    print('C @ alpha  (initial) =', C @ alpha_opt)
     # w_opt = np.copy(alpha_opt)  # (np.random.rand(len(alpha_opt), 1) - 0.5) * 1e5
     w_opt = prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     for j, threshold in enumerate(l0_thresholds):
@@ -457,21 +461,25 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
                 # alpha_opt = P.dot(alpha_opt + step_size * (BTB_ITbI_nuw - matmult(BT, matmult(B, contig(alpha_opt))) - matmult(IT, matmult(I, contig(alpha_opt))) - lam_nu * alpha_opt))
                 # alpha_opt = P.dot(alpha_opt + step_size * (BTB_ITbI_nuw - BT @ (B @ alpha_opt) - IT * (I @ alpha_opt) - lam_nu * alpha_opt))
                 alpha_opt = alpha_opt + step_size * P.dot(BTB_ITbI_nuw - BT @ (B @ alpha_opt) - lam_nu * alpha_opt)
+                print(C @ (step_size * P.dot(BTB_ITbI_nuw - BT @ (B @ alpha_opt) - lam_nu * alpha_opt)))
 
                 # print metrics
-                if ((i % print_iter) == 0.0 or i == max_iter - 1):
-                    f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
-                    f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
-                    f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
-                    f_RS.append(np.linalg.norm(np.ravel(alpha_opt - w_opt) ** 2))
-                    f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
-                    ind = (j * max_iter * rs_max_iter + k * max_iter + (i + 1)) // print_iter
-                    print(i, f_B[ind], 
-                          f_I[ind], 
-                          lam * f_K[ind], 
-                          f_RS[ind] / nu, 
-                          f_0[ind], 
-                          f_0w[j * rs_max_iter + k], step_size_i)  
+                # if ((i % print_iter) == 0.0 or i == max_iter - 1):
+                f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
+                f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
+                f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
+                f_RS.append(np.linalg.norm(np.ravel(alpha_opt - w_opt) ** 2))
+                f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
+                ind = i  # (j * max_iter * rs_max_iter + k * max_iter + (i + 1)) # // print_iter
+                print(i, f_B[ind], 
+                      f_I[ind], 
+                      lam * f_K[ind], 
+                      f_RS[ind] / nu, 
+                      f_0[ind], 
+                      f_0w[j * rs_max_iter + k], 
+                      step_size_i,
+                      winding_volume.C @ alpha_opt
+                      )  
 
             # now do the prox step
             print(np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
@@ -481,6 +489,154 @@ def relax_and_split_increasingl0(winding_volume, lam=0.0, nu=1e20, alpha0=None, 
                   )
             print('Relax-and-split iteration = ', (k + 1), ' / ', rs_max_iter)
             w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
+
+    t2 = time.time()
+    print('Time to run algo = ', t2 - t1, ' s')
+    t1 = time.time()
+    alpha_opt = np.ravel(alpha_opt)
+    winding_volume.alphas = alpha_opt
+    winding_volume.w = np.ravel(w_opt)
+    winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
+    alphas = winding_volume.alphas.reshape(n, num_basis)
+    for i in range(3):
+        for j in range(winding_volume.Phi.shape[2]):
+            for k in range(num_basis):
+                winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
+    t2 = time.time()
+    print('Time to compute J = ', t2 - t1, ' s')
+    return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I), 0.5 * np.array(f_RS) / nu, f_0
+
+
+def relax_and_split_analytic(
+        winding_volume, lam=0.0, nu=1e20, 
+        alpha0=None, max_iter=5000, P=None, 
+        rs_max_iter=1, l0_thresholds=[0.0], print_iter=100):
+    """
+        This function performs a relax-and-split algorithm for solving the 
+        current voxel problem. The convex part of the solve is done with
+        accelerated projected gradient descent and the nonconvex part 
+        can be solved with the prox of the group l0 norm... hard 
+        thresholding on the whole set of alphas in a grid cell. 
+
+        Args:
+            P : projection matrix onto the linear equality constraints representing
+                the flux jump constraints. If C is the flux jump constraint matrix,
+                P = I - C.T @ (C * C.T)^{-1} @ C. P is very large but very sparse
+                so is assumed to be stored as a scipy csc_matrix. 
+    """
+    t1 = time.time()
+    n = winding_volume.N_grid
+    nfp = winding_volume.plasma_boundary.nfp
+    num_basis = winding_volume.n_functions
+    N = n * num_basis
+    if alpha0 is not None:
+        alpha_opt = alpha0
+    else:
+        alpha_opt = (np.random.rand(N) - 0.5) * 1e3  
+
+    print(alpha_opt.shape, P.shape)
+    C = winding_volume.C
+    d = winding_volume.d
+    print(C.dot(alpha_opt)[-1])
+    print(np.linalg.norm(winding_volume.C.dot(alpha_opt) - winding_volume.d))
+    # if P is not None:
+    #     alpha_opt = P.dot(alpha_opt)
+    print(C.dot(alpha_opt)[-1])
+    print(np.linalg.norm(winding_volume.C.dot(alpha_opt) - winding_volume.d))
+
+    B = winding_volume.B_matrix
+    I = winding_volume.Itarget_matrix
+    BT = B.T
+    b = winding_volume.b_rhs
+    b_I = winding_volume.Itarget_rhs
+    BTb = BT @ b
+    IT = I.T
+    ITbI = IT * b_I 
+    contig = np.ascontiguousarray
+    I = I.reshape(1, len(winding_volume.Itarget_matrix))
+    IT = I.T
+    b_I = b_I.reshape(1, 1)
+    b = b.reshape(len(b), 1)
+    ITbI = contig(IT * b_I)
+    BTb = contig(BTb.reshape(len(BTb), 1))   
+    alpha_opt = contig(alpha_opt.reshape(len(alpha_opt), 1))
+    IT = contig(IT)
+    BT = contig(BT)
+    I = contig(I)
+    B = contig(B)
+    t2 = time.time()
+
+    print(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
+
+    lam_nu = (lam + 1.0 / nu)
+
+    print('Time to setup the algo = ', t2 - t1, ' s')
+
+    # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
+    t1 = time.time()
+    if True:
+        # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam_nu, axis=0), axis=-1)
+        L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + np.eye(N) * lam_nu, axis=0), axis=-1)
+    else:
+        L = 2e-12  # L = 1e-12 for N = 30, L = 2.4e-12 for N = 24, so not a bad guess
+
+    step_size = 1.0 / L  # largest step size suitable for gradient descent
+    print('L, step_size = ', L, step_size) 
+    t2 = time.time()
+
+    print('Time to setup step size = ', t2 - t1, ' s')
+
+    C = winding_volume.C 
+    CT = C.T
+    d = winding_volume.d 
+    H = np.linalg.inv(BT @ B + np.eye(N) * lam_nu)
+    CHCT_inv = np.linalg.pinv(C @ H @ CT)
+    analytic_mat = H @ (np.eye(N) - CT @ CHCT_inv @ C @ H)
+    analytic_vec = (H @ CT @ CHCT_inv @ d).reshape(N, 1)
+
+    f_B = []
+    f_I = []
+    f_K = []
+    f_RS = []
+    f_0 = []
+    f_0w = []
+    t1 = time.time()
+    print('C @ alpha  (initial) =', C @ alpha_opt)
+    # w_opt = np.copy(alpha_opt)  # (np.random.rand(len(alpha_opt), 1) - 0.5) * 1e5
+    w_opt = prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
+    for j, threshold in enumerate(l0_thresholds):
+        # alpha0 = alpha_opt
+        # w_opt = prox_group_l0(np.copy(alpha0), l0_threshold, n, num_basis)
+        print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
+        for k in range(rs_max_iter):
+            f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
+            BTB_nuw = BTb + w_opt / nu
+
+            alpha_opt = analytic_mat.dot(BTB_nuw) + analytic_vec
+            w_opt = prox_group_l0(alpha_opt, threshold, n, num_basis)
+
+            f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
+            f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
+            f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
+            f_RS.append(np.linalg.norm(np.ravel(alpha_opt - w_opt) ** 2))
+            f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
+            ind = (j * rs_max_iter + k) // print_iter
+            print(k, f_B[ind], 
+                  f_I[ind], 
+                  lam * f_K[ind], 
+                  f_RS[ind] / nu, 
+                  f_0[ind], 
+                  f_0w[j * rs_max_iter + k], 
+                  # winding_volume.C @ alpha_opt
+                  )  
+
+            # now do the prox step
+            # print(np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
+            # print('Number of cells below the threshold = ', 
+            #       np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) < threshold), 
+            #       ' / ', n
+            #       )
+            # print('Relax-and-split iteration = ', (k + 1), ' / ', rs_max_iter)
 
     t2 = time.time()
     print('Time to run algo = ', t2 - t1, ' s')
