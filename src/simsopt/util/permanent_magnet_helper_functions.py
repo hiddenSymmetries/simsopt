@@ -265,6 +265,7 @@ def read_focus_coils(filename):
     base_currents = [Current(coilcurrents[i]) for i in range(ncoils)]
     ppp = 20
     coils = [CurveXYZFourier(order*ppp, order) for i in range(ncoils)]
+    print(coils)
     for ic in range(ncoils):
         dofs = coils[ic].dofs
         dofs[0][0] = coil_data[0, 6*ic + 1]
