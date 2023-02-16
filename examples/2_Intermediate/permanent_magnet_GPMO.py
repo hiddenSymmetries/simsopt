@@ -27,8 +27,8 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # change to 64 for a real run
-ntheta = 8  # same as above
+nphi = 64  # change to 64 for a real run
+ntheta = 64  # same as above
 dr = 0.01
 coff = 0.1
 poff = 0.02
@@ -82,7 +82,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000
+kwargs['K'] = 40000
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
