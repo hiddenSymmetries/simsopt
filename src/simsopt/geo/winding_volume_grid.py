@@ -531,11 +531,12 @@ class WindingVolumeGrid:
                     Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
 
         for i in range(11):
-            dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / self.dx
-            dJy_dy = -(Phi[i, :, :, 1:, :, 1] - Phi[i, :, :, :-1, :, 1]) / self.dy
-            dJz_dz = -(Phi[i, :, :, :, 1:, 2] - Phi[i, :, :, :, :-1, 2]) / self.dz
+            dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / dx
+            dJy_dy = -(Phi[i, :, :, 1:, :, 1] - Phi[i, :, :, :-1, :, 1]) / dy
+            dJz_dz = -(Phi[i, :, :, :, 1:, 2] - Phi[i, :, :, :, :-1, 2]) / dz
             divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
             divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
+            print(i, divJ)
             assert np.allclose(divJ, 0.0)
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
 
@@ -777,8 +778,29 @@ class WindingVolumeGrid:
         i_constraint = 0
         q = 0
         qq = 0
-        for i in range(self.N_grid):            
+        print('Ngrid = ', self.N_grid)
+        for i in range(self.N_grid):        
+            print(self.connection_list[i, :, :])
+            ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
+            k_ind = self.connection_list[i, ind, 0]
+            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 0])
+            ind = np.ravel(np.where(self.connection_list[i, :, 1] >= 0))
+            k_ind = self.connection_list[i, ind, 1]
+            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 1])
+            ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
+            k_ind = self.connection_list[i, ind, 2]
+            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 2], k_ind)
+            ind = np.ravel(np.where(self.connection_list[i, :, 3] >= 0))
+            k_ind = self.connection_list[i, ind, 3]
+            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 3])
+            ind = np.ravel(np.where(self.connection_list[i, :, 4] >= 0))
+            k_ind = self.connection_list[i, ind, 4]
+            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 4])
+            ind = np.ravel(np.where(self.connection_list[i, :, 5] >= 0))
+            k_ind = self.connection_list[i, ind, 5]
+            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 5])
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
+            print(i, i_constraint)
             if np.any(self.connection_list[i, :, 0] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 0]
@@ -789,6 +811,7 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[1, k_ind, :]
                 i_constraint += 1
+            print(i, i_constraint)
             if np.any(self.connection_list[i, :, 2] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 2]
@@ -799,6 +822,7 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[3, k_ind, :]
                 i_constraint += 1
+            print(i, i_constraint)
             if np.any(self.connection_list[i, :, 4] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 4] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 4]
@@ -809,6 +833,7 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[5, k_ind, :]
                 i_constraint += 1
+            print(i, i_constraint)
 
             # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction 
             # Special case for Nfp = 2, -x direction and -y direction 
@@ -832,6 +857,7 @@ class WindingVolumeGrid:
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[1, i, :]
                 i_constraint += 1
+            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 3] < 0):
                 # ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
                 if (i in y_inds) and (self.coil_range != 'full torus'):
@@ -852,27 +878,32 @@ class WindingVolumeGrid:
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[3, i, :]
                 i_constraint += 1
+            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 5] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[5, i, :]
                 i_constraint += 1
+            print(i, i_constraint)
             # Loop through cells and check if does not have a cell in the + nx, + ny, or + nz direction 
             if np.all(self.connection_list[i, :, 0] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[0, i, :]
                 i_constraint += 1
+            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 2] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[2, i, :]
                 i_constraint += 1
+            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 4] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[4, i, :]
                 i_constraint += 1
+            print(i, i_constraint)
 
         connect_list_zeros = np.copy(self.connection_list)
         connect_list_zeros[connect_list_zeros >= 0] = 1

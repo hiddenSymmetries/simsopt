@@ -11,7 +11,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
     
     // Compute distances between dipole j and all other dipoles
     // By default computes distance between dipole j and itself
-#pragma omp parallel for schedule(static)
+// #pragma omp parallel for schedule(static)
     for (int j = 0; j < Ndipole; ++j) {
 	vector<double> dist_ij(Ndipole, 1e10);
         for (int i = 0; i < Ndipole; ++i) {
@@ -25,6 +25,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
         for (int k = 0; k < 30; ++k) {
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
         int dist_ind = std::distance(dist_ij.begin(), result);
+//         if (dist_ind == 0) break;
 
 	    // Get dx, dy, dz from this ind
 	    double dxx = -(coil_points(j, 0) - coil_points(dist_ind, 0));
@@ -32,27 +33,31 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	    double dzz = -(coil_points(j, 2) - coil_points(dist_ind, 2));
 	    double dist = dist_ij[dist_ind];
 	    int dir_ind = -1;
-	    if (abs(dxx) <= tol && abs(dyy) <= tol && abs(dzz) <= dz + tol) {
-        	    // okay so the cell is adjacent... which direction is it?
-        	    if (dzz > 0) dir_ind = 4;
-        	    else dir_ind = 5;
-            	connectivity_inds(j, q, dir_ind) = dist_ind;
-		q += 1;
+	    if (dist <= std::max(std::max(dx + tol, dy + tol), dz + tol)) {
+    	    if (abs(dxx) <= tol && abs(dyy) <= tol && abs(dzz) <= dz + tol) {
+            	    // okay so the cell is adjacent... which direction is it?
+            	    if (dzz > 0) dir_ind = 4;
+            	    else dir_ind = 5;
+                	connectivity_inds(j, q, dir_ind) = dist_ind;
+    		q += 1;
+                	}
+    	    else if (abs(dxx) <= tol && abs(dzz) <= tol && abs(dyy) <= dy + tol) {
+            	    // okay so the cell is adjacent... which direction is it?
+            	    if (dyy > 0) dir_ind = 2;
+            	    else dir_ind = 3;
+                	connectivity_inds(j, q, dir_ind) = dist_ind;
+    		q += 1;
+                	}
+    	    else if (abs(dyy) <= tol && abs(dzz) <= tol && abs(dxx) <= dx + tol) {
+            	    // okay so the cell is adjacent... which direction is it?
+            	    if (dxx > 0) dir_ind = 0;
+            	    else dir_ind = 1;
+                    printf("here = %d %d %d %d\n", j, q, dir_ind, dist_ind);
+                	connectivity_inds(j, q, dir_ind) = dist_ind;
+    		q += 1;
             	}
-	    else if (abs(dxx) <= tol && abs(dzz) <= tol && abs(dyy) <= dy + tol) {
-        	    // okay so the cell is adjacent... which direction is it?
-        	    if (dyy > 0) dir_ind = 2;
-        	    else dir_ind = 3;
-            	connectivity_inds(j, q, dir_ind) = dist_ind;
-		q += 1;
-            	}
-	    else if (abs(dyy) <= tol && abs(dzz) <= tol && abs(dxx) <= dx + tol) {
-        	    // okay so the cell is adjacent... which direction is it?
-        	    if (dxx > 0) dir_ind = 0;
-        	    else dir_ind = 1;
-            	connectivity_inds(j, q, dir_ind) = dist_ind;
-		q += 1;
-            	}
+//             printf("here = %d %d %d %d %f %f %f %f %f %f %f\n", j, q, dir_ind, dist_ind, dx, dy, dz, dxx, dyy, dzz, dist);
+        }
 	    //if (dir_ind >= 0) {
  	    //    printf("%f %f %f %d %d %d %d %d %d\n", abs(dxx), abs(dyy), abs(dzz), abs(dxx) <= tol, abs(dyy) <= tol, abs(dzz) <= tol, abs(dxx) <= dx + tol, abs(dyy) <= dy + tol, abs(dzz) <= dz + tol);
   	        //printf("%d %d %d %d %f %f %f %f %f %f %f %d\n", j, dist_ind, k, q, dist, dxx, dyy, dzz, dx, dy, dz, dir_ind);
