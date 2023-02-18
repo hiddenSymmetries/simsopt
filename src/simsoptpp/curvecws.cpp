@@ -353,6 +353,166 @@ void CurveCWS<Array>::gammadashdashdash_impl(Array &data)
     }
 };
 
+/* template <class Array>
+void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
+{
+    CurveCWS<Array>::set_dofs_surface(idofs);
+    data *= 0;
+
+#pragma omp parallel for
+    for (int k = 0; k < numquadpoints; ++k)
+    {
+        double CWSt = 2 * M_PI * quadpoints[k];
+
+        double pphi = 0;
+        double ptheta = 0;
+
+        Array phi_array = xt::zeros<double>({2 * (order + 1)});
+        Array theta_array = xt::zeros<double>({2 * (order + 1)});
+
+        Array r_array = xt::zeros<double>({4 * (order + 1)});
+        Array z_array = xt::zeros<double>({4 * (order + 1)});
+
+        int counter = 0;
+
+        double r = 0;
+        double z = 0;
+
+        phi_array[counter++] = CWSt;
+        theta_array[counter++] = CWSt;
+
+        for (int i = 0; i < order + 1; ++i)
+        {
+            phi_array[counter] = cos(i * CWSt);
+            theta_array[counter] = cos(i * CWSt);
+            counter++;
+
+            pphi += phi_c[i] * cos(i * CWSt);
+            ptheta += theta_c[i] * cos(i * CWSt);
+        }
+        for (int i = 1; i < order + 1; ++i)
+        {
+            phi_array[counter] = sin(i * CWSt);
+            theta_array[counter] = sin(i * CWSt);
+            counter++;
+
+            pphi += phi_s[i - 1] * sin(i * CWSt);
+            ptheta += theta_s[i - 1] * sin(i * CWSt);
+        }
+
+        pphi += phi_l * CWSt;
+        ptheta += theta_l * CWSt;
+
+        int counter2 = 0;
+        std::cout << "chegou aqui" << std::endl;
+
+        // SURFACE
+        if (counter2 < 2 * (order + 1))
+        {
+#pragma omp parallel for
+            for (int i = 0; i <= counter; ++i)
+            {
+                for (int m = 0; m <= mpol; ++m)
+                {
+                    for (int j = 0; j < 2 * ntor + 1; ++j)
+                    {
+                        int n = j - ntor;
+                        r_array[counter2++] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        z_array[counter2++] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        std::cout << "chegou aqui 2" << std::endl;
+
+                        if (!stellsym)
+                        {
+                            r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                            z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        }
+
+                        counter2++;
+                    }
+                }
+            }
+        }
+        else if (counter2 >= 2 * (order + 1))
+        {
+#pragma omp parallel for
+            for (int i = 0; i <= counter; ++i)
+            {
+                for (int m = 0; m <= mpol; ++m)
+                {
+                    for (int j = 0; j < 2 * ntor + 1; ++j)
+                    {
+                        int n = j - ntor;
+                        r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                        z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+
+                        if (!stellsym)
+                        {
+                            r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                            z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                        }
+
+                        counter2++;
+                    }
+                }
+            }
+        }
+        /*
+                if (!stellsym)
+                {
+                    if (i < 2 * (order + 1))
+                    {
+                        for (int i = 0; i <= counter; ++i)
+                        {
+                            for (int m = 0; m <= mpol; ++m)
+                            {
+                                for (int j = 0; j < 2 * ntor + 1; ++j)
+                                {
+                                    int n = j - ntor;
+                                    r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                                    z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                                    counter2++;
+                                }
+                            }
+                        }
+                    }
+                    else if (i >= 2 * (order + 1))
+                    {
+                        for (int i = 0; i <= counter; ++i)
+                        {
+                            for (int m = 0; m <= mpol; ++m)
+                            {
+                                for (int j = 0; j < 2 * ntor + 1; ++j)
+                                {
+                                    int n = j - ntor;
+                                    r_array[counter2++] = rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                                    z_array[counter2++] = -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                                    counter2++;
+                                }
+                            }
+                        }
+                    }
+                }
+         
+
+#pragma omp parallel for
+        for (int p = 0; p < counter2; p++)
+        {
+            if (p <= counter)
+            {
+                data(k, 0, p) = r_array[p] * cos(pphi);
+                data(k, 1, p) = r_array[p] * sin(pphi);
+                data(k, 2, p) = z_array[p];
+            }
+            else if (p > counter)
+            {
+                data(k, 0, p) = -r_array[p] * sin(pphi) * phi_array[p - (counter + 1)];
+                data(k, 1, p) = r_array[p] * cos(pphi) * phi_array[p - (counter + 1)];
+                data(k, 2, p) = z_array[p];
+            }
+        }
+    }
+};
+ */
 #include "xtensor-python/pyarray.hpp" // Numpy bindings
 typedef xt::pyarray<double> Array;
 template class CurveCWS<Array>;
