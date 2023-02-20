@@ -48,12 +48,12 @@ class CurveHelical(JaxCurve):
         self.l0 = l0
         self.R0 = R0
         self.r0 = r0
-        if "x0" not in kwargs:
-            self.coefficients = [np.zeros((order,)), np.zeros((order,))]
-            kwargs["x0"] = np.concatenate(self.coefficients)
-        else:
-            self.coefficients = [np.zeros((order,)), np.zeros((order,))]
-            self.set_dofs_impl(kwargs["x0"])
+        self.coefficients = [np.zeros((order,)), np.zeros((order,))]
+        if "dofs" not in kwargs:
+            if "x0" not in kwargs:
+                kwargs["x0"] = np.concatenate(self.coefficients)
+            else:
+                self.set_dofs_impl(kwargs["x0"])
 
         super().__init__(quadpoints, pure, **kwargs)
 

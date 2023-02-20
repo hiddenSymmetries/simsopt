@@ -393,7 +393,7 @@ class Testing(unittest.TestCase):
             stellarator asymmetric) to verify that REGCOIL, as implemented in SIMSOPT,
             agrees with the REGCOIL test file solutions.
         """
-        for filename in ['regcoil_out.near_axis_asym.nc','regcoil_out.near_axis.nc','regcoil_out.w7x.nc','regcoil_out.li383.nc']:
+        for filename in ['regcoil_out.near_axis_asym.nc', 'regcoil_out.near_axis.nc', 'regcoil_out.w7x.nc', 'regcoil_out.li383.nc']:
             print(filename)
 
             # Load big list of variables from REGCOIL to check against SIMSOPT implementation
@@ -431,7 +431,7 @@ class Testing(unittest.TestCase):
             # this comparison doesn't work currently for stellarator asymmetric
             k_rhs = cpst.K_rhs()
             assert np.allclose(k_rhs, k_rhs_regcoil)
-            print('k_rhs: ',np.max(np.abs(k_rhs-k_rhs_regcoil))/np.mean(np.abs(k_rhs)))
+            print('k_rhs: ', np.max(np.abs(k_rhs-k_rhs_regcoil))/np.mean(np.abs(k_rhs)))
 
             # Compare plasma current
             assert np.allclose(cpst.Bnormal_plasma, Bnormal_from_plasma_current.flatten())
@@ -462,7 +462,7 @@ class Testing(unittest.TestCase):
             print(np.max(np.abs(r_plasma[0:nzeta_plasma, :, :] - s_plasma.gamma())))
 
             # Compare plasma surface normal
-            norm_normal_plasma_simsopt = np.linalg.norm(s_plasma_full.normal(),axis=-1)
+            norm_normal_plasma_simsopt = np.linalg.norm(s_plasma_full.normal(), axis=-1)
             assert np.allclose(norm_normal_plasma*2*np.pi*2*np.pi, norm_normal_plasma_simsopt[0:nzeta_plasma, :])
             print(np.max(np.abs(norm_normal_plasma*2*np.pi*2*np.pi-norm_normal_plasma_simsopt[0:nzeta_plasma, :])))
 
@@ -472,9 +472,9 @@ class Testing(unittest.TestCase):
             print(np.max(np.abs(r_coil - s_coil.gamma())))
 
             # Compare winding surface normal
-            norm_normal_coil_simsopt = np.linalg.norm(s_coil.normal(),axis=-1)
-            print(np.max(np.abs(norm_normal_coil*2*np.pi*2*np.pi-norm_normal_coil_simsopt[0:nzeta_coil,:])))
-            assert np.allclose(norm_normal_coil*2*np.pi*2*np.pi,norm_normal_coil_simsopt[0:nzeta_coil,:])
+            norm_normal_coil_simsopt = np.linalg.norm(s_coil.normal(), axis=-1)
+            print(np.max(np.abs(norm_normal_coil*2*np.pi*2*np.pi-norm_normal_coil_simsopt[0:nzeta_coil, :])))
+            assert np.allclose(norm_normal_coil*2*np.pi*2*np.pi, norm_normal_coil_simsopt[0:nzeta_coil, :])
 
             # Compare field from net coil currents
             cp_GI = CurrentPotentialFourier.from_netcdf(filename)
@@ -518,7 +518,7 @@ class Testing(unittest.TestCase):
 
                 f_K_direct = 0.5 * np.sum(K2 * norm_normal_coil_simsopt) / (norm_normal_coil_simsopt.shape[0]*norm_normal_coil_simsopt.shape[1])
                 print(np.abs(f_K_direct-f_K_REGCOIL)/np.abs(f_K_REGCOIL))
-                self.assertAlmostEqual(f_K_direct/np.abs(f_K_REGCOIL),f_K_REGCOIL/np.abs(f_K_REGCOIL))
+                self.assertAlmostEqual(f_K_direct/np.abs(f_K_REGCOIL), f_K_REGCOIL/np.abs(f_K_REGCOIL))
 
                 Bfield_opt = WindingSurfaceField(cp)
                 Bfield_opt.set_points(s_plasma_full.gamma().reshape(-1, 3))
@@ -528,15 +528,15 @@ class Testing(unittest.TestCase):
                 Bnormal_regcoil = Bnormal_regcoil_total[i, :, :] - Bnormal_from_plasma_current
 
                 # Check that Bnormal integrates to zero
-                print('Bnormal: ',np.sum(Bnormal*norm_normal_plasma_simsopt))
-                print('Bnormal_regcoil: ',np.sum(Bnormal_regcoil*norm_normal_plasma_simsopt[0:nzeta_plasma,:]))
+                print('Bnormal: ', np.sum(Bnormal*norm_normal_plasma_simsopt))
+                print('Bnormal_regcoil: ', np.sum(Bnormal_regcoil*norm_normal_plasma_simsopt[0:nzeta_plasma, :]))
 
                 continue
-                assert np.allclose(Bnormal[0:nzeta_plasma,:],Bnormal_regcoil)
+                assert np.allclose(Bnormal[0:nzeta_plasma, :], Bnormal_regcoil)
 
                 # check Bnormal and Bnormal_regcoil integrate over the surface to zero
                 self.assertAlmostEqual(np.sum(Bnormal*norm_normal_plasma_simsopt), 0)
-                self.assertAlmostEqual(np.sum(Bnormal_regcoil*norm_normal_plasma_simsopt[0:nzeta_plasma,:]), 0)
+                self.assertAlmostEqual(np.sum(Bnormal_regcoil*norm_normal_plasma_simsopt[0:nzeta_plasma, :]), 0)
 
                 # Check that L1 optimization agrees if lambda = 0
                 if lambda_reg == 0.0:

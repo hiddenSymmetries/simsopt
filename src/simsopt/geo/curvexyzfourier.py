@@ -29,14 +29,18 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
     """
 
-    def __init__(self, quadpoints, order):
+    def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = list(np.linspace(0, 1, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
-        Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order),
-                       external_dof_setter=CurveXYZFourier.set_dofs_impl)
+        if dofs is None:
+            Curve.__init__(self, x0=self.get_dofs(), names=self._make_names(order),
+                           external_dof_setter=CurveXYZFourier.set_dofs_impl)
+        else:
+            Curve.__init__(self, dofs=dofs,
+                           external_dof_setter=CurveXYZFourier.set_dofs_impl)
 
     def _make_names(self, order):
         x_names = ['xc(0)']
@@ -85,7 +89,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         num_coils = coil_data.shape[1]//6
         coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
         for ic in range(num_coils):
-            dofs = coils[ic].dofs
+            dofs = coils[ic].dofs_matrix
             dofs[0][0] = coil_data[0, 6*ic + 1]
             dofs[1][0] = coil_data[0, 6*ic + 3]
             dofs[2][0] = coil_data[0, 6*ic + 5]
@@ -98,14 +102,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
             coils[ic].local_x = np.concatenate(dofs)
         return coils
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        quadpoints = GSONDecoder().process_decoded(d['quadpoints'],
-                                                   serial_objs_dict, recon_objs)
-        curve = cls(quadpoints, d["order"])
-        curve.local_full_x = d["x0"]
-        return curve
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
@@ -131,13 +127,18 @@ class JaxCurveXYZFourier(JaxCurve):
     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
     """
 
-    def __init__(self, quadpoints, order):
+    def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxfouriercurve_pure(dofs, points, order)
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
-        super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients))
+        if dofs is None:
+            super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+                             external_dof_setter=JaxCurveXYZFourier.set_dofs_impl)
+        else:
+            super().__init__(quadpoints, pure, dofs=dofs,
+                             external_dof_setter=JaxCurveXYZFourier.set_dofs_impl)
 
     def num_dofs(self):
         """
@@ -164,11 +165,3 @@ class JaxCurveXYZFourier(JaxCurve):
                 counter += 1
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        quadpoints = GSONDecoder().process_decoded(d['quadpoints'],
-                                                   serial_objs_dict, recon_objs)
-        curve = cls(quadpoints, d["order"])
-        curve.local_full_x = d["x0"]
-        return curve

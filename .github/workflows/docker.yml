@@ -38,7 +38,7 @@ jobs:
 
       - name: Step to get tag name
         id: vars
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+        run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
       
       - name: Build and push
         uses: docker/build-push-action@v3
