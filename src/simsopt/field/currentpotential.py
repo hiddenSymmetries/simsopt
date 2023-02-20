@@ -278,15 +278,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
         self.set_dofs(single_valued_current_potential_mn)
 
-        # count = 0
-        # if symmetry_option != 2:
-        #     for im in range(len(xm_potential)):
-        #         self.set_phis(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[im])
-        #         count += 1
-        # if symmetry_option != 1:
-        #     for im in range(len(xm_potential)):
-        #         self.set_phic(xm_potential[im], int(xn_potential[im]/nfp), single_valued_current_potential_mn[count+im])
-
     @classmethod
     def from_netcdf(cls, filename: str):
         """

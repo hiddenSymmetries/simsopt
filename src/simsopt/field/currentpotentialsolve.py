@@ -34,6 +34,18 @@ class CurrentPotentialSolve:
         self.plasma_surface = plasma_surface
         self.Bnormal_plasma = Bnormal_plasma
         self.B_GI = B_GI
+        self.ilambdas_l2 = []
+        self.dofs_l2 = []
+        self.phis_l2 = []
+        self.K2s_l2 = []
+        self.fBs_l2 = []
+        self.fKs_l2 = []
+        self.ilambdas_l1 = []
+        self.dofs_l1 = []
+        self.phis_l1 = []
+        self.K2s_l1 = []
+        self.fBs_l1 = []
+        self.fKs_l1 = []
         warnings.warn(
             "Beware: the f_B (also called chi^2_B) computed from the "
             "CurrentPotentialSolve class will be slightly different than "
@@ -109,6 +121,111 @@ class CurrentPotentialSolve:
         normal = s_plasma.unitnormal().reshape(-1, 3)
         B_GI_winding_surface = np.sum(B*normal, axis=1)
         return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface)
+
+    def write_current_potential_to_regcoil(self, filename: str, opt_type='L2'):
+        """
+        Set phic and phis based on a regcoil netcdf file.
+
+        Args:
+            filename: Name of the ``regcoil_out.*.nc`` file to read.
+            ilambda: 0-based index for the lambda array, indicating which current
+                potential solution to use
+        """
+        if opt_type not in ['L2', 'L1']:
+            raise ValueError('opt_type parameter must be L2 or L1')
+
+        f = netcdf_file(filename + '_' + opt_type, 'w')
+        f.variables['nfp'][()] = self.plasma_surface.nfp
+        f.variables['mpol_plasma'][()] = self.plasma_surface.mpol
+        f.variables['ntor_plasma'][()] = self.plasma_surface.ntor
+        f.variables['xm_plasma'][()] = self.plasma_surface.m
+        f.variables['xn_plasma'][()] = self.plasma_surface.n
+        f.variables['mpol_potential'][()] = self.winding_surface.mpol
+        f.variables['ntor_potential'][()] = self.winding_surface.ntor
+        f.variables['xm_potential'][()] = self.winding_surface.m
+        f.variables['xn_potential'][()] = self.winding_surface.n
+        f.variables['symmetry_option'][()] = self.plasma_surface.stellsym
+        f.variables['net_poloidal_current_Amperes'][()] = self.current_potential.net_poloidal_current_amperes
+        f.variables['net_toroidal_current_Amperes'][()] = self.current_potential.net_toroidal_current_amperes
+
+        f.variables['ntheta_plasma'][()] = self.plasma_surface.ntheta
+        f.variables['nzeta_plasma'][()] = self.plasma_surface.nzeta 
+        f.variables['ntheta_coil'][()] = self.winding_surface.ntheta
+        f.variables['nzeta_coil'][()] = self.winding_surface.nzeta
+        f.variables['Bnormal_from_plasma_current'][()] = self.Bnormal_plasma
+        f.variables['Bnormal_from_net_coil_currents'][()] = self.B_GI
+        f.variables['norm_normal_plasma'][()] = np.linal.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+        f.variables['norm_normal_coil'][()] = np.linal.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+
+        rmnc = np.zeros(self.plasma_surface.mpol)
+        zmns = np.zeros(self.plasma_surface.mpol)
+        rmns = np.zeros(self.plasma_surface.mpol)
+        zmnc = np.zeros(self.plasma_surface.mpol)
+        xn_coil = self.plasma_surface.n
+        xm_coil = self.plasma_surface.m
+        nfp = self.plasma_surface.nfp
+        for im in range(self.plasma_surface.mpol):
+            rmnc[im] = self.plasma_surface.get_rc(xm_coil[im], int(xn_coil[im]/nfp))
+            zmns[im] = self.plasma_surface.get_zs(xm_coil[im], int(xn_coil[im]/nfp))
+            if not self.plasma_surface.stellsym:
+                rmns[im] = self.plasma_surface.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
+                zmnc[im] = self.plasma_surface.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
+        f.variables['rmnc_plasma'][()] = rmnc
+        f.variables['zmns_plasma'][()] = zmns
+        f.variables['rmns_plasma'][()] = rmns
+        f.variables['zmnc_plasma'][()] = zmnc
+
+        rmnc = np.zeros(self.winding_surface.mpol)
+        zmns = np.zeros(self.winding_surface.mpol)
+        rmns = np.zeros(self.winding_surface.mpol)
+        zmnc = np.zeros(self.winding_surface.mpol)
+        xn_coil = self.winding_surface.n
+        xm_coil = self.winding_surface.m
+        nfp = self.winding_surface.nfp
+        for im in range(self.winding_surface.mpol):
+            rmnc[im] = self.winding_surface.get_rc(xm_coil[im], int(xn_coil[im]/nfp))
+            zmns[im] = self.winding_surface.get_zs(xm_coil[im], int(xn_coil[im]/nfp))
+            if not self.winding_surface.stellsym:
+                rmns[im] = self.winding_surface.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
+                zmnc[im] = self.winding_surface.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
+        f.variables['rmnc_coil'][()] = rmnc
+        f.variables['zmns_coil'][()] = zmns
+        f.variables['rmns_coil'][()] = rmns
+        f.variables['zmnc_coil'][()] = zmnc
+
+        f.variables['RHS_B'][()], _ = self.B_matrix_and_rhs()
+        f.variables['RHS_regularization'][()] = self.K_rhs()
+
+        points = self.plasma_surface.gamma().reshape(-1, 3)
+        normal = self.plasma_surface.normal().reshape(-1, 3)
+        ws_points = self.winding_surface.gamma().reshape(-1, 3)
+        ws_normal = self.winding_surface.normal().reshape(-1, 3)
+        dtheta_coil = self.winding_surface.quadpoints_theta[1]
+        dzeta_coil = self.winding_surface.quadpoints_phi[1]
+
+        if opt_type == 'L2' and len(self.ilambdas_l2) > 0:
+            for i, ilambda in enumerate(self.ilambdas_l2):
+                f.variables['single_valued_current_potential_mn'][()][i, :] = self.dofs_l2[i]
+                f.variables['single_valued_current_potential_thetazeta'][()][i, :, :] = self.phis_l2[i]
+                f.variables['K2'][()][i, :] = self.K2s_l2[i]
+                f.variables['lambda'][()][i] = ilambda
+                f.variables['chi2_B'][()][i] = 2 * self.fBs_l2[i]
+                f.variables['chi2_k'][()][i] = 2 * self.fKs_l2[i]
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l2[i], normal) * dtheta_coil * dzeta_coil
+                Bnormal_regcoil_total = Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma
+                f.variables['Bnormal_total'][()][i, :, :] = Bnormal_regcoil_total
+        if opt_type == 'L1' and len(self.ilambdas_l1) > 0:
+            for i, ilambda in enumerate(self.ilambdas_l1):
+                f.variables['single_valued_current_potential_mn'][()][ilambda, :] = self.dofs_l1[ilambda]
+                f.variables['single_valued_current_potential_thetazeta'][()][i, :, :] = self.phis_l1[i]
+                f.variables['K2'][()][ilambda, :, :] = self.K2s_l1[i]
+                f.variables['lambda'][()][i] = ilambda
+                f.variables['chi2_B'][()][i] = 2 * self.fBs_l1[i]
+                f.variables['chi2_k'][()][i] = 2 * self.fKs_l1[i]
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l1[i], normal) * dtheta_coil * dzeta_coil
+                Bnormal_regcoil_total = Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma
+                f.variables['Bnormal_total'][()][i, :, :] = Bnormal_regcoil_total
+        f.close()
 
     def K_rhs_impl(self, K_rhs):
         dg1 = self.winding_surface.gammadash1()
@@ -224,6 +341,13 @@ class CurrentPotentialSolve:
         Ak_times_phi = self.fj @ phi_mn_opt
         f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
+        self.ilambdas_l2.append(lam)
+        self.dofs_l2.append(phi_mn_opt)
+        self.phis_l2.append(self.current_potential.Phi())
+        self.fBs_l2.append(f_B)
+        self.fKs_l2.append(f_K)
+        K2 = np.sum(self.current_potential.K() ** 2, axis=2)
+        self.K2s_l2.append(K2)
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0, max_iter=1000, acceleration=True):
@@ -293,6 +417,13 @@ class CurrentPotentialSolve:
         self.current_potential.set_dofs(phi_mn_opt)
         f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
         f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
+        self.ilambdas_l1.append(lam)
+        self.dofs_l1.append(phi_mn_opt)
+        self.phis_l1.append(self.current_potential.Phi())
+        self.fBs_l1.append(f_B)
+        self.fKs_l1.append(f_K)
+        K2 = np.sum(self.current_potential.K() ** 2, axis=2)
+        self.K2s_l1.append(K2)
         return phi_mn_opt, f_B, f_K, fB_history, fK_history
 
     def _FISTA(self, A, b, alpha=0.0, max_iter=1000, acceleration=True, xi0=None):
