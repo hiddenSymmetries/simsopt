@@ -28,10 +28,12 @@ class CurrentPotentialSolve:
     def __init__(self, cp, plasma_surface, Bnormal_plasma, B_GI):
         self.current_potential = cp
         self.winding_surface = self.current_potential.winding_surface
-        self.ntheta_coil = len(self.current_potential.quadpoints_theta)
-        self.nphi_coil = len(self.current_potential.quadpoints_phi)
         self.ndofs = self.current_potential.num_dofs()
         self.plasma_surface = plasma_surface
+        self.ntheta_plasma = len(self.plasma_surface.quadpoints_theta)
+        self.nzeta_plasma = len(self.plasma_surface.quadpoints_phi)
+        self.ntheta_coil = len(self.current_potential.quadpoints_theta)
+        self.nzeta_coil = len(self.current_potential.quadpoints_phi)
         self.Bnormal_plasma = Bnormal_plasma
         self.B_GI = B_GI
         self.ilambdas_l2 = []
@@ -135,45 +137,43 @@ class CurrentPotentialSolve:
             raise ValueError('opt_type parameter must be L2 or L1')
 
         f = netcdf_file(filename + '_' + opt_type, 'w')
-        f.variables['nfp'][()] = self.plasma_surface.nfp
-        f.variables['mpol_plasma'][()] = self.plasma_surface.mpol
-        f.variables['ntor_plasma'][()] = self.plasma_surface.ntor
-        f.variables['xm_plasma'][()] = self.plasma_surface.m
-        f.variables['xn_plasma'][()] = self.plasma_surface.n
-        f.variables['mpol_potential'][()] = self.winding_surface.mpol
-        f.variables['ntor_potential'][()] = self.winding_surface.ntor
-        f.variables['xm_potential'][()] = self.winding_surface.m
-        f.variables['xn_potential'][()] = self.winding_surface.n
-        f.variables['symmetry_option'][()] = self.plasma_surface.stellsym
-        f.variables['net_poloidal_current_Amperes'][()] = self.current_potential.net_poloidal_current_amperes
-        f.variables['net_toroidal_current_Amperes'][()] = self.current_potential.net_toroidal_current_amperes
+        f.history = 'Created for writing a SIMSOPT-optimized winding surface and current potential to a regcoil-style output file'
 
-        f.variables['ntheta_plasma'][()] = self.plasma_surface.ntheta
-        f.variables['nzeta_plasma'][()] = self.plasma_surface.nzeta 
-        f.variables['ntheta_coil'][()] = self.winding_surface.ntheta
-        f.variables['nzeta_coil'][()] = self.winding_surface.nzeta
-        f.variables['Bnormal_from_plasma_current'][()] = self.Bnormal_plasma
-        f.variables['Bnormal_from_net_coil_currents'][()] = self.B_GI
-        f.variables['norm_normal_plasma'][()] = np.linal.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
-        f.variables['norm_normal_coil'][()] = np.linal.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+        scalars = ['nfp', 'mpol_plasma', 'ntor_plasma', 'mpol_potential', 'ntor_potential', 'symmetry_option', 'net_poloidal_current_amperes', 'net_toroidal_current_amperes', 'ntheta_plasma', 'nzeta_plasma', 'ntheta_coil', 'nzeta_coil']
+        s = self.plasma_surface
+        w = self.winding_surface
+        G = self.current_potential.net_poloidal_current_amperes
+        I = self.current_potential.net_toroidal_current_amperes
+        scalar_variables = [s.nfp, s.mpol, s.ntor, w.mpol, w.ntor, s.stellsym + 1, G, I, self.ntheta_plasma, self.nzeta_plasma, self.ntheta_coil, self.nzeta_coil] 
+        for i_scalar, scalar_name in enumerate(scalars):
+            print(i_scalar, scalar_variables[i_scalar])
+            f.createDimension(scalar_name, 1)
+            if 'amperes' not in scalar_name:
+                var = f.createVariable(scalar_name, 'i', (scalar_name,))
+                var.units = 'dimensionless'
+            else:
+                var = f.createVariable(scalar_name, 'f', (scalar_name,))
+                var.units = 'Amperes'
+            var[:] = scalar_variables[i_scalar] 
 
         rmnc = np.zeros(self.plasma_surface.mpol)
         zmns = np.zeros(self.plasma_surface.mpol)
         rmns = np.zeros(self.plasma_surface.mpol)
         zmnc = np.zeros(self.plasma_surface.mpol)
-        xn_coil = self.plasma_surface.n
-        xm_coil = self.plasma_surface.m
+        xn_plasma = self.plasma_surface.n
+        xm_plasma = self.plasma_surface.m
         nfp = self.plasma_surface.nfp
         for im in range(self.plasma_surface.mpol):
-            rmnc[im] = self.plasma_surface.get_rc(xm_coil[im], int(xn_coil[im]/nfp))
-            zmns[im] = self.plasma_surface.get_zs(xm_coil[im], int(xn_coil[im]/nfp))
+            rmnc[im] = self.plasma_surface.get_rc(xm_plasma[im], int(xn_plasma[im]/nfp))
+            zmns[im] = self.plasma_surface.get_zs(xm_plasma[im], int(xn_plasma[im]/nfp))
             if not self.plasma_surface.stellsym:
-                rmns[im] = self.plasma_surface.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
-                zmnc[im] = self.plasma_surface.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
-        f.variables['rmnc_plasma'][()] = rmnc
-        f.variables['zmns_plasma'][()] = zmns
-        f.variables['rmns_plasma'][()] = rmns
-        f.variables['zmnc_plasma'][()] = zmnc
+                rmns[im] = self.plasma_surface.get_rs(xm_plasma[im], int(xn_plasma[im]/nfp))
+                zmnc[im] = self.plasma_surface.get_zc(xm_plasma[im], int(xn_plasma[im]/nfp))
+
+        rmnc_plasma = np.copy(rmnc)
+        rmns_plasma = np.copy(rmns)
+        zmns_plasma = np.copy(zmns)
+        zmnc_plasma = np.copy(zmnc)
 
         rmnc = np.zeros(self.winding_surface.mpol)
         zmns = np.zeros(self.winding_surface.mpol)
@@ -188,13 +188,38 @@ class CurrentPotentialSolve:
             if not self.winding_surface.stellsym:
                 rmns[im] = self.winding_surface.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
                 zmnc[im] = self.winding_surface.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
-        f.variables['rmnc_coil'][()] = rmnc
-        f.variables['zmns_coil'][()] = zmns
-        f.variables['rmns_coil'][()] = rmns
-        f.variables['zmnc_coil'][()] = zmnc
 
-        f.variables['RHS_B'][()], _ = self.B_matrix_and_rhs()
-        f.variables['RHS_regularization'][()] = self.K_rhs()
+        RHS_B, _ = self.B_matrix_and_rhs()
+        vectors = ['Bnormal_from_plasma_current', 'Bnormal_from_net_coil_currents',
+                   'rmnc_plasma', 'rmns_plasma', 'zmns_plasma', 'zmnc_plasma',
+                   'rmnc_coil', 'rmns_coil', 'zmns_coil', 'zmnc_coil',
+                   'xm_plasma', 'xn_plasma', 'xm_coil', 'xn_coil', 
+                   'RHS_B', 'RHS_regularization', 
+                   'norm_normal_plasma', 'norm_normal_coil', 
+                   ]
+        norm_normal_plasma = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+        norm_normal_coil = np.linalg.norm(w.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi),
+        vector_variables = [self.Bnormal_plasma, self.B_GI, 
+                            rmnc_plasma, rmns_plasma, zmns_plasma, zmnc_plasma,
+                            rmnc_coil, rmns_coil, zmns_coil, zmnc_coil,
+                            xm_plasma, xn_plasma, xm_coil, xn_coil, 
+                            RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil
+                            ]
+        for i_vector, vector_name in enumerate(vectors):
+            vector_shape = vector_variables[i_vector].shape
+            shape_tuple = (vector_name + '0')
+            for j, vshape in enumerate(vector_shape):
+                f.createDimension(vector_name + str(j), vshape)
+                if j > 0:
+                    shape_tuple = shape_tuple + (vector_name + str(j),)
+            var = f.createVariable(vector_name, 'f', shape_tuple)
+            if 'Bnormal' in vector_name:
+                var.units = 'Tesla'
+            elif 'rmn' in vector_name or 'zmn' in vector_name:
+                var.units = 'm'
+            else:
+                var.units = 'dimensionless'
+            var[:] = vector_variables[i_vector] 
 
         points = self.plasma_surface.gamma().reshape(-1, 3)
         normal = self.plasma_surface.normal().reshape(-1, 3)
