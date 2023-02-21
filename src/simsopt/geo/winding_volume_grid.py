@@ -5,6 +5,10 @@ import simsoptpp as sopp
 import time
 import warnings
 from scipy.sparse import lil_matrix
+from scipy.sparse import csc_matrix
+from scipy.sparse import vstack, hstack
+from scipy.sparse import eye as sparse_eye
+from scipy.sparse.linalg import inv as sparse_inv
 from matplotlib import pyplot as plt
 from .._core.json import GSONDecoder, GSONable
 # from .._core.optimizable import Optimizable
@@ -65,20 +69,8 @@ class WindingVolumeGrid:
         famus_filename=None, 
         coil_range='half period',
         OUT_DIR='', nx=2, ny=2, nz=2,
+        sparse_constraint_matrix=True,
     ):
-        # super().__init__(
-        #         # depends_on=[
-        #         #     plasma_boundary, Itarget_curve, Bn_Itarget, Itarget,
-        #         #     rz_inner_surface,
-        #         #     rz_outer_surface, plasma_offset,
-        #         #     coil_offset, Bn,
-        #         #     Nx, Ny, Nz,
-        #         #     filename, surface_flag,
-        #         #     famus_filename, 
-        #         #     coil_range,
-        #         #     OUT_DIR, nx, ny, nz
-        #         # ]
-        #     )
         if plasma_offset <= 0 or coil_offset <= 0:
             raise ValueError('permanent magnets must be offset from the plasma')
 
@@ -103,6 +95,7 @@ class WindingVolumeGrid:
         self.Nz = Nz
         self.OUT_DIR = OUT_DIR
         self.n_functions = 11  # hard-coded for linear basis
+        self.sparse_constraint_matrix = sparse_constraint_matrix
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
             raise ValueError(
@@ -497,21 +490,24 @@ class WindingVolumeGrid:
         yrange = np.zeros((n, ny))
         zrange = np.zeros((n, nz))
         for i in range(n):
-            xrange[i, :] = np.linspace(
+            x_midpoint = (x_leftpoints[i] + dx / 2.0)
+            xrange[i, :] = (np.linspace(
                 x_leftpoints[i], 
                 x_leftpoints[i] + dx,
                 nx
-            )
-            yrange[i, :] = np.linspace(
+            ))  # - x_midpoint) / np.sqrt(dx * dy * dz)
+            y_midpoint = (y_leftpoints[i] + dy / 2.0)
+            yrange[i, :] = (np.linspace(
                 y_leftpoints[i], 
                 y_leftpoints[i] + dy,
                 ny
-            )
-            zrange[i, :] = np.linspace(
+            ))  # - y_midpoint) / np.sqrt(dx * dy * dz)
+            z_midpoint = (z_leftpoints[i] + dz / 2.0)
+            zrange[i, :] = (np.linspace(
                 z_leftpoints[i], 
                 z_leftpoints[i] + dz,
                 nz
-            )
+            ))  # - z_midpoint) / np.sqrt(dx * dy * dz)
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
         zeros = np.zeros(n)
         ones = np.ones(n)
@@ -536,7 +532,6 @@ class WindingVolumeGrid:
             dJz_dz = -(Phi[i, :, :, :, 1:, 2] - Phi[i, :, :, :, :-1, 2]) / dz
             divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
             divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
-            print(i, divJ)
             assert np.allclose(divJ, 0.0)
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
 
@@ -669,7 +664,7 @@ class WindingVolumeGrid:
         B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
             self.geo_factor.shape[0], self.N_grid * self.n_functions
         )
-        print(B_matrix.shape, self.geo_factor.shape)
+        # print(B_matrix.shape, self.geo_factor.shape)
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(B_matrix.shape[0]):
             B_matrix[i, :] *= np.sqrt(normN[i])
@@ -772,35 +767,31 @@ class WindingVolumeGrid:
         print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
         num_basis = self.n_functions
-        flux_constraint_matrix = np.zeros((n_constraints, self.N_grid * num_basis))
+        N = self.N_grid * num_basis
 
-        # flux_constraint_matrix = lil_matrix((n_constraints, self.N_grid * num_basis), dtype="double")
+        if self.sparse_constraint_matrix:
+            flux_constraint_matrix = lil_matrix((n_constraints, N), dtype="double")
+        else:
+            flux_constraint_matrix = np.zeros((n_constraints, N))
+
         i_constraint = 0
         q = 0
         qq = 0
         print('Ngrid = ', self.N_grid)
         for i in range(self.N_grid):        
-            print(self.connection_list[i, :, :])
             ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))
             k_ind = self.connection_list[i, ind, 0]
-            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 0])
             ind = np.ravel(np.where(self.connection_list[i, :, 1] >= 0))
             k_ind = self.connection_list[i, ind, 1]
-            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 1])
             ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
             k_ind = self.connection_list[i, ind, 2]
-            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 2], k_ind)
             ind = np.ravel(np.where(self.connection_list[i, :, 3] >= 0))
             k_ind = self.connection_list[i, ind, 3]
-            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 3])
             ind = np.ravel(np.where(self.connection_list[i, :, 4] >= 0))
             k_ind = self.connection_list[i, ind, 4]
-            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 4])
             ind = np.ravel(np.where(self.connection_list[i, :, 5] >= 0))
             k_ind = self.connection_list[i, ind, 5]
-            # print(coil_points[i, :], coil_points[k_ind, :], self.connection_list[i, :, 5])
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
-            print(i, i_constraint)
             if np.any(self.connection_list[i, :, 0] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 0] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 0]
@@ -811,7 +802,6 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[1, k_ind, :]
                 i_constraint += 1
-            print(i, i_constraint)
             if np.any(self.connection_list[i, :, 2] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 2]
@@ -822,7 +812,6 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[3, k_ind, :]
                 i_constraint += 1
-            print(i, i_constraint)
             if np.any(self.connection_list[i, :, 4] >= 0):
                 ind = np.ravel(np.where(self.connection_list[i, :, 4] >= 0))[0]
                 k_ind = self.connection_list[i, ind, 4]
@@ -833,7 +822,6 @@ class WindingVolumeGrid:
                                        k_ind * num_basis:(k_ind + 1) * num_basis
                                        ] = flux_factor[5, k_ind, :]
                 i_constraint += 1
-            print(i, i_constraint)
 
             # Loop through cells and check if does not have a cell in the - nx, - ny, or - nz direction 
             # Special case for Nfp = 2, -x direction and -y direction 
@@ -857,7 +845,6 @@ class WindingVolumeGrid:
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[1, i, :]
                 i_constraint += 1
-            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 3] < 0):
                 # ind = np.ravel(np.where(self.connection_list[i, :, 2] >= 0))
                 if (i in y_inds) and (self.coil_range != 'full torus'):
@@ -878,32 +865,27 @@ class WindingVolumeGrid:
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[3, i, :]
                 i_constraint += 1
-            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 5] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[5, i, :]
                 i_constraint += 1
-            print(i, i_constraint)
             # Loop through cells and check if does not have a cell in the + nx, + ny, or + nz direction 
             if np.all(self.connection_list[i, :, 0] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[0, i, :]
                 i_constraint += 1
-            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 2] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[2, i, :]
                 i_constraint += 1
-            print(i, i_constraint)
             if np.all(self.connection_list[i, :, 4] < 0):
                 flux_constraint_matrix[i_constraint, 
                                        i * num_basis:(i + 1) * num_basis
                                        ] = flux_factor[4, i, :]
                 i_constraint += 1
-            print(i, i_constraint)
 
         connect_list_zeros = np.copy(self.connection_list)
         connect_list_zeros[connect_list_zeros >= 0] = 1
@@ -912,76 +894,47 @@ class WindingVolumeGrid:
         # print(self.num_constraints_per_cell)
         self.flux_factor = flux_factor
 
-        # Once matrix elements are set, convert to CSC for quicker matrix ops
-        # self.flux_constraint_matrix = flux_constraint_matrix.tocsc()
-        #flux_constraint_matrix = flux_constraint_matrix.todense()
-        self.flux_constraint_matrix = flux_constraint_matrix
-        # CCT = flux_constraint_matrix @ flux_constraint_matrix.T
-        # print(CCT)
-        # S_C = np.linalg.svd(flux_constraint_matrix, compute_uv=False)
-        # S_CCT = np.linalg.svd(CCT, compute_uv=False)
-        # plt.semilogy(S_C)
-        # plt.semilogy(S_CCT)
-        # plt.grid(True)
-        # plt.show()
-        # print(CCT.shape[0], np.linalg.matrix_rank(CCT))
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
+        t1 = time.time()
 
-    # def as_dict(self, serial_objs_dict) -> dict:
-    #     d = super().as_dict(serial_objs_dict=serial_objs_dict)
-    #     d["plasma_boundary"] = self.plasma_boundary
-    #     d["Bn_Itarget"] = self.Bn_Itarget
-    #     d["Itarget"] = self.Itarget
-    #     d["Itarget_curve"] = self.Itarget_curve
-    #     d["rz_inner_surface"] = self.rz_inner_surface
-    #     d["rz_outer_surface"] = self.rz_outer_surface
-    #     d["plasma_offset"] = self.plasma_offset
-    #     d["coil_offset"] = self.coil_offset
-    #     d["Bn"] = self.Bn
-    #     d["Nx"] = self.Nx
-    #     d["Ny"] = self.Ny
-    #     d["Nz"] = self.Nz
-    #     d["filename"] = self.filename
-    #     d["surface_flag"] = self.surface_flag
-    #     d["famus_filename"] = self.famus_filename
-    #     d["coil_range"] = self.coil_range
-    #     d["OUT_DIR"] = self.OUT_DIR
-    #     d["nx"] = self.nx
-    #     d["ny"] = self.ny
-    #     d["nz"] = self.nz
-    #     return d
+        print(self.Itarget_matrix, self.Itarget_matrix.shape)
+        if self.sparse_constraint_matrix:
+            C = flux_constraint_matrix.tocsc()
+            C = vstack([C, np.copy(self.Itarget_matrix)], format="csc")
+            CT = C.transpose()
+            C_inv = np.linalg.pinv(C.todense())
+            d = hstack([np.zeros(C.shape[0] - 1), np.copy(self.Itarget_rhs)], format="csc")
+            CCT = C @ CT
+            CCT_inv = np.linalg.pinv(CCT.todense(), rcond=1e-8)
+            projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
+        else:
+            C = flux_constraint_matrix
+            C = np.vstack((C, np.copy(self.Itarget_matrix)))
+            CT = C.transpose()
+            C_inv = np.linalg.pinv(C, rcond=1e-8)
+            d = np.hstack([np.zeros(C.shape[0] - 1), np.copy(self.Itarget_rhs)])
+            CCT = C @ CT
+            CCT_inv = np.linalg.pinv(CCT, rcond=1e-8)
+            projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
+        # print(C.shape, d.shape)
+        # print('C = ', C)
 
-    # @classmethod
-    # def from_dict(cls, d, serial_objs_dict, recon_objs):
-    #     decoder = GSONDecoder()
-    #     plasma_surface = decoder.process_decoded(d["plasma_boundary"], serial_objs_dict, recon_objs)
-    #     rz_inner_surface = decoder.process_decoded(d["rz_inner_surface"], serial_objs_dict, recon_objs)
-    #     rz_outer_surface = decoder.process_decoded(d["rz_outer_surface"], serial_objs_dict, recon_objs)
-    #     Itarget_curve = decoder.process_decoded(d["Itarget_curve"], serial_objs_dict, recon_objs)
-    #     field = cls(
-    #         plasma_surface,
-    #         Itarget_curve,
-    #         d["Bn_Itarget"],
-    #         d["Itarget"],
-    #         rz_inner_surface,
-    #         rz_outer_surface,
-    #         d["plasma_offset"],
-    #         d["coil_offset"],
-    #         d["Bn"],
-    #         d["Nx"],
-    #         d["Ny"],
-    #         d["Nz"],
-    #         d["filename"],
-    #         d["surface_flag"],
-    #         d["famus_filename"],
-    #         d["coil_range"],
-    #         d["OUT_DIR"],
-    #         d["nx"],
-    #         d["ny"],
-    #         d["nz"],
-    #     )
-    #     return field
+        t2 = time.time()
+        # print('d = ', d)
+        print('Time to make CCT_inv = ', t2 - t1, ' s')
+
+        S = np.linalg.svd(C, compute_uv=False)
+        plt.semilogy(S, 'ro')
+        S2 = np.linalg.svd(CCT, compute_uv=False)
+        plt.semilogy(S2, 'bo')
+        plt.show()
+
+        self.C = C
+        self.d = d
+        self.alpha0 = (C_inv @ d)
+        print('alpha0 = ', self.alpha0, self.alpha0.shape, C @ self.alpha0)
+        self.P = projection_onto_constraints
 
     def check_fluxes(self):
         """
