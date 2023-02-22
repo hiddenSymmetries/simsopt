@@ -898,42 +898,42 @@ class WindingVolumeGrid:
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
         t1 = time.time()
 
-        print(self.Itarget_matrix, self.Itarget_matrix.shape)
         if self.sparse_constraint_matrix:
             C = flux_constraint_matrix.tocsc()
+            # C = C + 1e-10 * sparse_eye(C.shape[0], C.shape[1]) # need to make this matrix full-rank
             C = vstack([C, np.copy(self.Itarget_matrix)], format="csc")
             CT = C.transpose()
             C_inv = np.linalg.pinv(C.todense())
-            d = hstack([np.zeros(C.shape[0] - 1), np.copy(self.Itarget_rhs)], format="csc")
+            d = hstack([np.zeros(C.shape[0] - 1), np.copy(self.Itarget_rhs)], format="csc").transpose()
             CCT = C @ CT
             CCT_inv = np.linalg.pinv(CCT.todense(), rcond=1e-8)
             projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
         else:
             C = flux_constraint_matrix
+            # C = C + 1e-10 * np.eye(C.shape[0], C.shape[1]) # need to make this matrix full-rank
             C = np.vstack((C, np.copy(self.Itarget_matrix)))
             CT = C.transpose()
             C_inv = np.linalg.pinv(C, rcond=1e-8)
             d = np.hstack([np.zeros(C.shape[0] - 1), np.copy(self.Itarget_rhs)])
             CCT = C @ CT
             CCT_inv = np.linalg.pinv(CCT, rcond=1e-8)
-            projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
-        # print(C.shape, d.shape)
-        # print('C = ', C)
+            # CCT_inv = np.linalg.inv(CCT)
+            projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - csc_matrix(CT @ CCT_inv @ C)
 
         t2 = time.time()
         # print('d = ', d)
         print('Time to make CCT_inv = ', t2 - t1, ' s')
 
-        S = np.linalg.svd(C, compute_uv=False)
-        plt.semilogy(S, 'ro')
-        S2 = np.linalg.svd(CCT, compute_uv=False)
-        plt.semilogy(S2, 'bo')
-        plt.show()
+        # S = np.linalg.svd(C.todense(), compute_uv=False)
+        # plt.semilogy(S, 'ro')
+        # S2 = np.linalg.svd(projection_onto_constraints.todense(), compute_uv=False)
+        # plt.semilogy(S2, 'bo')
 
-        self.C = C
+        self.C = C    
         self.d = d
-        self.alpha0 = (C_inv @ d)
-        print('alpha0 = ', self.alpha0, self.alpha0.shape, C @ self.alpha0)
+        print(C_inv.shape, d.shape)
+        self.alpha0 = (C_inv.dot(d))
+        # print('alpha0 = ', self.alpha0, self.alpha0.shape, C @ self.alpha0)
         self.P = projection_onto_constraints
 
     def check_fluxes(self):

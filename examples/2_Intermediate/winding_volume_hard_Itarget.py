@@ -37,7 +37,7 @@ poff = 0.3  # grid end offset ~ 10 cm from the plasma surface
 coff = 0.1  # grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
 lam = 1e-20
-l0_threshold = 0.0
+l0_threshold = 0
 nu = 1e100
 
 # Read in the plasma equilibrium file
@@ -105,7 +105,7 @@ wv_grid = WindingVolumeGrid(
     OUT_DIR=OUT_DIR,
     # coil_range="full torus",
     nx=nx, ny=nx, nz=nx,
-    sparse_constraint_matrix=False,
+    sparse_constraint_matrix=True,
 )
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
@@ -119,7 +119,6 @@ rs_max_iter = 100
 l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 10 * l0_threshold, 10)
 alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split_analytic(
     wv_grid, lam=lam, nu=nu, 
-    max_iter=max_iter, 
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter
 )
@@ -135,11 +134,11 @@ print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 plt.figure()
 plt.semilogy(fB, label=r'$f_B$')
 plt.semilogy(lam * fK, label=r'$\lambda \|\alpha\|^2$')
-plt.semilogy(fI, label=r'$f_I$')
+# plt.semilogy(fI, label=r'$f_I$')
 if l0_threshold > 0:
     plt.semilogy(fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
     # plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
-plt.semilogy(fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)')
+# plt.semilogy(fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
 plt.savefig(OUT_DIR + 'optimization_progress.jpg')
@@ -176,11 +175,11 @@ print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
 # t2 = time.time()
 # print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
-t1 = time.time()
+# t1 = time.time()
 # biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
 # bs_wv.set_points(s.gamma().reshape((-1, 3)))
 # trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s_plot, comm, OUT_DIR)
-t2 = time.time()
+# t2 = time.time()
 print(OUT_DIR)
 
 alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split_increasingl0(
@@ -199,11 +198,11 @@ print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 plt.figure(10)
 plt.semilogy(fB, label=r'$f_B$')
 plt.semilogy(lam * fK, label=r'$\lambda \|\alpha\|^2$')
-plt.semilogy(fI, label=r'$f_I$')
+# plt.semilogy(fI, label=r'$f_I$')
 if l0_threshold > 0:
     plt.semilogy(fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
     # plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
-plt.semilogy(fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)')
+# plt.semilogy(fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
 plt.savefig(OUT_DIR + 'optimization_progress_proj_grad_descent.jpg')
