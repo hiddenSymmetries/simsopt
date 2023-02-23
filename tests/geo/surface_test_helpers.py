@@ -66,7 +66,7 @@ def get_exact_surface(surface_type='SurfaceXYZFourier'):
                               quadpoints_phi=phis, quadpoints_theta=thetas)
     elif surface_type == 'SurfaceXYZTensorFourier':
         s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
-                              quadpoints_phi=phis, quadpoints_theta=thetas)
+                                    quadpoints_phi=phis, quadpoints_theta=thetas)
     else:
         raise Exception("surface type not implemented")
     s.least_squares_fit(xyz)
