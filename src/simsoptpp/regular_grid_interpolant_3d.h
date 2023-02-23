@@ -50,7 +50,7 @@ class InterpolationRule {
             }
             return res;
         }
-
+        #if __x86_64__
         simd_t basis_fun(int idx, simd_t x) const {
             // evaluate the basisfunction p_idx at multiple locations stored in x
             simd_t res(scalings[idx]);
@@ -60,6 +60,7 @@ class InterpolationRule {
             }
             return res;
         }
+        #endif
 };
 
 template<class Array>
@@ -102,7 +103,11 @@ class RegularGridInterpolant3D {
         Vec xdoftensor_reduced, ydoftensor_reduced, zdoftensor_reduced;
 
         Vec vals; // contains the values of the function to be interpolated at the dofs, of size dofs_to_keep * value_size
+        #if __x86_64__
+        std::unordered_map<int, AlignedPaddedVec> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
+        #else
         std::unordered_map<int, AlignedPaddedVecPortable> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
+        #endif
         std::vector<bool> skip_cell; // whether to skip each cell or not
         // since we are skipping some dofs, we need mappings into the list of
         // reduced dofs, e.g. if we skip dofs 3, then reduced to full would
@@ -113,7 +118,11 @@ class RegularGridInterpolant3D {
         int local_vals_size;
         Vec pkxs, pkys, pkzs;
 
+        #if __x86_64__                   // We use __x86_64__ macro to enable xsimd
         static const int simdcount = xsimd::simd_type<double>::size; // vector width for simd instructions
+        #else
+        static const int simdcount = 1; // vector width is set to 1 for non-xsimd code
+        #endif
         int padded_value_size; // smallest multiple of simdcount that is larger than value_size
 
         inline int idx_dof(int i, int j, int k){
@@ -287,7 +296,7 @@ class RegularGridInterpolant3D {
             vals = Vec(dofs_to_keep * value_size, 0.);
 
             // round up value_size to nearest multiple of simdcount
-            padded_value_size = (value_size + simdcount) - (value_size % simdcount);
+            padded_value_size = (value_size % simdcount) ? (value_size + simdcount) - (value_size % simdcount) : value_size;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
         }
