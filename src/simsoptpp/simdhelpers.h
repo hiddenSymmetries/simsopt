@@ -6,6 +6,8 @@
 #include <vector>
 using std::vector;
 
+#if __x86_64__
+
 #include "xsimd/xsimd.hpp"
 namespace xs = xsimd;
 
@@ -40,6 +42,10 @@ class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
         }
 };
 
+using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
+using simd_t = xs::simd_type<double>;
+
+#else
 /*
 We will implement a custom allocator that mimics aligned_padded_vector using C++17, but without xsimd
 Credits: https://stackoverflow.com/questions/60169819/modern-approach-to-making-stdvector-allocate-aligned-memory
@@ -111,10 +117,11 @@ public:
     }
 };
 
-using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
 using AlignedPaddedVecPortable = std::vector<double, AlignedPaddedAllocator<double>>;
-using simd_t = xs::simd_type<double>;
 
+#endif
+
+#if __x86_64__
 #if __AVX512F__ 
 // On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
 // 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
@@ -142,6 +149,7 @@ inline simd_t rsqrt(const simd_t& r2){
     return 1./sqrt(r2);
 }
 
+#endif
 #endif
 
 inline double rsqrt(const double& r2){
