@@ -99,13 +99,20 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         Return a SurfaceRZFourier instance corresponding to the shape of this
         surface.
         """
-        surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym,
-                                self.quadpoints_phi, self.quadpoints_theta)
+        ntor = self.ntor
+        mpol = self.mpol 
+        surf = SurfaceRZFourier(nfp=self.nfp, 
+                                stellsym=self.stellsym, 
+                                mpol=mpol, 
+                                ntor=ntor, 
+                                quadpoints_phi=self.quadpoints_phi, 
+                                quadpoints_theta=self.quadpoints_theta)
+
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(
-                surf.quadpoints_phi[idx]*2*np.pi)
-        surf.least_squares_fit(self.gamma())
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
+
+        surf.least_squares_fit(gamma)
         return surf
 
     def get_stellsym_mask(self):
@@ -157,6 +164,9 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
                 npsame(thetas, np.linspace(0, 0.5, mpol+1, endpoint=False)):
             mask[ntor+1:, 0] = False
         if npsame(phis, np.linspace(0, 1/(2*self.nfp), ntor+1, endpoint=False)) and \
+                npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
+            mask[0, mpol+1:] = False
+        if npsame(phis, np.linspace(0, 1/self.nfp, 2*ntor+1, endpoint=False)[:ntor+1]) and \
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[0, mpol+1:] = False
         return mask
