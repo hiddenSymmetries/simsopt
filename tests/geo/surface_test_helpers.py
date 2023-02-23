@@ -39,7 +39,7 @@ def get_surface(surfacetype, stellsym, phis=None, thetas=None, mpol=5, ntor=5,
     return s
 
 
-def get_exact_surface():
+def get_exact_surface(surface_type='SurfaceXYZFourier'):
     """
     Returns a boozer exact surface that will be used in unit tests.
     """
@@ -61,8 +61,14 @@ def get_exact_surface():
 
     phis = np.linspace(0, 1, nphi, endpoint=False)
     thetas = np.linspace(0, 1, ntheta, endpoint=False)
-    s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
-                          quadpoints_phi=phis, quadpoints_theta=thetas)
+    if surface_type == 'SurfaceXYZFourier':
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
+    elif surface_type == 'SurfaceXYZTensorFourier':
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
+    else:
+        raise Exception("surface type not implemented")
     s.least_squares_fit(xyz)
 
     return s
