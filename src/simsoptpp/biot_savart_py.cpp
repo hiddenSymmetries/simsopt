@@ -2,9 +2,15 @@
 #include "biot_savart_py.h"
 
 void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX) {
+#if __x86_64__
+    auto pointsx = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsy = AlignedPaddedVec(points.shape(0), 0);
+    auto pointsz = AlignedPaddedVec(points.shape(0), 0);
+#else
     auto pointsx = AlignedPaddedVecPortable(points.shape(0), 0);
     auto pointsy = AlignedPaddedVecPortable(points.shape(0), 0);
     auto pointsz = AlignedPaddedVecPortable(points.shape(0), 0);
+#endif
     int num_points = points.shape(0);
     for (int i = 0; i < num_points; ++i) {
         pointsx[i] = points(i, 0);
