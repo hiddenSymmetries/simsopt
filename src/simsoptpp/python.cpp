@@ -11,7 +11,7 @@ typedef xt::pyarray<double> PyArray;
 
 
 
-//#include "biot_savart_py.h"
+#include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
 #include "reiman.h"
@@ -41,8 +41,8 @@ PYBIND11_MODULE(simsoptpp, m) {
     init_tracing(m);
     init_distance(m);
 
-    // m.def("biot_savart", &biot_savart);
-    // m.def("biot_savart_B", &biot_savart_B);
+    m.def("biot_savart", &biot_savart);
+    m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
