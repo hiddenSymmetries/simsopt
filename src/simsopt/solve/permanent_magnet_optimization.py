@@ -276,7 +276,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         algorithm_kwargs.pop("reg_l2")
     else:
         reg_l2 = 0.0
-    Nnorms = np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1)))
+    Nnorms = np.ascontiguousarray(np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1))))
 
     # Note, only baseline method has the f_m loss term implemented! 
     if algorithm == 'baseline':  # GPMO
