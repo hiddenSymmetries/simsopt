@@ -261,7 +261,6 @@ class PermanentMagnetGrid:
             else:
                 self.pol_vectors = pol_vectors
 
-
         # Make flattened grids and compute the maximum allowable magnetic moment m_max
         t1 = time.time()
         self._make_flattened_grids()

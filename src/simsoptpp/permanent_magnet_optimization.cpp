@@ -884,7 +884,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     for (int k = 0; k < K; ++k) {
 
 #pragma omp parallel for schedule(static)
-
 	for (int j = 0; j < N; j += 1) {
 
 	    // Check all the allowed dipole positions

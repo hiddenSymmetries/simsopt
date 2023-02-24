@@ -883,14 +883,14 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
         sin_ophi = np.sin(pm_opt.pm_phi)
         cos_otheta = np.cos(otheta)
         sin_otheta = np.sin(otheta)
-        mx =   m[:, 0] * cos_ophi * cos_otheta \
-             - m[:, 1] * sin_ophi              \
-             - m[:, 2] * cos_ophi * sin_otheta
-        my =   m[:, 0] * sin_ophi * cos_otheta \
-             + m[:, 1] * cos_ophi              \
-             - m[:, 2] * sin_ophi * sin_otheta
-        mz =   m[:, 0] * sin_otheta \
-             + m[:, 2] * cos_otheta
+        mx = m[:, 0] * cos_ophi * cos_otheta \
+            - m[:, 1] * sin_ophi              \
+            - m[:, 2] * cos_ophi * sin_otheta
+        my = m[:, 0] * sin_ophi * cos_otheta \
+            + m[:, 1] * cos_ophi              \
+            - m[:, 2] * sin_ophi * sin_otheta
+        mz = m[:, 0] * sin_otheta \
+            + m[:, 2] * cos_otheta
 
     m0 = pm_opt.m_maxima
     pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
