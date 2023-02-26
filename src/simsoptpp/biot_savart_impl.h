@@ -2,8 +2,9 @@
 #include "vec3dsimd.h"
 #include <stdexcept>
 #include "xtensor/xlayout.hpp"
+#include <iostream>
 
-
+using namespace std;
 // When compiled with C++17, then we use `if constexpr` to check for
 // derivatives that need to be computed.  These are actually evaluated at
 // compile time, e.g. the compiler creates three different functions, one that
@@ -207,6 +208,16 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimdPortable1(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto B_i   = Vec3dSimdPortable1();
+        if (!i) {
+            cout << "Inside loop first place:" << endl << "point_i" << endl;
+            for (size_t j = 0; j < 3; j++){
+                cout << point_i[j] << ", ";
+            } cout << endl;
+            cout << "B_i" << endl;
+            for (size_t j = 0; j < 3; j++){
+                cout << B_i[j] << ", ";
+            } cout << endl;
+        }
         if constexpr(derivs > 0) {
             dB_dX_i[0] *= 0.;
             dB_dX_i[1] *= 0.;
@@ -231,7 +242,29 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
             B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
             */
+
             B_i += dgamma_by_dphi_j_cross_diff * norm_diff_3_inv;
+            if (!i){
+                cout << "at j = " << j << endl;
+                cout << "diff: " << endl;
+                for (size_t k = 0; k < 3; k++){
+                    cout << diff[k] << ", ";
+                } cout << endl;
+                cout << "norm_diff_2: " << norm_diff_2 << endl;
+                cout << "norm_diff_3_inv: " << norm_diff_3_inv << endl;
+                cout << "dgamma_by_dphi: " << endl;
+                for (size_t k = 0; k < 3; k++){
+                    cout << dgamma_by_dphi[k] << ", ";
+                } cout << endl;
+                cout << "dgamma_by_dphi_j_cross_diff: " << endl;
+                for (size_t k = 0; k < 3; k++){
+                    cout << dgamma_by_dphi_j_cross_diff[k] << ", ";
+                } cout << endl;
+                cout << "B_i: " << endl;
+                for (size_t k = 0; k < 3; k++){
+                    cout << B_i[k] << ", ";
+                } cout << endl;
+            }
 
             if constexpr(derivs > 0) {
                 auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
@@ -257,7 +290,7 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
                     */
                     auto temp = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k] + numerator1;
 
-                    dB_dX_i[k] = -temp * norm_diff_4_inv + dB_dX_i[k];
+                    dB_dX_i[k] -= temp * norm_diff_4_inv;
                 }
                 if constexpr(derivs > 1) {
                     auto norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;;
