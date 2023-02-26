@@ -51,6 +51,12 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto B_i   = Vec3dSimd();
+        if (!i) {
+            cout << "Inside loop first place:" << endl << "point_i" << endl;
+            cout << point_i.x[0] << ", " << point_i.y[0] << ", " << point_i.z[0] << endl;
+            cout << "B_i" << endl;
+            cout << B_i.x[0] << ", " << B_i.y[0] << ", " << B_i.z[0] << endl;
+        }
         if constexpr(derivs > 0) {
             dB_dX_i[0] *= 0.;
             dB_dX_i[1] *= 0.;
@@ -73,6 +79,19 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
             B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
+            if (!i && j < 10){
+                cout << "at j = " << j << endl;
+                cout << "diff: " << endl;
+                cout << diff.x[0] << ", " << diff.y[0] << ", "<< diff.z[0] << endl;
+                cout << "norm_diff_2: " << norm_diff_2[0] << endl;
+                cout << "norm_diff_3_inv: " << norm_diff_3_inv[0] << endl;
+                cout << "dgamma_by_dphi: " << endl;
+                cout << dgamma_by_dphi_j_simd.x[0] << ", " << dgamma_by_dphi_j_simd.y[0] << ", "<< dgamma_by_dphi_j_simd.z[0] << endl;
+                cout << "dgamma_by_dphi_j_cross_diff: " << endl;
+                cout << dgamma_by_dphi_j_cross_diff.x[0] << ", " << dgamma_by_dphi_j_cross_diff.y[0] << ", "<< dgamma_by_dphi_j_cross_diff.z[0] << endl;
+                cout << "B_i: " << endl;
+                cout << B_i.x[0] << ", " << B_i.y[0] << ", "<< B_i.z[0] << endl;
+            }
 
             if constexpr(derivs > 0) {
                 auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
@@ -244,7 +263,7 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
             */
 
             B_i += dgamma_by_dphi_j_cross_diff * norm_diff_3_inv;
-            if (!i){
+            if (!i && j < 10){
                 cout << "at j = " << j << endl;
                 cout << "diff: " << endl;
                 for (size_t k = 0; k < 3; k++){
@@ -254,7 +273,7 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
                 cout << "norm_diff_3_inv: " << norm_diff_3_inv << endl;
                 cout << "dgamma_by_dphi: " << endl;
                 for (size_t k = 0; k < 3; k++){
-                    cout << dgamma_by_dphi[k] << ", ";
+                    cout << dgamma_by_dphi_j_simd[k] << ", ";
                 } cout << endl;
                 cout << "dgamma_by_dphi_j_cross_diff: " << endl;
                 for (size_t k = 0; k < 3; k++){
