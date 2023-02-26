@@ -494,7 +494,7 @@ inline double inner(const Vec3dSimdPortable1& a, const Vec3dSimdPortable1& b){
     double inn_prod = 0;
     #pragma omp simd aligned(x1, x2: ALIGN_BYTES) reduction(+: inn_prod)
     for (int i = 0; i < 4; i++){
-        inn_prod += x1[i] + x2[i];
+        inn_prod += x1[i] * x2[i];
     }
     return inn_prod;
 }
@@ -553,7 +553,7 @@ inline double normsq(Vec3dSimdPortable1& a){
     double inn_prod = 0;
     #pragma omp simd aligned(x1: ALIGN_BYTES) reduction(+: inn_prod)
     for (int i = 0; i < 4; i++){
-        inn_prod += x1[i] + x1[i];
+        inn_prod += x1[i] * x1[i];
     }
     return inn_prod;
 }

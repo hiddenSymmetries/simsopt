@@ -57,11 +57,11 @@ class BiotSavart : public MagneticField<T> {
             }
             if(pointsy.size() != npoints){
                 pointsy.clear();
-                pointsx.resize(npoints, 0.0);
+                pointsy.resize(npoints, 0.0);
             }
             if(pointsz.size() != npoints){
                 pointsz.clear();
-                pointsx.resize(npoints, 0.0);
+                pointsz.resize(npoints, 0.0);
             }
             for (int i = 0; i < npoints; ++i) {
                 pointsx[i] = points(i, 0);
