@@ -5,8 +5,7 @@ import os
 
 import numpy as np
 
-from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from simsopt.geo.surface import Surface
+from simsopt.geo import Surface, SurfaceXYZFourier, SurfaceXYZTensorFourier
 from .surface_test_helpers import get_surface, get_exact_surface
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from simsopt._core.optimizable import load, save
@@ -27,8 +26,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         completely losslessly.
         """
         for stellsym in stellsym_list:
-            with self.subTest(stellsym=stellsym):
-                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier", stellsym)
+            for surface_type in ['SurfaceXYZFourier', 'SurfaceXYZTensorFourier']:
+                with self.subTest(stellsym=stellsym, surface_type=surface_type):
+                    self.subtest_toRZFourier_perfect_torus(surface_type, stellsym)
 
     def subtest_toRZFourier_perfect_torus(self, surfacetype, stellsym):
         """
@@ -61,7 +61,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         # check that the pointwise error is what we expect
         assert max_pointwise_err < 1e-12
 
-    def test_toRZFourier_lossless_at_quadraturepoints(self):
+    def test_toRZFourier_lossless_at_quadrature_points(self):
         """
         This test obtains a more complex surface (not a perfect torus) as a SurfaceXYZFourier, then
         converts that surface to the SurfaceRZFourier representation.  Then, the test checks that both
@@ -70,7 +70,12 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         Additionally, this test checks that the cross sectional angle is correct.
         """
-        s = get_exact_surface()
+        for surface_type in ['SurfaceXYZFourier', 'SurfaceXYZTensorFourier']:
+            with self.subTest(surface_type=surface_type):
+                self.subtest_toRZFourier_lossless_at_quadraturepoints(surface_type)
+        
+    def subtest_toRZFourier_lossless_at_quadraturepoints(self, surface_type):
+        s = get_exact_surface(surface_type=surface_type)
         sRZ = s.to_RZFourier()
 
         max_angle_error = -1
