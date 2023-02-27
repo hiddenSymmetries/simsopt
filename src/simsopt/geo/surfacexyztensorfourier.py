@@ -100,13 +100,20 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         Return a SurfaceRZFourier instance corresponding to the shape of this
         surface.
         """
-        surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym,
-                                self.quadpoints_phi, self.quadpoints_theta)
+        ntor = self.ntor
+        mpol = self.mpol 
+        surf = SurfaceRZFourier(nfp=self.nfp, 
+                                stellsym=self.stellsym, 
+                                mpol=mpol, 
+                                ntor=ntor, 
+                                quadpoints_phi=self.quadpoints_phi, 
+                                quadpoints_theta=self.quadpoints_theta)
+
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(
-                surf.quadpoints_phi[idx]*2*np.pi)
-        surf.least_squares_fit(self.gamma())
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
+
+        surf.least_squares_fit(gamma)
         return surf
 
     def get_stellsym_mask(self):
