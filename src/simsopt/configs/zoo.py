@@ -6,7 +6,7 @@ from simsopt.field.coil import Current
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
-__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data']
+__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data"]
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
@@ -119,3 +119,71 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
     ma.x = ma.get_dofs()
     return (curves, currents, ma)
 
+
+def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
+    """
+    Get the W7-X coils and magnetic axis.
+
+    Note that this function returns 7 coils: the 5 unique nonplanar
+    modular coils, and the 2 planar (A and B) coils. The coil currents
+    returned by this function correspond to the "Standard
+    configuration", in which the planar A and B coils carry no current.
+
+    The coils shapes here came from Fourier-transforming the xgrid
+    input file coils.w7x_v001, obtained from Joachim Geiger in an
+    email to Florian Wechsung and others on Sept 27, 2022.  With 96
+    quadrature points, the Fourier modes here reproduce the Cartesian
+    coordinate data from coils.w7x_v001 to ~ 1e-13 meters. Some
+    description from Joachim:
+
+    "I have attached two coils-files which contain the filaments
+    suitable for generating the mgrid-file for VMEC with xgrid. They
+    contain the non-planar and the planar coils in a one-filament
+    approximation as used here for equilibrium calculations.  The two
+    coil-sets are slightly different with respect to the planar coils
+    (the non-planar coil geometry is the same), the w7x_v001 being the
+    CAD-coil-set while the w7x-set has slightly older planar coils
+    which I had used in a large number of calculations. The difference
+    is small, but, depending on what accuracy is needed, noticeable.
+    In case you want only one coil-set, I would suggest to use the
+    CAD-coils, i.e. w7x_v001, although the other coil-set had been
+    used in the PPCF-paper for citation.  If there are any further
+    questions, do not hesitate to contact me."
+
+    Args:
+        Nt_coils: order of the curves representing the coils.
+        Nt_ma: order of the curve representing the magnetic axis.
+        ppp: point-per-period: number of quadrature points per period.
+
+    Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
+    """
+    filename = THIS_DIR / "W7-X.dat"
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
+    nfp = 5
+    amperes = 15000.0
+    # Non-planar coils have 108 turns. Planar coils have 36 turns.
+    turns = 108
+    currents = [Current(c) for c in [amperes * turns] * 5 + [0.0, 0.0]]
+    # The axis shape here is taken from a free-boundary VMEC
+    # calculation for the standard configuration at beta=0.
+    cR = [
+        5.56069066955626, 0.370739830964738, 0.0161526928867275, 
+        0.0011820724983052, 3.43773868380292e-06, -4.71423775536881e-05, 
+        -6.23133271265022e-05, 2.06622580616597e-06, -0.000113256675159501, 
+        5.0296895894932e-07, 7.02308687052046e-05, 5.13479338167885e-05, 
+        1.90731007856885e-05
+    ]
+    sZ = [
+        0, -0.308156954586225, -0.0186374002410851, 
+        -0.000261743895528833, 5.78207516751575e-05, -0.000129121205314107, 
+        3.08849630026052e-05, 1.95450172782866e-05, -8.32136392792337e-05, 
+        6.19785500011441e-05, 1.36521157246782e-05, -1.46281683516623e-05, 
+        -1.5142136543872e-06
+    ]
+
+    numpoints = Nt_ma * ppp+1 if ((Nt_ma * ppp) % 2 == 0) else Nt_ma * ppp
+    ma = CurveRZFourier(numpoints, Nt_ma, nfp, True)
+    ma.rc[:] = cR[0:(Nt_ma+1)]
+    ma.zs[:] = sZ[0:Nt_ma]
+    ma.x = ma.get_dofs()
+    return (curves, currents, ma)

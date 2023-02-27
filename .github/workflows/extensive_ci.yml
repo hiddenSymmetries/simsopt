@@ -121,6 +121,7 @@ jobs:
     - name: Install py_spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
+        pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 
