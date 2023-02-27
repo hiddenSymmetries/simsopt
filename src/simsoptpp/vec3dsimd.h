@@ -473,7 +473,7 @@ struct alignas(ALIGN_BYTES) Vec3dSimdPortable1 {
         auto x1 = lhs.x;
         #pragma omp simd aligned(x1: ALIGN_BYTES)
         for (int i = 0; i < 4; i++){
-            x1[0] *= rhs;
+            x1[i] *= rhs;
         }
         return lhs;
     }
@@ -482,7 +482,7 @@ struct alignas(ALIGN_BYTES) Vec3dSimdPortable1 {
         auto x1 = rhs.x;
         #pragma omp simd aligned(x1: ALIGN_BYTES)
         for (int i = 0; i < 4; i++){
-            x1[0] *= lhs;
+            x1[i] *= lhs;
         }
         return rhs;
     }
