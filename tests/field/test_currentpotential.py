@@ -23,14 +23,17 @@ except ImportError:
 class CurrentPotentialTests(unittest.TestCase):
     def test_compare_K_with_regcoil(self):
         # axisymmetric case with no Phimnc, non-axisymmetric, axisymmetric with Phimnc
-        for filename in ['regcoil_out.axisymmetry.nc', 'regcoil_out.w7x.nc', 'regcoil_out.axisymmetry_asym.nc']:
+        for filename in ['regcoil_out.w7x.nc', 'regcoil_out.near_axis_asym.nc']:
             filename = TEST_DIR / filename
             cp = CurrentPotentialFourier.from_netcdf(filename)
+            cp.set_current_potential_from_regcoil(filename, -1)
             f = netcdf_file(filename, 'r')
+            stellsym = f.variables['symmetry_option'][()]
             K2_regcoil = f.variables['K2'][()][-1, :, :]
             K = cp.K()
             K2 = np.sum(K*K, axis=2)
             K2_average = np.mean(K2, axis=(0, 1))
+            print(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
             assert np.allclose(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
 
 
@@ -275,7 +278,6 @@ class CurrentPotentialFourierTests(unittest.TestCase):
 
         # Now try a non-stellarator-symmetric case:
         cp = CurrentPotentialFourier(s, nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
-        print(cp.local_dof_names)
         assert 'Phic(0,0)' in cp.local_dof_names
         names = [name[4:] for name in cp.local_dof_names]
         names2 = [f'({m},{n})' for m, n in zip(cp.m, cp.n)]

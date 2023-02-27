@@ -105,7 +105,10 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
     def _make_names_helper(self, prefix):
         names = []
 
-        names += [prefix + '(0,' + str(n) + ')' for n in range(1, self.ntor + 1)]
+        start = 1
+        if not self.stellsym and prefix == 'Phic':
+            start = 0
+        names += [prefix + '(0,' + str(n) + ')' for n in range(start, self.ntor + 1)]
         for m in range(1, self.mpol + 1):
             names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
         return names
@@ -142,10 +145,11 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
+
         # The following methods of graph Optimizable framework need to be called
-        Optimizable._update_free_dof_size_indices(self)
+        Optimizable.update_free_dof_size_indices(self)
         Optimizable._update_full_dof_size_indices(self)
-        Optimizable._set_new_x(self)
+        Optimizable.set_recompute_flag(self)
 
     def get_phic(self, m, n):
         """
@@ -242,6 +246,10 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         n0 = n2d.flatten()[self.ntor:]
         self.m = m0[1::]
         self.n = n0[1::]
+
+        if not self.stellsym:
+            self.m = np.append(self.m, np.append([0], self.m))
+            self.n = np.append(self.n, np.append([0], self.n))
 
     def set_current_potential_from_regcoil(self, filename: str, ilambda: int):
         """

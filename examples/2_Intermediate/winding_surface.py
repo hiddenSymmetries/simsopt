@@ -61,8 +61,8 @@ def run_scan():
         problems across a wide range of regularization values,
         and generate comparison plots. 
     """
-    mpol = 8
-    ntor = 8
+    mpol = 4
+    ntor = 4
     for file in files:
         filename = TEST_DIR / file
 

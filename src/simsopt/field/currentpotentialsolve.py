@@ -124,7 +124,7 @@ class CurrentPotentialSolve:
         B_GI_winding_surface = np.sum(B*normal, axis=1)
         return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface)
 
-    def write_current_potential_to_regcoil(self, filename: str, opt_type='L2'):
+    def write_current_potential_to_regcoil(self, filename: str):
         """
         Set phic and phis based on a regcoil netcdf file.
 
@@ -133,10 +133,7 @@ class CurrentPotentialSolve:
             ilambda: 0-based index for the lambda array, indicating which current
                 potential solution to use
         """
-        if opt_type not in ['L2', 'L1']:
-            raise ValueError('opt_type parameter must be L2 or L1')
-
-        f = netcdf_file(filename + '_' + opt_type, 'w')
+        f = netcdf_file(filename, 'w')
         f.history = 'Created for writing a SIMSOPT-optimized winding surface and current potential to a regcoil-style output file'
 
         scalars = ['nfp', 'mpol_plasma', 'ntor_plasma', 'mpol_potential', 'ntor_potential', 'symmetry_option', 'net_poloidal_current_amperes', 'net_toroidal_current_amperes', 'ntheta_plasma', 'nzeta_plasma', 'ntheta_coil', 'nzeta_coil']
@@ -144,7 +141,7 @@ class CurrentPotentialSolve:
         w = self.winding_surface
         G = self.current_potential.net_poloidal_current_amperes
         I = self.current_potential.net_toroidal_current_amperes
-        scalar_variables = [s.nfp, s.mpol, s.ntor, w.mpol, w.ntor, s.stellsym + 1, G, I, self.ntheta_plasma, self.nzeta_plasma, self.ntheta_coil, self.nzeta_coil] 
+        scalar_variables = [s.nfp, s.mpol, s.ntor, w.mpol, w.ntor, s.stellsym + 1, G, I, self.ntheta_plasma, self.nzeta_plasma, self.ntheta_coil, self.nzeta_coil / s.nfp]  
         for i_scalar, scalar_name in enumerate(scalars):
             print(i_scalar, scalar_variables[i_scalar])
             f.createDimension(scalar_name, 1)
@@ -156,100 +153,146 @@ class CurrentPotentialSolve:
                 var.units = 'Amperes'
             var[:] = scalar_variables[i_scalar] 
 
-        rmnc = np.zeros(self.plasma_surface.mpol)
-        zmns = np.zeros(self.plasma_surface.mpol)
-        rmns = np.zeros(self.plasma_surface.mpol)
-        zmnc = np.zeros(self.plasma_surface.mpol)
-        xn_plasma = self.plasma_surface.n
-        xm_plasma = self.plasma_surface.m
-        nfp = self.plasma_surface.nfp
-        for im in range(self.plasma_surface.mpol):
-            rmnc[im] = self.plasma_surface.get_rc(xm_plasma[im], int(xn_plasma[im]/nfp))
-            zmns[im] = self.plasma_surface.get_zs(xm_plasma[im], int(xn_plasma[im]/nfp))
-            if not self.plasma_surface.stellsym:
-                rmns[im] = self.plasma_surface.get_rs(xm_plasma[im], int(xn_plasma[im]/nfp))
-                zmnc[im] = self.plasma_surface.get_zc(xm_plasma[im], int(xn_plasma[im]/nfp))
+        nfp = s.nfp
+        xn_plasma = s.n * nfp
+        xm_plasma = s.m
+        rmnc = np.zeros(len(xm_plasma))
+        zmns = np.zeros(len(xm_plasma))
+        zmnc = np.zeros(len(xm_plasma))
+        rmns = np.zeros(len(xm_plasma))
+        for im in range(len(xm_plasma)):
+            rmnc[im] = s.get_rc(xm_plasma[im], int(xn_plasma[im]/nfp))
+            zmns[im] = s.get_zs(xm_plasma[im], int(xn_plasma[im]/nfp))
+            if not s.stellsym:
+                rmns[im] = s.get_rs(xm_plasma[im], int(xn_plasma[im]/nfp))
+                zmnc[im] = s.get_zc(xm_plasma[im], int(xn_plasma[im]/nfp))
 
         rmnc_plasma = np.copy(rmnc)
         rmns_plasma = np.copy(rmns)
         zmns_plasma = np.copy(zmns)
         zmnc_plasma = np.copy(zmnc)
 
-        rmnc = np.zeros(self.winding_surface.mpol)
-        zmns = np.zeros(self.winding_surface.mpol)
-        rmns = np.zeros(self.winding_surface.mpol)
-        zmnc = np.zeros(self.winding_surface.mpol)
-        xn_coil = self.winding_surface.n
-        xm_coil = self.winding_surface.m
-        nfp = self.winding_surface.nfp
-        for im in range(self.winding_surface.mpol):
-            rmnc[im] = self.winding_surface.get_rc(xm_coil[im], int(xn_coil[im]/nfp))
-            zmns[im] = self.winding_surface.get_zs(xm_coil[im], int(xn_coil[im]/nfp))
-            if not self.winding_surface.stellsym:
-                rmns[im] = self.winding_surface.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
-                zmnc[im] = self.winding_surface.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
+        xn_potential = self.current_potential.n * w.nfp
+        xm_potential = self.current_potential.m
+        xn_coil = w.n * w.nfp
+        xm_coil = w.m
+        rmnc = np.zeros(len(xm_coil))
+        rmns = np.zeros(len(xm_coil))
+        zmnc = np.zeros(len(xm_coil))
+        zmns = np.zeros(len(xm_coil))
+        nfp = w.nfp
+        for im in range(len(xm_coil)):
+            rmnc[im] = w.get_rc(xm_coil[im], int(xn_coil[im]/nfp))
+            zmns[im] = w.get_zs(xm_coil[im], int(xn_coil[im]/nfp))
+            if not w.stellsym:
+                rmns[im] = w.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
+                zmnc[im] = w.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
 
         RHS_B, _ = self.B_matrix_and_rhs()
+        points = s.gamma().reshape(-1, 3)
+        normal = s.normal().reshape(-1, 3)
+        ws_points = w.gamma().reshape(-1, 3)
+        ws_normal = w.normal().reshape(-1, 3)
+        dtheta_coil = w.quadpoints_theta[1]
+        dzeta_coil = w.quadpoints_phi[1]
+
+        Bnormal_totals = []
+        Bnormal_totals_l1 = []
+        if len(self.ilambdas_l2) > 0:
+            for i, ilambda in enumerate(self.ilambdas_l2):
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l2[i], normal) * dtheta_coil * dzeta_coil
+                Bnormal_totals.append((Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma).reshape(self.ntheta_plasma, self.nzeta_plasma))
+        if len(self.ilambdas_l1) > 0:
+            for i, ilambda in enumerate(self.ilambdas_l1):
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l1[i], normal) * dtheta_coil * dzeta_coil
+                Bnormal_totals_l1.append((Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma).reshape(self.ntheta_plasma, self.nzeta_plasma))
+
         vectors = ['Bnormal_from_plasma_current', 'Bnormal_from_net_coil_currents',
                    'rmnc_plasma', 'rmns_plasma', 'zmns_plasma', 'zmnc_plasma',
                    'rmnc_coil', 'rmns_coil', 'zmns_coil', 'zmnc_coil',
-                   'xm_plasma', 'xn_plasma', 'xm_coil', 'xn_coil', 
+                   'xm_plasma', 'xn_plasma', 'xm_coil', 'xn_coil',
+                   'xm_potential', 'xn_potential',
+                   'r_plasma', 'r_coil',
+                   'theta_coil', 'zeta_coil',
                    'RHS_B', 'RHS_regularization', 
                    'norm_normal_plasma', 'norm_normal_coil', 
+                   'single_valued_current_potential_mn', 'single_valued_current_potential_thetazeta', 
+                   'K2', 'lambda', 'chi2_B', 'chi2_K', 'Bnormal_total',
+                   'single_valued_current_potential_mn_l1', 'single_valued_current_potential_thetazeta_l1', 
+                   'K2_l1', 'lambda_l1', 'chi2_B_l1', 'chi2_K_l1', 'Bnormal_total_l1'
                    ]
-        norm_normal_plasma = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
-        norm_normal_coil = np.linalg.norm(w.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi),
-        vector_variables = [self.Bnormal_plasma, self.B_GI, 
+
+        quadpoints_phi = np.linspace(0, 1, self.nzeta_plasma * nfp, endpoint=True)
+        quadpoints_theta = np.linspace(0, 1, self.ntheta_plasma, endpoint=True)
+        sf = SurfaceRZFourier(
+            nfp=s.nfp,
+            mpol=s.mpol,
+            ntor=s.ntor,
+            stellsym=True,
+            quadpoints_phi=quadpoints_phi,
+            quadpoints_theta=quadpoints_theta
+        )
+        #sf = sf.from_nphi_ntheta(
+        #    nfp=sf.nfp, ntheta=self.ntheta_plasma,
+        #    nphi=self.nzeta_plasma * s.nfp,
+        #    mpol=sf.mpol, ntor=sf.ntor,
+        #    stellsym=sf.stellsym, range="full torus"
+        #)
+        sf.set_dofs(0 * sf.get_dofs())
+        # xn_plasma = sf.n
+        # xm_plasma = sf.m
+        for im in range(len(xm_plasma)):
+            sf.set_rc(xm_plasma[im], int(xn_plasma[im] / s.nfp), rmnc_plasma[im])
+            sf.set_zs(xm_plasma[im], int(xn_plasma[im] / s.nfp), zmns_plasma[im])
+            if not sf.stellsym:
+                sf.set_rs(xm_plasma[im], int(xn_plasma[im] / s.nfp), rmns_plasma[im])
+                sf.set_zc(xm_plasma[im], int(xn_plasma[im] / s.nfp), zmnc_plasma[im])
+
+        norm_normal_plasma = np.linalg.norm(sf.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+        norm_normal_coil = np.linalg.norm(w.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+
+        vector_variables = [self.Bnormal_plasma.reshape(self.ntheta_plasma, self.nzeta_plasma), 
+                            self.B_GI.reshape(self.ntheta_plasma, self.nzeta_plasma), 
                             rmnc_plasma, rmns_plasma, zmns_plasma, zmnc_plasma,
-                            rmnc_coil, rmns_coil, zmns_coil, zmnc_coil,
-                            xm_plasma, xn_plasma, xm_coil, xn_coil, 
-                            RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil
+                            rmnc, rmns, zmns, zmnc,
+                            xm_plasma[:(len(xm_plasma)) // 2 + 1], xn_plasma[:(len(xm_plasma)) // 2 + 1], 
+                            xm_coil[:(len(xm_coil)) // 2 + 1], xn_coil[:(len(xm_coil)) // 2 + 1],
+                            xm_potential, xn_potential,
+                            sf.gamma(),
+                            w.gamma(),
+                            w.quadpoints_theta * 2 * np.pi, 
+                            w.quadpoints_phi[:self.nzeta_coil // nfp] * 2 * np.pi,
+                            RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil,
+                            np.array(self.dofs_l2), np.array(self.phis_l2),
+                            np.array(self.K2s_l2), np.array(self.ilambdas_l2),
+                            np.array(self.fBs_l2), np.array(self.fKs_l2), np.array(Bnormal_totals),
+                            np.array(self.dofs_l1), np.array(self.phis_l1),
+                            np.array(self.K2s_l1), np.array(self.ilambdas_l1),
+                            np.array(self.fBs_l1), np.array(self.fKs_l1), np.array(Bnormal_totals_l1)
                             ]
         for i_vector, vector_name in enumerate(vectors):
             vector_shape = vector_variables[i_vector].shape
-            shape_tuple = (vector_name + '0')
+            shape_tuple = (vector_name + '0', )
             for j, vshape in enumerate(vector_shape):
                 f.createDimension(vector_name + str(j), vshape)
                 if j > 0:
                     shape_tuple = shape_tuple + (vector_name + str(j),)
+            print(i_vector, vector_name, shape_tuple, vector_shape)
             var = f.createVariable(vector_name, 'f', shape_tuple)
             if 'Bnormal' in vector_name:
                 var.units = 'Tesla'
+            elif 'chi2_B' in vector_name:
+                var.units = 'Tesla^2 m^2'
+            elif 'chi2_K' in vector_name:
+                var.units = 'Ampere^2 / m^2'
+            elif 'thetazeta' in vector_name:
+                var.units = 'Ampere / m'
             elif 'rmn' in vector_name or 'zmn' in vector_name:
                 var.units = 'm'
             else:
                 var.units = 'dimensionless'
             var[:] = vector_variables[i_vector] 
 
-        points = self.plasma_surface.gamma().reshape(-1, 3)
-        normal = self.plasma_surface.normal().reshape(-1, 3)
-        ws_points = self.winding_surface.gamma().reshape(-1, 3)
-        ws_normal = self.winding_surface.normal().reshape(-1, 3)
-        dtheta_coil = self.winding_surface.quadpoints_theta[1]
-        dzeta_coil = self.winding_surface.quadpoints_phi[1]
-
-        if opt_type == 'L2' and len(self.ilambdas_l2) > 0:
-            for i, ilambda in enumerate(self.ilambdas_l2):
-                f.variables['single_valued_current_potential_mn'][()][i, :] = self.dofs_l2[i]
-                f.variables['single_valued_current_potential_thetazeta'][()][i, :, :] = self.phis_l2[i]
-                f.variables['K2'][()][i, :] = self.K2s_l2[i]
-                f.variables['lambda'][()][i] = ilambda
-                f.variables['chi2_B'][()][i] = 2 * self.fBs_l2[i]
-                f.variables['chi2_k'][()][i] = 2 * self.fKs_l2[i]
-                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l2[i], normal) * dtheta_coil * dzeta_coil
-                Bnormal_regcoil_total = Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma
-                f.variables['Bnormal_total'][()][i, :, :] = Bnormal_regcoil_total
-        if opt_type == 'L1' and len(self.ilambdas_l1) > 0:
-            for i, ilambda in enumerate(self.ilambdas_l1):
-                f.variables['single_valued_current_potential_mn'][()][ilambda, :] = self.dofs_l1[ilambda]
-                f.variables['single_valued_current_potential_thetazeta'][()][i, :, :] = self.phis_l1[i]
-                f.variables['K2'][()][ilambda, :, :] = self.K2s_l1[i]
-                f.variables['lambda'][()][i] = ilambda
-                f.variables['chi2_B'][()][i] = 2 * self.fBs_l1[i]
-                f.variables['chi2_k'][()][i] = 2 * self.fKs_l1[i]
-                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l1[i], normal) * dtheta_coil * dzeta_coil
-                Bnormal_regcoil_total = Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma
-                f.variables['Bnormal_total'][()][i, :, :] = Bnormal_regcoil_total
         f.close()
 
     def K_rhs_impl(self, K_rhs):
