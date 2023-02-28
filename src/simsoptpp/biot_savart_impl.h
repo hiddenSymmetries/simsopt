@@ -254,7 +254,6 @@ void biot_savart_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPorta
             d2B_dXdX_i[3] *= 0.; d2B_dXdX_i[4] *= 0.; d2B_dXdX_i[5] *= 0.;
             d2B_dXdX_i[6] *= 0.; d2B_dXdX_i[7] *= 0.; d2B_dXdX_i[8] *= 0.;
         }
-       #pragma omp simd aligned(pointsx, pointsy, pointsz: 32)
         for (int j = 0; j < num_quad_points; ++j) {
             auto diff = point_i - Vec3dSimdPortable1(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2     = normsq(diff);
