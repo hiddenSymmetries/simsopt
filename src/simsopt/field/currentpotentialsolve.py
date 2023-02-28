@@ -126,7 +126,7 @@ class CurrentPotentialSolve:
         B_GI_winding_surface = np.sum(B*normal, axis=1)
         return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface)
 
-    def write_current_potential_to_regcoil(self, filename: str):
+    def write_regcoil_out(self, filename: str):
         """
         Take optimized CurrentPotentialSolve class and save it to a regcoil-style
         outfile for backwards compatability with other stellarator codes.

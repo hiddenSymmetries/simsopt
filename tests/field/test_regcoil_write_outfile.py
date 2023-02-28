@@ -66,7 +66,7 @@ class Testing(unittest.TestCase):
                 assert np.allclose(optimized_phi_mn_lasso, optimized_phi_mn)
 
                 # Test that current potential solve class correctly writes REGCOIL outfiles
-            cpst.write_current_potential_to_regcoil(filename='simsopt_' + fname)
+            cpst.write_regcoil_out(filename='simsopt_' + fname)
             g = netcdf_file('simsopt_' + fname, 'r')
             f = netcdf_file(filename, 'r')
             for ilambda in range(2):

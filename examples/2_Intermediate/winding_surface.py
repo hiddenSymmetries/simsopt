@@ -61,8 +61,8 @@ def run_scan():
         problems across a wide range of regularization values,
         and generate comparison plots. 
     """
-    mpol = 4
-    ntor = 4
+    mpol = 8
+    ntor = 8
     for file in files:
         filename = TEST_DIR / file
 
@@ -373,6 +373,7 @@ def run_target():
                     extra_data=pointData
                 )
                 break
+        cpst.write_regcoil_out(filename='simsopt_' + file)
 
 
 # Run one of the functions and time it
