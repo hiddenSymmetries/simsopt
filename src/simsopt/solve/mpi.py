@@ -14,7 +14,8 @@ from time import time
 import traceback
 
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares,minimize
+from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint
 
 try:
     from mpi4py import MPI
@@ -25,6 +26,7 @@ from .._core.optimizable import Optimizable
 from ..util.mpi import MpiPartition
 from .._core.finite_difference import MPIFiniteDifference
 from ..objectives.least_squares import LeastSquaresProblem
+from ..objectives.constrained import ConstrainedProblem
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +225,230 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
         objective_file.close()
         residuals_file.close()
+
+    datalog_started = False
+    logger.info("Completed solve.")
+
+    # Finally, make sure all procs get the optimal state vector.
+    mpi.comm_world.Bcast(x)
+    logger.debug(f'After Bcast, x={x}')
+    # Set Parameters to their values for the optimum
+    prob.x = x
+
+
+
+
+def constrained_mpi_solve(prob: ConstrainedProblem,
+                            mpi: MpiPartition,
+                            grad: bool = False,
+                            abs_step: float = 1.0e-7,
+                            rel_step: float = 0.0,
+                            diff_method: str = "forward",
+                            opt_method: str = "SLSQP",
+                            **kwargs):
+    """
+    Solve a constrained minimization problem using
+    MPI. All MPI processes (including group leaders and workers)
+    should call this function.
+
+    Args:
+        prob: Optimizable object defining the objective function(s) and
+             parameter space.
+        mpi: A MpiPartition object, storing the information about how
+             the pool of MPI processes is divided into worker groups.
+        grad: Whether to use a gradient-based optimization algorithm, as
+             opposed to a gradient-free algorithm. If unspecified, a
+             a gradient-free algorithm
+             will be used by default. If you set ``grad=True``
+             finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are "centered", and
+             "forward". If ``centered``, centered finite differences will
+             be used. If ``forward``, one-sided finite differences will
+             be used. Else, error is raised.
+        kwargs: Any arguments to pass to
+                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
+                For instance, you can supply ``max_nfev=100`` to set
+                the maximum number of function evaluations (not counting
+                finite-difference gradient evaluations) to 100. Or, you
+                can supply ``method`` to choose the optimization algorithm.
+    """
+    if MPI is None:
+        raise RuntimeError(
+            "cosntrained_mpi_solve requires the mpi4py package.")
+    logger.info("Beginning solve.")
+
+    x = np.copy(prob.x)  # For use in Bcast later.
+
+    objective_file = None
+    constraint_file = None
+    objective_datalog_started = False
+    constraint_datalog_started = False
+    n_objective_evals = 0
+    n_constraint_evals = 0
+    start_time = time()
+
+    def _f_proc0(x):
+        """
+        This function is used for constrained_mpi_solve.  It is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        logger.debug("Entering _f_proc0")
+        mpi.mobilize_workers(CALCULATE_F)
+        # Send workers the state vector:
+        mpi.comm_groups.bcast(x, root=0)
+        logger.debug("Past bcast in _f_proc0")
+
+        try:
+            objective_val = prob.objective(x)
+            logger.debug(f"objective in _f_proc0:\n {objective_val}")
+        except:
+            objective_val = prob.fail
+            logger.info("Exception caught during function evaluation.")
+
+        nonlocal objective_datalog_started, objective_file, n_objective_evals
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not objective_datalog_started:
+            # Initialize log file
+            objective_datalog_started = True
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            objective_file = open(f"objective_{datestr}.dat", 'w')
+            objective_file.write(f"Problem type:\nconstrained\nnparams:\n{prob.dof_size}\n")
+            objective_file.write("function_evaluation,seconds")
+
+            for j in range(prob.dof_size):
+                objective_file.write(f",x({j})")
+            objective_file.write(",objective_function\n")
+
+        del_t = time() - start_time
+        objective_file.write(f"{n_objective_evals:6d},{del_t:12.4e}")
+        for xj in x:
+            objective_file.write(f",{xj:24.16e}")
+        objective_file.write(f",{objective_val:24.16e}\n")
+        objective_file.flush()
+
+        n_objective_evals += 1
+        logger.debug(f"objective is {objective_val}")
+        return objective_val
+
+    # wrap the constraints for logging
+    def _nlc_proc0(x):
+        """
+        This function is used for constrained_mpi_solve.  It is called only by
+        proc 0 while workers are in the worker loop.
+        """
+        logger.debug("Entering _nlc_proc0")
+        mpi.mobilize_workers(CALCULATE_F)
+        # Send workers the state vector:
+        mpi.comm_groups.bcast(x, root=0)
+        logger.debug("Past bcast in _nlc_proc0")
+
+        try:
+            constraint_val = prob.nonlinear_constraints(x)
+            logger.debug(f"constraints in _nlc_proc0:\n {constraint_val}")
+        except:
+            constraint_val = np.full(prob.nvals, 1.0e12)
+            logger.info("Exception caught during function evaluation.")
+
+        nonlocal constraint_datalog_started, constraint_file, n_constraint_evals
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not constraint_datalog_started:
+            # Initialize log file
+            constraint_datalog_started = True
+            datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            constraint_file = open(f"constraint_{datestr}.dat", 'w')
+            constraint_file.write(f"Problem type:\nconstrained\nnparams:\n{prob.dof_size}\n")
+            constraint_file.write("function_evaluation,seconds")
+
+            for j in range(prob.dof_size):
+                constraint_file.write(f",x({j})")
+            constraint_file.write(",constraint_function\n")
+            for j in range(len(constraint_val)):
+                constraint_file.write(f",F({j})")
+            constraint_file.write("\n")
+
+        del_t = time() - start_time
+        constraint_file.write(f"{n_constraint_evals:6d},{del_t:12.4e}")
+        for xj in x:
+            constraint_file.write(f",{xj:24.16e}")
+        for fj in constraint_val:
+            constraint_file.write(f",{fj:24.16e}")
+        constraint_file.write("\n")
+        constraint_file.flush()
+
+        n_constraint_evals += 1
+        logger.debug(f"constraints are {constraint_val}")
+        return constraint_val
+
+    # prepare bounds and linear constraints
+    bounds = None
+    constraints = []
+    if prob.has_bounds:
+        bounds = Bounds(prob.lb,prob.ub)
+    if prob.has_lc:
+        lincon = LinearConstraint(prob.A_lc,ub = prob.b_lc)
+        constraints.append(lincon)
+
+    # For MPI finite difference gradient, get the worker and leader action from
+    # MPIFiniteDifference
+    if grad:
+        with MPIFiniteDifference(prob.objective, mpi, abs_step=abs_step,
+                                 rel_step=rel_step, diff_method=diff_method) as fd_obj,\
+             MPIFiniteDifference(prob.nonlinear_constraints, mpi, abs_step=abs_step,
+                                 rel_step=rel_step, diff_method=diff_method) as fd_nlc:
+ 
+            if mpi.proc0_world:
+                if prob.has_nlc:
+                    nlc = NonlinearConstraint(_nlc_proc0,lb=prob.lhs_nlc,ub=prob.rhs_nlc,jac =fd_nlc.jac)
+                    constraints.append(nlc)
+                # proc0_world does this block, running the optimization.
+                x0 = np.copy(prob.x)
+                logger.info("Using finite difference method implemented in "
+                            "SIMSOPT for evaluating gradient")
+                # TODO: the print statements are not functional
+                # TODO: **kwargs may not work as options here
+                result = minimize(_f_proc0, x0, jac=fd_obj.jac,
+                                  bounds=bounds, constraints = constraints,
+                                  method=opt_method, **kwargs,
+                                  options={'disp':True})
+
+    else:
+        raise NotImplementedError
+
+        # TODO: what is the workers action?
+        leaders_action = lambda mpi, data: None
+        workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        # Send group leaders and workers into their respective loops:
+        mpi.apart(leaders_action, workers_action)
+
+        if mpi.proc0_world:
+            # proc0_world does this block, running the optimization.
+            if prob.has_nlc:
+                nlc = NonlinearConstraint(_nlc_proc0, lb=-np.inf, ub=prob.nlc_rhs)
+                constraints.append(nlc)
+            x0 = np.copy(prob.x)
+            logger.info("Using derivative-free method")
+            result = minimize(_f_proc0, x0,
+                              bounds=bounds, constraints = constraints,
+                              method=opt_method, verbose=2, **kwargs)
+
+        # Stop loops for workers and group leaders:
+        mpi.together()
+
+    if mpi.proc0_world:
+        x = result.x
+
+        objective_file.close()
+        constraint_file.close()
 
     datalog_started = False
     logger.info("Completed solve.")
