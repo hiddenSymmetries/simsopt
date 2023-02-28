@@ -40,20 +40,22 @@ class ConstrainedProblem(Optimizable):
 
         \min_x f(x) 
         s.t. 
-          c(x) \le d
+          l_c \le c(x) \le u_c
           Ax \le b
-          l \le x \le u
+          l_x \le x \le u_x
         
 
     Args:
         f_obj: objective function handle (Generally one of the output functions of
                   the Optimizable instances
-        tuples_nlc: Nonlinear constraints as a sequence of tuples containing 
-                 the function c and float d, i.e. (c, d)
+        tuples_nlc: Nonlinear constraints as a sequence of triples containing 
+                    the nonlinear constraint function c with lower and upper bounds
+                    i.e. (c,l_c,u_c)
         tuple_lc: Linear constraints as a tuple containing the 2d-array A, and 1d array
-                b, i.e. (A,b)
-        lb: array of lower bounds, None or -np.inf can be used if an entry is unconstrained
-        ub: array of upper bounds, None or np.inf can be used if an entry is unconstrained
+                  b, i.e. (A,b)
+        lb: 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
+            Set equal to upper bound for equality constraints.
+        ub: 1d-array of upper bounds, np.inf can be used if an entry is unconstrained
         depends_on: (Alternative initialization) Instead of specifying funcs_in,
                 one could specify the Optimizable objects
         opt_return_fns:  (Alternative initialization) If using *depends_on*,
@@ -63,13 +65,14 @@ class ConstrainedProblem(Optimizable):
 
     def __init__(self,
                  f_obj: Callable,
-                 tuples_nlc: Sequence[Tuple[Callable, Real]] = None,
-                 tuple_lc: Tuple[RealArray, RealArray] = None,
+                 tuples_nlc: Sequence[Tuple[Callable, Real,Real]] = None,
+                 tuple_lc: Tuple[RealArray, Union[RealArray, Real]] = None,
                  lb: RealArray = None,
                  ub: RealArray = None,
                  fail: Union[None, float] = 1.0e12):
         # TODO: allow for specification of bounds as float
         # TODO: make sure np.inf is an allowable bound
+        # TODO: should check that lb,ub,A_lc,b_lc have correct shapes
 
         self.fail = fail
 
@@ -78,6 +81,8 @@ class ConstrainedProblem(Optimizable):
         self.first_eval_obj = True
         self.first_eval_con = True
 
+        # TODO: we probably dont even need the has_bounds flag
+        self.has_bounds = False
         if lb is None:
             self.lb = -np.inf
         else:
@@ -91,10 +96,14 @@ class ConstrainedProblem(Optimizable):
             self.has_bounds = True
 
 
+        # unpack the nonlinear constraints
         if tuples_nlc is not None:
-            f_nlc, rhs_nlc = zip(*tuples_nlc)
+            # TODO: check the values of lhs and rhs
+            # to make sure they are np.inf or a float
+            f_nlc, lhs_nlc, rhs_nlc = zip(*tuples_nlc)
             funcs_in = [f_obj, *f_nlc]
             self.has_nlc = True
+            self.lhs_nlc = lhs_nlc
             self.rhs_nlc = rhs_nlc
         else:
             funcs_in = [f_obj]  
@@ -102,8 +111,13 @@ class ConstrainedProblem(Optimizable):
 
         # unpack the linear constraints
         if tuple_lc:
-            self.A_lc = np.atleast_2d(tuple_lc[0])
-            self.b_lc = np.asarray(tuple_lc[1])
+            A_lc = np.atleast_2d(tuple_lc[0])
+            b_lc = np.atleast_1d(tuple_lc[1])
+            if np.shape(A_lc)[0] != len(b_lc):
+                raise ValueError(f"Linear constraint A and b do not have compatible shapes.")
+            
+            self.A_lc = A_lc
+            self.b_lc = b_lc
             self.has_lc = True
         else:
             self.has_lc = False
