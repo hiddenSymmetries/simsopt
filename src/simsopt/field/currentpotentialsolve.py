@@ -36,6 +36,8 @@ class CurrentPotentialSolve:
         self.nzeta_coil = len(self.current_potential.quadpoints_phi)
         self.Bnormal_plasma = Bnormal_plasma
         self.B_GI = B_GI
+        # Save list of results for each L2 or L1 winding surface
+        # optimization performed with this class object
         self.ilambdas_l2 = []
         self.dofs_l2 = []
         self.phis_l2 = []
@@ -126,12 +128,11 @@ class CurrentPotentialSolve:
 
     def write_current_potential_to_regcoil(self, filename: str):
         """
-        Set phic and phis based on a regcoil netcdf file.
+        Take optimized CurrentPotentialSolve class and save it to a regcoil-style
+        outfile for backwards compatability with other stellarator codes.
 
         Args:
             filename: Name of the ``regcoil_out.*.nc`` file to read.
-            ilambda: 0-based index for the lambda array, indicating which current
-                potential solution to use
         """
         f = netcdf_file(filename, 'w')
         f.history = 'Created for writing a SIMSOPT-optimized winding surface and current potential to a regcoil-style output file'
@@ -143,7 +144,6 @@ class CurrentPotentialSolve:
         I = self.current_potential.net_toroidal_current_amperes
         scalar_variables = [s.nfp, s.mpol, s.ntor, w.mpol, w.ntor, s.stellsym + 1, G, I, self.ntheta_plasma, self.nzeta_plasma, self.ntheta_coil, self.nzeta_coil / s.nfp]  
         for i_scalar, scalar_name in enumerate(scalars):
-            print(i_scalar, scalar_variables[i_scalar])
             f.createDimension(scalar_name, 1)
             if 'amperes' not in scalar_name:
                 var = f.createVariable(scalar_name, 'i', (scalar_name,))
@@ -153,6 +153,7 @@ class CurrentPotentialSolve:
                 var.units = 'Amperes'
             var[:] = scalar_variables[i_scalar] 
 
+        # go through and compute all the rmnc, rmns for the plasma surface
         nfp = s.nfp
         xn_plasma = s.n * nfp
         xm_plasma = s.m
@@ -172,6 +173,7 @@ class CurrentPotentialSolve:
         zmns_plasma = np.copy(zmns)
         zmnc_plasma = np.copy(zmnc)
 
+        # go through and compute all the rmnc, rmns for the coil surface
         xn_potential = self.current_potential.n * w.nfp
         xm_potential = self.current_potential.m
         xn_coil = w.n * w.nfp
@@ -188,14 +190,16 @@ class CurrentPotentialSolve:
                 rmns[im] = w.get_rs(xm_coil[im], int(xn_coil[im]/nfp))
                 zmnc[im] = w.get_zc(xm_coil[im], int(xn_coil[im]/nfp))
 
+        # get the RHS b vector in the optimization
         RHS_B, _ = self.B_matrix_and_rhs()
+
+        # Define geometric objects and then compute all the Bnormals
         points = s.gamma().reshape(-1, 3)
         normal = s.normal().reshape(-1, 3)
         ws_points = w.gamma().reshape(-1, 3)
         ws_normal = w.normal().reshape(-1, 3)
         dtheta_coil = w.quadpoints_theta[1]
         dzeta_coil = w.quadpoints_phi[1]
-
         Bnormal_totals = []
         Bnormal_totals_l1 = []
         if len(self.ilambdas_l2) > 0:
@@ -222,8 +226,11 @@ class CurrentPotentialSolve:
                    'K2_l1', 'lambda_l1', 'chi2_B_l1', 'chi2_K_l1', 'Bnormal_total_l1'
                    ]
 
-        quadpoints_phi = np.linspace(0, 1, self.nzeta_plasma * nfp, endpoint=True)
-        quadpoints_theta = np.linspace(0, 1, self.ntheta_plasma, endpoint=True)
+        # Define the full plasma surface and few other geometric quantities
+        quadpoints_phi = np.linspace(0, 1, self.nzeta_plasma * nfp + 1, endpoint=True)
+        quadpoints_theta = np.linspace(0, 1, self.ntheta_plasma + 1, endpoint=True)
+        quadpoints_phi = quadpoints_phi[:-1]
+        quadpoints_theta = quadpoints_theta[:-1]
         sf = SurfaceRZFourier(
             nfp=s.nfp,
             mpol=s.mpol,
@@ -232,15 +239,7 @@ class CurrentPotentialSolve:
             quadpoints_phi=quadpoints_phi,
             quadpoints_theta=quadpoints_theta
         )
-        #sf = sf.from_nphi_ntheta(
-        #    nfp=sf.nfp, ntheta=self.ntheta_plasma,
-        #    nphi=self.nzeta_plasma * s.nfp,
-        #    mpol=sf.mpol, ntor=sf.ntor,
-        #    stellsym=sf.stellsym, range="full torus"
-        #)
         sf.set_dofs(0 * sf.get_dofs())
-        # xn_plasma = sf.n
-        # xm_plasma = sf.m
         for im in range(len(xm_plasma)):
             sf.set_rc(xm_plasma[im], int(xn_plasma[im] / s.nfp), rmnc_plasma[im])
             sf.set_zs(xm_plasma[im], int(xn_plasma[im] / s.nfp), zmns_plasma[im])
@@ -248,9 +247,10 @@ class CurrentPotentialSolve:
                 sf.set_rs(xm_plasma[im], int(xn_plasma[im] / s.nfp), rmns_plasma[im])
                 sf.set_zc(xm_plasma[im], int(xn_plasma[im] / s.nfp), zmnc_plasma[im])
 
-        norm_normal_plasma = np.linalg.norm(sf.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
-        norm_normal_coil = np.linalg.norm(w.normal().reshape(-1, 3), axis=-1) / (2 * np.pi * 2 * np.pi)
+        norm_normal_plasma = np.linalg.norm(s.normal(), axis=-1) / (2 * np.pi * 2 * np.pi)
+        norm_normal_coil = np.linalg.norm(w.normal(), axis=-1) / (2 * np.pi * 2 * np.pi)
 
+        # Define all the vectors we need to save
         vector_variables = [self.Bnormal_plasma.reshape(self.ntheta_plasma, self.nzeta_plasma), 
                             self.B_GI.reshape(self.ntheta_plasma, self.nzeta_plasma), 
                             rmnc_plasma, rmns_plasma, zmns_plasma, zmnc_plasma,
@@ -261,15 +261,17 @@ class CurrentPotentialSolve:
                             sf.gamma(),
                             w.gamma(),
                             w.quadpoints_theta * 2 * np.pi, 
-                            w.quadpoints_phi[:self.nzeta_coil // nfp] * 2 * np.pi,
+                            w.quadpoints_phi[:self.nzeta_coil // w.nfp] * 2 * np.pi,
                             RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil,
                             np.array(self.dofs_l2), np.array(self.phis_l2),
-                            np.array(self.K2s_l2), np.array(self.ilambdas_l2),
-                            np.array(self.fBs_l2), np.array(self.fKs_l2), np.array(Bnormal_totals),
+                            np.array(self.K2s_l2)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l2),
+                            2 * np.array(self.fBs_l2), 2 * np.array(self.fKs_l2), np.array(Bnormal_totals),
                             np.array(self.dofs_l1), np.array(self.phis_l1),
                             np.array(self.K2s_l1), np.array(self.ilambdas_l1),
-                            np.array(self.fBs_l1), np.array(self.fKs_l1), np.array(Bnormal_totals_l1)
+                            2 * np.array(self.fBs_l1), 2 * np.array(self.fKs_l1), np.array(Bnormal_totals_l1)
                             ]
+
+        # Loop through and save all the vector variables
         for i_vector, vector_name in enumerate(vectors):
             vector_shape = vector_variables[i_vector].shape
             shape_tuple = (vector_name + '0', )
@@ -277,7 +279,6 @@ class CurrentPotentialSolve:
                 f.createDimension(vector_name + str(j), vshape)
                 if j > 0:
                     shape_tuple = shape_tuple + (vector_name + str(j),)
-            print(i_vector, vector_name, shape_tuple, vector_shape)
             var = f.createVariable(vector_name, 'f', shape_tuple)
             if 'Bnormal' in vector_name:
                 var.units = 'Tesla'
@@ -287,8 +288,10 @@ class CurrentPotentialSolve:
                 var.units = 'Ampere^2 / m^2'
             elif 'thetazeta' in vector_name:
                 var.units = 'Ampere / m'
-            elif 'rmn' in vector_name or 'zmn' in vector_name:
+            elif 'rmn' in vector_name or 'zmn' in vector_name or 'r_' in vector_name or 'norm_' in vector_name:
                 var.units = 'm'
+            elif 'lambda' in vector_name:  # lambda * chi2_K must have same units as chi2_B
+                var.units = 'Tesla^2 * m^4 / Ampere^2'
             else:
                 var.units = 'dimensionless'
             var[:] = vector_variables[i_vector] 
@@ -335,20 +338,14 @@ class CurrentPotentialSolve:
         zeta_coil = np.ravel(phi_mesh)
         theta_coil = np.ravel(theta_mesh)
 
+        if self.winding_surface.stellsym:
+            ndofs_half = self.current_potential.num_dofs()
+        else:
+            ndofs_half = self.current_potential.num_dofs() // 2
+
         # Compute terms for the REGCOIL (L2) problem
-        gj, B_matrix = sopp.winding_surface_field_Bn(
-            points_plasma,
-            points_coil,
-            normal_plasma,
-            normal,
-            self.current_potential.stellsym,
-            zeta_coil,
-            theta_coil,
-            self.current_potential.num_dofs(),
-            self.current_potential.m,
-            self.current_potential.n,
-            self.winding_surface.nfp
-        )
+        contig = np.ascontiguousarray
+        gj, B_matrix = sopp.winding_surface_field_Bn(contig(points_plasma), contig(points_coil), contig(normal_plasma), contig(normal), self.winding_surface.stellsym, contig(zeta_coil), contig(theta_coil), self.current_potential.num_dofs(), contig(self.current_potential.m[:ndofs_half]), contig(self.current_potential.n[:ndofs_half]), self.winding_surface.nfp)
         B_GI = self.B_GI
 
         # set up RHS of optimization
@@ -372,15 +369,15 @@ class CurrentPotentialSolve:
         I = self.current_potential.net_toroidal_current_amperes
 
         normal_coil = self.winding_surface.normal().reshape(-1, 3)
-        m = self.current_potential.m
-        n = self.current_potential.n
+        m = self.current_potential.m[:ndofs_half]
+        n = self.current_potential.n[:ndofs_half]
         nfp = self.winding_surface.nfp
 
         contig = np.ascontiguousarray
 
         # Compute terms for the Lasso (L1) problem
         d, fj = sopp.winding_surface_field_K2_matrices(
-            contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.current_potential.stellsym,
+            contig(dr_dzeta), contig(dr_dtheta), contig(normal_coil), self.winding_surface.stellsym,
             contig(zeta_coil), contig(theta_coil), self.ndofs, contig(m), contig(n), nfp, G, I
         )
         self.fj = fj * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
@@ -411,7 +408,8 @@ class CurrentPotentialSolve:
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
         self.ilambdas_l2.append(lam)
         self.dofs_l2.append(phi_mn_opt)
-        self.phis_l2.append(self.current_potential.Phi())
+        # REGCOIL only uses 1 / 2 nfp of the winding surface
+        self.phis_l2.append(self.current_potential.Phi()[:self.nzeta_coil // nfp, :])
         self.fBs_l2.append(f_B)
         self.fKs_l2.append(f_K)
         K2 = np.sum(self.current_potential.K() ** 2, axis=2)
@@ -487,7 +485,8 @@ class CurrentPotentialSolve:
         f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
         self.ilambdas_l1.append(lam)
         self.dofs_l1.append(phi_mn_opt)
-        self.phis_l1.append(self.current_potential.Phi())
+        # REGCOIL only uses 1 / 2 nfp of the winding surface
+        self.phis_l1.append(self.current_potential.Phi()[:self.nzeta_coil // nfp, :])
         self.fBs_l1.append(f_B)
         self.fKs_l1.append(f_K)
         K2 = np.sum(self.current_potential.K() ** 2, axis=2)
@@ -518,6 +517,10 @@ class CurrentPotentialSolve:
         # Lipshitz constant L of the least-squares loss term
         # can be computed easily as largest eigenvalue of ATA
         L = np.linalg.svd(ATA, compute_uv=False)[0]
+
+        # SVD is slow for large problems so can use
+        # the upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
+        # L = np.sqrt(N) * np.max(np.linalg.norm(ATA, axis=0), axis=-1)
 
         # initial step size should be just smaller than 1 / L
         # which for most of these problems L ~ 1e-13 or smaller

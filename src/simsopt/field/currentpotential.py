@@ -106,8 +106,6 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         names = []
 
         start = 1
-        if not self.stellsym and prefix == 'Phic':
-            start = 0
         names += [prefix + '(0,' + str(n) + ')' for n in range(start, self.ntor + 1)]
         for m in range(1, self.mpol + 1):
             names += [prefix + '(' + str(m) + ',' + str(n) + ')' for n in range(-self.ntor, self.ntor + 1)]
@@ -248,8 +246,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.n = n0[1::]
 
         if not self.stellsym:
-            self.m = np.append(self.m, np.append([0], self.m))
-            self.n = np.append(self.n, np.append([0], self.n))
+            self.m = np.append(self.m, self.m)
+            self.n = np.append(self.n, self.n)
 
     def set_current_potential_from_regcoil(self, filename: str, ilambda: int):
         """

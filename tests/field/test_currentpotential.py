@@ -28,12 +28,22 @@ class CurrentPotentialTests(unittest.TestCase):
             cp = CurrentPotentialFourier.from_netcdf(filename)
             cp.set_current_potential_from_regcoil(filename, -1)
             f = netcdf_file(filename, 'r')
+            cp_regcoil = f.variables['single_valued_current_potential_mn'][()][-1, :]
+            xm_regcoil = f.variables['xm_potential'][()]
             stellsym = f.variables['symmetry_option'][()]
+            if stellsym == 1:
+                stellsym = True
+            else:
+                stellsym = False
+
+            # need to add phic(0, 0) term to cp_regcoil to compare them
+            assert np.allclose(cp.get_dofs(), cp_regcoil)
             K2_regcoil = f.variables['K2'][()][-1, :, :]
             K = cp.K()
             K2 = np.sum(K*K, axis=2)
             K2_average = np.mean(K2, axis=(0, 1))
-            print(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
+            # print(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2.shape, K2_average)
+            # print(K2_regcoil/K2_average, K2_regcoil.shape)
             assert np.allclose(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
 
 
@@ -150,19 +160,18 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         self.assertAlmostEqual(cp.phis[3, 0], 8)
         self.assertAlmostEqual(cp.phis[3, 1], 9)
         self.assertAlmostEqual(cp.phis[3, 2], 10)
-
         self.assertAlmostEqual(cp.phic[0, 0], 0)
-        self.assertAlmostEqual(cp.phic[0, 1], 11)
-        self.assertAlmostEqual(cp.phic[0, 2], 12)
-        self.assertAlmostEqual(cp.phic[1, 0], 13)
-        self.assertAlmostEqual(cp.phic[1, 1], 14)
-        self.assertAlmostEqual(cp.phic[1, 2], 15)
-        self.assertAlmostEqual(cp.phic[2, 0], 16)
-        self.assertAlmostEqual(cp.phic[2, 1], 17)
-        self.assertAlmostEqual(cp.phic[2, 2], 18)
-        self.assertAlmostEqual(cp.phic[3, 0], 19)
-        self.assertAlmostEqual(cp.phic[3, 1], 20)
-        self.assertAlmostEqual(cp.phic[3, 2], 21)
+        self.assertAlmostEqual(cp.phic[0, 1], 0)
+        self.assertAlmostEqual(cp.phic[0, 2], 11)
+        self.assertAlmostEqual(cp.phic[1, 0], 12)
+        self.assertAlmostEqual(cp.phic[1, 1], 13)
+        self.assertAlmostEqual(cp.phic[1, 2], 14)
+        self.assertAlmostEqual(cp.phic[2, 0], 15)
+        self.assertAlmostEqual(cp.phic[2, 1], 16)
+        self.assertAlmostEqual(cp.phic[2, 2], 17)
+        self.assertAlmostEqual(cp.phic[3, 0], 18)
+        self.assertAlmostEqual(cp.phic[3, 1], 19)
+        self.assertAlmostEqual(cp.phic[3, 2], 20)
 
     def test_change_resolution(self):
         """
@@ -187,9 +196,11 @@ class CurrentPotentialFourierTests(unittest.TestCase):
     def test_get_phic(self):
         s = SurfaceRZFourier()
         cp = CurrentPotentialFourier(s, mpol=1, ntor=0, stellsym=False)
-        cp.x = [0.7, 2.9, -1.1]
-        self.assertAlmostEqual(cp.get_phic(0, 0), 2.9)
+        cp.x = [0.7, -1.1]
+        self.assertAlmostEqual(cp.get_phis(1, 0), 0.7)
         self.assertAlmostEqual(cp.get_phic(1, 0), -1.1)
+        self.assertAlmostEqual(cp.get_phis(0, 0), 0.0)
+        self.assertAlmostEqual(cp.get_phic(0, 0), 0.0)
 
     def test_get_phis(self):
         s = SurfaceRZFourier()
@@ -213,9 +224,10 @@ class CurrentPotentialFourierTests(unittest.TestCase):
     def test_set_phic(self):
         s = SurfaceRZFourier()
         cp = CurrentPotentialFourier(s, mpol=1, ntor=0, stellsym=False)
-        cp.x = [2.9, -1.1, 0.7]
-        cp.set_phic(0, 0, 3.1)
+        cp.x = [2.9, -1.1]
+        cp.set_phic(1, 0, 3.1)
         self.assertAlmostEqual(cp.x[1], 3.1)
+        self.assertAlmostEqual(cp.get_phic(1, 0), 3.1)
 
     def test_set_phis(self):
         s = SurfaceRZFourier()
@@ -237,9 +249,9 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         nfp = 4
         s = SurfaceRZFourier()
         cp = CurrentPotentialFourier(s, nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
-        cp.set_phic(0, 0, 100.0)
+        cp.set_phic(0, 1, 100.0)
         cp.set_phis(0, 1, 200.0)
-        self.assertAlmostEqual(cp.get('Phic(0,0)'), 100.0)
+        self.assertAlmostEqual(cp.get('Phic(0,1)'), 100.0)
         self.assertAlmostEqual(cp.get('Phis(0,1)'), 200.0)
 
     def test_mn(self):
@@ -260,8 +272,8 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         n_correct = [1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2]
 
         cp = CurrentPotentialFourier(s, nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
-        np.testing.assert_array_equal(cp.m, m_correct + [0] + m_correct)
-        np.testing.assert_array_equal(cp.n, n_correct + [0] + n_correct)
+        np.testing.assert_array_equal(cp.m, m_correct + m_correct)
+        np.testing.assert_array_equal(cp.n, n_correct + n_correct)
 
     def test_mn_matches_names(self):
         """
@@ -278,7 +290,7 @@ class CurrentPotentialFourierTests(unittest.TestCase):
 
         # Now try a non-stellarator-symmetric case:
         cp = CurrentPotentialFourier(s, nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
-        assert 'Phic(0,0)' in cp.local_dof_names
+        assert 'Phic(0,0)' not in cp.local_dof_names
         names = [name[4:] for name in cp.local_dof_names]
         names2 = [f'({m},{n})' for m, n in zip(cp.m, cp.n)]
         self.assertEqual(names, names2)

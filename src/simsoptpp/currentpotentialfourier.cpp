@@ -31,7 +31,7 @@ void CurrentPotentialFourier<Array>::Phi_impl(Array& data, Array& quadpoints_phi
                     if(i % ANGLE_RECOMPUTE == 0)
                         xsimd::sincos(m*theta-n*nfp*phi, sinterm, costerm);
                     if (! (m == 0 && n <= 0)) {
-                        Phi += phis(m, i) * sinterm;
+		        Phi += phis(m, i) * sinterm;
                         if(!stellsym) {
                             Phi += phic(m, i) * costerm;
                         }

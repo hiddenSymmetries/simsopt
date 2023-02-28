@@ -329,7 +329,7 @@ Array WindingSurfacedA(Array& points, Array& ws_points, Array& ws_normal, Array&
 }
 
 // Calculate the geometric factor needed for the A^B term in winding surface optimization
-std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp)
+std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& points_coil, Array& normal_plasma, Array& normal_coil, bool stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points_plasma.layout() != xt::layout_type::row_major)
@@ -351,6 +351,7 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     Array gj = xt::zeros<double>({num_plasma, ndofs});
     Array Ajk = xt::zeros<double>({ndofs, ndofs});
 
+    printf("%d %d %d", gj.shape(0), gj.shape(1), ndofs);
     // initialize pointer to the beginning of the coil quadrature points
     //double* coil_points_ptr = &(points_coil(0, 0));
     //double* normal_coil_ptr = &(normal_coil(0, 0));
@@ -386,13 +387,13 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
         // now take gij and loop over the dofs (Eq. A10 in REGCOIL paper)
         for (int j = 0; j < m.size(); j++) {
             for(int k = 0; k < num_coil; k++){
-		    double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
+		double angle = 2 * M_PI * m(j) * theta_coil(k) - 2 * M_PI * n(j) * zeta_coil(k) * nfp;
 	        double cphi = std::cos(angle);
 	        double sphi = std::sin(angle);
-		    gj(i, j) += sphi * gij(i, k);
-            if (!stellsym) {
-                gj(i, j + m.size()) += cphi * gij(i, k);
-            }
+		gj(i, j) += sphi * gij(i, k);
+                if (!stellsym) {
+                    gj(i, j + m.size()) += cphi * gij(i, k);
+                }
 	    }
 	}
     }
@@ -446,7 +447,7 @@ Array winding_surface_field_Bn_GI(Array& points_plasma, Array& points_coil, Arra
 }
 
 // Compute the Ak matrix associated with ||K||_2^2 = ||Ak * phi_mn - d||_2^2 term in REGCOIL
-std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil, Array& dr_dtheta_coil, Array& normal_coil, int stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp, double G, double I)
+std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil, Array& dr_dtheta_coil, Array& normal_coil, bool stellsym, Array& zeta_coil, Array& theta_coil, int ndofs, Array& m, Array& n, int nfp, double G, double I)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(dr_dzeta_coil.layout() != xt::layout_type::row_major)
@@ -479,12 +480,12 @@ std::tuple<Array, Array> winding_surface_field_K2_matrices(Array& dr_dzeta_coil,
             double cphi = std::cos(angle);
             double sphi = std::sin(angle);
             fj(j, 0, k) = cphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-    		fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-    		fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+    	    fj(j, 1, k) = cphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+    	    fj(j, 2, k) = cphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
             if (! stellsym) {
                 fj(j, 0, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 0) + nfp * n(k) * dr_dtheta_coil(j, 0)) / sqrt(normN);
-        		fj(j, 1, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
-        		fj(j, 2, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
+        	fj(j, 1, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 1) + nfp * n(k) * dr_dtheta_coil(j, 1)) / sqrt(normN);
+        	fj(j, 2, k+m.size()) = -sphi * (m(k) * dr_dzeta_coil(j, 2) + nfp * n(k) * dr_dtheta_coil(j, 2)) / sqrt(normN);
             }
         }
     }
