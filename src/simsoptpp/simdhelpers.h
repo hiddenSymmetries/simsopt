@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <limits>
+#include <cmath>
 #include <new>
 
 #include <vector>
@@ -146,12 +147,13 @@ inline simd_t rsqrt(const simd_t& r2){
     //bit faster. just keeping this line here to remind myself how to compute
     //the approximate inverse square root in that case.
     //simd_t rinv = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2)));
-    return 1./sqrt(r2);
+    //return 1./sqrt(r2);
+    return xs::rsqrt(r2);
 }
 
 #endif
 #endif
 
 inline double rsqrt(const double& r2){
-    return 1./sqrt(r2);
+    return 1./std::sqrt(r2);
 }
