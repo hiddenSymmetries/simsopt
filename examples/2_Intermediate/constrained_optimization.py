@@ -7,14 +7,14 @@ from simsopt.solve.mpi import constrained_mpi_solve
 import os
 
 """
-Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=1)
+Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=-1)
 throughout the volume.
 
 Solve as a constrained opt problem
 min QH symmetry error
 s.t. 
   aspect ratio <= 8
-  -1.00 <= iota <= -1.05
+  -1.05 <= iota <= -1
 
 Run with 
   mpiexec -n 9 constrained_optimization.py
@@ -37,7 +37,7 @@ surf = vmec.boundary
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(vmec,
                                 np.arange(0, 1.01, 0.1),  # Radii to target
-                                helicity_m=1, helicity_n=1)  # (M, N) you want in |B|
+                                helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 # nonlinear constraints
 tuples_nlc = [(vmec.aspect,-np.inf,8),(vmec.mean_iota,-1.05,-1.0)]
 
@@ -87,7 +87,7 @@ for step in range(3):
     vmec.run()
     if mpi.proc0_world:
         print("")
-        print(f"Complted optimization with max_mode ={max_mode}. ")
+        print(f"Completed optimization with max_mode ={max_mode}. ")
         print(f"Final vmec iteration = {vmec.iter}")
         print("Quasisymmetry:", qs.total())
         print("aspect ratio:", vmec.aspect())
