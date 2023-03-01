@@ -14,18 +14,13 @@ import os
 #from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from scipy.sparse import csc_matrix
-from scipy.sparse import vstack
-from scipy.sparse import eye as sparse_eye
-from scipy.sparse.linalg import inv as sparse_inv
-# from sksparse.cholmod import cholesky
 import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.magneticfieldclasses import WindingVolumeField
 from simsopt.geo import WindingVolumeGrid
-from simsopt.solve import projected_gradient_descent_Tikhonov 
+from simsopt.solve import relax_and_split, relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
@@ -35,21 +30,23 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 32
-Nx = 30
-Ny = Nx
-Nz = Nx  # - 1
-poff = 0.3  # PM grid end offset ~ 10 cm from the plasma surface
-coff = 0.1  # PM grid starts offset ~ 5 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA'
-lam = 1e-18
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
+poff = 0.3  # grid end offset ~ 10 cm from the plasma surface
+coff = 0.2  # grid starts offset ~ 5 cm from the plasma surface
+# input_name = 'input.LandremanPaul2021_QA'
+input_name = 'input.circular_tokamak' 
+
+lam = 1e-22
+l0_threshold = 0
+nu = 1e100
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-# s = SurfaceRZFourier.from_vmec_input(surface_filename, range="full torus", nphi=nphi, ntheta=ntheta)
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s.nfp = 2
+s.stellsym = True
 
 qphi = s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -58,12 +55,11 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
+s_plot.nfp = 2
+s_plot.stellsym = True
 
-####### Temporary
-# s = s_plot
-
-# Make the output directoryå
-OUT_DIR = 'wv_QA_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '_N' + str(Nx) + '_Tikhonov{:.2e}'.format(lam) + '/'
+# Make the output directory
+OUT_DIR = 'wv_axisymmetric_fake_QA/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -71,6 +67,10 @@ Bnormal = np.zeros((nphi, ntheta))
 t2 = time.time()
 print('First setup took time = ', t2 - t1, ' s')
 
+fB_all = []
+fI_all = []
+fK_all = []
+t_algorithm = []
 # Define a curve to define a Itarget loss term
 # Make circle at Z = 0
 t1 = time.time()
@@ -88,140 +88,153 @@ for m in range(s.mpol + 1):
 
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
-curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
+# curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
 Itarget = 0.5e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
-nx = 8
-# Finally, initialize the winding volume 
-t1 = time.time()
-wv_grid = WindingVolumeGrid(
-    s, Itarget_curve=curve, Itarget=Itarget, 
-    coil_offset=coff, 
-    Nx=Nx, Ny=Ny, Nz=Nz, 
-    plasma_offset=poff,
-    Bn=Bnormal,
-    Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
-    filename=surface_filename,
-    surface_flag='vmec',
-    OUT_DIR=OUT_DIR,
-    # coil_range="full torus",
-    nx=nx, ny=nx, nz=nx
-)
-t2 = time.time()
-print('WV grid initialization took time = ', t2 - t1, ' s')
-
-wv_grid._toVTK(OUT_DIR + 'grid')
-
-if True:
+# params = [1, 2, 3, 4, 5, 10, 20, 30]
+params = [32]
+num_cells = []
+cell_volumes = []
+# for nx in params:
+for Nx in params:
+    nx = 6
+    # Nx = 12
+    Ny = Nx
+    Nz = Nx 
+    # Finally, initialize the winding volume 
     t1 = time.time()
-    C = wv_grid.flux_constraint_matrix  # matrix is way too big but it is very sparse
-    # Need to append Itarget constraint to the flux jump constraints
-    # C = vstack([C, wv_grid.Itarget_matrix], format="csc")
-    CT = C.transpose()
-    CCT = C @ CT
-
-    # regularization required here to make this matrix
-    # truly invertible. If not, can cause instability in the solver
-    if isinstance(C, csc_matrix): 
-        # CCT_inv = csc_matrix(np.linalg.pinv(CCT.todense(), hermitian=True))
-        CCT += 1e-15 * sparse_eye(CCT.shape[0], format="csc")
-        CCT_inv = sparse_inv(CCT)
-        projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc", dtype="double") - CT @ CCT_inv @ C 
-    else:
-        CCT += 1e-15 * np.eye(CCT.shape[0])
-        CCT_inv = np.linalg.inv(CCT)
-        projection_onto_constraints = np.eye(wv_grid.N_grid * wv_grid.n_functions) - CT @ CCT_inv @ C 
+    wv_grid = WindingVolumeGrid(
+        s, Itarget_curve=curve, Itarget=Itarget, 
+        coil_offset=coff, 
+        Nx=Nx, Ny=Ny, Nz=Nz, 
+        plasma_offset=poff,
+        Bn=Bnormal,
+        Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
+        filename=surface_filename,
+        surface_flag='vmec',
+        OUT_DIR=OUT_DIR,
+        # coil_range="full torus",
+        nx=nx, ny=nx, nz=nx,
+        sparse_constraint_matrix=True,
+    )
     t2 = time.time()
-    print('Time to make CCT_inv = ', t2 - t1, ' s')
-    # t1 = time.time()
-    # factor = cholesky(CCT)
-    # L = factor.L()
-    # L_inv = sparse_inv(L)
-    # LT_inv = sparse_inv(LT)
+    print('WV grid initialization took time = ', t2 - t1, ' s')
+    
+    max_iter = 1000
+    rs_max_iter = 1
+    
+    l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 10 * l0_threshold, 10)
+    alpha_opt, fB, fK, fI, fRS, f0 = relax_and_split_increasingl0(
+        wv_grid, lam=lam, nu=nu, max_iter=max_iter,
+        l0_thresholds=l0_thresholds, 
+        rs_max_iter=rs_max_iter,
+        print_iter=10,
+    )
+    
+    # print('alpha_opt = ', alpha_opt)
+    if wv_grid.P is not None:
+        print('P * alpha_opt - alpha_opt = ', wv_grid.P.dot(alpha_opt) - alpha_opt)
+        print('||P * alpha_opt - alpha_opt|| / ||alpha_opt|| = ', np.linalg.norm(wv_grid.P.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
+    t2 = time.time()
+    print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')    
+    t_algorithm.append(t2 - t1)
 
-    #CCT_inv = sparse_inv(CCT)
-    # CCT_inv = np.linalg.inv(CCT)
-    # t2 = time.time()
-    # print('Time to make CCT_inv = ', t2 - t1, ' s')
-    # t1 = time.time()
-    # CT_CCT_inv = CT @ CCT_inv
-    # CT_CCT_inv_d = CT_CCT_inv[:, -1] * wv_grid.Itarget_rhs
-    # projection_onto_constraints = sparse_eye(wv_grid.N_grid * wv_grid.n_functions, format="csc") - CT @ CCT_inv @ C 
-    # wv_grid.alphas = projection_onto_constraints.dot(np.ravel(wv_grid.alphas)).reshape(wv_grid.alphas.shape)
-    # t2 = time.time()
-    # print('Time to make projection operator and project alpha = ', t2 - t1, ' s')
-    # wv_grid._toVTK(OUT_DIR + 'grid_with_flux_jump_constraints')
-else:
-    projection_onto_constraints = None
-
-nfp = wv_grid.plasma_boundary.nfp
-print('fB initial = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ wv_grid.alphas - wv_grid.b_rhs) ** 2 * nfp)
-t1 = time.time()
-acceleration = True
-max_iter = 1000
-cpp = True
-alpha_opt, fB, fK, fI = projected_gradient_descent_Tikhonov(wv_grid, lam=lam, P=projection_onto_constraints, acceleration=acceleration, max_iter=max_iter, cpp=cpp)
-# print('alpha_opt = ', alpha_opt)
-if projection_onto_constraints is not None:
-    # print('P * alpha_opt - alpha_opt = ', projection_onto_constraints.dot(alpha_opt) - alpha_opt)
-    print('||P * alpha_opt - alpha_opt|| / ||alpha_opt|| = ', np.linalg.norm(projection_onto_constraints.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
-t2 = time.time()
-print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
-plt.figure()
-plt.semilogy(fB, label=r'$f_B$')
-plt.semilogy(lam * fK, label=r'$\lambda \|\alpha\|^2$')
-plt.semilogy(fI, label=r'$f_I$')
-plt.semilogy(fB + fI + lam * fK, label='Total objective')
-plt.grid(True)
-plt.legend()
-plt.savefig(OUT_DIR + 'optimization_progress.jpg')
-t1 = time.time()
-wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve')
-t2 = time.time()
-print('Time to plot the optimized grid = ', t2 - t1, ' s')
-print('fB after optimization = ', fB[-1]) 
-print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * nfp * 2)
-
-# set up WindingVolume Bfield
-bs_wv = WindingVolumeField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range)
-t1 = time.time()
-bs_wv.set_points(s.gamma().reshape((-1, 3)))
-Bnormal_wv = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
-# print('Bnormal direct = ', Bnormal_wv)
-# print('Bnormal lstsq = ', wv_grid.B_matrix @ alpha_opt * np.sqrt(nphi * ntheta) / np.sqrt(normN))
-# print('Bnormal coils = ', Bnormal)
-contig = np.ascontiguousarray
-if wv_grid.coil_range == 'full torus':
+    plt.figure()
+    plt.semilogy(range(0, max_iter + 1, 10), fB, label=r'$f_B$', color='r')
+    plt.semilogy(range(0, max_iter + 1, 10), lam * fK, label=r'$\lambda \|\alpha\|^2$', color='b')
+    plt.semilogy(range(0, max_iter + 1, 10), fI, label=r'$f_I$', color='m')
+    if l0_threshold > 0:
+        plt.semilogy(range(0, max_iter + 1, 10), fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
+        # plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
+    plt.semilogy(range(0, max_iter + 1, 10), fB + fI + lam * fK + fRS, label='Total objective (not incl. l0)', color='g')
+    plt.grid(True)
+    plt.legend()
+    # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
+    t1 = time.time()
+    wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
+    t2 = time.time()
+    print('Time to plot the optimized grid = ', t2 - t1, ' s')
+    print('fB after optimization = ', fB[-1]) 
+    print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * s.nfp * 2)
+    
+    # set up WindingVolume Bfield
+    bs_wv = WindingVolumeField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range)
+    t1 = time.time()
+    bs_wv.set_points(s.gamma().reshape((-1, 3)))
+    Bnormal_wv = np.sum(bs_wv.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+    normN = np.linalg.norm(s.normal().reshape(-1, 3), axis=-1)
+    contig = np.ascontiguousarray
     print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta) * s.nfp * 2)
-else:
-    print('fB direct = ', np.sum(normN * np.ravel(Bnormal_wv + Bnormal) ** 2) * 0.5 / (nphi * ntheta))
-print(nphi, ntheta, wv_grid.dx, wv_grid.nx)
+    print(nphi, ntheta, wv_grid.dx, wv_grid.nx)
+    
+    t2 = time.time()
+    print('Time to compute Bnormal_wv = ', t2 - t1, ' s')
+    fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J() * 2 * s.nfp
+    print('fB_direct = ', fB_direct)
+    
+    t1 = time.time()
+    make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_winding_volume_Nx" + str(Nx))
+    t2 = time.time()
+    print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
+    
+    t1 = time.time()
+    wv_grid.check_fluxes()
+    t2 = time.time()
+    print('Time to check all the flux constraints = ', t2 - t1, ' s')
+    
+    # t1 = time.time()
+    # biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
+    # bs_wv.set_points(s.gamma().reshape((-1, 3)))
+    # trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s_plot, comm, OUT_DIR)
+    # t2 = time.time()
+    print(OUT_DIR)
+    
+    t_end = time.time()
+    print('Total time = ', t_end - t_start)
+    fB_all.append(fB_direct)
+    fI_all.append(fI[-1])
+    fK_all.append(lam * fK[-1])
+    num_cells.append(wv_grid.N_grid)
+    cell_volumes.append(wv_grid.dx * wv_grid.dy * wv_grid.dz)
 
-t2 = time.time()
-print('Time to compute Bnormal_wv = ', t2 - t1, ' s')
-fB_direct = SquaredFlux(s, bs_wv, -Bnormal).J()
-print('fB_direct = ', fB_direct)
+# print(fB_all, fI_all, fK_all)
+# plt.figure()
+# plt.semilogy(num_cells, fB_all, 'ro', label=r'$f_B$',)
+# plt.semilogy(num_cells, fI_all, 'mo', label=r'$f_I$')
+# plt.legend()
+# # plt.semilogy(params, lam * np.array(fK_all), 'bo', label=r'$\lambda f_K$')
+# ax = plt.gca()
+# secax = ax.twiny()
+# secax.set_xlim(ax.get_xlim())
+# print(cell_volumes)
+# secax.set_xticks(num_cells)
+# for i, vol in enumerate(cell_volumes):
+#     cell_volumes[i] = "{:.2e}".format(vol)
+# secax.set_xticklabels(cell_volumes)
+# secax.set_xlabel(r'$V_{cell}$')
+# # secax.xaxis.set_major_formatter('{x:.2f}')
+# plt.grid(True)
+# ax.set_xlabel(r'$N_{cell}$')
+# ax.set_ylabel('Losses')
+# plt.show()
 
-t1 = time.time()
-make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_winding_volume")
-t2 = time.time()
-print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
-# make_Bnormal_plots(bs + bs_wv, s, OUT_DIR, "biot_savart_total")
-
-t1 = time.time()
-wv_grid.check_fluxes()
-t2 = time.time()
-print('Time to check all the flux constraints = ', t2 - t1, ' s')
-
-t1 = time.time()
-biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
-# bs_wv.set_points(s.gamma().reshape((-1, 3)))
-# trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s_plot, comm, OUT_DIR)
-t2 = time.time()
-
-t_end = time.time()
-print('Total time = ', t_end - t_start)
-plt.show()
+# plt.figure()
+# plt.semilogy(num_cells, t_algorithm, 'ro')
+# plt.legend()
+# # plt.semilogy(params, lam * np.array(fK_all), 'bo', label=r'$\lambda f_K$')
+# ax = plt.gca()
+# secax = ax.twiny()
+# secax.set_xlim(ax.get_xlim())
+# print(cell_volumes)
+# secax.set_xticks(num_cells)
+# for i, vol in enumerate(cell_volumes):
+#     cell_volumes[i] = "{:.2e}".format(vol)
+# secax.set_xticklabels(cell_volumes)
+# secax.set_xlabel(r'$V_{cell}$')
+# # secax.xaxis.set_major_formatter('{x:.2f}')
+# plt.grid(True)
+# ax.set_xlabel(r'$N_{cell}$')
+# ax.set_ylabel('Algorithm run time (s)')
+# plt.show()
