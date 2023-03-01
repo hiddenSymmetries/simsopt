@@ -245,7 +245,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                             rel_step: float = 0.0,
                             diff_method: str = "forward",
                             opt_method: str = "SLSQP",
-                            **kwargs):
+                            options: dict = None):
     """
     Solve a constrained minimization problem using
     MPI. All MPI processes (including group leaders and workers)
@@ -267,12 +267,8 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
              "forward". If ``centered``, centered finite differences will
              be used. If ``forward``, one-sided finite differences will
              be used. Else, error is raised.
-        kwargs: Any arguments to pass to
-                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
-                For instance, you can supply ``max_nfev=100`` to set
-                the maximum number of function evaluations (not counting
-                finite-difference gradient evaluations) to 100. Or, you
-                can supply ``method`` to choose the optimization algorithm.
+        options: dict, Any arguments to pass to
+                `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
     if MPI is None:
         raise RuntimeError(
@@ -306,6 +302,9 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         except:
             objective_val = prob.fail
             logger.info("Exception caught during function evaluation.")
+
+        # TODO: remove
+        print(objective_val)
 
         nonlocal objective_datalog_started, objective_file, n_objective_evals
 
@@ -355,6 +354,9 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
             constraint_val = np.full(prob.nvals, 1.0e12)
             logger.info("Exception caught during function evaluation.")
 
+        # TODO: remove
+        print(constraint_val)
+
         nonlocal constraint_datalog_started, constraint_file, n_constraint_evals
 
         # Since the number of terms is not known until the first
@@ -401,25 +403,28 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
     if grad:
-        with MPIFiniteDifference(prob.objective, mpi, abs_step=abs_step,
-                                 rel_step=rel_step, diff_method=diff_method) as fd_obj,\
-             MPIFiniteDifference(prob.nonlinear_constraints, mpi, abs_step=abs_step,
-                                 rel_step=rel_step, diff_method=diff_method) as fd_nlc:
+        with MPIFiniteDifference(prob.all_funcs, mpi, abs_step=abs_step,
+                                 rel_step=rel_step, diff_method=diff_method) as fd:
+
+            def obj_jac(x):
+                # dummy wrapper for batch finite difference
+                return fd.jac(x)[0]
  
             if mpi.proc0_world:
                 if prob.has_nlc:
-                    nlc = NonlinearConstraint(_nlc_proc0,lb=prob.lhs_nlc,ub=prob.rhs_nlc,jac =fd_nlc.jac)
+                    def nlc_jac(x):
+                        # dummy wrapper for batch finite difference
+                        return fd.jac(x)[1:]
+                    nlc = NonlinearConstraint(_nlc_proc0,lb=prob.lhs_nlc,ub=prob.rhs_nlc,jac =nlc_jac)
                     constraints.append(nlc)
+                
                 # proc0_world does this block, running the optimization.
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                # TODO: the print statements are not functional
-                # TODO: **kwargs may not work as options here
-                result = minimize(_f_proc0, x0, jac=fd_obj.jac,
+                result = minimize(_f_proc0, x0, jac=obj_jac,
                                   bounds=bounds, constraints = constraints,
-                                  method=opt_method, **kwargs,
-                                  options={'disp':True})
+                                  method=opt_method, options=options)
 
     else:
         raise NotImplementedError
@@ -439,7 +444,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
             logger.info("Using derivative-free method")
             result = minimize(_f_proc0, x0,
                               bounds=bounds, constraints = constraints,
-                              method=opt_method, verbose=2, **kwargs)
+                              method=opt_method, verbose=2, options=options)
 
         # Stop loops for workers and group leaders:
         mpi.together()

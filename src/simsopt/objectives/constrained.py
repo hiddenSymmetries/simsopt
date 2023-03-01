@@ -220,5 +220,22 @@ class ConstrainedProblem(Optimizable):
             return self.objective_cache
 
 
+    def all_funcs(self, x=None, *args, **kwargs):
+        """
+        Evaluate the objective and nonlinear constraints.
+
+        Args:
+            x: Degrees of freedom or state
+            args: Any additional arguments
+            kwargs: Keyword arguments
+        """
+        f_obj = self.objective(x,*args,**kwargs)
+        out = np.array([f_obj])
+        if self.has_nlc:
+            f_nlc = self.nonlinear_constraints(x,*args,**kwargs)
+            out = np.concatenate((out,f_nlc))
+        return out
+
+
     #return_fn_map = {'residuals': residuals, 'objective': objective}
 
