@@ -17,13 +17,10 @@ s.t.
   -1.05 <= iota <= -1
 
 Run with 
-  mpiexec -n 9 constrained_optimization.py
+  mpiexec -n 48 constrained_optimization.py
 """
 
-# This problem has 8 degrees of freedom, so we can use 8 + 1 = 9
-# concurrent function evaluations for 1-sided finite difference
-# gradients.
-mpi = MpiPartition(9)
+mpi = MpiPartition()
 
 if mpi.proc0_world:
     print("Running 2_Intermediate/constrained_optimization.py")
