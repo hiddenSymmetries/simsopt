@@ -53,6 +53,10 @@ class VirtualCasingVmecTests(unittest.TestCase):
         vc = VirtualCasing.from_vmec(vmec, src_nphi=10)
 
 
+@unittest.skipIf(
+    (virtual_casing is None) or
+    (MPI is None) or (not vmec_found),
+    "Need virtual_casing, mpi4py, and vmec python packages")
 class VirtualCasingTests(unittest.TestCase):
 
     def test_bnorm_benchmark(self):
