@@ -72,11 +72,12 @@ def relax_and_split_increasingl0(
 
     # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
     t1 = time.time()
-    if True:
-        # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam_nu, axis=0), axis=-1)
-        L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + np.eye(N) * lam_nu, axis=0), axis=-1)
-    else:
-        L = 2e-12  # L = 1e-12 for N = 30, L = 2.4e-12 for N = 24, so not a bad guess
+    L = np.linalg.svd(BT @ B + IT @ I + np.eye(N) * lam_nu, compute_uv=False, hermitian=True)[0]
+    #if True:
+    # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam_nu, axis=0), axis=-1)
+    # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + np.eye(N) * lam_nu, axis=0), axis=-1)
+    #else:
+    #    L = 2e-12  # L = 1e-12 for N = 30, L = 2.4e-12 for N = 24, so not a bad guess
 
     step_size = 1.0 / L  # largest step size suitable for gradient descent
     print('L, step_size = ', L, step_size) 
@@ -93,14 +94,15 @@ def relax_and_split_increasingl0(
     f_Kw = []
     f_0 = []
     f_0w = []
+    winding_volume.alpha_history = []
+    winding_volume.w_history = []
     t1 = time.time()
-    w_opt = prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
+    w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     for j, threshold in enumerate(l0_thresholds):
         # alpha0 = alpha_opt
         # w_opt = prox_group_l0(np.copy(alpha0), l0_threshold, n, num_basis)
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
         for k in range(rs_max_iter):
-            f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
             step_size_i = step_size
             alpha_opt_prev = alpha_opt
             BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
@@ -115,15 +117,15 @@ def relax_and_split_increasingl0(
 
                 # print metrics
                 if ((i % print_iter) == 0.0 or i == max_iter - 1):
-                    ##### Alpha_opt or w_opt here???
                     f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
                     f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
                     f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
                     f_RS.append(np.linalg.norm(np.ravel(alpha_opt - w_opt) ** 2))
-                    # f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
-                    f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
+                    f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
+                    # f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
                     ind = (j * max_iter * rs_max_iter + k * max_iter + (i + 1)) // print_iter
-                    print('alpha objectives: ', j, k, i, 
+                    winding_volume.alpha_history.append(alpha_opt)
+                    print(j, k, i, 
                           f_B[ind], 
                           f_I[ind], 
                           lam * f_K[ind], 
@@ -131,20 +133,20 @@ def relax_and_split_increasingl0(
                           f_0[ind], ' / ', n, ', ',
                           step_size_i,
                           )  
-                    if threshold > 0:
-                        f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b), ord=2) ** 2)
-                        f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2)
-                        f_Kw.append(np.linalg.norm(np.ravel(w_opt)) ** 2) 
-                        # f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
-                        f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
-                        ind = (j * max_iter * rs_max_iter + k * max_iter + (i + 1)) // print_iter
-                        print('w : ', j, k, i, 
-                              f_Bw[ind], 
-                              f_Iw[ind], 
-                              lam * f_Kw[ind], 
-                              f_RS[ind] / nu, 
-                              f_0w[j * rs_max_iter + k], ' / ', n, ', ',
-                              )  
+            if threshold > 0:
+                f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b), ord=2) ** 2)
+                f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2)
+                f_Kw.append(np.linalg.norm(np.ravel(w_opt)) ** 2) 
+                # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
+                f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
+                ind = (j * rs_max_iter + k)
+                winding_volume.w_history.append(w_opt)
+                print('w : ', j, k, i, 
+                      f_Bw[ind], 
+                      f_Iw[ind], 
+                      lam * f_Kw[ind], 
+                      f_0w[ind], ' / ', n, ', ',
+                      )  
 
             # now do the prox step
             w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
@@ -156,11 +158,23 @@ def relax_and_split_increasingl0(
     winding_volume.alphas = alpha_opt
     winding_volume.w = np.ravel(w_opt)
     winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
+    winding_volume.J_sparse = np.zeros((n, winding_volume.Phi.shape[2], 3))
     alphas = winding_volume.alphas.reshape(n, num_basis)
+    ws = winding_volume.w.reshape(n, num_basis)
     for i in range(3):
         for j in range(winding_volume.Phi.shape[2]):
             for k in range(num_basis):
                 winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
+                winding_volume.J_sparse[:, j, i] += ws[:, k] * winding_volume.Phi[k, :, j, i]
     t2 = time.time()
     print('Time to compute J = ', t2 - t1, ' s')
-    return alpha_opt, 0.5 * 2 * np.array(f_B) * nfp, 0.5 * np.array(f_K), 0.5 * np.array(f_I), 0.5 * np.array(f_RS) / nu, f_0
+    return (alpha_opt, 
+            0.5 * 2 * np.array(f_B) * nfp, 
+            0.5 * np.array(f_K), 
+            0.5 * np.array(f_I), 
+            0.5 * np.array(f_RS) / nu, 
+            f_0,
+            0.5 * 2 * np.array(f_Bw) * nfp, 
+            0.5 * np.array(f_Kw), 
+            0.5 * np.array(f_Iw)
+            )

@@ -22,7 +22,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 	// Need to loop through more than 6 in case some adjacent neighbors are
 	// further away than some of the non-adjacent neighbors
 	int q = 0;
-        for (int k = 0; k < 30; ++k) {
+        for (int k = 0; k < 50; ++k) {
 	    auto result = std::min_element(dist_ij.begin(), dist_ij.end());
         int dist_ind = std::distance(dist_ij.begin(), result);
         
