@@ -32,9 +32,8 @@ class ConstrainedProblem(Optimizable):
     """
     Represents a nonlinear, constrained optimization problem implemented using the 
     graph based optimization framework. A ConstrainedProblem instance has
-    4 basic attributes: an objective (`f_in`), nonlinear constraints, right hand side values for each
-    of the nonlinear constraints (`goal`), linear constraints, bound constraints.  The residual
-    (`f_out`) for each of the `f_in` is defined as:
+    4 basic attributes: an objective (`f`), nonlinear constraints (`c`), 
+    linear constraints, and bound constraints. Problems take the general form:
 
     .. math::
 
@@ -50,17 +49,13 @@ class ConstrainedProblem(Optimizable):
                   the Optimizable instances
         tuples_nlc: Nonlinear constraints as a sequence of triples containing 
                     the nonlinear constraint function c with lower and upper bounds
-                    i.e. (c,l_c,u_c)
+                    i.e. (c,l_c,u_c). Use +- np.inf to indicate unbounded components.
         tuple_lc: Linear constraints as a tuple containing the 2d-array A, and 1d array
-                  b, i.e. (A,b)
+                  b, i.e. (A,b).
         lb: 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
-            Set equal to upper bound for equality constraints.
+            Set a componenent equal to the upper bound to enforce an equality constraints.
         ub: 1d-array of upper bounds, np.inf can be used if an entry is unconstrained
-        depends_on: (Alternative initialization) Instead of specifying funcs_in,
-                one could specify the Optimizable objects
-        opt_return_fns:  (Alternative initialization) If using *depends_on*,
-                specify the return functions associated with each Optimizable
-                object
+            Set a componenent equal to the lower bound to enforce an equality constraints.
     """
 
     def __init__(self,
@@ -70,9 +65,6 @@ class ConstrainedProblem(Optimizable):
                  lb: RealArray = None,
                  ub: RealArray = None,
                  fail: Union[None, float] = 1.0e12):
-        # TODO: allow for specification of bounds as float
-        # TODO: make sure np.inf is an allowable bound
-        # TODO: should check that lb,ub,A_lc,b_lc have correct shapes
 
         self.fail = fail
 
@@ -81,7 +73,6 @@ class ConstrainedProblem(Optimizable):
         self.first_eval_obj = True
         self.first_eval_con = True
 
-        # TODO: we probably dont even need the has_bounds flag
         self.has_bounds = False
         if lb is None:
             self.lb = -np.inf
@@ -98,11 +89,11 @@ class ConstrainedProblem(Optimizable):
 
         # unpack the nonlinear constraints
         if tuples_nlc is not None:
-            # TODO: check the values of lhs and rhs
-            # to make sure they are np.inf or a float
             f_nlc, lhs_nlc, rhs_nlc = zip(*tuples_nlc)
             funcs_in = [f_obj, *f_nlc]
             self.has_nlc = True
+            lhs_nlc = np.array(lhs_nlc,dtype=float)
+            rhs_nlc = np.array(rhs_nlc,dtype=float)
             self.lhs_nlc = lhs_nlc
             self.rhs_nlc = rhs_nlc
         else:
