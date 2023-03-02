@@ -42,7 +42,7 @@ class ConstrainedProblem(Optimizable):
           l_c \le c(x) \le u_c
           Ax \le b
           l_x \le x \le u_x
-        
+
 
     Args:
         f_obj: objective function handle (Generally one of the output functions of
@@ -60,7 +60,7 @@ class ConstrainedProblem(Optimizable):
 
     def __init__(self,
                  f_obj: Callable,
-                 tuples_nlc: Sequence[Tuple[Callable, Real,Real]] = None,
+                 tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
                  tuple_lc: Tuple[RealArray, Union[RealArray, Real]] = None,
                  lb: RealArray = None,
                  ub: RealArray = None,
@@ -86,14 +86,13 @@ class ConstrainedProblem(Optimizable):
             self.ub = np.asarray(ub, np.double)
             self.has_bounds = True
 
-
         # unpack the nonlinear constraints
         if tuples_nlc is not None:
             f_nlc, lhs_nlc, rhs_nlc = zip(*tuples_nlc)
             funcs_in = [f_obj, *f_nlc]
             self.has_nlc = True
-            lhs_nlc = np.array(lhs_nlc,dtype=float)
-            rhs_nlc = np.array(rhs_nlc,dtype=float)
+            lhs_nlc = np.array(lhs_nlc, dtype=float)
+            rhs_nlc = np.array(rhs_nlc, dtype=float)
             self.lhs_nlc = lhs_nlc
             self.rhs_nlc = rhs_nlc
         else:
@@ -106,7 +105,7 @@ class ConstrainedProblem(Optimizable):
             b_lc = np.atleast_1d(tuple_lc[1])
             if np.shape(A_lc)[0] != len(b_lc):
                 raise ValueError(f"Linear constraint A and b do not have compatible shapes.")
-            
+
             self.A_lc = A_lc
             self.b_lc = b_lc
             self.has_lc = True
@@ -114,7 +113,6 @@ class ConstrainedProblem(Optimizable):
             self.has_lc = False
 
         super().__init__(funcs_in=funcs_in)
-
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """
@@ -173,7 +171,6 @@ class ConstrainedProblem(Optimizable):
         else:
             return self.constraint_cache
 
-
     def objective(self, x=None, *args, **kwargs):
         """
         Return the objective function
@@ -210,7 +207,6 @@ class ConstrainedProblem(Optimizable):
         else:
             return self.objective_cache
 
-
     def all_funcs(self, x=None, *args, **kwargs):
         """
         Evaluate the objective and nonlinear constraints.
@@ -220,13 +216,12 @@ class ConstrainedProblem(Optimizable):
             args: Any additional arguments
             kwargs: Keyword arguments
         """
-        f_obj = self.objective(x,*args,**kwargs)
+        f_obj = self.objective(x, *args, **kwargs)
         out = np.array([f_obj])
         if self.has_nlc:
-            f_nlc = self.nonlinear_constraints(x,*args,**kwargs)
-            out = np.concatenate((out,f_nlc))
+            f_nlc = self.nonlinear_constraints(x, *args, **kwargs)
+            out = np.concatenate((out, f_nlc))
         return out
-
 
     #return_fn_map = {'residuals': residuals, 'objective': objective}
 

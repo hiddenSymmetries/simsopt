@@ -28,7 +28,7 @@ if mpi.proc0_world:
 
 
 vmec_input = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
-vmec = Vmec(vmec_input, mpi=mpi,verbose=False)
+vmec = Vmec(vmec_input, mpi=mpi, verbose=False)
 surf = vmec.boundary
 
 # Configure quasisymmetry objective:
@@ -36,10 +36,10 @@ qs = QuasisymmetryRatioResidual(vmec,
                                 np.arange(0, 1.01, 0.1),  # Radii to target
                                 helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 # nonlinear constraints
-tuples_nlc = [(vmec.aspect,-np.inf,8),(vmec.mean_iota,-1.05,-1.0)]
+tuples_nlc = [(vmec.aspect, -np.inf, 8), (vmec.mean_iota, -1.05, -1.0)]
 
 # define problem
-prob = ConstrainedProblem(qs.total,tuples_nlc=tuples_nlc)
+prob = ConstrainedProblem(qs.total, tuples_nlc=tuples_nlc)
 
 vmec.run()
 if mpi.proc0_world:
@@ -70,9 +70,9 @@ for step in range(3):
     surf.fix("rc(0,0)")  # Major radius
 
     # solver options
-    options = {'disp':True, 'ftol':1e-7, 'maxiter':300}
+    options = {'disp': True, 'ftol': 1e-7, 'maxiter': 300}
     # solve the problem
-    constrained_mpi_solve(prob,mpi,grad=True, rel_step=1e-5, abs_step=1e-7,options=options)
+    constrained_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-7, options=options)
     xopt = prob.x
 
     # Preserve the output file from the last iteration, so it is not
