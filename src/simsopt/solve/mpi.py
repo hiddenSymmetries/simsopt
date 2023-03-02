@@ -35,7 +35,7 @@ CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
 
-__all__ = ['least_squares_mpi_solve']
+__all__ = ['least_squares_mpi_solve','constrained_mpi_solve']
 
 
 def _mpi_workers_task(mpi: MpiPartition,
@@ -267,7 +267,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
              "forward". If ``centered``, centered finite differences will
              be used. If ``forward``, one-sided finite differences will
              be used. Else, error is raised.
-        options: dict, Any arguments to pass to
+        options: dict, `options`` keyword which is passed to
                 `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
     if MPI is None:
@@ -438,13 +438,13 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         if mpi.proc0_world:
             # proc0_world does this block, running the optimization.
             if prob.has_nlc:
-                nlc = NonlinearConstraint(_nlc_proc0, lb=-np.inf, ub=prob.nlc_rhs)
+                nlc = NonlinearConstraint(_nlc_proc0,lb=prob.lhs_nlc,ub=prob.rhs_nlc)
                 constraints.append(nlc)
             x0 = np.copy(prob.x)
             logger.info("Using derivative-free method")
             result = minimize(_f_proc0, x0,
-                              bounds=bounds, constraints = constraints,
-                              method=opt_method, verbose=2, options=options)
+                              bounds = bounds, constraints = constraints,
+                              method = opt_method, verbose=2, options = options)
 
         # Stop loops for workers and group leaders:
         mpi.together()
