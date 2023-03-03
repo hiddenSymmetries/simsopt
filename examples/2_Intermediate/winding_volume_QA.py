@@ -32,14 +32,14 @@ t1 = time.time()
 # Set some parameters
 nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 16
-poff = 0.3  # grid end offset ~ 10 cm from the plasma surface
-coff = 0.2  # grid starts offset ~ 5 cm from the plasma surface
+poff = 2  # grid end offset ~ 10 cm from the plasma surface
+coff = 0.5  # grid starts offset ~ 5 cm from the plasma surface
 # input_name = 'input.LandremanPaul2021_QA'
 input_name = 'input.circular_tokamak' 
 
-lam = 1e-22
-l0_threshold = 1e3
-nu = 1e18
+lam = 0.0  # 1e-22
+l0_threshold = 0.0  # 1e4
+nu = 1e100  # 1e13
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -95,7 +95,7 @@ t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
 # params = [1, 2, 3, 4, 5, 10, 20, 30]
-params = [30]
+params = [22]
 num_cells = []
 cell_volumes = []
 # for nx in params:
@@ -123,10 +123,10 @@ for Nx in params:
     t2 = time.time()
     print('WV grid initialization took time = ', t2 - t1, ' s')
 
-    max_iter = 2000
-    rs_max_iter = 5
+    max_iter = 1000
+    rs_max_iter = 1  # 20
 
-    l0_thresholds = np.linspace(l0_threshold, 10 * l0_threshold, 5)
+    l0_thresholds = [0.0]  # [l0_threshold]  #  np.linspace(l0_threshold, 20 * l0_threshold, 5)
     alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
         wv_grid, lam=lam, nu=nu, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 
@@ -199,6 +199,7 @@ for Nx in params:
     plt.semilogy(w_range, fBw + fIw + lam * fKw, 'g--', label='Total w objective (not incl. l0)')
     plt.grid(True)
     plt.legend()
+    plt.show()
 
     # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
     t1 = time.time()
@@ -260,4 +261,3 @@ for Nx in params:
 # plt.grid(True)
 # ax.set_xlabel(r'$N_{cell}$')
 # ax.set_ylabel('Algorithm run time (s)')
-plt.show()

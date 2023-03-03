@@ -270,6 +270,14 @@ class WindingVolumeGrid:
         z_max = np.max(self.z_outer)
         z_min = np.min(self.z_outer)
         z_max = max(z_max, abs(z_min))
+
+        # Make grid uniform in (X, Y)
+        min_xy = max(x_min, y_min)
+        max_xy = max(x_max, y_max)
+        x_min = min_xy
+        y_min = min_xy
+        x_max = max_xy
+        y_max = max_xy
         print(x_min, x_max, y_min, x_max, z_min, z_max)
 
         # Initialize uniform grid
@@ -490,7 +498,7 @@ class WindingVolumeGrid:
         ax = fig.add_subplot(projection='3d')
 
         # Make the grid
-        colors = np.sum(Jvec_full_sp ** 2, axis=-1)
+        colors = np.linalg.norm(Jvec_full_sp, axis=-1)
         inds = (colors > 1)
         # colors = colors / np.max(colors)
         #colors = plt.cm.jet(colors)
@@ -502,7 +510,7 @@ class WindingVolumeGrid:
         fig.colorbar(q)
         plt.savefig(self.OUT_DIR + 'quiver_plot_sparse_solution.jpg')
 
-    def _setup_polynomial_basis(self):
+    def _setup_polynomial_basis(self, shift=False):
         """
         Evaluate the basis of divergence-free polynomials
         at a given set of points. For now,
@@ -515,6 +523,7 @@ class WindingVolumeGrid:
                 function WITHIN a cell, and num_basis_functions is hard-coded
                 to 11 for now while we use a linear basis of polynomials. 
         """
+        self.polynomial_shift = shift
         dx = self.dx
         dy = self.dy
         dz = self.dz
@@ -529,24 +538,31 @@ class WindingVolumeGrid:
         yrange = np.zeros((n, ny))
         zrange = np.zeros((n, nz))
         for i in range(n):
-            x_midpoint = (x_leftpoints[i] + dx / 2.0)
-            xrange[i, :] = (np.linspace(
+            xrange[i, :] = np.linspace(
                 x_leftpoints[i], 
                 x_leftpoints[i] + dx,
-                nx
-            ))  # - x_midpoint) / np.sqrt(dx * dy * dz)
-            y_midpoint = (y_leftpoints[i] + dy / 2.0)
-            yrange[i, :] = (np.linspace(
+                nx,
+                endpoint=True
+            )
+            yrange[i, :] = np.linspace(
                 y_leftpoints[i], 
                 y_leftpoints[i] + dy,
-                ny
-            ))  # - y_midpoint) / np.sqrt(dx * dy * dz)
-            z_midpoint = (z_leftpoints[i] + dz / 2.0)
-            zrange[i, :] = (np.linspace(
+                ny,
+                endpoint=True
+            )
+            zrange[i, :] = np.linspace(
                 z_leftpoints[i], 
                 z_leftpoints[i] + dz,
-                nz
-            ))  # - z_midpoint) / np.sqrt(dx * dy * dz)
+                nz,
+                endpoint=True
+            )
+            if shift:
+                x_midpoint = (x_leftpoints[i] + dx / 2.0)
+                y_midpoint = (y_leftpoints[i] + dy / 2.0)
+                z_midpoint = (z_leftpoints[i] + dz / 2.0)
+                xrange[i, :] = (xrange[i, :] - x_midpoint)  # * np.cbrt(dx * dy * dz)
+                yrange[i, :] = (yrange[i, :] - y_midpoint)  # * np.cbrt(dx * dy * dz)
+                zrange[i, :] = (zrange[i, :] - z_midpoint)  # * np.cbrt(dx * dy * dz)
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
         zeros = np.zeros(n)
         ones = np.ones(n)
@@ -716,9 +732,7 @@ class WindingVolumeGrid:
         )
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_inv
-        print('Itarget rhs first = ', self.Itarget_rhs)
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
-        print('Itarget rhs second = ', self.Itarget_rhs / (4 * np.pi * 1e-7))
         flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
             coil_points,
             contig(self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3)), 

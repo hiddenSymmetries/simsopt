@@ -32,14 +32,14 @@ t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 32
-poff = 0.3  # grid end offset ~ 10 cm from the plasma surface
-coff = 0.2  # grid starts offset ~ 5 cm from the plasma surface
+poff = 2.0  # grid end offset ~ 10 cm from the plasma surface
+coff = 0.5  # grid starts offset ~ 5 cm from the plasma surface
 # input_name = 'input.LandremanPaul2021_QA'
 input_name = 'input.circular_tokamak' 
 
 lam = 1e-22
-l0_threshold = 1e3
-nu = 1e14
+l0_threshold = 4e4
+nu = 1e16
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -94,7 +94,7 @@ t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
 # params = [1, 2, 3, 4, 5, 10, 20, 30]
-params = [34]
+params = [22]
 # for nx in params:
 for Nx in params:
     nx = 6
@@ -120,10 +120,10 @@ for Nx in params:
     t2 = time.time()
     print('WV grid initialization took time = ', t2 - t1, ' s')
 
-    max_iter = 200
-    rs_max_iter = 10
+    max_iter = 2000
+    rs_max_iter = 5
 
-    l0_thresholds = np.linspace(l0_threshold, 40 * l0_threshold, 10)
+    l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 10 * l0_threshold, 5)
     alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
         wv_grid, lam=lam, nu=nu, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 
@@ -171,6 +171,14 @@ for Nx in params:
     make_Bnormal_plots(bs_wv_sparse, s_plot, OUT_DIR, "biot_savart_winding_volume_sparse_Nx" + str(Nx))
     t2 = time.time()
     print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
+
+    bs_wv.set_points(curve.gamma().reshape((-1, 3)))
+    Bnormal_Itarget_curve = np.sum(bs_wv.B() * curve.gammadash().reshape(-1, 3), axis=-1)
+    mu0 = 4 * np.pi * 1e-7
+    print(curve.quadpoints)
+    Itarget_check = np.sum(Bnormal_Itarget_curve) / mu0 / len(curve.quadpoints)
+    print('Itarget_check = ', Itarget_check)
+    print('Itarget second check = ', wv_grid.Itarget_matrix @ alpha_opt / mu0) 
 
     w_range = np.linspace(0, len(fB), len(fBw), endpoint=True)
     plt.figure()

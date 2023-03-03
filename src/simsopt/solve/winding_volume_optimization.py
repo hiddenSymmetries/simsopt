@@ -97,17 +97,24 @@ def relax_and_split_increasingl0(
     winding_volume.alpha_history = []
     winding_volume.w_history = []
     t1 = time.time()
-    w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
+    w_opt = alpha_opt  # np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     for j, threshold in enumerate(l0_thresholds):
         # alpha0 = alpha_opt
         # w_opt = prox_group_l0(np.copy(alpha0), l0_threshold, n, num_basis)
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
         for k in range(rs_max_iter):
             step_size_i = step_size
-            alpha_opt_prev = alpha_opt
+            alpha_opt_prev = alpha_opt 
+            #if k == 0 and j == 0:
+            #    BTB_ITbI_nuw = BTb + ITbI
+            #    lam_nu = lam
+            #    max_it = 5 * max_iter
+            #else:
             BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
+            #    lam_nu = (lam + 1.0 / nu)
+            max_it = max_iter
             # print(w_opt, alpha_opt)
-            for i in range(max_iter):
+            for i in range(max_it):
                 vi = contig(alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev))
                 alpha_opt_prev = alpha_opt
                 alpha_opt = P.dot(
@@ -133,6 +140,9 @@ def relax_and_split_increasingl0(
                           f_0[ind], ' / ', n, ', ',
                           step_size_i,
                           )  
+
+            # now do the prox step
+            w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
             if threshold > 0:
                 f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b), ord=2) ** 2)
                 f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2)
@@ -148,13 +158,11 @@ def relax_and_split_increasingl0(
                       f_0w[ind], ' / ', n, ', ',
                       )  
 
-            # now do the prox step
-            w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
-
     t2 = time.time()
     print('Time to run algo = ', t2 - t1, ' s')
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
+    print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
     winding_volume.alphas = alpha_opt
     winding_volume.w = np.ravel(w_opt)
     winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
