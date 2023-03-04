@@ -119,7 +119,8 @@ for Nx in params:
     )
     t2 = time.time()
     print('WV grid initialization took time = ', t2 - t1, ' s')
-
+    wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
+    
     max_iter = 2000
     rs_max_iter = 5
 
@@ -142,7 +143,7 @@ for Nx in params:
     t_algorithm.append(t2 - t1)
 
     t1 = time.time()
-    wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
+    wv_grid.to_vtk_after_solve(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
     t2 = time.time()
     print('Time to plot the optimized grid = ', t2 - t1, ' s')
     print('fB after optimization = ', fB[-1]) 

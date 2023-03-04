@@ -1,6 +1,8 @@
 import numpy as np
 from simsopt.geo import Surface, SurfaceRZFourier
-from pyevtk.hl import pointsToVTK, gridToVTK
+from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
+from pyevtk.vtk import VtkVoxel
+
 import simsoptpp as sopp
 import time
 import warnings
@@ -17,6 +19,78 @@ from .._core.json import GSONDecoder, GSONable
 __all__ = ['WindingVolumeGrid']
 
 # class WindingVolumeGrid(Optimizable):
+
+
+def _voxels_to_vtk(
+    filename,
+    points,
+    cellData=None,
+    pointData=None,
+    fieldData=None,
+):
+    """
+    Write a VTK file showing the voxels.
+
+    Args:
+        filename: Name of the file to write.
+        points: Array of size ``(nvoxels, nquadpoints, 3)``
+            Here, ``nvoxels`` is the number of voxels.
+            The last array dimension corresponds to Cartesian coordinates.
+            The max and min over the ``nquadpoints`` dimension will be used to
+            define the max and min coordinates of each voxel.
+        cellData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+        pointData: Data for each voxel's vertices to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+        fieldData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+    """
+
+    # Some references I used while writing this function:
+    # https://vtk.org/doc/nightly/html/classvtkVoxel.html
+    # https://raw.githubusercontent.com/Kitware/vtk-examples/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellDemo.png
+    # https://github.com/pyscience-projects/pyevtk/blob/v1.2.0/pyevtk/hl.py
+    # https://python.hotexamples.com/examples/vtk/-/vtkVoxel/python-vtkvoxel-function-examples.html
+
+    assert points.ndim == 3
+    nvoxels = points.shape[0]
+    assert points.shape[2] == 3
+
+    cell_types = np.empty(nvoxels, dtype="uint8")
+    cell_types[:] = VtkVoxel.tid
+    connectivity = np.arange(8 * nvoxels, dtype=np.int64)
+    offsets = (np.arange(nvoxels, dtype=np.int64) + 1) * 8
+
+    base_x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
+    base_y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
+    base_z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    x = np.zeros(8 * nvoxels)
+    y = np.zeros(8 * nvoxels)
+    z = np.zeros(8 * nvoxels)
+
+    for j in range(nvoxels):
+        x[8 * j : 8 * (j + 1)] = (
+            np.min(points[j, :, 0])
+            + (np.max(points[j, :, 0]) - np.min(points[j, :, 0])) * base_x
+        )
+        y[8 * j : 8 * (j + 1)] = (
+            np.min(points[j, :, 1])
+            + (np.max(points[j, :, 1]) - np.min(points[j, :, 1])) * base_y
+        )
+        z[8 * j : 8 * (j + 1)] = (
+            np.min(points[j, :, 2])
+            + (np.max(points[j, :, 2]) - np.min(points[j, :, 2])) * base_z
+        )
+
+    unstructuredGridToVTK(
+        filename,
+        x,
+        y,
+        z,
+        connectivity,
+        offsets,
+        cell_types,
+        cellData=cellData,
+        pointData=pointData,
+        fieldData=fieldData,
+    )
 
 
 class WindingVolumeGrid:
@@ -351,7 +425,79 @@ class WindingVolumeGrid:
         print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
 
-    def _toVTK(self, vtkname):
+    def to_vtk_before_solve(self, vtkname):
+        """
+            Write voxel geometry data into a VTK file.
+
+        Args:
+            vtkname (str): VTK filename, will be appended with .vts or .vtu.
+            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
+        """
+
+        nfp = self.plasma_boundary.nfp
+        stellsym = self.plasma_boundary.stellsym
+        n = self.N_grid
+        if stellsym:
+            stell_list = [1, -1]
+            nsym = nfp * 2
+        else:
+            stell_list = [1]
+            nsym = nfp
+
+        # get the coordinates
+        ox = self.XYZ_flat[:, 0]
+        oy = self.XYZ_flat[:, 1]
+        oz = self.XYZ_flat[:, 2]
+
+        # Initialize new grid and current vectors for all the dipoles
+        # after we account for the symmetries below.
+        ox_full = np.zeros(n * nsym)
+        oy_full = np.zeros(n * nsym)
+        oz_full = np.zeros(n * nsym)
+        XYZ_integration_full = np.zeros((n * nsym, self.nx * self.ny * self.nz, 3))
+
+        # loop through the dipoles and repeat for fp and stellarator symmetries
+        index = 0
+
+        # Loop over stellarator and field-period symmetry contributions
+        for stell in stell_list:
+            for fp in range(nfp):
+                phi0 = (2 * np.pi / nfp) * fp
+
+                # get new dipoles locations by flipping the y and z components, then rotating by phi0
+                ox_full[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                oy_full[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                oz_full[index:index + n] = oz * stell
+                XYZ_integration_full[index:index + n, :, 0] = self.XYZ_integration[:, :, 0] * np.cos(phi0) - self.XYZ_integration[:, :, 1] * np.sin(phi0) * stell
+                XYZ_integration_full[index:index + n, :, 1] = self.XYZ_integration[:, :, 0] * np.sin(phi0) + self.XYZ_integration[:, :, 1] * np.cos(phi0) * stell
+                XYZ_integration_full[index:index + n, :, 2] = self.XYZ_integration[:, :, 2] * stell
+
+                index += n
+
+        contig = np.ascontiguousarray
+        pointsToVTK(
+            vtkname, contig(ox_full), contig(oy_full), contig(oz_full)
+        )
+        pointsToVTK(
+            vtkname + '_uniform',
+            contig(self.XYZ_uniform[:, 0]),
+            contig(self.XYZ_uniform[:, 1]),
+            contig(self.XYZ_uniform[:, 2])
+        )
+        pointsToVTK(
+            vtkname + '_quadrature',
+            contig(self.XYZ_integration[:, :, 0].flatten()),
+            contig(self.XYZ_integration[:, :, 1].flatten()),
+            contig(self.XYZ_integration[:, :, 2].flatten())
+        )
+        _voxels_to_vtk(vtkname + '_voxels', self.XYZ_integration)
+        _voxels_to_vtk(vtkname + '_voxels_full', XYZ_integration_full)
+        print("Max quadrature x:", np.max(self.XYZ_integration[:, :, 0]))
+        print("Min quadrature x:", np.min(self.XYZ_integration[:, :, 0]))
+        print("Max quadrature z:", np.max(self.XYZ_integration[:, :, 2]))
+        print("Min quadrature z:", np.min(self.XYZ_integration[:, :, 2]))
+
+    def to_vtk_after_solve(self, vtkname):
         """
             Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
 
