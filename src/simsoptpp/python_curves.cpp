@@ -13,35 +13,35 @@ namespace py = pybind11;
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
 #include "curverzfourier.h"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
-#include "curvecws.h"
-typedef CurveCWS<PyArray> PyCurveCWS;
+#include "curvecwsfourier.h"
+typedef CurveCWSFourier<PyArray> PyCurveCWSFourier;
 
-template <class PyCurveCWSBase = PyCurveCWS> class PyCurveCWSTrampoline : public PyCurveTrampoline<PyCurveCWSBase> {
+template <class PyCurveCWSFourierBase = PyCurveCWSFourier> class PyCurveCWSFourierTrampoline : public PyCurveTrampoline<PyCurveCWSFourierBase> {
     public:
-        using PyCurveTrampoline<PyCurveCWSBase>::PyCurveTrampoline; // Inherit constructors
+        using PyCurveTrampoline<PyCurveCWSFourierBase>::PyCurveTrampoline; // Inherit constructors
 
         int num_dofs() override {
-            return PyCurveCWSBase::num_dofs();
+            return PyCurveCWSFourierBase::num_dofs();
         }
 
         void set_dofs_impl(const vector<double>& _dofs) override {
-            PyCurveCWSBase::set_dofs_impl(_dofs);
+            PyCurveCWSFourierBase::set_dofs_impl(_dofs);
         }
 
         vector<double> get_dofs() override {
-            return PyCurveCWSBase::get_dofs();
+            return PyCurveCWSFourierBase::get_dofs();
         }
 
         vector<double> get_dofs_surface() {
-            return PyCurveCWSBase::get_dofs_surface();
+            return PyCurveCWSFourierBase::get_dofs_surface();
         }
         
         int num_dofs_surface() {
-            return PyCurveCWSBase::num_dofs_surface();
+            return PyCurveCWSFourierBase::num_dofs_surface();
         }
 
         void gamma_impl(PyArray& data, PyArray& quadpoints) override {
-            PyCurveCWSBase::gamma_impl(data, quadpoints);
+            PyCurveCWSFourierBase::gamma_impl(data, quadpoints);
         }
 };
 
@@ -143,25 +143,25 @@ void init_curves(py::module_ &m) {
         .def_readonly("nfp", &PyCurveRZFourier::nfp);
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
 
-    auto pycurvecws = py::class_<PyCurveCWS, shared_ptr<PyCurveCWS>, PyCurveCWSTrampoline<PyCurveCWS>, PyCurve>(m, "CurveCWS")
+    auto pycurvecwsfourier = py::class_<PyCurveCWSFourier, shared_ptr<PyCurveCWSFourier>, PyCurveCWSFourierTrampoline<PyCurveCWSFourier>, PyCurve>(m, "CurveCWSFourier")
         .def(py::init<int, int, vector<double>, int, int, int, bool>())
-        .def("get_dofs_surface", &PyCurveCWS::get_dofs_surface)
-        .def("num_dofs_surface", &PyCurveCWS::num_dofs_surface)
-        .def_readonly("order", &PyCurveCWS::order)
-        .def_readonly("nfp", &PyCurveCWS::nfp)
-        .def_readonly("stellsym", &PyCurveCWS::stellsym)
-        .def_readwrite("phi_l", &PyCurveCWS::phi_l)
-        .def_readwrite("theta_l", &PyCurveCWS::theta_l)
-        .def_readwrite("phi_s", &PyCurveCWS::phi_s)
-        .def_readwrite("phi_c", &PyCurveCWS::phi_c)
-        .def_readwrite("theta_c", &PyCurveCWS::theta_c)
-        .def_readwrite("theta_s", &PyCurveCWS::theta_s)
-        .def_readwrite("mpol", &PyCurveCWS::mpol)
-        .def_readwrite("ntor", &PyCurveCWS::ntor)
-        .def_readwrite("idofs", &PyCurveCWS::idofs)
-        .def_readwrite("rc", &PyCurveCWS::rc)
-        .def_readwrite("rs", &PyCurveCWS::rs)
-        .def_readwrite("zc", &PyCurveCWS::zc)
-        .def_readwrite("zs", &PyCurveCWS::zs);
-    register_common_curve_methods<PyCurveCWS>(pycurvecws);
+        .def("get_dofs_surface", &PyCurveCWSFourier::get_dofs_surface)
+        .def("num_dofs_surface", &PyCurveCWSFourier::num_dofs_surface)
+        .def_readonly("order", &PyCurveCWSFourier::order)
+        .def_readonly("nfp", &PyCurveCWSFourier::nfp)
+        .def_readonly("stellsym", &PyCurveCWSFourier::stellsym)
+        .def_readwrite("phi_l", &PyCurveCWSFourier::phi_l)
+        .def_readwrite("theta_l", &PyCurveCWSFourier::theta_l)
+        .def_readwrite("phi_s", &PyCurveCWSFourier::phi_s)
+        .def_readwrite("phi_c", &PyCurveCWSFourier::phi_c)
+        .def_readwrite("theta_c", &PyCurveCWSFourier::theta_c)
+        .def_readwrite("theta_s", &PyCurveCWSFourier::theta_s)
+        .def_readwrite("mpol", &PyCurveCWSFourier::mpol)
+        .def_readwrite("ntor", &PyCurveCWSFourier::ntor)
+        .def_readwrite("idofs", &PyCurveCWSFourier::idofs)
+        .def_readwrite("rc", &PyCurveCWSFourier::rc)
+        .def_readwrite("rs", &PyCurveCWSFourier::rs)
+        .def_readwrite("zc", &PyCurveCWSFourier::zc)
+        .def_readwrite("zs", &PyCurveCWSFourier::zs);
+    register_common_curve_methods<PyCurveCWSFourier>(pycurvecwsfourier);
 }

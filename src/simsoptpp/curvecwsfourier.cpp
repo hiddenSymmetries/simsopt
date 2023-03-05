@@ -1,9 +1,9 @@
-#include "curvecws.h"
+#include "curvecwsfourier.h"
 
 template <class Array>
-void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
+void CurveCWSFourier<Array>::gamma_impl(Array &data, Array &quadpoints)
 {
-    CurveCWS<Array>::set_dofs_surface(idofs);
+    CurveCWSFourier<Array>::set_dofs_surface(idofs);
     int numquadpoints = quadpoints.size();
 
     data *= 0;
@@ -62,9 +62,9 @@ void CurveCWS<Array>::gamma_impl(Array &data, Array &quadpoints)
 };
 
 template <class Array>
-void CurveCWS<Array>::gammadash_impl(Array &data)
+void CurveCWSFourier<Array>::gammadash_impl(Array &data)
 {
-    CurveCWS<Array>::set_dofs_surface(idofs);
+    CurveCWSFourier<Array>::set_dofs_surface(idofs);
 
     data *= 0;
 
@@ -144,9 +144,9 @@ void CurveCWS<Array>::gammadash_impl(Array &data)
 };
 
 template <class Array>
-void CurveCWS<Array>::gammadashdash_impl(Array &data)
+void CurveCWSFourier<Array>::gammadashdash_impl(Array &data)
 {
-    CurveCWS<Array>::set_dofs_surface(idofs);
+    CurveCWSFourier<Array>::set_dofs_surface(idofs);
 
     data *= 0;
 
@@ -241,9 +241,9 @@ void CurveCWS<Array>::gammadashdash_impl(Array &data)
 };
 
 template <class Array>
-void CurveCWS<Array>::gammadashdashdash_impl(Array &data)
+void CurveCWSFourier<Array>::gammadashdashdash_impl(Array &data)
 {
-    CurveCWS<Array>::set_dofs_surface(idofs);
+    CurveCWSFourier<Array>::set_dofs_surface(idofs);
 
     data *= 0;
 
@@ -353,15 +353,16 @@ void CurveCWS<Array>::gammadashdashdash_impl(Array &data)
     }
 };
 
-/* template <class Array>
-void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
+template <class Array>
+void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
 {
-    CurveCWS<Array>::set_dofs_surface(idofs);
+    CurveCWSFourier<Array>::set_dofs_surface(idofs);
     data *= 0;
 
 #pragma omp parallel for
     for (int k = 0; k < numquadpoints; ++k)
     {
+        std::cout << "quadpoint: " << k << std::endl;
         double CWSt = 2 * M_PI * quadpoints[k];
 
         double pphi = 0;
@@ -374,15 +375,20 @@ void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
         Array z_array = xt::zeros<double>({4 * (order + 1)});
 
         int counter = 0;
+        int counter2 = 0;
 
         double r = 0;
         double z = 0;
 
-        phi_array[counter++] = CWSt;
-        theta_array[counter++] = CWSt;
+        phi_array[counter] = CWSt;
+        theta_array[counter] = CWSt;
+
+        counter++;
+        // std::cout << r_array.size() << std::endl;
 
         for (int i = 0; i < order + 1; ++i)
         {
+            std::cout << "order dos cossenos: " << i << std::endl;
             phi_array[counter] = cos(i * CWSt);
             theta_array[counter] = cos(i * CWSt);
             counter++;
@@ -390,8 +396,12 @@ void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
             pphi += phi_c[i] * cos(i * CWSt);
             ptheta += theta_c[i] * cos(i * CWSt);
         }
+
+        std::cout << "acabou os cossenos em k = " << k << std::endl;
+
         for (int i = 1; i < order + 1; ++i)
         {
+            std::cout << "order dos senos: " << i << std::endl;
             phi_array[counter] = sin(i * CWSt);
             theta_array[counter] = sin(i * CWSt);
             counter++;
@@ -400,46 +410,35 @@ void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
             ptheta += theta_s[i - 1] * sin(i * CWSt);
         }
 
+        std::cout << "acabou os senos em k = " << k << std::endl;
+
         pphi += phi_l * CWSt;
         ptheta += theta_l * CWSt;
 
-        int counter2 = 0;
-        std::cout << "chegou aqui" << std::endl;
+        std::cout << "acabou a parte linear para k = " << k << std::endl;
 
         // SURFACE
-        if (counter2 < 2 * (order + 1))
+
+        for (int i = 0; i <= counter; ++i)
         {
-#pragma omp parallel for
-            for (int i = 0; i <= counter; ++i)
+            for (int m = 0; m <= mpol; ++m)
             {
-                for (int m = 0; m <= mpol; ++m)
+                for (int j = 0; j < 2 * ntor + 1; ++j)
                 {
-                    for (int j = 0; j < 2 * ntor + 1; ++j)
+                    if (counter2 < 2 * (order + 1))
                     {
                         int n = j - ntor;
                         r_array[counter2++] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
                         z_array[counter2++] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                        std::cout << "chegou aqui 2" << std::endl;
 
                         if (!stellsym)
                         {
+                            int n = j - ntor;
                             r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
                             z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
                         }
-
-                        counter2++;
                     }
-                }
-            }
-        }
-        else if (counter2 >= 2 * (order + 1))
-        {
-#pragma omp parallel for
-            for (int i = 0; i <= counter; ++i)
-            {
-                for (int m = 0; m <= mpol; ++m)
-                {
-                    for (int j = 0; j < 2 * ntor + 1; ++j)
+                    if (counter2 >= 2 * (order + 1))
                     {
                         int n = j - ntor;
                         r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
@@ -447,54 +446,19 @@ void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
 
                         if (!stellsym)
                         {
+                            int n = j - ntor;
                             r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
                             z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
                         }
-
-                        counter2++;
                     }
+
+                    counter2++;
                 }
             }
         }
-        /*
-                if (!stellsym)
-                {
-                    if (i < 2 * (order + 1))
-                    {
-                        for (int i = 0; i <= counter; ++i)
-                        {
-                            for (int m = 0; m <= mpol; ++m)
-                            {
-                                for (int j = 0; j < 2 * ntor + 1; ++j)
-                                {
-                                    int n = j - ntor;
-                                    r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                                    z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                                    counter2++;
-                                }
-                            }
-                        }
-                    }
-                    else if (i >= 2 * (order + 1))
-                    {
-                        for (int i = 0; i <= counter; ++i)
-                        {
-                            for (int m = 0; m <= mpol; ++m)
-                            {
-                                for (int j = 0; j < 2 * ntor + 1; ++j)
-                                {
-                                    int n = j - ntor;
-                                    r_array[counter2++] = rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                                    z_array[counter2++] = -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                                    counter2++;
-                                }
-                            }
-                        }
-                    }
-                }
-         
 
-#pragma omp parallel for
+        std::cout << "acabou a superficie para k = " << k << std::endl;
+
         for (int p = 0; p < counter2; p++)
         {
             if (p <= counter)
@@ -511,8 +475,9 @@ void CurveCWS<Array>::dgamma_by_dcoeff_impl(Array &data)
             }
         }
     }
+    std::cout << "chegou ao fim -_-" << std::endl;
 };
- */
+
 #include "xtensor-python/pyarray.hpp" // Numpy bindings
 typedef xt::pyarray<double> Array;
-template class CurveCWS<Array>;
+template class CurveCWSFourier<Array>;

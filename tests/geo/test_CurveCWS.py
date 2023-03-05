@@ -1,4 +1,4 @@
-from simsopt.geo import CurveCWS
+from simsopt.geo import CurveCWSFourier
 from simsopt.geo import SurfaceRZFourier
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,7 +14,7 @@ s = SurfaceRZFourier.from_wout(
 
 sdofs = s.get_dofs()
 
-cws = CurveCWS(
+cws = CurveCWSFourier(
     mpol=s.mpol,
     ntor=s.ntor,
     idofs=sdofs,

@@ -3,7 +3,7 @@
 #include "curve.h"
 
 template <class Array>
-class CurveCWS : public Curve<Array>
+class CurveCWSFourier : public Curve<Array>
 {
 public:
     // Curve
@@ -31,7 +31,7 @@ public:
     Array zc;
     Array zs;
 
-    CurveCWS(int _mpol, int _ntor, vector<double> _idofs, int _numquadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), idofs(_idofs)
+    CurveCWSFourier(int _mpol, int _ntor, vector<double> _idofs, int _numquadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym), mpol(_mpol), ntor(_ntor), idofs(_idofs)
     {
         phi_l = 0;
         theta_l = 0;
@@ -151,12 +151,17 @@ public:
         return res;
     }
 
+    Array& dgamma_by_dcoeff() override {
+            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
+        }
+
+
     void gamma_impl(Array &data, Array &quadpoints) override;
     void gammadash_impl(Array &data) override;
     void gammadashdash_impl(Array &data) override;
     void gammadashdashdash_impl(Array &data) override;
-    /*
     void dgamma_by_dcoeff_impl(Array &data) override;
+    /*
     void dgammadash_by_dcoeff_impl(Array &data) override;
     void dgammadashdash_by_dcoeff_impl(Array &data) override;
     void dgammadashdashdash_by_dcoeff_impl(Array &data) override;
