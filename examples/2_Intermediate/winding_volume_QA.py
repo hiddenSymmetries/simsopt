@@ -30,16 +30,16 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 16
+nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 32
 poff = 2  # grid end offset ~ 10 cm from the plasma surface
 coff = 0.5  # grid starts offset ~ 5 cm from the plasma surface
 # input_name = 'input.LandremanPaul2021_QA'
 input_name = 'input.circular_tokamak' 
 
-lam = 0.0  # 1e-22
+lam = 1e-20
 l0_threshold = 0.0  # 1e4
-nu = 1e100  # 1e13
+nu = 1e100  # 1e14
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -95,7 +95,7 @@ t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
 # params = [1, 2, 3, 4, 5, 10, 20, 30]
-params = [22]
+params = [20]
 num_cells = []
 cell_volumes = []
 # for nx in params:
@@ -123,10 +123,10 @@ for Nx in params:
     t2 = time.time()
     print('WV grid initialization took time = ', t2 - t1, ' s')
 
-    max_iter = 1000
-    rs_max_iter = 1  # 20
+    max_iter = 5000
+    rs_max_iter = 1
 
-    l0_thresholds = [0.0]  # [l0_threshold]  #  np.linspace(l0_threshold, 20 * l0_threshold, 5)
+    l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 6 * l0_threshold, 6)
     alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
         wv_grid, lam=lam, nu=nu, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 
@@ -200,6 +200,52 @@ for Nx in params:
     plt.grid(True)
     plt.legend()
     plt.show()
+
+    plt.figure()
+    alpha_history = np.squeeze(np.array(wv_grid.alpha_history))
+    P_alpha = np.zeros(alpha_history.shape[0])
+    for i in range(alpha_history.shape[0]):
+        P_alpha[i] = np.linalg.norm(wv_grid.P.dot(alpha_history[i, :]) - alpha_history[i, :]) / np.linalg.norm(alpha_history[i, :])
+    alpha_history = alpha_history.reshape(alpha_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
+    alpha_history += np.ones(alpha_history.shape)
+    w_history = np.squeeze(np.array(wv_grid.w_history))
+    P_w = np.zeros(w_history.shape[0])
+    for i in range(w_history.shape[0]):
+        P_w[i] = np.linalg.norm(wv_grid.P.dot(w_history[i, :]) - w_history[i, :]) / np.linalg.norm(w_history[i, :])
+    w_history = w_history.reshape(w_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
+    w_history += np.ones(w_history.shape)
+
+    fig, ax = plt.subplots()
+    colors = ['r', 'b']
+    for i, datum in enumerate([alpha_history, w_history]):
+        # Code from https://matplotlib.org/stable/gallery/animation/animated_histogram.html
+        def prepare_animation(bar_container):
+            def animate(frame_number):
+                plt.title('Iteration # ' + str(frame_number))
+                data = np.linalg.norm(datum[frame_number, :, :], axis=-1)
+                n, _ = np.histogram(data, np.logspace(0, 6, 40))
+                for count, rect in zip(n, bar_container.patches):
+                    rect.set_height(count)
+                return bar_container.patches
+            return animate
+
+        # make histogram animation of the dipoles at each relax-and-split save
+        data = np.linalg.norm(datum[0, :, :], axis=-1)
+        _, _, bar_container = ax.hist(data, bins=np.logspace(0, 6, 40), log=True, alpha=0.5, color=colors[i], edgecolor='k')
+        ax.set_ylim(top=wv_grid.N_grid)  # set safe limit to ensure that all data is visible.
+        plt.grid(True)
+        plt.xscale('log')
+        #if i == 1:
+        #    plt.legend([np.array([r'$\alpha^*$', r'w$^*$'])])
+
+        plt.xlabel(r'Magnitude of each cell group')
+        plt.ylabel('Number of cells')
+        ani = animation.FuncAnimation(
+            fig, prepare_animation(bar_container),
+            range(0, alpha_history.shape[0]),
+            repeat=False, blit=True
+        )
+        ani.save(OUT_DIR + 'history_l2{0:.2e}'.format(lam) + '_l0{0:.2e}'.format(l0_threshold) + '_nu{0:.2e}'.format(nu) + '_N' + str(Nx) + '.mp4')
 
     # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
     t1 = time.time()

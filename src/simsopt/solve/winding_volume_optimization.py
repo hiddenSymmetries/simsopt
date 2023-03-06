@@ -39,7 +39,7 @@ def relax_and_split_increasingl0(
     if alpha0 is not None:
         alpha_opt = alpha0
     else:
-        alpha_opt = (np.random.rand(N, 1) - 0.5) * 1e3  
+        alpha_opt = (np.random.rand(N, 1) - 0.5) * 1e4  
 
     if P is not None:
         alpha_opt = P.dot(alpha_opt)
@@ -102,6 +102,8 @@ def relax_and_split_increasingl0(
         # alpha0 = alpha_opt
         # w_opt = prox_group_l0(np.copy(alpha0), l0_threshold, n, num_basis)
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
+        #nu = nu / 2.0
+        #print('nu = ', nu)
         for k in range(rs_max_iter):
             step_size_i = step_size
             alpha_opt_prev = alpha_opt 
@@ -111,7 +113,7 @@ def relax_and_split_increasingl0(
             #    max_it = 5 * max_iter
             #else:
             BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
-            #    lam_nu = (lam + 1.0 / nu)
+            lam_nu = (lam + 1.0 / nu)
             max_it = max_iter
             # print(w_opt, alpha_opt)
             for i in range(max_it):
@@ -131,7 +133,6 @@ def relax_and_split_increasingl0(
                     f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
                     # f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
                     ind = (j * max_iter * rs_max_iter + k * max_iter + (i + 1)) // print_iter
-                    winding_volume.alpha_history.append(alpha_opt)
                     print(j, k, i, 
                           f_B[ind], 
                           f_I[ind], 
@@ -151,12 +152,13 @@ def relax_and_split_increasingl0(
                 f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
                 ind = (j * rs_max_iter + k)
                 winding_volume.w_history.append(w_opt)
+                winding_volume.alpha_history.append(alpha_opt)
                 print('w : ', j, k, i, 
                       f_Bw[ind], 
                       f_Iw[ind], 
                       lam * f_Kw[ind], 
                       f_0w[ind], ' / ', n, ', ',
-                      )  
+                      )
 
     t2 = time.time()
     print('Time to run algo = ', t2 - t1, ' s')
