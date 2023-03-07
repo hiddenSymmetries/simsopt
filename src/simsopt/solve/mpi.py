@@ -348,9 +348,6 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
             objective_val = prob.fail
             logger.info("Exception caught during function evaluation.")
 
-        # TODO: remove
-        print('objective',objective_val)
-
         nonlocal objective_datalog_started, objective_file, n_objective_evals
 
         # Since the number of terms is not known until the first
@@ -399,9 +396,6 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
             constraint_val = np.full(prob.nvals, 1.0e12)
             logger.info("Exception caught during function evaluation.")
 
-        # TODO: remove
-        print('constraint',constraint_val)
-
         nonlocal constraint_datalog_started, constraint_file, n_constraint_evals
 
         # Since the number of terms is not known until the first
@@ -443,11 +437,10 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         bounds = None
 
     # prepare linear constraints
+    constraints = []
     if prob.has_lc:
         lincon = LinearConstraint(prob.A_lc, ub=prob.b_lc)
         constraints.append(lincon)
-    else:
-        constraints = []
 
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
