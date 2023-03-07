@@ -20,6 +20,8 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import PermanentMagnetGrid
 from simsopt.solve import GPMO 
 from simsopt._core import Optimizable
+from adjust_magnet_angles import focus_data
+from polarization_project import discretize_polarizations, polarization_axes
 import pickle
 import time
 from simsopt.util.permanent_magnet_helper_functions import *
@@ -27,8 +29,8 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # change to 64 for a real run
-ntheta = 8  # same as above
+nphi = 64  # change to 64 for a real run
+ntheta = 64  # same as above
 dr = 0.01
 coff = 0.1
 poff = 0.02
@@ -41,7 +43,7 @@ s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
-OUT_DIR = 'output_permanent_magnet_GPMO/'
+OUT_DIR = 'output_permanent_magnet_MUSE_GPMO_scratch/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # initialize the coils
@@ -69,24 +71,79 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
+mag_data = focus_data('../../tests/test_files/zot80.focus')
+
+# Determine the allowable polarization types and reject the negatives
+pol_axes = np.zeros((0, 3))
+pol_type = np.zeros(0, dtype=int)
+
+pol_axes_f, pol_type_f = polarization_axes(['face'])
+ntype_f = int(len(pol_type_f)/2)
+pol_axes_f = pol_axes_f[:ntype_f, :]
+pol_type_f = pol_type_f[:ntype_f]
+pol_axes = np.concatenate((pol_axes, pol_axes_f), axis=0)
+pol_type = np.concatenate((pol_type, pol_type_f))
+
+# ophi = orientation_phi(fname_corn)[:nMagnets_tot]
+
+ox, oy, oz, Ic = np.loadtxt(
+    '../../tests/test_files/zot80.focus', 
+    skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
+)
+
+# Not normalized to 1 like quadpoints_phi!
+premade_dipole_grid = np.array([ox, oy, oz]).T
+ophi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
+
+print(mag_data, ophi.shape, pol_axes.shape, pol_type)
+discretize_polarizations(mag_data, ophi, pol_axes, pol_type)
+pol_vectors = np.zeros((ox.shape[0], len(pol_type), 3))
+pol_vectors[:, :, 0] = mag_data.pol_x
+pol_vectors[:, :, 1] = mag_data.pol_y
+pol_vectors[:, :, 2] = mag_data.pol_z
+print('pol_vectors_shape = ', pol_vectors.shape)
+
+# remove any dipoles where the diagnostic ports should be
+nonzero_inds = (Ic == 1.0)
+ox = ox[nonzero_inds]
+oy = oy[nonzero_inds]
+oz = oz[nonzero_inds]
+pol_vectors = pol_vectors[nonzero_inds, :, :]
+premade_dipole_grid = np.array([ox, oy, oz]).T
+
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
     s, coil_offset=coff, dr=dr, plasma_offset=poff,
     Bn=Bnormal, surface_flag='focus',
     filename=surface_filename,
-    coordinate_flag='toroidal',
-    famus_filename='zot80.focus'
+    coordinate_flag='cartesian',
+    famus_filename='zot80.focus',
+    pol_vectors=pol_vectors
 )
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
+algorithm = 'ArbVec_backtracking'
+nBacktracking = 200 
+nAdjacent = 30 
+nIter_max = 100000
+max_nMagnets = 40000
+nHistory = 500
+thresh_angle = np.pi / 2.0
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000
-
+kwargs['K'] = nIter_max
+kwargs['nhistory'] = nHistory
+if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+    kwargs['backtracking'] = nBacktracking
+    kwargs['Nadjacent'] = nAdjacent
+    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
+    if algorithm == 'ArbVec_backtracking':
+        kwargs['thresh_angle'] = thresh_angle
+        kwargs['max_nMagnets'] = max_nMagnets
 # Optimize the permanent magnets greedily
 t1 = time.time()
-R2_history, Bn_history, m_history = GPMO(pm_opt, **kwargs)
+R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
@@ -95,7 +152,7 @@ np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_n
 np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
 
 # plot the MSE history
-iterations = np.linspace(0, kwargs['K'], len(R2_history), endpoint=False)
+iterations = np.linspace(0, kwargs['max_nMagnets'], len(R2_history), endpoint=False)
 plt.figure()
 plt.semilogy(iterations, R2_history, label=r'$f_B$')
 plt.semilogy(iterations, Bn_history, label=r'$<|Bn|>$')

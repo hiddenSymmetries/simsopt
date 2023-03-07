@@ -836,8 +836,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     int NNp = nPolVecs * N;
     int print_iter = 0;
 
-    double cos_thresh_angle = cos(thresh_angle);
-
     Array x = xt::zeros<double>({N, 3});
     vector<int> x_vec(N);
     vector<int> x_sign(N);
@@ -882,6 +880,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
+        double cos_thresh_angle = cos(thresh_angle);
 
 #pragma omp parallel for schedule(static)
 	for (int j = 0; j < N; j += 1) {
@@ -1027,6 +1026,9 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", 
                    k, num_nonzero);
 
+	    // add small amount to the thresh_angle each time we print
+            //thresh_angle = thresh_angle + M_PI / 720.0;
+            
             // if stuck at some number of dipoles, break out of the loop
             num_nonzeros(print_iter-1) = num_nonzero;
             if (print_iter > 10 
@@ -1038,14 +1040,14 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                 break;
             }
             else if (num_nonzero == N) {
-                printf("Stopping iterations: maximum number of nonzero "
-                       "magnets reached ");
-                break;
-            }
-            else if (num_nonzero == max_nMagnets) {
                 printf("Stopping iterations: all dipoles in grid "
                        "are populated");
-                break;
+		break;
+            }
+            else if (num_nonzero >= max_nMagnets) {
+                printf("Stopping iterations: maximum number of nonzero "
+                       "magnets reached ");
+		break;
             }
 	}
     }
