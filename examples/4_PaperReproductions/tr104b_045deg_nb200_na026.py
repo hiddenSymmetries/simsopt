@@ -27,18 +27,19 @@ from polarization_project import polarization_axes, orientation_phi, \
 t_start = time.time()
 
 # Set some parameters
-N = 8
+N = 64
 nphi = N
 ntheta = N
 nfp = 3
 algorithm = 'ArbVec_backtracking'
 nBacktracking = 200 
-nAdjacent = 26
-nIter_max = 100000
-max_nMagnets = 5000  # 50000
-thresh_angle = 0.25*np.pi
+nAdjacent = 100 
+nIter_max = 150000
+max_nMagnets = 50000
+thresh_angle = np.pi / 4.0
 nHistory = 250  # must divide evenly into nIter_max
 out_dir = 'soln_tr104b_' + str(int(thresh_angle * 180 / np.pi)) + 'deg_nb' + str(nBacktracking) + '_na' + str(nAdjacent) + '/' 
+print('out directory = ', out_dir)
 
 # Obtain the plasma boundary for the NCSX configuration
 dir_pm4stell = ''
