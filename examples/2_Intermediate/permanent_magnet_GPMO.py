@@ -27,8 +27,8 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 64  # change to 64 for a real run
-ntheta = 64  # same as above
+nphi = 8  # change to 64 for high-resolution runs
+ntheta = 8  # same as above
 dr = 0.01
 coff = 0.1
 poff = 0.02
