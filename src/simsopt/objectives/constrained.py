@@ -236,7 +236,6 @@ class ConstrainedProblem(Optimizable):
             args: Any additional arguments
             kwargs: Keyword arguments
         """
-        # TODO: we might need try/catch here
         f_obj = self.objective(x, *args, **kwargs)
         out = np.array([f_obj])
         if self.has_nlc:
