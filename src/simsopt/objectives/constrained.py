@@ -49,12 +49,18 @@ class ConstrainedProblem(Optimizable):
                   the Optimizable instances
         tuples_nlc: Nonlinear constraints as a sequence of triples containing 
                     the nonlinear constraint function c with lower and upper bounds
-                    i.e. (c,l_c,u_c). Use +- np.inf to indicate unbounded components.
+                    i.e. `(c,l_c,u_c)`.
+                    Constraint handle can (`c`) can be vector-valued or scalar-valued.
+                    Constraint bounds can also be array or scalar.
+                    Use +- np.inf to indicate unbounded components.
+                    Define equality constraints by using equal upper and lower bounds.
         tuple_lc: Linear constraints as a tuple containing the 2d-array A, and 1d array
                   b, i.e. (A,b).
-        lb: 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
+        lb: float or 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
+            If float is used, the float is set to the upper bound of all dofs.
             Set a componenent equal to the upper bound to enforce an equality constraints.
-        ub: 1d-array of upper bounds, np.inf can be used if an entry is unconstrained
+        ub: float or 1d-array of upper bounds, np.inf can be used if an entry is unconstrained
+            If float is used, the float is set to the upper bound of all dofs.
             Set a componenent equal to the lower bound to enforce an equality constraints.
     """
 
@@ -62,8 +68,8 @@ class ConstrainedProblem(Optimizable):
                  f_obj: Callable,
                  tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
                  tuple_lc: Tuple[RealArray, Union[RealArray, Real]] = None,
-                 lb: RealArray = None,
-                 ub: RealArray = None,
+                 lb: Union[Real,RealArray] = None,
+                 ub: Union[Real,Array] = None,
                  fail: Union[None, float] = 1.0e12):
 
         self.fail = fail
@@ -77,13 +83,13 @@ class ConstrainedProblem(Optimizable):
         if lb is None:
             self.lb = -np.inf
         else:
-            self.lb = np.asarray(lb, np.double)
+            self.lb = np.asarray(lb) if np.ndim(lb) else float(lb)
             self.has_bounds = True
 
         if ub is None:
             self.ub = np.inf
         else:
-            self.ub = np.asarray(ub, np.double)
+            self.ub = np.asarray(ub) if np.ndim(ub) else float(ub)
             self.has_bounds = True
 
         # unpack the nonlinear constraints
@@ -91,8 +97,6 @@ class ConstrainedProblem(Optimizable):
             f_nlc, lhs_nlc, rhs_nlc = zip(*tuples_nlc)
             funcs_in = [f_obj, *f_nlc]
             self.has_nlc = True
-            lhs_nlc = np.array(lhs_nlc, dtype=float)
-            rhs_nlc = np.array(rhs_nlc, dtype=float)
             self.lhs_nlc = lhs_nlc
             self.rhs_nlc = rhs_nlc
         else:
@@ -135,7 +139,7 @@ class ConstrainedProblem(Optimizable):
 
         # get the constraint funcs
         fn_nlc = self.funcs_in[1:]
-        if len(fn_nlc) == 0:
+        if not self.has_nlc:
             # No nonlinear constraints to evaluate
             raise RuntimeError
 
@@ -152,11 +156,24 @@ class ConstrainedProblem(Optimizable):
 
                     break
 
-                output = np.array([out]) if not np.ndim(out) else np.asarray(out)
-                if self.first_eval_con:
-                    self.nvals += len(output)
-                    logger.debug(f"{i}: first eval {self.nvals}")
-                outputs += [output]
+                # evaluate lhs as lhs - c(x) <= 0
+                if np.any(np.isfinite(self.lhs_nlc[i])):
+                    diff = np.array(self.lhs_nlc[i]) - out
+                    output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
+                    outputs += [output]
+                    if self.first_eval_con:
+                        self.nvals += len(output)
+                        logger.debug(f"{i}: first eval {self.nvals}")
+
+                # evaluate rhs as c(x) - rhs <= 0
+                if np.any(np.isfinite(self.rhs_nlc[i])):
+                    diff = out - np.array(self.rhs_nlc[i]) 
+                    output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
+                    outputs += [output]
+                    if self.first_eval_con:
+                        self.nvals += len(output)
+                        logger.debug(f"{i}: first eval {self.nvals}")
+
             else:
                 if self.first_eval_con:
                     self.first_eval_con = False
@@ -203,6 +220,9 @@ class ConstrainedProblem(Optimizable):
             self.objective_cache = out
             self.new_x = False
 
+            if self.first_eval_obj:
+                self.first_eval_obj = False
+
             return self.objective_cache
         else:
             return self.objective_cache
@@ -216,6 +236,7 @@ class ConstrainedProblem(Optimizable):
             args: Any additional arguments
             kwargs: Keyword arguments
         """
+        # TODO: we might need try/catch here
         f_obj = self.objective(x, *args, **kwargs)
         out = np.array([f_obj])
         if self.has_nlc:
