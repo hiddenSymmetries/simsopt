@@ -296,6 +296,8 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             pol_vectors=np.ascontiguousarray(pm_opt.pol_vectors),
             **algorithm_kwargs
         )
+        # optimization_dict = {'A': A_obj, 'b': pm_opt.b_obj, 'fB_final': algorithm_history, 'm_greedy_solution_final': m}
+        # np.save('optimization_matrices_high_res.npy', optimization_dict) 
     elif algorithm == 'backtracking':  # GPMOb
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
             A_obj=np.ascontiguousarray(A_obj.T),

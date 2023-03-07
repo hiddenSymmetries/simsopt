@@ -20,17 +20,17 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo import PermanentMagnetGrid
 from simsopt.solve import GPMO 
 from simsopt._core import Optimizable
-from adjust_magnet_angles import focus_data
-from polarization_project import discretize_polarizations, polarization_axes
 import pickle
 import time
 from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.util.adjust_magnet_angles import focus_data
+from simsopt.util.polarization_project import discretize_polarizations, polarization_axes
 
 t_start = time.time()
 
 # Set some parameters
-nphi = 64  # change to 64 for a real run
-ntheta = 64  # same as above
+nphi = 8  # change to 64 for high-resolution runs
+ntheta = 8  # same as above
 dr = 0.01
 coff = 0.1
 poff = 0.02
@@ -124,13 +124,13 @@ pm_opt = PermanentMagnetGrid(
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
-nAdjacent = 30 
-nIter_max = 100000
-max_nMagnets = 40000
-nHistory = 500
-thresh_angle = np.pi / 2.0
+algorithm = 'ArbVec_backtracking'  # Algorithm to use
+nBacktracking = 200  # How often to perform the backtrackinig
+nAdjacent = 30  # How many magnets to consider "adjacent" to one another
+nIter_max = 100000  # Number of iterations to run before quitting
+max_nMagnets = 40000  # Max number of magnets to place. If achieved, algorithm quits
+nHistory = 500  # How often to save the algorithm progress
+thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
@@ -141,6 +141,7 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
     if algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
         kwargs['max_nMagnets'] = max_nMagnets
+
 # Optimize the permanent magnets greedily
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
