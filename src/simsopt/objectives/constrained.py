@@ -68,8 +68,8 @@ class ConstrainedProblem(Optimizable):
                  f_obj: Callable,
                  tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
                  tuple_lc: Tuple[RealArray, Union[RealArray, Real]] = None,
-                 lb: Union[Real,RealArray] = None,
-                 ub: Union[Real,Array] = None,
+                 lb: Union[Real, RealArray] = None,
+                 ub: Union[Real, Array] = None,
                  fail: Union[None, float] = 1.0e12):
 
         self.fail = fail

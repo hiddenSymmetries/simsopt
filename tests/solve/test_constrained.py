@@ -23,6 +23,7 @@ solvers = [constrained_serial_solve]
 if MPI is not None:
     solvers.append(mpi_solve_1group)
 
+
 class TestFunc1(Optimizable):
     """
     Args:
@@ -51,6 +52,7 @@ class TestFunc1(Optimizable):
     def c2(self):
         return np.sum(self.full_x)
 
+
 class ConstrainedSolveTests(unittest.TestCase):
 
     def test_bound_constrained(self):
@@ -59,26 +61,26 @@ class ConstrainedSolveTests(unittest.TestCase):
         # bound constraints with scalar bounds
         rosen = Rosenbrock()
         prob = ConstrainedProblem(rosen.f, lb=0.0, ub=5.0)
-        options = {'ftol':1e-9,'maxiter':2000}
+        options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
                 prob.x = np.zeros(2)
-                solver(prob,grad=grad,options=options)
-                self.assertTrue(np.allclose(prob.x,np.ones(2),atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(),0.0,atol=1e-3))
+                solver(prob, grad=grad, options=options)
+                self.assertTrue(np.allclose(prob.x, np.ones(2), atol=1e-3))
+                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
 
         # bound constraints with vector bounds
         rosen = Rosenbrock()
-        lb = np.array([-np.inf,0.0])
-        ub = [1.5,np.inf]
+        lb = np.array([-np.inf, 0.0])
+        ub = [1.5, np.inf]
         prob = ConstrainedProblem(rosen.f, lb=lb, ub=ub)
-        options = {'ftol':1e-9,'maxiter':2000}
+        options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
                 prob.x = np.zeros(2)
-                solver(prob,grad=grad,options=options)
-                self.assertTrue(np.allclose(prob.x,np.ones(2),atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(),0.0,atol=1e-3))
+                solver(prob, grad=grad, options=options)
+                self.assertTrue(np.allclose(prob.x, np.ones(2), atol=1e-3))
+                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
 
     def test_linear(self):
         grads = [True, False]
@@ -86,44 +88,44 @@ class ConstrainedSolveTests(unittest.TestCase):
         rosen = Rosenbrock()
         A = np.atleast_2d(np.ones(2))
         b = np.array([10.0])
-        lb = np.array([-np.inf,0.0])
-        ub = [1.5,np.inf]
-        prob = ConstrainedProblem(rosen.f, lb=lb, ub=ub,tuple_lc=(A,b))
-        options = {'ftol':1e-9,'maxiter':2000}
+        lb = np.array([-np.inf, 0.0])
+        ub = [1.5, np.inf]
+        prob = ConstrainedProblem(rosen.f, lb=lb, ub=ub, tuple_lc=(A, b))
+        options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
                 prob.x = np.zeros(2)
-                solver(prob,grad=grad,options=options)
-                self.assertTrue(np.allclose(prob.x,np.ones(2),atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(),0.0,atol=1e-3))
+                solver(prob, grad=grad, options=options)
+                self.assertTrue(np.allclose(prob.x, np.ones(2), atol=1e-3))
+                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
 
         # QP program
-        tester = TestFunc1(2,2)
+        tester = TestFunc1(2, 2)
         A = np.atleast_2d(-np.ones(2))
         b = np.array([-.5])
-        prob = ConstrainedProblem(tester.f2, lb=0.0, ub=np.inf, tuple_lc=(A,b))
+        prob = ConstrainedProblem(tester.f2, lb=0.0, ub=np.inf, tuple_lc=(A, b))
         prob.x = np.ones(2)
-        options = {'ftol':1e-9,'maxiter':2000}
+        options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
                 prob.x = np.zeros(2)
-                solver(prob,grad=grad,options=options)
-                self.assertTrue(np.allclose(prob.x,0.25*np.ones(2),atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(),0.125,atol=1e-3))
+                solver(prob, grad=grad, options=options)
+                self.assertTrue(np.allclose(prob.x, 0.25*np.ones(2), atol=1e-3))
+                self.assertTrue(np.allclose(prob.objective(), 0.125, atol=1e-3))
 
     def test_nlc(self):
         grads = [True, False]
 
         # QP
-        tester = TestFunc1(2,2)
-        prob = ConstrainedProblem(tester.f,tuples_nlc=[(tester.c2,0.0,np.inf)])
-        options = {'ftol':1e-9,'maxiter':2000}
+        tester = TestFunc1(2, 2)
+        prob = ConstrainedProblem(tester.f, tuples_nlc=[(tester.c2, 0.0, np.inf)])
+        options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
                 prob.x = np.ones(2)
-                solver(prob,grad=grad,options=options)
-                self.assertTrue(np.allclose(prob.x,np.zeros(2),atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(),0.0,atol=1e-3))
+                solver(prob, grad=grad, options=options)
+                self.assertTrue(np.allclose(prob.x, np.zeros(2), atol=1e-3))
+                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
 
 
 if __name__ == "__main__":

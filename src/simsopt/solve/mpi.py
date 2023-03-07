@@ -238,8 +238,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
 
 
 def _constrained_mpi_workers_task(mpi: MpiPartition,
-                      prob: Optimizable,
-                      data: int):
+                                  prob: Optimizable,
+                                  data: int):
     """
     This function is called by worker processes when
     MpiPartition.workers_loop() receives a signal to do something.
