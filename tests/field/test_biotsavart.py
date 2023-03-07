@@ -9,7 +9,7 @@ from simsopt.field.coil import Coil, Current, ScaledCurrent
 
 def get_curve(num_quadrature_points=200, perturb=False):
     coil = CurveXYZFourier(num_quadrature_points, 3)
-    coeffs = coil.dofs
+    coeffs = coil.dofs_matrix
     coeffs[1][0] = 1.
     coeffs[1][1] = 0.5
     coeffs[2][2] = 0.5
