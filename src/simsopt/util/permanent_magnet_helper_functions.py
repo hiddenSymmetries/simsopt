@@ -233,7 +233,7 @@ def read_focus_coils(filename):
     from simsopt.field import Current
 
     ncoils = np.loadtxt(filename, skiprows=1, max_rows=1, dtype=int)
-    order = np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
+    order = int(np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int))
     coilcurrents = np.zeros(ncoils)
     xc = np.zeros((ncoils, order + 1))
     xs = np.zeros((ncoils, order + 1))
@@ -267,7 +267,7 @@ def read_focus_coils(filename):
     coils = [CurveXYZFourier(order*ppp, order) for i in range(ncoils)]
     print(coils)
     for ic in range(ncoils):
-        dofs = coils[ic].dofs
+        dofs = coils[ic].dofs_matrix
         dofs[0][0] = coil_data[0, 6*ic + 1]
         dofs[1][0] = coil_data[0, 6*ic + 3]
         dofs[2][0] = coil_data[0, 6*ic + 5]
