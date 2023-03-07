@@ -267,7 +267,7 @@ class CurrentPotentialSolve:
                             np.array(self.K2s_l2)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l2),
                             2 * np.array(self.fBs_l2), 2 * np.array(self.fKs_l2), np.array(Bnormal_totals),
                             np.array(self.dofs_l1), np.array(self.phis_l1),
-                            np.array(self.K2s_l1), np.array(self.ilambdas_l1),
+                            np.array(self.K2s_l1)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l1),
                             2 * np.array(self.fBs_l1), 2 * np.array(self.fKs_l1), np.array(Bnormal_totals_l1)
                             ]
 

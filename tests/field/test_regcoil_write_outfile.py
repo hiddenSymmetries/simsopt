@@ -22,7 +22,7 @@ class Testing(unittest.TestCase):
             This function tests the SIMSOPT routine that writes
             REGCOIL outfiles for backwards compatability.
         """
-        for fname in ['regcoil_out.w7x_infty.nc', 'regcoil_out.li383_infty.nc']:
+        for fname in ['regcoil_out.w7x_infty.nc', 'regcoil_out.li383_infty.nc']:  # , 'regcoil_out.near_axis_asym.nc', 'regcoil_out.near_axis.nc', 'regcoil_out.w7x.nc', 'regcoil_out.li383.nc']:
             filename = TEST_DIR / fname
             cpst = CurrentPotentialSolve.from_netcdf(filename)
 
@@ -119,13 +119,17 @@ class Testing(unittest.TestCase):
                 assert np.allclose(r_coil, g.variables['r_coil'][()])
                 assert np.allclose(r_plasma, g.variables['r_plasma'][()])
                 assert np.allclose(K2_regcoil, g.variables['K2'][()][ilambda, :, :])
+                assert (K2_regcoil.shape == g.variables['K2_l1'][()][ilambda, :, :].shape)
                 assert np.allclose(lambda_regcoil, g.variables['lambda'][()][ilambda])
+                assert np.allclose(lambda_regcoil, g.variables['lambda_l1'][()][ilambda])
                 assert np.allclose(b_rhs_regcoil, g.variables['RHS_B'][()])
                 assert np.allclose(k_rhs_regcoil, g.variables['RHS_regularization'][()])
                 assert np.allclose(f_B_regcoil, g.variables['chi2_B'][()][ilambda])
+                assert np.allclose(f_B_regcoil, g.variables['chi2_B_l1'][()][ilambda])
                 assert np.allclose(f_K_regcoil, g.variables['chi2_K'][()][ilambda])
                 assert np.allclose(norm_normal_plasma, g.variables['norm_normal_plasma'][()])
                 assert np.allclose(current_potential_thetazeta, g.variables['single_valued_current_potential_thetazeta'][()][ilambda, :, :])
+                assert np.allclose(current_potential_thetazeta, g.variables['single_valued_current_potential_thetazeta_l1'][()][ilambda, :, :])
             g.close()
 
 
