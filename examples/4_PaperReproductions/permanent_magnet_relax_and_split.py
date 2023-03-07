@@ -326,7 +326,7 @@ elif run_type == 'optimization':
     dipoles = np.ravel(dipoles)
     print('Dipole field setup done')
 
-    make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR)
+    make_optimization_plots(RS_history, total_m_history, m_proxy_history, pm_opt, OUT_DIR)
     t2 = time.time()
     print("Done printing and plotting, ", t2 - t1, " s")
 
