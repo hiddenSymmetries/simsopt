@@ -70,7 +70,7 @@ for step in range(3):
     surf.fix("rc(0,0)")  # Major radius
 
     # solver options
-    options = {'disp': True, 'ftol': 1e-7, 'maxiter': 300}
+    options = {'disp': True, 'ftol': 1e-7, 'maxiter': 1}
     # solve the problem
     constrained_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-7, options=options)
     xopt = prob.x
