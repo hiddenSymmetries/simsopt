@@ -32,14 +32,14 @@ t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 32
-poff = 2  # grid end offset ~ 10 cm from the plasma surface
-coff = 0.5  # grid starts offset ~ 5 cm from the plasma surface
-# input_name = 'input.LandremanPaul2021_QA'
-input_name = 'input.circular_tokamak' 
+poff = 0.25  # grid end offset ~ 10 cm from the plasma surface
+coff = 0.4  # grid starts offset ~ 5 cm from the plasma surface
+input_name = 'input.LandremanPaul2021_QA'
+# input_name = 'input.circular_tokamak' 
 
-lam = 1e-20
-l0_threshold = 0.0  # 1e4
-nu = 1e100  # 1e14
+lam = 1e-22
+l0_threshold = 5e4
+nu = 1e15
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -122,16 +122,17 @@ for Nx in params:
     )
     t2 = time.time()
     print('WV grid initialization took time = ', t2 - t1, ' s')
+    wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
-    max_iter = 5000
-    rs_max_iter = 1
+    max_iter = 40
+    rs_max_iter = 5
 
-    l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 6 * l0_threshold, 6)
+    l0_thresholds = np.linspace(l0_threshold, 60 * l0_threshold, 60, endpoint=True)
     alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
         wv_grid, lam=lam, nu=nu, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 
         rs_max_iter=rs_max_iter,
-        print_iter=100,
+        print_iter=10,
     )
 
     # print('alpha_opt = ', alpha_opt)
@@ -145,7 +146,7 @@ for Nx in params:
     t_algorithm.append(t2 - t1)
 
     t1 = time.time()
-    wv_grid._toVTK(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
+    wv_grid.to_vtk_after_solve(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
     t2 = time.time()
     print('Time to plot the optimized grid = ', t2 - t1, ' s')
     print('fB after optimization = ', fB[-1]) 
@@ -201,7 +202,6 @@ for Nx in params:
     plt.legend()
     plt.show()
 
-    plt.figure()
     alpha_history = np.squeeze(np.array(wv_grid.alpha_history))
     P_alpha = np.zeros(alpha_history.shape[0])
     for i in range(alpha_history.shape[0]):
@@ -215,6 +215,7 @@ for Nx in params:
     w_history = w_history.reshape(w_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
     w_history += np.ones(w_history.shape)
 
+    plt.figure()
     fig, ax = plt.subplots()
     colors = ['r', 'b']
     for i, datum in enumerate([alpha_history, w_history]):
@@ -240,12 +241,12 @@ for Nx in params:
 
         plt.xlabel(r'Magnitude of each cell group')
         plt.ylabel('Number of cells')
-        ani = animation.FuncAnimation(
-            fig, prepare_animation(bar_container),
-            range(0, alpha_history.shape[0]),
-            repeat=False, blit=True
-        )
-        ani.save(OUT_DIR + 'history_l2{0:.2e}'.format(lam) + '_l0{0:.2e}'.format(l0_threshold) + '_nu{0:.2e}'.format(nu) + '_N' + str(Nx) + '.mp4')
+    ani = animation.FuncAnimation(
+        fig, prepare_animation(bar_container),
+        range(0, alpha_history.shape[0]),
+        repeat=False, blit=True
+    )
+    ani.save(OUT_DIR + 'history_l2{0:.2e}'.format(lam) + '_l0{0:.2e}'.format(l0_threshold) + '_nu{0:.2e}'.format(nu) + '_N' + str(Nx) + '.mp4')
 
     # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
     t1 = time.time()

@@ -33,13 +33,13 @@ t1 = time.time()
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 32
 poff = 2.0  # grid end offset ~ 10 cm from the plasma surface
-coff = 0.5  # grid starts offset ~ 5 cm from the plasma surface
+coff = 1.0  # grid starts offset ~ 5 cm from the plasma surface
 # input_name = 'input.LandremanPaul2021_QA'
 input_name = 'input.circular_tokamak' 
 
-lam = 1e-22
-l0_threshold = 4e4
-nu = 1e16
+lam = 1e-20
+l0_threshold = 5e3
+nu = 1e15
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -120,16 +120,16 @@ for Nx in params:
     t2 = time.time()
     print('WV grid initialization took time = ', t2 - t1, ' s')
     wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
-    
-    max_iter = 2000
-    rs_max_iter = 5
 
-    l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 10 * l0_threshold, 5)
+    max_iter = 100
+    rs_max_iter = 10
+
+    l0_thresholds = np.linspace(l0_threshold, 20 * l0_threshold, 30, endpoint=True)
     alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
         wv_grid, lam=lam, nu=nu, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 
         rs_max_iter=rs_max_iter,
-        print_iter=100,
+        print_iter=10,
     )
 
     # print('alpha_opt = ', alpha_opt)
@@ -196,6 +196,45 @@ for Nx in params:
     plt.semilogy(w_range, fBw + fIw + lam * fKw, 'g--', label='Total w objective (not incl. l0)')
     plt.grid(True)
     plt.legend()
+
+    alpha_history = np.squeeze(np.array(wv_grid.alpha_history))
+    alpha_history = alpha_history.reshape(alpha_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
+    alpha_history += np.ones(alpha_history.shape)
+    w_history = np.squeeze(np.array(wv_grid.w_history))
+    w_history = w_history.reshape(w_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
+    w_history += np.ones(w_history.shape)
+    plt.figure()
+    fig, ax = plt.subplots()
+    colors = ['r', 'b']
+    for i, datum in enumerate([alpha_history, w_history]):
+        # Code from https://matplotlib.org/stable/gallery/animation/animated_histogram.html
+        def prepare_animation(bar_container):
+            def animate(frame_number):
+                plt.title('Iteration # ' + str(frame_number))
+                data = np.linalg.norm(datum[frame_number, :, :], axis=-1)
+                n, _ = np.histogram(data, np.logspace(0, 6, 40))
+                for count, rect in zip(n, bar_container.patches):
+                    rect.set_height(count)
+                return bar_container.patches
+            return animate
+
+        # make histogram animation of the dipoles at each relax-and-split save
+        data = np.linalg.norm(datum[0, :, :], axis=-1)
+        _, _, bar_container = ax.hist(data, bins=np.logspace(0, 6, 40), log=True, alpha=0.5, color=colors[i], edgecolor='k')
+        ax.set_ylim(top=wv_grid.N_grid)  # set safe limit to ensure that all data is visible.
+        plt.grid(True)
+        plt.xscale('log')
+        #if i == 1:
+        #    plt.legend([np.array([r'$\alpha^*$', r'w$^*$'])])
+
+        plt.xlabel(r'Magnitude of each cell group')
+        plt.ylabel('Number of cells')
+    ani = animation.FuncAnimation(
+        fig, prepare_animation(bar_container),
+        range(0, alpha_history.shape[0]),
+        repeat=False, blit=True
+    )
+    ani.save(OUT_DIR + 'history_l2{0:.2e}'.format(lam) + '_l0{0:.2e}'.format(l0_threshold) + '_nu{0:.2e}'.format(nu) + '_N' + str(Nx) + '.mp4')
 
     t1 = time.time()
     wv_grid.check_fluxes()

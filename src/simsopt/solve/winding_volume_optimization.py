@@ -114,9 +114,9 @@ def relax_and_split_increasingl0(
             #else:
             BTB_ITbI_nuw = BTb + ITbI + w_opt / nu
             lam_nu = (lam + 1.0 / nu)
-            max_it = max_iter
+            # max_it = max_iter + 1
             # print(w_opt, alpha_opt)
-            for i in range(max_it):
+            for i in range(max_iter + 1):
                 vi = contig(alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev))
                 alpha_opt_prev = alpha_opt
                 alpha_opt = P.dot(
@@ -125,21 +125,20 @@ def relax_and_split_increasingl0(
                 step_size_i = (1 + np.sqrt(1 + 4 * step_size_i ** 2)) / 2.0
 
                 # print metrics
-                if ((i % print_iter) == 0.0 or i == max_iter - 1):
+                if ((i % print_iter) == 0.0):
                     f_B.append(np.linalg.norm(np.ravel(B @ alpha_opt - b), ord=2) ** 2)
                     f_I.append(np.linalg.norm(np.ravel(I @ alpha_opt - b_I)) ** 2)
                     f_K.append(np.linalg.norm(np.ravel(alpha_opt)) ** 2) 
                     f_RS.append(np.linalg.norm(np.ravel(alpha_opt - w_opt) ** 2))
                     f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1) > threshold))
                     # f_0.append(np.count_nonzero(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
-                    ind = (j * max_iter * rs_max_iter + k * max_iter + (i + 1)) // print_iter
+                    # ind = (j * (max_iter + 1) * rs_max_iter + k * (max_iter + 1) + i) // print_iter
                     print(j, k, i, 
-                          f_B[ind], 
-                          f_I[ind], 
-                          lam * f_K[ind], 
-                          f_RS[ind] / nu, 
-                          f_0[ind], ' / ', n, ', ',
-                          step_size_i,
+                          f_B[-1], 
+                          f_I[-1], 
+                          lam * f_K[-1], 
+                          f_RS[-1] / nu, 
+                          f_0[-1], ' / ', n
                           )  
 
             # now do the prox step
@@ -150,14 +149,14 @@ def relax_and_split_increasingl0(
                 f_Kw.append(np.linalg.norm(np.ravel(w_opt)) ** 2) 
                 # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
                 f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
-                ind = (j * rs_max_iter + k)
+                # ind = (j * rs_max_iter + k)
                 winding_volume.w_history.append(w_opt)
                 winding_volume.alpha_history.append(alpha_opt)
                 print('w : ', j, k, i, 
-                      f_Bw[ind], 
-                      f_Iw[ind], 
-                      lam * f_Kw[ind], 
-                      f_0w[ind], ' / ', n, ', ',
+                      f_Bw[-1], 
+                      f_Iw[-1], 
+                      lam * f_Kw[-1], 
+                      f_0w[-1], ' / ', n, ', ',
                       )
 
     t2 = time.time()

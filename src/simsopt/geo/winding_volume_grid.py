@@ -66,15 +66,15 @@ def _voxels_to_vtk(
     z = np.zeros(8 * nvoxels)
 
     for j in range(nvoxels):
-        x[8 * j : 8 * (j + 1)] = (
+        x[8 * j: 8 * (j + 1)] = (
             np.min(points[j, :, 0])
             + (np.max(points[j, :, 0]) - np.min(points[j, :, 0])) * base_x
         )
-        y[8 * j : 8 * (j + 1)] = (
+        y[8 * j: 8 * (j + 1)] = (
             np.min(points[j, :, 1])
             + (np.max(points[j, :, 1]) - np.min(points[j, :, 1])) * base_y
         )
-        z[8 * j : 8 * (j + 1)] = (
+        z[8 * j: 8 * (j + 1)] = (
             np.min(points[j, :, 2])
             + (np.max(points[j, :, 2]) - np.min(points[j, :, 2])) * base_z
         )
@@ -484,11 +484,26 @@ class WindingVolumeGrid:
             contig(self.XYZ_uniform[:, 1]),
             contig(self.XYZ_uniform[:, 2])
         )
+        Phi = self.Phi.reshape(self.n_functions, self.N_grid, self.nx * self.ny * self.nz, 3)
+        data = {
+            "Phi0": (contig(Phi[0, :, :, 0].flatten()), contig(Phi[0, :, :, 1].flatten()), contig(Phi[0, :, :, 2].flatten())),
+            "Phi1": (contig(Phi[1, :, :, 0].flatten()), contig(Phi[1, :, :, 1].flatten()), contig(Phi[1, :, :, 2].flatten())),
+            "Phi2": (contig(Phi[2, :, :, 0].flatten()), contig(Phi[2, :, :, 1].flatten()), contig(Phi[2, :, :, 2].flatten())),
+            "Phi3": (contig(Phi[3, :, :, 0].flatten()), contig(Phi[3, :, :, 1].flatten()), contig(Phi[3, :, :, 2].flatten())),
+            "Phi4": (contig(Phi[4, :, :, 0].flatten()), contig(Phi[4, :, :, 1].flatten()), contig(Phi[4, :, :, 2].flatten())),
+            "Phi5": (contig(Phi[5, :, :, 0].flatten()), contig(Phi[5, :, :, 1].flatten()), contig(Phi[5, :, :, 2].flatten())),
+            "Phi6": (contig(Phi[6, :, :, 0].flatten()), contig(Phi[6, :, :, 1].flatten()), contig(Phi[6, :, :, 2].flatten())),
+            "Phi7": (contig(Phi[7, :, :, 0].flatten()), contig(Phi[7, :, :, 1].flatten()), contig(Phi[7, :, :, 2].flatten())),
+            "Phi8": (contig(Phi[8, :, :, 0].flatten()), contig(Phi[8, :, :, 1].flatten()), contig(Phi[8, :, :, 2].flatten())),
+            "Phi9": (contig(Phi[9, :, :, 0].flatten()), contig(Phi[9, :, :, 1].flatten()), contig(Phi[9, :, :, 2].flatten())),
+            "Phi10": (contig(Phi[10, :, :, 0].flatten()), contig(Phi[10, :, :, 1].flatten()), contig(Phi[10, :, :, 2].flatten()))
+        }
         pointsToVTK(
             vtkname + '_quadrature',
             contig(self.XYZ_integration[:, :, 0].flatten()),
             contig(self.XYZ_integration[:, :, 1].flatten()),
-            contig(self.XYZ_integration[:, :, 2].flatten())
+            contig(self.XYZ_integration[:, :, 2].flatten()),
+            data=data
         )
         _voxels_to_vtk(vtkname + '_voxels', self.XYZ_integration)
         _voxels_to_vtk(vtkname + '_voxels_full', XYZ_integration_full)
@@ -656,7 +671,7 @@ class WindingVolumeGrid:
         fig.colorbar(q)
         plt.savefig(self.OUT_DIR + 'quiver_plot_sparse_solution.jpg')
 
-    def _setup_polynomial_basis(self, shift=False):
+    def _setup_polynomial_basis(self, shift=True):
         """
         Evaluate the basis of divergence-free polynomials
         at a given set of points. For now,
@@ -689,43 +704,60 @@ class WindingVolumeGrid:
                 x_leftpoints[i] + dx,
                 nx,
                 endpoint=True
-            )
+            ) - dx / 2.0
             yrange[i, :] = np.linspace(
                 y_leftpoints[i], 
                 y_leftpoints[i] + dy,
                 ny,
                 endpoint=True
-            )
+            ) - dy / 2.0
             zrange[i, :] = np.linspace(
                 z_leftpoints[i], 
                 z_leftpoints[i] + dz,
                 nz,
                 endpoint=True
-            )
-            if shift:
-                x_midpoint = (x_leftpoints[i] + dx / 2.0)
-                y_midpoint = (y_leftpoints[i] + dy / 2.0)
-                z_midpoint = (z_leftpoints[i] + dz / 2.0)
-                xrange[i, :] = (xrange[i, :] - x_midpoint)  # * np.cbrt(dx * dy * dz)
-                yrange[i, :] = (yrange[i, :] - y_midpoint)  # * np.cbrt(dx * dy * dz)
-                zrange[i, :] = (zrange[i, :] - z_midpoint)  # * np.cbrt(dx * dy * dz)
+            ) - dz / 2.0
+            #if shift:
+            #    x_midpoint = (x_leftpoints[i] + dx / 2.0)
+            #    y_midpoint = (y_leftpoints[i] + dy / 2.0)
+            #    z_midpoint = (z_leftpoints[i] + dz / 2.0)
+            #    xrange[i, :] = (xrange[i, :] - x_midpoint)  # * np.cbrt(dx * dy * dz)
+            #    yrange[i, :] = (yrange[i, :] - y_midpoint)  # * np.cbrt(dx * dy * dz)
+            #    zrange[i, :] = (zrange[i, :] - z_midpoint)  # * np.cbrt(dx * dy * dz)
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
         zeros = np.zeros(n)
         ones = np.ones(n)
-        for i in range(nx):
-            for j in range(ny):
-                for k in range(nz):
-                    Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
-                    Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
-                    Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
-                    Phi[3, :, i, j, k, :] = np.array([yrange[:, j], zeros, zeros]).T
-                    Phi[4, :, i, j, k, :] = np.array([zrange[:, k], zeros, zeros]).T
-                    Phi[5, :, i, j, k, :] = np.array([zeros, zeros, xrange[:, i]]).T
-                    Phi[6, :, i, j, k, :] = np.array([zeros, zeros, yrange[:, j]]).T
-                    Phi[7, :, i, j, k, :] = np.array([zeros, zrange[:, k], zeros]).T
-                    Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
-                    Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
-                    Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
+        if not shift:
+            for i in range(nx):
+                for j in range(ny):
+                    for k in range(nz):
+                        Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
+                        Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
+                        Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
+                        Phi[3, :, i, j, k, :] = np.array([yrange[:, j], zeros, zeros]).T
+                        Phi[4, :, i, j, k, :] = np.array([zrange[:, k], zeros, zeros]).T
+                        Phi[5, :, i, j, k, :] = np.array([zeros, zeros, xrange[:, i]]).T
+                        Phi[6, :, i, j, k, :] = np.array([zeros, zeros, yrange[:, j]]).T
+                        Phi[7, :, i, j, k, :] = np.array([zeros, zrange[:, k], zeros]).T
+                        Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
+                        Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
+                        Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
+        # Shift all the basis functions but their midpoints in every cell, to sort of normalize them
+        else:
+            for i in range(nx):
+                for j in range(ny):
+                    for k in range(nz):
+                        Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
+                        Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
+                        Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
+                        Phi[3, :, i, j, k, :] = np.array([yrange[:, j] - y_leftpoints, zeros, zeros]).T / np.cbrt(dx * dy * dz)
+                        Phi[4, :, i, j, k, :] = np.array([zrange[:, k] - z_leftpoints, zeros, zeros]).T / np.cbrt(dx * dy * dz)
+                        Phi[5, :, i, j, k, :] = np.array([zeros, zeros, xrange[:, i] - x_leftpoints]).T / np.cbrt(dx * dy * dz)
+                        Phi[6, :, i, j, k, :] = np.array([zeros, zeros, yrange[:, j] - y_leftpoints]).T / np.cbrt(dx * dy * dz)
+                        Phi[7, :, i, j, k, :] = np.array([zeros, zrange[:, k] - z_leftpoints, zeros]).T / np.cbrt(dx * dy * dz)
+                        Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i] - x_leftpoints, zeros]).T / np.cbrt(dx * dy * dz)
+                        Phi[9, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, -yrange[:, j] + y_leftpoints, zeros]).T / np.cbrt(dx * dy * dz)
+                        Phi[10, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, zeros, -zrange[:, k] + z_leftpoints]).T / np.cbrt(dx * dy * dz)
 
         for i in range(11):
             dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / dx
