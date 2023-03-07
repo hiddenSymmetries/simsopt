@@ -22,6 +22,8 @@ print("Running 2_Intermediate/eliminate_magnetic_islands.py")
 print("====================================================")
 
 log()
+logging.info("Running 2_Intermediate/eliminate_magnetic_islands.py")
+logging.info("====================================================")
 
 mpi = MpiPartition()
 mpi.write()
@@ -38,6 +40,8 @@ s.boundary.change_resolution(6, s.boundary.ntor)
 s.boundary.fix_all()
 s.boundary.unfix('zs(6,1)')
 s.boundary.unfix('zs(6,2)')
+logging.info(f"Initial zs(6,1):  {s.boundary.get('zs(6,1)')}")
+logging.info(f"Initial zs(6,2):  {s.boundary.get('zs(6,2)')}")
 
 # The main resonant surface is iota = p / q:
 p = -8

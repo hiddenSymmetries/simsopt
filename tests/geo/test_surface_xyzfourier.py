@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 
-from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo import Surface, SurfaceXYZFourier, SurfaceXYZTensorFourier
 from .surface_test_helpers import get_surface, get_exact_surface
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from simsopt._core.optimizable import load, save
@@ -26,8 +26,9 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         completely losslessly.
         """
         for stellsym in stellsym_list:
-            with self.subTest(stellsym=stellsym):
-                self.subtest_toRZFourier_perfect_torus("SurfaceXYZFourier", stellsym)
+            for surface_type in ['SurfaceXYZFourier', 'SurfaceXYZTensorFourier']:
+                with self.subTest(stellsym=stellsym, surface_type=surface_type):
+                    self.subtest_toRZFourier_perfect_torus(surface_type, stellsym)
 
     def subtest_toRZFourier_perfect_torus(self, surfacetype, stellsym):
         """
@@ -60,7 +61,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         # check that the pointwise error is what we expect
         assert max_pointwise_err < 1e-12
 
-    def test_toRZFourier_lossless_at_quadraturepoints(self):
+    def test_toRZFourier_lossless_at_quadrature_points(self):
         """
         This test obtains a more complex surface (not a perfect torus) as a SurfaceXYZFourier, then
         converts that surface to the SurfaceRZFourier representation.  Then, the test checks that both
@@ -69,7 +70,12 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         Additionally, this test checks that the cross sectional angle is correct.
         """
-        s = get_exact_surface()
+        for surface_type in ['SurfaceXYZFourier', 'SurfaceXYZTensorFourier']:
+            with self.subTest(surface_type=surface_type):
+                self.subtest_toRZFourier_lossless_at_quadraturepoints(surface_type)
+
+    def subtest_toRZFourier_lossless_at_quadraturepoints(self, surface_type):
+        s = get_exact_surface(surface_type=surface_type)
         sRZ = s.to_RZFourier()
 
         max_angle_error = -1
@@ -327,6 +333,42 @@ class SurfaceXYZFourierTests(unittest.TestCase):
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
+
+    def test_shared_dof_init(self):
+        mpol = 4
+        ntor = 3
+        nfp = 2
+        phis = np.linspace(0, 1, 31, endpoint=False)
+        thetas = np.linspace(0, 1, 31, endpoint=False)
+
+        np.random.seed(0)
+
+        stellsym = False
+        s = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                              quadpoints_phi=phis, quadpoints_theta=thetas)
+        s.xc = s.xc * 0
+        s.xs = s.xs * 0
+        s.ys = s.ys * 0
+        s.yc = s.yc * 0
+        s.zs = s.zs * 0
+        s.zc = s.zc * 0
+        r1 = np.random.random_sample() + 0.1
+        r2 = np.random.random_sample() + 0.1
+        major_R = np.max([r1, r2])
+        minor_R = np.min([r1, r2])
+        s.xc[0, ntor] = major_R
+        s.xc[1, ntor] = minor_R
+        s.zs[1, ntor] = minor_R
+        # TODO: x should be updated whenever [x,y,z][c,s] are modified without
+        # TODO: explict setting of local_full_x
+        s.local_full_x = s.get_dofs()
+
+        phis, thetas = Surface.get_quadpoints(ntheta=61, nphi=60, range="half period", nfp=2)
+        s2 = SurfaceXYZFourier(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                               quadpoints_phi=phis, quadpoints_theta=thetas,
+                               dofs=s.dofs)
+        self.assertAlmostEqual(s.area(), s2.area())
+        self.assertAlmostEqual(s.volume(), s2.volume())
 
 
 if __name__ == "__main__":
