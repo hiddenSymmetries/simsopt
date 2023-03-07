@@ -296,3 +296,4 @@ def parallel_loop_bounds(comm, n):
         assert idxs[0] == 0
         assert idxs[-1] == n
         return idxs[comm.rank], idxs[comm.rank+1]
+

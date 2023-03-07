@@ -29,12 +29,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.7.13, 3.8.13, 3.9.13] # , 3.10.0] # To sync with coveragerc use 3 levels with python version
+        python-version: [3.7.15, 3.8.15, 3.9.16] # , 3.10.0] # To sync with coveragerc use 3 levels with python version
         include:
-            - python-version: 3.9.13
+            - python-version: 3.9.16
               test-type: unit
               packages: none
-            - python-version: 3.9.13
+            - python-version: 3.9.16
               test-type: integrated
               packages: none
 
@@ -80,7 +80,7 @@ jobs:
         pwd
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -121,6 +121,7 @@ jobs:
     - name: Install py_spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
+        pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 
@@ -244,9 +245,9 @@ jobs:
     steps:
 
     - name: Set up Python 
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8.13
+        python-version: 3.8.15
 
     - name: Install coverage
       run: pip install coverage

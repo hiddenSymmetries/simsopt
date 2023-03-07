@@ -56,7 +56,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
-                 quadpoints_phi=None, quadpoints_theta=None):
+                 quadpoints_phi=None, quadpoints_theta=None,
+                 dofs=None):
 
         if quadpoints_theta is None:
             quadpoints_theta = Surface.get_theta_quadpoints()
@@ -68,9 +69,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceRZFourier.set_dofs_impl,
-                         names=self._make_names())
+        if dofs is None:
+            Surface.__init__(self, x0=self.get_dofs(),
+                             external_dof_setter=SurfaceRZFourier.set_dofs_impl,
+                             names=self._make_names())
+        else:
+            Surface.__init__(self, dofs=dofs,
+                             external_dof_setter=SurfaceRZFourier.set_dofs_impl)
         self._make_mn()
         self.range = range
 
@@ -411,11 +416,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._make_mn()
 
         # Update the dofs object
-        self._dofs = DOFs(self.get_dofs(), self._make_names())
-        # The following methods of graph Optimizable framework need to be called
-        Optimizable._update_free_dof_size_indices(self)
-        Optimizable._update_full_dof_size_indices(self)
-        Optimizable._set_new_x(self)
+        self.replace_dofs(DOFs(self.get_dofs(), self._make_names()))
 
     def to_RZFourier(self):
         """
@@ -598,22 +599,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        dec = GSONDecoder()
-        quadpoints_phi = dec.process_decoded(d["quadpoints_phi"],
-                                             serial_objs_dict=serial_objs_dict,
-                                             recon_objs=recon_objs)
-        quadpoints_theta = dec.process_decoded(d["quadpoints_theta"],
-                                               serial_objs_dict=serial_objs_dict,
-                                               recon_objs=recon_objs)
-        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
-                   mpol=d["mpol"], ntor=d["ntor"],
-                   quadpoints_phi=quadpoints_phi,
-                   quadpoints_theta=quadpoints_theta)
-        surf.local_full_x = d["x0"]
-        return surf
-
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
@@ -694,11 +679,18 @@ class SurfaceRZPseudospectral(Optimizable):
         self.nfp = nfp
         self.r_shift = r_shift
         self.a_scale = a_scale
-        if "x0" not in kwargs:
-            ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
-            kwargs["x0"] = np.zeros(ndofs)
-        if "names" not in kwargs:
-            kwargs["names"] = self._make_names()
+        ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
+        if "dofs" not in kwargs:
+            if "x0" not in kwargs:
+                kwargs["x0"] = np.zeros(ndofs)
+            else:
+                assert (len(kwargs["x0"]) == ndofs)
+            if "names" not in kwargs:
+                kwargs["names"] = self._make_names()
+            else:
+                assert (len(kwargs["names"]) == ndofs)
+        else:
+            assert (len(kwargs["dofs"]) == ndofs)
         super().__init__(**kwargs)
 
     def _make_names(self):

@@ -1276,5 +1276,115 @@ class TestOptimizableSerialize(unittest.TestCase):
         self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
 
 
+from simsopt._core.derivative import Derivative, derivative_dec
+
+
+class OptClassSharedDOFs(Optimizable):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def J(self):
+        return sum(self.x)
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative({self: self.local_full_x})
+
+
+class TestOptimizableSharedDOFs(unittest.TestCase):
+    """
+    Test the DOFs sharing for the Optimizable classes
+    """
+
+    def test_adder_dofs_shared_change_vals(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.x = [11, 12]
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_shared_dofs.x = [0, 1]
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.set("x", 20)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+
+    def test_adder_dofs_shared_fix_unfix(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+
+        adder_orig.fix("x")
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11, 12]
+        adder_shared_dofs.x = [11]
+
+        adder_orig.unfix("z")
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11]
+        adder_shared_dofs.x = [11, 12]
+
+        adder_shared_dofs.unfix_all()
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11, 12]
+        adder_orig.x = [11, 12, 13]
+
+        adder_orig.fix_all()
+        self.assertTrue(len(adder_shared_dofs.x) == 0)
+
+    def test_derivative(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        sum_obj = adder_orig + adder_shared_dofs
+
+        # test that the Derivative class is correctly combining the derivatives
+        self.assertTrue((adder_orig.dJ()*2 == sum_obj.dJ()).all())
+        self.assertTrue((sum_obj.dJ(partials=True)(adder_orig) == sum_obj.dJ()).all())
+        self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
+
+    def test_load_save(self):
+        import tempfile
+        from pathlib import Path
+
+        adder1 = OptClassSharedDOFs(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                                    fixed=[False, False, True])
+        adder2 = OptClassSharedDOFs(dofs=adder1.dofs)
+        self.assertAlmostEqual(adder1.J(), adder2.J())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adders.json"
+            save([adder1, adder2], fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+            adders = load(fpath)
+            self.assertAlmostEqual(adder1.J(), adders[0].J())
+            self.assertAlmostEqual(adder2.J(), adders[1].J())
+        adders[0].x = [11, 12]
+        self.assertEqual(adders[0].J(), adders[1].J())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adder.json"
+            adder_str = adder1.save(fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+            adder1_str_regen = FAdder.from_str(adder_str)
+            self.assertAlmostEqual(adder1.J(), adder1_str_regen.J())
+            adder1_file_regen = FAdder.from_file(fpath)
+            self.assertAlmostEqual(adder1.J(), adder1_file_regen.J())
+
+        adder_str1 = adder1.save(fmt='json', indent=2)
+        adder1_str_regen1 = Optimizable.from_str(adder_str1)
+        self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
+
+    def test_dof_lengths(self):
+
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        sum_obj = adder_orig + adder_shared_dofs
+        self.assertEqual(sum_obj.dof_size, 2)
+        self.assertEqual(sum_obj.full_dof_size, 3)
+        self.assertEqual(len(sum_obj.x), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
