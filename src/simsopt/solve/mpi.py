@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 CALCULATE_F = 1
 CALCULATE_JAC = 2
 CALCULATE_FD_JAC = 3
+CALCULATE_NLC = 4
 
 __all__ = ['least_squares_mpi_solve', 'constrained_mpi_solve']
 
@@ -236,6 +237,49 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     prob.x = x
 
 
+def _constrained_mpi_workers_task(mpi: MpiPartition,
+                      prob: Optimizable,
+                      data: int):
+    """
+    This function is called by worker processes when
+    MpiPartition.workers_loop() receives a signal to do something.
+
+    Args:
+        mpi: A :obj:`simsopt.util.mpi.MpiPartition` object, storing
+          the information about how the pool of MPI processes is
+          divided into worker groups.
+        prob: Optimizable object
+        data: Integer with a value from 1 to 3
+    """
+    logger.debug('mpi workers task')
+
+    # x is a buffer for receiving the state vector:
+    x = np.empty(prob.dof_size, dtype='d')
+    # If we make it here, we must be doing a fd_jac_par
+    # calculation, so receive the state vector: mpi4py has
+    # separate bcast and Bcast functions!!  comm.Bcast(x, root=0)
+    x = mpi.comm_groups.bcast(x, root=0)
+    logger.debug(f'worker loop worker x={x}')
+    prob.x = x
+
+    # We don't store or do anything with f() or jac(), because
+    # the group leader will handle that.
+    if data == CALCULATE_F:
+        try:
+            prob.objective()
+        except:
+            logger.warning("Exception caught by worker during objective"
+                           "evaluation in worker loop")
+            traceback.print_exc()  # Print traceback
+    elif data == CALCULATE_NLC:
+        try:
+            prob.nonlinear_constraints()
+        except:
+            logger.warning("Exception caught by worker during constraint"
+                           "evaluation in worker loop")
+            traceback.print_exc()  # Print traceback
+
+
 def constrained_mpi_solve(prob: ConstrainedProblem,
                           mpi: MpiPartition,
                           grad: bool = False,
@@ -265,6 +309,9 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
              "forward". If ``centered``, centered finite differences will
              be used. If ``forward``, one-sided finite differences will
              be used. Else, error is raised.
+        opt_method: Constrained solver to use: One of "SLSQP", "trust-constr", or "COBYLA". 
+        Use "COBYLA" for derivative-free optimization. See `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_. for
+        a description of the methods.
         options: dict, `options`` keyword which is passed to
                 `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
@@ -300,6 +347,9 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         except:
             objective_val = prob.fail
             logger.info("Exception caught during function evaluation.")
+
+        # TODO: remove
+        print('objective',objective_val)
 
         nonlocal objective_datalog_started, objective_file, n_objective_evals
 
@@ -337,7 +387,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         proc 0 while workers are in the worker loop.
         """
         logger.debug("Entering _nlc_proc0")
-        mpi.mobilize_workers(CALCULATE_F)
+        mpi.mobilize_workers(CALCULATE_NLC)
         # Send workers the state vector:
         mpi.comm_groups.bcast(x, root=0)
         logger.debug("Past bcast in _nlc_proc0")
@@ -348,6 +398,9 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         except:
             constraint_val = np.full(prob.nvals, 1.0e12)
             logger.info("Exception caught during function evaluation.")
+
+        # TODO: remove
+        print('constraint',constraint_val)
 
         nonlocal constraint_datalog_started, constraint_file, n_constraint_evals
 
@@ -383,14 +436,18 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         logger.debug(f"constraints are {constraint_val}")
         return constraint_val
 
-    # prepare bounds and linear constraints
-    bounds = None
-    constraints = []
+    # prepare bounds 
     if prob.has_bounds:
         bounds = Bounds(prob.lb, prob.ub)
+    else:
+        bounds = None
+
+    # prepare linear constraints
     if prob.has_lc:
         lincon = LinearConstraint(prob.A_lc, ub=prob.b_lc)
         constraints.append(lincon)
+    else:
+        constraints = []
 
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
@@ -407,7 +464,8 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                     def nlc_jac(x):
                         # dummy wrapper for batch finite difference
                         return fd.jac(x)[1:]
-                    nlc = NonlinearConstraint(_nlc_proc0, lb=prob.lhs_nlc, ub=prob.rhs_nlc, jac=nlc_jac)
+                    #nlc = NonlinearConstraint(_nlc_proc0, lb=prob.lhs_nlc, ub=prob.rhs_nlc, jac=nlc_jac)
+                    nlc = NonlinearConstraint(_nlc_proc0, lb=-np.inf, ub=0.0, jac=nlc_jac)
                     constraints.append(nlc)
 
                 # proc0_world does this block, running the optimization.
@@ -419,24 +477,23 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                                   method=opt_method, options=options)
 
     else:
-        raise NotImplementedError
 
-        # TODO: what is the workers action?
         leaders_action = lambda mpi, data: None
-        workers_action = lambda mpi, data: _mpi_workers_task(mpi, prob)
+        workers_action = lambda mpi, data: _constrained_mpi_workers_task(mpi, prob, data)
         # Send group leaders and workers into their respective loops:
         mpi.apart(leaders_action, workers_action)
 
         if mpi.proc0_world:
             # proc0_world does this block, running the optimization.
             if prob.has_nlc:
-                nlc = NonlinearConstraint(_nlc_proc0, lb=prob.lhs_nlc, ub=prob.rhs_nlc)
+                #nlc = NonlinearConstraint(_nlc_proc0, lb=prob.lhs_nlc, ub=prob.rhs_nlc)
+                nlc = NonlinearConstraint(_nlc_proc0, lb=-np.inf, ub=0.0)
                 constraints.append(nlc)
             x0 = np.copy(prob.x)
             logger.info("Using derivative-free method")
             result = minimize(_f_proc0, x0,
                               bounds=bounds, constraints=constraints,
-                              method=opt_method, verbose=2, options=options)
+                              method=opt_method, options=options)
 
         # Stop loops for workers and group leaders:
         mpi.together()
@@ -445,7 +502,8 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         x = result.x
 
         objective_file.close()
-        constraint_file.close()
+        if prob.has_nlc:
+            constraint_file.close()
 
     datalog_started = False
     logger.info("Completed solve.")
