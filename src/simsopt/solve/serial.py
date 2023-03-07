@@ -15,7 +15,7 @@ import logging
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
-from scipy.optimize import Bounds,LinearConstraint,NonlinearConstraint
+from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint
 
 from ..objectives.least_squares import LeastSquaresProblem
 from ..objectives.constrained import ConstrainedProblem
@@ -263,12 +263,12 @@ def serial_solve(prob: Union[Optimizable, Callable],
 
 
 def constrained_serial_solve(prob: ConstrainedProblem,
-                               grad: bool = None,
-                               abs_step: float = 1.0e-7,
-                               rel_step: float = 0.0,
-                               diff_method: str = "forward",
-                               opt_method: str = "SLSQP",
-                               options: dict = None):
+                             grad: bool = None,
+                             abs_step: float = 1.0e-7,
+                             rel_step: float = 0.0,
+                             diff_method: str = "forward",
+                             opt_method: str = "SLSQP",
+                             options: dict = None):
     """
     Solve a constrained minimization problem using
     scipy.optimize, and without using any parallelization.
@@ -345,7 +345,7 @@ def constrained_serial_solve(prob: ConstrainedProblem,
             constraint_val = prob.nonlinear_constraints(x)
         except:
             logger.info("Exception caught during objective evaluation")
-            constraint_val = np.full(prob.nvals,prob.fail)
+            constraint_val = np.full(prob.nvals, prob.fail)
 
         # Since the number of terms is not known until the first
         # evaluation of the objective function, we cannot write the
@@ -395,10 +395,10 @@ def constrained_serial_solve(prob: ConstrainedProblem,
     if grad:
         logger.info("Using finite-difference derivatives")
         fd_obj = FiniteDifference(prob.objective, abs_step=abs_step,
-                              rel_step=rel_step, diff_method=diff_method)
+                                  rel_step=rel_step, diff_method=diff_method)
         if prob.has_nlc:
             fd_nlc = FiniteDifference(prob.nonlinear_constraints, abs_step=abs_step,
-                                  rel_step=rel_step, diff_method=diff_method)
+                                      rel_step=rel_step, diff_method=diff_method)
             nlc = NonlinearConstraint(_nlc, lb=-np.inf, ub=0.0, jac=fd_nlc.jac)
             constraints.append(nlc)
         # optimize
