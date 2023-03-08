@@ -351,7 +351,6 @@ std::tuple<Array, Array> winding_surface_field_Bn(Array& points_plasma, Array& p
     Array gj = xt::zeros<double>({num_plasma, ndofs});
     Array Ajk = xt::zeros<double>({ndofs, ndofs});
 
-    printf("%d %d %d", gj.shape(0), gj.shape(1), ndofs);
     // initialize pointer to the beginning of the coil quadrature points
     //double* coil_points_ptr = &(points_coil(0, 0));
     //double* normal_coil_ptr = &(normal_coil(0, 0));

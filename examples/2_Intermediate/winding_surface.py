@@ -295,8 +295,8 @@ def run_target():
     """
 
     fB_target = 5e-5
-    mpol = 20
-    ntor = 20
+    mpol = 32
+    ntor = 32
 
     for file in files:
         filename = TEST_DIR / file
@@ -318,7 +318,7 @@ def run_target():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-24, -12, 20))
+        lambdas = np.flip(np.logspace(-24, -12, 10))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
