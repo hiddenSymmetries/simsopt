@@ -495,7 +495,7 @@ Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 
 // GPMO algorithm with backtracking to fix wyrms -- close cancellations between
 // two nearby, oppositely oriented magnets. 
-std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
+std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent, int max_nMagnets)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -520,12 +520,10 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
     // initialize least-square values to large numbers
     vector<double> R2s(6 * N, 1e50);
 
-    // Size is 4 * K here because backtracking needs more iterations
-    // to put down a lot of magnets. 
-    vector<int> skj(4 * K);
-    vector<int> skjj(4 * K);
+    vector<int> skj(K);
+    vector<int> skjj(K);
     vector<int> skjj_ind(N);
-    vector<double> sign_fac(4 * K);
+    vector<double> sign_fac(K);
     vector<double> sk_sign_fac(N);
 
     double* R2s_ptr = &(R2s[0]);
@@ -549,9 +547,8 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
     int num_nonzero = 0;
     int k = 0;
 
-    // Main loop over the optimization iterations to continue
-    // until K dipoles are placed overall 
-    while ((k < 2 * K) && (num_nonzero < K)) {
+    // Main loop over the optimization iterations
+    for (int k = 0; k < K; ++k) {
 #pragma omp parallel for schedule(static)
 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
@@ -646,18 +643,32 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
-	if (verbose && ((k % int(2*K / nhistory)) == 0) || k == 0 || k == 2*K-1) {
+	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
-	    // if get stuck at some number of dipoles, break out of the loop
-	    num_nonzeros(print_iter-1) = num_nonzero;
-	    if (print_iter > 10 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) break;
+            // if stuck at some number of dipoles, break out of the loop
+            num_nonzeros(print_iter-1) = num_nonzero;
+            if (print_iter > 10 
+                && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) 
+                && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) {
+
+                printf("Stopping iterations: number of nonzero dipoles "
+                       "unchanged over three backtracking cycles");
+                break;
+            }
+            else if (num_nonzero == N) {
+                printf("Stopping iterations: all dipoles in grid "
+                       "are populated");
+		break;
+            }
+            else if (num_nonzero >= max_nMagnets) {
+                printf("Stopping iterations: maximum number of nonzero "
+                       "magnets reached ");
+		break;
+            }
+	
 	}
-	//if (print_iter > nhistory) {
-	//    printf("Number of iterations has hit the iteration limit, increase the nhistory parameter to continue optimizing.\n");
-        //    return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
-        //}
 
 	// check range here
 	num_nonzero = 0;
@@ -670,7 +681,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 		} 
 	    }            
 	}
-	k += 1;
     }
     return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
 }
@@ -1174,7 +1184,7 @@ std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, A
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction)
+std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction) 
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);

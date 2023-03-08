@@ -84,7 +84,21 @@ pol_type_f = pol_type_f[:ntype_f]
 pol_axes = np.concatenate((pol_axes, pol_axes_f), axis=0)
 pol_type = np.concatenate((pol_type, pol_type_f))
 
-# ophi = orientation_phi(fname_corn)[:nMagnets_tot]
+PM4Stell_orientations = False
+if PM4Stell_orientations:
+    pol_axes_fe_ftri, pol_type_fe_ftri = polarization_axes(['fe_ftri'])
+    ntype_fe_ftri = int(len(pol_type_fe_ftri)/2)
+    pol_axes_fe_ftri = pol_axes_fe_ftri[:ntype_fe_ftri, :]
+    pol_type_fe_ftri = pol_type_fe_ftri[:ntype_fe_ftri] + 1
+    pol_axes = np.concatenate((pol_axes, pol_axes_fe_ftri), axis=0)
+    pol_type = np.concatenate((pol_type, pol_type_fe_ftri))
+
+    pol_axes_fc_ftri, pol_type_fc_ftri = polarization_axes(['fc_ftri'])
+    ntype_fc_ftri = int(len(pol_type_fc_ftri)/2)
+    pol_axes_fc_ftri = pol_axes_fc_ftri[:ntype_fc_ftri, :]
+    pol_type_fc_ftri = pol_type_fc_ftri[:ntype_fc_ftri] + 2
+    pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
+    pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
 ox, oy, oz, Ic = np.loadtxt(
     '../../tests/test_files/zot80.focus', 
@@ -95,7 +109,6 @@ ox, oy, oz, Ic = np.loadtxt(
 premade_dipole_grid = np.array([ox, oy, oz]).T
 ophi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
 
-print(mag_data, ophi.shape, pol_axes.shape, pol_type)
 discretize_polarizations(mag_data, ophi, pol_axes, pol_type)
 pol_vectors = np.zeros((ox.shape[0], len(pol_type), 3))
 pol_vectors[:, :, 0] = mag_data.pol_x
@@ -118,18 +131,18 @@ pm_opt = PermanentMagnetGrid(
     filename=surface_filename,
     coordinate_flag='cartesian',
     famus_filename='zot80.focus',
-    pol_vectors=pol_vectors
+    pol_vectors=pol_vectors  # this variable is only used for the greedy algorithms
 )
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
-nBacktracking = 200  # How often to perform the backtrackinig
-nAdjacent = 30  # How many magnets to consider "adjacent" to one another
-nIter_max = 100000  # Number of iterations to run before quitting
-max_nMagnets = 40000  # Max number of magnets to place. If achieved, algorithm quits
-nHistory = 500  # How often to save the algorithm progress
+nBacktracking = 500  # How often to perform the backtrackinig
+nAdjacent = 10  # How many magnets to consider "adjacent" to one another
+nIter_max = 10000  # Number of iterations to run before quitting
+max_nMagnets = 4000  # Max number of magnets to place. If achieved, algorithm quits
+nHistory = 200  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max

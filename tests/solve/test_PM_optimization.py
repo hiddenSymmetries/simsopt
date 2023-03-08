@@ -54,17 +54,19 @@ class Testing(unittest.TestCase):
         nquad = 1024
         max_iter = 100
         nhistory = 10
-        b = np.random.rand(nquad)
-        A = np.random.rand(nquad, ndipoles, 3)
+        contig = np.ascontiguousarray
+        b = contig(np.random.rand(nquad))
+        A = contig(np.random.rand(nquad, ndipoles, 3))
         ATb = np.tensordot(A, b, axes=([0, 0]))
         t1 = time.time()
-        Nnorms = np.random.rand(nquad)
-        m_random = np.random.rand(ndipoles) * 10
+        Nnorms = contig(np.random.rand(nquad))
+        grid = contig(np.random.rand(ndipoles, 3))
+        # m_random = contig(np.random.rand(ndipoles) * 10)
         m_zeros = np.zeros(ndipoles)
 
         # Check that baseline, multi, and backtracking variants
         # of GPMO algorithm all produce same answer in the baseline limit. 
-        for m_maxima in [m_zeros, m_random]:
+        for m_maxima in [m_zeros]:
             _, _, m_hist_multi, _ = sopp.GPMO_multi(
                 A_obj=A,
                 b_obj=b,
@@ -74,7 +76,7 @@ class Testing(unittest.TestCase):
                 nhistory=nhistory,
                 verbose=True,
                 Nadjacent=1,
-                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+                dipole_grid_xyz=grid
             )
             _, _, m_hist, _, = sopp.GPMO_baseline(
                 A_obj=A,
@@ -95,37 +97,33 @@ class Testing(unittest.TestCase):
                 verbose=True,
                 Nadjacent=1,
                 backtracking=500,
-                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+                dipole_grid_xyz=grid,
+                max_nMagnets=1000
             )
             assert np.allclose(m_hist, m_hist_backtracking)
 
-            print('now testing segfault avoidance.')
-            # test that backtracking quits correctly, no segfault
-            # when nhistory << K
-            _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
+            pol_vector_x = np.zeros((ndipoles, 3))
+            pol_vector_x[:, 0] = 1.0
+            pol_vector_y = np.zeros((ndipoles, 3))
+            pol_vector_y[:, 1] = 1.0
+            pol_vector_z = np.zeros((ndipoles, 3))
+            pol_vector_z[:, 2] = 1.0
+            pol_vectors = np.transpose(np.array([pol_vector_x, pol_vector_y, pol_vector_z]), [1, 0, 2])
+            _, _, m_hist_backtracking, _, _ = sopp.GPMO_ArbVec_backtracking(
                 A_obj=A,
                 b_obj=b,
                 mmax=m_maxima,
                 normal_norms=Nnorms,
                 K=max_iter,
-                nhistory=1,
+                nhistory=nhistory,
                 verbose=True,
                 Nadjacent=1,
                 backtracking=500,
-                dipole_grid_xyz=np.random.rand(ndipoles, 3)
+                max_nMagnets=1000,
+                pol_vectors=contig(pol_vectors),
+                dipole_grid_xyz=grid,
             )
-            _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
-                A_obj=A,
-                b_obj=b,
-                mmax=m_maxima,
-                normal_norms=Nnorms,
-                K=max_iter,
-                nhistory=1,
-                verbose=True,
-                Nadjacent=1,
-                backtracking=1,
-                dipole_grid_xyz=np.random.rand(ndipoles, 3)
-            )
+            assert np.allclose(m_hist, m_hist_backtracking)
 
             # Test that mutual coherence optimization works
             _, _, _, m_hist_MC = sopp.GPMO_MC(

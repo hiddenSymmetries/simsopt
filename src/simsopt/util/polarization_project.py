@@ -1,5 +1,12 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*
+"""
+    This file contains definitions and functions for generating the 
+    PM4Stell magnet orientations and other magnet functionality.
+
+    This file was copied over from the MAGPIE code used for generating 
+    permanent magnet structures. All credit for this code is thanks 
+    to the PM4Stell team and Ken Hammond for his consent to use this file
+    and work with the permanent magnet branch of SIMSOPT.
+"""
 
 import numpy as np
 import numpy.matlib as ml
