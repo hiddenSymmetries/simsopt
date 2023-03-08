@@ -38,8 +38,8 @@ input_name = 'input.LandremanPaul2021_QA'
 # input_name = 'input.circular_tokamak' 
 
 lam = 1e-22
-l0_threshold = 5e4
-nu = 1e15
+l0_threshold = 0.0  # 5e4
+nu = 1e100  # 1e15
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -124,10 +124,11 @@ for Nx in params:
     print('WV grid initialization took time = ', t2 - t1, ' s')
     wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
-    max_iter = 40
-    rs_max_iter = 5
+    max_iter = 10000
+    rs_max_iter = 1
 
-    l0_thresholds = np.linspace(l0_threshold, 60 * l0_threshold, 60, endpoint=True)
+    #l0_thresholds = np.linspace(l0_threshold, 60 * l0_threshold, 60, endpoint=True)
+    l0_thresholds = [0.0] 
     alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
         wv_grid, lam=lam, nu=nu, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 
