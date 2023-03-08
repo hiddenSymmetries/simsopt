@@ -47,6 +47,10 @@ class Testing(unittest.TestCase):
             PermanentMagnetGrid(
                 s, rz_outer_surface=10
             )
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid(
+                s, coordinate_flag='cylindrical', pol_vectors=[10],
+            )
         inner = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         outer = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta-2)
         with self.assertRaises(ValueError):

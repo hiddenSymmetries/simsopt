@@ -276,32 +276,34 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         algorithm_kwargs.pop("reg_l2")
     else:
         reg_l2 = 0.0
-    Nnorms = np.ascontiguousarray(np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1))))
+
+    contig = np.ascontiguousarray
+    Nnorms = contig(np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1))))
 
     # Note, only baseline method has the f_m loss term implemented! 
     if algorithm == 'baseline':  # GPMO
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_baseline(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            A_obj=contig(A_obj.T),
+            b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             **algorithm_kwargs
         )
     elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            A_obj=contig(A_obj.T),
+            b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            pol_vectors=np.ascontiguousarray(pm_opt.pol_vectors),
+            pol_vectors=contig(pm_opt.pol_vectors),
             **algorithm_kwargs
         )
         # optimization_dict = {'A': A_obj, 'b': pm_opt.b_obj, 'fB_final': algorithm_history, 'm_greedy_solution_final': m}
         # np.save('optimization_matrices_high_res.npy', optimization_dict) 
     elif algorithm == 'backtracking':  # GPMOb
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            A_obj=contig(A_obj.T),
+            b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             **algorithm_kwargs
@@ -313,17 +315,17 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_ArbVec_backtracking(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            A_obj=contig(A_obj.T),
+            b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            pol_vectors=np.ascontiguousarray(pm_opt.pol_vectors),
+            pol_vectors=contig(pm_opt.pol_vectors),
             **algorithm_kwargs
         )
     elif algorithm == 'multi':  # GPMOm
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_multi(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
+            A_obj=contig(A_obj.T),
+            b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             **algorithm_kwargs
@@ -331,9 +333,9 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     elif algorithm == 'mutual_coherence':  # GPMO using mutual coherence instead of MSE 
         ATb = A_obj.T @ pm_opt.b_obj
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_MC(
-            A_obj=np.ascontiguousarray(A_obj.T),
-            b_obj=np.ascontiguousarray(pm_opt.b_obj),
-            ATb=np.ascontiguousarray(ATb),
+            A_obj=contig(A_obj.T),
+            b_obj=contig(pm_opt.b_obj),
+            ATb=contig(ATb),
             normal_norms=Nnorms,
             **algorithm_kwargs
         )

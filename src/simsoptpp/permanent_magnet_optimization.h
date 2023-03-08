@@ -37,7 +37,7 @@ std::tuple<Array, double> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_p
 std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, bool verbose);
 
 // variants of the GPMO algorithm
-std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent);
+std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent, int max_nMagnets);
 std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, Array& dipole_grid_xyz, int single_direction, int Nadjacent);
 std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& pol_vectors, int K, bool verbose, int nhistory);
 std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(

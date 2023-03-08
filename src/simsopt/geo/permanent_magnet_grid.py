@@ -61,6 +61,10 @@ class PermanentMagnetGrid:
                               should be considered, "grid-aligned". Therefore, you can do weird stuff
                               like cartesian grid-alignment on a simple toroidal grid, which might
                               be self-defeating.
+            pol_vectors:      Optional set of local coordinate systems for each dipole, 
+                              shape (Ndipoles, Ncoords, 3)
+                              which specifies which directions should be considered grid-aligned.
+                              Ncoords can be > 3, as in the PM4Stell design.
     """
 
     def __init__(
@@ -258,6 +262,8 @@ class PermanentMagnetGrid:
             elif pol_vectors.shape[2] != 3:
                 raise ValueError('Third dimension of `pol_vectors` array '
                                  'must be 3')
+            elif coordinate_flag != 'cartesian':
+                raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
             else:
                 self.pol_vectors = pol_vectors
 
