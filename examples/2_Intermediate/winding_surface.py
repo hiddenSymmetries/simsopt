@@ -295,8 +295,8 @@ def run_target():
     """
 
     fB_target = 5e-5
-    mpol = 16
-    ntor = 16
+    mpol = 20
+    ntor = 20
 
     for file in files:
         filename = TEST_DIR / file
@@ -318,7 +318,7 @@ def run_target():
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-19, -9, 20))
+        lambdas = np.flip(np.logspace(-24, -12, 20))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
@@ -346,7 +346,7 @@ def run_target():
         print('Now repeating for Lasso: ')
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem with the Lasso 
-            optimized_phi_mn, f_B, _, fB_history, _ = cpst.solve_lasso(lam=lambda_reg, max_iter=10000, acceleration=True)
+            optimized_phi_mn, f_B, _, fB_history, _ = cpst.solve_lasso(lam=lambda_reg, max_iter=1000, acceleration=True)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
 
@@ -378,8 +378,8 @@ def run_target():
 
 # Run one of the functions and time it
 t1 = time.time()
-run_scan()
-# run_target()
+# run_scan()
+run_target()
 t2 = time.time()
 print('Total run time = ', t2 - t1)
 plt.show()

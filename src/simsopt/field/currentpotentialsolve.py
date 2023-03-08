@@ -453,9 +453,10 @@ class CurrentPotentialSolve:
         nfp = self.plasma_surface.nfp
 
         # Ak is non-square so pinv required. Careful with rcond parameter
-        Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-30)
+        Ak_inv = np.linalg.pinv(Ak_matrix, rcond=1e-10)
         A_new = A_matrix @ Ak_inv
         b_new = b_e - A_new @ d
+        # print('Checking Ak_inv computed with pinv = ', Ak_inv)
 
         # rescale the l1 regularization
         l1_reg = lam
@@ -516,7 +517,7 @@ class CurrentPotentialSolve:
         # An upper bound on the
         # Lipshitz constant L of the least-squares loss term
         # can be computed easily as largest eigenvalue of ATA
-        L = np.linalg.svd(ATA, compute_uv=False)[0]
+        L = np.linalg.svd(ATA, compute_uv=False, hermitian=True)[0]
 
         # SVD is slow for large problems so can use
         # the upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
@@ -533,14 +534,17 @@ class CurrentPotentialSolve:
         x_history = [xi0]
         if acceleration:  # FISTA algorithm
             # first iteration do ISTA
-            x_history.append(prox(xi0 + ti * (ATb - ATA @ xi0), ti * alpha))
+            x_prev = xi0
+            x = prox(xi0 + ti * (ATb - ATA @ xi0), ti * alpha)
             for i in range(1, max_iter):
-                vi = x_history[i] + (i - 1) / (i + 2) * (x_history[i] - x_history[i - 1])
+                vi = x + i / (i + 3) * (x - x_prev)
+                x_prev = x
                 # note l1 'threshold' is rescaled here
-                x_history.append(prox(vi + ti * (ATb - ATA @ vi), ti * alpha))
+                x = prox(vi + ti * (ATb - ATA @ vi), ti * alpha)
                 ti = (1 + np.sqrt(1 + 4 * ti ** 2)) / 2.0
                 if (i % 100) == 0:
-                    if np.all(abs(x_history[i + 1] - x_history[i]) < tol):
+                    x_history.append(x)
+                    if np.all(abs(x_history[-1] - x_history[-2]) < tol):
                         break
         else:  # ISTA algorithm
             alpha = ti * alpha  # ti does not vary in ISTA algorithm
