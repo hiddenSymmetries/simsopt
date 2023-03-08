@@ -71,7 +71,8 @@ class PermanentMagnetGrid:
         self, plasma_boundary,
         rz_inner_surface=None,
         rz_outer_surface=None, plasma_offset=0.1,
-        coil_offset=0.2, Bn=None, dr=0.1,
+        coil_offset=0.2, Bn=None, dr=0.1, dz=None,
+        Nx=10, Ny=None, Nz=None,
         filename=None, surface_flag='vmec',
         coordinate_flag='cartesian',
         famus_filename=None,
@@ -94,6 +95,19 @@ class PermanentMagnetGrid:
         self.coil_offset = coil_offset
         self.Bn = Bn
         self.dr = dr
+        self.Nx = Nx
+        if dz is not None:
+            self.dz = dz
+        else:
+            self.dz = dr
+        if Ny is not None:
+            self.Ny = Ny
+        else:
+            self.Ny = Nx
+        if Nz is not None:
+            self.Nz = Nz
+        else:
+            self.Nz = Nx
 
         if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
             raise NotImplementedError(
@@ -160,6 +174,8 @@ class PermanentMagnetGrid:
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to get the SurfaceRZFourier objects done")
 
+        B_max = 1.465  # value used in FAMUS runs for MUSE
+        mu0 = 4 * np.pi * 1e-7
         if famus_filename is None:
             # check the inner and outer surface are same size
             # and defined at the same (theta, phi) coordinate locations
@@ -184,46 +200,68 @@ class PermanentMagnetGrid:
                     "same toroidal quadrature points."
                 )
 
-            RPhiZ_grid = self._setup_uniform_grid()
-
             # Have the uniform grid, now need to loop through and eliminate cells.
             t1 = time.time()
 
-            # Issues with the MUSE configuration when using self.normal_inner and outer.
-            # The issue is that the normal vectors on the inner and outer toroidal surfaces
-            # look very different on MUSE than on the original plasma surface. To avoid this issue,
-            # just use the nice plasma boundary normal vectors for the ray-tracing. This generates
-            # small errors when resolution is low but works well when nphi, ntheta >~ 16 or so.
-            if self.surface_flag == 'focus' or self.surface_flag == 'wout':
-                self.final_RZ_grid, self.inds = sopp.make_final_surface(
-                    2 * np.pi * self.phi, self.plasma_boundary.unitnormal(), self.plasma_boundary.unitnormal(),
-                    # self.normal_inner, self.normal_outer,
-                    RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
+            contig = np.ascontiguousarray
+            normal_inner = self.plasma_boundary.unitnormal().reshape(-1, 3)
+            normal_outer = self.plasma_boundary.unitnormal().reshape(-1, 3)
+            if coordinate_flag == 'cylindrical':
+                RPhiZ_grid = self._setup_uniform_rz_grid()
+                self.final_grid, self.inds = sopp.make_final_surface(
+                    contig(2 * np.pi * self.phi), 
+                    contig(normal_inner), 
+                    contig(normal_outer),
+                    contig(RPhiZ_grid), 
+                    contig(self.r_inner), 
+                    contig(self.r_outer), 
+                    contig(self.z_inner), 
+                    contig(self.z_outer)
                 )
-            else:
-                self.final_RZ_grid, self.inds = sopp.make_final_surface(
-                    2 * np.pi * self.phi, self.normal_inner, self.normal_outer,
-                    RPhiZ_grid, self.r_inner, self.r_outer, self.z_inner, self.z_outer
-                )
+                # make_final_surface only returns the inds to chop at
+                # so need to loop through and chop the grid now
+                self.inds = np.array(self.inds, dtype=int)
+                for i in reversed(range(1, len(self.inds))):
+                    for j in range(0, i):
+                        self.inds[i] += self.inds[j]
+                self.ndipoles = self.inds[-1]
+                final_grid = []
+                for i in range(self.final_grid.shape[0]):
+                    if not np.allclose(self.final_grid[i, :], 0.0):
+                        final_grid.append(self.final_grid[i, :])
+                self.final_grid = np.array(final_grid)
+                cell_vol = self.final_grid[:, 0] * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+                # alternatively, weight things roughly by the minor radius
+                #    cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
 
-            # make_final_surface only returns the inds to chop at
-            # so need to loop through and chop the grid now
-            self.inds = np.array(self.inds, dtype=int)
-            for i in reversed(range(1, len(self.inds))):
-                for j in range(0, i):
-                    self.inds[i] += self.inds[j]
-            self.ndipoles = self.inds[-1]
-            final_grid = []
-            for i in range(self.final_RZ_grid.shape[0]):
-                if not np.allclose(self.final_RZ_grid[i, :], 0.0):
-                    final_grid.append(self.final_RZ_grid[i, :])
-            self.final_RZ_grid = np.array(final_grid)
+                self.m_maxima = B_max * cell_vol / mu0
+                self.dipole_grid_xyz = np.zeros(self.final_grid.shape)
+                self.dipole_grid_xyz[:, 0] = self.final_grid[:, 0] * np.cos(self.final_grid[:, 1])
+                self.dipole_grid_xyz[:, 1] = self.final_grid[:, 0] * np.sin(self.final_grid[:, 1])
+                self.dipole_grid_xyz[:, 2] = self.final_grid[:, 2]
+                self.pm_phi = self.final_grid[:, 1]
+            else:
+                self._setup_uniform_grid()
+                self.dipole_grid_xyz = sopp.make_grid(
+                    contig(normal_inner), 
+                    contig(normal_outer), 
+                    contig(self.xyz_uniform), 
+                    contig(self.xyz_inner), 
+                    contig(self.xyz_outer)
+                )
+                inds = np.ravel(np.logical_not(np.all(self.dipole_grid_xyz == 0.0, axis=-1)))
+                self.dipole_grid_xyz = self.dipole_grid_xyz[inds, :]
+                self.ndipoles = self.dipole_grid_xyz.shape[0]
+                self.pm_phi = np.arctan2(self.dipole_grid_xyz[:, 1], self.dipole_grid_xyz[:, 0])
+                cell_vol = self.dx * self.dy * self.dz 
+                self.m_maxima = B_max * cell_vol / mu0 * np.ones(self.ndipoles)
+
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
-            ox, oy, oz, Ic = np.loadtxt(
+            ox, oy, oz, Ic, M0s = np.loadtxt(
                 '../../tests/test_files/' + self.famus_filename,
-                skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
+                skiprows=3, usecols=[3, 4, 5, 6, 7], delimiter=',', unpack=True
             )
 
             # remove any dipoles where the diagnostic ports should be
@@ -233,7 +271,6 @@ class PermanentMagnetGrid:
             oz = oz[nonzero_inds]
             self.Ic_inds = nonzero_inds
             premade_dipole_grid = np.array([ox, oy, oz]).T
-            self.premade_dipole_grid = premade_dipole_grid
             self.ndipoles = premade_dipole_grid.shape[0]
 
             # Not normalized to 1 like quadpoints_phi!
@@ -245,15 +282,9 @@ class PermanentMagnetGrid:
             for i in reversed(range(1, self.pm_nphi)):
                 for j in range(0, i):
                     self.inds[i] += self.inds[j]
-            self.final_RZ_grid = np.zeros((self.ndipoles, 3))
-            self.final_RZ_grid[:, 0] = np.sqrt(premade_dipole_grid[:, 0] ** 2 + premade_dipole_grid[:, 1] ** 2)
-            self.final_RZ_grid[:, 1] = self.pm_phi
-            self.final_RZ_grid[:, 2] = premade_dipole_grid[:, 2]
             self.dipole_grid_xyz = premade_dipole_grid
-
-        xyz_plasma = self.plasma_boundary.gamma()
-        self.r_plasma = np.sqrt(xyz_plasma[:, :, 0] ** 2 + xyz_plasma[:, :, 1] ** 2)
-        self.z_plasma = xyz_plasma[:, :, 2]
+            cell_vol = M0s * mu0 / B_max
+            self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
 
         if pol_vectors is not None:
             if pol_vectors.shape[0] != self.ndipoles:
@@ -266,12 +297,6 @@ class PermanentMagnetGrid:
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
             else:
                 self.pol_vectors = pol_vectors
-
-        # Make flattened grids and compute the maximum allowable magnetic moment m_max
-        t1 = time.time()
-        self._make_flattened_grids()
-        t2 = time.time()
-        print("Grid setup took t = ", t2 - t1, " s")
 
         # Setup least-squares term for the impending optimization
         t1 = time.time()
@@ -288,6 +313,61 @@ class PermanentMagnetGrid:
 
     def _setup_uniform_grid(self):
         """
+            Initializes a uniform grid in cartesian coordinates and sets
+            some important grid variables for later.
+        """
+        # Get (X, Y, Z) coordinates of the two boundaries
+        xyz_inner = self.rz_inner_surface.gamma()
+        self.xyz_inner = xyz_inner.reshape(-1, 3)
+        self.x_inner = xyz_inner[:, :, 0]
+        self.y_inner = xyz_inner[:, :, 1]
+        self.z_inner = xyz_inner[:, :, 2]
+        xyz_outer = self.rz_outer_surface.gamma()
+        self.xyz_outer = xyz_outer.reshape(-1, 3)
+        self.x_outer = xyz_outer[:, :, 0]
+        self.y_outer = xyz_outer[:, :, 1]
+        self.z_outer = xyz_outer[:, :, 2]
+
+        x_max = np.max(self.x_outer)
+        x_min = np.min(self.x_outer)
+        y_max = np.max(self.y_outer)
+        y_min = np.min(self.y_outer)
+        z_max = np.max(self.z_outer)
+        z_min = np.min(self.z_outer)
+        z_max = max(z_max, abs(z_min))
+
+        # Make grid uniform in (X, Y)
+        min_xy = max(x_min, y_min)
+        max_xy = max(x_max, y_max)
+        x_min = min_xy
+        y_min = min_xy
+        x_max = max_xy
+        y_max = max_xy
+        print(x_min, x_max, y_min, x_max, z_min, z_max)
+
+        # Initialize uniform grid
+        Nx = self.Nx
+        Ny = self.Ny
+        Nz = self.Nz
+        self.dx = (x_max - x_min) / (Nx - 1)
+        self.dy = (y_max - y_min) / (Ny - 1)
+        self.dz = 2 * z_max / (Nz - 1)
+
+        # Extra work below so that the stitching with the symmetries is done in
+        # such a way that the reflected cells are still dx and dy away from 
+        # the old cells.
+        X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
+        Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+        # X = np.linspace(x_min, x_max, Nx, endpoint=True)
+        # Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+        Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+
+        # Make 3D mesh
+        X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+        self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+
+    def _setup_uniform_rz_grid(self):
+        """
             Initializes a uniform grid in cylindrical coordinates and sets
             some important grid variables for later.
         """
@@ -299,39 +379,20 @@ class PermanentMagnetGrid:
         self.r_outer = np.sqrt(xyz_outer[:, :, 0] ** 2 + xyz_outer[:, :, 1] ** 2)
         self.z_outer = xyz_outer[:, :, 2]
 
-        # get normal vectors of inner and outer PM surfaces
-        self.normal_inner = np.copy(self.rz_inner_surface.unitnormal())
-        self.normal_outer = np.copy(self.rz_outer_surface.unitnormal())
-
-        # optional code below to debug if the normal vectors are behaving
-        # which seems to be an issue with the MUSE inner/outer PM surfaces
-        if False:
-            from matplotlib import pyplot as plt
-            ax = plt.figure().add_subplot(projection='3d')
-            u = np.ravel(self.plasma_boundary.unitnormal()[:, :, 0])
-            v = np.ravel(self.plasma_boundary.unitnormal()[:, :, 1])
-            w = np.ravel(self.plasma_boundary.unitnormal()[:, :, 2])
-            x = np.ravel(xyz_plasma[:, :, 0])
-            y = np.ravel(xyz_plasma[:, :, 1])
-            z = np.ravel(xyz_plasma[:, :, 2])
-            ax.scatter(x, y, z, color='k')
-            ax.quiver(x, y, z, u, v, w, length=0.025, normalize=True)
-
         r_max = np.max(self.r_outer)
         r_min = np.min(self.r_outer)
         z_max = np.max(self.z_outer)
         z_min = np.min(self.z_outer)
 
         # Initialize uniform grid of curved, square bricks
-        self.Delta_r = self.dr
-        Nr = int((r_max - r_min) / self.Delta_r)
+        Nr = int((r_max - r_min) / self.dr)
         self.Nr = Nr
-        self.Delta_z = self.Delta_r
-        Nz = int((z_max - z_min) / self.Delta_z)
+        self.dz = self.dr
+        Nz = int((z_max - z_min) / self.dz)
         self.Nz = Nz
         phi = 2 * np.pi * np.copy(self.plasma_boundary.quadpoints_phi)
-        print('dR = {0:.2f}'.format(self.Delta_r))
-        print('dZ = {0:.2f}'.format(self.Delta_z))
+        print('dR = {0:.2f}'.format(self.dr))
+        print('dZ = {0:.2f}'.format(self.dz))
         R = np.linspace(r_min, r_max, Nr)
         Z = np.linspace(z_min, z_max, Nz)
 
@@ -341,63 +402,6 @@ class PermanentMagnetGrid:
         RPhiZ_grid = np.transpose(self.RPhiZ, [0, 2, 1, 3])
         RPhiZ_grid = RPhiZ_grid.reshape(RPhiZ_grid.shape[0] * RPhiZ_grid.shape[1], RPhiZ_grid.shape[2], 3)
         return RPhiZ_grid
-
-    def _make_flattened_grids(self):
-        """
-            Takes the final cylindrical grid and flattens it into
-            two flat grids in cylindrical and cartesian. Also computes
-            the m_maxima factors needed for the constraints in the
-            optimization.
-        """
-        B_max = 1.465  # value used in FAMUS runs for MUSE
-        mu0 = 4 * np.pi * 1e-7
-        dipole_grid_r = np.zeros(self.ndipoles)
-        dipole_grid_x = np.zeros(self.ndipoles)
-        dipole_grid_y = np.zeros(self.ndipoles)
-        dipole_grid_phi = np.zeros(self.ndipoles)
-        dipole_grid_z = np.zeros(self.ndipoles)
-        running_tally = 0
-        if self.famus_filename is not None:
-            nphi = self.pm_nphi
-        else:
-            nphi = self.nphi
-        for i in range(nphi):
-            if i > 0:
-                radii = self.final_RZ_grid[self.inds[i-1]:self.inds[i], 0]
-                phi = self.final_RZ_grid[self.inds[i-1]:self.inds[i], 1]
-                z_coords = self.final_RZ_grid[self.inds[i-1]:self.inds[i], 2]
-            else:
-                radii = self.final_RZ_grid[:self.inds[i], 0]
-                phi = self.final_RZ_grid[:self.inds[i], 1]
-                z_coords = self.final_RZ_grid[:self.inds[i], 2]
-            len_radii = len(radii)
-            dipole_grid_r[running_tally:running_tally + len_radii] = radii
-            dipole_grid_phi[running_tally:running_tally + len_radii] = phi
-            dipole_grid_x[running_tally:running_tally + len_radii] = radii * np.cos(phi)
-            dipole_grid_y[running_tally:running_tally + len_radii] = radii * np.sin(phi)
-            dipole_grid_z[running_tally:running_tally + len_radii] = z_coords
-            running_tally += len_radii
-        self.dipole_grid = np.array([dipole_grid_r, dipole_grid_phi, dipole_grid_z]).T
-
-        if self.famus_filename is not None:
-            M0s = np.loadtxt(
-                '../../tests/test_files/' + self.famus_filename,
-                skiprows=3, usecols=[7], delimiter=','
-            )
-            cell_vol = M0s * mu0 / B_max
-            self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
-        else:
-            # defaults to cylindrical bricks, so volumes are weighted
-            # by the cylindrical radius!
-            cell_vol = dipole_grid_r * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-            # alternatively, weight things roughly by the minor radius
-            #    cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.Delta_r * self.Delta_z * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-            self.dipole_grid_xyz = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
-            self.m_maxima = B_max * cell_vol / mu0
-        print(
-            'Total initial volume for magnet placement = ',
-            np.sum(cell_vol) * self.plasma_boundary.nfp * 2, ' m^3'
-        )
 
     def _geo_setup(self):
         """
@@ -419,11 +423,10 @@ class PermanentMagnetGrid:
 
         # Compute geometric factor with the C++ routine
         self.A_obj, self.ATb = sopp.dipole_field_Bn(
-            np.ascontiguousarray(self.plasma_boundary.gamma().reshape(self.nphi * self.ntheta, 3)),
+            np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3)),
             np.ascontiguousarray(self.dipole_grid_xyz),
-            np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(self.nphi * self.ntheta, 3)),
+            np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3)),
             self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym),
-            np.ascontiguousarray(self.dipole_grid[:, 1]),
             np.ascontiguousarray(self.b_obj),
             self.coordinate_flag,  # cartesian, cylindrical, or simple toroidal
             self.R0

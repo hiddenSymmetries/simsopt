@@ -1,5 +1,6 @@
 import numpy as np
 import simsoptpp as sopp
+import warnings
 
 __all__ = ['relax_and_split', 'GPMO']
 
@@ -264,7 +265,8 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     # Need to normalize the m, so have
     # || A * m - b||^2 = || ( A * mmax) * m / mmax - b||^2
     mmax = pm_opt.m_maxima
-    mmax_vec = np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3)
+    contig = np.ascontiguousarray
+    mmax_vec = contig(np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3))
     A_obj = pm_opt.A_obj * mmax_vec
 
     if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
@@ -277,7 +279,6 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     else:
         reg_l2 = 0.0
 
-    contig = np.ascontiguousarray
     Nnorms = contig(np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1))))
 
     # Note, only baseline method has the f_m loss term implemented! 
@@ -349,6 +350,12 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
 
     # check that algorithm worked correctly to generate K binary dipoles
     if "K" in algorithm_kwargs.keys():
+        if algorithm_kwargs["K"] > pm_opt.ndipoles:
+            warnings.warn(
+                'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
+                ' so the algorithm will set K = the total number and proceed.'
+            )
+            algorithm_kwargs["K"] = pm_opt.ndipoles
         print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
     else:
         print('Number of binary dipoles to use in GPMO algorithm = ', np.count_nonzero(np.sum(m ** 2, axis=-1)))

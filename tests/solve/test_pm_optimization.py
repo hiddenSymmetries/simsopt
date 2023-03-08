@@ -33,7 +33,7 @@ class Testing(unittest.TestCase):
             nu=1e100,
             epsilon=1e-4,
             max_iter=max_iter,
-            verbose=True,
+            # verbose=True,
             reg_l0=0.0,
             reg_l1=0.0,
             reg_l2=0.0,
@@ -74,7 +74,7 @@ class Testing(unittest.TestCase):
                 normal_norms=Nnorms,
                 K=max_iter,
                 nhistory=nhistory,
-                verbose=True,
+                # verbose=True,
                 Nadjacent=1,
                 dipole_grid_xyz=grid
             )
@@ -85,7 +85,7 @@ class Testing(unittest.TestCase):
                 normal_norms=Nnorms,
                 K=max_iter,
                 nhistory=nhistory,
-                verbose=True,
+                # verbose=True,
             )
             _, _, m_hist_backtracking, _, _ = sopp.GPMO_backtracking(
                 A_obj=A,
@@ -94,7 +94,7 @@ class Testing(unittest.TestCase):
                 normal_norms=Nnorms,
                 K=max_iter,
                 nhistory=nhistory,
-                verbose=True,
+                # verbose=True,
                 Nadjacent=1,
                 backtracking=500,
                 dipole_grid_xyz=grid,
@@ -116,7 +116,7 @@ class Testing(unittest.TestCase):
                 normal_norms=Nnorms,
                 K=max_iter,
                 nhistory=nhistory,
-                verbose=True,
+                # verbose=True,
                 Nadjacent=1,
                 backtracking=500,
                 max_nMagnets=1000,
@@ -133,7 +133,7 @@ class Testing(unittest.TestCase):
                 mmax=m_maxima,
                 normal_norms=Nnorms,
                 K=max_iter,
-                verbose=True,
+                # verbose=True,
             )
         t2 = time.time()
         print(t2 - t1) 
