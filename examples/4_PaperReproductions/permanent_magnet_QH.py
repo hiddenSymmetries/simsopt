@@ -73,8 +73,8 @@ calculate_on_axis_B(bs, s)
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, coil_offset=coff, dr=dr, plasma_offset=poff,
-    Bn=Bnormal, surface_flag='wout', coordinate_flag='toroidal',
+    s, coil_offset=coff, Nx=100, plasma_offset=poff,
+    Bn=Bnormal, surface_flag='wout', coordinate_flag='cartesian',
     filename=surface_filename,
 )
 
