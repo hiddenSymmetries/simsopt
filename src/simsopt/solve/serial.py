@@ -386,7 +386,7 @@ def constrained_serial_solve(prob: ConstrainedProblem,
     # prepare linear constraints
     constraints = []
     if prob.has_lc:
-        lincon = LinearConstraint(prob.A_lc, ub=prob.b_lc)
+        lincon = LinearConstraint(prob.A_lc, lb=-np.inf, ub=prob.b_lc)
         constraints.append(lincon)
 
     logger.info("Beginning solve.")
