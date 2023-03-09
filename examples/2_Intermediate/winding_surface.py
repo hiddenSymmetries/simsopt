@@ -295,15 +295,21 @@ def run_target():
     """
 
     fB_target = 5e-5
-    mpol = 32
-    ntor = 32
+    mpol = 20
+    ntor = 20
+    coil_ntheta_res = 1
+    coil_nzeta_res = 1
+    plasma_ntheta_res = 1
+    plasma_nzeta_res = 1
 
     for file in files:
         filename = TEST_DIR / file
 
         # Load in low-resolution NCSX file from REGCOIL
-        cpst = CurrentPotentialSolve.from_netcdf(filename)
-        cp = CurrentPotentialFourier.from_netcdf(filename)
+        cpst = CurrentPotentialSolve.from_netcdf(
+            filename, plasma_ntheta_res, plasma_nzeta_res, coil_ntheta_res, coil_nzeta_res
+        )
+        cp = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
 
         # Overwrite low-resolution file with more mpol and ntor modes
         cp = CurrentPotentialFourier(
@@ -314,11 +320,21 @@ def run_target():
         cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma, cpst.B_GI)
         s_coil = cpst.winding_surface
 
+        nfp = s_coil.nfp
+        mpol = s_coil.mpol
+        ntor = s_coil.ntor
+        nphi = len(s_coil.quadpoints_phi)
+        ntheta = len(s_coil.quadpoints_theta)
+        quadpoints_phi = np.linspace(0, 1, nphi + 1, endpoint=True)
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+        s_coil_full = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=s_coil.stellsym, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
+        s_coil_full.x = s_coil.local_full_x
+
         # function needed for saving to vtk after optimizing
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-24, -12, 10))
+        lambdas = np.flip(np.logspace(-24, -12, 20))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
@@ -326,7 +342,7 @@ def run_target():
             cp_opt = cpst.current_potential
 
             if f_B < fB_target:
-                K = contig(cp_opt.K())
+                K = cp_opt.K()
                 print('fB < fB_target has been achieved: ')
                 print('f_B from least squares = ', f_B)
                 print('lambda = ', lambda_reg)
@@ -335,10 +351,13 @@ def run_target():
                     OUT_DIR, 
                     file + "_tikhonov_fBtarget_Bnormal_lambda{0:.2e}".format(lambda_reg)
                 ) 
-                pointData = {"phi": contig(cp_opt.Phi()[:, :, None]),
+                Phi = cp_opt.Phi()
+                Phi = np.vstack((Phi, Phi[0, :]))
+                K = np.vstack((K, K[0:1, :, :]))
+                pointData = {"phi": contig(Phi[:, :, None]),
                              "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))
                              }
-                s_coil.to_vtk(
+                s_coil_full.to_vtk(
                     OUT_DIR + file + "_tikhonov_fBtarget_winding_surface_lambda{0:.2e}".format(lambda_reg),
                     extra_data=pointData
                 )
@@ -358,18 +377,21 @@ def run_target():
                 plt.grid(True)
                 K = contig(cp_opt.K())
                 print('fB < fB_target has been achieved: ')
-                print('f_B from least squares = ', f_B)
+                print('f_B from Lasso = ', f_B)
                 print('lambda = ', lambda_reg)
                 make_Bnormal_plots(
                     cpst, 
                     OUT_DIR, 
                     file + "_lasso_fBtarget_Bnormal_lambda{0:.2e}".format(lambda_reg)
                 ) 
-                pointData = {"phi": contig(cp_opt.Phi()[:, :, None]),
+                Phi = cp_opt.Phi()
+                Phi = np.vstack((Phi, Phi[0, :]))
+                K = np.vstack((K, K[0:1, :, :]))
+                pointData = {"phi": contig(Phi[:, :, None]),
                              "K": (contig(K[..., 0]), contig(K[..., 1]), contig(K[..., 2]))
                              }
-                s_coil.to_vtk(
-                    OUT_DIR + file + "_lasso_fBtarget_winding_surface_lambda{0:.2e}".format(lambda_reg), 
+                s_coil_full.to_vtk(
+                    OUT_DIR + file + "_lasso_fBtarget_winding_surface_lambda{0:.2e}".format(lambda_reg),
                     extra_data=pointData
                 )
                 break

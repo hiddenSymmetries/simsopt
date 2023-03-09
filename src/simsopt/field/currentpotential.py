@@ -285,7 +285,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         self.set_dofs(single_valued_current_potential_mn)
 
     @classmethod
-    def from_netcdf(cls, filename: str):
+    def from_netcdf(cls, filename: str, coil_ntheta_res=1.0, coil_nzeta_res=1.0):
         """
         Initialize a CurrentPotentialFourier object from a regcoil netcdf output file.
 
@@ -320,8 +320,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             stellsym_surf = True
         xm_coil = f.variables['xm_coil'][()]
         xn_coil = f.variables['xn_coil'][()]
-        ntheta_coil = f.variables['ntheta_coil'][()]
-        nzeta_coil = f.variables['nzeta_coil'][()]
+        ntheta_coil = int(f.variables['ntheta_coil'][()] * coil_ntheta_res)
+        nzeta_coil = int(f.variables['nzeta_coil'][()] * coil_nzeta_res)
         f.close()
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)

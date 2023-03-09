@@ -5,6 +5,7 @@ from sklearn.linear_model import Lasso
 from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.field.currentpotential import CurrentPotentialFourier
 from scipy.io import netcdf_file
+from scipy.interpolate import interp2d
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
 import warnings
 
@@ -62,7 +63,7 @@ class CurrentPotentialSolve:
         )
 
     @classmethod
-    def from_netcdf(cls, filename: str):
+    def from_netcdf(cls, filename: str, plasma_ntheta_res=1.0, plasma_nzeta_res=1.0, coil_ntheta_res=1.0, coil_nzeta_res=1.0):
         """
         Initialize a CurrentPotentialSolve using a CurrentPotentialFourier
         from a regcoil netcdf output file. The single_valued_current_potential_mn
@@ -80,8 +81,8 @@ class CurrentPotentialSolve:
         xn_plasma = f.variables['xn_plasma'][()]
         mpol_plasma = int(np.max(xm_plasma))
         ntor_plasma = int(np.max(xn_plasma)/nfp)
-        ntheta_plasma = f.variables['ntheta_plasma'][()]
-        nzeta_plasma = f.variables['nzeta_plasma'][()]
+        ntheta_plasma = int(f.variables['ntheta_plasma'][()] * plasma_ntheta_res)
+        nzeta_plasma = int(f.variables['nzeta_plasma'][()] * plasma_nzeta_res)
         if ('rmns_plasma' in f.variables and 'zmnc_plasma' in f.variables):
             rmns_plasma = f.variables['rmns_plasma'][()]
             zmnc_plasma = f.variables['zmnc_plasma'][()]
@@ -93,9 +94,8 @@ class CurrentPotentialSolve:
             rmns_plasma = np.zeros_like(rmnc_plasma)
             zmnc_plasma = np.zeros_like(zmns_plasma)
             stellsym_plasma_surf = True
-        f.close()
 
-        cp = CurrentPotentialFourier.from_netcdf(filename)
+        cp = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
 
         s_plasma = SurfaceRZFourier(
             nfp=nfp,
@@ -109,6 +109,29 @@ class CurrentPotentialSolve:
             mpol=mpol_plasma, ntor=ntor_plasma,
             stellsym=stellsym_plasma_surf, range="field period"
         )
+
+        # Need to interpolate Bnormal_from_plasma if increasing resolution
+        if plasma_ntheta_res > 1.0 or plasma_nzeta_res > 1.0:
+            warnings.warn(
+                "User specified to increase the plasma surface resolution, but is "
+                "reading the CurrentPotential object from a netcdf file. Therefore, "
+                "the Bnormal_from_plasma_current will be interpolated to the "
+                "high resolution grid, which may not be very accurate!"
+            )
+            quadpoints_phi = np.linspace(0, 1 / ((int(stellsym_plasma_surf) + 1) * nfp), f.variables['nzeta_plasma'][()] + 1, endpoint=True)
+            quadpoints_theta = np.linspace(0, 1, f.variables['ntheta_plasma'][()] + 1, endpoint=True)
+            quadpoints_phi = quadpoints_phi[:-1]
+            quadpoints_theta = quadpoints_theta[:-1]
+            quadpoints_phi, quadpoints_theta = np.meshgrid(quadpoints_phi, quadpoints_theta, indexing='ij')
+            Bnormal_from_plasma_current = interp2d(
+                quadpoints_phi, quadpoints_theta, Bnormal_from_plasma_current, 
+                kind='cubic'
+            )
+            Bnormal_from_plasma_current = Bnormal_from_plasma_current(
+                s_plasma.quadpoints_phi, 
+                s_plasma.quadpoints_theta
+            )
+        f.close()
         s_plasma.set_dofs(0 * s_plasma.get_dofs())
         for im in range(len(xm_plasma)):
             s_plasma.set_rc(xm_plasma[im], int(xn_plasma[im] / nfp), rmnc_plasma[im])
@@ -117,7 +140,7 @@ class CurrentPotentialSolve:
                 s_plasma.set_rs(xm_plasma[im], int(xn_plasma[im] / nfp), rmns_plasma[im])
                 s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im] / nfp), zmnc_plasma[im])
 
-        cp_copy = CurrentPotentialFourier.from_netcdf(filename)
+        cp_copy = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
         Bfield = WindingSurfaceField(cp_copy)
         points = s_plasma.gamma().reshape(-1, 3)
         Bfield.set_points(points)
