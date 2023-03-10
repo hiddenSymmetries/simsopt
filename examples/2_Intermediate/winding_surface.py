@@ -294,9 +294,9 @@ def run_target():
         like the fairest way to compare them.
     """
 
-    fB_target = 5e-5
-    mpol = 16
-    ntor = 16
+    fB_target = 1e-2
+    mpol = 4
+    ntor = 4
     coil_ntheta_res = 1
     coil_nzeta_res = coil_ntheta_res
     plasma_ntheta_res = coil_ntheta_res
@@ -310,7 +310,7 @@ def run_target():
             filename, plasma_ntheta_res, plasma_nzeta_res, coil_ntheta_res, coil_nzeta_res
         )
         cp = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
-
+        
         # Overwrite low-resolution file with more mpol and ntor modes
         cp = CurrentPotentialFourier(
             cpst.winding_surface, mpol=mpol, ntor=ntor,
@@ -329,7 +329,12 @@ def run_target():
         quadpoints_theta = np.linspace(0, 1, ntheta + 1, endpoint=True)
         s_coil_full = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=s_coil.stellsym, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
         s_coil_full.x = s_coil.local_full_x
-
+        G = cp.net_poloidal_current_amperes
+        I = cp.net_toroidal_current_amperes
+        phi_secular, theta_secular = np.meshgrid(quadpoints_phi, quadpoints_theta, indexing='ij')
+        Phi_secular = G * phi_secular + I * theta_secular
+        print(cp.net_poloidal_current_amperes)
+        print(cp.net_poloidal_current_amperes * s_coil_full.quadpoints_phi)
         # function needed for saving to vtk after optimizing
         contig = np.ascontiguousarray
 
@@ -353,7 +358,7 @@ def run_target():
                 ) 
                 Phi = cp_opt.Phi()
                 Phi = np.hstack((Phi, Phi[:, 0:1]))
-                Phi = np.vstack((Phi, Phi[0, :]))
+                Phi = np.vstack((Phi, Phi[0, :])) + Phi_secular
                 K = np.hstack((K, K[:, 0:1, :]))
                 K = np.vstack((K, K[0:1, :, :]))
                 pointData = {"phi": contig(Phi[:, :, None]),
