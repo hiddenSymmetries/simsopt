@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 from simsopt.util.mpi import MpiPartition
 from simsopt.mhd.vmec import Vmec
@@ -21,6 +23,7 @@ Run with
 """
 
 mpi = MpiPartition()
+mpi.write()
 
 if mpi.proc0_world:
     print("Running 2_Intermediate/constrained_optimization.py")
