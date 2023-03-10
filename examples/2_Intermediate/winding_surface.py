@@ -52,7 +52,7 @@ def make_Bnormal_plots(cpst, OUT_DIR, filename):
 
 OUT_DIR = 'simsopt_winding_surface_example/'
 os.makedirs(OUT_DIR, exist_ok=True)
-files = ['regcoil_out.li383.nc']
+files = ['regcoil_out.hsx.nc']
 
 
 def run_scan():
@@ -310,7 +310,7 @@ def run_target():
             filename, plasma_ntheta_res, plasma_nzeta_res, coil_ntheta_res, coil_nzeta_res
         )
         cp = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
-        
+
         # Overwrite low-resolution file with more mpol and ntor modes
         cp = CurrentPotentialFourier(
             cpst.winding_surface, mpol=mpol, ntor=ntor,
@@ -333,13 +333,11 @@ def run_target():
         I = cp.net_toroidal_current_amperes
         phi_secular, theta_secular = np.meshgrid(quadpoints_phi, quadpoints_theta, indexing='ij')
         Phi_secular = G * phi_secular + I * theta_secular
-        print(cp.net_poloidal_current_amperes)
-        print(cp.net_poloidal_current_amperes * s_coil_full.quadpoints_phi)
         # function needed for saving to vtk after optimizing
         contig = np.ascontiguousarray
 
         # Loop through wide range of regularization values
-        lambdas = np.flip(np.logspace(-22, -10, 10))
+        lambdas = np.flip(np.logspace(-22, -10, 2))
         for i, lambda_reg in enumerate(lambdas):
             # Solve the REGCOIL problem that uses Tikhonov regularization (L2 norm)
             optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)

@@ -93,6 +93,14 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                                   names=self._make_names())
 
         self._make_mn()
+        phi_secular, theta_secular = np.meshgrid(
+            self.winding_surface.quadpoints_phi, 
+            self.winding_surface.quadpoints_theta, 
+            indexing='ij'
+        )
+        self.current_potential_secular = (
+            phi_secular * net_poloidal_current_amperes + theta_secular * net_toroidal_current_amperes
+        )
 
     def _make_names(self):
         if self.stellsym:

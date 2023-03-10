@@ -41,13 +41,13 @@ class CurrentPotentialSolve:
         # optimization performed with this class object
         self.ilambdas_l2 = []
         self.dofs_l2 = []
-        self.phis_l2 = []
+        self.current_potential_l2 = []
         self.K2s_l2 = []
         self.fBs_l2 = []
         self.fKs_l2 = []
         self.ilambdas_l1 = []
         self.dofs_l1 = []
-        self.phis_l1 = []
+        self.current_potential_l1 = []
         self.K2s_l1 = []
         self.fBs_l1 = []
         self.fKs_l1 = []
@@ -227,11 +227,11 @@ class CurrentPotentialSolve:
         Bnormal_totals_l1 = []
         if len(self.ilambdas_l2) > 0:
             for i, ilambda in enumerate(self.ilambdas_l2):
-                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l2[i], normal) * dtheta_coil * dzeta_coil
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.current_potential_l2[i], normal) * dtheta_coil * dzeta_coil
                 Bnormal_totals.append((Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma).reshape(self.ntheta_plasma, self.nzeta_plasma))
         if len(self.ilambdas_l1) > 0:
             for i, ilambda in enumerate(self.ilambdas_l1):
-                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.phis_l1[i], normal) * dtheta_coil * dzeta_coil
+                Bnormal_regcoil_sv = sopp.WindingSurfaceBn_REGCOIL(points, ws_points, ws_normal, self.current_potential_l1[i], normal) * dtheta_coil * dzeta_coil
                 Bnormal_totals_l1.append((Bnormal_regcoil_sv + self.B_GI + self.Bnormal_plasma).reshape(self.ntheta_plasma, self.nzeta_plasma))
 
         vectors = ['Bnormal_from_plasma_current', 'Bnormal_from_net_coil_currents',
@@ -243,7 +243,8 @@ class CurrentPotentialSolve:
                    'theta_coil', 'zeta_coil',
                    'RHS_B', 'RHS_regularization', 
                    'norm_normal_plasma', 'norm_normal_coil', 
-                   'single_valued_current_potential_mn', 'single_valued_current_potential_thetazeta', 
+                   'single_valued_current_potential_mn', 'single_valued_current_potential_thetazeta',
+                   'current_potential',
                    'K2', 'lambda', 'chi2_B', 'chi2_K', 'Bnormal_total',
                    'single_valued_current_potential_mn_l1', 'single_valued_current_potential_thetazeta_l1', 
                    'K2_l1', 'lambda_l1', 'chi2_B_l1', 'chi2_K_l1', 'Bnormal_total_l1'
@@ -273,6 +274,14 @@ class CurrentPotentialSolve:
         norm_normal_plasma = np.linalg.norm(s.normal(), axis=-1) / (2 * np.pi * 2 * np.pi)
         norm_normal_coil = np.linalg.norm(w.normal(), axis=-1) / (2 * np.pi * 2 * np.pi)
 
+        current_potential = []
+        for i in range(len(self.current_potential_l2)):
+            current_potential.append(self.current_potential_l2[i] + self.current_potential.current_potential_secular[:self.nzeta_coil // nfp, :])
+
+        current_potential_l1 = []
+        for i in range(len(self.current_potential_l1)):
+            current_potential_l1.append(self.current_potential_l1[i] + self.current_potential.current_potential_secular[:self.nzeta_coil // nfp, :])
+
         # Define all the vectors we need to save
         vector_variables = [self.Bnormal_plasma.reshape(self.ntheta_plasma, self.nzeta_plasma), 
                             self.B_GI.reshape(self.ntheta_plasma, self.nzeta_plasma), 
@@ -286,10 +295,12 @@ class CurrentPotentialSolve:
                             w.quadpoints_theta * 2 * np.pi, 
                             w.quadpoints_phi[:self.nzeta_coil // w.nfp] * 2 * np.pi,
                             RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil,
-                            np.array(self.dofs_l2), np.array(self.phis_l2),
+                            np.array(self.dofs_l2), np.array(self.current_potential_l2),
+                            np.array(current_potential),
                             np.array(self.K2s_l2)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l2),
                             2 * np.array(self.fBs_l2), 2 * np.array(self.fKs_l2), np.array(Bnormal_totals),
-                            np.array(self.dofs_l1), np.array(self.phis_l1),
+                            np.array(self.dofs_l1), np.array(self.current_potential_l1),
+                            np.array(current_potential_l1),
                             np.array(self.K2s_l1)[:, :self.nzeta_coil // w.nfp, :], np.array(self.ilambdas_l1),
                             2 * np.array(self.fBs_l1), 2 * np.array(self.fKs_l1), np.array(Bnormal_totals_l1)
                             ]
@@ -407,7 +418,7 @@ class CurrentPotentialSolve:
         self.d = d * 2 * np.pi * np.sqrt(dzeta_coil * dtheta_coil)
         return b_rhs, B_matrix
 
-    def solve_tikhonov(self, lam=0):
+    def solve_tikhonov(self, lam=0, record_history=True):
         """
             Solve the REGCOIL problem -- winding surface optimization with
             the L2 norm. This is tested against REGCOIL runs extensively in
@@ -429,14 +440,16 @@ class CurrentPotentialSolve:
         Ak_times_phi = self.fj @ phi_mn_opt
         f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
         f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
-        self.ilambdas_l2.append(lam)
-        self.dofs_l2.append(phi_mn_opt)
-        # REGCOIL only uses 1 / 2 nfp of the winding surface
-        self.phis_l2.append(self.current_potential.Phi()[:self.nzeta_coil // nfp, :])
-        self.fBs_l2.append(f_B)
-        self.fKs_l2.append(f_K)
-        K2 = np.sum(self.current_potential.K() ** 2, axis=2)
-        self.K2s_l2.append(K2)
+
+        if record_history:
+            self.ilambdas_l2.append(lam)
+            self.dofs_l2.append(phi_mn_opt)
+            # REGCOIL only uses 1 / 2 nfp of the winding surface
+            self.current_potential_l2.append(np.copy(self.current_potential.Phi()[:self.nzeta_coil // nfp, :]))
+            self.fBs_l2.append(f_B)
+            self.fKs_l2.append(f_K)
+            K2 = np.sum(self.current_potential.K() ** 2, axis=2)
+            self.K2s_l2.append(K2)
         return phi_mn_opt, f_B, f_K
 
     def solve_lasso(self, lam=0, max_iter=1000, acceleration=True):
@@ -487,7 +500,7 @@ class CurrentPotentialSolve:
 
         # if alpha << 1, want to use initial guess from the Tikhonov solve,
         # which is exact since it comes from a matrix inverse.
-        phi0, _, _, = self.solve_tikhonov(lam=lam)
+        phi0, _, _, = self.solve_tikhonov(lam=lam, record_history=False)
         z0 = Ak_matrix @ phi0 - d
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
 
@@ -510,7 +523,7 @@ class CurrentPotentialSolve:
         self.ilambdas_l1.append(lam)
         self.dofs_l1.append(phi_mn_opt)
         # REGCOIL only uses 1 / 2 nfp of the winding surface
-        self.phis_l1.append(self.current_potential.Phi()[:self.nzeta_coil // nfp, :])
+        self.current_potential_l1.append(np.copy(self.current_potential.Phi()[:self.nzeta_coil // nfp, :]))
         self.fBs_l1.append(f_B)
         self.fKs_l1.append(f_K)
         K2 = np.sum(self.current_potential.K() ** 2, axis=2)
