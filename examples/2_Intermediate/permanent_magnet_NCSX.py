@@ -2,11 +2,23 @@
 r"""
 This example script uses the GPMO
 greedy algorithm for solving permanent 
-magnet optimization on the MUSE grid.
+magnet optimization on the NCSX grid. This 
+algorithm is described in the following paper:
+    A. A. Kaptanoglu, R. Conlin, and M. Landreman, 
+    Greedy permanent magnet optimization, 
+    Nuclear Fusion 63, 036016 (2023)
 
 The script should be run as:
-    mpirun -n 1 python permanent_magnet_GPMO.py
+    mpirun -n 1 python permanent_magnet_NCSX.py
+on a cluster machine but 
+    python permanent_magnet_NCSX.py
+is sufficient on other machines. Note that the code is 
+parallelized via OpenMP and XSIMD, so will run substantially
+faster on multi-core machines (make sure that all the cores
+are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 
+For high-resolution and more realistic designs, please see the script files at
+https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
 import os
@@ -15,10 +27,9 @@ from pathlib import Path
 import numpy as np
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.field.magneticfieldclasses import DipoleField, ToroidalField
+from simsopt.field import DipoleField, ToroidalField
 from simsopt.geo import PermanentMagnetGrid
 from simsopt.solve import GPMO 
-from simsopt._core import Optimizable
 import pickle
 import time
 from simsopt.util.permanent_magnet_helper_functions import *
@@ -38,6 +49,7 @@ famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
+famus_filename = TEST_DIR / famus_filename
 s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Make the output directory -- warning, saved data can get big!

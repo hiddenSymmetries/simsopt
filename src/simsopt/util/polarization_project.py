@@ -7,11 +7,13 @@
     to the PM4Stell team and Ken Hammond for his consent to use this file
     and work with the permanent magnet branch of SIMSOPT.
 """
+__all__ = ['faceedge_vectors', 'facecorner_vectors', 'edge_triplet', 
+           'orientation_phi', 'polarization_axes', 'discretize_polarizations']
 
 import numpy as np
 import numpy.matlib as ml
 import sys
-import simsopt.util.adjust_magnet_angles as mag
+from . import adjust_magnet_angles as mag
 
 # Designated column indices from MAGPIE corners files
 ind_xib = 3
@@ -20,168 +22,178 @@ ind_xob = 6
 ind_yob = 7
 
 # Optimal offset angles for face-triplet and edge-triplet vector sets
-theta_fe_ftri = 30.35*np.pi/180.0
-theta_fc_ftri = 38.12*np.pi/180.0
-theta_fe_etri = 18.42*np.pi/180.0
-theta_fc_etri = 38.56*np.pi/180.0
+theta_fe_ftri = 30.35 * np.pi / 180.0
+theta_fc_ftri = 38.12 * np.pi / 180.0
+theta_fe_etri = 18.42 * np.pi / 180.0
+theta_fc_etri = 38.56 * np.pi / 180.0
 
 # Face-centered polarizations
-pol_f_pos = np.array([[1.0, 0.0, 0.0], \
-                      [0.0, 1.0, 0.0], \
+pol_f_pos = np.array([[1.0, 0.0, 0.0],
+                      [0.0, 1.0, 0.0],
                       [0.0, 0.0, 1.0]])
 
 # Edge-centered polarizations
-pol_e_pos = np.array([[1.0, 1.0, 0.0], \
-                      [1.0, -1.0, 0.0], \
-                      [1.0, 0.0, 1.0], \
-                      [1.0, 0.0, -1.0], \
-                      [0.0, 1.0, 1.0], \
-                      [0.0, 1.0, -1.0]])/np.sqrt(2.)
+pol_e_pos = np.array([[1.0, 1.0, 0.0],
+                      [1.0, -1.0, 0.0],
+                      [1.0, 0.0, 1.0],
+                      [1.0, 0.0, -1.0],
+                      [0.0, 1.0, 1.0],
+                      [0.0, 1.0, -1.0]]
+                     ) / np.sqrt(2.)
 
 # Corner-centered polarizations
-pol_c_pos = np.array([[1.0, 1.0, 1.0], \
-                      [1.0, 1.0, -1.0], \
-                      [1.0, -1.0, -1.0], \
-                      [1.0, -1.0, 1.0]])/np.sqrt(3.)
+pol_c_pos = np.array([[1.0, 1.0, 1.0],
+                      [1.0, 1.0, -1.0],
+                      [1.0, -1.0, -1.0],
+                      [1.0, -1.0, 1.0]]
+                     ) / np.sqrt(3.)
 
 # Face/edge-centered polarizations
-pol_fe_pos = np.array([[1.0, 0.5, 0.0], \
-                       [1.0, -0.5, 0.0], \
-                       [1.0, 0.0, 0.5], \
-                       [1.0, 0.0, -0.5], \
-                       [0.5, 1.0, 0.0], \
-                       [0.5, -1.0, 0.0], \
-                       [0.5, 0.0, 1.0], \
-                       [0.5, 0.0, -1.0], \
-                       [0.0, 1.0, 0.5], \
-                       [0.0, 1.0, -0.5], \
-                       [0.0, 0.5, 1.0], \
-                       [0.0, 0.5, -1.0]])*2./np.sqrt(5.)
+pol_fe_pos = np.array([[1.0, 0.5, 0.0],
+                       [1.0, -0.5, 0.0],
+                       [1.0, 0.0, 0.5],
+                       [1.0, 0.0, -0.5],
+                       [0.5, 1.0, 0.0],
+                       [0.5, -1.0, 0.0],
+                       [0.5, 0.0, 1.0],
+                       [0.5, 0.0, -1.0],
+                       [0.0, 1.0, 0.5],
+                       [0.0, 1.0, -0.5],
+                       [0.0, 0.5, 1.0],
+                       [0.0, 0.5, -1.0]]
+                      ) * 2. / np.sqrt(5.)
 
 # Face/edge polarization, 30 degrees from face-centered
-fe30_1 = np.sin(np.pi/6.0)
-fe30_2 = np.cos(np.pi/6.0)
-pol_fe30_pos = np.array([[fe30_1, fe30_2, 0], \
-                         [fe30_1, -fe30_2, 0], \
-                         [fe30_1, 0, fe30_2], \
-                         [fe30_1, 0, -fe30_2], \
-                         [fe30_2, fe30_1, 0], \
-                         [-fe30_2, fe30_1, 0], \
-                         [0, fe30_1, fe30_2], \
-                         [0, fe30_1, -fe30_2], \
-                         [fe30_2, 0, fe30_1], \
-                         [-fe30_2, 0, fe30_1], \
-                         [0, fe30_2, fe30_1], \
-                         [0, -fe30_2, fe30_1]]) 
+fe30_1 = np.sin(np.pi / 6.0)
+fe30_2 = np.cos(np.pi / 6.0)
+pol_fe30_pos = np.array([[fe30_1, fe30_2, 0],
+                         [fe30_1, -fe30_2, 0],
+                         [fe30_1, 0, fe30_2],
+                         [fe30_1, 0, -fe30_2],
+                         [fe30_2, fe30_1, 0],
+                         [-fe30_2, fe30_1, 0],
+                         [0, fe30_1, fe30_2],
+                         [0, fe30_1, -fe30_2],
+                         [fe30_2, 0, fe30_1],
+                         [-fe30_2, 0, fe30_1],
+                         [0, fe30_2, fe30_1],
+                         [0, -fe30_2, fe30_1]]
+                        ) 
 
 # Face/edge polarization, 22.5 degrees from face-centered
-fe23_1 = np.sin(np.pi/8.0)
-fe23_2 = np.cos(np.pi/8.0)
-pol_fe23_pos = np.array([[fe23_1, fe23_2, 0], \
-                         [fe23_1, -fe23_2, 0], \
-                         [fe23_1, 0, fe23_2], \
-                         [fe23_1, 0, -fe23_2], \
-                         [fe23_2, fe23_1, 0], \
-                         [-fe23_2, fe23_1, 0], \
-                         [0, fe23_1, fe23_2], \
-                         [0, fe23_1, -fe23_2], \
-                         [fe23_2, 0, fe23_1], \
-                         [-fe23_2, 0, fe23_1], \
-                         [0, fe23_2, fe23_1], \
-                         [0, -fe23_2, fe23_1]]) 
+fe23_1 = np.sin(np.pi / 8.0)
+fe23_2 = np.cos(np.pi / 8.0)
+pol_fe23_pos = np.array([[fe23_1, fe23_2, 0],
+                         [fe23_1, -fe23_2, 0],
+                         [fe23_1, 0, fe23_2],
+                         [fe23_1, 0, -fe23_2],
+                         [fe23_2, fe23_1, 0],
+                         [-fe23_2, fe23_1, 0],
+                         [0, fe23_1, fe23_2],
+                         [0, fe23_1, -fe23_2],
+                         [fe23_2, 0, fe23_1],
+                         [-fe23_2, 0, fe23_1],
+                         [0, fe23_2, fe23_1],
+                         [0, -fe23_2, fe23_1]]
+                        ) 
 
 # Face/edge polarization, 17 degrees from face-centered
-fe17_1 = np.sin(17.0*np.pi/180.0)
-fe17_2 = np.cos(17.0*np.pi/180.0)
-pol_fe17_pos = np.array([[fe17_1, fe17_2, 0], \
-                         [fe17_1, -fe17_2, 0], \
-                         [fe17_1, 0, fe17_2], \
-                         [fe17_1, 0, -fe17_2], \
-                         [fe17_2, fe17_1, 0], \
-                         [-fe17_2, fe17_1, 0], \
-                         [0, fe17_1, fe17_2], \
-                         [0, fe17_1, -fe17_2], \
-                         [fe17_2, 0, fe17_1], \
-                         [-fe17_2, 0, fe17_1], \
-                         [0, fe17_2, fe17_1], \
-                         [0, -fe17_2, fe17_1]]) 
+fe17_1 = np.sin(17.0 * np.pi / 180.0)
+fe17_2 = np.cos(17.0 * np.pi / 180.0)
+pol_fe17_pos = np.array([[fe17_1, fe17_2, 0],
+                         [fe17_1, -fe17_2, 0],
+                         [fe17_1, 0, fe17_2],
+                         [fe17_1, 0, -fe17_2],
+                         [fe17_2, fe17_1, 0],
+                         [-fe17_2, fe17_1, 0],
+                         [0, fe17_1, fe17_2],
+                         [0, fe17_1, -fe17_2],
+                         [fe17_2, 0, fe17_1],
+                         [-fe17_2, 0, fe17_1],
+                         [0, fe17_2, fe17_1],
+                         [0, -fe17_2, fe17_1]]
+                        ) 
 
 # Face/corner-centered polarizations
-pol_fc_pos = np.array([[1.0, 0.5, 0.5], \
-                       [1.0, 0.5, -0.5], \
-                       [1.0, -0.5, 0.5], \
-                       [1.0, -0.5, -0.5], \
-                       [0.5, 1.0, 0.5], \
-                       [0.5, 1.0, -0.5], \
-                       [-0.5, 1.0, 0.5], \
-                       [-0.5, 1.0, -0.5], \
-                       [0.5, 0.5, 1.0], \
-                       [0.5, -0.5, 1.0], \
-                       [-0.5, 0.5, 1.0], \
-                       [-0.5, -0.5, 1.0]])*np.sqrt(2./3.)
+pol_fc_pos = np.array([[1.0, 0.5, 0.5],
+                       [1.0, 0.5, -0.5],
+                       [1.0, -0.5, 0.5],
+                       [1.0, -0.5, -0.5],
+                       [0.5, 1.0, 0.5],
+                       [0.5, 1.0, -0.5],
+                       [-0.5, 1.0, 0.5],
+                       [-0.5, 1.0, -0.5],
+                       [0.5, 0.5, 1.0],
+                       [0.5, -0.5, 1.0],
+                       [-0.5, 0.5, 1.0],
+                       [-0.5, -0.5, 1.0]]
+                      ) * np.sqrt(2. / 3.)
 
 # Face/corner polarization, 27 degrees from face-centered
-fc27_1 = np.sin(27.0*np.pi/180.0)/np.sqrt(2.0)
-fc27_2 = np.cos(27.0*np.pi/180.0)
-pol_fc27_pos = np.array([[fc27_1, fc27_1, fc27_2], \
-                         [fc27_1, -fc27_1, fc27_2], \
-                         [-fc27_1, -fc27_1, fc27_2], \
-                         [-fc27_1, fc27_1, fc27_2], \
-                         [fc27_1, fc27_2, fc27_1], \
-                         [fc27_1, fc27_2, -fc27_1], \
-                         [-fc27_1, fc27_2, -fc27_1], \
-                         [-fc27_1, fc27_2, fc27_1], \
-                         [fc27_2, fc27_1, fc27_1], \
-                         [fc27_2, fc27_1, -fc27_1], \
-                         [fc27_2, -fc27_1, -fc27_1], \
-                         [fc27_2, -fc27_1, fc27_1]])
+fc27_1 = np.sin(27.0 * np.pi / 180.0) / np.sqrt(2.0)
+fc27_2 = np.cos(27.0 * np.pi / 180.0)
+pol_fc27_pos = np.array([[fc27_1, fc27_1, fc27_2],
+                         [fc27_1, -fc27_1, fc27_2],
+                         [-fc27_1, -fc27_1, fc27_2],
+                         [-fc27_1, fc27_1, fc27_2],
+                         [fc27_1, fc27_2, fc27_1],
+                         [fc27_1, fc27_2, -fc27_1],
+                         [-fc27_1, fc27_2, -fc27_1],
+                         [-fc27_1, fc27_2, fc27_1],
+                         [fc27_2, fc27_1, fc27_1],
+                         [fc27_2, fc27_1, -fc27_1],
+                         [fc27_2, -fc27_1, -fc27_1],
+                         [fc27_2, -fc27_1, fc27_1]]
+                        )
 
 # Face/corner polarization, 39 degrees from face-centered
-fc39_1 = np.sin(39.0*np.pi/180.0)/np.sqrt(2.0)
-fc39_2 = np.cos(39.0*np.pi/180.0)
-pol_fc39_pos = np.array([[fc39_1, fc39_1, fc39_2], \
-                         [fc39_1, -fc39_1, fc39_2], \
-                         [-fc39_1, -fc39_1, fc39_2], \
-                         [-fc39_1, fc39_1, fc39_2], \
-                         [fc39_1, fc39_2, fc39_1], \
-                         [fc39_1, fc39_2, -fc39_1], \
-                         [-fc39_1, fc39_2, -fc39_1], \
-                         [-fc39_1, fc39_2, fc39_1], \
-                         [fc39_2, fc39_1, fc39_1], \
-                         [fc39_2, fc39_1, -fc39_1], \
-                         [fc39_2, -fc39_1, -fc39_1], \
-                         [fc39_2, -fc39_1, fc39_1]])
+fc39_1 = np.sin(39.0 * np.pi / 180.0) / np.sqrt(2.0)
+fc39_2 = np.cos(39.0 * np.pi / 180.0)
+pol_fc39_pos = np.array([[fc39_1, fc39_1, fc39_2],
+                         [fc39_1, -fc39_1, fc39_2],
+                         [-fc39_1, -fc39_1, fc39_2],
+                         [-fc39_1, fc39_1, fc39_2],
+                         [fc39_1, fc39_2, fc39_1],
+                         [fc39_1, fc39_2, -fc39_1],
+                         [-fc39_1, fc39_2, -fc39_1],
+                         [-fc39_1, fc39_2, fc39_1],
+                         [fc39_2, fc39_1, fc39_1],
+                         [fc39_2, fc39_1, -fc39_1],
+                         [fc39_2, -fc39_1, -fc39_1],
+                         [fc39_2, -fc39_1, fc39_1]]
+                        )
 
 # Edge/corner-centered polarizations
-pol_ec_pos = np.array([[0.5, 1.0, 1.0], \
-                       [0.5, 1.0, -1.0], \
-                       [0.5, -1.0, 1.0], \
-                       [0.5, -1.0, -1.0], \
-                       [1.0, 0.5, 1.0], \
-                       [1.0, 0.5, -1.0], \
-                       [-1.0, 0.5, 1.0], \
-                       [-1.0, 0.5, -1.0], \
-                       [1.0, 1.0, 0.5], \
-                       [1.0, -1.0, 0.5], \
-                       [-1.0, 1.0, 0.5], \
-                       [-1.0, -1.0, 0.5]])*2./3.
+pol_ec_pos = np.array([[0.5, 1.0, 1.0],
+                       [0.5, 1.0, -1.0],
+                       [0.5, -1.0, 1.0],
+                       [0.5, -1.0, -1.0],
+                       [1.0, 0.5, 1.0],
+                       [1.0, 0.5, -1.0],
+                       [-1.0, 0.5, 1.0],
+                       [-1.0, 0.5, -1.0],
+                       [1.0, 1.0, 0.5],
+                       [1.0, -1.0, 0.5],
+                       [-1.0, 1.0, 0.5],
+                       [-1.0, -1.0, 0.5]]
+                      ) * 2. / 3.
 
 # Face/corner polarization, 27 degrees from face-centered
-ec23_1 = 1.0/np.sqrt(2.0 + np.tan(22.5*np.pi/180.0)**2)
-ec23_2 = np.tan(22.5*np.pi/180.0)/np.sqrt(2.0 + np.tan(22.5*np.pi/180.0)**2)
-pol_ec23_pos = np.array([[ec23_1, ec23_1, ec23_2], \
-                         [ec23_1, -ec23_1, ec23_2], \
-                         [-ec23_1, -ec23_1, ec23_2], \
-                         [-ec23_1, ec23_1, ec23_2], \
-                         [ec23_1, ec23_2, ec23_1], \
-                         [ec23_1, ec23_2, -ec23_1], \
-                         [-ec23_1, ec23_2, -ec23_1], \
-                         [-ec23_1, ec23_2, ec23_1], \
-                         [ec23_2, ec23_1, ec23_1], \
-                         [ec23_2, ec23_1, -ec23_1], \
-                         [ec23_2, -ec23_1, -ec23_1], \
-                         [ec23_2, -ec23_1, ec23_1]])
-
+ec23_1 = 1.0 / np.sqrt(2.0 + np.tan(22.5 * np.pi / 180.0) ** 2)
+ec23_2 = np.tan(22.5 * np.pi / 180.0) / np.sqrt(2.0 + np.tan(22.5 * np.pi / 180.0) ** 2)
+pol_ec23_pos = np.array([[ec23_1, ec23_1, ec23_2],
+                         [ec23_1, -ec23_1, ec23_2],
+                         [-ec23_1, -ec23_1, ec23_2],
+                         [-ec23_1, ec23_1, ec23_2],
+                         [ec23_1, ec23_2, ec23_1],
+                         [ec23_1, ec23_2, -ec23_1],
+                         [-ec23_1, ec23_2, -ec23_1],
+                         [-ec23_1, ec23_2, ec23_1],
+                         [ec23_2, ec23_1, ec23_1],
+                         [ec23_2, ec23_1, -ec23_1],
+                         [ec23_2, -ec23_1, -ec23_1],
+                         [ec23_2, -ec23_1, ec23_1]]
+                        )
 
 pol_f = np.concatenate((pol_f_pos, -pol_f_pos), axis=0)
 pol_e = np.concatenate((pol_e_pos, -pol_e_pos), axis=0)
@@ -212,18 +224,19 @@ def faceedge_vectors(theta):
     comp_1 = np.sin(theta)
     comp_2 = np.cos(theta)
 
-    vectors_pos = np.array([[comp_1, comp_2, 0], \
-                            [comp_1, -comp_2, 0], \
-                            [comp_1, 0, comp_2], \
-                            [comp_1, 0, -comp_2], \
-                            [comp_2, comp_1, 0], \
-                            [-comp_2, comp_1, 0], \
-                            [0, comp_1, comp_2], \
-                            [0, comp_1, -comp_2], \
-                            [comp_2, 0, comp_1], \
-                            [-comp_2, 0, comp_1], \
-                            [0, comp_2, comp_1], \
-                            [0, -comp_2, comp_1]]) 
+    vectors_pos = np.array([[comp_1, comp_2, 0],
+                            [comp_1, -comp_2, 0],
+                            [comp_1, 0, comp_2],
+                            [comp_1, 0, -comp_2],
+                            [comp_2, comp_1, 0],
+                            [-comp_2, comp_1, 0],
+                            [0, comp_1, comp_2],
+                            [0, comp_1, -comp_2],
+                            [comp_2, 0, comp_1],
+                            [-comp_2, 0, comp_1],
+                            [0, comp_2, comp_1],
+                            [0, -comp_2, comp_1]]
+                           ) 
 
     return np.concatenate((vectors_pos, -vectors_pos), axis=0)
 
@@ -236,21 +249,22 @@ def facecorner_vectors(theta):
     """
 
     # Unique vector component magnitudes
-    comp_1 = np.sin(theta)/np.sqrt(2.0)
+    comp_1 = np.sin(theta) / np.sqrt(2.0)
     comp_2 = np.cos(theta)
 
-    vectors_pos = np.array([[comp_1, comp_1, comp_2], \
-                            [comp_1, -comp_1, comp_2], \
-                            [-comp_1, -comp_1, comp_2], \
-                            [-comp_1, comp_1, comp_2], \
-                            [comp_1, comp_2, comp_1], \
-                            [comp_1, comp_2, -comp_1], \
-                            [-comp_1, comp_2, -comp_1], \
-                            [-comp_1, comp_2, comp_1], \
-                            [comp_2, comp_1, comp_1], \
-                            [comp_2, comp_1, -comp_1], \
-                            [comp_2, -comp_1, -comp_1], \
-                            [comp_2, -comp_1, comp_1]])
+    vectors_pos = np.array([[comp_1, comp_1, comp_2],
+                            [comp_1, -comp_1, comp_2],
+                            [-comp_1, -comp_1, comp_2],
+                            [-comp_1, comp_1, comp_2],
+                            [comp_1, comp_2, comp_1],
+                            [comp_1, comp_2, -comp_1],
+                            [-comp_1, comp_2, -comp_1],
+                            [-comp_1, comp_2, comp_1],
+                            [comp_2, comp_1, comp_1],
+                            [comp_2, comp_1, -comp_1],
+                            [comp_2, -comp_1, -comp_1],
+                            [comp_2, -comp_1, comp_1]]
+                           )
 
     return np.concatenate((vectors_pos, -vectors_pos), axis=0)
 
@@ -270,8 +284,10 @@ def face_triplet(theta_fe, theta_fc):
             vectors: double array
                 3-column array in which each row is one unit vector in the full set
     """
-    return np.concatenate((pol_f, faceedge_vectors(theta_fe), \
-                           facecorner_vectors(theta_fc)), axis=0)
+    return np.concatenate((pol_f, faceedge_vectors(theta_fe),
+                           facecorner_vectors(theta_fc)), 
+                          axis=0
+                          )
 
 
 def edge_triplet(theta_fe, theta_fc):
@@ -289,8 +305,10 @@ def edge_triplet(theta_fe, theta_fc):
             vectors: double array
                 3-column array in which each row is one unit vector in the full set
     """
-    return np.concatenate((pol_e, faceedge_vectors(theta_fe), \
-                           facecorner_vectors(theta_fc)), axis=0)
+    return np.concatenate((pol_e, faceedge_vectors(theta_fe),
+                           facecorner_vectors(theta_fc)), 
+                          axis=0
+                          )
 
 
 def orientation_phi(corners_fname):
@@ -532,7 +550,7 @@ if __name__ == '__main__':
     focus_out_file = sys.argv[3]
 
     #cdata = np.genfromtxt(corners_file)
-    mdata = mag.focus_data(focus_in_file)
+    mdata = mag.FocusData(focus_in_file)
 
     polarizations = []
     for i in range(4, len(sys.argv)):

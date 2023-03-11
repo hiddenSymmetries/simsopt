@@ -517,7 +517,6 @@ class DipoleField(MagneticField):
 
     Args:
         pm_opt: A PermanentMagnetOptimizer object that has already been optimized.
-        m: Solution for the dipoles using the pm_opt object.
     """
 
     def __init__(self, pm_opt=None):
@@ -632,7 +631,6 @@ class DipoleField(MagneticField):
 
         Args:
             vtkname (str): VTK filename, will be appended with .vts or .vtu.
-            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
 
         # get the coordinates

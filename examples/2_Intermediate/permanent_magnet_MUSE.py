@@ -2,29 +2,40 @@
 r"""
 This example script uses the GPMO
 greedy algorithm for solving permanent 
-magnet optimization on the MUSE grid.
+magnet optimization on the MUSE grid. This 
+algorithm is described in the following paper:
+    A. A. Kaptanoglu, R. Conlin, and M. Landreman, 
+    Greedy permanent magnet optimization, 
+    Nuclear Fusion 63, 036016 (2023)
 
 The script should be run as:
-    mpirun -n 1 python permanent_magnet_GPMO.py
+    mpirun -n 1 python permanent_magnet_MUSE.py
+on a cluster machine but 
+    python permanent_magnet_MUSE.py
+is sufficient on other machines. Note that the code is 
+parallelized via OpenMP and XSIMD, so will run substantially
+faster on multi-core machines (make sure that all the cores
+are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 
+For high-resolution and more realistic designs, please see the script files at
+https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
 import os
 from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
-from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.field.magneticfieldclasses import DipoleField
-from simsopt.field.biotsavart import BiotSavart
+from simsopt.field import BiotSavart
+from simsopt.field import DipoleField
+from simsopt.geo import SurfaceRZFourier
 from simsopt.geo import PermanentMagnetGrid
 from simsopt.solve import GPMO 
-from simsopt._core import Optimizable
 import pickle
 import time
 from simsopt.util.permanent_magnet_helper_functions import *
-from simsopt.util.adjust_magnet_angles import focus_data
-from simsopt.util.polarization_project import discretize_polarizations, polarization_axes
+from simsopt.util import FocusData
+from simsopt.util import discretize_polarizations, polarization_axes
 
 t_start = time.time()
 
@@ -38,6 +49,7 @@ input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+famus_filename = TEST_DIR / 'zot80.focus'
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
@@ -71,7 +83,7 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-mag_data = focus_data('../../tests/test_files/zot80.focus')
+mag_data = FocusData(famus_filename)
 
 # Determine the allowable polarization types and reject the negatives
 pol_axes = np.zeros((0, 3))
@@ -130,7 +142,7 @@ pm_opt = PermanentMagnetGrid(
     Bn=Bnormal, surface_flag='focus',
     filename=surface_filename,
     coordinate_flag='cartesian',
-    famus_filename='zot80.focus',
+    famus_filename=famus_filename,
     pol_vectors=pol_vectors  # this variable is only used for the greedy algorithms
 )
 

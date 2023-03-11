@@ -4,9 +4,18 @@ This simple example script allows the user to explore building
 permanent magnet configurations for the Landreman/Paul QA design with
 basic cylindrical brick magnets.
 
-For realistic designs, please see the full script in src/simsopt/util,
+For realistic designs, please see the script files at
+https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 which can generate all of the results in the recent relax-and-split
-permanent magnet optimization paper.
+and GPMO permanent magnet optimization papers:
+    
+    A. A. Kaptanoglu, R. Conlin, and M. Landreman, 
+    Greedy permanent magnet optimization, 
+    Nuclear Fusion 63, 036016 (2023)
+    
+    A. A. Kaptanoglu, T. Qian, F. Wechsung, and M. Landreman. 
+    Permanent-Magnet Optimization for Stellarators as Sparse Regression.
+    Physical Review Applied 18, no. 4 (2022): 044006.
 
 This example uses the relax-and-split algorithm for 
 high-dimensional sparse regression. See permanent_magnet_GPMO.py
@@ -14,7 +23,12 @@ for using the greedy GPMO algorithm to solve the problem.
 
 The script should be run as:
     mpirun -n 1 python permanent_magnet_QA.py
-
+on a cluster machine but 
+    python permanent_magnet_QA.py
+is sufficient on other machines. Note that the code is 
+parallelized via OpenMP and XSIMD, so will run substantially
+faster on multi-core machines (make sure that all the cores
+are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 """
 
 import os
