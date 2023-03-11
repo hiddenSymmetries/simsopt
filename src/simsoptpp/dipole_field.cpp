@@ -298,9 +298,7 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 		    
 		    // Calculate new phi location if switching to cylindrical coordinates
 		    simd_t mp_phi_new = xsimd::atan2(mp_j.y, mp_j.x);
-		    //simd_t mp_phi_new = xsimd::atan2(mp_y_new, mp_x_new);
 		    simd_t mp_theta_new = xsimd::atan2(mp_j.z, sqrt(mp_j.x * mp_j.x + mp_j.y * mp_j.y) - R0);
-		    //simd_t mp_theta_new = xsimd::atan2(mp_z_new, rsqrt(mp_x_new * mp_x_new + mp_y_new * mp_y_new) - R0);
 		    simd_t sphi_new = xsimd::sin(mp_phi_new);
 		    simd_t stheta_new = xsimd::sin(mp_theta_new);
 		    simd_t cphi_new = xsimd::cos(mp_phi_new);
@@ -359,7 +357,7 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
 // and creates a final set of points which lie between the
 // inner and outer toroidal surfaces defined by extending the plasma
 // boundary by its normal vectors * some minimum distance.
-Array make_grid(Array& normal_inner, Array& normal_outer, Array& xyz_uniform, Array& xyz_inner, Array& xyz_outer)
+Array define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(Array& normal_inner, Array& normal_outer, Array& xyz_uniform, Array& xyz_inner, Array& xyz_outer)
 {
     // For each toroidal cross-section:
     // For each dipole location:
@@ -471,7 +469,7 @@ Array make_grid(Array& normal_inner, Array& normal_outer, Array& xyz_uniform, Ar
 // and creates a final set of points which lie between the
 // inner and outer toroidal surfaces corresponding to the permanent
 // magnet surface. 
-std::tuple<Array, Array> make_final_surface(Array& phi, Array& normal_inner, Array& normal_outer, Array& dipole_grid_rz, Array& r_inner, Array& r_outer, Array& z_inner, Array& z_outer)
+std::tuple<Array, Array> define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(Array& phi, Array& normal_inner, Array& normal_outer, Array& dipole_grid_rz, Array& r_inner, Array& r_outer, Array& z_inner, Array& z_outer)
 {
     // For each toroidal cross-section:
     // For each dipole location:

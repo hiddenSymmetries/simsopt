@@ -208,7 +208,7 @@ class PermanentMagnetGrid:
             normal_outer = self.plasma_boundary.unitnormal().reshape(-1, 3)
             if coordinate_flag == 'cylindrical':
                 RPhiZ_grid = self._setup_uniform_rz_grid()
-                self.final_grid, self.inds = sopp.make_final_surface(
+                self.final_grid, self.inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
                     contig(2 * np.pi * self.phi), 
                     contig(normal_inner), 
                     contig(normal_outer),
@@ -218,7 +218,7 @@ class PermanentMagnetGrid:
                     contig(self.z_inner), 
                     contig(self.z_outer)
                 )
-                # make_final_surface only returns the inds to chop at
+                # define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces only returns the inds to chop at
                 # so need to loop through and chop the grid now
                 self.inds = np.array(self.inds, dtype=int)
                 for i in reversed(range(1, len(self.inds))):
@@ -242,7 +242,7 @@ class PermanentMagnetGrid:
                 self.pm_phi = self.final_grid[:, 1]
             else:
                 self._setup_uniform_grid()
-                self.dipole_grid_xyz = sopp.make_grid(
+                self.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
                     contig(normal_inner), 
                     contig(normal_outer), 
                     contig(self.xyz_uniform), 
@@ -260,7 +260,7 @@ class PermanentMagnetGrid:
             print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
         else:
             ox, oy, oz, Ic, M0s = np.loadtxt(
-                '../../tests/test_files/' + self.famus_filename,
+                self.famus_filename,
                 skiprows=3, usecols=[3, 4, 5, 6, 7], delimiter=',', unpack=True
             )
 

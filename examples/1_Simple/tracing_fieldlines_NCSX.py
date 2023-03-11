@@ -86,7 +86,7 @@ def trace_fieldlines(bfield, label):
 
 
 # uncomment this to run tracing using the biot savart field (very slow!)
-trace_fieldlines(bs, 'bs')
+# trace_fieldlines(bs, 'bs')
 
 
 # Bounds for the interpolated magnetic field chosen so that the surface is

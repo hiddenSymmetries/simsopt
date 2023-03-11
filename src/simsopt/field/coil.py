@@ -123,7 +123,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
     Take the sum of two :mod:`Current` objects.
     """
 
-    def __init__(self, current_a, current_b, **kwargs):
+    def __init__(self, current_a, current_b):
         self.current_a = current_a
         self.current_b = current_b
         sopp.CurrentBase.__init__(self)

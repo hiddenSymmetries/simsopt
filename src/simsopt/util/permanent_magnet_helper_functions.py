@@ -1,3 +1,16 @@
+"""
+This module contains the a number of useful functions for using 
+the permanent magnets functionality in the SIMSOPT code.
+"""
+__all__ = ['read_focus_coils', 'coil_optimization', 
+           'trace_fieldlines', 'make_qfm', 
+           'initialize_coils', 'calculate_on_axis_B',
+           'get_FAMUS_dipoles', 'read_FAMUS_grid', 
+           'make_optimization_plots', 'run_Poincare_plots',
+           'make_Bnormal_plots', 'write_pm_optimizer_to_famus',
+           'rescale_for_opt', 'initialize_default_kwargs'
+           ]
+
 import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
@@ -359,16 +372,14 @@ def calculate_on_axis_B(bs, s):
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
 
 
-def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
+def get_FAMUS_dipoles(famus_filename):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples.
     """
-    famus_file = famus_path + famus_filename
-
     # FAMUS files are for the half-period surface
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
-        famus_file, skiprows=3,
+        famus_filename, skiprows=3,
         usecols=[3, 4, 5, 6, 7, 8, 10, 11],
         delimiter=',', unpack=True
     )
@@ -390,7 +401,7 @@ def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
     phi = np.arctan2(oy, ox)
 
     # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-    momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1])
+    momentq = np.loadtxt(famus_filename, skiprows=1, max_rows=1, usecols=[1])
     rho = p ** momentq
 
     mm = rho * m0
@@ -403,7 +414,7 @@ def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
     return m_FAMUS, m0
 
 
-def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, famus_path='../../tests/test_files/'):
+def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples.
@@ -411,11 +422,9 @@ def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OU
     from simsopt.objectives import SquaredFlux
     from simsopt.field.magneticfieldclasses import DipoleField
 
-    famus_file = famus_path + famus_filename
-
     # FAMUS files are for the half-period surface
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
-        famus_file, skiprows=3,
+        famus_filename, skiprows=3,
         usecols=[3, 4, 5, 6, 7, 8, 10, 11],
         delimiter=',', unpack=True
     )
@@ -437,7 +446,7 @@ def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OU
     phi = np.arctan2(oy, ox)
 
     # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-    momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1])
+    momentq = np.loadtxt(famus_filename, skiprows=1, max_rows=1, usecols=[1])
     rho = p ** momentq
 
     print('Percent of nonzero FAMUS magnets = ', np.count_nonzero(rho) / len(rho))
@@ -520,14 +529,13 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
 
     # get FAMUS rho values for making comparison histograms
     if pm_opt.famus_filename is not None:
-        famus_file = '../../tests/test_files/' + pm_opt.famus_filename
         m0, p = np.loadtxt(
-            famus_file, skiprows=3,
+            pm_opt.famus_filename, skiprows=3,
             usecols=[7, 8],
             delimiter=',', unpack=True
         )
         # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-        momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1])
+        momentq = np.loadtxt(pm_opt.famus_filename, skiprows=1, max_rows=1, usecols=[1])
         rho = p ** momentq
         rho = rho[pm_opt.Ic_inds]
         x_multi = [m0_abs, mproxy_abs, abs(rho)]

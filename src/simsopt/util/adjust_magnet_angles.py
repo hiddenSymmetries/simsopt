@@ -6,13 +6,12 @@
     to the PM4Stell team and Ken Hammond for his consent to use this file
     and work with the permanent magnet branch of SIMSOPT.
 """
-
+__all__ = ['FocusData', 'stell_point_transform', 'stell_vector_transform']
 import numpy as np
-import pandas as pd
 import sys
 
 
-class focus_data(object):
+class FocusData(object):
     """
         Class object for reading in FOCUS-style data files.
 
@@ -31,7 +30,7 @@ class focus_data(object):
         self.nPol = 0
 
         # initialize to # of mandatory properties ('op' is currently optional)
-        self.nProps = len(focus_data.propNames) - 1
+        self.nProps = len(FocusData.propNames) - 1
 
         self.read_from_file(filename)
 
@@ -112,11 +111,11 @@ class focus_data(object):
 
             # Keep track of the longest and lowest-valued floats recorded
             max_float_length = max([len(linedata[i].strip()) for i \
-                                    in focus_data.float_inds])
+                                    in FocusData.float_inds])
             if max_float_length > self.max_float_length:
                 self.max_float_length = max_float_length
             min_float_val = min([np.double(linedata[i]) for i \
-                                 in focus_data.float_inds])
+                                 in FocusData.float_inds])
             if min_float_val < self.min_float_val:
                 self.min_float_val = min_float_val
 
@@ -220,9 +219,9 @@ class focus_data(object):
         focusfile.write(('%s, '*2 + '%'+ln+'s, ' + ('%'+lf+'s, ')*3 + \
                          '%s, ' + ('%'+lf+'s, ')*2 + '%s, ' + \
                          ('%'+lf+'s, ')*2) % \
-                        tuple(focus_data.propNames[:12]))
+                        tuple(FocusData.propNames[:12]))
         if self.has_op:
-            focusfile.write(('%'+lf+'s, \n') % (focus_data.propNames[12]))
+            focusfile.write(('%'+lf+'s, \n') % (FocusData.propNames[12]))
         else:
             focusfile.write('\n')
 
@@ -349,232 +348,6 @@ class focus_data(object):
             self.cyl_p = np.concatenate((self.cyl_p, cyl_p2))
             self.cyl_z = np.concatenate((self.cyl_z, cyl_z2))
 
-    def moments_file(self, blocks_fname, moments_fname, rev):
-        '''
-        Generates a "moments file" for a set of magnets with projected 
-        polarizations. The moments file is a .csv with two header lines and
-        the following columns:
-
-        rid, pid, zid, wid, hid, did, ioid, ox, oy, oz, Mx, My, Mz, 
-            px, py, pz, rho, type, cyl_r, cyl_p, cyl_z
-
-        where:
-            rid, pid, zid: 
-                radial, toroidal, and vertical index labels for the magnets' 
-                spatial block in the arrangement
-            wid, hid, did: 
-                toroidal, vertical, and radial index labels for the magnets' 
-                spatial subblock
-            ioid: 
-                label indicating whether the magnet is inboard or outboard
-            ox, oy, oz: 
-                x, y, z (Cartesian) coordinates of the magnets' centers
-            Mx, My, Mz: 
-                x, y, z (Cartesian) components of the dipole moments of each 
-                magnet in A*m^2
-            px, py, pz: 
-                x, y, z (Cartesian) components of unit vectors perpendicular to 
-                (Mx, My, Mz)
-            rho: 
-                1 if the magnet exists; 0 if it was removed during optimization
-            type: 
-                ID of the magnet polarization type; 0 if magnet is nonexistent
-            axid: 
-                Unique identifier for each discrete polarization vector within
-                a given phi sector (i.e. for each value of pid)
-            cyl_r, cyl_p, cyl_z: 
-                r, phi, z (cylindrical) components of the magnets' polarization
-                in the frame of the magnets' respective support structures
-
-        The first header line gives the arrangement ID from the blocks file,
-        as well as the revision number supplied by the user. The second 
-        header line contains the titles of each column.
-        '''
-
-        blocks_file = open(blocks_fname, 'r')
-        argmt_id = blocks_file.readline().split(',')[0].strip()
-        blocks_file.close()
-
-        blocks_data = pd.read_csv(blocks_fname, header=1)
-        blocks_data.rename(columns=lambda x: x.strip(), inplace=True)
-
-        moments_data = \
-            pd.DataFrame(data=blocks_data[['rid', 'pid', 'zid', \
-                                           'wid', 'hid', 'did', 'ioid']])
-        moments_data['ox'] = self.ox
-        moments_data['oy'] = self.oy
-        moments_data['oz'] = self.oz
-
-        Mx, My, Mz = self.unit_vector(np.arange(self.nMagnets))*self.M_0
-        moments_data['Mx'] = Mx
-        moments_data['My'] = My
-        moments_data['Mz'] = Mz
-
-        px, py, pz = self.perp_vector(np.arange(self.nMagnets))
-        moments_data['px'] = px
-        moments_data['py'] = py
-        moments_data['pz'] = pz
-
-        moments_data['rho'] = self.pho
-
-        moments_data['type'] = self.pol_type
-        moments_data['cyl_r'] = self.cyl_r
-        moments_data['cyl_p'] = self.cyl_p
-        moments_data['cyl_z'] = self.cyl_z        
-        moments_data['axid'] = self.pol_id
-
-        data_str = moments_data.to_csv(index=False, float_format='%16.8e')
-
-        moments_file = open(moments_fname, 'w')
-        moments_file.write('%s, %s\n' % (argmt_id, rev))
-        moments_file.write(data_str)
-        moments_file.close()
-
-
-def stell_point_transform_2(mode, phi, x_in, y_in, z_in):
-    '''
-    Transforms a point in one of two ways, depending on the mode selected:
-        reflect:   Reflects a point in a given poloidal plane presumed to form 
-                   the boundary between two stellarator-symmetryc half-periods. 
-                   The output point will have the equivalent location associated
-                   with the adjacent half-period. 
-        translate: Translates a point in the toroidal direction (i.e., along
-                   a circle with a fixed radius about the z axis) by a given
-                   angle.
-
-    Parameters
-    ----------
-        mode: string
-            'translate' or 'reflect' (see description above)
-        phi: double
-            'reflect' mode: toroidal angle (rad.) of the symmetry plane
-            'translate' mode: toroidal interval (rad.) along which to translate
-        x_in, y_in, z_in: double (possibly arrays of equal dimensions)
-            x, y, z coordinates of the point(s) to be transformed
-
-    Returns
-    -------
-        x_out, y_out, z_out: double (possibly arrays)
-            x, y, z coordinates of the transformed point(s)
-    '''
-
-    # Check input mode
-    if mode == 'reflect':
-        refl = True
-    elif mode == 'translate':
-        refl = False
-    else:
-        raise ValueError('Unrecognized mode for stell_point_transform')
-
-    # Radial coordinate and toroidal angle of input point
-    r_in = np.sqrt(x_in**2 + y_in**2)
-    phi_in = np.arctan2(y_in, x_in)
-
-    # Radial coordinate and toroidal angle of the output point
-    r_out = r_in
-    if refl:
-        phi_out = phi + (phi - phi_in)
-        z_out = -z_in
-    else:
-        phi_out = phi_in + phi
-        z_out = z_in
-
-    # Cartesian coordinates of the output point
-    x_out = r_out*np.cos(phi_out)
-    y_out = r_out*np.sin(phi_out)
-
-    return x_out, y_out, z_out
-
-
-def stell_vector_transform_2(mode, phi, \
-                             vx_in, vy_in, vz_in, ox_in, oy_in, oz_in):
-    '''
-    Transforms a vector in one of two ways, depending on the mode selected:
-        reflect:   Reflects a vector, with a defined origin point, in a given 
-                   poloidal plane that is presumed to form the boundary between
-                   two stellarator-symmetryc half-periods. The output vector 
-                   will have the equivalent origin point and direction 
-                   associated with the target half-period. Vector magnitude
-                   is preserved.
-        translate: Translates a vector, with a defined origin point, in the 
-                   toroidal direction. The origin thus moves along a circle
-                   of fixed radius about the z axis by a given angle. The
-                   azimuthal components of the vector change in order to 
-                   preserve the radial and toroidal components. The vertical
-                   component of the vector, as well as its length, are held
-                   fixed.
-
-    Parameters
-    ----------
-        mode: string
-            'translate' or 'reflect' (see description above)
-        phi: double
-            'reflect' mode: toroidal angle (rad.) of the symmetry plane
-            'translate' mode: toroidal interval (rad.) along which to translate
-        vx_in, vy_in, vz_in: double (possibly arrays of equal dimensions)
-            x, y, z components of the input vectors
-        ox_in, oy_in, oz_in: double (possibly arrays of equal dimensions)
-            x, y, z coordinates of the origin point(s) of the input vectors
-
-    Returns
-    -------
-        vx_out, vy_out, vz_out: 
-            x, y, z components of the output transformed vector(s)
-        ox_out, oy_out, oz_out:
-            x, y, z coordinates of the origin point(s) of the vector(s)
-    '''
-
-    # Check input mode
-    if mode == 'reflect':
-        refl = True
-    elif mode == 'translate':
-        refl = False
-    else:
-        raise ValueError('Unrecognized mode for stell_vector_transform')
-
-    # Radial coordinate and toroidal angle of input point
-    or_in = np.sqrt(ox_in**2 + oy_in**2)
-    ophi_in = np.arctan2(oy_in, ox_in)
-
-    # Cartesian components of the radial and toroidal unit vectors (input)
-    rhat_x_in = np.cos(ophi_in)
-    rhat_y_in = np.sin(ophi_in)
-    phat_x_in = -np.sin(ophi_in)
-    phat_y_in = np.cos(ophi_in)
-
-    # Radial and toroidal components of the input vector
-    vr_in = vx_in*rhat_x_in + vy_in*rhat_y_in
-    vphi_in = vx_in*phat_x_in + vy_in*phat_y_in
-
-    # Radial and vertical components
-    or_out = or_in
-    vz_out = vz_in
-    vphi_out = vphi_in
-    if refl:
-        ophi_out = phi + (phi - ophi_in)
-        oz_out = -oz_in
-        vr_out = -vr_in
-    else:
-        ophi_out = ophi_in + phi
-        oz_out = oz_in
-        vr_out = vr_in
-
-    # Cartesian components of the radial and toroidal unit vectors (outnput)
-    rhat_x_out = np.cos(ophi_out)
-    rhat_y_out = np.sin(ophi_out)
-    phat_x_out = -np.sin(ophi_out)
-    phat_y_out = np.cos(ophi_out)
-
-    # Cartesian x/y components of the output vector
-    vx_out = vr_out*rhat_x_out + vphi_out*phat_x_out
-    vy_out = vr_out*rhat_y_out + vphi_out*phat_y_out
-
-    # Cartesian coordinates of the output origin point
-    ox_out = or_out*np.cos(ophi_out)
-    oy_out = or_out*np.sin(ophi_out)
-
-    return vx_out, vy_out, vz_out, ox_out, oy_out, oz_out
-
 
 def stell_vector_transform(mode, phi, vx_in, vy_in, vz_in):
     '''
@@ -678,9 +451,6 @@ def stell_point_transform(mode, phi, x_in, y_in, z_in):
 
 if __name__ == '__main__':
 
-    #dirname = '/u/khammond/focus/ncsx/magnets_trial24_single/'
-    #filename = dirname + 'trial_24_single.focus'
-
     if len(sys.argv) != 3 and len(sys.argv) != 4:
         print('usage: python adjust_magnet_angles.py infile outfile [q_new]')
         exit()
@@ -688,7 +458,7 @@ if __name__ == '__main__':
     infile = sys.argv[1]
     outfile = sys.argv[2]
 
-    magdata = focus_data(infile)
+    magdata = FocusData(infile)
     magdata.flip_negative_magnets()
 
     if len(sys.argv) == 4:
