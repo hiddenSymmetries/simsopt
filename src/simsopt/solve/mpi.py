@@ -288,7 +288,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                           diff_method: str = "forward",
                           opt_method: str = "SLSQP",
                           options: dict = None):
-    """
+    r"""
     Solve a constrained minimization problem using
     MPI. All MPI processes (including group leaders and workers)
     should call this function.
@@ -305,15 +305,17 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
              finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
-        diff_method: Differentiation strategy. Options are "centered", and
-             "forward". If ``centered``, centered finite differences will
-             be used. If ``forward``, one-sided finite differences will
-             be used. Else, error is raised.
-        opt_method: Constrained solver to use: One of "SLSQP", "trust-constr", or "COBYLA". 
-        Use "COBYLA" for derivative-free optimization. See `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_. for
-        a description of the methods.
-        options: dict, `options`` keyword which is passed to
-                `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
+        diff_method: Differentiation strategy. Options are ``"centered"`` and
+             ``"forward"``. If ``"centered"``, centered finite differences will
+             be used. If ``"forward"``, one-sided finite differences will
+             be used. For other values, an error is raised.
+        opt_method: Constrained solver to use: One of ``"SLSQP"``,
+             ``"trust-constr"``, or ``"COBYLA"``. Use ``"COBYLA"`` for
+             derivative-free optimization. See
+             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
+             for a description of the methods.
+        options: dict, ``options`` keyword which is passed to
+             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
     if MPI is None:
         raise RuntimeError(
