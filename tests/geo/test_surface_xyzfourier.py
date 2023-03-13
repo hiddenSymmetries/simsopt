@@ -73,7 +73,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         for surface_type in ['SurfaceXYZFourier', 'SurfaceXYZTensorFourier']:
             with self.subTest(surface_type=surface_type):
                 self.subtest_toRZFourier_lossless_at_quadraturepoints(surface_type)
-        
+
     def subtest_toRZFourier_lossless_at_quadraturepoints(self, surface_type):
         s = get_exact_surface(surface_type=surface_type)
         sRZ = s.to_RZFourier()

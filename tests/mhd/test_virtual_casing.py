@@ -10,6 +10,10 @@ try:
     import virtual_casing
 except ImportError:
     virtual_casing = None
+try:
+    import matplotlib
+except ImportError:
+    matplotlib = None
 
 try:
     from mpi4py import MPI
@@ -53,6 +57,9 @@ class VirtualCasingVmecTests(unittest.TestCase):
         vc = VirtualCasing.from_vmec(vmec, src_nphi=10)
 
 
+@unittest.skipIf(
+    (virtual_casing is None),
+    "Need virtual_casing python package installed to run VirtualCasingTests")
 class VirtualCasingTests(unittest.TestCase):
 
     def test_bnorm_benchmark(self):
@@ -153,6 +160,9 @@ class VirtualCasingTests(unittest.TestCase):
             logger.info(f'Variable {variable} in vc1 is {variable1} and in vc2 is {variable2}')
             np.testing.assert_allclose(variable1, variable2)
 
+    @unittest.skipIf(
+        (matplotlib is None),
+        "Need matplotlib python package to test VirtualCasing plot")
     def test_plot(self):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vc = VirtualCasing.from_vmec(filename, src_nphi=8, src_ntheta=9)
