@@ -294,28 +294,28 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
     should call this function.
 
     Args:
-        prob: Optimizable object defining the objective function(s) and
-             parameter space.
+        prob: :obj:`~simsopt.objectives.ConstrainedProblem` object defining the
+            objective function, parameter space, and constraints.
         mpi: A MpiPartition object, storing the information about how
-             the pool of MPI processes is divided into worker groups.
+            the pool of MPI processes is divided into worker groups.
         grad: Whether to use a gradient-based optimization algorithm, as
-             opposed to a gradient-free algorithm. If unspecified, a
-             a gradient-free algorithm
-             will be used by default. If you set ``grad=True``
-             finite-difference gradients will be used.
+            opposed to a gradient-free algorithm. If unspecified, a
+            a gradient-free algorithm
+            will be used by default. If you set ``grad=True``
+            finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
         diff_method: Differentiation strategy. Options are ``"centered"`` and
-             ``"forward"``. If ``"centered"``, centered finite differences will
-             be used. If ``"forward"``, one-sided finite differences will
-             be used. For other values, an error is raised.
+            ``"forward"``. If ``"centered"``, centered finite differences will
+            be used. If ``"forward"``, one-sided finite differences will
+            be used. For other values, an error is raised.
         opt_method: Constrained solver to use: One of ``"SLSQP"``,
-             ``"trust-constr"``, or ``"COBYLA"``. Use ``"COBYLA"`` for
-             derivative-free optimization. See
-             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
-             for a description of the methods.
+            ``"trust-constr"``, or ``"COBYLA"``. Use ``"COBYLA"`` for
+            derivative-free optimization. See
+            `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
+            for a description of the methods.
         options: dict, ``options`` keyword which is passed to
-             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
+            `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
     if MPI is None:
         raise RuntimeError(
