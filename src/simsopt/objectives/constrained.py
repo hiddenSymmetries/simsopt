@@ -3,7 +3,7 @@
 # Distributed under the terms of the LGPL License
 
 """
-Provides the ConstrainedProblem class implemented using the new graph based
+Provides the ConstrainedProblem class implemented using the graph based
 optimization framework.
 """
 
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import warnings
-from collections.abc import Sequence as ABC_Sequence
 from typing import Union, Callable, Tuple, Sequence
 from numbers import Real
 
@@ -19,13 +18,11 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
-from .._core.types import RealArray, IntArray, BoolArray
+from .._core.types import RealArray
 
 __all__ = ['ConstrainedProblem']
 
 logger = logging.getLogger(__name__)
-
-StrSeq = Union[Sequence, Sequence[Sequence[str]]]
 
 
 class ConstrainedProblem(Optimizable):
@@ -37,31 +34,37 @@ class ConstrainedProblem(Optimizable):
 
     .. math::
 
-        \min_x f(x) 
-        s.t. 
+        \min_x f(x)
+
+        s.t.
+
           l_c \le c(x) \le u_c
+
           Ax \le b
+
           l_x \le x \le u_x
 
 
     Args:
-        f_obj: objective function handle (Generally one of the output functions of
-                  the Optimizable instances
+        f_obj: objective function handle (generally one of the output functions of
+            the Optimizable instances)
         tuples_nlc: Nonlinear constraints as a sequence of triples containing 
-                    the nonlinear constraint function c with lower and upper bounds
-                    i.e. `(c,l_c,u_c)`.
-                    Constraint handle can (`c`) can be vector-valued or scalar-valued.
-                    Constraint bounds can also be array or scalar.
-                    Use +- np.inf to indicate unbounded components.
-                    Define equality constraints by using equal upper and lower bounds.
+            the nonlinear constraint function c with lower and upper bounds
+            i.e. `(c,l_c,u_c)`.
+            Constraint handle can (`c`) can be vector-valued or scalar-valued.
+            Constraint bounds can also be array or scalar.
+            Use ``+- np.inf`` to indicate unbounded components.
+            Define equality constraints by using equal upper and lower bounds.
         tuple_lc: Linear constraints as a tuple containing the 2d-array A, and 1d array
-                  b, i.e. (A,b).
-        lb: float or 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
-            If float is used, the float is set to the upper bound of all dofs.
-            Set a componenent equal to the upper bound to enforce an equality constraints.
-        ub: float or 1d-array of upper bounds, np.inf can be used if an entry is unconstrained
-            If float is used, the float is set to the upper bound of all dofs.
-            Set a componenent equal to the lower bound to enforce an equality constraints.
+            b, i.e. (A,b).
+        lb: float or 1d-array of lower bounds on the design variables.
+            Set this to ``-np.inf`` if an entry is unconstrained.
+            If a float is provided, it is used as the upper bound of all dofs.
+            Set a componenent equal to the upper bound to enforce an equality constraint.
+        ub: float or 1d-array of upper bounds on the design variables.
+            Set this to ``np.inf`` if an entry is unconstrained.
+            If a float is provided, it is used as the upper bound of all dofs.
+            Set a componenent equal to the lower bound to enforce an equality constraint.
     """
 
     def __init__(self,
@@ -69,7 +72,7 @@ class ConstrainedProblem(Optimizable):
                  tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
                  tuple_lc: Tuple[RealArray, Union[RealArray, Real]] = None,
                  lb: Union[Real, RealArray] = None,
-                 ub: Union[Real, Array] = None,
+                 ub: Union[Real, RealArray] = None,
                  fail: Union[None, float] = 1.0e12):
 
         self.fail = fail
@@ -243,5 +246,4 @@ class ConstrainedProblem(Optimizable):
             out = np.concatenate((out, f_nlc))
         return out
 
-    #return_fn_map = {'residuals': residuals, 'objective': objective}
 
