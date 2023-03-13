@@ -161,8 +161,8 @@ class VirtualCasingTests(unittest.TestCase):
             np.testing.assert_allclose(variable1, variable2)
 
     @unittest.skipIf(
-    (matplotlib is None),
-    "Need matplotlib python package to test VirtualCasing plot")
+        (matplotlib is None),
+        "Need matplotlib python package to test VirtualCasing plot")
     def test_plot(self):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vc = VirtualCasing.from_vmec(filename, src_nphi=8, src_ntheta=9)
