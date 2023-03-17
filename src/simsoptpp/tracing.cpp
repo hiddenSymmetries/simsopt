@@ -206,9 +206,9 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = Phihat * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
+            double Phi = Phihat * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidpsi = 0;
-            double Phidot = - Phihat * omega * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
+            double Phidot = Phihat * omega * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidtheta = Phidot * Phim / omega;
             double dPhidzeta = - Phidot * Phin / omega;
             double alpha = - Phi * (iota*Phim - Phin)/(omega*G);
@@ -298,9 +298,9 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = Phihat * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
+            double Phi = Phihat * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidpsi = 0;
-            double Phidot = - Phihat * omega * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
+            double Phidot = Phihat * omega * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
             double dPhidtheta = Phidot * Phim / omega;
             double dPhidzeta = - Phidot * Phin / omega;
             double alpha = - Phi * (iota*Phim - Phin)/(omega*(G+iota*I));
