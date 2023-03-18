@@ -362,7 +362,6 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
 #pragma omp parallel for
     for (int k = 0; k < numquadpoints; ++k)
     {
-        std::cout << "quadpoint: " << k << std::endl;
         double CWSt = 2 * M_PI * quadpoints[k];
 
         double pphi = 0;
@@ -384,11 +383,9 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         theta_array[counter] = CWSt;
 
         counter++;
-        // std::cout << r_array.size() << std::endl;
 
         for (int i = 0; i < order + 1; ++i)
         {
-            std::cout << "order dos cossenos: " << i << std::endl;
             phi_array[counter] = cos(i * CWSt);
             theta_array[counter] = cos(i * CWSt);
             counter++;
@@ -397,11 +394,8 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
             ptheta += theta_c[i] * cos(i * CWSt);
         }
 
-        std::cout << "acabou os cossenos em k = " << k << std::endl;
-
         for (int i = 1; i < order + 1; ++i)
         {
-            std::cout << "order dos senos: " << i << std::endl;
             phi_array[counter] = sin(i * CWSt);
             theta_array[counter] = sin(i * CWSt);
             counter++;
@@ -410,16 +404,11 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
             ptheta += theta_s[i - 1] * sin(i * CWSt);
         }
 
-        std::cout << "acabou os senos em k = " << k << std::endl;
-
         pphi += phi_l * CWSt;
         ptheta += theta_l * CWSt;
 
-        std::cout << "acabou a parte linear para k = " << k << std::endl;
-
         // SURFACE
-
-        for (int i = 0; i <= counter; ++i)
+        for (int i = 0; i < counter; ++i)
         {
             for (int m = 0; m <= mpol; ++m)
             {
@@ -428,8 +417,8 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
                     if (counter2 < 2 * (order + 1))
                     {
                         int n = j - ntor;
-                        r_array[counter2++] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                        z_array[counter2++] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
 
                         if (!stellsym)
                         {
@@ -457,8 +446,6 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
             }
         }
 
-        std::cout << "acabou a superficie para k = " << k << std::endl;
-
         for (int p = 0; p < counter2; p++)
         {
             if (p <= counter)
@@ -475,7 +462,6 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
             }
         }
     }
-    std::cout << "chegou ao fim -_-" << std::endl;
 };
 
 #include "xtensor-python/pyarray.hpp" // Numpy bindings
