@@ -356,10 +356,10 @@ void CurveCWSFourier<Array>::gammadashdashdash_impl(Array &data)
 template <class Array>
 void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
 {
+
     CurveCWSFourier<Array>::set_dofs_surface(idofs);
     data *= 0;
 
-#pragma omp parallel for
     for (int k = 0; k < numquadpoints; ++k)
     {
         double CWSt = 2 * M_PI * quadpoints[k];
@@ -374,10 +374,11 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         Array z_array = xt::zeros<double>({4 * (order + 1)});
 
         int counter = 0;
-        int counter2 = 0;
 
-        double r = 0;
-        double z = 0;
+        double r_aux1 = 0;
+        double z_aux1 = 0;
+        double r_aux2 = 0;
+        double z_aux2 = 0;
 
         phi_array[counter] = CWSt;
         theta_array[counter] = CWSt;
@@ -407,59 +408,81 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         pphi += phi_l * CWSt;
         ptheta += theta_l * CWSt;
 
-        // SURFACE
+// SURFACE
+#pragma omp parallel for
         for (int i = 0; i < counter; ++i)
         {
+            r_aux1 = 0;
+            z_aux1 = 0;
+            r_aux2 = 0;
+            z_aux2 = 0;
+
             for (int m = 0; m <= mpol; ++m)
             {
                 for (int j = 0; j < 2 * ntor + 1; ++j)
                 {
-                    if (counter2 < 2 * (order + 1))
-                    {
-                        int n = j - ntor;
-                        r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                        z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                    int n = j - ntor;
 
-                        if (!stellsym)
-                        {
-                            int n = j - ntor;
-                            r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                            z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                        }
-                    }
-                    if (counter2 >= 2 * (order + 1))
-                    {
-                        int n = j - ntor;
-                        r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                        z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                    r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                    z_aux1 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
 
-                        if (!stellsym)
-                        {
-                            int n = j - ntor;
-                            r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                            z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                        }
-                    }
-
-                    counter2++;
+                    r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                    z_aux2 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
                 }
+                /* if (counter2 < 2 * (order + 1))
+                {
+                    int n = j - ntor;
+                    r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                    z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+
+                    if (!stellsym)
+                    {
+                        int n = j - ntor;
+                        r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                    }
+                }
+                if (counter2 >= 2 * (order + 1))
+                {
+                    int n = j - ntor;
+                    r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                    z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+
+                    if (!stellsym)
+                    {
+                        int n = j - ntor;
+                        r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                        z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                    }
+                }
+
+                counter2++; */
             }
+            r_array[i] = r_aux1;
+            z_array[i] = z_aux1;
+            r_array[i + counter] = r_aux2;
+            z_array[i + counter] = z_aux2;
         }
 
-        for (int p = 0; p < counter2; p++)
+        for (int p = 0; p < counter; p++)
         {
-            if (p <= counter)
-            {
-                data(k, 0, p) = r_array[p] * cos(pphi);
-                data(k, 1, p) = r_array[p] * sin(pphi);
-                data(k, 2, p) = z_array[p];
-            }
-            else if (p > counter)
-            {
-                data(k, 0, p) = -r_array[p] * sin(pphi) * phi_array[p - (counter + 1)];
-                data(k, 1, p) = r_array[p] * cos(pphi) * phi_array[p - (counter + 1)];
-                data(k, 2, p) = z_array[p];
-            }
+            data(k, 0, p) = r_array[p] * cos(pphi);
+            data(k, 1, p) = r_array[p] * sin(pphi);
+            data(k, 2, p) = z_array[p];
+
+            data(k, 0, p + counter) = -r_array[p + counter] * sin(pphi) * phi_array[p];
+            data(k, 1, p + counter) = r_array[p + counter] * cos(pphi) * phi_array[p];
+            data(k, 2, p + counter) = z_array[p + counter];
+
+            /*
+            data(k, 0, p) = r_array[p];
+            data(k, 1, p) = r_array[p];
+            data(k, 2, p) = z_array[p];
+
+            data(k, 0, p + counter) = -r_array[p + counter];
+            data(k, 1, p + counter) = p + counter;
+            data(k, 2, p + counter) = z_array[p + counter];
+            */
         }
     }
 };
