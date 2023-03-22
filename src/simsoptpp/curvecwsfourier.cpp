@@ -428,6 +428,15 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
 
                     r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
                     z_aux2 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+
+                    if (!stellsym)
+                    {
+                        r_aux1 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        z_aux1 += - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+
+                        r_aux2 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                        z_aux2 += -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
+                    }
                 }
                 /* if (counter2 < 2 * (order + 1))
                 {
@@ -473,16 +482,6 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
             data(k, 0, p + counter) = -r_array[p + counter] * sin(pphi) * phi_array[p];
             data(k, 1, p + counter) = r_array[p + counter] * cos(pphi) * phi_array[p];
             data(k, 2, p + counter) = z_array[p + counter];
-
-            /*
-            data(k, 0, p) = r_array[p];
-            data(k, 1, p) = r_array[p];
-            data(k, 2, p) = z_array[p];
-
-            data(k, 0, p + counter) = -r_array[p + counter];
-            data(k, 1, p + counter) = p + counter;
-            data(k, 2, p + counter) = z_array[p + counter];
-            */
         }
     }
 };
