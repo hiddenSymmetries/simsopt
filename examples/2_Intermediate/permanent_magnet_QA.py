@@ -53,7 +53,7 @@ ntheta = 8
 dr = 0.02  # cylindrical bricks with radial extent 2 cm
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA'
+input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -103,6 +103,7 @@ pm_opt = PermanentMagnetGrid(
     Bn=Bnormal,
     filename=surface_filename,
 )
+pm_opt.geo_setup()
 
 reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
 nu = 1e10  # how strongly to make proxy variable w close to values in m
@@ -139,8 +140,13 @@ for i in range(20):
 
 total_RS_history = np.ravel(np.array(total_RS_history))
 print('Done optimizing the permanent magnet object')
-make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, OUT_DIR)
-
+try:
+    make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, OUT_DIR)
+except ValueError:
+    print(
+        'Attempted to make a mp4 of optimization progress but ValueError was raised. '
+        'This is probably an indication that a mp4 python writer was not available for use.'
+    )
 # Print effective permanent magnet volume
 M_max = 1.465 / (4 * np.pi * 1e-7)
 dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
@@ -148,13 +154,22 @@ print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, a
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 # Plot the sparse and less sparse solutions from SIMSOPT
-m_copy = np.copy(pm_opt.m)
-pm_opt.m = pm_opt.m_proxy
-b_dipole_proxy = DipoleField(pm_opt)
+b_dipole_proxy = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m_proxy,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima,
+)
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole_proxy._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
-pm_opt.m = m_copy
-b_dipole = DipoleField(pm_opt)
+b_dipole = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima
+)
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
 
@@ -195,8 +210,13 @@ mu0 = 4 * np.pi * 1e-7
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
-pm_opt.m = pm_opt.m_proxy
-b_dipole = DipoleField(pm_opt)
+b_dipole = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m_proxy,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima
+)
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
 print('f_B_sparse = ', f_B_sp)

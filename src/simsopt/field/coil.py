@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'ScaledCurrent', 'coils_via_symmetries',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 

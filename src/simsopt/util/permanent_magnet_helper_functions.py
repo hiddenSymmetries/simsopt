@@ -59,7 +59,6 @@ def read_focus_coils(filename):
     base_currents = [Current(coilcurrents[i]) for i in range(ncoils)]
     ppp = 20
     coils = [CurveXYZFourier(order*ppp, order) for i in range(ncoils)]
-    print(coils)
     for ic in range(ncoils):
         dofs = coils[ic].dofs_matrix
         dofs[0][0] = coil_data[0, 6*ic + 1]
@@ -282,7 +281,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         used for permanent magnet optimization.
     """
     from simsopt.geo import create_equally_spaced_curves
-    from simsopt.field import Current, ScaledCurrent, Coil, coils_via_symmetries
+    from simsopt.field import Current, Coil, coils_via_symmetries
     from simsopt.geo import curves_to_vtk
 
     if 'muse' in config_flag:
@@ -309,7 +308,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         vmec_file = 'wout_LandremanPaul_QH_variant.nc'
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
-        base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
@@ -327,10 +326,10 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
 
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul2021_QA.nc'
+        vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.2
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
-        base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]

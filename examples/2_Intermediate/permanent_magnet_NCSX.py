@@ -81,8 +81,8 @@ pm_opt = PermanentMagnetGrid(
     Bn=Bnormal, surface_flag='wout',
     filename=surface_filename,
     coordinate_flag='cylindrical',
-    famus_filename=famus_filename
 )
+pm_opt.geo_setup_from_famus(famus_filename)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -128,12 +128,18 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 
 # Look through the solutions as function of K and make plots
 for k in range(0, kwargs["nhistory"] + 1, 50):
-    pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
-    b_dipole = DipoleField(pm_opt)
+    mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
+    b_dipole = DipoleField(
+        pm_opt.dipole_grid_xyz,
+        mk,
+        nfp=s.nfp,
+        coordinate_flag=pm_opt.coordinate_flag,
+        m_maxima=pm_opt.m_maxima,
+    )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
     print("Total fB = ",
-          0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+          0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_total = Bnormal + Bnormal_dipoles
 

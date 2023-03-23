@@ -490,13 +490,18 @@ class Testing(unittest.TestCase):
             Bn=Bn,
             filename=filename
         )
+        pm_opt.geo_setup()
         pm_opt.dipole_grid_xyz = m_loc
         pm_opt.m = m
         pm_opt.m_maxima = pm_opt.m_maxima[0]
-        pm_opt.plasma_boundary.stellsym = False
-        pm_opt.plasma_boundary.nfp = 1 
         pm_opt.ndipoles = m.shape[0] // 3
-        Bfield = DipoleField(pm_opt)
+        Bfield = DipoleField(
+            pm_opt.dipole_grid_xyz,
+            pm_opt.m,
+            stellsym=False,
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+        )
         Bfield.set_points(field_loc)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
@@ -531,13 +536,18 @@ class Testing(unittest.TestCase):
             Bn=Bn,
             filename=filename
         )
+        pm_opt.geo_setup()
         pm_opt.dipole_grid_xyz = m_loc
         pm_opt.m = m
         pm_opt.m_maxima = pm_opt.m_maxima[:Ndipoles]
-        pm_opt.plasma_boundary.stellsym = False
-        pm_opt.plasma_boundary.nfp = 1 
         pm_opt.ndipoles = m.shape[0] // 3
-        Bfield = DipoleField(pm_opt)
+        Bfield = DipoleField(
+            pm_opt.dipole_grid_xyz,
+            pm_opt.m,
+            stellsym=False, 
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+        )
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         B_correct = Ndipoles * 1e-7 * np.array([0.260891, -0.183328, -0.77562])
@@ -577,6 +587,7 @@ class Testing(unittest.TestCase):
             Bn=Bn,
             filename=filename
         )
+        pm_opt.geo_setup()
         pm_opt.dipole_grid_xyz = m_loc
         pm_opt.m = m
         pm_opt.m_maxima = pm_opt.m_maxima[:Ndipoles]
@@ -584,7 +595,12 @@ class Testing(unittest.TestCase):
         pm_opt.plasma_boundary.stellsym = False
         pm_opt.plasma_boundary.nfp = 1 
         pm_opt.nfp = 1
-        Bfield = DipoleField(pm_opt)
+        Bfield = DipoleField(
+            pm_opt.dipole_grid_xyz,
+            pm_opt.m,
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+        )
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -641,9 +657,17 @@ class Testing(unittest.TestCase):
                 surface_flag=surface_flag,
                 filename=sfilename
             )
+            pm_opt.geo_setup()
             dipoles = np.random.rand(pm_opt.ndipoles * 3)
             pm_opt.m = dipoles
-            b_dipole = DipoleField(pm_opt)
+            b_dipole = DipoleField(
+                pm_opt.dipole_grid_xyz,
+                pm_opt.m,
+                nfp=s.nfp,
+                stellsym=s.stellsym,
+                coordinate_flag=pm_opt.coordinate_flag,
+                m_maxima=pm_opt.m_maxima,
+            )
             b_dipole.set_points(s.gamma().reshape((-1, 3)))
             # check Bn
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
