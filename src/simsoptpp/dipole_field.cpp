@@ -3,7 +3,8 @@
 #include "vec3dsimd.h"
 #include <Eigen/Dense>
 
-// Calculate the B field at a set of evaluation points from N dipoles
+// Calculate the B field at a set of evaluation points from N dipoles:
+// B = mu0 / (4 * pi) sum_{i=1}^num_dipoles 3(m_i * r_i)r_i / |r_i|^5 - m_i / |r_i|^3
 // points: where to evaluate the field
 // m_points: where the dipoles are located
 // m: dipole moments (vectors)
@@ -63,6 +64,7 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     return B;
 }
 
+// A = mu0 / (4 * pi) sum_{i=1}^num_dipoles m_i x r_i / |r_i|^3
 Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -116,6 +118,7 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     return A;
 }
 
+// dB/dX = mu0 / (4 * pi) sum_{i=1}^num_dipoles m_i x r_i / |r_i|^3
 Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -176,6 +179,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     return dB;
 }
 
+// dA/dX = mu0 / (4 * pi) sum_{i=1}^num_dipoles m_i x r_i / |r_i|^3
 Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -239,7 +243,19 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
     return dA;
 }
 
-// Calculate the geometric factor needed for the permanent magnet optimization
+// Calculate the geometric factor A needed for the permanent magnet optimization
+// Bnormal * n = A * m - b, where n is the unit normal to the plasma surface.
+// A = [g_1, ..., g_num_dipoles]
+// g_i = mu0 / (4 * pi) [3(n_i * r_i)r_i / |r_i|^5 - n_i / |r_i|^3]
+// points: where to evaluate the field
+// m_points: where the dipoles are located
+// unitnormal: unit normal vectors from the plasma surface
+// nfp: field-period symmetry of the plasma surface
+// stellsym: stellarator symmetry (True/False) of the plasma surface
+// b: Bnormal component corresponding to the non-magnet fields (e.g. external coils)
+// coordinate_flag: which coordinate system should be considered "grid-aligned"
+// R0: Major radius of the device, needed if a simple toroidal coordinate system is desired
+// returns the optimization matrix, or inductance, A
 std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag, double R0) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori

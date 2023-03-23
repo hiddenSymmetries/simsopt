@@ -112,6 +112,7 @@ class Testing(unittest.TestCase):
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
+        pm_opt.geo_setup()
 
         # Note that the rest of the optimization parameters are checked
         # interactively when python permanent_magnet_optimization.py True 
@@ -135,6 +136,14 @@ class Testing(unittest.TestCase):
         kwargs = initialize_default_kwargs('GPMO')
         with self.assertRaises(ValueError):
             GPMO(pm_opt, algorithm='backtracking', **kwargs)
+
+        with self.assertRaises(ValueError):
+            GPMO(pm_opt, algorithm='multi', **kwargs)
+
+        pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
+
+        with self.assertRaises(ValueError):
+            _, _, _ = relax_and_split(pm_opt)
 
         with self.assertRaises(ValueError):
             GPMO(pm_opt, algorithm='multi', **kwargs)
@@ -180,8 +189,15 @@ class Testing(unittest.TestCase):
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetGrid(s, filename=filename, dr=0.15, Bn=Bn)
+        pm_opt.geo_setup()
         _, _, _, = relax_and_split(pm_opt)
-        b_dipole = DipoleField(pm_opt)
+        b_dipole = DipoleField(
+            pm_opt.dipole_grid_xyz,
+            pm_opt.m_proxy,
+            nfp=s.nfp,
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+        )
         b_dipole.set_points(s.gamma().reshape(-1, 3))
 
         # check Bn

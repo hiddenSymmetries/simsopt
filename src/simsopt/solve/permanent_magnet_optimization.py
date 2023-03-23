@@ -19,7 +19,7 @@ def prox_l0(m, mmax, reg_l0, nu):
     ndipoles = len(m) // 3
     mmax_vec = np.array([mmax, mmax, mmax]).T
     m_normalized = (np.abs(m).reshape(ndipoles, 3) / mmax_vec).reshape(ndipoles * 3)
-    # in principle, hard threshold should be sqrt(2 * reg_l0 * nu)
+    # in principle, hard threshold should be sqrt(2 * reg_l0 * nu) but can always renormalize everything
     return m * (m_normalized > 2 * reg_l0 * nu)
 
 
@@ -132,6 +132,12 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
                 and the number of times a prox is computed.
             verbose: Prints out all the loss term errors separately.
     """
+
+    if not hasattr(pm_opt, "A_obj"):
+        raise ValueError(
+            "The PermanentMagnetClass needs to use geo_setup() or "
+            "geo_setup_from_famus() before calling optimization routines."
+        )
 
     # change to row-major order for the C++ code
     A_obj = np.ascontiguousarray(pm_opt.A_obj)
@@ -256,8 +262,15 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         facilitate some basic backtracking (error correction) and 
         placing magnets together so no isolated magnets occur. 
     Args:
-        algorithm_kwargs: Keyword argument dictionary for the GPMO algorithm.
+        algorithm_kwargs: Keyword argument dictionary for the GPMO algorithm
+        and its variants defined below.
     """
+    if not hasattr(pm_opt, "A_obj"):
+        raise ValueError(
+            "The PermanentMagnetClass needs to use geo_setup() or "
+            "geo_setup_from_famus() before calling optimization routines."
+        )
+
     # Begin the various algorithms
     errors = []
     m_history = []
