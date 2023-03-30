@@ -963,59 +963,67 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
                 // Loop over adjacent dipoles and check if a nearby one exceeds
                 // the maximum allowable angle difference
+                double min_cos_angle = 2.0; // initialize > max possible value
+                int cj_min;
                 for (int jj = 0; jj < Nadjacent; ++jj) {
 
                     int cj = Connect(kj, jj);
-                    int cm = x_vec[cj];
 
                     // Skip if dipole has not been placed
                     if (Gamma_complement(cj)) continue;
 
+                    // Evaluate angle between moments; save if greatest so far 
                     double cos_angle = 0;
                     for (int l = 0; l < 3; ++l) {
                         cos_angle += x(kj, l) * x(cj, l);
                     }
-
-                    if (cos_angle <= cos_thresh_angle) {
-
-                        // Subtract the pair's contribution to Aij * mj
-                        #pragma omp parallel for schedule(static)
-                        for (int i = 0; i < ngrid; ++i) {
-                            for (int l = 0; l < 3; ++l) {
-                                int A_ind_k = ngrid * (3*kj + l);
-                                int A_ind_c = ngrid * (3*cj + l);
-                                int pol_ind_k = l + 3*(kj*nPolVecs + km);
-                                int pol_ind_c = l + 3*(cj*nPolVecs + cm);
-                                Aij_mj_ptr[i] -= 
-                                    x_sign[kj] * pol_vec_ptr[pol_ind_k] 
-                                               * Aij_ptr[i + A_ind_k]
-                                  + x_sign[cj] * pol_vec_ptr[pol_ind_c]
-                                               * Aij_ptr[i + A_ind_c];
-                            }
-                        }
-
-                        // Reset the solution vectors
-                        for (int l = 0; l < 3; ++l) {
-                            x(kj, l) = 0.0;
-                            x(cj, l) = 0.0;
-                        }
-                        x_vec[kj] = 0;
-                        x_vec[cj] = 0;
-                        x_sign[kj] = 0;
-                        x_sign[cj] = 0;
-
-                        // Indicate that the pair is now available
-                        Gamma_complement(kj) = true;
-                        Gamma_complement(cj) = true;
-
-                        // Adjust running totals
-                        num_nonzero -= 2;
-                        wyrm_sum += 1;
-
-                        // Don't check more dipoles in vicinity of removed
-                        // magnet
-                        break;
+                    if (cos_angle < min_cos_angle) {
+                        min_cos_angle = cos_angle;
+                        cj_min = cj;
                     }
+
+                }
+
+                // If angle between dipole kj and the nearby magnet with the 
+                // max angle difference the threshold, eliminate the pair
+                if (min_cos_angle <= cos_thresh_angle) {
+
+                    int cm_min = x_vec[cj_min];
+
+                    // Subtract the pair's contribution to Aij * mj
+                    #pragma omp parallel for schedule(static)
+                    for (int i = 0; i < ngrid; ++i) {
+                        for (int l = 0; l < 3; ++l) {
+                            int A_ind_k = ngrid * (3*kj     + l);
+                            int A_ind_c = ngrid * (3*cj_min + l);
+                            int pol_ind_k = l + 3*(kj*nPolVecs     + km);
+                            int pol_ind_c = l + 3*(cj_min*nPolVecs + cm_min);
+                            Aij_mj_ptr[i] -= 
+                                x_sign[kj] * pol_vec_ptr[pol_ind_k] 
+                                           * Aij_ptr[i + A_ind_k]
+                              + x_sign[cj_min] * pol_vec_ptr[pol_ind_c]
+                                               * Aij_ptr[i + A_ind_c];
+                        }
+                    }
+
+                    // Reset the solution vectors
+                    for (int l = 0; l < 3; ++l) {
+                        x(kj, l) = 0.0;
+                        x(cj_min, l) = 0.0;
+                    }
+                    x_vec[kj] = 0;
+                    x_vec[cj_min] = 0;
+                    x_sign[kj] = 0;
+                    x_sign[cj_min] = 0;
+
+                    // Indicate that the pair is now available
+                    Gamma_complement(kj) = true;
+                    Gamma_complement(cj_min) = true;
+
+                    // Adjust running totals
+                    num_nonzero -= 2;
+                    wyrm_sum += 1;
+
                 }
             }
             printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum,
