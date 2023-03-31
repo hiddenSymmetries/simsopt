@@ -39,8 +39,8 @@ class ConstrainedProblem(Optimizable):
 
         \min_x f(x) 
         s.t. 
-          l_c \le c(x) \le u_c
-          Ax \le b
+          l_{nlc} \le c(x) \le u_{nlc}
+          l_{lc} \le Ax \le u_{lc}
           l_x \le x \le u_x
 
 
@@ -49,13 +49,16 @@ class ConstrainedProblem(Optimizable):
                   the Optimizable instances
         tuples_nlc: Nonlinear constraints as a sequence of triples containing 
                     the nonlinear constraint function c with lower and upper bounds
-                    i.e. `(c,l_c,u_c)`.
+                    i.e. `(c,l_{nlc},u_{nlc})`.
                     Constraint handle can (`c`) can be vector-valued or scalar-valued.
                     Constraint bounds can also be array or scalar.
                     Use +- np.inf to indicate unbounded components.
                     Define equality constraints by using equal upper and lower bounds.
-        tuple_lc: Linear constraints as a tuple containing the 2d-array A, and 1d array
-                  b, i.e. (A,b).
+        tuple_lc: Linear constraints as a triple containing the 2d-array A,
+                  lower bound `l_{lc}`, and upper bound `u_{lc}` and , i.e. `(A,l_{lc},u_{lc})`.
+                  Constraint bounds can be 1d arrays or scalars.
+                  Use +- np.inf in the bounds to indicate unbounded components.
+                  Define equality constraints by using equal upper and lower bounds.
         lb: float or 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
             If float is used, the float is set to the upper bound of all dofs.
             Set a componenent equal to the upper bound to enforce an equality constraints.
@@ -67,7 +70,7 @@ class ConstrainedProblem(Optimizable):
     def __init__(self,
                  f_obj: Callable,
                  tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
-                 tuple_lc: Tuple[RealArray, Union[RealArray, Real]] = None,
+                 tuple_lc: Tuple[RealArray, Union[RealArray, Real], Union[RealArray, Real]] = None,
                  lb: Union[Real, RealArray] = None,
                  ub: Union[Real, Array] = None,
                  fail: Union[None, float] = 1.0e12):
@@ -106,12 +109,14 @@ class ConstrainedProblem(Optimizable):
         # unpack the linear constraints
         if tuple_lc:
             A_lc = np.atleast_2d(tuple_lc[0])
-            b_lc = np.atleast_1d(tuple_lc[1])
-            if np.shape(A_lc)[0] != len(b_lc):
+            l_lc = np.atleast_1d(tuple_lc[1]) 
+            u_lc = np.atleast_1d(tuple_lc[2]) 
+            if (np.shape(A_lc)[0] != len(l_lc)) or (np.shape(A_lc)[0] != len(u_lc)):
                 raise ValueError(f"Linear constraint A and b do not have compatible shapes.")
 
             self.A_lc = A_lc
-            self.b_lc = b_lc
+            self.l_lc = l_lc
+            self.u_lc = u_lc
             self.has_lc = True
         else:
             self.has_lc = False
@@ -120,7 +125,8 @@ class ConstrainedProblem(Optimizable):
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """
-        Return the nonlinear constraint left hand side, c(x)
+        Evaluates the Nonlinear constraints, l_c <= c(x) <= u_c.
+        Returns an array [l_c - c(x), c(x) - u_c,...].
 
         Args:
             x: Degrees of freedom or state
