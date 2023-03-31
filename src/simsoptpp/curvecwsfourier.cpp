@@ -432,40 +432,12 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
                     if (!stellsym)
                     {
                         r_aux1 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                        z_aux1 += - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
+                        z_aux1 += -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
 
                         r_aux2 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
                         z_aux2 += -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
                     }
                 }
-                /* if (counter2 < 2 * (order + 1))
-                {
-                    int n = j - ntor;
-                    r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                    z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-
-                    if (!stellsym)
-                    {
-                        int n = j - ntor;
-                        r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                        z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i] - nfp * n * pphi);
-                    }
-                }
-                if (counter2 >= 2 * (order + 1))
-                {
-                    int n = j - ntor;
-                    r_array[counter2] = -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                    z_array[counter2] = zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-
-                    if (!stellsym)
-                    {
-                        int n = j - ntor;
-                        r_array[counter2] = r_array[counter2] + rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                        z_array[counter2] = z_array[counter2] - zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * ptheta - nfp * n * phi_array[i]);
-                    }
-                }
-
-                counter2++; */
             }
             r_array[i] = r_aux1;
             z_array[i] = z_aux1;
@@ -485,6 +457,110 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         }
     }
 };
+
+    /*
+    void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
+    {
+        {
+            CurveCWSFourier<Array>::set_dofs_surface(idofs);
+
+            data *= 0;
+
+    #pragma omp parallel for
+            for (int k = 0; k < numquadpoints; ++k)
+            {
+                double CWSt = 2 * M_PI * quadpoints[k];
+
+                double pphi = 0;
+                double ptheta = 0;
+                double dpphi = 0;
+                double dptheta = 0;
+
+                double r = 0;
+                double z = 0;
+
+                double dr = 0;
+                double dz = 0;
+
+                Array phi_array = xt::zeros<double>({2 * (order + 1)});
+                Array theta_array = xt::zeros<double>({2 * (order + 1)});
+
+                Array r_array = xt::zeros<double>({4 * (order + 1)});
+                Array z_array = xt::zeros<double>({4 * (order + 1)});
+
+                int counter = 0;
+
+                phi_array[counter] = CWSt;
+                phi_array[counter] = CWSt;
+
+                // Termos com Cossenos e as suas derivas
+                for (int i = 0; i < order + 1; ++i)
+                {
+                    phi_array[counter] = cos(i * CWSt);
+                    theta_array[counter] = cos(i * CWSt);
+                    counter++;
+
+                    pphi += phi_c[i] * cos(i * CWSt);
+                    ptheta += theta_c[i] * cos(i * CWSt);
+
+                    dpphi += -phi_c[i] * i * sin(i * CWSt);
+                    dptheta += -theta_c[i] * i * sin(i * CWSt);
+                }
+                // Termos com Senos e as suas derivas
+                for (int i = 1; i < order + 1; ++i)
+                {
+                    phi_array[counter] = sin(i * CWSt);
+                    theta_array[counter] = sin(i * CWSt);
+                    counter++;
+
+                    pphi += phi_s[i - 1] * sin(i * CWSt);
+                    ptheta += theta_s[i - 1] * sin(i * CWSt);
+
+                    dpphi += phi_s[i - 1] * i * cos(i * CWSt);
+                    dptheta += theta_s[i - 1] * i * cos(i * CWSt);
+                }
+
+                pphi += phi_l * CWSt;
+                ptheta += theta_l * CWSt;
+                dpphi += phi_l;
+                dptheta += theta_l;
+
+                // SURFACE
+                for (int m = 0; m <= mpol; ++m)
+                {
+                    for (int i = 0; i < 2 * ntor + 1; ++i)
+                    {
+                        int n = i - ntor;
+                        r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
+                        z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
+
+                        dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                        dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                    }
+                }
+                if (!stellsym)
+                {
+                    for (int m = 0; m <= mpol; ++m)
+                    {
+                        for (int i = 0; i < 2 * ntor + 1; ++i)
+                        {
+                            int n = i - ntor;
+                            r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
+                            z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
+
+                            dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                            dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                        }
+                    }
+                }
+
+                data(k, 0) = dr * cos(pphi) - r * sin(pphi) * dpphi;
+                data(k, 1) = dr * sin(pphi) + r * cos(pphi) * dpphi;
+                data(k, 2) = dz;
+            }
+        };
+    };
+    */
 
 #include "xtensor-python/pyarray.hpp" // Numpy bindings
 typedef xt::pyarray<double> Array;
