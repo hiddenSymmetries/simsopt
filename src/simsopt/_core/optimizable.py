@@ -1179,7 +1179,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.full_lower_bounds for opt in self.unique_dof_lineage])
 
     @full_lower_bounds.setter
-    def full_lower_bounds(self,lb) -> None:
+    def full_lower_bounds(self, lb) -> None:
         """
         Set the lower bounds of the fixed and free DOFS associated with the
         current Optimizable object and its ancestors.
@@ -1198,7 +1198,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.free_lower_bounds for opt in self.unique_dof_lineage])
 
     @lower_bounds.setter
-    def lower_bounds(self,lb) -> None:
+    def lower_bounds(self, lb) -> None:
         """
         Set the lower bounds of the free DOFS associated with the
         current Optimizable object and its ancestors.
@@ -1260,7 +1260,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.full_upper_bounds for opt in self.unique_dof_lineage])
 
     @full_upper_bounds.setter
-    def full_upper_bounds(self,ub) -> None:
+    def full_upper_bounds(self, ub) -> None:
         """
         Set the upper bounds of the fixed and free DOFS associated with the
         current Optimizable object and its ancestors.
@@ -1280,7 +1280,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
     @upper_bounds.setter
-    def upper_bounds(self,ub) -> None:
+    def upper_bounds(self, ub) -> None:
         """
         Set the upper bounds of the free DOFS associated with the
         current Optimizable object and its ancestors.

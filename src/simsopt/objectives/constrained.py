@@ -97,10 +97,9 @@ class ConstrainedProblem(Optimizable):
             self.has_lc = True
         else:
             self.has_lc = False
-          
+
         # make our class Optimizable
         super().__init__(funcs_in=funcs_in)
-
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """

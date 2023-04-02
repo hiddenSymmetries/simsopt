@@ -381,7 +381,7 @@ def constrained_serial_solve(prob: ConstrainedProblem,
     # prepare linear constraints
     constraints = []
     if prob.has_lc:
-      constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
+        constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
 
     # prepare bounds
     bounds = list(zip(*prob.bounds))
