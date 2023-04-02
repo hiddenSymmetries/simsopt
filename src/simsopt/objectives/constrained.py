@@ -95,15 +95,9 @@ class ConstrainedProblem(Optimizable):
 
         # unpack the linear constraints
         if tuple_lc:
-            A_lc = np.atleast_2d(tuple_lc[0])
-            l_lc = np.atleast_1d(tuple_lc[1]) 
-            u_lc = np.atleast_1d(tuple_lc[2]) 
-            if (np.shape(A_lc)[0] != len(l_lc)) or (np.shape(A_lc)[0] != len(u_lc)):
-                raise ValueError(f"Linear constraint A and b do not have compatible shapes.")
-
-            self.A_lc = A_lc
-            self.l_lc = l_lc
-            self.u_lc = u_lc
+            self.A_lc = np.asarray(tuple_lc[0])
+            self.l_lc = np.asarray(tuple_lc[1]) if np.ndim(tuple_lc[1]) else float(tuple_lc[1])
+            self.u_lc = np.asarray(tuple_lc[2]) if np.ndim(tuple_lc[2]) else float(tuple_lc[2])
             self.has_lc = True
         else:
             self.has_lc = False
