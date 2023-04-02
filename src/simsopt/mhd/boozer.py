@@ -60,7 +60,6 @@ class Boozer(Optimizable):
         self.equil = equil
         self.mpol = mpol
         self.ntor = ntor
-        self.verbose = verbose
         self.bx = booz_xform.Booz_xform()
         self.bx.verbose = verbose
         self.s = set()

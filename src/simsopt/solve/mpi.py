@@ -15,7 +15,7 @@ import traceback
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
-from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint
+from scipy.optimize import NonlinearConstraint, LinearConstraint
 
 try:
     from mpi4py import MPI
@@ -294,8 +294,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
     should call this function.
 
     Args:
-        prob: Optimizable object defining the objective function(s) and
-             parameter space.
+        prob: instance of ConstrainedProblem
         mpi: A MpiPartition object, storing the information about how
              the pool of MPI processes is divided into worker groups.
         grad: Whether to use a gradient-based optimization algorithm, as
@@ -430,17 +429,13 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         logger.debug(f"constraints are {constraint_val}")
         return constraint_val
 
-    # prepare bounds 
-    if prob.has_bounds:
-        bounds = Bounds(prob.lb, prob.ub)
-    else:
-        bounds = None
+    # prepare bounds
+    bounds = list(zip(*prob.bounds))
 
     # prepare linear constraints
     constraints = []
     if prob.has_lc:
-        lincon = LinearConstraint(prob.A_lc, lb=-np.inf, ub=prob.b_lc)
-        constraints.append(lincon)
+      constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
 
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
@@ -457,7 +452,6 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                     def nlc_jac(x):
                         # dummy wrapper for batch finite difference
                         return fd.jac(x)[1:]
-                    #nlc = NonlinearConstraint(_nlc_proc0, lb=prob.lhs_nlc, ub=prob.rhs_nlc, jac=nlc_jac)
                     nlc = NonlinearConstraint(_nlc_proc0, lb=-np.inf, ub=0.0, jac=nlc_jac)
                     constraints.append(nlc)
 
@@ -479,7 +473,6 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         if mpi.proc0_world:
             # proc0_world does this block, running the optimization.
             if prob.has_nlc:
-                #nlc = NonlinearConstraint(_nlc_proc0, lb=prob.lhs_nlc, ub=prob.rhs_nlc)
                 nlc = NonlinearConstraint(_nlc_proc0, lb=-np.inf, ub=0.0)
                 constraints.append(nlc)
             x0 = np.copy(prob.x)

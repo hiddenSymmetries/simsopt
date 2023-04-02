@@ -15,7 +15,7 @@ import logging
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
-from scipy.optimize import Bounds, LinearConstraint, NonlinearConstraint
+from scipy.optimize import NonlinearConstraint, LinearConstraint
 
 from ..objectives.least_squares import LeastSquaresProblem
 from ..objectives.constrained import ConstrainedProblem
@@ -377,17 +377,13 @@ def constrained_serial_solve(prob: ConstrainedProblem,
         n_constraint_evals += 1
         return constraint_val
 
-    # prepare bounds 
-    if prob.has_bounds:
-        bounds = Bounds(prob.lb, prob.ub)
-    else:
-        bounds = None
-
     # prepare linear constraints
     constraints = []
     if prob.has_lc:
-        lincon = LinearConstraint(prob.A_lc, lb=-np.inf, ub=prob.b_lc)
-        constraints.append(lincon)
+      constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
+
+    # prepare bounds
+    bounds = list(zip(*prob.bounds))
 
     logger.info("Beginning solve.")
 

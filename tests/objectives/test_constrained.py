@@ -13,19 +13,10 @@ class ConstrainedProblemTests(unittest.TestCase):
     def test_bound(self):
         # single variable
         iden = Identity()
-        prob = ConstrainedProblem(iden.f, lb=-2.0, ub=np.inf)
-        self.assertTrue(np.allclose(prob.lb, -2.0, 1e-14))
-        self.assertTrue(np.allclose(prob.ub, np.inf, 1e-14))
-        self.assertTrue(prob.has_bounds == True)
-        self.assertTrue(prob.has_lc == False)
-        self.assertTrue(prob.has_nlc == False)
-
-        # multivariable, scalar bounds
-        rosen = Rosenbrock()
-        prob = ConstrainedProblem(rosen.f, lb=-np.inf, ub=17.0)
-        self.assertTrue(np.allclose(prob.lb, -np.inf, 1e-14))
-        self.assertTrue(np.allclose(prob.ub, 17.0, 1e-14))
-        self.assertTrue(prob.has_bounds == True)
+        iden.lower_bounds = np.array([-2.0])
+        prob = ConstrainedProblem(iden.f)
+        self.assertTrue(np.allclose(prob.lower_bounds, iden.lower_bounds, 1e-14))
+        self.assertTrue(np.allclose(prob.upper_bounds, iden.upper_bounds, 1e-14))
         self.assertTrue(prob.has_lc == False)
         self.assertTrue(prob.has_nlc == False)
 
@@ -33,19 +24,11 @@ class ConstrainedProblemTests(unittest.TestCase):
         rosen = Rosenbrock()
         lb = [-np.inf, 0.0]
         ub = np.array([17.0, 4.0])
-        prob = ConstrainedProblem(rosen.f, lb=lb, ub=ub)
-        self.assertTrue(np.allclose(prob.lb, lb, 1e-14))
-        self.assertTrue(np.allclose(prob.ub, ub, 1e-14))
-        self.assertTrue(prob.has_bounds == True)
-        self.assertTrue(prob.has_lc == False)
-        self.assertTrue(prob.has_nlc == False)
-
-        # multivariable, one sided bounds
-        rosen = Rosenbrock()
-        lb = [-np.inf, 0.0]
-        prob = ConstrainedProblem(rosen.f, lb=lb)
-        self.assertTrue(np.allclose(prob.lb, lb, 1e-14))
-        self.assertTrue(prob.has_bounds == True)
+        rosen.lower_bounds = lb
+        rosen.upper_bounds = ub
+        prob = ConstrainedProblem(rosen.f)
+        self.assertTrue(np.allclose(prob.lower_bounds, lb, 1e-14))
+        self.assertTrue(np.allclose(prob.upper_bounds, ub, 1e-14))
         self.assertTrue(prob.has_lc == False)
         self.assertTrue(prob.has_nlc == False)
 
@@ -76,25 +59,15 @@ class ConstrainedProblemTests(unittest.TestCase):
 
     def test_linear(self):
 
-        # multivariate linear constraints with wrong shape
-        rosen = Rosenbrock()
-        A = np.random.randn(2)
-        b = 7
-        prob = ConstrainedProblem(rosen.f, tuple_lc=(A, b))
-        self.assertTrue(np.allclose(prob.A_lc, np.atleast_2d(A), 1e-14))
-        self.assertTrue(np.allclose(prob.b_lc, np.atleast_1d(b), 1e-14))
-        self.assertTrue(prob.has_bounds == False)
-        self.assertTrue(prob.has_lc == True)
-        self.assertTrue(prob.has_nlc == False)
-
         # multivariate linear constraints
         rosen = Rosenbrock()
         A = np.random.randn(3, 2)
+        a = 0.0
         b = np.random.randn(3)
-        prob = ConstrainedProblem(rosen.f, tuple_lc=(A, b))
+        prob = ConstrainedProblem(rosen.f, tuple_lc=(A, a, b))
         self.assertTrue(np.allclose(prob.A_lc, A, 1e-14))
-        self.assertTrue(np.allclose(prob.b_lc, b, 1e-14))
-        self.assertTrue(prob.has_bounds == False)
+        self.assertTrue(np.allclose(prob.l_lc, np.atleast_1d(a), 1e-14))
+        self.assertTrue(np.allclose(prob.u_lc, b, 1e-14))
         self.assertTrue(prob.has_lc == True)
         self.assertTrue(prob.has_nlc == False)
 
@@ -152,7 +125,6 @@ class ConstrainedProblemTests(unittest.TestCase):
         rosen = Rosenbrock()
         prob = ConstrainedProblem(rosen.f)
         self.assertTrue(np.allclose(prob.objective(), rosen.f(), 1e-12))
-        self.assertTrue(prob.has_bounds == False)
         self.assertTrue(prob.has_lc == False)
         self.assertTrue(prob.has_nlc == False)
 
