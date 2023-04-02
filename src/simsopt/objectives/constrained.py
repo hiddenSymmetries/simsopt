@@ -3,7 +3,7 @@
 # Distributed under the terms of the LGPL License
 
 """
-Provides the ConstrainedProblem class implemented using the new graph based
+Provides the ConstrainedProblem class implemented using the graph based
 optimization framework.
 """
 
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import warnings
-from collections.abc import Sequence as ABC_Sequence
 from typing import Union, Callable, Tuple, Sequence
 from numbers import Real
 
@@ -19,13 +18,11 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
-from .._core.types import RealArray, IntArray, BoolArray
+from .._core.types import RealArray
 
 __all__ = ['ConstrainedProblem']
 
 logger = logging.getLogger(__name__)
-
-StrSeq = Union[Sequence, Sequence[Sequence[str]]]
 
 
 class ConstrainedProblem(Optimizable):
@@ -41,7 +38,6 @@ class ConstrainedProblem(Optimizable):
         s.t. 
           l_{nlc} \le c(x) \le u_{nlc}
           l_{lc} \le Ax \le u_{lc}
-          l_x \le x \le u_x
 
     Bound constraints should be specified directly through the Optimizable objects. 
     For instance, with an optimizable object `v` we can set the 
@@ -52,8 +48,8 @@ class ConstrainedProblem(Optimizable):
     The upper bound of a single dof can be set with `v.set_upper_bound(dof_name,value)`.
 
     Args:
-        f_obj: objective function handle (Generally one of the output functions of
-                  the Optimizable instances
+        f_obj: objective function handle (generally one of the output functions of
+            the Optimizable instances)
         tuples_nlc: Nonlinear constraints as a sequence of triples containing 
                     the nonlinear constraint function c with lower and upper bounds
                     i.e. `[(c,l_{nlc},u_{nlc}), ...]`.
@@ -232,5 +228,4 @@ class ConstrainedProblem(Optimizable):
             out = np.concatenate((out, f_nlc))
         return out
 
-    #return_fn_map = {'residuals': residuals, 'objective': objective}
 

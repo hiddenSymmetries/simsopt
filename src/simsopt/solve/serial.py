@@ -274,24 +274,26 @@ def constrained_serial_solve(prob: ConstrainedProblem,
     scipy.optimize, and without using any parallelization.
 
     Args:
-        prob: ConstrainedProblem object defining the objective function(s)
-             and parameter space.
+        prob: :obj:`~simsopt.objectives.ConstrainedProblem` object defining the
+            objective function, parameter space, and constraints.
         grad: Whether to use a gradient-based optimization algorithm, as
-             opposed to a gradient-free algorithm. If unspecified, a
-             a gradient-free algorithm
-             will be used by default. If you set ``grad=True`` for a problem,
-             finite-difference gradients will be used.
+            opposed to a gradient-free algorithm. If unspecified, a
+            a gradient-free algorithm
+            will be used by default. If you set ``grad=True`` for a problem,
+            finite-difference gradients will be used.
         abs_step: Absolute step size for finite difference jac evaluation
         rel_step: Relative step size for finite difference jac evaluation
-        diff_method: Differentiation strategy. Options are ``"centered"``, and
-             ``"forward"``. If ``"centered"``, centered finite differences will
-             be used. If ``"forward"``, one-sided finite differences will
-             be used. Else, error is raised.
-        opt_method: Constrained solver to use: One of "SLSQP", "trust-constr", or "COBYLA". 
-        Use "COBYLA" for derivative-free optimization. See `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_. for
-        a description of the methods.
-        options: dict, `options`` keyword which is passed to
-                `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
+        diff_method: Differentiation strategy. Options are ``"centered"`` and
+            ``"forward"``. If ``"centered"``, centered finite differences will
+            be used. If ``"forward"``, one-sided finite differences will
+            be used. For other settings, an error is raised.
+        opt_method: Constrained solver to use: One of ``"SLSQP"``,
+            ``"trust-constr"``, or ``"COBYLA"``. Use ``"COBYLA"`` for
+            derivative-free optimization. See
+            `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
+            for a description of the methods.
+        options: dict, ``options`` keyword which is passed to
+            `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
 
     datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -306,7 +308,6 @@ def constrained_serial_solve(prob: ConstrainedProblem,
 
     def _obj(x):
         nonlocal objective_datalog_started, objective_file, n_objective_evals
-        #success = True
         try:
             objective_val = prob.objective(x)
         except:

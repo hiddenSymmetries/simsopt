@@ -53,7 +53,9 @@ class TestFunc1(Optimizable):
         return np.sum(self.full_x)
 
 
-class ConstrainedSolveTests(unittest.TestCase):
+# "mpi" is included in the class name so the tests are discovered by
+# run_tests_mpi.
+class ConstrainedSolveTests_mpi(unittest.TestCase):
 
     def test_bound_constrained(self):
         grads = [True, False]
@@ -68,8 +70,8 @@ class ConstrainedSolveTests(unittest.TestCase):
             for grad in grads:
                 prob.x = np.zeros(2)
                 solver(prob, grad=grad, options=options)
-                self.assertTrue(np.allclose(prob.x, np.ones(2), atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
+                np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
+                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
         # bound constraints with vector bounds
         rosen = Rosenbrock()
@@ -83,8 +85,8 @@ class ConstrainedSolveTests(unittest.TestCase):
             for grad in grads:
                 prob.x = np.zeros(2)
                 solver(prob, grad=grad, options=options)
-                self.assertTrue(np.allclose(prob.x, np.ones(2), atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
+                np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
+                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
     def test_linear(self):
         grads = [True, False]
@@ -102,8 +104,8 @@ class ConstrainedSolveTests(unittest.TestCase):
             for grad in grads:
                 prob.x = np.zeros(2)
                 solver(prob, grad=grad, options=options)
-                self.assertTrue(np.allclose(prob.x, np.ones(2), atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
+                np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
+                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
         # QP program
         tester = TestFunc1(2, 2)
@@ -117,8 +119,8 @@ class ConstrainedSolveTests(unittest.TestCase):
             for grad in grads:
                 prob.x = np.zeros(2)
                 solver(prob, grad=grad, options=options)
-                self.assertTrue(np.allclose(prob.x, 0.25*np.ones(2), atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(), 0.125, atol=1e-3))
+                np.testing.assert_allclose(prob.x, 0.25*np.ones(2), atol=1e-3)
+                np.testing.assert_allclose(prob.objective(), 0.125, atol=1e-3)
 
     def test_nlc(self):
         grads = [True, False]
@@ -131,8 +133,8 @@ class ConstrainedSolveTests(unittest.TestCase):
             for grad in grads:
                 prob.x = np.ones(2)
                 solver(prob, grad=grad, options=options)
-                self.assertTrue(np.allclose(prob.x, np.zeros(2), atol=1e-3))
-                self.assertTrue(np.allclose(prob.objective(), 0.0, atol=1e-3))
+                np.testing.assert_allclose(prob.x, np.zeros(2), atol=1e-3)
+                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
 
 if __name__ == "__main__":
