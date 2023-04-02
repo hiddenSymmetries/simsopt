@@ -752,10 +752,61 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(test_obj1(), 2.5)
 
     def test_bounds(self):
-        pass
+        """
+        Test the getting and setting of fixed and free variables from 
+        an Optimizable.
+        """
+        adder = Adder(n=3, x0=[1, 2, 3], names=['x', 'y', 'z'])
+        adder.fix('y')
+        adder.fix('z')
+
+        # set the bounds of all dofs
+        adder.lower_bounds = np.zeros(1)
+        adder.upper_bounds = np.array([17])
+        self.assertAlmostEqual(adder.lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.local_lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.upper_bounds, np.array([17]))
+        self.assertAlmostEqual(adder.local_upper_bounds,np.array([17]))
+
+        # set the local bounds
+        adder.local_lower_bounds = np.zeros(1)
+        adder.local_upper_bounds = np.array([18])
+        self.assertAlmostEqual(adder.lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.local_lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.upper_bounds, np.array([18]))
+        self.assertAlmostEqual(adder.local_upper_bounds,np.array([18]))
+
+        # set a bound one at a time
+        adder.set_lower_bound('x', 0)
+        adder.set_upper_bound('x', 1)
+        adder.set_lower_bound('z', 7) # set a fixed variable
+        self.assertTrue(np.allclose(adder.full_lower_bounds, np.array([0,-np.inf,7])))
+        self.assertTrue(np.allclose(adder.full_upper_bounds, np.array([1,np.inf,np.inf])))
 
     def test_local_bounds(self):
         pass
+
+    def test_full_bounds(self):
+        """
+        Test the getting and setting of fixed and free variables from 
+        an Optimizable with ancestors
+        """
+        iden = Identity(x=10, dof_fixed=False)
+        adder = Adder(n=3, x0=[1, 2, 3], names=['x', 'y', 'z'])
+        adder.fix('y')
+        adder.fix('z')
+        opt = iden + adder
+
+        # check free variables
+        adder.set_lower_bound('x',0.0)
+        iden.upper_bounds = np.ones(1)
+        self.assertTrue(np.allclose(opt.lower_bounds, np.array([0,-np.inf])))
+        self.assertTrue(np.allclose(opt.upper_bounds, np.array([np.inf,1])))
+
+        # check free and fixed variables
+        adder.set_lower_bound('z',5) # fixed
+        self.assertTrue(np.allclose(opt.full_lower_bounds, np.array([0,-np.inf,5,-np.inf])))
+        self.assertTrue(np.allclose(opt.full_upper_bounds, np.array([np.inf,np.inf,np.inf,1])))
 
     def test_lower_bounds(self):
         pass

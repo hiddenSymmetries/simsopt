@@ -43,36 +43,36 @@ class ConstrainedProblem(Optimizable):
           l_{lc} \le Ax \le u_{lc}
           l_x \le x \le u_x
 
+    Bound constraints should be specified directly through the Optimizable objects. 
+    For instance, with an optimizable object `v` we can set the 
+    upper bounds of the free DOFs associated with the current Optimizable object 
+    and those of its ancestors via `v.upper_bounds = ub` where ub is a 1d-array. 
+    To set the upper bounds on the free dofs of a single optimizable object (and not
+    it's ancestors) use `v.local_upper_bounds = ub`.
+    The upper bound of a single dof can be set with `v.set_upper_bound(dof_name,value)`.
 
     Args:
         f_obj: objective function handle (Generally one of the output functions of
                   the Optimizable instances
         tuples_nlc: Nonlinear constraints as a sequence of triples containing 
                     the nonlinear constraint function c with lower and upper bounds
-                    i.e. `(c,l_{nlc},u_{nlc})`.
+                    i.e. `[(c,l_{nlc},u_{nlc}), ...]`.
                     Constraint handle can (`c`) can be vector-valued or scalar-valued.
                     Constraint bounds can also be array or scalar.
                     Use +- np.inf to indicate unbounded components.
                     Define equality constraints by using equal upper and lower bounds.
         tuple_lc: Linear constraints as a triple containing the 2d-array A,
-                  lower bound `l_{lc}`, and upper bound `u_{lc}` and , i.e. `(A,l_{lc},u_{lc})`.
+                  lower bound `l_{lc}`, and upper bound `u_{lc}`, 
+                  i.e. `(A,l_{lc},u_{lc})`.
                   Constraint bounds can be 1d arrays or scalars.
                   Use +- np.inf in the bounds to indicate unbounded components.
                   Define equality constraints by using equal upper and lower bounds.
-        lb: float or 1d-array of lower bounds, -np.inf can be used if an entry is unconstrained.
-            If float is used, the float is set to the upper bound of all dofs.
-            Set a componenent equal to the upper bound to enforce an equality constraints.
-        ub: float or 1d-array of upper bounds, np.inf can be used if an entry is unconstrained
-            If float is used, the float is set to the upper bound of all dofs.
-            Set a componenent equal to the lower bound to enforce an equality constraints.
     """
 
     def __init__(self,
                  f_obj: Callable,
                  tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
                  tuple_lc: Tuple[RealArray, Union[RealArray, Real], Union[RealArray, Real]] = None,
-                 lb: Union[Real, RealArray] = None,
-                 ub: Union[Real, Array] = None,
                  fail: Union[None, float] = 1.0e12):
 
         self.fail = fail
@@ -81,19 +81,6 @@ class ConstrainedProblem(Optimizable):
         self.nvals = 0
         self.first_eval_obj = True
         self.first_eval_con = True
-
-        self.has_bounds = False
-        if lb is None:
-            self.lb = -np.inf
-        else:
-            self.lb = np.asarray(lb) if np.ndim(lb) else float(lb)
-            self.has_bounds = True
-
-        if ub is None:
-            self.ub = np.inf
-        else:
-            self.ub = np.asarray(ub) if np.ndim(ub) else float(ub)
-            self.has_bounds = True
 
         # unpack the nonlinear constraints
         if tuples_nlc is not None:
@@ -120,8 +107,10 @@ class ConstrainedProblem(Optimizable):
             self.has_lc = True
         else:
             self.has_lc = False
-
+          
+        # make our class Optimizable
         super().__init__(funcs_in=funcs_in)
+
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """

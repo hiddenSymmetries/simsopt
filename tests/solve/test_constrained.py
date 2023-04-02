@@ -60,7 +60,9 @@ class ConstrainedSolveTests(unittest.TestCase):
 
         # bound constraints with scalar bounds
         rosen = Rosenbrock()
-        prob = ConstrainedProblem(rosen.f, lb=0.0, ub=5.0)
+        rosen.lower_bounds = np.zeros(len(rosen.x))
+        rosen.upper_bounds = 5*np.ones(len(rosen.x))
+        prob = ConstrainedProblem(rosen.f)
         options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
@@ -73,7 +75,9 @@ class ConstrainedSolveTests(unittest.TestCase):
         rosen = Rosenbrock()
         lb = np.array([-np.inf, 0.0])
         ub = [1.5, np.inf]
-        prob = ConstrainedProblem(rosen.f, lb=lb, ub=ub)
+        rosen.lower_bounds = lb
+        rosen.upper_bounds = ub
+        prob = ConstrainedProblem(rosen.f)
         options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
@@ -90,7 +94,9 @@ class ConstrainedSolveTests(unittest.TestCase):
         b = np.array([10.0])
         lb = np.array([-np.inf, 0.0])
         ub = [1.5, np.inf]
-        prob = ConstrainedProblem(rosen.f, lb=lb, ub=ub, tuple_lc=(A, b))
+        rosen.lower_bounds = lb
+        rosen.upper_bounds = ub
+        prob = ConstrainedProblem(rosen.f, tuple_lc=(A, -np.inf, b))
         options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:
             for grad in grads:
@@ -103,7 +109,8 @@ class ConstrainedSolveTests(unittest.TestCase):
         tester = TestFunc1(2, 2)
         A = np.atleast_2d(-np.ones(2))
         b = np.array([-.5])
-        prob = ConstrainedProblem(tester.f2, lb=0.0, ub=np.inf, tuple_lc=(A, b))
+        tester.lower_bounds = np.zeros(len(tester.x))
+        prob = ConstrainedProblem(tester.f2, tuple_lc=(A, -np.inf, b))
         prob.x = np.ones(2)
         options = {'ftol': 1e-9, 'maxiter': 2000}
         for solver in solvers:

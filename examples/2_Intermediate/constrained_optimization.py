@@ -72,6 +72,12 @@ for step in range(3):
                      nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)")  # Major radius
 
+    # put bound constraints on the variables
+    n_dofs = len(surf.x)
+    surf.upper_bounds = 10*np.ones(n_dofs)
+    surf.lower_bounds = -5*np.ones(n_dofs)
+    surf.set_upper_bound("rc(1,0)",1.0)
+
     # solver options
     options = {'disp': True, 'ftol': 1e-7, 'maxiter': 1}
     # solve the problem
