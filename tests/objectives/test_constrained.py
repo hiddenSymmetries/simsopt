@@ -55,7 +55,7 @@ class ConstrainedProblemTests(unittest.TestCase):
         fail = Failer(nparams=2, nvals=0, fail_index=2)
         prob = ConstrainedProblem(fail.J, tuples_nlc=[(fail.J, 0.0, 1.0)])
         prob.nonlinear_constraints(prob.x)
-        self.assertTrue(np.allclose(prob.nonlinear_constraints(prob.x + 1), np.full(2, prob.fail), 1e-12))
+        np.testing.assert_allclose(prob.nonlinear_constraints(prob.x + 1), np.full(2, prob.fail), 1e-12)
 
     def test_linear(self):
 
@@ -78,20 +78,20 @@ class ConstrainedProblemTests(unittest.TestCase):
         lb = np.array([-1.0, 0.0])
         ub = np.array([10.0, np.inf])
         prob = ConstrainedProblem(rosen.f, tuples_nlc=[(rosen.f, lb, ub)])
-        self.assertTrue(np.allclose(prob.lhs_nlc, [lb], 1e-12))
-        self.assertTrue(np.allclose(prob.rhs_nlc, [ub], 1e-12))
+        np.testing.assert_allclose(prob.lhs_nlc, [lb], 1e-12)
+        np.testing.assert_allclose(prob.rhs_nlc, [ub], 1e-12)
         correct_val = np.concatenate([lb - rosen.f(), rosen.f() - ub])
-        self.assertTrue(np.allclose(prob.nonlinear_constraints(), correct_val, 1e-12))
+        np.testing.assert_allclose(prob.nonlinear_constraints(), correct_val, 1e-12)
         self.assertTrue(prob.has_nlc == True)
 
         # vector valued constraints, scalar bounds
         rosen = Rosenbrock()
         aff = Affine(3, 2)
         prob = ConstrainedProblem(rosen.f, tuples_nlc=[(aff.f, -np.inf, 8.0)])
-        self.assertTrue(np.allclose(prob.lhs_nlc, [-np.inf], 1e-12))
-        self.assertTrue(np.allclose(prob.rhs_nlc, [8.0], 1e-12))
-        correct_val = aff.A @ aff. x + aff.B - 8.0
-        self.assertTrue(np.allclose(prob.nonlinear_constraints(), [correct_val], 1e-12))
+        np.testing.assert_allclose(prob.lhs_nlc, [-np.inf], 1e-12)
+        np.testing.assert_allclose(prob.rhs_nlc, [8.0], 1e-12)
+        correct_val = aff.A @ aff.x + aff.B - 8.0
+        np.testing.assert_allclose(prob.nonlinear_constraints(), correct_val, 1e-12)
         self.assertTrue(prob.has_nlc == True)
 
         # vector valued constraints, vector bounds
@@ -100,10 +100,10 @@ class ConstrainedProblemTests(unittest.TestCase):
         lb = np.array([-1.0, 0.0])
         ub = np.array([10.0, np.inf])
         prob = ConstrainedProblem(rosen.f, tuples_nlc=[(aff.f, lb, ub)])
-        self.assertTrue(np.allclose(prob.lhs_nlc, [lb], 1e-12))
-        self.assertTrue(np.allclose(prob.rhs_nlc, [ub], 1e-12))
-        correct_val = np.concatenate([lb - (aff.A @ aff. x + aff.B), aff.A @ aff. x + aff.B - ub])
-        self.assertTrue(np.allclose(prob.nonlinear_constraints(), correct_val, 1e-12))
+        np.testing.assert_allclose(prob.lhs_nlc, [lb], 1e-12)
+        np.testing.assert_allclose(prob.rhs_nlc, [ub], 1e-12)
+        correct_val = np.concatenate([lb - (aff.A @ aff.x + aff.B), aff.A @ aff.x + aff.B - ub])
+        np.testing.assert_allclose(prob.nonlinear_constraints(), correct_val, 1e-12)
         self.assertTrue(prob.has_nlc == True)
 
         # multiple constraints
@@ -112,13 +112,13 @@ class ConstrainedProblemTests(unittest.TestCase):
         lb = np.array([-1.0, 0.0])
         ub = np.array([10.0, np.inf])
         prob = ConstrainedProblem(rosen.f, tuples_nlc=[(aff.f, lb, ub), (rosen.f, 0.0, 8.0)])
-        self.assertTrue(np.allclose(prob.lhs_nlc[0], lb, 1e-12))
-        self.assertTrue(np.allclose(prob.rhs_nlc[0], ub, 1e-12))
-        self.assertTrue(np.allclose(prob.lhs_nlc[1], 0.0, 1e-12))
-        self.assertTrue(np.allclose(prob.rhs_nlc[1], 8.0, 1e-12))
-        correct_val = np.concatenate([lb - (aff.A @ aff. x + aff.B), aff.A @ aff. x + aff.B - ub,
-                                      [0.0-rosen.f()], [rosen.f()-8.0]])
-        self.assertTrue(np.allclose(prob.nonlinear_constraints(), correct_val, 1e-12))
+        np.testing.assert_allclose(prob.lhs_nlc[0], lb, 1e-12)
+        np.testing.assert_allclose(prob.rhs_nlc[0], ub, 1e-12)
+        np.testing.assert_allclose(prob.lhs_nlc[1], 0.0, 1e-12)
+        np.testing.assert_allclose(prob.rhs_nlc[1], 8.0, 1e-12)
+        correct_val = np.concatenate([lb - (aff.A @ aff.x + aff.B), aff.A @ aff.x + aff.B - ub,
+                                      [0.0 - rosen.f()], [rosen.f() - 8.0]])
+        np.testing.assert_allclose(prob.nonlinear_constraints(), correct_val, 1e-12)
         self.assertTrue(prob.has_nlc == True)
 
     def test_unconstrained(self):

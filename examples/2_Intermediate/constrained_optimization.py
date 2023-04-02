@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
+import os
+
 import numpy as np
+
 from simsopt.util.mpi import MpiPartition
-from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual
+from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import ConstrainedProblem
 from simsopt.solve.mpi import constrained_mpi_solve
-import os
 
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=-1)
@@ -18,8 +19,10 @@ s.t.
   aspect ratio <= 8
   -1.05 <= iota <= -1
 
-Run with 
+Run with e.g.
   mpiexec -n 48 constrained_optimization.py
+
+(Any number of processors will work.)
 """
 
 mpi = MpiPartition()
@@ -27,7 +30,7 @@ mpi.write()
 
 if mpi.proc0_world:
     print("Running 2_Intermediate/constrained_optimization.py")
-    print("=============================================")
+    print("==================================================")
 
 
 vmec_input = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
@@ -53,7 +56,7 @@ if mpi.proc0_world:
 
 # Fourier modes of the boundary with m <= max_mode and |n| <= max_mode
 # will be varied in the optimization. A larger range of modes are
-# included in the VMEC and booz_xform calculations.
+# included in the VMEC calculations.
 for step in range(3):
     max_mode = step + 1
 
@@ -103,5 +106,5 @@ for step in range(3):
 if mpi.proc0_world:
     print("")
     print("End of 2_Intermediate/constrained_optimization.py")
-    print("============================================")
+    print("=================================================")
 
