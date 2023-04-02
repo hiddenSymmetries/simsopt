@@ -438,7 +438,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
     # prepare linear constraints
     constraints = []
     if prob.has_lc:
-      constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
+        constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
 
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
