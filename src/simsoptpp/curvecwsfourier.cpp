@@ -141,6 +141,7 @@ void CurveCWSFourier<Array>::gammadash_impl(Array &data)
         data(k, 1) = dr * sin(pphi) + r * cos(pphi) * dpphi;
         data(k, 2) = dz;
     }
+    data *= (2 * M_PI);
 };
 
 template <class Array>
@@ -238,6 +239,7 @@ void CurveCWSFourier<Array>::gammadashdash_impl(Array &data)
         data(k, 1) = ddr * sin(pphi) + 2 * (dr * cos(pphi) * dpphi) - r * sin(pphi) * pow(dpphi, 2) + r * cos(pphi) * ddpphi;
         data(k, 2) = ddz;
     }
+    data *= 2 * M_PI * 2 * M_PI;
 };
 
 template <class Array>
@@ -351,6 +353,8 @@ void CurveCWSFourier<Array>::gammadashdashdash_impl(Array &data)
         data(k, 1) = ddd_r * sin(pphi) + ddr * cos(pphi) * dpphi + 2 * (ddr * cos(pphi) * dpphi) - 2 * (dr * sin(pphi) * pow(dpphi, 2)) + 2 * (dr * cos(pphi) * ddpphi) - dr * sin(pphi) * pow(dpphi, 2) - r * cos(pphi) * pow(dpphi, 3) - r * sin(pphi) * 2 * dpphi * ddpphi + dr * cos(pphi) * ddpphi - r * sin(pphi) * dpphi * ddpphi + r * cos(pphi) * ddd_pphi;
         data(k, 2) = ddd_z;
     }
+    data *= 2*M_PI*2*M_PI*2*M_PI;
+
 };
 
 template <class Array>
