@@ -75,7 +75,6 @@ void CurveCWSFourier<Array>::gammadash_impl(Array &data)
         double dptheta = 0;
 
         double r = 0;
-        double z = 0;
 
         double dr = 0;
         double dz = 0;
@@ -113,8 +112,6 @@ void CurveCWSFourier<Array>::gammadash_impl(Array &data)
             {
                 int n = i - ntor;
                 r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
-                // z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
-
                 dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
                 dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
 
@@ -122,8 +119,6 @@ void CurveCWSFourier<Array>::gammadash_impl(Array &data)
                 {
                     int n = i - ntor;
                     r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
-                    // z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
-
                     dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
                     dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
                 }
@@ -155,9 +150,7 @@ void CurveCWSFourier<Array>::gammadashdash_impl(Array &data)
         double ddptheta = 0;
 
         double r = 0;
-        double z = 0;
         double dr = 0;
-        double dz = 0;
         double ddr = 0;
         double ddz = 0;
 
@@ -200,11 +193,7 @@ void CurveCWSFourier<Array>::gammadashdash_impl(Array &data)
             {
                 int n = i - ntor;
                 r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
-                // z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
-
                 dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-                // dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-
                 ddr += -rc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
                 ddz += -zs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
 
@@ -212,11 +201,7 @@ void CurveCWSFourier<Array>::gammadashdash_impl(Array &data)
                 {
                     int n = i - ntor;
                     r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
-                    // z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
-
                     dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-                    // dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-
                     ddr += -rs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
                     ddz += -zc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
                 }
@@ -250,11 +235,8 @@ void CurveCWSFourier<Array>::gammadashdashdash_impl(Array &data)
         double ddd_ptheta = 0;
 
         double r = 0;
-        double z = 0;
         double dr = 0;
-        double dz = 0;
         double ddr = 0;
-        double ddz = 0;
         double ddd_r = 0;
         double ddd_z = 0;
 
@@ -303,14 +285,8 @@ void CurveCWSFourier<Array>::gammadashdashdash_impl(Array &data)
             {
                 int n = i - ntor;
                 r += rc(m, i) * cos(m * ptheta - nfp * n * pphi);
-                // z += zs(m, i) * sin(m * ptheta - nfp * n * pphi);
-
                 dr += -rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-                // dz += zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-
                 ddr += -rc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
-                // ddz += -zs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
-
                 ddd_r += rc(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - rc(m, i) * cos(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - rc(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
                 ddd_z += -zs(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - zs(m, i) * sin(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - zs(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) + zs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
 
@@ -318,14 +294,8 @@ void CurveCWSFourier<Array>::gammadashdashdash_impl(Array &data)
                 {
                     int n = i - ntor;
                     r += rs(m, i) * sin(m * ptheta - nfp * n * pphi);
-                    // z += zc(m, i) * cos(m * ptheta - nfp * n * pphi);
-
                     dr += rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-                    // dz += -zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-
                     ddr += -rs(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) + rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
-                    // ddz += -zc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
-
                     ddd_r += -rs(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - rs(m, i) * sin(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - rs(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) + rs(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
                     ddd_z += zc(m, i) * sin(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 3) - zc(m, i) * cos(m * ptheta - nfp * n * pphi) * 2 * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - zc(m, i) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * ddptheta - nfp * n * ddpphi) - zc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddd_ptheta - nfp * n * ddd_pphi);
                 }
@@ -352,19 +322,17 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
 
         double pphi = 0;
         double ptheta = 0;
-
         Array phi_array = xt::zeros<double>({2 * (order + 1)});
         Array theta_array = xt::zeros<double>({2 * (order + 1)});
 
         Array r_array = xt::zeros<double>({4 * (order + 1)});
         Array z_array = xt::zeros<double>({4 * (order + 1)});
-
-        int counter = 0;
-
         double r_aux1 = 0;
         double z_aux1 = 0;
         double r_aux2 = 0;
         double z_aux2 = 0;
+        
+        int counter = 0;
 
         phi_array[counter] = CWSt;
         theta_array[counter] = CWSt;
@@ -457,36 +425,29 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
         double pphi = 0;
         double ptheta = 0;
-        double dpphi = 0;
-        double dptheta = 0;
-
-        double r = 0;
-        double z = 0;
-
-        double dr = 0;
-        double dz = 0;
-
         Array phi_array = xt::zeros<double>({2 * (order + 1)});
         Array theta_array = xt::zeros<double>({2 * (order + 1)});
-
+        
+        double dpphi = 0;
+        double dptheta = 0;
         Array dphi_array = xt::zeros<double>({2 * (order + 1)});
         Array dtheta_array = xt::zeros<double>({2 * (order + 1)});
 
+        double r = 0;  
+        double dr = 0;
         Array r_array = xt::zeros<double>({4 * (order + 1)});
-        Array z_array = xt::zeros<double>({4 * (order + 1)});
         Array dr_array = xt::zeros<double>({4 * (order + 1)});
         Array dz_array = xt::zeros<double>({4 * (order + 1)});
-
-        int counter = 0;
+        
 
         double r_aux1 = 0;
-        // double z_aux1 = 0;
         double r_aux2 = 0;
-        // double z_aux2 = 0;
         double dr_aux1 = 0;
-        double dz_aux1 = 0;
         double dr_aux2 = 0;
+        double dz_aux1 = 0;
         double dz_aux2 = 0;
+        
+        int counter = 0;
 
         theta_array[counter] = CWSt;
         phi_array[counter] = CWSt;
@@ -538,12 +499,10 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
         for (int i = 0; i < counter; ++i)
         {
             r_aux1 = 0;
-            // z_aux1 = 0;
-            r_aux2 = 0;
-            // z_aux2 = 0;
+            r_aux2 = 0;     
             dr_aux1 = 0;
-            dz_aux1 = 0;
             dr_aux2 = 0;
+            dz_aux1 = 0;
             dz_aux2 = 0;
 
             for (int m = 0; m <= mpol; ++m)
@@ -553,34 +512,28 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
                     int n = j - ntor;
 
                     r += rc(m, j) * cos(m * ptheta - nfp * n * pphi);
-                    // z += zs(m, j) * sin(m * ptheta - nfp * n * pphi);
-
                     dr += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-                    // dz += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-
+                    
                     r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
                     r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
-
-                    // z_aux1 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
-                    // z_aux2 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
 
                     dr_aux1 += -rc(m, j) * (cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + sin(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
                     dr_aux2 += -rc(m, j) * (cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
 
                     dz_aux1 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + cos(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
                     dz_aux2 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
+
+                    // STELLSYM IS MISSING FOR NOW
+                
                 }
             }
             r_array[i] = r_aux1;
-            // z_array[i] = z_aux1;
-
             r_array[i + counter] = r_aux2;
-            // z_array[i + counter] = z_aux2;
 
             dr_array[i] = dr_aux1;
-            dz_array[i] = dz_aux1;
-
             dr_array[i + counter] = dr_aux2;
+            
+            dz_array[i] = dz_aux1;
             dz_array[i + counter] = dz_aux2;
         }
 
