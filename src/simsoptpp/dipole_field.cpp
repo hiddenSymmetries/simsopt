@@ -4,11 +4,13 @@
 #include <Eigen/Dense>
 
 // Calculate the B field at a set of evaluation points from N dipoles:
-// B = mu0 / (4 * pi) sum_{i=1}^num_dipoles 3(m_i * r_i)r_i / |r_i|^5 - m_i / |r_i|^3
+// B = mu0 / (4 * pi) sum_{i=1}^N 3(m_i * r_i)r_i / |r_i|^5 - m_i / |r_i|^3
 // points: where to evaluate the field
 // m_points: where the dipoles are located
 // m: dipole moments (vectors)
 // everything in xyz coordinates
+// r_i = points - m_points
+// m_i = m
 Array dipole_field_B(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -42,29 +44,29 @@ Array dipole_field_B(Array& points, Array& m_points, Array& m) {
             }
         }
         // Loops through all the dipoles
-	for (int j = 0; j < num_dipoles; ++j) {
-            Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
-            Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
-            Vec3dSimd r = point_i - mp_j;
-            simd_t rmag_2     = normsq(r);
-            simd_t rmag_inv   = rsqrt(rmag_2);
-            simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
-            simd_t rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
-            simd_t rdotm = inner(r, m_j);
-            B_i.x += 3.0 * rdotm * r.x * rmag_inv_5 - m_j.x * rmag_inv_3;
-            B_i.y += 3.0 * rdotm * r.y * rmag_inv_5 - m_j.y * rmag_inv_3;
-            B_i.z += 3.0 * rdotm * r.z * rmag_inv_5 - m_j.z * rmag_inv_3;
-        } 
-        for(int k = 0; k < klimit; k++){
-            B(i + k, 0) = fak * B_i.x[k];
-            B(i + k, 1) = fak * B_i.y[k];
-            B(i + k, 2) = fak * B_i.z[k];
-        }
+        for (int j = 0; j < num_dipoles; ++j) {
+                Vec3dSimd m_j = Vec3dSimd(m_ptr[3 * j + 0], m_ptr[3 * j + 1], m_ptr[3 * j + 2]);
+                Vec3dSimd mp_j = Vec3dSimd(m_points_ptr[3 * j + 0], m_points_ptr[3 * j + 1], m_points_ptr[3 * j + 2]);
+                Vec3dSimd r = point_i - mp_j;
+                simd_t rmag_2     = normsq(r);
+                simd_t rmag_inv   = rsqrt(rmag_2);
+                simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
+                simd_t rmag_inv_5 = rmag_inv_3 * (rmag_inv * rmag_inv);
+                simd_t rdotm = inner(r, m_j);
+                B_i.x += 3.0 * rdotm * r.x * rmag_inv_5 - m_j.x * rmag_inv_3;
+                B_i.y += 3.0 * rdotm * r.y * rmag_inv_5 - m_j.y * rmag_inv_3;
+                B_i.z += 3.0 * rdotm * r.z * rmag_inv_5 - m_j.z * rmag_inv_3;
+            } 
+            for(int k = 0; k < klimit; k++){
+                B(i + k, 0) = fak * B_i.x[k];
+                B(i + k, 1) = fak * B_i.y[k];
+                B(i + k, 2) = fak * B_i.z[k];
+            }
     }
     return B;
 }
 
-// A = mu0 / (4 * pi) sum_{i=1}^num_dipoles m_i x r_i / |r_i|^3
+// A = mu0 / (4 * pi) sum_{i=1}^N m_i x r_i / |r_i|^3
 Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -118,7 +120,14 @@ Array dipole_field_A(Array& points, Array& m_points, Array& m) {
     return A;
 }
 
-// dB/dX = mu0 / (4 * pi) sum_{i=1}^num_dipoles m_i x r_i / |r_i|^3
+// For each dipole i:
+// dB_j/dr_k = mu0 / (4 * pi)
+// [
+//    3(m_k * r_j + m_j * r_k) / |r|^5
+//    + 3 (m_l * r_l) * delta_{jk} / |r|^5 
+//    - 15 (m_l * r_l) * (r_j * r_k) / |r|^7
+// ]
+// where here the indices on m, r, and B denote the spatial components.
 Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -153,7 +162,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
             Vec3dSimd r = point_i - mp_j;
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
-	    simd_t rmag_inv_2 = rmag_inv * rmag_inv;
+	        simd_t rmag_inv_2 = rmag_inv * rmag_inv;
             simd_t rmag_inv_3 = rmag_inv * rmag_inv_2;
             simd_t rmag_inv_5 = rmag_inv_3 * rmag_inv_2; 
             simd_t rdotm = inner(r, m_j);
@@ -171,15 +180,22 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
             dB(i + k, 1, 1) = fak * dB_i2.x[k];
             dB(i + k, 1, 2) = fak * dB_i2.y[k];
             dB(i + k, 2, 2) = fak * dB_i2.z[k];
-	    dB(i + k, 1, 0) = dB(i + k, 0, 1);
-	    dB(i + k, 2, 0) = dB(i + k, 0, 2);
-	    dB(i + k, 2, 1) = dB(i + k, 1, 2);
-	}
+            dB(i + k, 1, 0) = dB(i + k, 0, 1);
+            dB(i + k, 2, 0) = dB(i + k, 0, 2);
+            dB(i + k, 2, 1) = dB(i + k, 1, 2);
+        }
     }
     return dB;
 }
 
-// dA/dX = mu0 / (4 * pi) sum_{i=1}^num_dipoles m_i x r_i / |r_i|^3
+// For each dipole i:
+// dA_j/dr_k = mu0 / (4 * pi)
+// [
+//    eps_jlk * m_l / |r|^3
+//    - 3 (m cross r)_j * r_k / |r|^5 
+// ]
+// where here the indices on m, r, and A denote the spatial components,
+// eps_jlk is the Levi-Civita symbol, and the cross product is taken in 3D.
 Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -215,7 +231,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
             Vec3dSimd r = point_i - mp_j;
             simd_t rmag_2     = normsq(r);
             simd_t rmag_inv   = rsqrt(rmag_2);
-	    simd_t rmag_inv_2 = rmag_inv * rmag_inv;
+	        simd_t rmag_inv_2 = rmag_inv * rmag_inv;
             simd_t rmag_inv_3 = rmag_inv * rmag_inv_2;
             Vec3dSimd mcrossr = cross(m_j, r);
             dA_i1.x += rmag_inv_3 * (- 3.0 * mcrossr.x * r.x * rmag_inv_2);
@@ -227,7 +243,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
             dA_i3.x += rmag_inv_3 * (- m_j.y - 3.0 * mcrossr.z * r.x * rmag_inv_2);
             dA_i3.y += rmag_inv_3 * (m_j.x - 3.0 * mcrossr.z * r.y * rmag_inv_2);
             dA_i3.z += rmag_inv_3 * (- 3.0 * mcrossr.z * r.z * rmag_inv_2);
-	} 
+	    } 
         for(int k = 0; k < klimit; k++){
             dA(i + k, 0, 0) = fak * dA_i1.x[k];
             dA(i + k, 0, 1) = fak * dA_i1.y[k];
@@ -235,10 +251,10 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
             dA(i + k, 1, 0) = fak * dA_i2.x[k];
             dA(i + k, 1, 1) = fak * dA_i2.y[k];
             dA(i + k, 1, 2) = fak * dA_i2.z[k];
-	    dA(i + k, 2, 0) = fak * dA_i3.x[k];
-	    dA(i + k, 2, 1) = fak * dA_i3.y[k]; 
+	        dA(i + k, 2, 0) = fak * dA_i3.x[k];
+	        dA(i + k, 2, 1) = fak * dA_i3.y[k]; 
             dA(i + k, 2, 2) = fak * dA_i3.z[k];
-	}
+	    }
     }
     return dA;
 }
