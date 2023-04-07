@@ -952,14 +952,13 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
             int wyrm_sum = 0;
 
-            // Loop over all dipoles placed so far
-            for (int j = 0; j < k; j++) {
-
-                int kj = skj[j];
-                int km = x_vec[kj];
+            // Loop over all dipoles
+            for (int j = 0; j < N; j++) {
 
                 // Skip if dipole has already been removed
-                if (Gamma_complement(kj)) continue;
+                if (Gamma_complement(j)) continue;
+
+                int m = x_vec[j];
 
                 // Loop over adjacent dipoles and check if a nearby one exceeds
                 // the maximum allowable angle difference
@@ -967,7 +966,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                 int cj_min;
                 for (int jj = 0; jj < Nadjacent; ++jj) {
 
-                    int cj = Connect(kj, jj);
+                    int cj = Connect(j, jj);
 
                     // Skip if dipole has not been placed
                     if (Gamma_complement(cj)) continue;
@@ -975,7 +974,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                     // Evaluate angle between moments; save if greatest so far 
                     double cos_angle = 0;
                     for (int l = 0; l < 3; ++l) {
-                        cos_angle += x(kj, l) * x(cj, l);
+                        cos_angle += x(j, l) * x(cj, l);
                     }
                     if (cos_angle < min_cos_angle) {
                         min_cos_angle = cos_angle;
@@ -984,7 +983,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
                 }
 
-                // If angle between dipole kj and the nearby magnet with the 
+                // If angle between dipole j and the nearby magnet with the 
                 // max angle difference the threshold, eliminate the pair
                 if (min_cos_angle <= cos_thresh_angle) {
 
@@ -994,13 +993,13 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                     #pragma omp parallel for schedule(static)
                     for (int i = 0; i < ngrid; ++i) {
                         for (int l = 0; l < 3; ++l) {
-                            int A_ind_k = ngrid * (3*kj     + l);
+                            int A_ind_k = ngrid * (3*j      + l);
                             int A_ind_c = ngrid * (3*cj_min + l);
-                            int pol_ind_k = l + 3*(kj*nPolVecs     + km);
+                            int pol_ind_k = l + 3*(j*nPolVecs      + m);
                             int pol_ind_c = l + 3*(cj_min*nPolVecs + cm_min);
                             Aij_mj_ptr[i] -= 
-                                x_sign[kj] * pol_vec_ptr[pol_ind_k] 
-                                           * Aij_ptr[i + A_ind_k]
+                                x_sign[j] * pol_vec_ptr[pol_ind_k] 
+                                          * Aij_ptr[i + A_ind_k]
                               + x_sign[cj_min] * pol_vec_ptr[pol_ind_c]
                                                * Aij_ptr[i + A_ind_c];
                         }
@@ -1008,16 +1007,16 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
                     // Reset the solution vectors
                     for (int l = 0; l < 3; ++l) {
-                        x(kj, l) = 0.0;
+                        x(j, l) = 0.0;
                         x(cj_min, l) = 0.0;
                     }
-                    x_vec[kj] = 0;
+                    x_vec[j] = 0;
                     x_vec[cj_min] = 0;
-                    x_sign[kj] = 0;
+                    x_sign[j] = 0;
                     x_sign[cj_min] = 0;
 
                     // Indicate that the pair is now available
-                    Gamma_complement(kj) = true;
+                    Gamma_complement(j) = true;
                     Gamma_complement(cj_min) = true;
 
                     // Adjust running totals
