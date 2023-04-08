@@ -28,7 +28,7 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
         }
     }
     int degree = rule.degree;
-    #if __x86_64__
+    #if __x86_64__ || __aarch64__
     all_local_vals_map = std::unordered_map<int, AlignedPaddedVec>();
     #else
     all_local_vals_map = std::unordered_map<int, AlignedPaddedVecPortable>();
@@ -41,7 +41,7 @@ void RegularGridInterpolant3D<Array>::interpolate_batch(std::function<Vec(Vec, V
                 int meshidx = idx_cell(xidx, yidx, zidx);
                 if(skip_cell[meshidx])
                     continue;
-                #if __x86_64__
+                #if __x86_64__ || __aarch64__
                 AlignedPaddedVec local_vals(local_vals_size, 0.);
                 #else
                 AlignedPaddedVecPortable local_vals(local_vals_size, 0.);
@@ -131,7 +131,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
     }
 
     double* vals_local = got->second.data();
-    #if __x86_64__
+    #if __x86_64__ || __aarch64__
     if(xsimd::simd_type<double>::size >= 3){
         simd_t xyz;
         xyz[0] = x;

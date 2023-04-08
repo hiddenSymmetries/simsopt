@@ -18,10 +18,11 @@ using namespace std;
 #define MYIF(c) if(c)
 #endif
 */
-#if __x86_64__
+#if __x86_64__  || __aarch64__
 
 template<class T, int derivs>
-void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz, T& gamma, T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
+void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz, T& gamma,
+                        T& dgamma_by_dphi, T& B, T& dB_by_dX, T& d2B_by_dXdX) {
     if(gamma.layout() != xt::layout_type::row_major)
           throw std::runtime_error("gamma needs to be in row-major storage order");
     if(dgamma_by_dphi.layout() != xt::layout_type::row_major)
@@ -398,22 +399,22 @@ void biot_savart_kernel_nonsimd(AlignedPaddedVecPortable& pointsx, AlignedPadded
     int num_quad_points    = gamma.shape(0);
     // constexpr int simd_size = xsimd::simd_type<double>::size;
     constexpr int simd_size = 1;
-    // auto dB_dX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>();
-    auto dB_dX_i = vector<Vec3dSimdPortable>();
+    // auto dB_dX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>();
+    auto dB_dX_i = vector<Vec3dStd>();
     if constexpr(derivs > 0) {
-        // dB_dX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        dB_dX_i = vector<Vec3dSimdPortable>{
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
+        // dB_dX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
+        dB_dX_i = vector<Vec3dStd>{
+            Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    // auto d2B_dXdX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>();
-    auto d2B_dXdX_i = vector<Vec3dSimdPortable>();
+    // auto d2B_dXdX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>();
+    auto d2B_dXdX_i = vector<Vec3dStd>();
     if constexpr(derivs > 1) {
-        // d2B_dXdX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        d2B_dXdX_i = vector<Vec3dSimdPortable>{
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable(),
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable(),
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
+        // d2B_dXdX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
+        d2B_dXdX_i = vector<Vec3dStd>{
+            Vec3dStd(), Vec3dStd(), Vec3dStd(),
+            Vec3dStd(), Vec3dStd(), Vec3dStd(),
+            Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
     double fak = (1e-7/num_quad_points);
@@ -422,8 +423,8 @@ void biot_savart_kernel_nonsimd(AlignedPaddedVecPortable& pointsx, AlignedPadded
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
     for(int i = 0; i < num_points; i += simd_size) {
-        auto point_i = Vec3dSimdPortable(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
-        auto B_i   = Vec3dSimdPortable();
+        auto point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
+        auto B_i   = Vec3dStd();
         if constexpr(derivs > 0) {
             dB_dX_i[0] *= 0.;
             dB_dX_i[1] *= 0.;
@@ -436,12 +437,12 @@ void biot_savart_kernel_nonsimd(AlignedPaddedVecPortable& pointsx, AlignedPadded
         }
        // #pragma omp simd aligned(pointsx, pointsy, pointsz: 64)
         for (int j = 0; j < num_quad_points; ++j) {
-            auto diff = point_i - Vec3dSimdPortable(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
+            auto diff = point_i - Vec3dStd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2     = normsq(diff);
             auto norm_diff_inv   = rsqrt(norm_diff_2);
             auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
 
-            auto dgamma_by_dphi_j_simd = Vec3dSimdPortable(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
+            auto dgamma_by_dphi_j_simd = Vec3dStd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
             auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
             /*
             B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
@@ -559,7 +560,7 @@ void biot_savart_kernel_nonsimd(AlignedPaddedVecPortable& pointsx, AlignedPadded
 
 #endif
 
-#if __x86_64__
+#if __x86_64__ || __aarch64__
 
 template<class T, int derivs>
 void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz, T& gamma, T& dgamma_by_dphi, T& A, T& dA_by_dX, T& d2A_by_dXdX) {
@@ -696,22 +697,22 @@ void biot_savart_kernel_A(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPor
     int num_quad_points    = gamma.shape(0);
     // constexpr int simd_size = xsimd::simd_type<double>::size;
     constexpr int simd_size = 1;
-    // auto dA_dX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>();
-    auto dA_dX_i = vector<Vec3dSimdPortable>();
+    // auto dA_dX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>();
+    auto dA_dX_i = vector<Vec3dStd>();
     if constexpr(derivs > 0) {
-        // dA_dX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        dA_dX_i = vector<Vec3dSimdPortable>{
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
+        // dA_dX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
+        dA_dX_i = vector<Vec3dStd>{
+            Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    // auto d2A_dXdX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>();
-    auto d2A_dXdX_i = vector<Vec3dSimdPortable>();
+    // auto d2A_dXdX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>();
+    auto d2A_dXdX_i = vector<Vec3dStd>();
     if constexpr(derivs > 1) {
-        // d2A_dXdX_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        d2A_dXdX_i = vector<Vec3dSimdPortable>{
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable(),
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable(),
-            Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
+        // d2A_dXdX_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
+        d2A_dXdX_i = vector<Vec3dStd>{
+            Vec3dStd(), Vec3dStd(), Vec3dStd(),
+            Vec3dStd(), Vec3dStd(), Vec3dStd(),
+            Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
     double fak = (1e-7/num_quad_points);
@@ -720,8 +721,8 @@ void biot_savart_kernel_A(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPor
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
     for(int i = 0; i < num_points; i += simd_size) {
-        auto point_i = Vec3dSimdPortable(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
-        auto A_i   = Vec3dSimdPortable();
+        auto point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
+        auto A_i   = Vec3dStd();
         if constexpr(derivs > 0) {
             dA_dX_i[0] *= 0.;
             dA_dX_i[1] *= 0.;
@@ -733,12 +734,12 @@ void biot_savart_kernel_A(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecPor
             d2A_dXdX_i[6] *= 0.; d2A_dXdX_i[7] *= 0.; d2A_dXdX_i[8] *= 0.;
         }
         for (int j = 0; j < num_quad_points; ++j) {
-            auto diff = point_i - Vec3dSimdPortable(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
+            auto diff = point_i - Vec3dStd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2     = normsq(diff);
             auto norm_diff_inv   = rsqrt(norm_diff_2);
             auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
 
-            auto dgamma_by_dphi_j_simd = Vec3dSimdPortable(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
+            auto dgamma_by_dphi_j_simd = Vec3dStd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
             /*
             A_i.x = xsimd::fma(dgamma_by_dphi_j_simd.x , norm_diff_inv, A_i.x) ;
             A_i.y = xsimd::fma(dgamma_by_dphi_j_simd.y , norm_diff_inv, A_i.y) ;

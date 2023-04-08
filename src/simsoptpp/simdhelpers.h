@@ -7,7 +7,7 @@
 #include <vector>
 using std::vector;
 
-#if __x86_64__
+#if __x86_64__ || __aarch64__
 
 #include "xsimd/xsimd.hpp"
 namespace xs = xsimd;
@@ -122,7 +122,7 @@ using AlignedPaddedVecPortable = std::vector<double, AlignedPaddedAllocator<doub
 
 #endif
 
-#if __x86_64__
+#if __x86_64__ || __aarch64__
 #if __AVX512F__ 
 // On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
 // 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
