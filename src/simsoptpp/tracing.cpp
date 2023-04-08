@@ -98,11 +98,11 @@ class GuidingCenterVacuumBoozerRHS {
         shared_ptr<BoozerMagneticField<T>> field;
         double m, q, mu;
     public:
-        bool axis;
+        int axis;
         static constexpr int Size = 4;
         using State = std::array<double, Size>;
 
-        GuidingCenterVacuumBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu, bool axis)
+        GuidingCenterVacuumBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu, int axis)
             : field(field), m(m), q(q), mu(mu), axis(axis) {
             }
 
@@ -110,9 +110,12 @@ class GuidingCenterVacuumBoozerRHS {
                 const double t) {
             double v_par = ys[3];
             double s, theta;
-            if (axis) {
+            if (axis==1) {
                 s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -136,9 +139,12 @@ class GuidingCenterVacuumBoozerRHS {
             double sdot = -dmodBdtheta*fak1/(q*psi0);
             double tdot = dmodBds*fak1/(q*psi0) + iota*v_par*modB/G; 
 
-            if (axis) {
+            if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -167,13 +173,13 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
         double m, q, mu, Phihat, omega, phase;
         int Phim, Phin;
     public:
-        bool axis;
+        int axis;
         static constexpr int Size = 5;
         using State = std::array<double, Size>;
 
         GuidingCenterVacuumBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
             double m, double q, double mu, double Phihat, double omega, int Phim,
-            int Phin, double phase, bool axis)
+            int Phin, double phase, int axis)
             : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
               Phim(Phim), Phin(Phin), phase(phase), axis(axis) {
             }
@@ -183,9 +189,12 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double v_par = ys[3];
             double time = ys[4];
             double s, theta;
-            if (axis) {
-                s = pow(ys[0],2) + pow(ys[1],2);
+            if (axis==1) {
+                s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -220,9 +229,12 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
 
             double sdot = (-dmodBdtheta*fak1/q + dalphadtheta*modB*v_par - dPhidtheta)/psi0;
             double tdot = dmodBdpsi*fak1/q + (iota - dalphadpsi*G)*v_par*modB/G + dPhidpsi;
-            if (axis) {
+            if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -256,13 +268,13 @@ class GuidingCenterNoKBoozerPerturbedRHS {
         double m, q, mu, Phihat, omega, phase;
         int Phim, Phin;
     public:
-        bool axis;
+        int axis;
         static constexpr int Size = 5;
         using State = std::array<double, Size>;
 
         GuidingCenterNoKBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
             double m, double q, double mu, double Phihat, double omega, int Phim,
-            int Phin, double phase, bool axis)
+            int Phin, double phase, int axis)
             : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
               Phim(Phim), Phin(Phin), phase(phase), axis(axis) {
             }
@@ -272,9 +284,12 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double v_par = ys[3];
             double time = ys[4];
             double s, theta;
-            if (axis) {
-                s = pow(ys[0],2) + pow(ys[1],2);
+            if (axis==1) {
+                s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -315,9 +330,12 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double sdot = (-G*dPhidtheta*q + I*dPhidzeta*q + modB*q*v_par*(dalphadtheta*G-dalphadzeta*I) + (-dmodBdtheta*G + dmodBdzeta*I)*fak1)/(denom*psi0);
             double tdot = (G*q*dPhidpsi + modB*q*v_par*(-dalphadpsi*G - alpha*dGdpsi + iota) - dGdpsi*m*v_par*v_par \
                       + dmodBdpsi*G*fak1)/denom;
-            if (axis) {
+            if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -358,12 +376,12 @@ class GuidingCenterNoKBoozerRHS {
         shared_ptr<BoozerMagneticField<T>> field;
         double m, q, mu;
     public:
-        bool axis;
+        int axis;
         static constexpr int Size = 4;
         using State = std::array<double, Size>;
 
 
-        GuidingCenterNoKBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu, bool axis)
+        GuidingCenterNoKBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu, int axis)
             : field(field), m(m), q(q), mu(mu), axis(axis) {
             }
 
@@ -371,9 +389,12 @@ class GuidingCenterNoKBoozerRHS {
                 const double t) {
             double v_par = ys[3];
             double s, theta;
-            if (axis) {
-                s = std::pow(ys[0],2)+std::pow(ys[1],2);
-                theta = std::atan2(ys[1],ys[0]);          
+            if (axis==1) {
+                s = pow(ys[0],2)+pow(ys[1],2);
+                theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -400,9 +421,12 @@ class GuidingCenterNoKBoozerRHS {
 
             double sdot = (I*dmodBdzeta - G*dmodBdtheta)*fak1/(D*iota*psi0);
             double tdot = (G*dmodBdpsi*fak1 - (-q*iota + m*v_par*dGdpsi/modB)*v_par*modB)/(D*iota);
-            if (axis) {
+            if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -435,9 +459,9 @@ class GuidingCenterBoozerRHS {
     public:
         static constexpr int Size = 4;
         using State = std::array<double, Size>;
-        bool axis;
+        int axis;
 
-        GuidingCenterBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu, bool axis)
+        GuidingCenterBoozerRHS(shared_ptr<BoozerMagneticField<T>> field, double m, double q, double mu, int axis)
             : field(field), m(m), q(q), mu(mu), axis(axis) {
             }
 
@@ -445,9 +469,12 @@ class GuidingCenterBoozerRHS {
                 const double t) {
             double v_par = ys[3];
             double s, theta;
-            if (axis) {
-                s = std::pow(ys[0],2)+std::pow(ys[1],2);
-                theta = std::atan2(ys[1],ys[0]);          
+            if (axis==1) {
+                s = pow(ys[0],2)+pow(ys[1],2);
+                theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -479,9 +506,12 @@ class GuidingCenterBoozerRHS {
 
             double sdot = (I*dmodBdzeta - G*dmodBdtheta)*fak1/(D*iota*psi0);
             double tdot = (G*dmodBdpsi*fak1 - C*v_par*modB - K*fak1*dmodBdzeta)/(D*iota);
-            if (axis) {
+            if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -637,8 +667,11 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     do {
         if (!forget_exact_path || t==0) {
             ykeep = y;
-            if (rhs.axis) {
+            if (rhs.axis==1) {
                 ykeep[0] = pow(y[0],2) + pow(y[1],2);
+                ykeep[1] = atan2(y[1],y[0]);
+            } else if (rhs.axis==2) {
+                ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
                 ykeep[1] = atan2(y[1],y[0]);
             }
             res.push_back(join<1, RHS::Size>({t}, ykeep));
@@ -670,8 +703,11 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
                 ykeep = temp;
-                if (rhs.axis) {
+                if (rhs.axis==1) {
                     ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
+                    ykeep[1] = atan2(temp[1],temp[0]);
+                } else if (rhs.axis==2) {
+                    ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
                     ykeep[1] = atan2(temp[1],temp[0]);
                 }
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i) + phis.size()}, ykeep));
@@ -707,8 +743,11 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
                 dense.calc_state(troot, temp);
                 ykeep = temp;
-                if (rhs.axis) {
+                if (rhs.axis==1) {
                     ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
+                    ykeep[1] = atan2(temp[1],temp[0]);
+                } else if (rhs.axis==2) {
+                    ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
                     ykeep[1] = atan2(temp[1],temp[0]);
                 }
                 res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i)}, ykeep));
@@ -722,8 +761,11 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         // check whether we have satisfied any of the extra stopping criteria (e.g. left a surface)
         for (int i = 0; i < stopping_criteria.size(); ++i) {
             ykeep = y;
-            if (rhs.axis) {
+            if (rhs.axis==1) {
                 ykeep[0] = pow(y[0],2) + pow(y[1],2);
+                ykeep[1] = atan2(y[1],y[0]);
+            } else if (rhs.axis==2) {
+                ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
                 ykeep[1] = atan2(y[1],y[0]);
             }
             if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
@@ -740,10 +782,13 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     if(!stop){
         dense.calc_state(tmax, y);
         ykeep = y;
-        if (rhs.axis) {
+        if (rhs.axis==1) {
             ykeep[0] = pow(y[0],2) + pow(y[1],2);
             ykeep[1] = atan2(y[1],y[0]);
-        }        
+        } else if (rhs.axis==2) {
+            ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+            ykeep[1] = atan2(y[1],y[0]);
+        }      
         res.push_back(join<1, RHS::Size>({tmax}, ykeep));
     }
     return std::make_tuple(res, res_phi_hits);
@@ -781,25 +826,25 @@ template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 6>>, vector<array<double, 7>>>
 particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol,
+        double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
         bool phis_stop, bool vpars_stop, double Phihat, double omega, int Phim,
-        int Phin, double phase, bool forget_exact_path, bool axis)
+        int Phin, double phase, bool forget_exact_path, int axis)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
     double modB = field->modB()(0);
-    double vperp2 = vtotal*vtotal - vtang*vtang;
-    double mu = vperp2/(2*modB);
     array<double, 5> y;
     double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
     
-    if (axis) {
+    if (axis==1) {
       y = {sqrt(stz_init[0]) * cos(stz_init[1]), sqrt(stz_init[0]) * sin(stz_init[1]), stz_init[2], vtang, 0};
+    } else if (axis==2) {
+      y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang, 0};
     } else {
       y = {stz_init[0], stz_init[1], stz_init[2], vtang, 0};
     }
@@ -823,7 +868,7 @@ particle_guiding_center_boozer_tracing(
         double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, bool forget_exact_path, bool axis)
+        bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -837,8 +882,10 @@ particle_guiding_center_boozer_tracing(
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
-    if (axis) {
+    if (axis==1) {
       y = {sqrt(stz_init[0]) * cos(stz_init[1]), sqrt(stz_init[0]) * sin(stz_init[1]), stz_init[2], vtang};
+    } else if (axis==2) {
+      y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang};
     } else {
       y = {stz_init[0], stz_init[1], stz_init[2], vtang};
     }
@@ -861,11 +908,11 @@ particle_guiding_center_boozer_tracing(
 template
 tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol,
+        double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         vector<double> vpars={}, bool phis_stop, bool vpars_stop, double Phihat,
-        double omega, int Phim, int Phin, double phase, bool forget_exact_path, bool axis);
+        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
@@ -873,7 +920,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_cente
         double m, double q, double vtotal, double vtang, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, bool forget_exact_path, bool axis);
+        vector<double> vpars={}, bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(

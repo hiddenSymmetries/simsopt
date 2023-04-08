@@ -48,7 +48,7 @@ void init_tracing(py::module_ &m){
         py::arg("phis_stop")=false,
         py::arg("vpars_stop")=false,
         py::arg("forget_exact_path")=false,
-        py::arg("axis")=false
+        py::arg("axis")=0
         );
 
     m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>,
@@ -58,6 +58,7 @@ void init_tracing(py::module_ &m){
         py::arg("q"),
         py::arg("vtotal"),
         py::arg("vtang"),
+        py::arg("mu"),
         py::arg("tmax"),
         py::arg("abstol"),
         py::arg("reltol"),
@@ -75,7 +76,7 @@ void init_tracing(py::module_ &m){
         py::arg("Phin")=0,
         py::arg("phase")=0,
         py::arg("forget_exact_path")=false,
-        py::arg("axis")=false
+        py::arg("axis")=0
         );
 
     m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,

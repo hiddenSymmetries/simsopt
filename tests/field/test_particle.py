@@ -1,17 +1,17 @@
-from simsopt.field.coil import coils_via_symmetries
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.util.zoo import get_ncsx_data
-from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
-    particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
-    IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, \
+# from simsopt.field.coil import coils_via_symmetries
+# from simsopt.field.biotsavart import BiotSavart
+# from simsopt.geo.curvexyzfourier import CurveXYZFourier
+# from simsopt.util.zoo import get_ncsx_data
+# from simsopt.field.tracing import trace_particles_starting_on_curve, SurfaceClassifier, \
+    # particles_to_vtk, LevelsetStoppingCriterion, compute_gc_radius, gc_to_fullorbit_initial_guesses, \
+from simsopt.field.tracing import IterationStoppingCriterion, trace_particles_starting_on_surface, trace_particles_boozer, trace_particles_boozer_perturbed, \
     MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
     compute_poloidal_transits, compute_toroidal_transits, trace_particles, compute_resonances
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.boozermagneticfield import BoozerAnalytic
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-from simsopt.geo.curverzfourier import CurveRZFourier
+# from simsopt.geo.curverzfourier import CurveRZFourier
 import simsoptpp as sopp
 import numpy as np
 import unittest
@@ -413,8 +413,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
     def test_energy_momentum_conservation_boozer(self):
         tol = 1e-12
-        for axis in [True,False]:
-            if axis:
+        for axis in [2,0,1]:
+            if (axis>0):
                 stopping_criteria=[MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)]
             else:
                 stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)]
@@ -466,7 +466,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                          stopping_criteria=stopping_criteria,
-                                                         tol=tol,axis=axis)
+                                                         abstol=0,reltol=tol,axis=axis)
             # pick 100 random points on each trace, and ensure that
             # the energy is being conserved up to some precision
 
@@ -521,7 +521,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             omega0 = np.sqrt(Ekin/m)/R0
             omega = 0.1*omega0
 
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer_perturbed(bsh, stz_inits, vpar_inits, mu_inits,
                     tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                     stopping_criteria=stopping_criteria,
                     tol=tol, Phihat=Phihat,Phim=Phim,Phin=Phin,omega=omega,axis=axis)
@@ -554,7 +554,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     time_gc = gc_ty[idxs[j], 5]
                     theta_gc = gc_ty[idxs[j], 2]
                     zeta_gc = gc_ty[idxs[j], 3]
-                    deltaPhi = Phihat * np.cos(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
+                    deltaPhi = Phihat * np.sin(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
                     alpha = -deltaPhi*(iota_gc[j]*Phim - Phin)/(omega*(G_gc[j] + iota_gc[j]*I_gc[j]))
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
                     p_gc = np.append(p_gc, G_gc[j] * (v_gc*m/AbsBs_gc[j] + q*alpha) - q*psip[j])
@@ -571,7 +571,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
 
             Phihat = 1e-12
 
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer_perturbed(bsh, stz_inits, vpar_inits, mu_inits,
                     tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                     stopping_criteria=stopping_criteria,
                     tol=tol, Phihat=Phihat,Phim=Phim,Phin=Phin,omega=omega,axis=axis)
@@ -603,7 +603,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     time_gc = gc_ty[idxs[j], 5]
                     theta_gc = gc_ty[idxs[j], 2]
                     zeta_gc = gc_ty[idxs[j], 3]
-                    deltaPhi = Phihat * np.cos(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
+                    deltaPhi = Phihat * np.sin(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
                     alpha = -deltaPhi*(iota_gc[j]*Phim - Phin)/(omega * (G_gc[j] + iota_gc[j]*I_gc[j]))
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
                     p_gc = np.append(p_gc, G_gc[j] * (v_gc*m/AbsBs_gc[j] + q*deltaPhi) - q*psip[j])
@@ -631,7 +631,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             psip_inits = bsh.psip()
             p_inits = vpar_inits*G_inits/modB_inits - q*psip_inits/m
 
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer_perturbed(bsh, stz_inits, vpar_inits, mu_inits,
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                          stopping_criteria=stopping_criteria,
                                                          tol=tol, Phihat=Phihat, Phim=Phim, Phin=Phin, omega=omega,axis=axis)
@@ -661,7 +661,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     time_gc = gc_ty[idxs[j], 5]
                     theta_gc = gc_ty[idxs[j], 2]
                     zeta_gc = gc_ty[idxs[j], 3]
-                    deltaPhi = Phihat * np.cos(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
+                    deltaPhi = Phihat * np.sin(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
                     alpha = - deltaPhi*(iota_gc[j]*Phim - Phin)/(omega * G_gc[j])
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
                     p_gc = np.append(p_gc, G_gc[j] * (v_gc*m/AbsBs_gc[j] + q*alpha) + q*(psi[j]-psip[j]))
@@ -676,7 +676,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             when perturbation is very small
             """
             Phihat = 1e-12
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer_perturbed(bsh, stz_inits, vpar_inits, mu_inits, 
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                          stopping_criteria=stopping_criteria,
                                                          tol=tol, Phihat=Phihat,Phim=Phim,Phin=Phin,omega=omega,axis=axis)
@@ -706,7 +706,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     time_gc = gc_ty[idxs[j], 5]
                     theta_gc = gc_ty[idxs[j], 2]
                     zeta_gc = gc_ty[idxs[j], 3]
-                    deltaPhi = Phihat * np.cos(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
+                    deltaPhi = Phihat * np.sin(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
                     alpha = -deltaPhi*(iota_gc[j]*Phim - Phin)/(omega * G_gc[j])
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
                     p_gc = np.append(p_gc, G_gc[j] * (v_gc*m/AbsBs_gc[j] + q*alpha) + q*(psi[j]-psip[j]))
@@ -792,7 +792,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             Now same as above with perturbation
             """
             Phihat = 1e-3
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer_perturbed(bsh, stz_inits, vpar_inits, mu_inits, 
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                          stopping_criteria=stopping_criteria,
                                                          tol=tol, Phihat=Phihat,Phim=Phim,Phin=Phin,omega=omega,axis=axis)
@@ -823,7 +823,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     time_gc = gc_ty[idxs[j], 5]
                     theta_gc = gc_ty[idxs[j], 2]
                     zeta_gc = gc_ty[idxs[j], 3]
-                    deltaPhi = Phihat * np.cos(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
+                    deltaPhi = Phihat * np.sin(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
                     alpha = - (iota_gc[j]*Phim - Phin) * deltaPhi/(omega*(G_gc[j] + iota_gc[j]*I_gc[j]))
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
                     p_gc = np.append(p_gc, (G_gc[j] + helicity*I_gc[j]) * (v_gc*m/AbsBs_gc[j] + q*alpha) + q*(psi[j]*helicity - psip[j]))
@@ -838,7 +838,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             """
 
             Phihat = 1e-12
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer_perturbed(bsh, stz_inits, vpar_inits, mu_inits,
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                          stopping_criteria=stopping_criteria,
                                                          tol=tol, Phihat=Phihat,Phim=Phim,Phin=Phin,omega=omega,axis=axis)
@@ -869,7 +869,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                     time_gc = gc_ty[idxs[j], 5]
                     theta_gc = gc_ty[idxs[j], 2]
                     zeta_gc = gc_ty[idxs[j], 3]
-                    deltaPhi = Phihat * np.cos(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
+                    deltaPhi = Phihat * np.sin(theta_gc * Phim - zeta_gc * Phin + omega * time_gc)
                     alpha = - deltaPhi * (iota_gc[j]*Phim - Phin)/(omega * (G_gc[j] + iota_gc[j]*I_gc[j]))
                     energy_gc = np.append(energy_gc, m*(0.5*v_gc**2 + muInitial*AbsBs_gc[j]) + q * deltaPhi)
                     p_gc = np.append(p_gc, (G_gc[j] + helicity*I_gc[j]) * (v_gc*m/AbsBs_gc[j] + q*alpha) + q*(psi[j]*helicity - psip[j]))
@@ -898,7 +898,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             psi_inits = bsh.psi0*stz_inits[:, 0]
             p_inits = vpar_inits[:, 0]*(G_inits + I_inits)/modB_inits + q*(psi_inits - psip_inits)/m
 
-            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
+            gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits, 
                                                          tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
                                                          stopping_criteria=stopping_criteria,
                                                          tol=tol)
