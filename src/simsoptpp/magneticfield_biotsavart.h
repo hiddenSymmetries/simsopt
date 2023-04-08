@@ -22,7 +22,7 @@ class BiotSavart : public MagneticField<T> {
     private:
         Cache<Array> field_cache;
 
-        #if __x86_64__
+        #if __x86_64__ || __aarch64__
         // this vectors are aligned in memory for fast simd usage.
         AlignedPaddedVec pointsx = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
         AlignedPaddedVec pointsy = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);

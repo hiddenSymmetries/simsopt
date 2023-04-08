@@ -50,7 +50,7 @@ class InterpolationRule {
             }
             return res;
         }
-        #if __x86_64__
+        #if __x86_64__ || __aarch64__
         simd_t basis_fun(int idx, simd_t x) const {
             // evaluate the basisfunction p_idx at multiple locations stored in x
             simd_t res(scalings[idx]);
@@ -103,7 +103,7 @@ class RegularGridInterpolant3D {
         Vec xdoftensor_reduced, ydoftensor_reduced, zdoftensor_reduced;
 
         Vec vals; // contains the values of the function to be interpolated at the dofs, of size dofs_to_keep * value_size
-        #if __x86_64__
+        #if __x86_64__ || __aarch64__
         std::unordered_map<int, AlignedPaddedVec> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
         #else
         std::unordered_map<int, AlignedPaddedVecPortable> all_local_vals_map; // maps each cell to an array of size (degree+1)**3 * padded_value_size
@@ -118,7 +118,7 @@ class RegularGridInterpolant3D {
         int local_vals_size;
         Vec pkxs, pkys, pkzs;
 
-        #if __x86_64__                   // We use __x86_64__ macro to enable xsimd
+        #if __x86_64__  || __aarch64__            // Enable xsimd for compatible hardware
         static const int simdcount = xsimd::simd_type<double>::size; // vector width for simd instructions
         #else
         static const int simdcount = 1; // vector width is set to 1 for non-xsimd code

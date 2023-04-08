@@ -14,7 +14,7 @@
 #define MYIF(c) if(c)
 #endif
 
-#if __x86_64__
+#if __x86_64__ || __aarch64__
 
 template<class T, int derivs>
 void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz, T& gamma, T& dgamma_by_dphi, T& v, T& res_gamma, T& res_dgamma_by_dphi, T& vgrad, T& res_grad_gamma, T& res_grad_dgamma_by_dphi) {
@@ -200,11 +200,11 @@ void biot_savart_vjp_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecP
     double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
     double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
-        Vec3dSimdPortable point_i = Vec3dSimdPortable(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
-        auto v_i   = Vec3dSimdPortable();
-        // auto vgrad_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        auto vgrad_i = vector<Vec3dSimdPortable>{
-                Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
+        Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
+        auto v_i   = Vec3dStd();
+        // auto vgrad_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
+        auto vgrad_i = vector<Vec3dStd>{
+                Vec3dStd(), Vec3dStd(), Vec3dStd()
             };
 #pragma unroll
         for(int k=0; k<simd_size; k++){
@@ -221,7 +221,7 @@ void biot_savart_vjp_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecP
 
         for (int j = 0; j < num_quad_points; ++j) {
             auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };
-            auto diff = point_i - Vec3dSimdPortable(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
+            auto diff = point_i - Vec3dStd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2 = normsq(diff);
             auto norm_diff_inv = rsqrt(norm_diff_2);
             auto norm_diff_2_inv = norm_diff_inv*norm_diff_inv;
@@ -253,12 +253,12 @@ void biot_savart_vjp_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecP
 
             MYIF(derivs>0) {
                 auto norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
-                auto res_grad_dgamma_by_dphi_add = Vec3dSimdPortable();
-                auto res_grad_gamma_add = Vec3dSimdPortable();
+                auto res_grad_dgamma_by_dphi_add = Vec3dStd();
+                auto res_grad_gamma_add = Vec3dStd();
 
 #pragma unroll
                 for(int k=0; k<3; k++){
-                    auto eksimd = Vec3dSimdPortable();
+                    auto eksimd = Vec3dStd();
                     eksimd[k] += 1.;
                     Vec3d ek = Vec3d::Zero();
                     ek[k] = 1.;
@@ -356,7 +356,7 @@ void biot_savart_vjp_kernel(AlignedPaddedVecPortable& pointsx, AlignedPaddedVecP
 
 #endif
 
-#if __x86_64__
+#if __x86_64__ || __aarch64__
 
 template<class T, int derivs>
 void biot_savart_vector_potential_vjp_kernel(
@@ -530,11 +530,11 @@ void biot_savart_vector_potential_vjp_kernel(
     double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
     double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
-        Vec3dSimdPortable point_i = Vec3dSimdPortable(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
-        auto v_i   = Vec3dSimdPortable();
-        // auto vgrad_i = vector<Vec3dSimdPortable, xs::aligned_allocator<Vec3dSimdPortable, XSIMD_DEFAULT_ALIGNMENT>>{
-        auto vgrad_i = vector<Vec3dSimdPortable>{
-                Vec3dSimdPortable(), Vec3dSimdPortable(), Vec3dSimdPortable()
+        Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
+        auto v_i   = Vec3dStd();
+        // auto vgrad_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
+        auto vgrad_i = vector<Vec3dStd>{
+                Vec3dStd(), Vec3dStd(), Vec3dStd()
             };
 #pragma unroll
         for(int k=0; k<simd_size; k++){
@@ -552,7 +552,7 @@ void biot_savart_vector_potential_vjp_kernel(
 
         for (int j = 0; j < num_quad_points; ++j) {
             auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };
-            auto diff = point_i - Vec3dSimdPortable(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
+            auto diff = point_i - Vec3dStd(gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]);
             auto norm_diff_2 = normsq(diff);
             auto norm_diff_inv = rsqrt(norm_diff_2);
             auto norm_diff_inv_3 = norm_diff_inv * norm_diff_inv * norm_diff_inv;
@@ -580,8 +580,8 @@ void biot_savart_vector_potential_vjp_kernel(
 
             MYIF(derivs>0) {
                 auto norm_diff_inv_5 = norm_diff_inv_3 * norm_diff_inv * norm_diff_inv;
-                auto res_grad_dgamma_by_dphi_add = Vec3dSimdPortable();
-                auto res_grad_gamma_add = Vec3dSimdPortable();
+                auto res_grad_dgamma_by_dphi_add = Vec3dStd();
+                auto res_grad_gamma_add = Vec3dStd();
 #pragma unroll
                 for(int k=0; k<3; k++){
                     res_grad_dgamma_by_dphi_add -= vgrad_i[k] * norm_diff_inv_3 * diff[k]  ;

@@ -37,7 +37,8 @@ inline Vec3d cross(Vec3d& a, int i){
 }
 
 
-#if __x86_64__
+#if __x86_64__ || __aarch64__       // Use XSIMD
+
 
 struct Vec3dSimd {
     simd_t x;
@@ -208,21 +209,21 @@ inline simd_t normsq(Vec3dSimd& a){
 
 constexpr size_t ALIGN_BYTES = 32;
 
-struct alignas(ALIGN_BYTES) Vec3dSimdPortable {
+struct alignas(ALIGN_BYTES) Vec3dStd {
     double x;
     double y;
     double z;
 
-    Vec3dSimdPortable() : x(0.), y(0.), z(0.){
+    Vec3dStd() : x(0.), y(0.), z(0.){
     }
 
-    Vec3dSimdPortable(double x_, double y_, double z_) : x(x_), y(y_), z(z_){
+    Vec3dStd(double x_, double y_, double z_) : x(x_), y(y_), z(z_){
     }
 
-    Vec3dSimdPortable(Vec3d xyz) : x(xyz[0]), y(xyz[1]), z(xyz[2]){
+    Vec3dStd(Vec3d xyz) : x(xyz[0]), y(xyz[1]), z(xyz[2]){
     }
 
-    Vec3dSimdPortable(double* xptr, double* yptr, double *zptr){
+    Vec3dStd(double* xptr, double* yptr, double *zptr){
         x = *xptr;
         y = *yptr;
         z = *zptr;
@@ -242,56 +243,56 @@ struct alignas(ALIGN_BYTES) Vec3dSimdPortable {
         };
     }
 
-    friend Vec3dSimdPortable operator+(Vec3dSimdPortable lhs, const Vec3d& rhs) {
+    friend Vec3dStd operator+(Vec3dStd lhs, const Vec3d& rhs) {
         lhs.x += rhs[0];
         lhs.y += rhs[1];
         lhs.z += rhs[2];
         return lhs;
     }
 
-    friend Vec3dSimdPortable operator+(Vec3dSimdPortable lhs, const Vec3dSimdPortable& rhs) {
+    friend Vec3dStd operator+(Vec3dStd lhs, const Vec3dStd& rhs) {
         lhs.x += rhs.x;
         lhs.y += rhs.y;
         lhs.z += rhs.z;
         return lhs;
     }
 
-    Vec3dSimdPortable& operator+=(const Vec3dSimdPortable& rhs) {
+    Vec3dStd& operator+=(const Vec3dStd& rhs) {
         this->x += rhs.x;
         this->y += rhs.y;
         this->z += rhs.z;
         return *this;
     }
 
-    Vec3dSimdPortable& operator-=(const Vec3dSimdPortable& rhs) {
+    Vec3dStd& operator-=(const Vec3dStd& rhs) {
         this->x -= rhs.x;
         this->y -= rhs.y;
         this->z -= rhs.z;
         return *this;
     }
 
-    Vec3dSimdPortable& operator*=(const double& rhs) {
+    Vec3dStd& operator*=(const double& rhs) {
         this->x *= rhs;
         this->y *= rhs;
         this->z *= rhs;
         return *this;
     }
 
-    friend Vec3dSimdPortable operator-(Vec3dSimdPortable lhs, const Vec3d& rhs) {
+    friend Vec3dStd operator-(Vec3dStd lhs, const Vec3d& rhs) {
         lhs.x -= rhs[0];
         lhs.y -= rhs[1];
         lhs.z -= rhs[2];
         return lhs;
     }
 
-    friend Vec3dSimdPortable operator-(Vec3dSimdPortable lhs, const Vec3dSimdPortable& rhs) {
+    friend Vec3dStd operator-(Vec3dStd lhs, const Vec3dStd& rhs) {
         lhs.x -= rhs.x;
         lhs.y -= rhs.y;
         lhs.z -= rhs.z;
         return lhs;
     }
 
-    friend Vec3dSimdPortable operator*(Vec3dSimdPortable lhs, const double& rhs) {
+    friend Vec3dStd operator*(Vec3dStd lhs, const double& rhs) {
         lhs.x *= rhs;
         lhs.y *= rhs;
         lhs.z *= rhs;
@@ -300,19 +301,19 @@ struct alignas(ALIGN_BYTES) Vec3dSimdPortable {
 };
 
 
-inline double inner(const Vec3dSimdPortable& a, const Vec3dSimdPortable& b){
+inline double inner(const Vec3dStd& a, const Vec3dStd& b){
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-inline double inner(const Vec3d& b, const Vec3dSimdPortable& a){
+inline double inner(const Vec3d& b, const Vec3dStd& a){
     return a.x *  b[0] + a.y * b[1] + a.z * b[2];
 }
 
-inline double inner(const Vec3dSimdPortable& a, const Vec3d& b){
+inline double inner(const Vec3dStd& a, const Vec3d& b){
     return a.x * b[0] + a.y * b[1] + a.z * b[2];
 }
 
-inline double inner(int i, Vec3dSimdPortable& a){
+inline double inner(int i, Vec3dStd& a){
     switch(i){
         case 0: return a.x;
         case 1: return a.y;
@@ -320,44 +321,44 @@ inline double inner(int i, Vec3dSimdPortable& a){
     };
 }
 
-inline Vec3dSimdPortable cross(Vec3dSimdPortable& a, Vec3dSimdPortable& b){
-    return Vec3dSimdPortable(
+inline Vec3dStd cross(Vec3dStd& a, Vec3dStd& b){
+    return Vec3dStd(
             (a.y * b.z - a.z * b.y),
             (a.z * b.x - a.x * b.z),
             (a.x * b.y - a.y * b.x));
 }
 
-inline Vec3dSimdPortable cross(Vec3dSimdPortable& a, Vec3d& b){
-    return Vec3dSimdPortable(
+inline Vec3dStd cross(Vec3dStd& a, Vec3d& b){
+    return Vec3dStd(
             (a.y * b[2] - a.z * b[1]),
             (a.z * b[0] - a.x * b[2]),
             (a.x * b[1] - a.y * b[0]));
 }
 
-inline Vec3dSimdPortable cross(Vec3d& a, Vec3dSimdPortable& b){
-    return Vec3dSimdPortable(
+inline Vec3dStd cross(Vec3d& a, Vec3dStd& b){
+    return Vec3dStd(
             (a[1] * b.z - a[2] * b.y),
             (a[2] * b.x - a[0] * b.z),
             (a[0] * b.y - a[1] * b.x));
 }
 
-inline Vec3dSimdPortable cross(Vec3dSimdPortable& a, int i){
+inline Vec3dStd cross(Vec3dStd& a, int i){
     switch(i) {
-        case 0: return Vec3dSimdPortable(0., a.z, -a.y);
-        case 1: return Vec3dSimdPortable(-a.z, 0., a.x);
-        case 2: return Vec3dSimdPortable(a.y, -a.x, 0.);
+        case 0: return Vec3dStd(0., a.z, -a.y);
+        case 1: return Vec3dStd(-a.z, 0., a.x);
+        case 2: return Vec3dStd(a.y, -a.x, 0.);
     }
 }
 
-inline Vec3dSimdPortable cross(int i, Vec3dSimdPortable& b){
+inline Vec3dStd cross(int i, Vec3dStd& b){
     switch(i){
-        case 0: return Vec3dSimdPortable(0., -b.z, b.y);
-        case 1: return Vec3dSimdPortable(b.z, 0., -b.x);
-        case 2: return Vec3dSimdPortable(-b.y, b.x, 0.);
+        case 0: return Vec3dStd(0., -b.z, b.y);
+        case 1: return Vec3dStd(b.z, 0., -b.x);
+        case 2: return Vec3dStd(-b.y, b.x, 0.);
     }
 }
 
-inline double normsq(Vec3dSimdPortable& a){
+inline double normsq(Vec3dStd& a){
     return a.x * a.x + a.y * a.y + a.z * a.z;
 }
 
