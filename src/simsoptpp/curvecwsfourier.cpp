@@ -331,7 +331,7 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         double z_aux1 = 0;
         double r_aux2 = 0;
         double z_aux2 = 0;
-        
+
         int counter = 0;
 
         phi_array[counter] = CWSt;
@@ -427,18 +427,17 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
         double ptheta = 0;
         Array phi_array = xt::zeros<double>({2 * (order + 1)});
         Array theta_array = xt::zeros<double>({2 * (order + 1)});
-        
+
         double dpphi = 0;
         double dptheta = 0;
         Array dphi_array = xt::zeros<double>({2 * (order + 1)});
         Array dtheta_array = xt::zeros<double>({2 * (order + 1)});
 
-        double r = 0;  
+        double r = 0;
         double dr = 0;
         Array r_array = xt::zeros<double>({4 * (order + 1)});
         Array dr_array = xt::zeros<double>({4 * (order + 1)});
         Array dz_array = xt::zeros<double>({4 * (order + 1)});
-        
 
         double r_aux1 = 0;
         double r_aux2 = 0;
@@ -446,7 +445,7 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
         double dr_aux2 = 0;
         double dz_aux1 = 0;
         double dz_aux2 = 0;
-        
+
         int counter = 0;
 
         theta_array[counter] = CWSt;
@@ -499,7 +498,7 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
         for (int i = 0; i < counter; ++i)
         {
             r_aux1 = 0;
-            r_aux2 = 0;     
+            r_aux2 = 0;
             dr_aux1 = 0;
             dr_aux2 = 0;
             dz_aux1 = 0;
@@ -513,7 +512,7 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
                     r += rc(m, j) * cos(m * ptheta - nfp * n * pphi);
                     dr += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
-                    
+
                     r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
                     r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
 
@@ -524,7 +523,6 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
                     dz_aux2 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
 
                     // STELLSYM IS MISSING FOR NOW
-                
                 }
             }
             r_array[i] = r_aux1;
@@ -532,7 +530,7 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
             dr_array[i] = dr_aux1;
             dr_array[i + counter] = dr_aux2;
-            
+
             dz_array[i] = dz_aux1;
             dz_array[i + counter] = dz_aux2;
         }
@@ -550,6 +548,167 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
     }
 };
 
+template <class Array>
+void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
+{
+
+    CurveCWSFourier<Array>::set_dofs_surface(idofs);
+
+    data *= 0;
+
+    for (int k = 0; k < numquadpoints; ++k)
+    {
+        double CWSt = 2 * M_PI * quadpoints[k];
+
+        double pphi = 0;
+        double ptheta = 0;
+        Array phi_array = xt::zeros<double>({2 * (order + 1)});
+        Array theta_array = xt::zeros<double>({2 * (order + 1)});
+
+        double dpphi = 0;
+        double dptheta = 0;
+        Array dphi_array = xt::zeros<double>({2 * (order + 1)});
+        Array dtheta_array = xt::zeros<double>({2 * (order + 1)});
+
+        double ddpphi = 0;
+        double ddptheta = 0;
+        Array ddphi_array = xt::zeros<double>({2 * (order + 1)});
+        Array ddtheta_array = xt::zeros<double>({2 * (order + 1)});
+
+        double r = 0;
+        double dr = 0;
+        double ddr = 0;
+        Array r_array = xt::zeros<double>({4 * (order + 1)});
+        Array dr_array = xt::zeros<double>({4 * (order + 1)});
+        Array ddr_array = xt::zeros<double>({4 * (order + 1)});
+        Array ddz_array = xt::zeros<double>({4 * (order + 1)});
+
+        double r_aux1 = 0;
+        double r_aux2 = 0;
+        double dr_aux1 = 0;
+        double dr_aux2 = 0;
+        double ddr_aux1 = 0;
+        double ddr_aux2 = 0;
+        double ddz_aux1 = 0;
+        double ddz_aux2 = 0;
+
+        int counter = 0;
+
+        theta_array[counter] = CWSt;
+        phi_array[counter] = CWSt;
+        dtheta_array[counter] = 0;
+        dphi_array[counter] = 0;
+        ddtheta_array[counter] = 0;
+        ddphi_array[counter] = 0;
+
+        // Termos com Cossenos e as suas derivas
+        for (int i = 0; i < order + 1; ++i)
+        {
+            phi_array[counter] = cos(i * CWSt);
+            theta_array[counter] = cos(i * CWSt);
+
+            dtheta_array[counter] = -i * sin(i * CWSt);
+            dphi_array[counter] = -i * sin(i * CWSt);
+
+            ddtheta_array[counter] = -pow(i, 2) * cos(i * CWSt);
+            ddphi_array[counter] = -pow(i, 2) * cos(i * CWSt);
+
+            counter++;
+
+            pphi += phi_c[i] * cos(i * CWSt);
+            ptheta += theta_c[i] * cos(i * CWSt);
+
+            dpphi += -phi_c[i] * i * sin(i * CWSt);
+            dptheta += -theta_c[i] * i * sin(i * CWSt);
+
+            ddpphi += -phi_c[i] * pow(i, 2) * cos(i * CWSt);
+            ddptheta += -theta_c[i] * pow(i, 2) * cos(i * CWSt);
+        }
+        // Termos com Senos e as suas derivas
+        for (int i = 1; i < order + 1; ++i)
+        {
+            phi_array[counter] = sin(i * CWSt);
+            theta_array[counter] = sin(i * CWSt);
+
+            dtheta_array[counter] = i * cos(i * CWSt);
+            dphi_array[counter] = i * cos(i * CWSt);
+
+            ddtheta_array[counter] = -pow(i, 2) * sin(i * CWSt);
+            ddphi_array[counter] = -pow(i, 2) * sin(i * CWSt);
+
+            counter++;
+
+            pphi += phi_s[i - 1] * sin(i * CWSt);
+            ptheta += theta_s[i - 1] * sin(i * CWSt);
+
+            dpphi += phi_s[i - 1] * i * cos(i * CWSt);
+            dptheta += theta_s[i - 1] * i * cos(i * CWSt);
+
+            ddpphi += -phi_s[i - 1] * pow(i, 2) * sin(i * CWSt);
+            ddptheta += -theta_s[i - 1] * pow(i, 2) * sin(i * CWSt);
+        }
+
+        pphi += phi_l * CWSt;
+        ptheta += theta_l * CWSt;
+        dpphi += phi_l;
+        dptheta += theta_l;
+
+// SURFACE
+#pragma omp parallel for
+        for (int i = 0; i < counter; ++i)
+        {
+            r_aux1 = 0;
+            r_aux2 = 0;
+            dr_aux1 = 0;
+            dr_aux2 = 0;
+            ddr_aux1 = 0;
+            ddr_aux2 = 0;
+            ddz_aux1 = 0;
+            ddz_aux2 = 0;
+
+            for (int m = 0; m <= mpol; ++m)
+            {
+                for (int j = 0; j < 2 * ntor + 1; ++j)
+                {
+                    int n = j - ntor;
+
+                    r += rc(m, j) * cos(m * ptheta - nfp * n * pphi);
+                    dr += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+
+                    r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
+                    r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
+
+                    dr_aux1 += -rc(m, j) * (cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + sin(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
+                    dr_aux2 += -rc(m, j) * (cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
+
+                    dz_aux1 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + cos(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
+                    dz_aux2 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
+
+                    // STELLSYM IS MISSING FOR NOW
+                }
+            }
+            r_array[i] = r_aux1;
+            r_array[i + counter] = r_aux2;
+
+            dr_array[i] = dr_aux1;
+            dr_array[i + counter] = dr_aux2;
+
+            dz_array[i] = dz_aux1;
+            dz_array[i + counter] = dz_aux2;
+        }
+
+        for (int p = 0; p < counter; p++)
+        {
+            data(k, 0, p) = dr_array[p] * cos(pphi) - r_array[p] * sin(pphi) * dpphi;
+            data(k, 1, p) = dr_array[p] * sin(pphi) + r_array[p] * cos(pphi) * dpphi;
+            data(k, 2, p) = dz_array[p];
+
+            data(k, 0, p + counter) = -dr * sin(pphi) * phi_array[p + counter] - r * sin(pphi) * dphi_array[p + counter] - r * cos(pphi) * phi_array[p + counter] * dpphi;
+            data(k, 1, p + counter) = dr * cos(pphi) * phi_array[p + counter] - r * sin(pphi) * phi_array[p + counter] * dpphi + r * cos(pphi) * dphi_array[p + counter];
+            data(k, 2, p + counter) = dz_array[p + counter];
+        }
+    }
+};
 #include "xtensor-python/pyarray.hpp" // Numpy bindings
 typedef xt::pyarray<double> Array;
 template class CurveCWSFourier<Array>;
