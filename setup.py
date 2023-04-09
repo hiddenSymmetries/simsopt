@@ -28,7 +28,7 @@ class CMakeExtension(Extension):
 
 
 class CMakeBuild(build_ext):
-    debug: bool = True
+    # debug: bool = True
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
 

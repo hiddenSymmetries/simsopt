@@ -7,8 +7,6 @@
 #include "magneticfield.h"
 #include "coil.h"
 
-// typedef AlignedPaddedVecPortable AlignedPaddedVec;
-
 template<template<class, std::size_t, xt::layout_type> class T, class Array>
 class BiotSavart : public MagneticField<T> {
      //This class describes a Magnetic field induced by a list of coils. It
@@ -44,9 +42,9 @@ class BiotSavart : public MagneticField<T> {
             }
         }
         #else
-        AlignedPaddedVecPortable pointsx;
-        AlignedPaddedVecPortable pointsy;
-        AlignedPaddedVecPortable pointsz;
+        AlignedPaddedVec pointsx;
+        AlignedPaddedVec pointsy;
+        AlignedPaddedVec pointsz;
 
         inline void fill_points(const Tensor2& points) {
             // allocating these aligned vectors is not super cheap, so reuse
