@@ -260,7 +260,7 @@ int main() {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart_nonsimd<AlignedPaddedVecPortable>(nst, nst, nd);
+            profile_biot_savart_nonsimd<AlignedPaddedVec>(nst, nst, nd);
     }
 
 #if __x86_64__
