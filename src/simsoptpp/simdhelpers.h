@@ -58,7 +58,7 @@ Credits: https://github.com/Twon/Alignment
  *
  * @tparam ALIGNMENT_IN_BYTES Must be a positive power of 2.
  */
-template<typename T, std::size_t ALIGNMENT_IN_BYTES = 64>
+template<typename T, std::size_t ALIGNMENT_IN_BYTES = 32>
 class AlignedPaddedAllocator
 {
 private:
@@ -118,7 +118,7 @@ public:
     }
 };
 
-using AlignedPaddedVecPortable = std::vector<double, AlignedPaddedAllocator<double>>;
+using AlignedPaddedVec = std::vector<double, AlignedPaddedAllocator<double>>;
 
 #endif
 
@@ -138,7 +138,6 @@ inline simd_t rsqrt(simd_t r2){
   r2 *= 0.5;
   rsqrt_newton_intrin(rinv, r2);
   rsqrt_newton_intrin(rinv, r2);
-  //rsqrt_newton_intrin(rinv, r2);
   return rinv;
 }
 #else
