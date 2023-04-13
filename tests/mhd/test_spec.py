@@ -273,18 +273,18 @@ class SpecTests(unittest.TestCase):
         filename = 'RotatingEllipse_Nvol2.sp'
         s = Spec(filename=filename)
 
-        # define volume current profile
+        # Define volume current profile
         mvol = s.inputlist.nvol
         ivolume = SpecProfile(np.zeros((mvol,)), cumulative=True)
         s.volume_current_profile = ivolume
 
-        # define dofs
+        # Define dofs
         s.fix_all()
         s.volume_current_profile.unfix(0)  # unfix in first volume
 
         # Now define target function
-        desired_iota = 0.55
-        prob = LeastSquaresProblem.from_tuples([(s.iota, desired_iota, 1)])
+        target_iota = 0.55
+        prob = LeastSquaresProblem.from_tuples([(s.iota, target_iota, 1)])
 
         # Solve
         least_squares_serial_solve(prob, grad=False)
@@ -292,15 +292,11 @@ class SpecTests(unittest.TestCase):
         # Check result
         self.assertAlmostEqual(s.iota(), 0.55, places=5)
         self.assertAlmostEqual(
-            s.get_profile(
-                'volume_current',
-                lvol=0)[0],
+            s.get_profile( 'volume_current', lvol=0)[0],
             0.01659580617394017,
             places=4)
         self.assertAlmostEqual(
-            s.get_profile(
-                'volume_current',
-                lvol=1)[0],
+            s.get_profile( 'volume_current', lvol=1)[0],
             0.01659580617394017,
             places=4)
 
