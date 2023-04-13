@@ -226,7 +226,7 @@ class PoloidalField(MagneticField):
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["R0"], d["B0"], d["q"])
         decoder = GSONDecoder()
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
@@ -482,10 +482,11 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
 
-        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, np.array(
-            (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
-            ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31)) *
-            np.array([-points[:, 1], points[:, 0], 0])).T)
+        num = (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2))
+        denom = ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31))
+        fak = num/denom
+        pts = fak[:, None]*np.concatenate((-points[:, 1][:, None], points[:, 0][:, None], np.zeros((points.shape[0], 1))), axis=-1)
+        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, pts.T).T
 
     def as_dict(self, serial_objs_dict):
         d = super().as_dict(serial_objs_dict=serial_objs_dict)
