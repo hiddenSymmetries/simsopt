@@ -11,10 +11,7 @@ import logging
 import numpy as np
 from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy.optimize import minimize, Bounds
-from scipy.integrate import quad, simps
-
-from .vmec import Vmec
-from .spec import Spec
+from scipy.integrate import quad
 
 from .._core.optimizable import Optimizable
 from .._core.util import Struct
@@ -22,7 +19,7 @@ from ..util.constants import ELEMENTARY_CHARGE
 from .profiles import Profile, ProfilePolynomial
 
 __all__ = ['compute_trapped_fraction', 'j_dot_B_Redl', 'RedlGeomVmec',
-           'RedlGeomBoozer', 'RedlBootstrapMismatch']
+           'RedlGeomBoozer', 'VmecRedlBootstrapMismatch']
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +51,10 @@ def compute_trapped_fraction(modB, sqrtg):
     \epsilon \cos\theta) R_0`.
 
     Args:
-        modB: 3D array of size (ntheta, ns, nj) or 4D array of size
-            (ntheta, nphi, ns, nj), where nj is None if modB is continuous,
-            with :math:`|B|` on the grid points.
-        sqrtg: 3D array of size (ntheta, ns, nj) or 4D array of size
-            (ntheta, nphi, ns, nj) with the Jacobian
+        modB: 2D array of size (ntheta, ns) or 3D array of size
+            (ntheta, nphi, ns) with :math:`|B|` on the grid points.
+        sqrtg: 2D array of size (ntheta, ns) or 3D array of size
+            (ntheta, nphi, ns) with the Jacobian
             :math:`1/(\nabla s \times\nabla\theta\cdot\nabla\phi)`
             on the grid points.
 
@@ -75,23 +71,16 @@ def compute_trapped_fraction(modB, sqrtg):
         - **f_t**: A 1D array, with the effective trapped fraction on each surface.
     """
     assert modB.shape == sqrtg.shape
-
-    jump = modB.shape[-1]==2
-
-    if jump:
-        jdim = 2
-    else:
-        jdim = None
-
     ntheta = modB.shape[0]
-    ns = modB.shape[-2]
-    epsilon = np.zeros((ns,jdim))
-    f_t = np.zeros((ns,jdim))
-    Bmin = np.zeros((ns,jdim))
-    Bmax = np.zeros((ns,jdim))
+    ns = modB.shape[-1]
+    epsilon = np.zeros(ns)
+    f_t = np.zeros(ns)
+    Bmin = np.zeros(ns)
+    Bmax = np.zeros(ns)
 
-    if modB.ndim==4:
+    if modB.ndim == 3:
         # Input arrays are 3D, with phi dependence.
+
         nphi = modB.shape[1]
         fourpisq = 4 * np.pi * np.pi
         dVds = np.mean(sqrtg, axis=(0, 1)) / fourpisq
@@ -100,44 +89,40 @@ def compute_trapped_fraction(modB, sqrtg):
 
         # Make a slightly enlarged version of the input array with the
         # first row and column appended at the ends, for periodicity.
-        modB_big = np.zeros((ntheta + 1, nphi + 1, ns, jdim))
-        modB_big[:ntheta, :nphi, :, :] = modB
-        modB_big[-1, :nphi, :, :] = modB[0, :, :, :]
-        modB_big[:, -1, :, :] = modB_big[:, 0, :, :]
+        modB_big = np.zeros((ntheta + 1, nphi + 1, ns))
+        modB_big[:ntheta, :nphi, :] = modB
+        modB_big[-1, :nphi, :] = modB[0, :, :]
+        modB_big[:, -1, :] = modB_big[:, 0, :]
 
         theta = np.arange(ntheta + 1)
         phi = np.arange(nphi + 1)
         for js in range(ns):
-            for jj in [0,1]:
-                if jj==1 and not jump: continue
+            index_of_min = np.unravel_index(np.argmin(modB_big[:, :, js]), modB_big.shape[:2])
+            index_of_max = np.unravel_index(np.argmax(modB_big[:, :, js]), modB_big.shape[:2])
+            modB_spline = RectBivariateSpline(theta, phi, modB_big[:, :, js])
+            soln = minimize(lambda x: np.ravel(modB_spline(x[0], x[1])),
+                            index_of_min,
+                            bounds=((0, ntheta), (0, nphi)))
+            modBmin = soln.fun
+            soln = minimize(lambda x: -np.ravel(modB_spline(x[0], x[1])),
+                            index_of_max,
+                            bounds=((0, ntheta), (0, nphi)))
+            modBmax = -soln.fun
+            Bmin[js] = modBmin
+            Bmax[js] = modBmax
+            w = modBmax / modBmin
+            epsilon[js] = (w - 1) / (w + 1)
 
-                index_of_min = np.unravel_index(np.argmin(modB_big[:, :, js, jj]), modB_big.shape[:2])
-                index_of_max = np.unravel_index(np.argmax(modB_big[:, :, js, jj]), modB_big.shape[:2])
-                modB_spline = RectBivariateSpline(theta, phi, modB_big[:, :, js, jj])
-                soln = minimize(lambda x: np.ravel(modB_spline(x[0], x[1])),
-                                index_of_min,
-                                bounds=((0, ntheta), (0, nphi)))
-                modBmin = soln.fun
-                soln = minimize(lambda x: -np.ravel(modB_spline(x[0], x[1])),
-                                index_of_max,
-                                bounds=((0, ntheta), (0, nphi)))
-                modBmax = -soln.fun
-                Bmin[js, jj] = modBmin
-                Bmax[js, jj] = modBmax
+            def integrand(lambd):
+                # This function gives lambda / <sqrt(1 - lambda B)>:
+                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, :, js]) * sqrtg[:, :, js]) \
+                                / (fourpisq * dVds[js]))
 
-                w = modBmax / modBmin
-                epsilon[js,jj] = (w - 1) / (w + 1)
+            integral = quad(integrand, 0, 1 / modBmax)
+            f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
 
-                def integrand(lambd):
-                    # This function gives lambda / <sqrt(1 - lambda B)>:
-                    return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, :, js, jj]) * sqrtg[:, :, js, jj]) \
-                                    / (fourpisq * dVds[js,jj]))
-
-                integral = quad(integrand, 0, 1 / modBmax)
-                f_t[js,jj] = 1 - 0.75 * fsa_B2[js,jj] * integral[0,jj]
-
-    elif modB.ndim == 3:
-        # Input arrays are 3D, with no phi dependence.
+    elif modB.ndim == 2:
+        # Input arrays are 2D, with no phi dependence.
 
         twopi = 2 * np.pi
         dVds = np.mean(sqrtg, axis=0) / twopi
@@ -146,43 +131,39 @@ def compute_trapped_fraction(modB, sqrtg):
 
         # Make a slightly enlarged version of the input array with the
         # first row and column appended at the ends, for periodicity.
-        modB_big = np.zeros((ntheta + 1, ns, jdim))
-        modB_big[:ntheta, :, :] = modB
-        modB_big[-1, :, :] = modB[0, :, :]
+        modB_big = np.zeros((ntheta + 1, ns))
+        modB_big[:ntheta, :] = modB
+        modB_big[-1, :] = modB[0, :]
 
         theta = np.arange(ntheta + 1)
         for js in range(ns):
-            for jj in [0,1]:
-                if jj==1 and not jump: continue
+            index_of_min = np.argmin(modB_big[:, js])
+            index_of_max = np.argmax(modB_big[:, js])
+            modB_spline = interp1d(theta, modB_big[:, js], kind='cubic')
+            bounds = Bounds(0, ntheta)
+            soln = minimize(modB_spline,
+                            [index_of_min],
+                            bounds=bounds)
+            modBmin = soln.fun
+            soln = minimize(lambda x: -modB_spline(x[0]),
+                            [index_of_max],
+                            bounds=bounds)
+            modBmax = -soln.fun
+            Bmin[js] = modBmin
+            Bmax[js] = modBmax
+            w = modBmax / modBmin
+            epsilon[js] = (w - 1) / (w + 1)
 
-                index_of_min = np.argmin(modB_big[:, js, jj])
-                index_of_max = np.argmax(modB_big[:, js, jj])
-                modB_spline = interp1d(theta, modB_big[:, js, jj], kind='cubic')
-                bounds = Bounds(0, ntheta)
-                soln = minimize(modB_spline,
-                                [index_of_min],
-                                bounds=bounds)
-                modBmin = soln.fun
-                soln = minimize(lambda x: -modB_spline(x[0]),
-                                [index_of_max],
-                                bounds=bounds)
-                modBmax = -soln.fun
-                Bmin[js,jj] = modBmin
-                Bmax[js,jj] = modBmax
+            def integrand(lambd):
+                # This function gives lambda / <sqrt(1 - lambda B)>:
+                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js]) * sqrtg[:, js]) \
+                                / (twopi * dVds[js]))
 
-                w = modBmax / modBmin
-                epsilon[js,jj] = (w - 1) / (w + 1)
-
-                def integrand(lambd):
-                    # This function gives lambda / <sqrt(1 - lambda B)>:
-                    return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js,jj]) * sqrtg[:, js,jj]) \
-                                    / (twopi * dVds[js,jj]))
-
-                integral = quad(integrand, 0, 1 / modBmax)
-                f_t[js,jj] = 1 - 0.75 * fsa_B2[js,jj] * integral[0]
+            integral = quad(integrand, 0, 1 / modBmax)
+            f_t[js] = 1 - 0.75 * fsa_B2[js] * integral[0]
 
     else:
-        raise ValueError('Input arrays must be 3D or 4D')
+        raise ValueError('Input arrays must be 2D or 3D')
 
     logging.debug(f'Bmin: {Bmin}  Bmax: {Bmax}  epsilon: {epsilon}  '
                   f'fsa_B2: {fsa_B2}  fsa_1overB: {fsa_1overB}  f_t: {f_t}')
@@ -266,14 +247,7 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
            or (f_t is not None) or (nfp is not None):
             raise ValueError('Geometry is being specified two ways. Pick one or the other.')
         geom_data = geom()
-
-        if geom.vmec is not None:
-            s = geom_data.surfaces
-            sind = s
-        elif geom.spec is not None:
-            s = geom_data.surfaces
-            sind = geom.surfaces
-
+        s = geom_data.surfaces
         G = geom_data.G
         R = geom_data.R
         iota = geom_data.iota
@@ -281,13 +255,6 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         psi_edge = geom_data.psi_edge
         f_t = geom_data.f_t
         nfp = geom_data.nfp
-
-    # True if there is a discontinuity accross the surface
-    jump = G.shape[1]==2
-    if jump:
-        jdim = 2
-    else:
-        jdim = 1
 
     if helicity_n is None:
         helicity_n = geom.helicity_n
@@ -300,36 +267,16 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         Zeff = ProfilePolynomial([Zeff])
 
     # Evaluate profiles on the grid:
-    nsurf = len(s)
-    ne_s = np.zeros((nsurf,jdim))
-    ni_s = np.zeros((nsurf,jdim))
-    Te_s = np.zeros((nsurf,jdim))
-    Ti_s = np.zeros((nsurf,jdim))
-    pe_s = np.zeros((nsurf,jdim))
-    pi_s = np.zeros((nsurf,jdim))
-    Zeff_s = np.zeros((nsurf,jdim))
-    d_ne_d_s = np.zeros((nsurf,1))
-    d_Te_d_s = np.zeros((nsurf,1))
-    d_Ti_d_s = np.zeros((nsurf,1))
-
-    for innout in range(0,jdim):
-        # Volume index is surface index - innout
-        innout_vol = np.mod(innout+1,2)
-        vvol = np.array([surf-innout_vol for surf in sind])
-        print(vvol)
-        ne_s[:,innout] = ne(vvol)
-        Te_s[:,innout] = Te(vvol)
-        Ti_s[:,innout] = Ti(vvol)
-        Zeff_s[:,innout] = Zeff(vvol)
-
-    vvol = np.array([surf-1 for surf in sind])
-    d_ne_d_s = ne.dfds(vvol)
-    d_Te_d_s = Te.dfds(vvol)
-    d_Ti_d_s = Ti.dfds(vvol)
-
+    ne_s = ne(s)
+    Te_s = Te(s)
+    Ti_s = Ti(s)
+    Zeff_s = Zeff(s)
     ni_s = ne_s / Zeff_s
     pe_s = ne_s * Te_s
     pi_s = ni_s * Ti_s
+    d_ne_d_s = ne.dfds(s)
+    d_Te_d_s = Te.dfds(s)
+    d_Ti_d_s = Ti.dfds(s)
 
     # Profiles may go to 0 at s=1, so exclude the last 2 grid points:
     if np.any(ne_s[:-2] < 1e17):
@@ -408,17 +355,10 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         / (1 + 0.004 * nu_i * nu_i * (f_t ** 6))
 
     # Factor of ELEMENTARY_CHARGE is included below to convert temperatures from eV to J
-    dnds_term = -G * ELEMENTARY_CHARGE * (ne_s * Te_s + ni_s * Ti_s) * L31 * (d_ne_d_s[:,None] / ne_s) / (psi_edge * (iota - helicity_N))
-    dTeds_term = -G * ELEMENTARY_CHARGE * pe_s * (L31 + L32) * (d_Te_d_s[:,None] / Te_s) / (psi_edge * (iota - helicity_N))
-    dTids_term = -G * ELEMENTARY_CHARGE * pi_s * (L31 + L34 * alpha) * (d_Ti_d_s[:,None] / Ti_s) / (psi_edge * (iota - helicity_N))
+    dnds_term = -G * ELEMENTARY_CHARGE * (ne_s * Te_s + ni_s * Ti_s) * L31 * (d_ne_d_s / ne_s) / (psi_edge * (iota - helicity_N))
+    dTeds_term = -G * ELEMENTARY_CHARGE * pe_s * (L31 + L32) * (d_Te_d_s / Te_s) / (psi_edge * (iota - helicity_N))
+    dTids_term = -G * ELEMENTARY_CHARGE * pi_s * (L31 + L34 * alpha) * (d_Ti_d_s / Ti_s) / (psi_edge * (iota - helicity_N))
     jdotB = dnds_term + dTeds_term + dTids_term
-
-    # In case the profiles go to vacuum, need to set current to zero
-    ind = np.where(pe_s==0)
-    jdotB[ind]=0
-    ind = np.where(pi_s==0)
-    jdotB[ind]=0
-    
 
     details = Struct()
     nu_e_star = nu_e
@@ -542,15 +482,6 @@ class RedlGeomVmec(Optimizable):
             modB += np.kron(bmnc[jmn, :].reshape((1, 1, ns)), cosangle)
             sqrtg += np.kron(gmnc[jmn, :].reshape((1, 1, ns)), cosangle)
 
-        # Add empty dimension for compability with SPEC
-        iota = iota[:,None]
-        G = G[:,None]
-        I = I[:,None]
-        gmnc = gmnc[:,:,None]
-        bmnc = bmnc[:,:,None]
-        modB = modB[:,:,:,None]
-        sqrtg = sqrtg[:,:,:,None]
-
         Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 
         # There are several ways we could define an effective R for shaped geometry:
@@ -620,130 +551,54 @@ class RedlGeomBoozer(Optimizable):
 
         # self.surfaces = self.booz.bx.s_b
         surfaces = self.surfaces
+        ns = len(surfaces)
         ntheta = self.ntheta
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-        
-        if isinstance(self.booz.equil, Vmec):
-            ns = len(surfaces)
-            vmec = self.booz.equil
-            self.vmec = vmec
-            self.spec = None
-            nfp = vmec.wout.nfp
-            psi_edge = -vmec.wout.phi[-1] / (2 * np.pi)
-            logger.info(f'Surfaces from booz_xform: {self.booz.bx.s_b}  '
-                        f'Surfaces for RedlGeomBoozer: {surfaces}')
+        vmec = self.booz.equil
+        self.vmec = vmec
+        nfp = vmec.wout.nfp
+        psi_edge = -vmec.wout.phi[-1] / (2 * np.pi)
+        logger.info(f'Surfaces from booz_xform: {self.booz.bx.s_b}  '
+                    f'Surfaces for RedlGeomBoozer: {surfaces}')
 
-            # First, interpolate in s to get the quantities we need on the surfaces we need.
-            method = 'linear'
-            interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
-            iota = interp(surfaces)
+        # First, interpolate in s to get the quantities we need on the surfaces we need.
+        method = 'linear'
 
-            interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
-            G = interp(surfaces)
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
+        iota = interp(surfaces)
 
-            interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
-            I = interp(surfaces)
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
+        G = interp(surfaces)
 
-            if self.vmec.mpi.proc0_groups:
-                interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
-                bmnc_b = interp(surfaces)
-                logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
+        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
+        I = interp(surfaces)
 
-                interp = interp1d(self.booz.bx.s_b, self.booz.bx.gmnc_b, fill_value="extrapolate")
-                gmnc_b = interp(surfaces)
-        
-            # Add empty dimension for compability with SPEC
-            iota = iota[:,None]
-            G = G[:,None]
-            I = I[:,None]
-            gmnc = gmnc[:,:,None]
-            bmnc = bmnc[:,:,None]
-            modB = modB[:,:,:,None]
-            sqrtg = sqrtg[:,:,:,None]
+        if self.vmec.mpi.proc0_groups:
+            interp = interp1d(self.booz.bx.s_b, self.booz.bx.bmnc_b, fill_value="extrapolate")
+            bmnc_b = interp(surfaces)
+            logger.info(f'Original bmnc_b.shape: {self.booz.bx.bmnc_b.shape}  Interpolated bmnc_b.shape: {bmnc_b.shape}')
 
-            jdim = None
+            interp = interp1d(self.booz.bx.s_b, self.booz.bx.gmnc_b, fill_value="extrapolate")
+            gmnc_b = interp(surfaces)
 
-        elif isinstance(self.booz.equil, Spec):
-
-            tflux = self.booz.equil.inputlist.tflux
-            nvol = self.booz.equil.inputlist.nvol
-            tflux = tflux / tflux[nvol-1]
-
-            #surfaces = tflux[self.surfaces-1]
-            # Surface 0 is the magnetic axis; then volume l is bounded by surface
-            # l-1 and l.
-            surfaces = [tflux[s-1] for s in self.surfaces]
-            ns = len(surfaces)
-
-            spec = self.booz.equil
-            self.vmec = None
-            self.spec = spec
-
-            nfp = spec.inputlist.nfp
-            nvol = spec.inputlist.nvol
-            mvol = nvol + spec.inputlist.lfreebound
-            psi_edge = spec.inputlist.phiedge
-
-            # Evaluate modB
-            iota = np.zeros((mvol-1,2))
-            I = np.zeros(iota.shape)
-            G = np.zeros(iota.shape)
-            bmnc_b = np.zeros((self.booz.bx.mnboz,mvol-1,2))
-            gmnc_b = np.zeros((self.booz.bx.mnboz,mvol-1,2))
-            ii=0
-            for lsurf in self.surfaces: 
-                for innout in [0,1]: # 0 is inner side of interface, 1 is outer side
-                    lvol = lsurf-1+innout # First surface is index 1, first volume is index 0
-                    # 0 is inner side of volume, 1 is outer side
-                    innout_vol = np.mod(innout+1,2)
-                    if lvol==0 and innout_vol==0: continue #magnetic axis
-                    if lvol==mvol and innout_vol==1: continue #comp. boundary 
-
-                    # Get iota
-                    iota[lsurf-1,innout] = spec.results.output.lambdamn[innout_vol,lvol,0]
-
-                    I[lsurf-1,innout] = self.booz.bx.Boozer_I[ii]
-                    G[lsurf-1,innout] = self.booz.bx.Boozer_G[ii]
-
-                    # No need to interpolate between surfaces as with VMEC
-                    bmnc_b[:,lsurf-1,innout] = self.booz.bx.bmnc_b[:,ii]
-                    gmnc_b[:,lsurf-1,innout] = self.booz.bx.gmnc_b[:,ii]
-
-                    ii+=1
-
-                    jdim = 2
-        else:
-            raise ValueError('Invalid equilibrium type')
-
-
-        if (isinstance(self.booz.equil, Vmec) and self.vmec.mpi.proc0_groups) \
-            or (isinstance(self.booz.equil, Spec) and self.spec.mpi.proc0_groups):
             # Evaluate modB and sqrtg on a uniform grid in theta,
             # including only the modes that match the desired symmetry:
-            modB = np.zeros((ntheta, ns, jdim))
-            sqrtg = np.zeros((ntheta, ns, jdim))
-            _, theta = np.meshgrid(surfaces, theta1d)
-
+            modB = np.zeros((ntheta, ns))
+            sqrtg = np.zeros((ntheta, ns))
+            s, theta = np.meshgrid(surfaces, theta1d)
             for jmn in range(booz.bx.mnboz):
                 if booz.bx.xm_b[jmn] * self.helicity_n * nfp == booz.bx.xn_b[jmn]:
-                    for innout in [0,1]:
-                        if isinstance(self.booz.equil, Vmec) and innout==1: continue
-
-                        modB[:,:,innout]  += np.cos(booz.bx.xm_b[jmn] * theta) \
-                        * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :, innout])
-
-                        sqrtg[:,:,innout] += np.cos(booz.bx.xm_b[jmn] * theta) \
-                            * np.kron(np.ones((ntheta, 1)), gmnc_b[jmn, None, :, innout])
-
-
+                    # modB += cos(m * theta) * bmnc:
+                    modB += np.cos(booz.bx.xm_b[jmn] * theta) \
+                        * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :])
+                    sqrtg += np.cos(booz.bx.xm_b[jmn] * theta) \
+                        * np.kron(np.ones((ntheta, 1)), gmnc_b[jmn, None, :])
         else:
             modB = 0
             sqrtg = 0
 
-        
-        modB = self.booz.equil.mpi.comm_groups.bcast(modB)
-        sqrtg = self.booz.equil.mpi.comm_groups.bcast(sqrtg)
-
+        modB = self.vmec.mpi.comm_groups.bcast(modB)
+        sqrtg = self.vmec.mpi.comm_groups.bcast(sqrtg)
 
         Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t = compute_trapped_fraction(modB, sqrtg)
 
@@ -753,16 +608,7 @@ class RedlGeomBoozer(Optimizable):
 
         # Pack data into a return structure
         data = Struct()
-
-        if isinstance(self.booz.equil, Vmec):
-            data.vmec = vmec
-            data.spec = None
-        elif isinstance(self.booz.equil, Spec):
-            data.vmec = None
-            data.spec = self.booz.equil
-        else:
-            raise ValueError('Invalid type of equilibrium.')
-
+        data.vmec = vmec
         variables = ['nfp', 'surfaces', 'Bmin', 'Bmax', 'epsilon', 'fsa_B2', 'fsa_1overB', 'f_t',
                      'modB', 'sqrtg', 'G', 'R', 'I', 'iota', 'psi_edge', 'theta1d']
         for v in variables:
@@ -786,10 +632,10 @@ class RedlGeomBoozer(Optimizable):
         return data
 
 
-class RedlBootstrapMismatch(Optimizable):
+class VmecRedlBootstrapMismatch(Optimizable):
     r"""
     This class is used to obtain quasi-axisymmetric or quasi-helically
-    symmetric VMEC or SPEC configurations with self-consistent bootstrap
+    symmetric VMEC configurations with self-consistent bootstrap
     current. This class represents the objective function
 
     .. math::
@@ -865,78 +711,38 @@ class RedlBootstrapMismatch(Optimizable):
                                      self.Ti,
                                      self.Zeff,
                                      self.helicity_n,
-                                     geom=self.geom,
-                                     plot=False)
+                                     geom=self.geom)
         # Interpolate vmec's <J dot B> profile from the full grid to the desired surfaces:
         vmec = self.geom.vmec
-        spec = self.geom.spec
+        interp = interp1d(vmec.s_full_grid, vmec.wout.jdotb)  # VMEC's "jdotb" is on the full grid.
+        jdotB_vmec = interp(self.geom.surfaces)
 
-        MU0 = 4*np.pi*1e-7
-
-        if not vmec is None:
-            interp = interp1d(vmec.s_full_grid, vmec.wout.jdotb)  # VMEC's "jdotb" is on the full grid.
-            jdotB_vmec = interp(self.geom.surfaces)
-            jdotB_vmec = np.squeeze(jdotB_vmec) # To remove extra dimension used for internal compatibility with SPEC
-
-            if self.logfile is not None:
-                if self.iteration == 0:
-                    # Write header
-                    with open(self.logfile, 'w') as f:
-                        f.write('s\n')
-                        f.write(str(self.geom.surfaces[0]))
-                        for j in range(1, len(self.geom.surfaces)):
-                            f.write(', ' + str(self.geom.surfaces[j]))
-                        f.write('\n')
-                        f.write('iteration, j dot B Redl, j dot B vmec\n')
-
-                with open(self.logfile, 'a') as f:
-                    f.write(str(self.iteration))
-                    for j in range(len(self.geom.surfaces)):
-                        f.write(', ' + str(jdotB_Redl[j]))
-                    for j in range(len(self.geom.surfaces)):
-                        f.write(', ' + str(jdotB_vmec[j]))
+        if self.logfile is not None:
+            if self.iteration == 0:
+                # Write header
+                with open(self.logfile, 'w') as f:
+                    f.write('s\n')
+                    f.write(str(self.geom.surfaces[0]))
+                    for j in range(1, len(self.geom.surfaces)):
+                        f.write(', ' + str(self.geom.surfaces[j]))
                     f.write('\n')
+                    f.write('iteration, j dot B Redl, j dot B vmec\n')
 
-            self.iteration += 1
-            denominator = np.sum((jdotB_vmec + jdotB_Redl) ** 2)
-            return (jdotB_vmec - jdotB_Redl) / np.sqrt(denominator)
-        
-        elif not spec is None:
-            # Get j dot B on grid
-            jdotB_spec, tarr, zarr = spec.results.get_surface_current_density(
-                lsurf=np.asarray(self.geom.surfaces), 
-                nt=spec.results.grid.Nt, 
-                nz=spec.results.grid.Nz
-            )
+            with open(self.logfile, 'a') as f:
+                f.write(str(self.iteration))
+                for j in range(len(self.geom.surfaces)):
+                    f.write(', ' + str(jdotB_Redl[j]))
+                for j in range(len(self.geom.surfaces)):
+                    f.write(', ' + str(jdotB_vmec[j]))
+                f.write('\n')
 
-            # Get surface average current
-            jdotB_spec_avg = spec.results.get_flux_surface_average(
-                np.asarray(self.geom.surfaces), 
-                np.squeeze(jdotB_spec[0,0,:,:]), 
-                tarr=tarr, 
-                zarr=zarr)
-
-            # Average between both side of interfaces - no need to average both sides of SPEC,
-            # since j.B is the same on each side.
-            jdotB_Redl_avg = np.mean(jdotB_Redl, axis=1)
-
-            jdotB_spec_avg = jdotB_spec_avg / MU0 # SPEC current is given as mu0 * I - need to renormalize
-
-            # Return error between SPEC current and Redl bootstrap current
-            self.iteration +=1
-            denominator = np.sum((jdotB_spec_avg + jdotB_Redl_avg) ** 2)
-            return (jdotB_spec_avg - jdotB_Redl_avg) / np.sqrt(denominator)
-
-        else:
-            raise ValueError('data should have either a Spec or Vmec equilibrium!')
+        self.iteration += 1
+        denominator = np.sum((jdotB_vmec + jdotB_Redl) ** 2)
+        return (jdotB_vmec - jdotB_Redl) / np.sqrt(denominator)
 
     def J(self):
         """
         Return the scalar objective function, given by the sum of the
         squares of the residuals.
         """
-        r = self.residuals()
-        return np.sum(r ** 2)
-
-
-
+        return np.sum(self.residuals() ** 2)
