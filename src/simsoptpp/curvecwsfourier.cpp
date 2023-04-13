@@ -377,17 +377,17 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
                 {
                     int n = j - ntor;
                     r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
-                    z_aux1 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
-
                     r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
+
+                    z_aux1 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
                     z_aux2 += zs(m, j) * cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
 
                     if (!stellsym)
                     {
                         r_aux1 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
-                        z_aux1 += -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
-
                         r_aux2 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
+
+                        z_aux1 += -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
                         z_aux2 += -zc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
                     }
                 }
@@ -522,7 +522,20 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
                     dz_aux1 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + cos(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
                     dz_aux2 += zs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
 
-                    // STELLSYM IS MISSING FOR NOW
+                    if (!stellsym)
+                    {
+                        r += rs(m, j) * sin(m * ptheta - nfp * n * pphi);
+                        dr += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+
+                        r_aux1 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
+                        r_aux2 += rs(m, j) * cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
+
+                        dr_aux1 += rs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + cos(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
+                        dr_aux2 += rs(m, j) * (sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + cos(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
+
+                        dz_aux1 += -zc(m, j) * (cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (m * theta_array[i]) + sin(m * ptheta - nfp * n * pphi) * (m * dtheta_array[i]));
+                        dz_aux2 += -zc(m, j) * (cos(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi) * (-nfp * n * phi_array[i]) + sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]));
+                    }
                 }
             }
             r_array[i] = r_aux1;
