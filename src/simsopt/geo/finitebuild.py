@@ -152,7 +152,7 @@ class CurveFilament(sopp.Curve, Curve):
 
 class FilamentRotation(Optimizable):
 
-    def __init__(self, quadpoints, order, scale=1.):
+    def __init__(self, quadpoints, order, scale=1., dofs=None):
         """
         The rotation of the multifilament pack; alpha in Figure 1 of
         Singh et al, "Optimization of finite-build stellarator coils",
@@ -160,7 +160,10 @@ class FilamentRotation(Optimizable):
         doi:10.1017/S0022377820000756
         """
         self.order = order
-        Optimizable.__init__(self, x0=np.zeros((2*order+1, )))
+        if dofs is None:
+            super().__init__(x0=np.zeros((2*order+1, )))
+        else:
+            super().__init__(dofs=dofs)
         self.quadpoints = quadpoints
         self.scale = scale
         self.jac = rotation_dcoeff(quadpoints, order)
@@ -193,7 +196,7 @@ class ZeroRotation(Optimizable):
             rot.fix_all()
 
         """
-        Optimizable.__init__(self, x0=[])
+        super().__init__()
         self.zero = np.zeros((quadpoints.size, ))
 
     def alpha(self, quadpoints):

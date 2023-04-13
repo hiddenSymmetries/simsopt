@@ -222,6 +222,7 @@ class Testing(unittest.TestCase):
         ### compare to biosavart(circular_coil)
         ## at these points
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        np.random.seed(0)
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         ## verify with a x^2+z^2=radius^2 circular coil
         normal = [np.pi/2, np.pi/2]
@@ -265,9 +266,22 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+
+        # one points
         Bfield.set_points(np.asarray([[0.1, 0.2, 0.3]]))
         Afield = Bfield.A()
         assert np.allclose(Afield, [[0, 5.15785, -2.643056]])
+
+        # two points
+        Bfield.set_points(np.asarray([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]))
+        Afield = Bfield.A()
+        assert np.allclose(Afield, [[0, 5.15785, -2.643056], [0, 5.15785, -2.643056]])
+
+        # three points
+        Bfield.set_points(np.asarray([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]))
+        Afield = Bfield.A()
+        assert np.allclose(Afield, [[0, 5.15785, -2.643056], [0, 5.15785, -2.643056], [0, 5.15785, -2.643056]])
+
         # use normal=[1,0,0]
         normal = [1, 0, 0]
         curve = CurveXYZFourier(300, 1)
