@@ -254,9 +254,12 @@ class BoozerAnalytic(BoozerMagneticField):
         psi = s*self.psi0
         # drds = np.zeros_like(s)
         r = np.sqrt(np.abs(2*psi/self.Bbar))
-        drds = 0.5*r*self.psi0/psi
         # drds[s!=0] = 0.5*r[s!=0]*self.psi0/psi[s!=0]
-        dmodBds[:, 0] = self.B0*self.etabar*drds*np.cos(thetas-self.N*zetas)
+        if self.etabar!=0:
+            drds = 0.5*r*self.psi0/psi
+            dmodBds[:, 0] = self.B0*self.etabar*drds*np.cos(thetas-self.N*zetas)
+        else:
+            dmodBds[:, 0] = 0
 
     def _dmodBdtheta_impl(self, dmodBdtheta):
         points = self.get_points_ref()
@@ -1171,7 +1174,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 bmns[im, :] = ((self.dbmnsds_splines[im](s) - self.bmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
             sopp.inverse_fourier_transform_odd(dmodBds[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
-
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
     r"""
