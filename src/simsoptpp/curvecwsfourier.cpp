@@ -554,8 +554,8 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
             data(k, 1, p) = dr_array[p] * sin(pphi) + r_array[p] * cos(pphi) * dpphi;
             data(k, 2, p) = dz_array[p];
 
-            data(k, 0, p + counter) = -dr * sin(pphi) * phi_array[p + counter] - r * sin(pphi) * dphi_array[p + counter] - r * cos(pphi) * phi_array[p + counter] * dpphi;
-            data(k, 1, p + counter) = dr * cos(pphi) * phi_array[p + counter] - r * sin(pphi) * phi_array[p + counter] * dpphi + r * cos(pphi) * dphi_array[p + counter];
+            data(k, 0, p + counter) = dr_array[p + counter] * cos(pphi) - (dr * sin(pphi) + r * cos(pphi) * dpphi) * phi_array[p + counter] - r_array[p + counter] * sin(pphi) * dpphi - r * sin(pphi) * dphi_array[p + counter];
+            data(k, 1, p + counter) = dr_array[p + counter] * sin(pphi) + (dr * cos(pphi) - r * sin(pphi) * dpphi) * phi_array[p + counter] + r_array[p + counter] * cos(pphi) * dpphi + r * cos(pphi) * dphi_array[p + counter];
             data(k, 2, p + counter) = dz_array[p + counter];
         }
     }
