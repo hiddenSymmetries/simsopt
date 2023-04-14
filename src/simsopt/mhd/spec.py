@@ -159,101 +159,62 @@ class Spec(Optimizable):
             self.mvol = self.nvol
 
         # Store initial guess data
+        # The initial guess is a collection of SurfaceRZFourier instances,
+        # stored in a lit of size Mvol-1 (the number of inner interfaces)
         nmodes = self.allglobal.num_modes
         mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
+        stellsym = bool(si.istellsym)
         if nmodes>0 and self.nvol>1:
-            # Save inner boundaries geometry
-            self.initial_guess = {}
-            self.initial_guess['mm'] = np.zeros((mn,), dtype='int')
-            self.initial_guess['nn'] = np.zeros((mn,), dtype='int')
-            self.initial_guess['rbc'] = np.zeros((self.mvol-1, mn))
-            self.initial_guess['zbs'] = np.zeros((self.mvol-1, mn))
-            if si.istellsym == 0:
-                self.initial_guess['rbs'] = np.zeros((1, mn))
-                self.initial_guess['zbc'] = np.zeros((1, mn))
-
-            ii = 0 # geometrical dof counter
+            self.initial_guess = [ 
+                SurfaceRZFourier(nfp=si.nfp, stellsym=stellsym, mpol=si.mpol, ntor=si.ntor) 
+                ] * (self.mvol-1)
             for mm in range(0, si.mpol+1): # loop on poloidal modes
                 for nn in range(-si.ntor, si.ntor+1): # loop on toroidal modes
                     if mm == 0 and nn < 0:
                         continue
-
-                    self.initial_guess['mm'][ii] = mm
-                    self.initial_guess['nn'][ii] = nn 
-
-                    # Find index corresponding to mode (mm,nn)
+                        
+                    # Find index in array where Fourier harmonic is located
                     indm = np.where(self.allglobal.mmrzrz[0:nmodes] == mm)
                     indn = np.where(self.allglobal.nnrzrz[0:nmodes] == nn)
                     ind = np.intersect1d(indm, indn)
 
-                    # There should be only one corresponding mode
-                    if ind.size == 1:
-                        self.initial_guess['rbc'][:, ii] = copy.copy(
-                            self.allglobal.allrzrz[0, 0:self.mvol-1, ind])
-                        self.initial_guess['zbs'][:, ii] = copy.copy(
-                            self.allglobal.allrzrz[1, 0:self.mvol-1, ind])
-
-                        if si.istellsym == 0:
-                            self.initial_guess['rbs'][:, ii] = copy.copy(
-                                self.allglobal.allrzrz[2, 0:self.mvol-1, ind])
-                            self.initial_guess['zbc'][:, ii] = copy.copy(
-                                self.allglobal.allrzrz[3, 0:self.mvol-1, ind])
-                    elif ind.size > 1:
-                        ValueError('Error reading initial guess')
-
-                    ii = ii + 1
-
-        else:
-            self.initial_guess = None
-
-        # Store plasma boundary - this is useful for free-boundary calculations,
-        # where an initial guess for the plasma boundary is required.
-        # This is different that self._boundary, which are degrees of freedom
-        if si.lfreebound:
-            plasma_boundary = {}
-            plasma_boundary['mm'] = np.zeros((mn,))
-            plasma_boundary['nn'] = np.zeros((mn,))
-            plasma_boundary['rbc'] = np.zeros((1, mn))
-            plasma_boundary['zbs'] = np.zeros((1, mn))
-            if si.istellsym == 0:
-                plasma_boundary['rbs'] = np.zeros((1, mn))
-                plasma_boundary['zbc'] = np.zeros((1, mn))
-
-            ii = 0
-            for mm in range(0, si.mpol+1):
-                for nn in range(-si.ntor, si.ntor+1):
-                    if mm == 0 and nn < 0:
+                    if ind.size==0:
                         continue
+                    elif ind.size>1:
+                        ValueError( 'Error reading initial guess.' )
 
-                    plasma_boundary['mm'][ii] = mm
-                    plasma_boundary['nn'][ii] = nn
 
-                    plasma_boundary['rbc'][0,ii] = \
-                        si.rbc[si.mntor+nn, si.mmpol+mm]
-                    plasma_boundary['zbs'][0,ii] = \
-                        si.zbs[si.mntor+nn, si.mmpol+mm]
+                    # Populate SurfaceRZFourier instances, excepted plasma boundary
+                    for lvol in range(0,self.nvol-1):
+                        self.initial_guess[lvol].set_rc( mm, nn, self.allglobal.allrzrz[0, lvol, ind] )
+                        self.initial_guess[lvol].set_zs( mm, nn, self.allglobal.allrzrz[1, lvol, ind] )
 
-                    if si.istellsym == 0:
-                        plasma_boundary['rbs'][0,ii] = \
-                            si.rbs[si.mntor+nn, si.mmpol+mm]
-                        plasma_boundary['zbc'][0,ii] = \
-                            si.zbc[si.mntor+nn, si.mmpol+mm]
+                        if not si.istellsym:
+                            self.initial_guess[lvol].set_rs( mm, nn, self.allglobal.allrzrz[2, lvol, ind] )
+                            self.initial_guess[lvol].set_zc( mm, nn, self.allglobal.allrzrz[3, lvol, ind] )
 
-                    ii = ii + 1
+                    if si.lfreebound: # Populate plasma boundary as well
+                        self.initial_guess[self.nvol-1].set_rc( mm, nn, si.rbc[si.mntor+nn, si.mmpol+mm] )
+                        self.initial_guess[self.nvol-1].set_zs( mm, nn, si.zbs[si.mntor+nn, si.mmpol+mm] )
 
-            if self.initial_guess is None:
-                self.initial_guess = plasma_boundary
-            else:
-                self.initial_guess['rbc'][self.nvol - 1] = \
-                    plasma_boundary['rbc'][0, :]
-                self.initial_guess['zbs'][self.nvol - 1] = \
-                    plasma_boundary['zbs'][0, :]
+                        if not si.istellsym:
+                            self.initial_guess[self.nvol-1].set_rs( mm, nn, si.rbs[si.mntor+nn, si.mmpol+mm] )
+                            self.initial_guess[self.nvol-1].set_zc( mm, nn, si.zbc[si.mntor+nn, si.mmpol+mm] )
 
-                if si.istellsym == 0:
-                    self.initial_guess['rbs'][self.nvol - 1] = \
-                        plasma_boundary['rbs'][0, :]
-                    self.initial_guess['zbc'][self.nvol - 1] = \
-                        plasma_boundary['zbc'][0, :]
+
+            # In general, initial guess is NOT a degree of freedom for the
+            # optimization - we thus fix them.
+            for lvol in range(0,self.mvol-1):
+                self.initial_guess[lvol].fix_all()
+
+        else: 
+            # There is no initial guess - in this case, we let SPEC handle
+            # the construction of the initial guess. This generally means
+            # that the geometry of the inner interfaces will be constructed
+            # by interpolation between the plasma (or computational) boundary
+            # and the magnetic axis
+
+            self.initial_guess = None
 
         # Store axis data
         self.axis = {}
@@ -268,7 +229,6 @@ class Spec(Optimizable):
         self.files_to_delete = []
 
         # Create a surface object for the boundary:
-        stellsym = bool(si.istellsym)
         print(f"In __init__, si.istellsym={si.istellsym} stellsym={stellsym}")
         self._boundary = SurfaceRZFourier(nfp=si.nfp,
                                           stellsym=stellsym,
@@ -847,49 +807,41 @@ class Spec(Optimizable):
             si.zac[0:mn] = self.axis['zac']
 
         # Set initial guess
-        mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
-        if not self.initial_guess is None:
+        if not self.initial_guess is None:        
             # Set all modes to zero
             spec.allglobal.mmrzrz[:] = 0
             spec.allglobal.nnrzrz[:] = 0
             spec.allglobal.allrzrz[:] = 0
 
-            if si.lfreebound:
-                si.rbc[:] = 0
-                si.zbs[:] = 0
-                if si.istellsym == 0:
-                    si.rbs[:] = 0
-                    si.zbc[:] = 0
+            # Loop on modes
+            imn = -1 # counter
+            for mm in range(0,si.mpol+1):
+                for nn in range(-si.ntor,si.ntor+1):
+                    if mm==0 and nn<0:
+                        continue
+                    
+                    imn += 1
 
-            for imn, mm in enumerate(self.initial_guess['mm']):
-
-                mm = int(mm)
-                nn = int(self.initial_guess['nn'][imn])
-                if mm > si.mpol or np.abs(nn) > si.ntor:
-                    continue
-
-                # Populate initial guess of inner boundaries
-                if not (si.lfreebound and self.nvol == 1):
                     spec.allglobal.mmrzrz[imn] = mm
-                    spec.allglobal.nnrzrz[imn] = self.initial_guess['nn'][imn]
+                    spec.allglobal.nnrzrz[imn] = nn
 
-                    spec.allglobal.allrzrz[0, 0:self.nvol-1, imn] = self.initial_guess['rbc'][0:self.nvol-1, imn]
-                    spec.allglobal.allrzrz[1, 0:self.nvol-1, imn] = self.initial_guess['zbs'][0:self.nvol-1, imn]
+                    # Populate inner plasma boundaries
+                    for lvol in range(0,self.nvol-1):
+                        spec.allglobal.allrzrz[0, lvol, imn] = self.initial_guess[lvol].get_rc( mm, nn )
+                        spec.allglobal.allrzrz[1, lvol, imn] = self.initial_guess[lvol].get_zs( mm, nn )
 
-                    if si.istellsym == 0:
-                        spec.allglobal.allrzrz[2, 0:self.nvol-1, imn] = self.initial_guess['rbs'][0:self.nvol-1, imn]
-                        spec.allglobal.allrzrz[3, 0:self.nvol-1, imn] = self.initial_guess['zbc'][0:self.nvol-1, imn]
+                        if not si.istellsym:
+                            spec.allglobal.allrzrz[2, lvol, imn] = self.initial_guess[lvol].get_rs( mm, nn )
+                            spec.allglobal.allrzrz[3, lvol, imn] = self.initial_guess[lvol].get_zc( mm, nn )
+                    
+                    # Populate plasma boundary
+                    if si.lfreebound:
+                        si.rbc[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_rc( mm, nn )
+                        si.zbs[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_zs( mm, nn )
 
-                # Populate initial guess of Plasma boundary
-                if si.lfreebound:
-                    si.rbc[si.mntor+nn, si.mmpol+mm] = self.initial_guess['rbc'][self.nvol-1, imn]
-                    si.zbs[si.mntor+nn, si.mmpol+mm] = self.initial_guess['zbs'][self.nvol-1, imn]
-
-                    if si.istellsym == 0:
-                        si.rbs[si.mntor+nn, si.mmpol +
-                               mm] = self.initial_guess['rbs'][self.nvol-1, imn]
-                        si.zbc[si.mntor+nn, si.mmpol +
-                               mm] = self.initial_guess['zbc'][self.nvol-1, imn]
+                        if not si.istellsym:
+                            si.rbs[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_rs( mm, nn )
+                            si.zbc[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_zc( mm, nn )
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
@@ -1047,36 +999,41 @@ class Spec(Optimizable):
             )
 
         # Save geometry as initial guess for next iterations
-        old_initial_guess = copy.deepcopy(self.initial_guess)
         try:
-            if self.results.output.Mvol > 1:
-                initial_guess = {}
-                initial_guess['rbc'] = self.results.output.Rbc[1:self.mvol+1, :]
-                initial_guess['zbs'] = self.results.output.Zbs[1:self.mvol+1, :]
-                initial_guess['mm'] = self.results.output.im
-                initial_guess['nn'] = (
-                    self.results.output.in_ / si.nfp).astype('int')
+            new_guess=None
+            if self.mvol>1:
+                new_guess = [
+                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
+                ] * (self.mvol-1)
+
+                for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
+                    nnorm = (nn / si.nfp).astype('int')
+                    for lvol in range(0,self.mvol-1):
+                        new_guess[lvol].set_rc( mm, nnorm , self.results.output.Rbc[lvol+1, ii] )
+                        new_guess[lvol].set_zs( mm, nnorm , self.results.output.Zbs[lvol+1, ii] )
+
+                        if not si.istellsym:
+                            new_guess[lvol].set_rs( mm, nnorm , self.results.output.Rbs[lvol+1, ii] )
+                            new_guess[lvol].set_zc( mm, nnorm , self.results.output.Zbc[lvol+1, ii] )
 
                 axis = {}
                 axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
                 axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
-
-                if si.istellsym == 0:
-                    initial_guess['rbs'] = self.results.output.Rbs[1:self.mvol+1, :]
-                    initial_guess['zbc'] = self.results.output.Zbc[1:self.mvol+1, :]
-
-                    axis['ras'] = self.results.output.Rbs[0, 0:si.ntor+1]
-                    axis['zac'] = self.results.output.Zbc[0, 0:si.ntor+1]
-
-                self.initial_guess = copy.copy(initial_guess)
                 self.axis = copy.copy(axis)
 
-                self.inputlist.linitialize = 0
         except:
             # If the initial guess cannot be read, keep the same initial guess 
             # for the next run
             logger.info("Failed to read initial guess.")
-            self.initial_guess = old_initial_guess
+            new_guess = None
+
+        # If successfully read initial guess, replace it
+        if new_guess is not None:
+            self.initial_guess = new_guess
+
+            # Enforce SPEC to use initial guess
+            self.inputlist.linitialize = 0
+
 
         # Group leaders handle deletion of files:
         if self.mpi.proc0_groups:
