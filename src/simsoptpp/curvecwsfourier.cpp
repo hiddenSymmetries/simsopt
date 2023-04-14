@@ -559,6 +559,7 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
             data(k, 2, p + counter) = dz_array[p + counter];
         }
     }
+    data *= (2 * M_PI);
 };
 
 template <class Array>
@@ -729,6 +730,7 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
             data(k, 2, p + counter) = ddz_array[p + counter];
         }
     }
+    data *= 2 * M_PI * 2 * M_PI;
 };
 #include "xtensor-python/pyarray.hpp" // Numpy bindings
 typedef xt::pyarray<double> Array;
