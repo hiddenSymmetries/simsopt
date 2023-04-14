@@ -6,7 +6,6 @@ from simsopt.geo import QfmSurface
 from simsopt.geo import QfmResidual, ToroidalFlux, Area, Volume
 from simsopt.configs import get_ncsx_data
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 
 """
@@ -36,11 +35,7 @@ thetas = np.linspace(0, 1, 25, endpoint=False)
 s = SurfaceRZFourier(
     mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis,
     quadpoints_theta=thetas)
-s_original = SurfaceRZFourier(
-    mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis,
-    quadpoints_theta=thetas)
 s.fit_to_curve(ma, 0.2, flip_theta=True)
-s_original.fit_to_curve(ma, 0.2, flip_theta=True)
 
 # First optimize at fixed volume
 
@@ -92,21 +87,6 @@ print(f"||area constraint||={0.5*(ar.J()-ar_target)**2:.8e}, ||residual||={np.li
 
 # Check that volume is not changed
 print(f"||vol constraint||={0.5*(vol.J()-vol_target)**2:.8e}")
-
-s_gamma = s.gamma()
-s_R = np.sqrt(s_gamma[:, :, 0]**2 + s_gamma[:, :, 1]**2)
-s_Z = s_gamma[:, :, 2]
-
-s_gamma_original = s_original.gamma()
-s_R_original = np.sqrt(s_gamma_original[:, :, 0]**2 + s_gamma_original[:, :, 1]**2)
-s_Z_original = s_gamma_original[:, :, 2]
-
-plt.plot(s_R[0,:],s_Z[0,:], label = 'QFM')
-plt.plot(s_R_original[0,:],s_Z_original[0,:], label = 'original')
-plt.xlabel('R')
-plt.ylabel('Z')
-plt.legend()
-plt.show()
 
 if "DISPLAY" in os.environ:
     s.plot()

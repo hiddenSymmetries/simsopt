@@ -28,7 +28,7 @@ vmec = Vmec(filename, mpi=mpi)
 # Define parameter space:
 surf = vmec.boundary
 surf.fix_all()
-max_mode = 1
+max_mode = 2
 surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
@@ -50,7 +50,7 @@ print("Total objective before optimization:", prob.objective())
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
-least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8)
+least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=1)
 
 print("Final aspect ratio:", vmec.aspect())
 print("Quasisymmetry objective after optimization:", qs.total())
