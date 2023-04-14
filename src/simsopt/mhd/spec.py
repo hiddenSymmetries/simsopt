@@ -310,6 +310,19 @@ class Spec(Optimizable):
         self._tflux_profile = None
         self._helicity_profile = None
 
+        # Store all profiles in list for easier access
+        self.profiles = [
+            self._volume_current_profile,
+            self._interface_current_profile,
+            self._pressure_profile,
+            self._iota_profile,
+            self._oita_profile,
+            self._mu_profile,
+            self._pflux_profile,
+            self._tflux_profile,
+            self._helicity_profile
+        ]
+
         # Define normal field - these are the Vns, Vnc harmonics. Can be used as
         # dofs in an optimization
         if si.lfreebound:
@@ -750,6 +763,12 @@ class Spec(Optimizable):
         self.need_to_run_code = True
         self.inputlist.phiedge = x[0]
         self.inputlist.curtor = x[1]
+
+        # Update phiedge in profiles if necessary. This is important when taking
+        # profiles derivatives.
+        for ii, p in enumerate(self.profiles):
+            if not p is None:
+                self.profiles[ii].phiedge = x[0]
 
     def init(self, filename: str):
         """
