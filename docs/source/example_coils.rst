@@ -144,22 +144,22 @@ symmetry::
 To make sure that the coils class has the non-fixed degrees of freedom that
 we specified, we can print the ``dof_names`` property::
 
-  >>> print(coil[0].dof_names)
+  >>> print(coils[0].dof_names)
 
   ['CurveXYZFourier1:xc(0)', 'CurveXYZFourier1:xs(1)', 'CurveXYZFourier1:xc(1)', ...
 
-  >>> print(coil[1].dof_names)
+  >>> print(coils[1].dof_names)
 
   ['Current2:x0', 'CurveXYZFourier2:xc(0)', 'CurveXYZFourier2:xs(1)', 'CurveXYZFourier2:xc(1)', ...
 
-  >>> print(coil[4].dof_names)
+  >>> print(coils[4].dof_names)
 
   ['CurveXYZFourier1:xc(0)', 'CurveXYZFourier1:xs(1)', 'CurveXYZFourier1:xc(1)', ...
 
-Notice that the current appears in the list of dofs for ``coil[1]``
-but not for ``coil[0]``, since we fixed the current for
-``coil[0]``. Also notice that ``coil[4]`` has the same degrees of
-freedom (owned by ``CurveXYZFourier1``) as ``coil[0]``, because coils
+Notice that the current appears in the list of dofs for ``coils[1]``
+but not for ``coils[0]``, since we fixed the current for
+``coils[0]``. Also notice that ``coils[4]`` has the same degrees of
+freedom (owned by ``CurveXYZFourier1``) as ``coils[0]``, because coils
 0 and 4 refer to the same base coil shape and current.
 
 There are several ways to view the objects we have created so far. One
