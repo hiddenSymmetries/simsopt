@@ -1139,7 +1139,8 @@ class WindingVolumeGrid:
             C = flux_constraint_matrix
             CT = C.transpose()
             CCT_inv = np.linalg.pinv(C @ CT, rcond=1e-8, hermitian=True)
-            projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - csc_matrix(CT @ CCT_inv @ C)
+            projection_onto_constraints = np.eye(N) - CT @ CCT_inv @ C
+            #sparse_eye(N, format="csc", dtype="double") - csc_matrix(CT @ CCT_inv @ C)
 
         t2 = time.time()
         print('Time to make CCT_inv = ', t2 - t1, ' s')
