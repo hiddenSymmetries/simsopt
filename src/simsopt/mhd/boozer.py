@@ -47,7 +47,8 @@ class Boozer(Optimizable):
     def __init__(self,
                  equil: Vmec,
                  mpol: int = 32,
-                 ntor: int = 32) -> None:
+                 ntor: int = 32,
+                 verbose: bool = False) -> None:
         """
         Constructor
         """
@@ -60,6 +61,7 @@ class Boozer(Optimizable):
         self.mpol = mpol
         self.ntor = ntor
         self.bx = booz_xform.Booz_xform()
+        self.bx.verbose = verbose
         self.s = set()
         self.need_to_run_code = True
         self._calls = 0  # For testing, keep track of how many times we call bx.run()
