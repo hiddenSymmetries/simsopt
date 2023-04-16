@@ -32,16 +32,16 @@ are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 """
 
 import os
-from matplotlib import pyplot as plt
-from pathlib import Path
-import numpy as np
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.field.magneticfieldclasses import DipoleField
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo import PermanentMagnetGrid
-from simsopt.solve import relax_and_split 
 import time
+from pathlib import Path
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+from simsopt.field import BiotSavart, DipoleField
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.solve import relax_and_split
 from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
@@ -234,12 +234,12 @@ write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
-# surface is 64 x 64 resolution.
+# surface is at least 64 x 64 resolution.
 vmec_flag = False
 if vmec_flag:
     from mpi4py import MPI
-    from simsopt.util.mpi import MpiPartition
     from simsopt.mhd.vmec import Vmec
+    from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=4)
     comm = MPI.COMM_WORLD
 

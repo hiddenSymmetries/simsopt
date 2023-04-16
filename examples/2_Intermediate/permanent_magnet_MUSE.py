@@ -22,29 +22,28 @@ https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
 import os
-from matplotlib import pyplot as plt
-from pathlib import Path
-import numpy as np
-from simsopt.objectives import SquaredFlux
-from simsopt.field import BiotSavart
-from simsopt.field import DipoleField
-from simsopt.geo import SurfaceRZFourier
-from simsopt.geo import PermanentMagnetGrid
-from simsopt.solve import GPMO 
 import pickle
 import time
+from pathlib import Path
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+from simsopt.field import BiotSavart, DipoleField
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.solve import GPMO
+from simsopt.util import FocusData, discretize_polarizations, polarization_axes
 from simsopt.util.permanent_magnet_helper_functions import *
-from simsopt.util import FocusData
-from simsopt.util import discretize_polarizations, polarization_axes
 
 t_start = time.time()
 
 # Set some parameters
 nphi = 8  # change to 64 for high-resolution runs
 ntheta = 8  # same as above
-dr = 0.01
-coff = 0.1
-poff = 0.02
+dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
+coff = 0.1  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
+poff = 0.02  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
@@ -246,12 +245,12 @@ write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
-# surface is 64 x 64 resolution.
+# surface is at least 64 x 64 resolution.
 vmec_flag = False 
 if vmec_flag:
     from mpi4py import MPI
-    from simsopt.util.mpi import MpiPartition
     from simsopt.mhd.vmec import Vmec
+    from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=4)
     comm = MPI.COMM_WORLD
 
