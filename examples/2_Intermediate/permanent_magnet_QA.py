@@ -59,6 +59,12 @@ input_name = 'input.LandremanPaul2021_QA_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+
+# Make the inner and outer surfaces by extending the plasma surface
+s_inner.extend_via_projected_normal(poff)
+s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
 OUT_DIR = 'permanent_magnet_QA_output/'
@@ -99,9 +105,9 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, coil_offset=coff, dr=dr, plasma_offset=poff,
+    s, s_inner, s_outer,
+    dr=dr,
     Bn=Bnormal,
-    filename=surface_filename,
 )
 pm_opt.geo_setup()
 
@@ -225,12 +231,6 @@ num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.nd
 
 # write solution to FAMUS-type file
 write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
-
-# write sparse solution to FAMUS-type file
-# m_copy = np.copy(pm_opt.m)
-# pm_opt.m = pm_opt.m_proxy
-# write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
-# pm_opt.m  = m_copy
 
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma

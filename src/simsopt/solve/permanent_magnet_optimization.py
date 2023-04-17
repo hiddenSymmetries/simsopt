@@ -7,14 +7,25 @@ __all__ = ['relax_and_split', 'GPMO']
 
 def prox_l0(m, mmax, reg_l0, nu):
     """
-    Proximal operator for L0 regularization.
-    Note that the m values are normalized before hard
-    thresholding to avoid only truncating the magnets on the
-    inner side of the configuration (which are often important!).
-    Note also the in principle the hard threshold here should be:
-    hard_threshold = sqrt(2 * reg_l0 * nu). But we can always imagine
-    rescaling nu (or reg_l0) such that hard_threshold = 2 * reg_l0 * nu
-    instead (for instance nu -> 2 * nu ** 2 and reg_l0 -> reg_l0 ** 2).
+        Proximal operator for L0 regularization.
+        Note that the m values are normalized before hard
+        thresholding to avoid only truncating the magnets on the
+        inner side of the configuration (which are often important!).
+        Note also the in principle the hard threshold here should be:
+        hard_threshold = sqrt(2 * reg_l0 * nu). But we can always imagine
+        rescaling nu (or reg_l0) such that hard_threshold = 2 * reg_l0 * nu
+        instead (for instance nu -> 2 * nu ** 2 and reg_l0 -> reg_l0 ** 2).
+
+        Args:
+            m: 2D numpy array, shape (ndipoles, 3)
+                The permanent magnet dipole vectors.
+            mmax: 1D numpy array, shape (ndipoles)
+                The maximal dipole strengths of each of the permanent magnets.
+            reg_l0: double
+                The amount of L0 regularization used in the problem.
+            nu: double
+                The strength of the "relaxing" term in the relax-and-split algorithm
+                used for permanent magnet optimization.
     """
     ndipoles = len(m) // 3
     mmax_vec = np.array([mmax, mmax, mmax]).T
@@ -25,10 +36,21 @@ def prox_l0(m, mmax, reg_l0, nu):
 
 def prox_l1(m, mmax, reg_l1, nu):
     """
-    Proximal operator for L1 regularization.
-    Note that the m values are normalized before soft
-    thresholding to avoid only truncating the magnets on the
-    inner side of the configuration (which are often important!).
+        Proximal operator for L1 regularization.
+        Note that the m values are normalized before soft
+        thresholding to avoid only truncating the magnets on the
+        inner side of the configuration (which are often important!).
+
+        Args:
+            m: 2D numpy array, shape (ndipoles, 3)
+                The permanent magnet dipole vectors.
+            mmax: 1D numpy array, shape (ndipoles)
+                The maximal dipole strengths of each of the permanent magnets.
+            reg_l1: double
+                The amount of L1 regularization used in the problem.
+            nu: double
+                The strength of the "relaxing" term in the relax-and-split algorithm
+                used for permanent magnet optimization.
     """
     ndipoles = len(m) // 3
     mmax_vec = np.array([mmax, mmax, mmax]).T
@@ -38,10 +60,16 @@ def prox_l1(m, mmax, reg_l1, nu):
 
 def projection_L2_balls(x, mmax):
     """
-    Project the vector x onto a series of L2 balls in R3.
-    Only used here for checking if the initial guess for the
-    permanent magnets is inside the feasible region
-    before optimization begins.
+        Project the vector x onto a series of L2 balls in R3.
+        Only used here for checking if the initial guess for the
+        permanent magnets is inside the feasible region
+        before optimization begins.
+
+        Args:
+            x: 1D numpy array, shape (ndipoles * 3)
+                The current solution vector for the dipole vectors of the magnets.
+            mmax: 1D numpy array, shape (ndipoles)
+                The maximal dipole strength of each of the magnets.
     """
     N = len(x) // 3
     x_shaped = x.reshape(N, 3)
@@ -52,10 +80,16 @@ def projection_L2_balls(x, mmax):
 
 def setup_initial_condition(pm_opt, m0=None):
     """
-    If an initial guess for the dipole moments is specified,
-    checks the initial condition lies in the allowed hypersurface.
-    If an initial guess is not specified, defaults to initializing
-    the permanent magnet dipole moments to all zeros.
+        If an initial guess for the dipole moments is specified,
+        checks the initial condition lies in the allowed hypersurface.
+        If an initial guess is not specified, defaults to initializing
+        the permanent magnet dipole moments to all zeros.
+
+        Args:
+            pm_opt: PermanentMagnetGrid class object
+                Permanent magnet grid for optimization.
+            m0: 1D numpy array, shape (ndipoles * 3)
+                Initial guess for the dipole vectors.
     """
     # Initialize initial guess for the dipole strengths
     if m0 is not None:
@@ -83,7 +117,7 @@ def setup_initial_condition(pm_opt, m0=None):
         pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
 
 
-def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
+def relax_and_split(pm_opt, m0=None, **kwargs):
     """
     Use a relax-and-split algorithm for solving the permanent
     magnet optimization problem, which solves a convex and nonconvex
@@ -103,8 +137,6 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
             that if algorithm is being used properly,
             the end result should be independent of
             the choice of initial condition.
-        algorithm: Convex algorithm to use during relax-and-split.
-            Defaults to the MwPGP algorithm.
         kwargs: Dictionary of keywords to pass to the algorithm. The following
             variables can be passed to the MwPGP algorithm:
             epsilon: Error tolerance for the convex
@@ -150,19 +182,11 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
     errors = []
     m_history = []
     m_proxy_history = []
-    if algorithm == 'MwPGP':
-        # get optimal alpha value for the MwPGP algorithm
-        alpha_max = 2.0 / pm_opt.ATA_scale
-        alpha_max = alpha_max * (1 - 1e-5)
-        convex_step = sopp.MwPGP_algorithm
-    elif algorithm == 'SPG':
-        convex_step = sopp.SPG_algorithm
-    else:
-        raise NotImplementedError(
-            "Only spectral projected gradient (SPG) and MwPGP have been "
-            "implemented for the convex step in the relax-and-split "
-            "algorithm."
-        )
+
+    # get optimal alpha value for the MwPGP algorithm
+    alpha_max = 2.0 / pm_opt.ATA_scale
+    alpha_max = alpha_max * (1 - 1e-5)
+    convex_step = sopp.MwPGP_algorithm
 
     # set the nonconvex step in the algorithm
     reg_rs = 0.0
@@ -266,8 +290,21 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     placing magnets together so no isolated magnets occur.
 
     Args:
-        algorithm_kwargs: Keyword argument dictionary for the GPMO algorithm
-        and its variants defined below.
+        pm_opt: PermanentMagnetGrid class object
+            The grid of permanent magnets to optimize.
+        algorithm: string
+            The type of greedy algorithm to use. Options are
+            baseline (the simple implementation of GPMO), multi
+            (place multiple magnets per iteration), backtracking
+            (backtrack every few hundred iterations to improve the
+            solution), ArbVec (the simple implementation of GPMO,
+            but with arbitrary oriented polarization vectors), and
+            ArbVec_backtracking (same as above but w/ backtracking).
+            Easiest to use is baseline but most effective algorithm
+            is ArbVec_backtracking.
+        algorithm_kwargs: dict
+            Keyword argument dictionary for the GPMO algorithm
+            and its variants.
     """
     if not hasattr(pm_opt, "A_obj"):
         raise ValueError(

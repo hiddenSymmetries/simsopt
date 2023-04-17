@@ -51,6 +51,8 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 famus_filename = TEST_DIR / 'zot80.focus'
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
@@ -137,13 +139,14 @@ premade_dipole_grid = np.array([ox, oy, oz]).T
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, coil_offset=coff, dr=dr, plasma_offset=poff,
-    Bn=Bnormal, surface_flag='focus',
-    filename=surface_filename,
+    s, s_inner, s_outer,  # s_inner and s_outer overwritten in next line since using a FAMUS grid 
+    dr=dr,
+    Bn=Bnormal, 
     coordinate_flag='cartesian',
+    # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
+    pol_vectors=pol_vectors
 )
-# pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
-pm_opt.geo_setup_from_famus(famus_filename, pol_vectors)
+pm_opt.geo_setup_from_famus(famus_filename)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -251,7 +254,7 @@ if vmec_flag:
     from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
-    mpi = MpiPartition(ngroups=4)
+    mpi = MpiPartition(ngroups=1)
     comm = MPI.COMM_WORLD
 
     # Make the QFM surfaces

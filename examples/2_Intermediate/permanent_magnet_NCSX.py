@@ -52,6 +52,12 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / input_name
 famus_filename = TEST_DIR / famus_filename
 s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_outer = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+
+# Make the inner and outer surfaces by extending the plasma surface
+s_inner.extend_via_projected_normal(poff)
+s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
@@ -78,9 +84,9 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, coil_offset=coff, dr=dr, plasma_offset=poff,
-    Bn=Bnormal, surface_flag='wout',
-    filename=surface_filename,
+    s, s_inner, s_outer,
+    dr=dr,
+    Bn=Bnormal, 
     coordinate_flag='cylindrical',
 )
 pm_opt.geo_setup_from_famus(famus_filename)
