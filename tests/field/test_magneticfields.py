@@ -228,6 +228,7 @@ class Testing(unittest.TestCase):
         ### compare to biosavart(circular_coil)
         ## at these points
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        np.random.seed(0)
         points += pointVar * (np.random.rand(*points.shape)-0.5)
         ## verify with a x^2+z^2=radius^2 circular coil
         normal = [np.pi/2, np.pi/2]
