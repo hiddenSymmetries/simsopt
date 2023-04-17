@@ -22,20 +22,19 @@ https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
 import os
-from matplotlib import pyplot as plt
-from pathlib import Path
-import numpy as np
-from simsopt.objectives import SquaredFlux
-from simsopt.field import BiotSavart
-from simsopt.field import DipoleField
-from simsopt.geo import SurfaceRZFourier
-from simsopt.geo import PermanentMagnetGrid
-from simsopt.solve import GPMO 
 import pickle
 import time
+from pathlib import Path
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+from simsopt.field import BiotSavart, DipoleField
+from simsopt.objectives import SquaredFlux
+from simsopt.util import FocusData, discretize_polarizations, polarization_axes
 from simsopt.util.permanent_magnet_helper_functions import *
-from simsopt.util import FocusData
-from simsopt.util import discretize_polarizations, polarization_axes
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.solve import GPMO
 
 t_start = time.time()
 
@@ -48,7 +47,7 @@ poff = 0.02
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
@@ -82,7 +81,7 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-mag_data = FocusData('tests/test_files/zot80.focus')
+mag_data = FocusData(TEST_DIR / 'zot80.focus')
 
 # Determine the allowable polarization types and reject the negatives
 pol_axes = np.zeros((0, 3))
@@ -112,7 +111,7 @@ if PM4Stell_orientations:
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
 ox, oy, oz, Ic = np.loadtxt(
-    'tests/test_files/zot80.focus', 
+    TEST_DIR / 'zot80.focus', 
     skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
 )
 
@@ -243,8 +242,8 @@ write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 vmec_flag = False 
 if vmec_flag:
     from mpi4py import MPI
-    from simsopt.util.mpi import MpiPartition
     from simsopt.mhd.vmec import Vmec
+    from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=4)
     comm = MPI.COMM_WORLD
 
@@ -261,7 +260,7 @@ if vmec_flag:
     t1 = time.time()
 
     ### Always use the QA VMEC file and just change the boundary
-    vmec_input = "tests/test_files/input.LandremanPaul2021_QA"
+    vmec_input = TEST_DIR / "input.LandremanPaul2021_QA"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
     equil.run()

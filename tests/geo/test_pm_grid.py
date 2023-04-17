@@ -1,16 +1,21 @@
-from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
-from simsopt.field import InterpolatedField, DipoleField
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.field.coil import Current, coils_via_symmetries
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.solve import relax_and_split, GPMO
-from simsopt.util.permanent_magnet_helper_functions import *
-import simsoptpp as sopp
-import numpy as np
+from pathlib import Path
 import unittest
+
+import numpy as np
+import simsoptpp as sopp
+
+from simsopt.field import (BiotSavart, Current, DipoleField, InterpolatedField,
+                           coils_via_symmetries)
+from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier,
+                         create_equally_spaced_curves)
+from simsopt.objectives import SquaredFlux
+from simsopt.solve import GPMO, relax_and_split
+from simsopt.util.permanent_magnet_helper_functions import initialize_default_kwargs
+
+from . import TEST_DIR
+
 # File for the desired boundary magnetic surface:
-filename = 'tests/test_files/input.LandremanPaul2021_QA'
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 
 class Testing(unittest.TestCase):
