@@ -163,6 +163,10 @@ class MPIFiniteDifference:
         self.jac_size = None
         self.eval_cnt = 1
 
+        # initialize cache
+        self.x_cache = None
+        self.jac_cache = None
+
     def __enter__(self):
         self.mpi_apart()
         self.init_log()
@@ -339,6 +343,8 @@ class MPIFiniteDifference:
         """
         Called by proc0
         """
+        if np.all(x == self.x_cache) and (self.jac_cache is not None):
+            return self.jac_cache
 
         ARB_VAL = 100
         logger.debug("Entering jac evaluation")
@@ -390,5 +396,9 @@ class MPIFiniteDifference:
             logfile.flush()
 
         self.eval_cnt += nevals
+
+        # cache it
+        self.x_cache = x
+        self.jac_cache = jac
 
         return jac
