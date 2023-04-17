@@ -525,6 +525,16 @@ class DipoleField(MagneticField):
             Whether or not the dipole grid is stellarator symmetric.
         nfp: int (default 1)
             The field-period symmetry of the dipole-grid.
+        coordinate_flag: string (default "cartesian")
+            The global coordinate system that should be considered grid-aligned in the calculation.
+        m_maxima: 1D numpy array, shape (ndipoles)
+            The maximum dipole strengths of each magnet in the grid. If not specified, defaults
+            to using the largest dipole strength of the magnets in dipole_grid, and using this
+            value for all the dipoles. Needed for plotting normalized dipole magnitudes in the
+            vtk functionality.
+        R0: double
+            The value of the major radius of the stellarator needed only for simple toroidal
+            coordinates.
     """
 
     def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):

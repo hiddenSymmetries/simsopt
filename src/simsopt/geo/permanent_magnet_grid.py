@@ -3,6 +3,7 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 import simsoptpp as sopp
 import time
 import warnings
+from pyevtk.hl import pointsToVTK
 
 __all__ = ['PermanentMagnetGrid']
 
@@ -16,72 +17,80 @@ class PermanentMagnetGrid:
     objects, and initializes a set of points (in cylindrical coordinates)
     between these surfaces. If an existing FAMUS grid file called
     from FAMUS is desired, use from_famus() instead.
-    If neither is passed, the grid
-    will be initialized by extending the plasma normal vectors by the
-    values specified in plasma_offset (for the inner toroidal surface)
-    and plasma_offset + coil_offset (for the outer toroidal surface).
     It finishes initialization by pre-computing
     a number of quantities required for the optimization such as the
     geometric factor in the dipole part of the magnetic field and the
     target Bfield that is a sum of the coil and plasma magnetic fields.
 
     Args:
-        plasma_boundary:  SurfaceRZFourier object representing
-                          the plasma boundary surface.
-        rz_inner_surface: SurfaceRZFourier object representing
-                          the inner toroidal surface of the volume.
-                          Defaults to the plasma boundary, extended
-                          by the boundary normal vector projected on
-                          to the (R, Z) plane to keep the phi = constant
-                          cross-section the same as the plasma surface.
+        plasma_boundary: SurfaceRZFourier class object 
+            Representing the plasma boundary surface.
+        rz_inner_surface: SurfaceRZFourier class object 
+            Representing the inner toroidal surface of the volume.
+            Defaults to the plasma boundary, extended
+            by the boundary normal vector projected on
+            to the (R, Z) plane to keep the phi = constant
+            cross-section the same as the plasma surface.
         rz_outer_surface: SurfaceRZFourier object representing
-                          the outer toroidal surface of the volume.
-                          Defaults to the inner surface, extended
-                          by the boundary normal vector projected on
-                          to the (R, Z) plane to keep the phi = constant
-                          cross-section the same as the inner surface.
-        plasma_offset:    Offset to use for generating the inner toroidal surface.
-        coil_offset:      Offset to use for generating the outer toroidal surface.
-        Bn: Magnetic field (coils and plasma) at the plasma
-                          boundary. Typically this will be the optimized plasma
-                          magnetic field from a stage-1 optimization, and the
-                          optimized coils from a basic stage-2 optimization.
-                          This variable must be specified to run the permanent
-                          magnet optimization.
-        dr:               Radial and axial grid spacing in the permanent magnet manifold.
-        filename:         Filename for the file containing the plasma boundary surface.
-        surface_flag:     Flag to specify if the format of the surface file. Defaults to VMEC.
-        coordinate_flag:  Flag to specify the coordinate system used for the grid and optimization.
-                          This is primarily used to tell the optimizer which coordinate directions
-                          should be considered, "grid-aligned". Therefore, you can do weird stuff
-                          like cartesian grid-alignment on a simple toroidal grid, which might
-                          be self-defeating. However, if coordinate_flag='cartesian' a rectangular
-                          Cartesian grid is initialized using the Nx, Ny, and Nz parameters. If
-                          the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
-                          using the dr and dz parameters.
-        pol_vectors:      Optional set of local coordinate systems for each dipole, 
-                          shape (Ndipoles, Ncoords, 3)
-                          which specifies which directions should be considered grid-aligned.
-                          Ncoords can be > 3, as in the PM4Stell design. 
+            the outer toroidal surface of the volume.
+            Defaults to the inner surface, extended
+            by the boundary normal vector projected on
+            to the (R, Z) plane to keep the phi = constant
+            cross-section the same as the inner surface.
+        Bn: 2D numpy array, shape (ntheta_quadpoints, nphi_quadpoints)
+            Magnetic field (coils and plasma) at the plasma
+            boundary. Typically this will be the optimized plasma
+            magnetic field from a stage-1 optimization, and the
+            optimized coils from a basic stage-2 optimization.
+            This variable must be specified to run the permanent
+            magnet optimization.
+        dr: double
+            Radial grid spacing in the permanent magnet manifold. Used only if 
+            coordinate_flag = cylindrical, then dr is the radial size of the
+            cylindrical bricks in the grid.
+        dz: double
+            Axial grid spacing in the permanent magnet manifold. Used only if
+            coordinate_flag = cylindrical, then dz is the axial size of the
+            cylindrical bricks in the grid.
+        Nx: int
+            Number of points in x to use in a cartesian grid, taken between the 
+            inner and outer toroidal surfaces. Used only if the
+            coordinate_flag = cartesian, then Nx is the x-size of the
+            rectangular cubes in the grid.
+        Ny: int
+            Number of points in y to use in a cartesian grid, taken between the 
+            inner and outer toroidal surfaces. Used only if the
+            coordinate_flag = cartesian, then Ny is the y-size of the
+            rectangular cubes in the grid.
+        Nz: int
+            Number of points in z to use in a cartesian grid, taken between the 
+            inner and outer toroidal surfaces. Used only if the
+            coordinate_flag = cartesian, then Nz is the z-size of the
+            rectangular cubes in the grid.
+        coordinate_flag: bool
+            Flag to specify the coordinate system used for the grid and optimization.
+              This is primarily used to tell the optimizer which coordinate directions
+              should be considered, "grid-aligned". Therefore, you can do weird stuff
+              like cartesian grid-alignment on a simple toroidal grid, which might
+              be self-defeating. However, if coordinate_flag='cartesian' a rectangular
+              Cartesian grid is initialized using the Nx, Ny, and Nz parameters. If
+              the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
+              using the dr and dz parameters.
+        pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
+            Optional set of local coordinate systems for each dipole, 
+            which specifies which directions should be considered grid-aligned.
+            Ncoords can be > 3, as in the PM4Stell design. 
     """
 
     def __init__(
         self, plasma_boundary,
-        rz_inner_surface=None,
-        rz_outer_surface=None, plasma_offset=0.1,
-        coil_offset=0.2, Bn=None, dr=0.1, dz=None,
-        Nx=10, Ny=None, Nz=None,
-        filename=None, surface_flag='vmec',
+        rz_inner_surface,
+        rz_outer_surface, Bn,
+        dr=0.1, dz=0.1,
+        Nx=10, Ny=10, Nz=10,
         coordinate_flag='cartesian',
         pol_vectors=None
     ):
-        if plasma_offset <= 0 or coil_offset <= 0:
-            raise ValueError('permanent magnets must be offset from the plasma')
-
-        self.filename = filename
-        self.surface_flag = surface_flag
-        self.plasma_offset = plasma_offset
-        self.coil_offset = coil_offset
         self.Bn = Bn
         self.dr = dr
         self.Nx = Nx
@@ -121,41 +130,11 @@ class PermanentMagnetGrid:
             raise ValueError('dr grid spacing must be > 0')
 
         t1 = time.time()
-        # If the inner surface is not specified, make default surface.
-        if (rz_inner_surface is None):
-            print(
-                "Inner toroidal surface not specified, defaulting to "
-                "extending the plasma boundary shape using the normal "
-                " vectors at the quadrature locations. The normal vectors "
-                " are projected onto the RZ plane so that the new surface "
-                " lies entirely on the original phi = constant cross-section. "
-            )
-            if self.filename is None:
-                raise ValueError(
-                    "Must specify a filename for loading in a toroidal surface"
-                )
-            self._set_inner_rz_surface()
-        else:
-            self.rz_inner_surface = rz_inner_surface
+        self.rz_inner_surface = rz_inner_surface
         if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
             raise ValueError("Inner surface is not SurfaceRZFourier object.")
 
-        # If the outer surface is not specified, make default surface.
-        if (rz_outer_surface is None):
-            print(
-                "Outer toroidal surface not specified, defaulting to "
-                "extending the inner toroidal surface shape using the normal "
-                " vectors at the quadrature locations. The normal vectors "
-                " are projected onto the RZ plane so that the new surface "
-                " lies entirely on the original phi = constant cross-section. "
-            )
-            if self.filename is None:
-                raise ValueError(
-                    "Must specify a filename for loading in a toroidal surface"
-                )
-            self._set_outer_rz_surface()
-        else:
-            self.rz_outer_surface = rz_outer_surface
+        self.rz_outer_surface = rz_outer_surface
         if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
             raise ValueError("Outer surface is not SurfaceRZFourier object.")
         t2 = time.time()
@@ -185,16 +164,13 @@ class PermanentMagnetGrid:
             )
 
         if pol_vectors is not None:
-            if pol_vectors.shape[0] != self.ndipoles:
-                raise ValueError('First dimension of `pol_vectors` array '
-                                 'must equal the number of dipoles')
-            elif pol_vectors.shape[2] != 3:
+            if pol_vectors.shape[2] != 3:
                 raise ValueError('Third dimension of `pol_vectors` array '
                                  'must be 3')
             elif coordinate_flag != 'cartesian':
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
-            else:
-                self.pol_vectors = pol_vectors
+
+        self.pol_vectors = pol_vectors
         self.famus_filename = None
 
     def _setup_uniform_grid(self):
@@ -223,13 +199,13 @@ class PermanentMagnetGrid:
         z_max = max(z_max, abs(z_min))
 
         # Make grid uniform in (X, Y)
-        min_xy = max(x_min, y_min)
+        min_xy = min(x_min, y_min)
         max_xy = max(x_max, y_max)
         x_min = min_xy
         y_min = min_xy
         x_max = max_xy
         y_max = max_xy
-        print(x_min, x_max, y_min, x_max, z_min, z_max)
+        print(x_min, x_max, y_min, y_max, z_min, z_max)
 
         # Initialize uniform grid
         Nx = self.Nx
@@ -240,32 +216,55 @@ class PermanentMagnetGrid:
         self.dz = 2 * z_max / (Nz - 1)
 
         # Extra work below so that the stitching with the symmetries is done in
-        # such a way that the reflected cells are still dx and dy away from 
+        # such a way that the reflected cells are still dx and dy away from
         # the old cells.
-        X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
-        Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
-        # X = np.linspace(x_min, x_max, Nx, endpoint=True)
-        # Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+        #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
+        #### and correctly be rotated to have the right symmetries
+        if (self.plasma_boundary.nfp % 2) == 0:
+            X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
+            Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+        else:
+            X = np.linspace(x_min, x_max, Nx, endpoint=True)
+            Y = np.linspace(y_min, y_max, Ny, endpoint=True)
         Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+        print(Nx, Ny, Nz, X, Y, Z, self.dx, self.dy, self.dz)
 
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
         self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
 
-    def geo_setup_from_famus(self, famus_filename, pol_vectors=None):
+        # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
+        if self.plasma_boundary.nfp == 4:
+            inds = []
+            for i in range(Nx):
+                for j in range(Ny):
+                    for k in range(Nz):
+                        if X[i, j, k] < Y[i, j, k]:
+                            inds.append(int(i * Ny * Nz + j * Nz + k))
+            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
+            self.xyz_uniform = self.xyz_uniform[good_inds, :]
+        contig = np.ascontiguousarray
+        pointsToVTK(
+            'uniform_grid',
+            contig(self.xyz_uniform[:, 0]),
+            contig(self.xyz_uniform[:, 1]),
+            contig(self.xyz_uniform[:, 2])
+        )
+
+    def geo_setup_from_famus(self, famus_filename):
         """
         Function to initialize a SIMSOPT PermanentMagnetGrid from a 
         pre-existing FAMUS file defining a grid of magnets. For
         example, this function is used for the
         half-Tesla NCSX configuration (c09r000) and MUSE grids.
         If this flag is specified, rz_inner_surface,
-        rz_outer_surface, dr, plasma_offset, and
-        coil_offset are all ignored.
+        rz_outer_surface, dr
+        are all ignored.
 
 
         Args
         ----------
-        famus_filename : TYPE
+        famus_filename : string
             Filename of a FAMUS grid file (a pre-made dipole grid).
 
         Returns
@@ -277,8 +276,7 @@ class PermanentMagnetGrid:
             warnings.warn(
                 'famus_filename variable is set, so a pre-defined grid will be used. '
                 ' so that the following parameters are ignored: '
-                'rz_inner_surface, rz_outer_surface, dr, plasma_offset, '
-                'and coil_offset.'
+                'rz_inner_surface, rz_outer_surface, dr.'
             )
         self.famus_filename = famus_filename
         ox, oy, oz, Ic, M0s = np.loadtxt(
@@ -310,18 +308,10 @@ class PermanentMagnetGrid:
         mu0 = 4 * np.pi * 1e-7
         cell_vol = M0s * mu0 / B_max
         self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
-
-        if pol_vectors is not None:
-            if pol_vectors.shape[0] != self.ndipoles:
+        if self.pol_vectors is not None:
+            if self.pol_vectors.shape[0] != self.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
-            elif pol_vectors.shape[2] != 3:
-                raise ValueError('Third dimension of `pol_vectors` array '
-                                 'must be 3')
-            elif self.coordinate_flag != 'cartesian':
-                raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
-            else:
-                self.pol_vectors = pol_vectors
         self._optimization_setup()
 
     def _setup_uniform_rz_grid(self):
@@ -373,8 +363,10 @@ class PermanentMagnetGrid:
         t1 = time.time()
 
         contig = np.ascontiguousarray
-        normal_inner = self.plasma_boundary.unitnormal().reshape(-1, 3)
-        normal_outer = self.plasma_boundary.unitnormal().reshape(-1, 3)
+        # Sometimes use 
+        # self.plasma_boundary.unitnormal().reshape(-1, 3)
+        normal_inner = self.rz_inner_surface.unitnormal().reshape(-1, 3)   
+        normal_outer = self.rz_outer_surface.unitnormal().reshape(-1, 3)   
         B_max = 1.465  # value used in FAMUS runs for MUSE
         mu0 = 4 * np.pi * 1e-7
 
@@ -429,6 +421,16 @@ class PermanentMagnetGrid:
             self.pm_phi = np.arctan2(self.dipole_grid_xyz[:, 1], self.dipole_grid_xyz[:, 0])
             cell_vol = self.dx * self.dy * self.dz 
             self.m_maxima = B_max * cell_vol / mu0 * np.ones(self.ndipoles)
+            pointsToVTK(
+                'dipole_grid',
+                contig(self.dipole_grid_xyz[:, 0]),
+                contig(self.dipole_grid_xyz[:, 1]),
+                contig(self.dipole_grid_xyz[:, 2])
+            )
+        if self.pol_vectors is not None:
+            if self.pol_vectors.shape[0] != self.ndipoles:
+                raise ValueError('First dimension of `pol_vectors` array '
+                                 'must equal the number of dipoles')
 
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to perform the C++ grid cell eliminations.")
@@ -476,48 +478,12 @@ class PermanentMagnetGrid:
         # Set initial condition for the dipoles to default IC
         self.m0 = np.zeros(self.ndipoles * 3)
 
+        # Set m to zeros
+        self.m = self.m0
+
         # Print initial f_B metric using the initial guess
         total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
         print('f_B (total with initial SIMSOPT guess) = ', total_error)
-
-    def _set_inner_rz_surface(self):
-        """
-            If the inner toroidal surface was not specified, this function
-            is called and simply takes each (r, z) quadrature point on the
-            plasma boundary and shifts it by self.plasma_offset at constant
-            theta value.
-        """
-        if self.surface_flag == 'focus':
-            rz_inner_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
-        elif self.surface_flag == 'wout':
-            rz_inner_surface = SurfaceRZFourier.from_wout(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
-        else:
-            rz_inner_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
-
-        # extend via the normal vector
-        rz_inner_surface.extend_via_projected_normal(self.phi, self.plasma_offset)
-        self.rz_inner_surface = rz_inner_surface
-
-    def _set_outer_rz_surface(self):
-        """
-            If the outer toroidal surface was not specified, this function
-            is called and simply takes each (r, z) quadrature point on the
-            inner toroidal surface and shifts it by self.coil_offset at constant
-            theta value.
-        """
-        if self.surface_flag == 'focus':
-            rz_outer_surface = SurfaceRZFourier.from_focus(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
-        elif self.surface_flag == 'wout':
-            rz_outer_surface = SurfaceRZFourier.from_wout(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
-        else:
-            rz_outer_surface = SurfaceRZFourier.from_vmec_input(self.filename, range="half period", nphi=self.nphi, ntheta=self.ntheta)
-
-        # extend via the normal vector
-        t1 = time.time()
-        rz_outer_surface.extend_via_projected_normal(self.phi, self.plasma_offset + self.coil_offset)
-        t2 = time.time()
-        print("Outer surface extension took t = ", t2 - t1)
-        self.rz_outer_surface = rz_outer_surface
 
     def _print_initial_opt(self):
         """
@@ -534,8 +500,6 @@ class PermanentMagnetGrid:
         print(r'$|b|_2^2 = |B * n|_2^2$ without the permanent magnets = {0:.4e}'.format(total_Bn))
         print(r'Initial $|Am_0|_2^2 = |B_M * n|_2^2$ without the coils/plasma = {0:.4e}'.format(dipole_error))
         print('Number of dipoles = ', self.ndipoles)
-        print('Inner toroidal surface offset from plasma surface = ', self.plasma_offset)
-        print('Outer toroidal surface offset from inner toroidal surface = ', self.coil_offset)
         print('Maximum dipole moment = ', np.max(self.m_maxima))
         print('Shape of A matrix = ', self.A_obj.shape)
         print('Shape of b vector = ', self.b_obj.shape)

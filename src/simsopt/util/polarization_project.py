@@ -15,7 +15,7 @@ import sys
 import numpy as np
 import numpy.matlib as ml
 
-from . import adjust_magnet_angles as mag
+from . import famus_helpers as mag
 
 # Designated column indices from MAGPIE corners files
 ind_xib = 3
