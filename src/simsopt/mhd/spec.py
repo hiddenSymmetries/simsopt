@@ -753,9 +753,14 @@ class Spec(Optimizable):
         spec.preset()
         logger.debug("Done with init")
 
-    def run(self):
+    def run(self, update_guess:bool=True):
         """
         Run SPEC, if needed.
+
+        Args:
+            - update_guess: boolean. If True, initial guess will be updated with
+              the geometry of the interfaces found at equilibrium. Default is 
+              True
         """
         if not self.need_to_run_code:
             logger.info("run() called but no need to re-run SPEC.")
@@ -813,6 +818,9 @@ class Spec(Optimizable):
             spec.allglobal.nnrzrz[:] = 0
             spec.allglobal.allrzrz[:] = 0
 
+            # transform to SurfaceRZFourier if necessary
+            initial_guess = [s.to_RZFourier() for s in self.initial_guess]
+
             # Loop on modes
             imn = -1 # counter
             for mm in range(0,si.mpol+1):
@@ -827,21 +835,21 @@ class Spec(Optimizable):
 
                     # Populate inner plasma boundaries
                     for lvol in range(0,self.nvol-1):
-                        spec.allglobal.allrzrz[0, lvol, imn] = self.initial_guess[lvol].get_rc( mm, nn )
-                        spec.allglobal.allrzrz[1, lvol, imn] = self.initial_guess[lvol].get_zs( mm, nn )
+                        spec.allglobal.allrzrz[0, lvol, imn] = initial_guess[lvol].get_rc( mm, nn )
+                        spec.allglobal.allrzrz[1, lvol, imn] = initial_guess[lvol].get_zs( mm, nn )
 
                         if not si.istellsym:
-                            spec.allglobal.allrzrz[2, lvol, imn] = self.initial_guess[lvol].get_rs( mm, nn )
-                            spec.allglobal.allrzrz[3, lvol, imn] = self.initial_guess[lvol].get_zc( mm, nn )
+                            spec.allglobal.allrzrz[2, lvol, imn] = initial_guess[lvol].get_rs( mm, nn )
+                            spec.allglobal.allrzrz[3, lvol, imn] = initial_guess[lvol].get_zc( mm, nn )
                     
                     # Populate plasma boundary
                     if si.lfreebound:
-                        si.rbc[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_rc( mm, nn )
-                        si.zbs[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_zs( mm, nn )
+                        si.rbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rc( mm, nn )
+                        si.zbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zs( mm, nn )
 
                         if not si.istellsym:
-                            si.rbs[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_rs( mm, nn )
-                            si.zbc[si.mntor+nn, si.mmpol+mm] = self.initial_guess[self.nvol-1].get_zc( mm, nn )
+                            si.rbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rs( mm, nn )
+                            si.zbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zc( mm, nn )
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
@@ -999,40 +1007,41 @@ class Spec(Optimizable):
             )
 
         # Save geometry as initial guess for next iterations
-        try:
-            new_guess=None
-            if self.mvol>1:
-                new_guess = [
-                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
-                ] * (self.mvol-1)
+        if update_guess:
+            try:
+                new_guess=None
+                if self.mvol>1:
+                    new_guess = [
+                        SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
+                    ] * (self.mvol-1)
 
-                for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
-                    nnorm = (nn / si.nfp).astype('int')
-                    for lvol in range(0,self.mvol-1):
-                        new_guess[lvol].set_rc( mm, nnorm , self.results.output.Rbc[lvol+1, ii] )
-                        new_guess[lvol].set_zs( mm, nnorm , self.results.output.Zbs[lvol+1, ii] )
+                    for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
+                        nnorm = (nn / si.nfp).astype('int')
+                        for lvol in range(0,self.mvol-1):
+                            new_guess[lvol].set_rc( mm, nnorm , self.results.output.Rbc[lvol+1, ii] )
+                            new_guess[lvol].set_zs( mm, nnorm , self.results.output.Zbs[lvol+1, ii] )
 
-                        if not si.istellsym:
-                            new_guess[lvol].set_rs( mm, nnorm , self.results.output.Rbs[lvol+1, ii] )
-                            new_guess[lvol].set_zc( mm, nnorm , self.results.output.Zbc[lvol+1, ii] )
+                            if not si.istellsym:
+                                new_guess[lvol].set_rs( mm, nnorm , self.results.output.Rbs[lvol+1, ii] )
+                                new_guess[lvol].set_zc( mm, nnorm , self.results.output.Zbc[lvol+1, ii] )
 
-                axis = {}
-                axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
-                axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
-                self.axis = copy.copy(axis)
+                    axis = {}
+                    axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
+                    axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
+                    self.axis = copy.copy(axis)
 
-        except:
-            # If the initial guess cannot be read, keep the same initial guess 
-            # for the next run
-            logger.info("Failed to read initial guess.")
-            new_guess = None
+            except:
+                # If the initial guess cannot be read, keep the same initial guess 
+                # for the next run
+                logger.info("Failed to read initial guess.")
+                new_guess = None
 
-        # If successfully read initial guess, replace it
-        if new_guess is not None:
-            self.initial_guess = new_guess
+            # If successfully read initial guess, replace it
+            if new_guess is not None:
+                self.initial_guess = new_guess
 
-            # Enforce SPEC to use initial guess
-            self.inputlist.linitialize = 0
+                # Enforce SPEC to use initial guess
+                self.inputlist.linitialize = 0
 
 
         # Group leaders handle deletion of files:
