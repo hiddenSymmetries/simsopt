@@ -211,8 +211,7 @@ class MPIFiniteDifference:
         nparams = opt.dof_size
         # Make sure all leaders have the same x0.
         mpi.comm_leaders.Bcast(x0)
-        if not args == (): non_dofs = np.array(args)
-        else: non_dofs = None
+        non_dofs = np.array(args) if args else None
         non_dofs = mpi.comm_leaders.bcast(non_dofs, root=0)
         logger.info(f'nparams: {nparams}')
         logger.info(f'x0:  {x0}')
