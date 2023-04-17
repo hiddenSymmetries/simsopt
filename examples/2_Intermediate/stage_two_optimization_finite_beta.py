@@ -122,7 +122,7 @@ Jls = [CurveLength(c) for c in base_curves]
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "identity") for i in range(len(base_curves)))
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
