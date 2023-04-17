@@ -515,7 +515,7 @@ class WindingVolumeField(MagneticField):
                         integration points in each cell, etc.
     """
 
-    def __init__(self, J, integration_points, grid_scaling, coil_range):
+    def __init__(self, J, integration_points, grid_scaling, coil_range, nfp=1, stellsym=False):
         MagneticField.__init__(self)
         print(grid_scaling, coil_range)
         self.integration_points = integration_points
@@ -532,9 +532,11 @@ class WindingVolumeField(MagneticField):
             nfp = 1
             nsym = 1
         else:
-            stell_list = [1, -1]
-            nfp = 2
-            nsym = nfp * 2
+            if stellsym:
+                stell_list = [1, -1]
+            else:
+                stell_list = [1]
+            nsym = nfp * (int(stellsym) + 1)
         J_temp = np.zeros(J.shape)
         J_full = np.zeros((self.N_grid * nsym, Jx.shape[1], 3))
         int_points_full = np.zeros((self.N_grid * nsym, Jx.shape[1], 3))

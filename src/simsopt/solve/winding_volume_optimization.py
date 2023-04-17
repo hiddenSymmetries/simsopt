@@ -75,6 +75,7 @@ def relax_and_split_increasingl0(
     # upper bound on largest singular value from https://www.cs.yale.edu/homes/spielman/BAP/lect3.pdf
     t1 = time.time()
     L = np.linalg.svd(BT @ B + sigma * IT @ I + np.eye(N) * lam_nu, compute_uv=False, hermitian=True)[0]
+    L0 = np.linalg.svd(BT @ B + sigma * IT @ I + np.eye(N) * lam, compute_uv=False, hermitian=True)[0]
     #if True:
     # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + IT @ I + np.eye(N) * lam_nu, axis=0), axis=-1)
     # L = np.sqrt(N) * np.max(np.linalg.norm(BT @ B + np.eye(N) * lam_nu, axis=0), axis=-1)
@@ -104,10 +105,15 @@ def relax_and_split_increasingl0(
     for j, threshold in enumerate(l0_thresholds):
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
         for k in range(rs_max_iter):
-            step_size_i = step_size
+            if j == 0 and k == 0:
+                nu_algo = 1e100
+                step_size_i = 1.0 / L0
+            else:
+                nu_algo = nu
+                step_size_i = step_size
             alpha_opt_prev = alpha_opt 
-            BTb_ITbI_nuw = BTb + sigma * ITbI + w_opt / nu
-            # lam_nu = (lam + 1.0 / nu)
+            BTb_ITbI_nuw = BTb + sigma * ITbI + w_opt / nu_algo
+            lam_nu = (lam + 1.0 / nu_algo)
             # max_it = max_iter + 1
             # print(w_opt, alpha_opt)
             for i in range(max_iter + 1):

@@ -346,13 +346,14 @@ class WindingVolumeGrid:
         z_max = max(z_max, abs(z_min))
 
         # Make grid uniform in (X, Y)
-        min_xy = max(x_min, y_min)
+        min_xy = min(x_min, y_min)
+        #min_xy = max(x_min, y_min)
         max_xy = max(x_max, y_max)
         x_min = min_xy
         y_min = min_xy
         x_max = max_xy
         y_max = max_xy
-        print(x_min, x_max, y_min, x_max, z_min, z_max)
+        print(x_min, x_max, y_min, y_max, z_min, z_max)
 
         # Initialize uniform grid
         Nx = self.Nx
@@ -373,9 +374,21 @@ class WindingVolumeGrid:
             Y = np.linspace(y_min, y_max, Ny, endpoint=True)
         Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
         print(Nx, Ny, Nz, X, Y, Z, self.dx, self.dy, self.dz)
+
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-        self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3) 
+        self.XYZ_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+
+        # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
+        if self.plasma_boundary.nfp == 4:
+            inds = []
+            for i in range(Nx):
+                for j in range(Ny):
+                    for k in range(Nz):
+                        if X[i, j, k] < Y[i, j, k]:
+                            inds.append(int(i * Ny * Nz + j * Nz + k))
+            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds) 
+            self.XYZ_uniform = self.XYZ_uniform[good_inds, :]
 
     def _set_inner_rz_surface(self):
         """
@@ -717,13 +730,6 @@ class WindingVolumeGrid:
                 nz,
                 endpoint=True
             ) - dz / 2.0
-            #if shift:
-            #    x_midpoint = (x_leftpoints[i] + dx / 2.0)
-            #    y_midpoint = (y_leftpoints[i] + dy / 2.0)
-            #    z_midpoint = (z_leftpoints[i] + dz / 2.0)
-            #    xrange[i, :] = (xrange[i, :] - x_midpoint)  # * np.cbrt(dx * dy * dz)
-            #    yrange[i, :] = (yrange[i, :] - y_midpoint)  # * np.cbrt(dx * dy * dz)
-            #    zrange[i, :] = (zrange[i, :] - z_midpoint)  # * np.cbrt(dx * dy * dz)
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
         zeros = np.zeros(n)
         ones = np.ones(n)
@@ -831,7 +837,6 @@ class WindingVolumeGrid:
         t1 = time.time()
         num_points = points.shape[0]
         num_points_curve = points_curve.shape[0]
-        # B_factor = np.zeros((num_points + num_points_curve, 3, n, num_basis))
         geo_factor = np.zeros((num_points, n, num_basis))
         Itarget_matrix = np.zeros((num_points_curve, n, num_basis))
         for stell in stell_list:
@@ -926,9 +931,16 @@ class WindingVolumeGrid:
         t1 = time.time()
 
         # Find the coil boundary points at phi = pi / 2
-        minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
-        x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
-        minus_x_indices = np.intersect1d(minus_x_indices, x0_indices)
+        if nfp == 2:
+            minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
+            x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
+            minus_x_indices = np.intersect1d(minus_x_indices, x0_indices)
+        # Find the coil boundary points at phi = pi / 4
+        elif nfp == 4:
+            minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
+            plus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 2] < 0, axis=-1)))
+            #x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
+            minus_x_indices = np.intersect1d(minus_x_indices, plus_y_indices)
         z_flipped_inds_x = []
         x_inds = []
         for x_ind in minus_x_indices:

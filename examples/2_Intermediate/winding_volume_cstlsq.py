@@ -28,8 +28,8 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
 poff = 0.25  # grid end offset ~ 10 cm from the plasma surface
 coff = 0.4  # grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA'
@@ -57,7 +57,7 @@ s_plot.nfp = 2
 s_plot.stellsym = True
 
 # Make the output directory
-OUT_DIR = 'wv_axisymmetric_fake_QA/'
+OUT_DIR = 'wv_cstlsq/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -126,7 +126,7 @@ for Nx in params:
     rs_max_iter = 10
 
     #l0_thresholds = np.linspace(l0_threshold, 60 * l0_threshold, 60, endpoint=True)
-    l0_thresholds = [2e5] 
+    l0_thresholds = [1e5, 5e5, 1e6] 
     alpha_opt, fB, fK, fI, f0 = cstlsq( 
         wv_grid, lam=lam, max_iter=max_iter,
         l0_thresholds=l0_thresholds, 

@@ -29,41 +29,40 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 32
-poff = 1  # grid end offset ~ 10 cm from the plasma surface
-coff = 3  # grid starts offset ~ 5 cm from the plasma surface
-input_name = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
+nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 8
+poff = 2.0  # grid end offset ~ 10 cm from the plasma surface
+coff = 1.0  # grid starts offset ~ 5 cm from the plasma surface
+input_name = 'input.circular_tokamak' 
 
-lam = 1e-25
-nu = 1e11
+lam = 1e-20
+nu = 1e12
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s.nfp = 2
+s.stellsym = True
 
 qphi = s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-s_plot = SurfaceRZFourier.from_wout(
+s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
+s_plot.nfp = 2
+s_plot.stellsym = True
 
 # Make the output directory
-OUT_DIR = 'wv_QH/'
+OUT_DIR = 'wv_torus/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
 Bnormal = np.zeros((nphi, ntheta))
 t2 = time.time()
 print('First setup took time = ', t2 - t1, ' s')
-
-fB_all = []
-fI_all = []
-fK_all = []
-t_algorithm = []
 
 # Define a curve to define a Itarget loss term
 # As the boundary of the stellarator at theta = 0
@@ -99,7 +98,7 @@ t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
 nx = 6
-Nx = 18
+Nx = 30
 Ny = Nx
 Nz = Nx 
 # Finally, initialize the winding volume 
@@ -112,7 +111,6 @@ wv_grid = WindingVolumeGrid(
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
     filename=surface_filename,
-    surface_flag='wout',
     OUT_DIR=OUT_DIR,
     nx=nx, ny=nx, nz=nx,
     sparse_constraint_matrix=True,
@@ -124,14 +122,14 @@ print('WV grid initialization took time = ', t2 - t1, ' s')
 wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
 max_iter = 100
-rs_max_iter = 40
-
-l0_thresholds = [6e3]  # np.linspace(l0_threshold, 60 * l0_threshold, 60, endpoint=True)
+rs_max_iter = 10
+l0_threshold = 5e3
+l0_thresholds = np.linspace(l0_threshold, 4 * l0_threshold, 10, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
-    print_iter=10,
+    print_iter=50,
 )
 
 if wv_grid.P is not None:
@@ -141,7 +139,6 @@ if wv_grid.P is not None:
     print('||P * w_opt - w_opt|| / ||w_opt|| = ', np.linalg.norm(wv_grid.P.dot(wv_grid.w) - wv_grid.w) / np.linalg.norm(wv_grid.w))
 t2 = time.time()
 print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')    
-t_algorithm.append(t2 - t1)
 
 t1 = time.time()
 wv_grid.to_vtk_after_solve(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
@@ -195,7 +192,7 @@ plt.semilogy(fI, 'm', label=r'$f_I$')
 if l0_thresholds[-1] > 0:
     plt.semilogy(fRS / nu, label=r'$\nu^{-1} \|\alpha - w\|^2$')
     # plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
-plt.semilogy(fB + fI + lam * fK + fRS, 'g', label='Total objective (not incl. l0)')
+plt.semilogy(fB + fI + lam * fK + fRS / nu, 'g', label='Total objective (not incl. l0)')
 #plt.semilogy(w_range, fBw + fIw + lam * fKw, 'g--', label='Total w objective (not incl. l0)')
 plt.grid(True)
 plt.legend()

@@ -77,15 +77,25 @@ t1 = time.time()
 numquadpoints = nphi * s.nfp * 2  # * 5
 order = 20
 quadpoints = np.linspace(0, 1, numquadpoints, endpoint=True)
-curve = CurveRZFourier(quadpoints, order, nfp=1, stellsym=False)
+curve = CurveRZFourier(quadpoints, order, s.nfp, stellsym=True)
+r_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
+z_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
 for m in range(s.mpol + 1):
     if m == 0:
         nmin = 0
     else: 
         nmin = -s.ntor
     for n in range(nmin, s.ntor + 1):
-        curve.rc[s.nfp * int(abs(n))] += s.get_rc(m, n)
-        curve.zs[s.nfp * int(abs(n))] += s.get_zs(m, n) * np.sign(n)
+        r_mn[m, n + s.ntor] = s.get_rc(m, n)
+        z_mn[m, n + s.ntor] = s.get_zs(m, n)
+r_n = np.sum(r_mn, axis=0)
+z_n = np.sum(z_mn, axis=0)
+for n in range(s.ntor + 1):
+    if n == 0:
+        curve.rc[n] = r_n[n + s.ntor]
+    else:
+        curve.rc[n] = r_n[n + s.ntor] + r_n[-n + s.ntor]
+        curve.zs[n - 1] = -z_n[n + s.ntor] + z_n[-n + s.ntor]
 
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
@@ -124,7 +134,7 @@ for Nx in params:
     print('WV grid initialization took time = ', t2 - t1, ' s')
     wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
-    max_iter = 10000
+    max_iter = 1000
     rs_max_iter = 1
 
     #l0_thresholds = np.linspace(l0_threshold, 60 * l0_threshold, 60, endpoint=True)
