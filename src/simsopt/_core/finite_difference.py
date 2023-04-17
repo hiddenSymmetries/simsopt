@@ -349,9 +349,9 @@ class MPIFiniteDifference:
         logger.debug("Entering jac evaluation")
 
         try:
-            if not args == (): non_dofs = np.array(args)
-            else: non_dofs = None
-        except Exception as e: print(e)
+            non_dofs = np.array(args) if not args == () else None
+        except Exception as e:
+            print(e)
         non_dofs = self.mpi.comm_groups.bcast(non_dofs, root=0)
         self.opt.non_dofs = non_dofs
 
