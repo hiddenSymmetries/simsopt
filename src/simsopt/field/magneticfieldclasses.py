@@ -9,7 +9,6 @@ try:
     sympy_found = True
 except ImportError:
     sympy_found = False
-from pyevtk.hl import pointsToVTK
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
@@ -506,15 +505,16 @@ class CircularCoil(MagneticField):
 
 class DipoleField(MagneticField):
     r"""
-    Computes the MagneticField induced by N dipoles. This is very simple but needs to be
-    a type MagneticField class for using the other simsopt functionality.
-    The field is given by
+    Computes the MagneticField induced by N dipoles. The field is given by
 
     .. math::
 
         B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{i=1}^{N} (\frac{3\mathbf{r}_i\cdot \mathbf{m}_i}{|\mathbf{r}_i|^5}\mathbf{r}_i - \frac{\mathbf{m}_i}{|\mathbf{r}_i|^3})
 
-    where :math:`\mu_0=4\pi 10^{-7}` is the magnetic constant and :math:\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i is the vector between the field evaluation point and the dipole i position.
+    where :math:`\mu_0=4\pi 10^{-7}` is the permeability of free space
+    and :math:\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i is the
+    vector between the field evaluation point and the dipole i
+    position.
 
     Args:
         dipole_grid: 2D numpy array, shape (ndipoles, 3)
@@ -666,6 +666,7 @@ class DipoleField(MagneticField):
 
         # Save all the data to a vtk file which can be visualized nicely with ParaView
         data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
+        from pyevtk.hl import pointsToVTK
         pointsToVTK(
             vtkname, ox, oy, oz, data=data
         )

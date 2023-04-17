@@ -10,9 +10,11 @@
 __all__ = ['faceedge_vectors', 'facecorner_vectors', 'edge_triplet', 
            'orientation_phi', 'polarization_axes', 'discretize_polarizations']
 
+import sys
+
 import numpy as np
 import numpy.matlib as ml
-import sys
+
 from . import adjust_magnet_angles as mag
 
 # Designated column indices from MAGPIE corners files
@@ -313,24 +315,25 @@ def edge_triplet(theta_fe, theta_fc):
 
 def orientation_phi(corners_fname):
     """
-        Determines the azimuthal (phi) angle that sets the orientations of a
-        rectangular prisms from an arrangement based on data from the corners file
+    Determines the azimuthal (phi) angle that sets the orientations of a
+    rectangular prisms from an arrangement based on data from the corners file
 
-        Phi is the azimuthal angle of the normal vector of the face whose normal
-        vector is in the "radial-like" direction with a polar angle of pi/2 radians
-        (i.e., parallel to the x-y plane). The remaining faces will be assumed to
-        have normal vectors in either:
-            1.) the z-direction, or 
-            2.) parallel to the x-y plane with an azimuthal angle equal to the 
-                orientation phi plus pi/2 radians (the "phi-like" direction).
+    Phi is the azimuthal angle of the normal vector of the face whose normal
+    vector is in the "radial-like" direction with a polar angle of pi/2 radians
+    (i.e., parallel to the x-y plane). The remaining faces will be assumed to
+    have normal vectors in either:
 
-        Args:
-            corners_fname: string
-                Corners file
+        1.) the z-direction, or 
+        2.) parallel to the x-y plane with an azimuthal angle equal to the 
+            orientation phi plus pi/2 radians (the "phi-like" direction).
 
-        Returns:
-            orientation_phi: double array
-                Orientation phi angle (radians) of each prism in the arrangement
+    Args:
+        corners_fname: string
+            Corners file
+
+    Returns:
+        orientation_phi: double array
+            Orientation phi angle (radians) of each prism in the arrangement
     """
 
     corners_data = np.loadtxt(corners_fname, delimiter=',')

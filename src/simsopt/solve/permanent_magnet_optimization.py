@@ -38,10 +38,10 @@ def prox_l1(m, mmax, reg_l1, nu):
 
 def projection_L2_balls(x, mmax):
     """
-        Project the vector x onto a series of L2 balls in R3.
-        Only used here for checking if the initial guess for the
-        permanent magnets is inside the feasible region
-        before optimization begins.
+    Project the vector x onto a series of L2 balls in R3.
+    Only used here for checking if the initial guess for the
+    permanent magnets is inside the feasible region
+    before optimization begins.
     """
     N = len(x) // 3
     x_shaped = x.reshape(N, 3)
@@ -52,10 +52,10 @@ def projection_L2_balls(x, mmax):
 
 def setup_initial_condition(pm_opt, m0=None):
     """
-        If an initial guess for the dipole moments is specified,
-        checks the initial condition lies in the allowed hypersurface.
-        If an initial guess is not specified, defaults to initializing
-        the permanent magnet dipole moments to all zeros.
+    If an initial guess for the dipole moments is specified,
+    checks the initial condition lies in the allowed hypersurface.
+    If an initial guess is not specified, defaults to initializing
+    the permanent magnet dipole moments to all zeros.
     """
     # Initialize initial guess for the dipole strengths
     if m0 is not None:
@@ -85,15 +85,15 @@ def setup_initial_condition(pm_opt, m0=None):
 
 def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
     """
-        Use a relax-and-split algorithm for solving the permanent
-        magnet optimization problem, which solves a convex and nonconvex part
-        separately. Defaults to the MwPGP convex step and no nonconvex step.
-        If a nonconvexity is specified, the associated prox function must
-        be defined in this file.
-        Relax-and-split allows for speedy algorithms for both steps and
-        the imposition of convex equality and inequality
-        constraints (including the required constraint on
-        the strengths of the dipole moments).
+    Use a relax-and-split algorithm for solving the permanent
+    magnet optimization problem, which solves a convex and nonconvex
+    part separately. Defaults to the MwPGP convex step and no
+    nonconvex step.  If a nonconvexity is specified, the associated
+    prox function must be defined in this file.  Relax-and-split
+    allows for speedy algorithms for both steps and the imposition of
+    convex equality and inequality constraints (including the required
+    constraint on the strengths of the dipole moments).
+
     Args:
         m0: Initial guess for the permanent magnet
             dipole moments. Defaults to a
@@ -170,14 +170,17 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
         nu = kwargs["nu"]
     else:
         nu = 1e100
+
     if "reg_l0" in kwargs.keys():
         reg_l0 = kwargs["reg_l0"]
     else:
         reg_l0 = 0.0
+
     if "reg_l1" in kwargs.keys():
         reg_l1 = kwargs["reg_l1"]
     else:
         reg_l1 = 0.0
+
     if (not np.isclose(reg_l0, 0.0, atol=1e-16)) and (not np.isclose(reg_l1, 0.0, atol=1e-16)):
         raise ValueError(' L0 and L1 loss terms cannot be used concurrently.')
     elif not np.isclose(reg_l0, 0.0, atol=1e-16):
@@ -252,15 +255,16 @@ def relax_and_split(pm_opt, m0=None, algorithm='MwPGP', **kwargs):
 
 def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     """
-        GPMO is a greedy algorithm alternative to
-        the relax-and-split algorithm for solving the permanent
-        magnet optimization problem. Full-strength magnets are placed
-        one-by-one according to minimize a submodular objective function
-        such as the mutual coherence of ATA. Actually defaults to minimizing
-        the MSE (fB) that is the usual objective for permanent magnet
-        optimization. Allows for a number of keyword arguments that 
-        facilitate some basic backtracking (error correction) and 
-        placing magnets together so no isolated magnets occur. 
+    GPMO is a greedy algorithm alternative to
+    the relax-and-split algorithm for solving the permanent
+    magnet optimization problem. Full-strength magnets are placed
+    one-by-one according to minimize a submodular objective function
+    such as the mutual coherence of ATA. Actually defaults to minimizing
+    the MSE (fB) that is the usual objective for permanent magnet
+    optimization. Allows for a number of keyword arguments that 
+    facilitate some basic backtracking (error correction) and 
+    placing magnets together so no isolated magnets occur.
+
     Args:
         algorithm_kwargs: Keyword argument dictionary for the GPMO algorithm
         and its variants defined below.
@@ -312,8 +316,6 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             pol_vectors=contig(pm_opt.pol_vectors),
             **algorithm_kwargs
         )
-        # optimization_dict = {'A': A_obj, 'b': pm_opt.b_obj, 'fB_final': algorithm_history, 'm_greedy_solution_final': m}
-        # np.save('optimization_matrices_high_res.npy', optimization_dict) 
     elif algorithm == 'backtracking':  # GPMOb
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
             A_obj=contig(A_obj.T),
@@ -393,4 +395,3 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     pm_opt.m = np.ravel(m)
     pm_opt.m_proxy = pm_opt.m
     return errors, Bn_errors, m_history
-

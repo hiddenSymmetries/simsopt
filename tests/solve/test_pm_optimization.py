@@ -1,7 +1,9 @@
-import simsoptpp as sopp
-import numpy as np
-import unittest
 import time
+import unittest
+
+import numpy as np
+
+import simsoptpp as sopp
 
 
 class Testing(unittest.TestCase):

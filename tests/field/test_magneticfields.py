@@ -1,30 +1,33 @@
-import unittest
 import json
+import unittest
 
 import numpy as np
+
+try:
+    import sympy
+except ImportError:
+    sympy = None
+
 try:
     import pyevtk
-    pyevtk_found = True
 except ImportError:
-    pyevtk_found = False
+    pyevtk = None
 
-from simsopt.field.magneticfieldclasses import ToroidalField, \
-    ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
-    DipoleField, Reiman, sympy_found, InterpolatedField, PoloidalField
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.field.magneticfield import MagneticFieldSum
-from simsopt.geo.curverzfourier import CurveRZFourier
-from simsopt.geo.curvehelical import CurveHelical
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import coils_via_symmetries, Coil, Current
-from simsopt.util.permanent_magnet_helper_functions import * 
-from simsopt.geo import PermanentMagnetGrid
+from simsopt._core.json import SIMSON, GSONDecoder, GSONEncoder
+from simsopt.configs import get_ncsx_data
+from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
+                           DipoleField, Dommaschk, InterpolatedField,
+                           MagneticFieldSum, PoloidalField, Reiman,
+                           ScalarPotentialRZMagneticField, ToroidalField,
+                           coils_via_symmetries)
+from simsopt.objectives import SquaredFlux
+
+from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
+                         PermanentMagnetGrid, SurfaceRZFourier,
+                         create_equally_spaced_curves)
 from simsopt.solve import relax_and_split
-from simsopt.objectives.fluxobjective import SquaredFlux
-from simsopt.configs.zoo import get_ncsx_data
-from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
+
+from . import TEST_DIR
 
 
 class Testing(unittest.TestCase):
@@ -125,7 +128,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Btoroidal1.dA_by_dX()+Btoroidal2.dA_by_dX(), Btotal3.dA_by_dX())
         assert np.allclose(Btoroidal1.d2A_by_dXdX()+Btoroidal2.d2A_by_dXdX(), Btotal3.d2A_by_dXdX())
 
-    @unittest.skipIf(not sympy_found, "Sympy not found")
+    @unittest.skipIf(sympy is None, "Sympy not found")
     def test_scalarpotential_Bfield(self):
         # Set up magnetic field scalar potential
         PhiStr = "0.1*phi+0.2*R*Z+0.3*Z*phi+0.4*R**2+0.5*Z**2"
@@ -478,7 +481,7 @@ class Testing(unittest.TestCase):
         field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
         nphi = 4
         ntheta = 4
-        filename = "tests/test_files/input.LandremanPaul2021_QA"
+        filename = TEST_DIR / "input.LandremanPaul2021_QA"
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
@@ -524,7 +527,7 @@ class Testing(unittest.TestCase):
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
         nphi = 4
         ntheta = 4
-        filename = "tests/test_files/input.LandremanPaul2021_QA"
+        filename = TEST_DIR / "input.LandremanPaul2021_QA"
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
@@ -575,7 +578,7 @@ class Testing(unittest.TestCase):
         field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
         nphi = 4
         ntheta = 4
-        filename = "tests/test_files/input.LandremanPaul2021_QA"
+        filename = TEST_DIR / "input.LandremanPaul2021_QA"
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
         base_currents = [Current(1e5) for i in range(2)]
@@ -639,7 +642,7 @@ class Testing(unittest.TestCase):
         ]
 
         for filename in file_tests: 
-            sfilename = "tests/test_files/" + filename
+            sfilename = TEST_DIR / filename
             if filename[:4] == 'wout':
                 s = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
                 surface_flag = 'wout'
@@ -945,7 +948,7 @@ class Testing(unittest.TestCase):
         with self.assertRaises(ValueError):
             bsbs.set_points_cyl(f_contig.flatten())
 
-    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_to_vtk(self):
         curves, currents, ma = get_ncsx_data()
         nfp = 3
