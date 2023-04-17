@@ -187,7 +187,9 @@ class MPIFiniteDifference:
             self.log_file.close()
 
     # Called by MPI leaders
-    def _jac(self, x: RealArray = None):
+    def _jac(self, x: RealArray = None, *args):
+        # *args are considered non_dofs that should also
+        # be broadcast when performing parallel computations
         # Use shortcuts for class variables
         opt = self.opt
         mpi = self.mpi
@@ -205,6 +207,9 @@ class MPIFiniteDifference:
         nparams = opt.dof_size
         # Make sure all leaders have the same x0.
         mpi.comm_leaders.Bcast(x0)
+        if not args==(): non_dofs = np.array(args)
+        else: non_dofs = None
+        non_dofs = mpi.comm_leaders.bcast(non_dofs, root=0)
         logger.info(f'nparams: {nparams}')
         logger.info(f'x0:  {x0}')
 
@@ -249,6 +254,7 @@ class MPIFiniteDifference:
                 x = xs[:, j]
                 mpi.comm_groups.bcast(x, root=0)
                 opt.x = x
+                self.opt.non_dofs = non_dofs
                 out = np.asarray(self.fn())
 
                 if evals is None and mpi.proc0_world:
@@ -337,6 +343,13 @@ class MPIFiniteDifference:
         ARB_VAL = 100
         logger.debug("Entering jac evaluation")
 
+        try:
+            if not args==(): non_dofs = np.array(args)
+            else: non_dofs = None
+        except Exception as e: print(e)
+        non_dofs = self.mpi.comm_groups.bcast(non_dofs, root=0)
+        self.opt.non_dofs = non_dofs
+
         if self.jac_size is None:  # Do one evaluation of code
             if x is None:
                 x = self.x0
@@ -354,7 +367,7 @@ class MPIFiniteDifference:
         self.mpi.mobilize_leaders(ARB_VAL)  # Any value not equal to STOP
         self.mpi.comm_leaders.bcast(x, root=0)
 
-        jac, xs, evals = self._jac(x)
+        jac, xs, evals = self._jac(x, args)
         logger.debug(f'jac is {jac}')
 
         # Write to the log file:
