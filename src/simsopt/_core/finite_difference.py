@@ -207,7 +207,7 @@ class MPIFiniteDifference:
         nparams = opt.dof_size
         # Make sure all leaders have the same x0.
         mpi.comm_leaders.Bcast(x0)
-        if not args==(): non_dofs = np.array(args)
+        if not args == (): non_dofs = np.array(args)
         else: non_dofs = None
         non_dofs = mpi.comm_leaders.bcast(non_dofs, root=0)
         logger.info(f'nparams: {nparams}')
@@ -344,7 +344,7 @@ class MPIFiniteDifference:
         logger.debug("Entering jac evaluation")
 
         try:
-            if not args==(): non_dofs = np.array(args)
+            if not args == (): non_dofs = np.array(args)
             else: non_dofs = None
         except Exception as e: print(e)
         non_dofs = self.mpi.comm_groups.bcast(non_dofs, root=0)
