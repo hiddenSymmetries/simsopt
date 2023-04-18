@@ -8,7 +8,9 @@
     and work with the permanent magnet branch of SIMSOPT.
 """
 __all__ = ['faceedge_vectors', 'facecorner_vectors', 'edge_triplet', 
-           'orientation_phi', 'polarization_axes', 'discretize_polarizations']
+           'orientation_phi', 'polarization_axes', 'discretize_polarizations',
+           'pol_f', 'pol_e', 'pol_c', 'pol_fe', 'pol_fc', 'pol_ec',
+           'pol_fe17', 'pol_fe23', 'pol_fe30', 'pol_fc27', 'pol_fc39', 'pol_ec23']
 
 import sys
 
@@ -376,6 +378,8 @@ def polarization_axes(polarizations):
     pol_type = np.zeros(0, dtype=int)
     first_row = 0
     i = 0
+    if not isinstance(polarizations, list):
+        polarizations = [polarizations]
     for pol_name in polarizations:
         if pol_name.lower() == 'face':
             pol_axes = np.concatenate((pol_axes, pol_f), axis=0)
@@ -434,7 +438,7 @@ def polarization_axes(polarizations):
                              pol_name + ' is not recognized or supported.')
 
         i = i + 1
-        pol_type = np.concatenate((pol_type, i*np.ones(n_polarizations)))
+        pol_type = np.concatenate((pol_type, i * np.ones(n_polarizations)))
 
     return pol_axes, pol_type
 
@@ -538,30 +542,3 @@ def discretize_polarizations(mag_data, orientation_phi, pol_axes, pol_type):
     pho_1_inds = np.where(min_ind != 0)
     mag_data.pho[pho_0_inds] = 0.0
     mag_data.pho[pho_1_inds] = 1.0
-
-
-if __name__ == '__main__':
-
-    if len(sys.argv) < 4:
-        print('usage: \npython polarization_project.py focus_in_fname ' \
-              + 'corners_fname focus_out_fname\n' \
-              + '  [face] [edge] [corner] [faceedge] [facecorner] [edgecorner]')
-        exit()
-
-    focus_in_file = sys.argv[1]
-    corners_file = sys.argv[2]
-    focus_out_file = sys.argv[3]
-
-    #cdata = np.genfromtxt(corners_file)
-    mdata = mag.FocusData(focus_in_file)
-
-    polarizations = []
-    for i in range(4, len(sys.argv)):
-        polarizations.append(sys.argv[i])
-
-    pol_axes, pol_type = polarization_axes(polarizations)
-    ophi = orientation_phi(corners_file)
-    discretize_polarizations(mdata, ophi, pol_axes, pol_type)
-
-    mdata.print_to_file(focus_out_file)
-

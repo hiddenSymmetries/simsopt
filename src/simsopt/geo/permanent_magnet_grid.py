@@ -447,7 +447,7 @@ class PermanentMagnetGrid:
         self._optimization_setup()
 
     def _optimization_setup(self):
-        
+
         if self.Bn.shape != (self.nphi, self.ntheta):
             raise ValueError(
                 'Normal magnetic field surface data is incorrect shape.'
