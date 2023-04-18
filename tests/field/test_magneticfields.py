@@ -1,7 +1,7 @@
 import json
 import unittest
-
 import numpy as np
+from pathlib import Path
 
 try:
     import sympy
@@ -21,13 +21,12 @@ from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
                            ScalarPotentialRZMagneticField, ToroidalField,
                            coils_via_symmetries)
 from simsopt.objectives import SquaredFlux
-
 from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
                          PermanentMagnetGrid, SurfaceRZFourier,
                          create_equally_spaced_curves)
 from simsopt.solve import relax_and_split
-
-from . import TEST_DIR
+#from . import TEST_DIR
+TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 
 class Testing(unittest.TestCase):
@@ -481,30 +480,11 @@ class Testing(unittest.TestCase):
         field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
         nphi = 4
         ntheta = 4
-        filename = TEST_DIR / "input.LandremanPaul2021_QA"
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
-        base_currents = [Current(1e5) for i in range(2)]
-        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetGrid(
-            s, dr=0.1, 
-            Bn=Bn,
-            filename=filename
-        )
-        pm_opt.geo_setup()
-        pm_opt.dipole_grid_xyz = m_loc
-        pm_opt.m = m
-        pm_opt.m_maxima = pm_opt.m_maxima[0]
-        pm_opt.ndipoles = m.shape[0] // 3
         Bfield = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            pm_opt.m,
+            m_loc,
+            m,
             stellsym=False,
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
+            coordinate_flag='cartesian'
         )
         Bfield.set_points(field_loc)
         gradB = np.array(Bfield.dB_by_dX())
@@ -527,30 +507,11 @@ class Testing(unittest.TestCase):
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
         nphi = 4
         ntheta = 4
-        filename = TEST_DIR / "input.LandremanPaul2021_QA"
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
-        base_currents = [Current(1e5) for i in range(2)]
-        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetGrid(
-            s, dr=0.1, 
-            Bn=Bn,
-            filename=filename
-        )
-        pm_opt.geo_setup()
-        pm_opt.dipole_grid_xyz = m_loc
-        pm_opt.m = m
-        pm_opt.m_maxima = pm_opt.m_maxima[:Ndipoles]
-        pm_opt.ndipoles = m.shape[0] // 3
         Bfield = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            pm_opt.m,
+            m_loc,
+            m,
             stellsym=False, 
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
+            coordinate_flag='cartesian',
         )
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
@@ -578,32 +539,10 @@ class Testing(unittest.TestCase):
         field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
         nphi = 4
         ntheta = 4
-        filename = TEST_DIR / "input.LandremanPaul2021_QA"
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
-        base_currents = [Current(1e5) for i in range(2)]
-        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetGrid(
-            s, dr=0.1, 
-            Bn=Bn,
-            filename=filename
-        )
-        pm_opt.geo_setup()
-        pm_opt.dipole_grid_xyz = m_loc
-        pm_opt.m = m
-        pm_opt.m_maxima = pm_opt.m_maxima[:Ndipoles]
-        pm_opt.ndipoles = m.shape[0] // 3
-        pm_opt.plasma_boundary.stellsym = False
-        pm_opt.plasma_boundary.nfp = 1 
-        pm_opt.nfp = 1
         Bfield = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            pm_opt.m,
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
+            m_loc,
+            m,
+            coordinate_flag='cartesian'
         )
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
@@ -645,10 +584,16 @@ class Testing(unittest.TestCase):
             sfilename = TEST_DIR / filename
             if filename[:4] == 'wout':
                 s = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
-                surface_flag = 'wout'
+                s_inner = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
+                s_outer = SurfaceRZFourier.from_wout(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
             else:
                 s = SurfaceRZFourier.from_vmec_input(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
-                surface_flag = 'vmec'
+                s_inner = SurfaceRZFourier.from_vmec_input(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
+                s_outer = SurfaceRZFourier.from_vmec_input(sfilename, range="half period", nphi=nphi, ntheta=ntheta)
+            # Make the inner and outer surfaces by extending the plasma surface
+            s_inner.extend_via_projected_normal(0.1)
+            s_outer.extend_via_projected_normal(0.2)
+
             base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=True, R0=0.5, R1=1.0, order=2)
             base_currents = [Current(1e5) for i in range(2)]
             coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
@@ -656,10 +601,8 @@ class Testing(unittest.TestCase):
             bs.set_points(s.gamma().reshape((-1, 3)))
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
             pm_opt = PermanentMagnetGrid(
-                s, dr=0.1, 
+                s, s_inner, s_outer, 
                 Bn=Bn, 
-                surface_flag=surface_flag,
-                filename=sfilename
             )
             pm_opt.geo_setup()
             dipoles = np.random.rand(pm_opt.ndipoles * 3)

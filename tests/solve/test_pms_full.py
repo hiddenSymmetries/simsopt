@@ -30,26 +30,29 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from simsopt.field import BiotSavart, DipoleField
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
+from simsopt.solve import GPMO
 from simsopt.util import FocusData, discretize_polarizations, polarization_axes
 from simsopt.util.permanent_magnet_helper_functions import *
-from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
-from simsopt.solve import GPMO
 
 t_start = time.time()
 
 # Set some parameters
 nphi = 8  # change to 64 for high-resolution runs
 ntheta = 8  # same as above
-dr = 0.01
-coff = 0.1
-poff = 0.02
+dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
+coff = 0.1  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
+poff = 0.02  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
+famus_filename = TEST_DIR / 'zot80.focus'
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
@@ -81,7 +84,7 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-mag_data = FocusData(TEST_DIR / 'zot80.focus')
+mag_data = FocusData(famus_filename)
 
 # Determine the allowable polarization types and reject the negatives
 pol_axes = np.zeros((0, 3))
@@ -111,7 +114,7 @@ if PM4Stell_orientations:
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
 ox, oy, oz, Ic = np.loadtxt(
-    TEST_DIR / 'zot80.focus', 
+    '../../tests/test_files/zot80.focus', 
     skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
 )
 
@@ -136,13 +139,14 @@ premade_dipole_grid = np.array([ox, oy, oz]).T
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, coil_offset=coff, dr=dr, plasma_offset=poff,
-    Bn=Bnormal, surface_flag='focus',
-    filename=surface_filename,
+    s, s_inner, s_outer,  # s_inner and s_outer overwritten in next line since using a FAMUS grid 
+    dr=dr,
+    Bn=Bnormal, 
     coordinate_flag='cartesian',
-    famus_filename=TEST_DIR / 'zot80.focus',
-    pol_vectors=pol_vectors  # this variable is only used for the greedy algorithms
+    # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
+    pol_vectors=pol_vectors
 )
+pm_opt.geo_setup_from_famus(famus_filename)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -203,12 +207,18 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
 
 # Look through the solutions as function of K and make plots
 for k in range(0, kwargs["nhistory"] + 1, 50):
-    pm_opt.m = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
-    b_dipole = DipoleField(pm_opt)
+    mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
+    b_dipole = DipoleField(
+        pm_opt.dipole_grid_xyz,
+        mk, 
+        nfp=s.nfp,
+        coordinate_flag=pm_opt.coordinate_flag,
+        m_maxima=pm_opt.m_maxima,
+    )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
     print("Total fB = ",
-          0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+          0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_total = Bnormal + Bnormal_dipoles
 
@@ -238,13 +248,13 @@ write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
-# surface is 64 x 64 resolution.
+# surface is at least 64 x 64 resolution.
 vmec_flag = False 
 if vmec_flag:
     from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
-    mpi = MpiPartition(ngroups=4)
+    mpi = MpiPartition(ngroups=1)
     comm = MPI.COMM_WORLD
 
     # Make the QFM surfaces
@@ -260,7 +270,7 @@ if vmec_flag:
     t1 = time.time()
 
     ### Always use the QA VMEC file and just change the boundary
-    vmec_input = TEST_DIR / "input.LandremanPaul2021_QA"
+    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
     equil.run()
