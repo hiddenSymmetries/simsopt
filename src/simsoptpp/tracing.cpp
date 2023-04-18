@@ -172,7 +172,6 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
         shared_ptr<BoozerMagneticField<T>> field;
         double m, q, mu, Phihat, omega, phase;
         int Phim, Phin;
-        bool no_shear;
     public:
         int axis;
         static constexpr int Size = 5;
@@ -180,9 +179,9 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
 
         GuidingCenterVacuumBoozerPerturbedRHS(shared_ptr<BoozerMagneticField<T>> field,
             double m, double q, double mu, double Phihat, double omega, int Phim,
-            int Phin, double phase, int axis, bool no_shear)
+            int Phin, double phase, int axis)
             : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
-              Phim(Phim), Phin(Phin), phase(phase), axis(axis), no_shear(no_shear) {
+              Phim(Phim), Phin(Phin), phase(phase), axis(axis) {
             }
 
         void operator()(const State &ys, array<double, 5> &dydt,
@@ -210,10 +209,7 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
             double iota = field->iota_ref()(0);
-            double diotadpsi = 0;
-            if (not no_shear) {
-                diotadpsi = field->diotads_ref()(0)/psi0;
-            }
+            double diotadpsi = field->diotads_ref()(0)/psi0;
             double dmodBdpsi = field->modB_derivs_ref()(0)/psi0;
             double dmodBdtheta = field->modB_derivs_ref()(1);
             double dmodBdzeta = field->modB_derivs_ref()(2);
@@ -834,7 +830,7 @@ particle_guiding_center_boozer_perturbed_tracing(
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
         bool phis_stop, bool vpars_stop, double Phihat, double omega, int Phim,
-        int Phin, double phase, bool forget_exact_path, int axis, bool no_shear)
+        int Phin, double phase, bool forget_exact_path, int axis)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -854,7 +850,7 @@ particle_guiding_center_boozer_perturbed_tracing(
     }
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
-        Phim, Phin, phase, axis, no_shear);
+        Phim, Phin, phase, axis);
       return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria,
         vpars, phis_stop, vpars_stop, true, forget_exact_path);
   } else {
@@ -916,7 +912,7 @@ tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_cente
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         vector<double> vpars={}, bool phis_stop, bool vpars_stop, double Phihat,
-        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis, bool no_shear);
+        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(

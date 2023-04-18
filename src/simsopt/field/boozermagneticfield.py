@@ -359,7 +359,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
 
     def __init__(self, equil, order, mpol=32, ntor=32, N=None,
                  enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False,
-                 write_boozmn=True, boozmn_name="boozmn.nc", mpi=None,verbose=0):
+                 write_boozmn=True, boozmn_name="boozmn.nc", mpi=None,verbose=0,no_shear=False):
         if (mpi is None and not isinstance(equil, Booz_xform)):
             self.mpi = equil.mpi
         else:
@@ -635,8 +635,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.I_spline = InterpolatedUnivariateSpline(self.s_half_ext, np.zeros_like(self.s_half_ext), k=self.order)
             self.dGds_spline = InterpolatedUnivariateSpline(s_full[1:-1], np.zeros_like(s_full[1:-1]), k=self.order)
             self.dIds_spline = InterpolatedUnivariateSpline(s_full[1:-1], np.zeros_like(s_full[1:-1]), k=self.order)
-        self.iota_spline = InterpolatedUnivariateSpline(self.s_half_ext, iota, k=self.order)
-        self.diotads_spline = InterpolatedUnivariateSpline(s_full[1:-1], diotads, k=self.order)
+        if not self.no_shear:
+            self.iota_spline = InterpolatedUnivariateSpline(self.s_half_ext, iota, k=self.order)
+            self.diotads_spline = InterpolatedUnivariateSpline(s_full[1:-1], diotads, k=self.order)
+        else:
+            self.iota_spline = InterpolatedUnivariateSpline(self.s_half_ext, np.mean(iota), k=self.order)
+            self.diotads_spline = InterpolatedUnivariateSpline(s_full[1:-1], np.zeros_like(s_full[1:-1]), k=self.order)
 
         self.numns_splines = []
         self.rmnc_splines = []
