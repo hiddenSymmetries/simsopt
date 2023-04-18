@@ -16,9 +16,9 @@ from matplotlib.colors import LogNorm
 from .._core.json import GSONDecoder, GSONable
 # from .._core.optimizable import Optimizable
 
-__all__ = ['WindingVolumeGrid']
+__all__ = ['CurrentVoxelsGrid']
 
-# class WindingVolumeGrid(Optimizable):
+# class CurrentVoxelsGrid(Optimizable):
 
 
 def _voxels_to_vtk(
@@ -93,9 +93,9 @@ def _voxels_to_vtk(
     )
 
 
-class WindingVolumeGrid:
+class CurrentVoxelsGrid:
     r"""
-        ``WindingVolumeGrid`` is a class for setting up the grid,
+        ``CurrentVoxelsGrid`` is a class for setting up the grid,
         needed to perform finite-build coil optimization for stellarators
         using the method outlined in Kaptanoglu & Landreman 2023. This 
         class reuses some of the functionality used for the PermanentMagnetGrid
@@ -126,9 +126,9 @@ class WindingVolumeGrid:
                               boundary. Typically this will be the optimized plasma
                               magnetic field from a stage-1 optimization, and the
                               optimized coils from a basic stage-2 optimization.
-            Nx:               Number of X points in winding volume grid. 
-            Ny:               Number of Y points in winding volume grid. 
-            Ny:               Number of Z points in winding volume grid. 
+            Nx:               Number of X points in current voxels grid. 
+            Ny:               Number of Y points in current voxels grid. 
+            Ny:               Number of Z points in current voxels grid. 
             filename:         Filename for the file containing the plasma boundary surface.
             surface_flag:     Flag to specify the format of the surface file. Defaults to VMEC.
             OUT_DIR:          Directory to save files in.
@@ -267,13 +267,13 @@ class WindingVolumeGrid:
             contig = np.ascontiguousarray
             print(np.shape(self.XYZ_uniform))
             if self.surface_flag == 'focus' or self.surface_flag == 'wout':
-                final_grid = sopp.make_winding_volume_grid(
+                final_grid = sopp.make_current_voxels_grid(
                     #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
                     contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
                     contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
                 )
             else:
-                final_grid = sopp.make_winding_volume_grid(
+                final_grid = sopp.make_current_voxels_grid(
                     #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
                     contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
                     contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
@@ -692,7 +692,7 @@ class WindingVolumeGrid:
 
         returns:
             poly_basis, shape (num_basis_functions, N_grid, nx * ny * nz, 3)
-                where N_grid is the number of cells in the winding volume,
+                where N_grid is the number of cells in the current voxels,
                 nx, ny, and nz, are the number of points to evaluate the 
                 function WITHIN a cell, and num_basis_functions is hard-coded
                 to 11 for now while we use a linear basis of polynomials. 
@@ -855,14 +855,14 @@ class WindingVolumeGrid:
 
                 Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
-                geo_factor += sopp.winding_volume_field_Bext_SIMD(
+                geo_factor += sopp.current_voxels_field_Bext_SIMD(
                     points, 
                     contig(int_points), 
                     #contig(Phivec_full[:, index:index + n, :, :])
                     contig(Phivec_transpose),
                     plasma_unitnormal
                 )
-                Itarget_matrix += sopp.winding_volume_field_Bext_SIMD(
+                Itarget_matrix += sopp.current_voxels_field_Bext_SIMD(
                     points_curve, 
                     contig(int_points), 
                     #contig(Phivec_full[:, index:index + n, :, :])
@@ -916,7 +916,7 @@ class WindingVolumeGrid:
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)
         self.Itarget_rhs = self.Bn_Itarget * nphi_loop_inv
         self.Itarget_rhs = np.sum(self.Itarget_rhs) + 4 * np.pi * 1e-7 * self.Itarget
-        flux_factor, self.connection_list = sopp.winding_volume_flux_jumps(
+        flux_factor, self.connection_list = sopp.current_voxels_flux_jumps(
             coil_points,
             contig(self.Phi.reshape(self.n_functions, self.N_grid, self.nx, self.ny, self.nz, 3)), 
             self.dx,

@@ -1,9 +1,9 @@
-#include "winding_volume_field.h"
+#include "current_voxels_field.h"
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 
 // Calculate the geometrics factor from the polynomial basis functions 
-Array winding_volume_field_B(Array& points, Array& integration_points, Array& J) 
+Array current_voxels_field_B(Array& points, Array& integration_points, Array& J) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -60,7 +60,7 @@ Array winding_volume_field_B(Array& points, Array& integration_points, Array& J)
 } 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-Array winding_volume_field_B_SIMD(Array& points, Array& integration_points, Array& J) 
+Array current_voxels_field_B_SIMD(Array& points, Array& integration_points, Array& J) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -120,7 +120,7 @@ Array winding_volume_field_B_SIMD(Array& points, Array& integration_points, Arra
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-Array winding_volume_field_Bext(Array& points, Array& integration_points, Array& Phi, Array& plasma_unitnormal) 
+Array current_voxels_field_Bext(Array& points, Array& integration_points, Array& Phi, Array& plasma_unitnormal) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -169,7 +169,7 @@ Array winding_volume_field_Bext(Array& points, Array& integration_points, Array&
     return fak * B;
 } 
 
-Array winding_volume_field_Bext_SIMD(Array& points, Array& integration_points, Array& Phi, Array& plasma_unitnormal) 
+Array current_voxels_field_Bext_SIMD(Array& points, Array& integration_points, Array& Phi, Array& plasma_unitnormal) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 r"""
-This example uses the winding volume method 
+This example uses the current voxels method 
 outline in Kaptanoglu & Landreman 2023 in order
 to make finite-build coils with no multi-filament
 approximation. 
 
 The script should be run as:
-    mpirun -n 1 python winding_volume.py 
+    mpirun -n 1 python current_voxels.py 
 
 """
 
@@ -17,8 +17,8 @@ import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.magneticfieldclasses import WindingVolumeField
-from simsopt.geo import WindingVolumeGrid
+from simsopt.field.magneticfieldclasses import CurrentVoxelsField
+from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split, relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
@@ -101,9 +101,9 @@ nx = 6
 Nx = 30
 Ny = Nx
 Nz = Nx 
-# Finally, initialize the winding volume 
+# Finally, initialize the current voxels 
 t1 = time.time()
-wv_grid = WindingVolumeGrid(
+wv_grid = CurrentVoxelsGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
     coil_offset=coff, 
     Nx=Nx, Ny=Ny, Nz=Nz, 
@@ -147,9 +147,9 @@ print('Time to plot the optimized grid = ', t2 - t1, ' s')
 print('fB after optimization = ', fB[-1]) 
 print('fB check = ', 0.5 * np.linalg.norm(wv_grid.B_matrix @ alpha_opt - wv_grid.b_rhs) ** 2 * s.nfp * 2)
 
-# set up WindingVolume Bfield
-bs_wv = WindingVolumeField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
-bs_wv_sparse = WindingVolumeField(wv_grid.J_sparse, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
+# set up CurrentVoxels Bfield
+bs_wv = CurrentVoxelsField(wv_grid.J, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
+bs_wv_sparse = CurrentVoxelsField(wv_grid.J_sparse, wv_grid.XYZ_integration, wv_grid.grid_scaling, wv_grid.coil_range, nfp=s.nfp, stellsym=s.stellsym)
 t1 = time.time()
 bs_wv.set_points(s.gamma().reshape((-1, 3)))
 bs_wv_sparse.set_points(s.gamma().reshape((-1, 3)))
@@ -174,8 +174,8 @@ print('Itarget_check = ', Itarget_check)
 print('Itarget second check = ', wv_grid.Itarget_matrix @ alpha_opt / mu0) 
 
 t1 = time.time()
-make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_winding_volume_Nx" + str(Nx))
-make_Bnormal_plots(bs_wv_sparse, s_plot, OUT_DIR, "biot_savart_winding_volume_sparse_Nx" + str(Nx))
+make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_current_voxels_Nx" + str(Nx))
+make_Bnormal_plots(bs_wv_sparse, s_plot, OUT_DIR, "biot_savart_current_voxels_sparse_Nx" + str(Nx))
 t2 = time.time()
 
 print('Time to plot Bnormal_wv = ', t2 - t1, ' s')

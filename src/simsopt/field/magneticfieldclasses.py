@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
            'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 
-           'DipoleField', 'WindingVolumeField']
+           'DipoleField', 'CurrentVoxelsField']
 
 
 class ToroidalField(MagneticField):
@@ -504,14 +504,14 @@ class CircularCoil(MagneticField):
         return field
 
 
-class WindingVolumeField(MagneticField):
+class CurrentVoxelsField(MagneticField):
     r"""
     Computes the MagneticField induced by N grid cells, each with spatially varying and
     locally divergence-free current, for the Winding Volume method. This is done by
     calling the normal BiotSavart field for each of the cells, and summing the result.
 
     Args:
-        winding_volume: WindingVolume grid class, containing the grid cell locations,
+        current_voxels: CurrentVoxels grid class, containing the grid cell locations,
                         integration points in each cell, etc.
     """
 
@@ -568,27 +568,27 @@ class WindingVolumeField(MagneticField):
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         contig = np.ascontiguousarray
-        B[:] = sopp.winding_volume_field_B_SIMD(
+        B[:] = sopp.current_voxels_field_B_SIMD(
             contig(points), 
             contig(self.int_points_full), 
             contig(self.J_full)
         ) * self.grid_scaling
 
         # function returns factor of shape (num_points, 3, num_cells, n_functions)
-        # factor = sopp.winding_volume_field_Bext(points, self.winding_volume.integration_points_full, self.winding_volume.Phi_full) * self.grid_scaling
+        # factor = sopp.current_voxels_field_Bext(points, self.current_voxels.integration_points_full, self.current_voxels.Phi_full) * self.grid_scaling
         # B[:] = np.tensordot(factor, self.alphas_full, ((2, 3), (0, 1)))
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
+        dB[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        A[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
+        A[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
-        dA[:] = sopp.winding_volume_field_B(points, self.integration_points, self.J)
+        dA[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
 
     def as_dict(self, serial_objs_dict) -> dict:
         d = super().as_dict(serial_objs_dict=serial_objs_dict)

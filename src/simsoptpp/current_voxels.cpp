@@ -1,4 +1,4 @@
-#include "winding_volume.h"
+#include "current_voxels.h"
 
 // compute which cells are next to which cells 
 Array_INT connections(Array& coil_points, double dx, double dy, double dz)
@@ -63,7 +63,7 @@ Array_INT connections(Array& coil_points, double dx, double dy, double dz)
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-Array winding_volume_geo_factors(Array& points, Array& integration_points, Array& plasma_normal, Array& Phi) {
+Array current_voxels_geo_factors(Array& points, Array& integration_points, Array& plasma_normal, Array& Phi) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("points needs to be in row-major storage order");
@@ -110,7 +110,7 @@ Array winding_volume_geo_factors(Array& points, Array& integration_points, Array
 
 
 // Calculate the geometrics factor from the polynomial basis functions 
-std::tuple<Array, Array_INT> winding_volume_flux_jumps(Array& coil_points, Array& Phi, double dx, double dy, double dz) {
+std::tuple<Array, Array_INT> current_voxels_flux_jumps(Array& coil_points, Array& Phi, double dx, double dy, double dz) {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(coil_points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("coil_points needs to be in row-major storage order");
@@ -182,7 +182,7 @@ std::tuple<Array, Array_INT> winding_volume_flux_jumps(Array& coil_points, Array
 // and creates a final set of points which lie between the
 // inner and outer toroidal surfaces defined by extending the plasma
 // boundary by its normal vectors * some minimum distance. 
-Array make_winding_volume_grid(Array& normal_inner, Array& normal_outer, Array& xyz_uniform, Array& xyz_inner, Array& xyz_outer)
+Array make_current_voxels_grid(Array& normal_inner, Array& normal_outer, Array& xyz_uniform, Array& xyz_inner, Array& xyz_outer)
 {
     // For each toroidal cross-section:
     // For each dipole location:

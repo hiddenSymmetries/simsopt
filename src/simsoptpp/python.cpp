@@ -20,8 +20,8 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "biot_savart_vjp_py.h"
 #include "dommaschk.h"
 #include "dipole_field.h"
-#include "winding_volume.h"
-#include "winding_volume_field.h"
+#include "current_voxels.h"
+#include "current_voxels_field.h"
 #include "permanent_magnet_optimization.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
@@ -56,15 +56,15 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
     
-    // Functions below are implemented for winding VOLUME method
-    m.def("winding_volume_geo_factors", &winding_volume_geo_factors); 
-    m.def("winding_volume_flux_jumps", &winding_volume_flux_jumps); 
-    m.def("make_winding_volume_grid" , &make_winding_volume_grid);
+    // Functions below are implemented for current voxels method
+    m.def("current_voxels_geo_factors", &current_voxels_geo_factors); 
+    m.def("current_voxels_flux_jumps", &current_voxels_flux_jumps); 
+    m.def("make_current_voxels_grid" , &make_current_voxels_grid);
     m.def("acc_prox_grad_descent" , &acc_prox_grad_descent);
-    m.def("winding_volume_field_B" , &winding_volume_field_B);
-    m.def("winding_volume_field_B_SIMD" , &winding_volume_field_B_SIMD);
-    m.def("winding_volume_field_Bext" , &winding_volume_field_Bext);
-    m.def("winding_volume_field_Bext_SIMD" , &winding_volume_field_Bext_SIMD);
+    m.def("current_voxels_field_B" , &current_voxels_field_B);
+    m.def("current_voxels_field_B_SIMD" , &current_voxels_field_B_SIMD);
+    m.def("current_voxels_field_Bext" , &current_voxels_field_Bext);
+    m.def("current_voxels_field_Bext_SIMD" , &current_voxels_field_Bext_SIMD);
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

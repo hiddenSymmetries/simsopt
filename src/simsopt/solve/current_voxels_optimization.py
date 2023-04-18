@@ -14,7 +14,7 @@ def prox_group_l0(alpha, threshold, n, num_basis):
 
 
 def relax_and_split_increasingl0(
-        winding_volume, lam=0.0, nu=1e20, max_iter=5000, sigma=1.0,
+        current_voxels, lam=0.0, nu=1e20, max_iter=5000, sigma=1.0,
         rs_max_iter=1, l0_thresholds=[0.0], print_iter=10,
         alpha0=None):
     """
@@ -31,10 +31,10 @@ def relax_and_split_increasingl0(
                 so is assumed to be stored as a scipy csc_matrix. 
     """
     t1 = time.time()
-    P = winding_volume.P
-    n = winding_volume.N_grid
-    nfp = winding_volume.plasma_boundary.nfp
-    num_basis = winding_volume.n_functions
+    P = current_voxels.P
+    n = current_voxels.N_grid
+    nfp = current_voxels.plasma_boundary.nfp
+    num_basis = current_voxels.n_functions
     N = n * num_basis
     if alpha0 is not None:
         alpha_opt = alpha0
@@ -44,16 +44,16 @@ def relax_and_split_increasingl0(
     if P is not None:
         alpha_opt = P.dot(alpha_opt)
 
-    B = winding_volume.B_matrix
-    I = winding_volume.Itarget_matrix
+    B = current_voxels.B_matrix
+    I = current_voxels.Itarget_matrix
     BT = B.T
-    b = winding_volume.b_rhs
-    b_I = winding_volume.Itarget_rhs
+    b = current_voxels.b_rhs
+    b_I = current_voxels.Itarget_rhs
     BTb = BT @ b
     IT = I.T
     ITbI = IT * b_I 
     contig = np.ascontiguousarray
-    I = I.reshape(1, len(winding_volume.Itarget_matrix))
+    I = I.reshape(1, len(current_voxels.Itarget_matrix))
     IT = I.T
     b_I = b_I.reshape(1, 1)
     b = b.reshape(len(b), 1)
@@ -64,7 +64,7 @@ def relax_and_split_increasingl0(
     BT = contig(BT)
     I = contig(I)
     B = contig(B)
-    #optimization_dict = {'A': B, 'b': b, 'C': winding_volume.C.todense(), 'A_I': I, 'b_I': b_I}
+    #optimization_dict = {'A': B, 'b': b, 'C': current_voxels.C.todense(), 'A_I': I, 'b_I': b_I}
     #np.save('optimization_matrices.npy', optimization_dict)
     t2 = time.time()
 
@@ -97,8 +97,8 @@ def relax_and_split_increasingl0(
     f_Kw = []
     f_0 = []
     f_0w = []
-    winding_volume.alpha_history = []
-    winding_volume.w_history = []
+    current_voxels.alpha_history = []
+    current_voxels.w_history = []
     t1 = time.time()
     #w_opt = alpha_opt  # np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
@@ -152,8 +152,8 @@ def relax_and_split_increasingl0(
                 # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
                 f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
                 # ind = (j * rs_max_iter + k)
-                winding_volume.w_history.append(w_opt)
-                winding_volume.alpha_history.append(alpha_opt)
+                current_voxels.w_history.append(w_opt)
+                current_voxels.alpha_history.append(alpha_opt)
                 print('w : ', j, k, i, 
                       f_Bw[-1], 
                       f_Iw[-1] * sigma, 
@@ -166,17 +166,17 @@ def relax_and_split_increasingl0(
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
     print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
-    winding_volume.alphas = alpha_opt
-    winding_volume.w = np.ravel(w_opt)
-    winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
-    winding_volume.J_sparse = np.zeros((n, winding_volume.Phi.shape[2], 3))
-    alphas = winding_volume.alphas.reshape(n, num_basis)
-    ws = winding_volume.w.reshape(n, num_basis)
+    current_voxels.alphas = alpha_opt
+    current_voxels.w = np.ravel(w_opt)
+    current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))
+    current_voxels.J_sparse = np.zeros((n, current_voxels.Phi.shape[2], 3))
+    alphas = current_voxels.alphas.reshape(n, num_basis)
+    ws = current_voxels.w.reshape(n, num_basis)
     for i in range(3):
-        for j in range(winding_volume.Phi.shape[2]):
+        for j in range(current_voxels.Phi.shape[2]):
             for k in range(num_basis):
-                winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
-                winding_volume.J_sparse[:, j, i] += ws[:, k] * winding_volume.Phi[k, :, j, i]
+                current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, :, j, i]
+                current_voxels.J_sparse[:, j, i] += ws[:, k] * current_voxels.Phi[k, :, j, i]
     t2 = time.time()
     print('Time to compute J = ', t2 - t1, ' s')
     return (alpha_opt, 
@@ -192,7 +192,7 @@ def relax_and_split_increasingl0(
 
 
 def cstlsq(
-        winding_volume, lam=0.0, max_iter=5000, sigma=1.0,
+        current_voxels, lam=0.0, max_iter=5000, sigma=1.0,
         stlsq_max_iter=1, l0_thresholds=[0.0], print_iter=10,
         alpha0=None):
     """
@@ -209,10 +209,10 @@ def cstlsq(
                 so is assumed to be stored as a scipy csc_matrix. 
     """
     t1 = time.time()
-    P = winding_volume.P
-    n = winding_volume.N_grid
-    nfp = winding_volume.plasma_boundary.nfp
-    num_basis = winding_volume.n_functions
+    P = current_voxels.P
+    n = current_voxels.N_grid
+    nfp = current_voxels.plasma_boundary.nfp
+    num_basis = current_voxels.n_functions
     N = n * num_basis
     if alpha0 is not None:
         alpha_opt = alpha0
@@ -222,16 +222,16 @@ def cstlsq(
     if P is not None:
         alpha_opt = P.dot(alpha_opt)
 
-    B = winding_volume.B_matrix
-    I = winding_volume.Itarget_matrix
+    B = current_voxels.B_matrix
+    I = current_voxels.Itarget_matrix
     BT = B.T
-    b = winding_volume.b_rhs
-    b_I = winding_volume.Itarget_rhs
+    b = current_voxels.b_rhs
+    b_I = current_voxels.Itarget_rhs
     BTb = BT @ b
     IT = I.T
     ITbI = IT * b_I 
     contig = np.ascontiguousarray
-    I = I.reshape(1, len(winding_volume.Itarget_matrix))
+    I = I.reshape(1, len(current_voxels.Itarget_matrix))
     IT = I.T
     b_I = b_I.reshape(1, 1)
     b = b.reshape(len(b), 1)
@@ -243,8 +243,8 @@ def cstlsq(
     I = contig(I)
     B = contig(B)
     BTb_ITbI = BTb + sigma * ITbI
-    C = winding_volume.C
-    #optimization_dict = {'A': B, 'b': b, 'C': winding_volume.C.todense(), 'A_I': I, 'b_I': b_I}
+    C = current_voxels.C
+    #optimization_dict = {'A': B, 'b': b, 'C': current_voxels.C.todense(), 'A_I': I, 'b_I': b_I}
     #np.save('optimization_matrices.npy', optimization_dict)
     t2 = time.time()
 
@@ -269,8 +269,8 @@ def cstlsq(
     f_I = []
     f_K = []
     f_0 = []
-    winding_volume.alpha_history = []
-    winding_volume.w_history = []
+    current_voxels.alpha_history = []
+    current_voxels.w_history = []
     t1 = time.time()
     removed_inds = []
     for j, threshold in enumerate(l0_thresholds):
@@ -332,25 +332,25 @@ def cstlsq(
     t1 = time.time()
     alpha_opt = alpha_opt.reshape(n, num_basis)
     print(removed_inds)
-    #remaining_inds = np.setdiff1d(np.arange(winding_volume.N_grid), removed_inds)
+    #remaining_inds = np.setdiff1d(np.arange(current_voxels.N_grid), removed_inds)
 
     ### Need to carefully reinsert if there were removals in multiple iterations of stlsq
     for removed_i in np.flip(removed_inds):
         for i in removed_i:
             alpha_opt = np.insert(alpha_opt, i, 0.0, axis=0)
     alpha_opt = np.ravel(alpha_opt)
-    n = winding_volume.N_grid
+    n = current_voxels.N_grid
     print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
-    winding_volume.alphas = alpha_opt
-    winding_volume.w = alpha_opt 
-    winding_volume.J = np.zeros((n, winding_volume.Phi.shape[2], 3))
-    alphas = winding_volume.alphas.reshape(n, num_basis)
+    current_voxels.alphas = alpha_opt
+    current_voxels.w = alpha_opt 
+    current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))
+    alphas = current_voxels.alphas.reshape(n, num_basis)
     for i in range(3):
-        for j in range(winding_volume.Phi.shape[2]):
+        for j in range(current_voxels.Phi.shape[2]):
             for k in range(num_basis):
-                winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, :, j, i]
-                #winding_volume.J[:, j, i] += alphas[:, k] * winding_volume.Phi[k, remaining_inds, j, i]
-    winding_volume.J_sparse = winding_volume.J
+                current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, :, j, i]
+                #current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, remaining_inds, j, i]
+    current_voxels.J_sparse = current_voxels.J
     t2 = time.time()
     print('Time to compute J = ', t2 - t1, ' s')
     return (alpha_opt, 
