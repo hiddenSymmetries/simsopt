@@ -640,7 +640,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.iota_spline = InterpolatedUnivariateSpline(self.s_half_ext, iota, k=self.order)
             self.diotads_spline = InterpolatedUnivariateSpline(s_full[1:-1], diotads, k=self.order)
         else:
-            self.iota_spline = InterpolatedUnivariateSpline(self.s_half_ext, np.mean(iota), k=self.order)
+            self.iota_spline = InterpolatedUnivariateSpline(self.s_half_ext, np.mean(iota)*np.ones_like(self.s_half_ext), k=self.order)
             self.diotads_spline = InterpolatedUnivariateSpline(s_full[1:-1], np.zeros_like(s_full[1:-1]), k=self.order)
 
         self.numns_splines = []
