@@ -42,7 +42,7 @@ class NormalField(Optimizable):
         if vns is None:
             self.vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
         else:
-            self.vns = vns[0:self.mpol + 1,0:2*self.ntor+1]
+            self.vns = vns[0:self.mpol + 1, 0:2*self.ntor+1]
 
         if self.stellsym:
             self.ndof = self.ntor + self.mpol * (2 * self.ntor + 1)
@@ -52,7 +52,7 @@ class NormalField(Optimizable):
             if vnc is None:
                 self.vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
             else:
-                self.vnc = vnc[0:self.mpol + 1,0:2*self.ntor+1]
+                self.vnc = vnc[0:self.mpol + 1, 0:2*self.ntor+1]
 
         Optimizable.__init__(
             self,
@@ -81,7 +81,7 @@ class NormalField(Optimizable):
                 (2 * nf.ntor + 1)  # Only Vns - odd series
         else:
             nf.ndof = 2 * (nf.ntor + nf.mpol *
-                             (2 * nf.ntor + 1)) + 1  # Vns and Vnc
+                           (2 * nf.ntor + 1)) + 1  # Vns and Vnc
 
         nf.vns = np.zeros((nf.mpol + 1, 2 * nf.ntor + 1))
 
@@ -96,10 +96,10 @@ class NormalField(Optimizable):
             for nn in range(-nf.ntor, nf.ntor + 1):
                 if mm == 0 and nn < 0:
                     continue
-                nf.set_vns(mm, nn, vns[mm,mntor + nn])
+                nf.set_vns(mm, nn, vns[mm, mntor + nn])
 
                 if not nf.stellsym:
-                    nf.set_vnc(mm, nn, vnc[mm,mntor + nn])
+                    nf.set_vnc(mm, nn, vnc[mm, mntor + nn])
 
         return nf
 
@@ -109,12 +109,12 @@ class NormalField(Optimizable):
         """
 
         nvn = self.vns.size
-        dofs = np.reshape( self.vns, nvn )
-        dofs = dofs[self.ntor+1:] # remove m=0, n<=0 harmonics
+        dofs = np.reshape(self.vns, nvn)
+        dofs = dofs[self.ntor+1:]  # remove m=0, n<=0 harmonics
 
         if not self.stellsym:
-            dofs_vnc = np.reshape( self.vnc, nvn )
-            dofs_vnc = dofs_vnc[self.ntor:] # remove m=0, n<0 harmonics
+            dofs_vnc = np.reshape(self.vnc, nvn)
+            dofs_vnc = dofs_vnc[self.ntor:]  # remove m=0, n<0 harmonics
 
             dofs = np.append(dofs, dofs_vnc)
 
@@ -128,15 +128,12 @@ class NormalField(Optimizable):
             raise ValueError('Invalid number of dofs')
 
         nvns = self.ntor + self.mpol * (self.ntor * 2 + 1)
-        vns_dofs = np.append( np.zeros(self.ntor+1), dofs[:nvns]) 
-        self.vns = np.reshape( vns_dofs, (self.mpol+1,2*self.ntor+1) )
+        vns_dofs = np.append(np.zeros(self.ntor+1), dofs[:nvns]) 
+        self.vns = np.reshape(vns_dofs, (self.mpol+1, 2*self.ntor+1))
 
         if not self.stellsym:
-            vnc_dofs = np.append( np.zeros(self.ntor) , dofs[nvns:] )
-            self.vnc = np.reshape(vnc_dofs, (self.mpol+1, 2*self.ntor+1) )
-
-        
-
+            vnc_dofs = np.append(np.zeros(self.ntor), dofs[nvns:])
+            self.vnc = np.reshape(vnc_dofs, (self.mpol+1, 2*self.ntor+1))
 
     def get_index_in_dofs(self, m, n, even=False):
         """
@@ -163,25 +160,25 @@ class NormalField(Optimizable):
 
     def get_vns(self, m, n):
         self.check_mn(m, n)
-        return self.vns[m,n+self.ntor]
+        return self.vns[m, n+self.ntor]
 
     def set_vns(self, m, n, value):
         self.check_mn(m, n)
-        self.vns[m,n+self.ntor] = value
+        self.vns[m, n+self.ntor] = value
 
     def get_vnc(self, m, n):
         self.check_mn(m, n)
         if self.stellsym:
             return 0.0
         else:
-            return self.vnc[m,n+self.ntor]
+            return self.vnc[m, n+self.ntor]
 
     def set_vnc(self, m, n, value):
         self.check_mn(m, n)
         if self.stellsym:
             raise ValueError('Stellarator symmetric has no vnc')
         else:
-            self.vnc[m,n+self.ntor] = value
+            self.vnc[m, n+self.ntor] = value
 
     def check_mn(self, m, n):
         if m < 0 or m > self.mpol:
@@ -254,16 +251,16 @@ class NormalField(Optimizable):
         min_ntor = np.min((ntor, old_ntor))
         for m in range(min_mpol + 1):
             for n in range(-min_ntor, min_ntor + 1):
-                self.vns[m,n+self.ntor] = old_vns[m,n+old_ntor]
+                self.vns[m, n+self.ntor] = old_vns[m, n+old_ntor]
                 if not self.stellsym:
-                    self.zc[m,n+self.ntor] = old_zc[m,n+old_ntor]
+                    self.zc[m, n+self.ntor] = old_zc[m, n+old_ntor]
 
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
 
         # The following methods of graph Optimizable framework need to be
         # called
-        Optimizable._update_free_dof_size_indices(self)
+        Optimizable.update_free_dof_size_indices(self)
         Optimizable._update_full_dof_size_indices(self)
         Optimizable._set_new_x(self)
 
