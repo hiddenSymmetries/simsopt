@@ -412,6 +412,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         else:
             raise ValueError("Incorrect equil type passed to BoozerRadialInterpolant.")
 
+        self.no_shear = no_shear
         self.order = order
         self.enforce_qs = False
         self.enforce_vacuum = enforce_vacuum
