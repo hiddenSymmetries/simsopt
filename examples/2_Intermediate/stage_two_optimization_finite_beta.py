@@ -115,7 +115,7 @@ pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), a
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the objective function:
-Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
+Jf = SquaredFlux(s, bs, Btarget=vc.B_external_normal)
 Jls = [CurveLength(c) for c in base_curves]
 
 # Form the total objective function. To do this, we can exploit the

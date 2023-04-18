@@ -114,8 +114,9 @@ if PM4Stell_orientations:
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
 ox, oy, oz, Ic = np.loadtxt(
-    '../../tests/test_files/zot80.focus', 
-    skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
+    famus_filename, 
+    skiprows=3, usecols=[3, 4, 5, 6], 
+    delimiter=',', unpack=True
 )
 
 # Not normalized to 1 like quadpoints_phi!
@@ -277,4 +278,4 @@ if vmec_flag:
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-plt.show()
+# plt.show()

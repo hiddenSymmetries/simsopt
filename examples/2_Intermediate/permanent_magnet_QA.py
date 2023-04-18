@@ -240,7 +240,7 @@ if vmec_flag:
     from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
-    mpi = MpiPartition(ngroups=4)
+    mpi = MpiPartition(ngroups=1)
     comm = MPI.COMM_WORLD
 
     # Make the QFM surface
@@ -277,4 +277,4 @@ if vmec_flag:
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-plt.show()
+# plt.show()
