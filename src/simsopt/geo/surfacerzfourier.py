@@ -77,7 +77,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             Surface.__init__(self, dofs=dofs,
                              external_dof_setter=SurfaceRZFourier.set_dofs_impl)
         self._make_mn()
-        self.range = range
 
     def get_dofs(self):
         """

@@ -4,9 +4,18 @@ This simple example script allows the user to explore building
 permanent magnet configurations for the Landreman/Paul QA design with
 basic cylindrical brick magnets.
 
-For realistic designs, please see the full script in src/simsopt/util,
+For realistic designs, please see the script files at
+https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 which can generate all of the results in the recent relax-and-split
-permanent magnet optimization paper.
+and GPMO permanent magnet optimization papers:
+    
+    A. A. Kaptanoglu, R. Conlin, and M. Landreman, 
+    Greedy permanent magnet optimization, 
+    Nuclear Fusion 63, 036016 (2023)
+    
+    A. A. Kaptanoglu, T. Qian, F. Wechsung, and M. Landreman. 
+    Permanent-Magnet Optimization for Stellarators as Sparse Regression.
+    Physical Review Applied 18, no. 4 (2022): 044006.
 
 This example uses the relax-and-split algorithm for 
 high-dimensional sparse regression. See permanent_magnet_GPMO.py
@@ -14,20 +23,25 @@ for using the greedy GPMO algorithm to solve the problem.
 
 The script should be run as:
     mpirun -n 1 python permanent_magnet_QA.py
-
+on a cluster machine but 
+    python permanent_magnet_QA.py
+is sufficient on other machines. Note that the code is 
+parallelized via OpenMP and XSIMD, so will run substantially
+faster on multi-core machines (make sure that all the cores
+are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 """
 
 import os
-from matplotlib import pyplot as plt
-from pathlib import Path
-import numpy as np
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.field.magneticfieldclasses import DipoleField
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.geo import PermanentMagnetGrid
-from simsopt.solve import relax_and_split 
 import time
+from pathlib import Path
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+from simsopt.field import BiotSavart, DipoleField
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.objectives import SquaredFlux
+from simsopt.solve import relax_and_split
 from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
@@ -39,12 +53,18 @@ ntheta = 8
 dr = 0.02  # cylindrical bricks with radial extent 2 cm
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA'
+input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+
+# Make the inner and outer surfaces by extending the plasma surface
+s_inner.extend_via_projected_normal(poff)
+s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
 OUT_DIR = 'permanent_magnet_QA_output/'
@@ -85,10 +105,11 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, coil_offset=coff, dr=dr, plasma_offset=poff,
+    s, s_inner, s_outer,
+    dr=dr,
     Bn=Bnormal,
-    filename=surface_filename,
 )
+pm_opt.geo_setup()
 
 reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
 nu = 1e10  # how strongly to make proxy variable w close to values in m
@@ -125,8 +146,13 @@ for i in range(20):
 
 total_RS_history = np.ravel(np.array(total_RS_history))
 print('Done optimizing the permanent magnet object')
-make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, OUT_DIR)
-
+try:
+    make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, OUT_DIR)
+except ValueError:
+    print(
+        'Attempted to make a mp4 of optimization progress but ValueError was raised. '
+        'This is probably an indication that a mp4 python writer was not available for use.'
+    )
 # Print effective permanent magnet volume
 M_max = 1.465 / (4 * np.pi * 1e-7)
 dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
@@ -134,13 +160,22 @@ print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, a
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
 # Plot the sparse and less sparse solutions from SIMSOPT
-m_copy = np.copy(pm_opt.m)
-pm_opt.m = pm_opt.m_proxy
-b_dipole_proxy = DipoleField(pm_opt)
+b_dipole_proxy = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m_proxy,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima,
+)
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole_proxy._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
-pm_opt.m = m_copy
-b_dipole = DipoleField(pm_opt)
+b_dipole = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima
+)
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
 
@@ -181,8 +216,13 @@ mu0 = 4 * np.pi * 1e-7
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
-pm_opt.m = pm_opt.m_proxy
-b_dipole = DipoleField(pm_opt)
+b_dipole = DipoleField(
+    pm_opt.dipole_grid_xyz,
+    pm_opt.m_proxy,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima
+)
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
 print('f_B_sparse = ', f_B_sp)
@@ -192,21 +232,15 @@ num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.nd
 # write solution to FAMUS-type file
 write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
 
-# write sparse solution to FAMUS-type file
-# m_copy = np.copy(pm_opt.m)
-# pm_opt.m = pm_opt.m_proxy
-# write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
-# pm_opt.m  = m_copy
-
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
-# surface is 64 x 64 resolution.
+# surface is at least 64 x 64 resolution.
 vmec_flag = False
 if vmec_flag:
     from mpi4py import MPI
-    from simsopt.util.mpi import MpiPartition
     from simsopt.mhd.vmec import Vmec
-    mpi = MpiPartition(ngroups=4)
+    from simsopt.util.mpi import MpiPartition
+    mpi = MpiPartition(ngroups=1)
     comm = MPI.COMM_WORLD
 
     # Make the QFM surface
@@ -243,4 +277,4 @@ if vmec_flag:
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-plt.show()
+# plt.show()

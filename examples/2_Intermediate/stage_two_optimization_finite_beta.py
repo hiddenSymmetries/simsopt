@@ -108,19 +108,6 @@ base_currents += [total_current - sum(base_currents)]
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
 
-bspoints = np.zeros((nphi, 3))
-R0 = s.get_rc(0, 0)
-for i in range(nphi):
-    bspoints[i] = np.array([R0 * np.cos(s.quadpoints_phi[i]), R0 * np.sin(s.quadpoints_phi[i]), 0.0]) 
-bs.set_points(bspoints)
-B0 = np.linalg.norm(bs.B(), axis=-1)
-B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
-surface_area = s.area()
-bnormalization = B0avg * surface_area
-print("Bmag at R = ", R0, ", Z = 0: ", B0) 
-print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 
-bs.set_points(s.gamma().reshape((-1, 3)))
-
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
@@ -128,14 +115,14 @@ pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), a
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the objective function:
-Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
+Jf = SquaredFlux(s, bs, Btarget=vc.B_external_normal)
 Jls = [CurveLength(c) for c in base_curves]
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "identity") for i in range(len(base_curves)))
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -187,11 +174,3 @@ Bbs = bs.B().reshape((nphi, ntheta, 3))
 BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2) - vc.B_external_normal) / np.linalg.norm(Bbs, axis=2)
 pointData = {"B_N": BdotN[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
-
-bs.set_points(bspoints)
-B0 = np.linalg.norm(bs.B(), axis=-1)
-B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
-surface_area = s.area()
-bnormalization = B0avg * surface_area
-print("Bmag at R = ", R0, ", Z = 0: ", B0) 
-print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg) 

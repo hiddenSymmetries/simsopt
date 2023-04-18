@@ -49,6 +49,12 @@ else()
     endif()
 endif()
 
+if(DEFINED ENV{CONDA_PREFIX})
+  include_directories($ENV{CONDA_PREFIX}/include)
+  link_directories("$ENV{CONDA_PREFIX}/lib")
+  message(STATUS "Conda prefix is $ENV{CONDA_PREFIX}")
+endif()
+
 find_package(OpenMP)
 find_package(Boost 1.60.0)
 if(Boost_FOUND)
@@ -104,7 +110,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
-    src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/bounce.cpp
+    src/simsoptpp/boozerradialinterpolant.cpp
     )
 
 set_target_properties(${PROJECT_NAME}

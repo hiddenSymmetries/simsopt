@@ -25,7 +25,6 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "permanent_magnet_optimization.h"
 #include "reiman.h"
 #include "boozerradialinterpolant.h"
-#include "bounce.h"
 
 namespace py = pybind11;
 
@@ -72,19 +71,20 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("dipole_field_A" , &dipole_field_A);
     m.def("dipole_field_dB", &dipole_field_dB);
     m.def("dipole_field_dA" , &dipole_field_dA);
-    m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("phi"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
-    m.def("make_final_surface" , &make_final_surface);
+    m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
+    m.def("define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces" , &define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces);
+    m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
 
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
     // variants of GPMO algorithm
-    m.def("GPMO_backtracking", &GPMO_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
+    m.def("GPMO_backtracking", &GPMO_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7, py::arg("max_nMagnets"));
     m.def("GPMO_multi", &GPMO_multi, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
+    m.def("GPMO_ArbVec", &GPMO_ArbVec, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100);
+    m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"));
     m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
     m.def("GPMO_MC", &GPMO_MC, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100);
     //
-    m.def("PQN_algorithm", &PQN_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("verbose") = false);
-    m.def("SPG", &SPG, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha_min") = 1e-10, py::arg("alpha_max") = 1e10, py::arg("alpha_bb_prev") = 1, py::arg("h") = 100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l2") = 0.0, py::arg("nu") = 1.0e100, py::arg("max_iter") = 500, py::arg("nu_SPG") = 1.0e-4, py::arg("verbose") = false);
     // Need to get SPG and MwPGP in same format, ideally using kwargs for the nonmatching arguments
 
     m.def("DommaschkB" , &DommaschkB);
@@ -99,51 +99,6 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("inverse_fourier_transform_odd", &inverse_fourier_transform_odd);
     m.def("compute_kmns",&compute_kmns);
     m.def("compute_kmnc_kmns",&compute_kmnc_kmns);
-
-    m.def("vprime", &vprime<xt::pytensor>,
-        py::arg("field"),
-        py::arg("s"),
-        py::arg("theta0"),
-        py::arg("nfp"),
-        py::arg("nmax"),
-        py::arg("step_zie")=1e-3
-    );
-
-    m.def("find_bounce_points", &find_bounce_points<xt::pytensor>,
-        py::arg("field"),
-        py::arg("s"),
-        py::arg("theta0"),
-        py::arg("zeta0"),
-        py::arg("lam"),
-        py::arg("nfp"),
-        py::arg("option"),
-        py::arg("nmax"),
-        py::arg("nzeta")=1000,
-        py::arg("digits")=16,
-        py::arg("derivative_tol")=1e-3,
-        py::arg("argmin_tol")=1e-3,
-        py::arg("root_tol")=1e-8
-    );
-
-    m.def("bounce_integral", &bounce_integral<xt::pytensor>,
-        py::arg("bouncel"),
-        py::arg("bouncer"),
-        py::arg("field"),
-        py::arg("s"),
-        py::arg("theta0"),
-        py::arg("lam"),
-        py::arg("nfp"),
-        py::arg("jpar"),
-        py::arg("psidot"),
-        py::arg("alphadot"),
-        py::arg("ihat"),
-        py::arg("khat"),
-        py::arg("dkhatdalpha"),
-        py::arg("tau"),
-        py::arg("step_size")=1e-3,
-        py::arg("tol")=1e-8,
-        py::arg("adjust")=false
-        );
 
     // the computation below is used in boozer_surface_residual.
     //

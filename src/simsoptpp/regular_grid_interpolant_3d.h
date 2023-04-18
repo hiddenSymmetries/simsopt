@@ -287,7 +287,7 @@ class RegularGridInterpolant3D {
             vals = Vec(dofs_to_keep * value_size, 0.);
 
             // round up value_size to nearest multiple of simdcount
-            padded_value_size = (value_size + simdcount) - (value_size % simdcount);
+            padded_value_size = (value_size % simdcount) ? (value_size + simdcount) - (value_size % simdcount) : value_size;
             int nnodes = (nx*degree+1)*(ny*degree+1)*(nz*degree+1);
             local_vals_size = (degree+1)*(degree+1)*(degree+1)*padded_value_size;
         }

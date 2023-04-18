@@ -1,227 +1,21 @@
+"""
+This module contains the a number of useful functions for using 
+the permanent magnets functionality in the SIMSOPT code.
+"""
+__all__ = ['read_focus_coils', 'coil_optimization', 
+           'trace_fieldlines', 'make_qfm', 
+           'initialize_coils', 'calculate_on_axis_B',
+           'get_FAMUS_dipoles', 'read_FAMUS_grid', 
+           'make_optimization_plots', 'run_Poincare_plots',
+           'make_Bnormal_plots', 'write_pm_optimizer_to_famus',
+           'rescale_for_opt', 'initialize_default_kwargs'
+           ]
+
 import numpy as np
-import sys
-from pathlib import Path
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
-from pyevtk.hl import pointsToVTK
 from scipy.optimize import minimize
-from scipy.io import netcdf
 import time
-
-
-def read_input():
-    """
-        Function that reads in
-        all the parameters needed for the permanent magnet optimization
-        through the command line.
-    """
-
-    if len(sys.argv) < 4:
-        print(
-            "Error! "
-            "You must specify at least 3 arguments: "
-            "the configuration flag, resolution flag, and the run type flag. "
-        )
-        exit(1)
-    config_flag = str(sys.argv[1])
-    if config_flag not in ['qa', 'qa_nonplanar', 'QH', 'qh', 'qh_nonplanar', 'muse', 'muse_famus', 'ncsx']:
-        raise ValueError(
-            "Error! The configuration flag must specify one of "
-            "the pre-set plasma equilibria: qa, qa_nonplanar, "
-            "QH, qh, qh_nonplanar, muse, muse_famus, or ncsx. "
-        )
-    res_flag = str(sys.argv[2])
-    if res_flag not in ['low', 'medium', 'high']:
-        raise ValueError(
-            "Error! The resolution flag must specify one of "
-            "low or high."
-        )
-    run_type = str(sys.argv[3])
-    if run_type not in ['initialization', 'optimization', 'post-processing']:
-        raise ValueError(
-            "Error! The initialization flag must specify one of "
-            "initialization, optimization, or post-processing."
-        )
-    if run_type == 'optimization':
-
-        # L2 regularization
-        if len(sys.argv) >= 5:
-            reg_l2 = float(sys.argv[4])
-        else:
-            reg_l2 = 1e-12
-
-        # Error tolerance for declaring convex problem finished
-        if len(sys.argv) >= 6:
-            epsilon = float(sys.argv[5])
-        else:
-            epsilon = 1e-2
-
-        # Maximum iterations for solving the convex problem
-        if len(sys.argv) >= 7:
-            max_iter_MwPGP = int(sys.argv[6])
-        else:
-            max_iter_MwPGP = 100
-
-        # Error tolerance for declaring nonconvex problem finished
-        if len(sys.argv) >= 8:
-            min_fb = float(sys.argv[7])
-        else:
-            min_fb = 1e-20
-
-        # L0 regularization
-        if len(sys.argv) >= 9:
-            reg_l0 = float(sys.argv[8])
-        else:
-            reg_l0 = 0.0  # default is no L0 norm
-
-        # L0 regularization
-        if len(sys.argv) >= 10:
-            reg_l1 = float(sys.argv[9])
-        else:
-            reg_l1 = 0.0  # default is no L1 norm
-
-        # nu (relax-and-split hyperparameter)
-        if len(sys.argv) >= 11:
-            nu = float(sys.argv[10])
-
-        # Set to huge value if reg_l0 is zero so it is ignored
-        if np.isclose(reg_l0, 0.0, atol=1e-16) and np.isclose(reg_l1, 0.0, atol=1e-16):
-            nu = 1e100
-
-        # Maximum iterations for solving the nonconvex problem
-        if len(sys.argv) >= 12:
-            max_iter_RS = int(sys.argv[11])
-        else:
-            max_iter_RS = 100
-
-        if len(sys.argv) >= 13:
-            coordinate_flag = str(sys.argv[12])
-            if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
-                raise ValueError(
-                    "Error! The coordinate flag must specify one of "
-                    "cartesian, cylindrical, or toroidal."
-                )
-        else:
-            coordinate_flag = 'cartesian' 
-    elif run_type == 'initialization':
-        if len(sys.argv) >= 5:
-            coordinate_flag = str(sys.argv[4])
-            if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
-                raise ValueError(
-                    "Error! The coordinate flag must specify one of "
-                    "cartesian, cylindrical, or toroidal."
-                )
-        else:
-            coordinate_flag = 'cartesian' 
-    elif run_type == 'post-processing':
-        # L2 regularization
-        if len(sys.argv) >= 5:
-            reg_l2 = float(sys.argv[4])
-        else:
-            reg_l2 = 1e-12
-
-        # L0 regularization
-        if len(sys.argv) >= 6:
-            reg_l0 = float(sys.argv[5])
-        else:
-            reg_l0 = 0.0  # default is no L0 norm
-
-        # L1 regularization
-        if len(sys.argv) >= 7:
-            reg_l1 = float(sys.argv[6])
-        else:
-            reg_l1 = 0.0  # default is no L1 norm
-
-        # nu (relax-and-split hyperparameter)
-        if len(sys.argv) >= 8:
-            nu = float(sys.argv[7])
-
-        # Set to huge value if reg_l0 is zero so it is ignored
-        if np.isclose(reg_l0, 0.0, atol=1e-16) and np.isclose(reg_l1, 0.0, atol=1e-16):
-            nu = 1e100
-
-        if len(sys.argv) >= 9:
-            coordinate_flag = str(sys.argv[8])
-            if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
-                raise ValueError(
-                    "Error! The coordinate flag must specify one of "
-                    "cartesian, cylindrical, or toroidal."
-                )
-        else:
-            coordinate_flag = 'cartesian' 
-
-    # Set the remaining parameters
-    surface_flag = 'vmec'
-    famus_filename = None
-    # high resolution is required for accurate
-    # QFM, VMEC, and other post-processing
-    if res_flag == 'high':
-        nphi = 64
-        ntheta = 64
-    elif res_flag == 'medium':
-        nphi = 16
-        ntheta = 16
-    else:
-        nphi = 8
-        ntheta = 8
-    if config_flag == 'muse':
-        dr = 0.01
-        coff = 0.1
-        poff = 0.05
-        surface_flag = 'focus'
-        input_name = 'input.' + config_flag
-    if config_flag == 'muse_famus':
-        dr = 0.01
-        coff = 0.1
-        poff = 0.02
-        surface_flag = 'focus'
-        input_name = 'input.muse'
-        famus_filename = 'zot80.focus'
-    elif 'QH' in config_flag:
-        dr = 0.4
-        coff = 2.4
-        poff = 1.6
-        input_name = 'wout_LandremanPaul2021_' + config_flag[:2].upper() + '_reactorScale_lowres_reference.nc'
-        surface_flag = 'wout'
-    elif 'qa' in config_flag or 'qh' in config_flag:
-        dr = 0.01
-        coff = 0.1
-        poff = 0.04
-        if 'qa' in config_flag:
-            input_name = 'input.LandremanPaul2021'
-        else:
-            input_name = 'wout_LandremanPaul_' + config_flag[:2].upper() + '_variant.nc'
-            surface_flag = 'wout'
-    elif config_flag == 'ncsx':
-        dr = 0.02
-        coff = 0.02
-        poff = 0.1
-        surface_flag = 'wout'
-        input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
-        famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
-
-    print('Config flag = ', config_flag)
-    print('Resolution flag = ', res_flag)
-    print('Type of run = ', run_type)
-    if run_type == 'optimization':
-        print('L2 regularization = ', reg_l2)
-        print('Error tolerance for the convex subproblem = ', epsilon)
-        print('Maximum iterations for the convex subproblem = ', max_iter_MwPGP)
-        print('min f_B value (if achieved, algorithm quits) = ', min_fb)
-        print('L0 regularization = ', reg_l0)
-        print('nu = ', nu)
-        print('Maximum iterations for relax-and-split = ', max_iter_RS)
-    print('Coordinate system = ', coordinate_flag)
-    print('Input file name = ', input_name)
-    print('nphi = ', nphi)
-    print('ntheta = ', ntheta)
-    print('Pre-made grid of dipoles (if the grid is from a FAMUS run) = ', famus_filename)
-    if run_type == 'initialization':
-        return config_flag, res_flag, run_type, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag
-    elif run_type == 'optimization':
-        return config_flag, res_flag, run_type, reg_l2, epsilon, max_iter_MwPGP, min_fb, reg_l0, reg_l1, nu, max_iter_RS, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag
-    elif run_type == 'post-processing':
-        return config_flag, res_flag, run_type, reg_l2, 0.0, 0, 0.0, reg_l0, reg_l1, nu, 0, dr, coff, poff, surface_flag, input_name, nphi, ntheta, famus_filename, coordinate_flag
 
 
 def read_focus_coils(filename):
@@ -233,7 +27,7 @@ def read_focus_coils(filename):
     from simsopt.field import Current
 
     ncoils = np.loadtxt(filename, skiprows=1, max_rows=1, dtype=int)
-    order = np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int)
+    order = int(np.loadtxt(filename, skiprows=8, max_rows=1, dtype=int))
     coilcurrents = np.zeros(ncoils)
     xc = np.zeros((ncoils, order + 1))
     xs = np.zeros((ncoils, order + 1))
@@ -266,7 +60,7 @@ def read_focus_coils(filename):
     ppp = 20
     coils = [CurveXYZFourier(order*ppp, order) for i in range(ncoils)]
     for ic in range(ncoils):
-        dofs = coils[ic].dofs
+        dofs = coils[ic].dofs_matrix
         dofs[0][0] = coil_data[0, 6*ic + 1]
         dofs[1][0] = coil_data[0, 6*ic + 3]
         dofs[2][0] = coil_data[0, 6*ic + 5]
@@ -489,7 +283,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         used for permanent magnet optimization.
     """
     from simsopt.geo import create_equally_spaced_curves
-    from simsopt.field import Current, ScaledCurrent, Coil, coils_via_symmetries
+    from simsopt.field import Current, Coil, coils_via_symmetries
     from simsopt.geo import curves_to_vtk
 
     if 'muse' in config_flag:
@@ -516,7 +310,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         vmec_file = 'wout_LandremanPaul_QH_variant.nc'
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
-        base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
@@ -534,9 +328,10 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
 
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
-        total_current = 4e6 / (2 * s.nfp) / 7.2
+        vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.2
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
-        base_currents = [ScaledCurrent(Current(total_current / ncoils * 1e-5), 1e5) for _ in range(ncoils-1)]
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()
         base_currents += [total_current - sum(base_currents)]
@@ -578,16 +373,14 @@ def calculate_on_axis_B(bs, s):
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
 
 
-def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
+def get_FAMUS_dipoles(famus_filename):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples.
     """
-    famus_file = famus_path + famus_filename
-
     # FAMUS files are for the half-period surface
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
-        famus_file, skiprows=3,
+        famus_filename, skiprows=3,
         usecols=[3, 4, 5, 6, 7, 8, 10, 11],
         delimiter=',', unpack=True
     )
@@ -609,7 +402,7 @@ def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
     phi = np.arctan2(oy, ox)
 
     # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-    momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1])
+    momentq = np.loadtxt(famus_filename, skiprows=1, max_rows=1, usecols=[1])
     rho = p ** momentq
 
     mm = rho * m0
@@ -622,7 +415,7 @@ def get_FAMUS_dipoles(famus_filename, famus_path='../../tests/test_files/'):
     return m_FAMUS, m0
 
 
-def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR, famus_path='../../tests/test_files/'):
+def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR):
     """
         Reads in and makes vtk plots for a FAMUS grid and
         solution. Used for the MUSE and NCSX examples.
@@ -630,11 +423,9 @@ def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OU
     from simsopt.objectives import SquaredFlux
     from simsopt.field.magneticfieldclasses import DipoleField
 
-    famus_file = famus_path + famus_filename
-
     # FAMUS files are for the half-period surface
     ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
-        famus_file, skiprows=3,
+        famus_filename, skiprows=3,
         usecols=[3, 4, 5, 6, 7, 8, 10, 11],
         delimiter=',', unpack=True
     )
@@ -656,7 +447,7 @@ def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OU
     phi = np.arctan2(oy, ox)
 
     # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-    momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1])
+    momentq = np.loadtxt(famus_filename, skiprows=1, max_rows=1, usecols=[1])
     rho = p ** momentq
 
     print('Percent of nonzero FAMUS magnets = ', np.count_nonzero(rho) / len(rho))
@@ -739,14 +530,13 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
 
     # get FAMUS rho values for making comparison histograms
     if pm_opt.famus_filename is not None:
-        famus_file = '../../tests/test_files/' + pm_opt.famus_filename
         m0, p = np.loadtxt(
-            famus_file, skiprows=3,
+            pm_opt.famus_filename, skiprows=3,
             usecols=[7, 8],
             delimiter=',', unpack=True
         )
         # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-        momentq = np.loadtxt(famus_file, skiprows=1, max_rows=1, usecols=[1])
+        momentq = np.loadtxt(pm_opt.famus_filename, skiprows=1, max_rows=1, usecols=[1])
         rho = p ** momentq
         rho = rho[pm_opt.Ic_inds]
         x_multi = [m0_abs, mproxy_abs, abs(rho)]
@@ -862,18 +652,43 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
     """
     ndipoles = pm_opt.ndipoles
     m = pm_opt.m.reshape(ndipoles, 3)
-    mx = m[:, 0]
-    my = m[:, 1]
-    mz = m[:, 2]
-    m0 = pm_opt.m_maxima
-    pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
-    Lc = 0
     ox = pm_opt.dipole_grid_xyz[:, 0]
     oy = pm_opt.dipole_grid_xyz[:, 1]
     oz = pm_opt.dipole_grid_xyz[:, 2]
 
-    mt = np.arctan2(my, mx)
-    mp = np.arctan2(np.sqrt(mx ** 2 + my ** 2), mz)
+    # Transform the solution vector to the Cartesian basis if necessary
+    if pm_opt.coordinate_flag == 'cartesian':
+        mx = m[:, 0]
+        my = m[:, 1]
+        mz = m[:, 2]
+    elif pm_opt.coordinate_flag == 'cylindrical':
+        cos_ophi = np.cos(pm_opt.pm_phi)
+        sin_ophi = np.sin(pm_opt.pm_phi)
+        mx = m[:, 0] * cos_ophi - m[:, 1] * sin_ophi
+        my = m[:, 0] * sin_ophi + m[:, 1] * cos_ophi
+        mz = m[:, 2]
+    elif pm_opt.coordinate_flag == 'toroidal':
+        ormajor = np.sqrt(ox**2 + oy**2)
+        otheta = np.arctan2(oz, ormajor - pm_opt.R0)
+        cos_ophi = np.cos(pm_opt.pm_phi)
+        sin_ophi = np.sin(pm_opt.pm_phi)
+        cos_otheta = np.cos(otheta)
+        sin_otheta = np.sin(otheta)
+        mx = m[:, 0] * cos_ophi * cos_otheta \
+            - m[:, 1] * sin_ophi              \
+            - m[:, 2] * cos_ophi * sin_otheta
+        my = m[:, 0] * sin_ophi * cos_otheta \
+            + m[:, 1] * cos_ophi              \
+            - m[:, 2] * sin_ophi * sin_otheta
+        mz = m[:, 0] * sin_otheta \
+            + m[:, 2] * cos_otheta
+
+    m0 = pm_opt.m_maxima
+    pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
+    Lc = 0
+
+    mp = np.arctan2(my, mx)
+    mt = np.arctan2(np.sqrt(mx ** 2 + my ** 2), mz)
     coilname = ["pm_{:010d}".format(i) for i in range(1, ndipoles + 1)]
     Ic = 1
     # symmetry = 2 for stellarator symmetry

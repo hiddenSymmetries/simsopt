@@ -230,7 +230,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             ("SurfaceXYZFourier", True, False, 'ls'),  # noqa
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
-            for get_data in [get_giuliani_data]:
+            for get_data in [get_hsx_data, get_ncsx_data, get_giuliani_data]:
                 with self.subTest(
                     surfacetype=surfacetype, stellsym=stellsym,
                         optimize_G=optimize_G, second_stage=second_stage, get_data=get_data):

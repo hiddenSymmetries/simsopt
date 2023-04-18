@@ -29,8 +29,8 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+ntheta = 16
 poff = 2.0  # grid end offset ~ 10 cm from the plasma surface
 coff = 1.0  # grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.circular_tokamak' 

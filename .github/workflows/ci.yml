@@ -119,6 +119,7 @@ jobs:
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
       run: |
+        pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
 

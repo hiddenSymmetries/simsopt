@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'ScaledCurrent', 'coils_via_symmetries',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -123,7 +123,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
     Take the sum of two :mod:`Current` objects.
     """
 
-    def __init__(self, current_a, current_b, **kwargs):
+    def __init__(self, current_a, current_b):
         self.current_a = current_a
         self.current_b = current_b
         sopp.CurrentBase.__init__(self)

@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import warnings
 from scipy.special import ellipk, ellipe
 try:
     from sympy.parsing.sympy_parser import parse_expr
@@ -8,7 +9,6 @@ try:
     sympy_found = True
 except ImportError:
     sympy_found = False
-from pyevtk.hl import pointsToVTK
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
@@ -610,28 +610,45 @@ class WindingVolumeField(MagneticField):
 
 class DipoleField(MagneticField):
     r"""
-    Computes the MagneticField induced by N dipoles. This is very simple but needs to be
-    a type MagneticField class for using the other simsopt functionality.
-    The field is given by
+    Computes the MagneticField induced by N dipoles. The field is given by
 
     .. math::
 
         B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{i=1}^{N} (\frac{3\mathbf{r}_i\cdot \mathbf{m}_i}{|\mathbf{r}_i|^5}\mathbf{r}_i - \frac{\mathbf{m}_i}{|\mathbf{r}_i|^3})
 
-    where :math:`\mu_0=4\pi 10^{-7}` is the magnetic constant and :math:\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i is the vector between the field evaluation point and the dipole i position.
+    where :math:`\mu_0=4\pi 10^{-7}` is the permeability of free space
+    and :math:\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i is the
+    vector between the field evaluation point and the dipole i
+    position.
 
     Args:
-        pm_opt: A PermanentMagnetOptimizer object that has already been optimized.
-        m: Solution for the dipoles using the pm_opt object.
+        dipole_grid: 2D numpy array, shape (ndipoles, 3)
+            A set of points corresponding to the locations of magnetic dipoles.
+        dipole_vectors: 2D numpy array, shape (ndipoles, 3)
+            The dipole vectors of each of the dipoles in the grid.
+        stellsym: bool (default True)
+            Whether or not the dipole grid is stellarator symmetric.
+        nfp: int (default 1)
+            The field-period symmetry of the dipole-grid.
+        coordinate_flag: string (default "cartesian")
+            The global coordinate system that should be considered grid-aligned in the calculation.
+        m_maxima: 1D numpy array, shape (ndipoles)
+            The maximum dipole strengths of each magnet in the grid. If not specified, defaults
+            to using the largest dipole strength of the magnets in dipole_grid, and using this
+            value for all the dipoles. Needed for plotting normalized dipole magnitudes in the
+            vtk functionality.
+        R0: double
+            The value of the major radius of the stellarator needed only for simple toroidal
+            coordinates.
     """
 
-    def __init__(self, pm_opt=None):
-        MagneticField.__init__(self)
-        self._dipole_fields_from_symmetries(pm_opt)
-        # reformat memory for c++ routines
-        self.dipole_grid = np.ascontiguousarray(self.dipole_grid)
-        self.m_vec = np.ascontiguousarray(self.m_vec)
-        self.pm_opt = pm_opt
+    def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
+        MagneticField.__init__(self)        
+        if coordinate_flag == 'toroidal':
+            warnings.warn('Note that if using simple toroidal coordinates, '
+                          'the major radius must be specified through R0.')
+        self.R0 = R0
+        self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -649,28 +666,25 @@ class DipoleField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec)
 
-    def _dipole_fields_from_symmetries(self, pm_opt):
+    def _dipole_fields_from_symmetries(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
         """
         Takes the dipoles and grid initialized in a PermanentMagnetOptimizer (for a half-period surface)
         and generates the full dipole manifold so that the call to B() (the magnetic field from
         the dipoles) correctly returns contributions from all the dipoles from symmetries.
-
-        Args:
-            pm_opt (PermanentMagnetOptimizer): Permanent magnet optimizer class object with
-                                               a set of initialized dipoles + dipole grid.
         """
+        self.dipole_grid = dipole_grid
+
         # Read in the required fields from pm_opt object
-        nfp = pm_opt.plasma_boundary.nfp
-        stellsym = pm_opt.plasma_boundary.stellsym
-        dipole_grid = pm_opt.dipole_grid_xyz
-        ndipoles = pm_opt.ndipoles
+        ndipoles = dipole_grid.shape[0]
+        if m_maxima is None:
+            m_maxima = np.max(np.linalg.norm(dipole_vectors, axis=-1)) * np.ones(ndipoles)
         if stellsym:
             stell_list = [1, -1]
             nsym = nfp * 2
         else:
             stell_list = [1]
             nsym = nfp
-        m = pm_opt.m.reshape(ndipoles, 3)
+        m = dipole_vectors.reshape(ndipoles, 3)
 
         # Initialize new grid and dipole vectors for all the dipoles
         # after we account for the symmetries below.
@@ -678,12 +692,12 @@ class DipoleField(MagneticField):
         dipole_grid_y = np.zeros(ndipoles * nsym)
         dipole_grid_z = np.zeros(ndipoles * nsym)
         m_vec = np.zeros((ndipoles * nsym, 3))
-        m_maxima = np.zeros(ndipoles * nsym)
+        m_max = np.zeros(ndipoles * nsym)
 
         # Load in the dipole locations for a half-period surface
-        ox = pm_opt.dipole_grid_xyz[:, 0]
-        oy = pm_opt.dipole_grid_xyz[:, 1]
-        oz = pm_opt.dipole_grid_xyz[:, 2]
+        ox = dipole_grid[:, 0]
+        oy = dipole_grid[:, 1]
+        oz = dipole_grid[:, 2]
 
         # loop through the dipoles and repeat for fp and stellarator symmetries
         index = 0
@@ -693,15 +707,15 @@ class DipoleField(MagneticField):
         mmx = m[:, 0]
         mmy = m[:, 1]
         mmz = m[:, 2]
-        if pm_opt.coordinate_flag == 'cylindrical':
+        if coordinate_flag == 'cylindrical':
             phi_dipole = np.arctan2(oy, ox)
             mmx_temp = mmx * np.cos(phi_dipole) - mmy * np.sin(phi_dipole)
             mmy_temp = mmx * np.sin(phi_dipole) + mmy * np.cos(phi_dipole)
             mmx = mmx_temp
             mmy = mmy_temp
-        if pm_opt.coordinate_flag == 'toroidal':
+        if coordinate_flag == 'toroidal':
             phi_dipole = np.arctan2(oy, ox)
-            theta_dipole = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - pm_opt.R0)
+            theta_dipole = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - R0)
             mmx_temp = mmx * np.cos(phi_dipole) * np.cos(theta_dipole) - mmy * np.sin(phi_dipole) - mmz * np.cos(phi_dipole) * np.sin(theta_dipole)
             mmy_temp = mmx * np.sin(phi_dipole) * np.cos(theta_dipole) + mmy * np.cos(phi_dipole) - mmz * np.sin(phi_dipole) * np.sin(theta_dipole)
             mmz_temp = mmx * np.sin(theta_dipole) + mmz * np.cos(theta_dipole)
@@ -724,12 +738,13 @@ class DipoleField(MagneticField):
                 m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
                 m_vec[index:index + n, 2] = mmz
 
-                m_maxima[index:index + n] = pm_opt.m_maxima
+                m_max[index:index + n] = m_maxima
                 index += n
 
-        self.dipole_grid = np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T
-        self.m_vec = m_vec
-        self.m_maxima = m_maxima
+        contig = np.ascontiguousarray
+        self.dipole_grid = contig(np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T)
+        self.m_vec = contig(m_vec)
+        self.m_maxima = contig(m_max)
 
     def _toVTK(self, vtkname):
         """
@@ -737,7 +752,6 @@ class DipoleField(MagneticField):
 
         Args:
             vtkname (str): VTK filename, will be appended with .vts or .vtu.
-            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
         """
 
         # get the coordinates
@@ -745,7 +759,7 @@ class DipoleField(MagneticField):
         oy = np.ascontiguousarray(self.dipole_grid[:, 1])
         oz = np.ascontiguousarray(self.dipole_grid[:, 2])
         ophi = np.arctan2(oy, ox)
-        otheta = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - self.pm_opt.R0)
+        otheta = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - self.R0)
 
         # define the m vectors and the normalized m vectors
         # in Cartesian, cylindrical, and simple toroidal coordinates.
@@ -767,20 +781,10 @@ class DipoleField(MagneticField):
 
         # Save all the data to a vtk file which can be visualized nicely with ParaView
         data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
+        from pyevtk.hl import pointsToVTK
         pointsToVTK(
             vtkname, ox, oy, oz, data=data
         )
-
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["pm_opt"] = self.pm_opt
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        return cls(d["pm_opt"])
 
 
 class Dommaschk(MagneticField):
