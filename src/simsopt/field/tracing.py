@@ -78,7 +78,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: NDAr
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                            tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
                            forget_exact_path=False, zetas_stop=False, vpars_stop=False,
-                           Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=0):
+                           Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=0, no_shear=False):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. This is modeled after
     :func:`trace_particles`.
@@ -186,7 +186,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: NDAr
             field, stz_inits[i, :], m, charge, speed_total, speed_par[i], mus[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
             noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
             phis_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
-            Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
+            Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis, no_shear=no_shear)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:

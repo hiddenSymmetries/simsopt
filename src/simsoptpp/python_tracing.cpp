@@ -76,7 +76,8 @@ void init_tracing(py::module_ &m){
         py::arg("Phin")=0,
         py::arg("phase")=0,
         py::arg("forget_exact_path")=false,
-        py::arg("axis")=0
+        py::arg("axis")=0,
+        py::arg("no_shear")=false
         );
 
     m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,
