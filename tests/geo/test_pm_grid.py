@@ -10,7 +10,8 @@ from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier,
                          create_equally_spaced_curves)
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
-from simsopt.util.permanent_magnet_helper_functions import initialize_default_kwargs
+from simsopt.util import FocusData, initialize_default_kwargs
+from simsopt.util.polarization_project import *
 
 #from . import TEST_DIR
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -231,6 +232,11 @@ class Testing(unittest.TestCase):
         assert np.isclose(f_B, f_B_Am)
 
     def test_grid_chopping(self):
+        """
+            Makes a tokamak, extends two toroidal surfaces from this surface, and checks
+            that the grid chopping function correctly removes magnets that are not between
+            the inner and outer surfaces.
+        """
         filename = TEST_DIR / 'input.circular_tokamak'
         nphi = 32
         ntheta = 32
@@ -243,9 +249,10 @@ class Testing(unittest.TestCase):
 
         # Generate uniform grid
         R0 = s.get_rc(0, 0)  # major radius
-        r = np.linspace(0, 3)
+        r0 = s.get_rc(1, 0)  # minor radius
+        r = np.linspace(0, 5)
         theta = np.linspace(0, 2 * np.pi)
-        phi = [0, np.pi]  #np.linspace(0, 2 * np.pi)
+        phi = [0, np.pi]
         r, phi, theta = np.meshgrid(r, phi, theta, indexing='ij')
         R = R0 + r * np.cos(theta)
         Z = r * np.sin(theta)
@@ -272,9 +279,107 @@ class Testing(unittest.TestCase):
         final_rz_grid[:, 1] = np.arctan2(final_grid[:, 1], final_grid[:, 0])
         final_rz_grid[:, 2] = final_grid[:, 2] 
         r_fit = np.sqrt((final_grid[:, 0] - R0) ** 2 + final_grid[:, 2] ** 2)
-        print('r_fit = ', r_fit)
-        assert np.min(r_fit > 1.0)
-        assert np.max(r_fit < 3.0)
+        assert (np.min(r_fit) > (r0 + 1.0))
+        assert (np.max(r_fit) < (r0 + 2.0))
+
+    def test_famus_functionality(self):
+        """
+            Tests the FocusData class and class functions    
+        """
+        mag_data = FocusData(TEST_DIR / 'zot80.focus')
+        for i in range(mag_data.nMagnets):
+            assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
+        assert (np.sum(mag_data.pho < 0) > 0)
+        with self.assertRaises(RuntimeError):
+            mag_data.adjust_rho(4.0)
+        mag_data.flip_negative_magnets()
+        assert (np.sum(mag_data.pho < 0) == 0)
+        mag_data.adjust_rho(4.0)
+        assert mag_data.momentq == 4.0
+        mag_data.print_to_file('test')
+        mag_data.init_pol_vecs(3)
+        assert mag_data.pol_x.shape == (mag_data.nMagnets, 3)
+        assert mag_data.pol_y.shape == (mag_data.nMagnets, 3)
+        assert mag_data.pol_z.shape == (mag_data.nMagnets, 3)
+        nMagnets = mag_data.nMagnets
+        mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
+        assert mag_data.nMagnets == nMagnets * 2
+        assert np.allclose(mag_data.oz[:mag_data.nMagnets // 2], -mag_data.oz[mag_data.nMagnets // 2:])
+
+    def test_polarizations(self):
+        """
+            Tests the polarizations and related functions from the
+            polarization_project file. 
+        """
+        theta = 0.0 
+        vecs = faceedge_vectors(theta)
+        assert np.allclose(np.linalg.norm(vecs, axis=-1), 1.0)
+        vecs = facecorner_vectors(theta)
+        assert np.allclose(np.linalg.norm(vecs, axis=-1), 1.0)
+        theta = np.pi / 6.0
+        assert np.allclose(pol_fe30, faceedge_vectors(theta))
+        theta = np.pi / 8.0
+        assert np.allclose(pol_fe23, faceedge_vectors(theta))
+        theta = 17.0 * np.pi / 180.0
+        assert np.allclose(pol_fe17, faceedge_vectors(theta))
+        theta = 27.0 * np.pi / 180.0
+        assert np.allclose(pol_fc27, facecorner_vectors(theta))
+        theta = 39.0 * np.pi / 180.0
+        assert np.allclose(pol_fc39, facecorner_vectors(theta))
+        pol_axes, _ = polarization_axes('face')
+        assert np.allclose(pol_f, pol_axes)
+        pol_axes, _ = polarization_axes('edge')
+        assert np.allclose(pol_e, pol_axes)
+        pol_axes, _ = polarization_axes('corner')
+        assert np.allclose(pol_c, pol_axes)
+        pol_axes, _ = polarization_axes('faceedge')
+        assert np.allclose(pol_fe, pol_axes)
+        pol_axes, _ = polarization_axes('facecorner')
+        assert np.allclose(pol_fc, pol_axes)
+        pol_axes, _ = polarization_axes('edgecorner')
+        assert np.allclose(pol_ec, pol_axes)
+        pol_axes, _ = polarization_axes('fe17')
+        assert np.allclose(pol_fe17, pol_axes)
+        pol_axes, _ = polarization_axes('fe23')
+        assert np.allclose(pol_fe23, pol_axes)
+        pol_axes, _ = polarization_axes('fe30')
+        assert np.allclose(pol_fe30, pol_axes)
+        pol_axes, _ = polarization_axes('fc27')
+        assert np.allclose(pol_fc27, pol_axes)
+        pol_axes, _ = polarization_axes('fc39')
+        assert np.allclose(pol_fc39, pol_axes)
+        pol_axes, _ = polarization_axes('ec23')
+        assert np.allclose(pol_ec23, pol_axes)
+        theta = 38.12 * np.pi / 180.0 
+        vectors = facecorner_vectors(theta)
+        pol_axes, _ = polarization_axes('fc_ftri')
+        assert np.allclose(vectors, pol_axes)
+        theta = 30.35 * np.pi / 180.0 
+        vectors = faceedge_vectors(theta)
+        pol_axes, _ = polarization_axes('fe_ftri')
+        assert np.allclose(vectors, pol_axes)
+        theta = 18.42 * np.pi / 180.0 
+        vectors = faceedge_vectors(theta)
+        pol_axes, _ = polarization_axes('fe_etri')
+        assert np.allclose(vectors, pol_axes)
+        theta = 38.56 * np.pi / 180.0 
+        vectors = facecorner_vectors(theta)
+        pol_axes, _ = polarization_axes('fc_etri')
+        assert np.allclose(vectors, pol_axes)
+        vec_shape = np.shape(vectors)[0]
+        pol_axes, pol_types = polarization_axes(['fc_ftri', 'fc_etri'])
+        assert np.allclose(pol_types, np.ravel(np.array([np.ones(vec_shape), 2 * np.ones(vec_shape)])))
+        pol_axes, pol_types = polarization_axes(['face', 'fc_ftri', 'fe_ftri'])
+        mag_data = FocusData(TEST_DIR / 'zot80.focus')
+        mag_data.init_pol_vecs(len(pol_axes))
+        ox = mag_data.ox
+        oy = mag_data.oy
+        oz = mag_data.oz
+        premade_dipole_grid = np.array([ox, oy, oz]).T
+        ophi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
+        cyl_r = mag_data.cyl_r
+        discretize_polarizations(mag_data, ophi, pol_axes, pol_types)
+        assert not np.allclose(mag_data.cyl_r, cyl_r)
 
 
 if __name__ == "__main__":

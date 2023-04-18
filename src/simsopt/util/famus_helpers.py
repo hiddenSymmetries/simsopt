@@ -151,7 +151,7 @@ class FocusData(object):
             raise Exception('unit_vector: requested magnet %d does not exist' \
                             % (max(inds)))
 
-        mt_perp = self.mt + np.pi/2.0
+        mt_perp = self.mt[inds] + np.pi / 2.0
         return np.cos(self.mp[inds])*np.sin(mt_perp), \
             np.sin(self.mp[inds])*np.sin(mt_perp), \
             np.cos(mt_perp)
@@ -251,6 +251,10 @@ class FocusData(object):
             Initializes arrays for the x, y, and z components of allowable
             polarization vectors, as an array giving the ID of the polarization
             vector actually used for the respective magnet (0 means magnet is off)
+
+            Args:
+                n_pol: int
+                    Number of allowed polarization vectors, typically 3 or 12.
         """
         self.nPol = n_pol
         self.pol_x = np.zeros((self.nMagnets, n_pol))
@@ -447,23 +451,3 @@ def stell_point_transform(mode, phi, x_in, y_in, z_in):
         z_out = z_in
 
     return x_out, y_out, z_out
-
-
-if __name__ == '__main__':
-
-    if len(sys.argv) != 3 and len(sys.argv) != 4:
-        print('usage: python adjust_magnet_angles.py infile outfile [q_new]')
-        exit()
-
-    infile = sys.argv[1]
-    outfile = sys.argv[2]
-
-    magdata = FocusData(infile)
-    magdata.flip_negative_magnets()
-
-    if len(sys.argv) == 4:
-        q_new = float(sys.argv[3])
-        magdata.adjust_rho(q_new)
-
-    magdata.print_to_file(outfile)
-
