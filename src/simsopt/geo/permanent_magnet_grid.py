@@ -67,7 +67,7 @@ class PermanentMagnetGrid:
             inner and outer toroidal surfaces. Used only if the
             coordinate_flag = cartesian, then Nz is the z-size of the
             rectangular cubes in the grid.
-        coordinate_flag: bool
+        coordinate_flag: string
             Flag to specify the coordinate system used for the grid and optimization.
               This is primarily used to tell the optimizer which coordinate directions
               should be considered, "grid-aligned". Therefore, you can do weird stuff
@@ -118,6 +118,14 @@ class PermanentMagnetGrid:
             raise NotImplementedError(
                 'Only cartesian, cylindrical, and toroidal (simple toroidal)'
                 ' coordinate systems have been implemented so far.'
+            )
+        elif coordinate_flag == 'cartesian':
+            warnings.warn(
+                'Cartesian grid of rectangular cubes will be built, since '
+                'coordinate_flag = "cartesian". However, such a grid can be '
+                'appropriately reflected only for nfp = 2 and nfp = 4, '
+                'unlike the uniform cylindrical grid, which has continuous '
+                'rotational symmetry.'
             )
         self.coordinate_flag = coordinate_flag
 
