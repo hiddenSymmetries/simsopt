@@ -230,9 +230,9 @@ struct alignas(ALIGN_BYTES) Vec3dStd {
     }
 
     void store_aligned(double* xptr, double* yptr, double *zptr){
-        x = *xptr;
-        y = *yptr;
-        z = *zptr;
+        *xptr = x;
+        *yptr = y;
+        *zptr = z;
     }
 
     double& operator[] (int i){
@@ -298,6 +298,14 @@ struct alignas(ALIGN_BYTES) Vec3dStd {
         lhs.z *= rhs;
         return lhs;
     }
+
+    friend Vec3dStd operator*( const double& lhs, Vec3dStd rhs) {
+        rhs.x *= lhs;
+        rhs.y *= lhs;
+        rhs.z *= lhs;
+        return rhs;
+    }
+
 };
 
 
@@ -501,11 +509,11 @@ inline double inner(const Vec3dSimdPortable1& a, const Vec3dSimdPortable1& b){
 }
 
 inline double inner(const Vec3d& b, const Vec3dSimdPortable1& a){
-    return inner(a, Vec3dSimdPortable1(b));
+    return a.x[0] * b[0] + a.x[1] * b[1] + a.x[2] * b[2];
 }
 
 inline double inner(const Vec3dSimdPortable1& a, const Vec3d& b){
-    return inner(a, Vec3dSimdPortable1(b));
+    return a.x[0] * b[0] + a.x[1] * b[1] + a.x[2] * b[2];
 }
 
 inline double inner(int i, Vec3dSimdPortable1& a){
