@@ -20,7 +20,7 @@ class Testing(unittest.TestCase):
         m0 = np.zeros((ndipoles, 3))
         b = np.random.rand(nquad)
         A = np.random.rand(nquad, ndipoles, 3)
-        ATA = np.tensordot(A, A, axes=([1, 1]))
+        ATA = np.tensordot(A, A, axes=([1, 1])) 
         alpha = 2.0 / np.linalg.norm(ATA.reshape(nquad * 3, nquad * 3), ord=2) 
         ATb = np.tensordot(A, b, axes=([0, 0]))
         t1 = time.time()
@@ -40,6 +40,9 @@ class Testing(unittest.TestCase):
             reg_l1=0.0,
             reg_l2=0.0,
         )
+        m_hist = np.array(m_hist)
+        assert dipoles.shape == (ndipoles, 3)
+        assert m_hist.shape == (ndipoles, 3, 21)
 
         t2 = time.time()
         print(t2 - t1) 

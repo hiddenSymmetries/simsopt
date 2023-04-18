@@ -91,8 +91,15 @@ class PermanentMagnetGrid:
         coordinate_flag='cartesian',
         pol_vectors=None
     ):
+        Bn = np.array(Bn)
+        if len(Bn.shape) != 2: 
+            raise ValueError(
+                'Normal magnetic field surface data is incorrect shape.'
+            )
         self.Bn = Bn
         self.dr = dr
+        if Nx <= 0 or Ny <= 0 or Nz <= 0:
+            raise ValueError('Nx, Ny, and Nz should be positive integers')
         self.Nx = Nx
         if dz is not None:
             self.dz = dz
@@ -164,7 +171,10 @@ class PermanentMagnetGrid:
             )
 
         if pol_vectors is not None:
-            if pol_vectors.shape[2] != 3:
+            pol_vectors = np.array(pol_vectors)
+            if len(pol_vectors.shape) != 3:
+                raise ValueError('pol vectors must be a 3D array.')
+            elif pol_vectors.shape[2] != 3:
                 raise ValueError('Third dimension of `pol_vectors` array '
                                  'must be 3')
             elif coordinate_flag != 'cartesian':
@@ -437,8 +447,7 @@ class PermanentMagnetGrid:
         self._optimization_setup()
 
     def _optimization_setup(self):
-
-        # set up 'b' vector
+        
         if self.Bn.shape != (self.nphi, self.ntheta):
             raise ValueError(
                 'Normal magnetic field surface data is incorrect shape.'
