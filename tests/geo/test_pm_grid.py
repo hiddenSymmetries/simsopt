@@ -5,12 +5,12 @@ import numpy as np
 import simsoptpp as sopp
 
 from simsopt.field import (BiotSavart, Current, DipoleField, InterpolatedField,
-                           coils_via_symmetries)
+                           coils_via_symmetries, Coil)
 from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier,
                          create_equally_spaced_curves)
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
-from simsopt.util import FocusData, initialize_default_kwargs
+from simsopt.util import *
 from simsopt.util.polarization_project import *
 
 #from . import TEST_DIR
@@ -99,6 +99,23 @@ class Testing(unittest.TestCase):
                 s, s1, s2, Bn=np.zeros((nphi, ntheta // 2))
             )
             pm.geo_setup()
+        with self.assertRaises(ValueError):
+            pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=np.zeros((nphi, ntheta))
+            )
+            pm.geo_setup_from_famus(TEST_DIR / 'zot80.log')
+        with self.assertRaises(ValueError):
+            pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=np.zeros((nphi, ntheta)), pol_vectors=np.ones((5, 3, 2))
+            )
+        with self.assertRaises(ValueError):
+            pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=np.zeros((nphi, ntheta)), pol_vectors=np.ones((5, 3))
+            )
+        with self.assertRaises(ValueError):
+            pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=np.zeros((nphi, ntheta)), pol_vectors=np.ones((5, 3, 3)), coordinate_flag='cylindrical'
+            )
 
     def test_optimize_bad_parameters(self):
         """
@@ -204,6 +221,36 @@ class Testing(unittest.TestCase):
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetGrid(s, s1, s2, dr=0.15, Bn=Bn)
+        pm_opt.geo_setup()
+        _, _, _, = relax_and_split(pm_opt)
+        b_dipole = DipoleField(
+            pm_opt.dipole_grid_xyz,
+            pm_opt.m_proxy,
+            nfp=s.nfp,
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+        )
+        b_dipole.set_points(s.gamma().reshape(-1, 3))
+
+        # check Bn
+        Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
+        Ngrid = nphi * ntheta
+        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+        assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+
+        # check <Bn>
+        B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
+        B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+        assert np.isclose(B_opt, B_dipole_field)
+
+        # check integral Bn^2
+        f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
+        f_B = SquaredFlux(s, b_dipole, -Bn).J()
+        assert np.isclose(f_B, f_B_Am)
+
+        # Create PM class with cylindrical bricks
+        Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
+        pm_opt = PermanentMagnetGrid(s, s1, s2, dr=0.15, Bn=Bn, coordinate_flag='cylindrical')
         pm_opt.geo_setup()
         _, _, _, = relax_and_split(pm_opt)
         b_dipole = DipoleField(
@@ -380,6 +427,113 @@ class Testing(unittest.TestCase):
         cyl_r = mag_data.cyl_r
         discretize_polarizations(mag_data, ophi, pol_axes, pol_types)
         assert not np.allclose(mag_data.cyl_r, cyl_r)
+
+    def test_pm_helpers(self):
+        """
+            Test the helper functions in utils/permanent_magnet_helpers.py.
+        """
+
+        # Test build of the MUSE coils
+        input_name = 'input.muse'
+        nphi = 8
+        ntheta = nphi
+        surface_filename = TEST_DIR / input_name
+        s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        base_curves, base_currents, ncoils = read_focus_coils(TEST_DIR / 'muse_tf_coils.focus')
+        coils = []
+        for i in range(ncoils):
+            coils.append(Coil(base_curves[i], base_currents[i]))
+        base_currents[0].fix_all()
+
+        # fix all the coil shapes
+        for i in range(ncoils):
+            base_curves[i].fix_all()
+        bs = BiotSavart(coils)
+
+        # Calculate average, approximate on-axis B field strength
+        B0avg = calculate_on_axis_B(bs, s)
+        assert np.allclose(B0avg, 0.15)
+
+        # Repeat with wrapper function
+        initialize_coils('muse_famus', TEST_DIR, '', s)
+        bs = BiotSavart(coils)
+        B0avg = calculate_on_axis_B(bs, s)
+        assert np.allclose(B0avg, 0.15)
+
+        # Get FAMUS dipoles
+        m, m0s = get_FAMUS_dipoles(TEST_DIR / 'zot80.focus')
+        m00 = m0s[0]
+        assert np.all(m <= m00)
+        for m0 in m0s:
+            assert np.isclose(m00, m0)
+        pm_opt = PermanentMagnetGrid(
+            s, s_inner, s_outer,  # s_inner and s_outer overwritten in next line since using a FAMUS grid 
+            Bn=np.zeros(s.normal().shape[:2]), 
+        )
+        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus')
+
+        # Test rescaling 
+        reg_l0 = 0.2
+        reg_l1 = 0.1
+        reg_l2 = 1e-4
+        nu = 1e5
+        old_reg_l0 = reg_l0
+        old_ATA_scale = pm_opt.ATA_scale
+        reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
+        assert (reg_l0 == old_reg_l0 / (2 * nu))
+        assert (pm_opt.ATA_scale == old_ATA_scale + 2 * reg_l2 + 1.0 / nu)
+        reg_l0 = -1
+        with self.assertRaises(ValueError):
+            reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
+        reg_l0 = 2
+        with self.assertRaises(ValueError):
+            reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
+
+        # Test write PermanentMagnetGrid to FAMUS file
+        write_pm_optimizer_to_famus('', pm_opt)
+        m, m0s = get_FAMUS_dipoles('SIMSOPT_dipole_solution.focus')
+        assert np.all(m <= m00)
+        for m0 in m0s:
+            assert np.isclose(m00, m0)
+
+        # Load in file we made to FocusData class and do some tests
+        mag_data = FocusData('SIMSOPT_dipole_solution.focus')
+        for i in range(mag_data.nMagnets):
+            assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
+        mag_data.print_to_file('test')
+        mag_data.init_pol_vecs(3)
+        assert mag_data.pol_x.shape == (mag_data.nMagnets, 3)
+        assert mag_data.pol_y.shape == (mag_data.nMagnets, 3)
+        assert mag_data.pol_z.shape == (mag_data.nMagnets, 3)
+        nMagnets = mag_data.nMagnets
+        mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
+        assert mag_data.nMagnets == nMagnets * 2
+        assert np.allclose(mag_data.oz[:mag_data.nMagnets // 2], -mag_data.oz[mag_data.nMagnets // 2:])
+
+        # Test algorithm kwarg initialization
+        kwargs = initialize_default_kwargs(algorithm='RS')
+        assert isinstance(kwargs, dict)
+        kwargs = initialize_default_kwargs(algorithm='GPMO')
+        assert isinstance(kwargs, dict)
+        kwargs = initialize_default_kwargs(algorithm='ArbVec_backtracking')
+        assert isinstance(kwargs, dict)
+        assert kwargs['K'] == 1000
+
+        # Test Bnormal plots
+        make_Bnormal_plots(bs, s, '', 'biot_savart_test')
+
+        # optimize pm_opt and plot optimization progress
+        kwargs = initialize_default_kwargs(algorithm='GPMO')
+        kwargs['K'] = 1000
+        R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
+        m_history = np.transpose(m_history, [2, 0, 1])
+        m_history = m_history.reshape((1, 501, 75460, 3))
+        make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
+        kwargs['K'] = 10
+        with self.assertRaises(ValueError):
+            R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
 
 
 if __name__ == "__main__":

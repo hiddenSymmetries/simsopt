@@ -5,7 +5,7 @@ the permanent magnets functionality in the SIMSOPT code.
 __all__ = ['read_focus_coils', 'coil_optimization', 
            'trace_fieldlines', 'make_qfm', 
            'initialize_coils', 'calculate_on_axis_B',
-           'get_FAMUS_dipoles', 'read_FAMUS_grid', 
+           'get_FAMUS_dipoles', 
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'write_pm_optimizer_to_famus',
            'rescale_for_opt', 'initialize_default_kwargs'
@@ -369,6 +369,7 @@ def calculate_on_axis_B(bs, s):
     bnormalization = B0avg * surface_area
     print("Bmag at R = ", R0, ", Z = 0: ", B0)
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
+    return B0avg
 
 
 def get_FAMUS_dipoles(famus_filename):
@@ -411,102 +412,6 @@ def get_FAMUS_dipoles(famus_filename):
     mz = mm * np.cos(mt)
     m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
     return m_FAMUS, m0
-
-
-def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR):
-    """
-        Reads in and makes vtk plots for a FAMUS grid and
-        solution. Used for the MUSE and NCSX examples.
-    """
-    from simsopt.objectives import SquaredFlux
-    from simsopt.field.magneticfieldclasses import DipoleField
-
-    # FAMUS files are for the half-period surface
-    ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
-        famus_filename, skiprows=3,
-        usecols=[3, 4, 5, 6, 7, 8, 10, 11],
-        delimiter=',', unpack=True
-    )
-
-    print('Number of FAMUS dipoles = ', len(ox))
-
-    # Ic = 0 indices are used to denote grid locations
-    # that should be removed because the ports go there
-    nonzero_inds = (Ic == 1.0)
-    ox = ox[nonzero_inds]
-    oy = oy[nonzero_inds]
-    oz = oz[nonzero_inds]
-    m0 = m0[nonzero_inds]
-    p = p[nonzero_inds]
-    mp = mp[nonzero_inds]
-    mt = mt[nonzero_inds]
-    print('Number of FAMUS dipoles (with ports) = ', len(ox))
-
-    phi = np.arctan2(oy, ox)
-
-    # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-    momentq = np.loadtxt(famus_filename, skiprows=1, max_rows=1, usecols=[1])
-    rho = p ** momentq
-
-    print('Percent of nonzero FAMUS magnets = ', np.count_nonzero(rho) / len(rho))
-    bf_inds = np.logical_or((rho > 0.99), (rho < 0.01))
-    print('Binary fraction = ', np.count_nonzero(bf_inds) / len(rho))
-
-    # Make histogram of the normalized dipole magnitudes
-    plt.figure()
-    plt.hist(abs(rho), bins=np.linspace(0, 1, 30), log=True)
-    plt.grid(True)
-    plt.xlabel('Normalized magnitudes')
-    plt.ylabel('Number of dipoles')
-    plt.savefig(OUT_DIR + 'm_FAMUS_histogram.png')
-
-    # Calculate the effective magnet volume
-    mm = rho * m0
-    mu0 = 4 * np.pi * 1e-7
-    Bmax = 1.4
-    print('FAMUS effective volume = ', np.sum(abs(mm)) * mu0 * 2 * s.nfp / Bmax)
-
-    # Convert from spherical to cartesian vectors
-    mx = mm * np.sin(mt) * np.cos(mp)
-    my = mm * np.sin(mt) * np.sin(mp)
-    mz = mm * np.cos(mt)
-    m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
-
-    coordinate_flag_temp = pm_opt.coordinate_flag
-    pm_opt.coordinate_flag = 'cartesian'
-
-    # Set pm_opt m values to the FAMUS solution so we can use the
-    # plotting routines from the DipoleField class object.
-    pm_opt.m = m_FAMUS
-    pm_opt.m_proxy = m_FAMUS
-
-    # critical change to make sure SIMSOPT and FAMUS use
-    # the same-size magnets
-    pm_opt.m_maxima = m0
-
-    b_dipole_FAMUS = DipoleField(pm_opt)
-    b_dipole_FAMUS.set_points(s.gamma().reshape((-1, 3)))
-    b_dipole_FAMUS._toVTK(OUT_DIR + "Dipole_Fields_FAMUS")
-
-    nphi = len(s.quadpoints_phi)
-    qphi = len(s_plot.quadpoints_phi)
-    ntheta = len(s.quadpoints_phi)
-    Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
-    f_B_famus = SquaredFlux(s, b_dipole_FAMUS).J()
-    f_B_sf = SquaredFlux(s, b_dipole_FAMUS, -Bnormal).J()
-    print('f_B (only the FAMUS dipoles) = ', f_B_famus)
-    print('f_B (FAMUS total) = ', f_B_sf)
-
-    # Plot Bnormal from optimized Bnormal dipoles
-    b_dipole_FAMUS.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-    pointData = {"B_N": Bnormal_FAMUS[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "Bnormal_opt_FAMUS", extra_data=pointData)
-
-    # Plot total Bnormal from optimized Bnormal dipoles + coils
-    pointData = {"B_N": (Bnormal_FAMUS + Bnormal_plot)[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "Bnormal_total_FAMUS", extra_data=pointData)
-    pm_opt.coordinate_flag = coordinate_flag_temp
 
 
 def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR):
@@ -588,7 +493,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
                 range(0, m_history.shape[0], 2),
                 repeat=False, blit=True
             )
-            ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
+            # ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
 def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR):
@@ -696,7 +601,7 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
     with open(filename, "w") as wfile:
         wfile.write(" # Total number of dipoles,  momentq \n")
         wfile.write(
-            "{:6d},  {:4d}\n".format(
+            "{:6d}  {:4d}\n".format(
                 ndipoles, 1
             )
         )
@@ -781,7 +686,7 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['epsilon_RS'] = 1e-3
         kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
         kwargs['reg_l2'] = 0.0
-    elif algorithm == 'GPMO':
+    elif 'GPMO' in algorithm or 'ArbVec' in algorithm:
         kwargs['K'] = 1000
         kwargs["reg_l2"] = 0.0 
         kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K
