@@ -296,6 +296,9 @@ class PermanentMagnetGrid:
                 ' so that the following parameters are ignored: '
                 'rz_inner_surface, rz_outer_surface, dr.'
             )
+            if str(famus_filename)[-6:] != '.focus':
+                raise ValueError('Famus filename must end in .focus')
+
         self.famus_filename = famus_filename
         ox, oy, oz, Ic, M0s = np.loadtxt(
             self.famus_filename,

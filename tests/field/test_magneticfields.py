@@ -532,6 +532,9 @@ class Testing(unittest.TestCase):
         gradA = np.array(Bfield.dA_by_dX())
         assert np.allclose(gradA, Ndipoles * 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]), atol=1e-4)
 
+        # Save to vtk
+        Bfield._toVTK('test')
+
     def test_DipoleField_multiple_points_multiple_dipoles(self):
         Ndipoles = 101
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
@@ -543,6 +546,61 @@ class Testing(unittest.TestCase):
             m_loc,
             m,
             coordinate_flag='cartesian'
+        )
+        Bfield.set_points(field_loc)
+        B_simsopt = Bfield.B()
+        A_simsopt = Bfield.A()
+        B_correct = Ndipoles * 1e-7 * np.array([[0.260891, -0.183328, -0.77562], [0.11238748, -0.248857, 0.0911378], [0.0, -0.73980, -1.307552]])
+        A_correct = Ndipoles * 1e-7 * np.array([[-0.324349, 0.567611, -0.243262], [-0.194174, -0.0121359, 0.20631], [-1.15443, 0.524742, 0.62969]])
+        # Verify B
+        assert np.allclose(B_simsopt, B_correct, atol=1e-4)
+        # Verify B
+        assert np.allclose(A_simsopt, A_correct, atol=1e-4)
+
+        field_loc = np.array([[1, 0.2, 0.5], [1, 0.2, 0.5], [1, 0.2, 0.5]])
+        gradB = np.array(Bfield.dB_by_dX())
+        gradB_simsopt = np.zeros((3, 3, 3))
+        gradB_simsopt[0, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        gradB_simsopt[1, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        gradB_simsopt[2, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify gradB is symmetric and its value
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+
+        # Repeat in cylindrical coords
+        ntheta = 4
+        Bfield = DipoleField(
+            m_loc,
+            m,
+            coordinate_flag='cylindrical'
+        )
+        Bfield.set_points(field_loc)
+        B_simsopt = Bfield.B()
+        A_simsopt = Bfield.A()
+        B_correct = Ndipoles * 1e-7 * np.array([[0.260891, -0.183328, -0.77562], [0.11238748, -0.248857, 0.0911378], [0.0, -0.73980, -1.307552]])
+        A_correct = Ndipoles * 1e-7 * np.array([[-0.324349, 0.567611, -0.243262], [-0.194174, -0.0121359, 0.20631], [-1.15443, 0.524742, 0.62969]])
+        # Verify B
+        assert np.allclose(B_simsopt, B_correct, atol=1e-4)
+        # Verify B
+        assert np.allclose(A_simsopt, A_correct, atol=1e-4)
+
+        field_loc = np.array([[1, 0.2, 0.5], [1, 0.2, 0.5], [1, 0.2, 0.5]])
+        gradB = np.array(Bfield.dB_by_dX())
+        gradB_simsopt = np.zeros((3, 3, 3))
+        gradB_simsopt[0, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        gradB_simsopt[1, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        gradB_simsopt[2, :, :] = Ndipoles * 1e-7 * np.array([[0.03678574, 0.40007205, 1.8716069], [0.40007205, 1.085255, 0.27131429], [1.8716069, 0.27131429, -1.122044]])
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify gradB is symmetric and its value
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
+
+        # Repeat with toroidal orientation
+        Bfield = DipoleField(
+            m_loc,
+            m,
+            coordinate_flag='toroidal'
         )
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
