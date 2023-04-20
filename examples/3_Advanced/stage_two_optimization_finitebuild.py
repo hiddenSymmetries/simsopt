@@ -132,7 +132,7 @@ Jdist = CurveCurveDistance(curves, DIST_MIN)
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves))) \
+    + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "max") for i in range(len(base_curves))) \
     + DIST_PEN * Jdist
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
