@@ -90,44 +90,24 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
     ntheta = len(s.quadpoints_theta)
     ncoils = len(base_curves)
 
-    if 'QH' in config_flag:
-        # Weight on the curve lengths in the objective function:
-        LENGTH_WEIGHT = 1e-1
+    # Weight on the curve lengths in the objective function:
+    LENGTH_WEIGHT = 1e-4
 
-        # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-        CC_THRESHOLD = 0.5
-        CC_WEIGHT = 1e3
+    # Threshold and weight for the coil-to-coil distance penalty in the objective function:
+    CC_THRESHOLD = 0.1
+    CC_WEIGHT = 1e-1
 
-        # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-        CS_THRESHOLD = 0.3
-        CS_WEIGHT = 10
+    # Threshold and weight for the coil-to-surface distance penalty in the objective function:
+    CS_THRESHOLD = 0.1
+    CS_WEIGHT = 1e-2
 
-        # Threshold and weight for the curvature penalty in the objective function:
-        CURVATURE_THRESHOLD = 1.
-        CURVATURE_WEIGHT = 1e-6
+    # Threshold and weight for the curvature penalty in the objective function:
+    CURVATURE_THRESHOLD = 0.1
+    CURVATURE_WEIGHT = 1e-9
 
-        # Threshold and weight for the mean squared curvature penalty in the objective function:
-        MSC_THRESHOLD = 1
-        MSC_WEIGHT = 1e-6
-    else:
-        # Weight on the curve lengths in the objective function:
-        LENGTH_WEIGHT = 1e-4
-
-        # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-        CC_THRESHOLD = 0.1
-        CC_WEIGHT = 1e-1
-
-        # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-        CS_THRESHOLD = 0.1
-        CS_WEIGHT = 1e-2
-
-        # Threshold and weight for the curvature penalty in the objective function:
-        CURVATURE_THRESHOLD = 0.1
-        CURVATURE_WEIGHT = 1e-9
-
-        # Threshold and weight for the mean squared curvature penalty in the objective function:
-        MSC_THRESHOLD = 0.1
-        MSC_WEIGHT = 1e-9
+    # Threshold and weight for the mean squared curvature penalty in the objective function:
+    MSC_THRESHOLD = 0.1
+    MSC_WEIGHT = 1e-9
 
     MAXITER = 500  # number of iterations for minimize
 
@@ -234,9 +214,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
         phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(2000000)])
-    t2 = time.time()
-    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
+        stopping_criteria=[IterationStoppingCriterion(20000)])
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
@@ -259,17 +237,17 @@ def make_qfm(s, Bfield):
     qfm = QfmResidual(s, Bfield)
     qfm.J()
 
-    s.change_resolution(16, 16)
+    # s.change_resolution(16, 16)
     vol = Volume(s)
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=500,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=50,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # repeat the optimization for further convergence
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=2000,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=200,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
     return qfm_surface
@@ -299,14 +277,14 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
     elif config_flag == 'qh':
         # generate planar TF coils
         ncoils = 4
-        R0 = 1.0
-        R1 = 0.75
+        R0 = s.get_rc(0, 0)
+        R1 = s.get_rc(1, 0) * 2
         order = 5
 
         # qh needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul_QH_variant.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75
+        vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75 / 5.69674966667
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
@@ -327,7 +305,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.2
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)

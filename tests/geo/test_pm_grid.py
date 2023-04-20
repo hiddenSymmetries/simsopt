@@ -352,6 +352,23 @@ class Testing(unittest.TestCase):
         mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
         assert mag_data.nMagnets == nMagnets * 2
         assert np.allclose(mag_data.oz[:mag_data.nMagnets // 2], -mag_data.oz[mag_data.nMagnets // 2:])
+        phi0 = np.pi / 2
+        ox2, oy2, oz2 = stell_point_transform('reflect', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
+        assert np.allclose(mag_data.oz, -oz2)
+        ox2, oy2, oz2 = stell_point_transform('translate', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
+        assert np.allclose(mag_data.oz, oz2)
+        symm_inds = np.where(mag_data.symm == 2)[0]
+        nx, ny, nz = mag_data.unit_vector(symm_inds)
+        nx2, ny2, nz2 = stell_vector_transform('reflect', phi0, nx, ny, nz)
+        assert np.allclose(nz, nz2)
+        assert np.allclose(nx ** 2 + ny ** 2 + nz ** 2, nx2 ** 2 + ny2 ** 2 + nz2 ** 2)
+        nx2, ny2, nz2 = stell_vector_transform('translate', phi0, nx, ny, nz)
+        assert np.allclose(nz, nz2)
+        assert np.allclose(nx ** 2 + ny ** 2 + nz ** 2, nx2 ** 2 + ny2 ** 2 + nz2 ** 2)
+        with self.assertRaises(ValueError):
+            nx2, ny2, nz2 = stell_vector_transform('random', phi0, nx, ny, nz)
+        with self.assertRaises(ValueError):
+            nx2, ny2, nz2 = stell_point_transform('random', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
 
     def test_polarizations(self):
         """
@@ -456,8 +473,22 @@ class Testing(unittest.TestCase):
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
 
+        # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
+        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc', range="half period", nphi=nphi, ntheta=ntheta)
+        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, '', s)
+        bs = BiotSavart(coils)
+        B0avg = calculate_on_axis_B(bs, s)
+        assert np.allclose(B0avg, 0.15)
+
+        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc', range="half period", nphi=nphi, ntheta=ntheta)
+        base_curves, curves, coils = initialize_coils('qh', TEST_DIR, '', s)
+        bs = BiotSavart(coils)
+        B0avg = calculate_on_axis_B(bs, s)
+        assert np.allclose(B0avg, 0.15)
+
         # Repeat with wrapper function
-        initialize_coils('muse_famus', TEST_DIR, '', s)
+        s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, '', s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
@@ -527,13 +558,77 @@ class Testing(unittest.TestCase):
         # optimize pm_opt and plot optimization progress
         kwargs = initialize_default_kwargs(algorithm='GPMO')
         kwargs['K'] = 1000
+        kwargs['nhistory'] == 10
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         m_history = np.transpose(m_history, [2, 0, 1])
         m_history = m_history.reshape((1, 501, 75460, 3))
         make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
-        kwargs['K'] = 10
+        kwargs['K'] = 5
         with self.assertRaises(ValueError):
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
+
+    def test_pm_high_res(self):
+        """
+            Test the functions like QFM and poincare cross sections that
+            can be only run with high resolution solutions.
+        """
+
+        # Test build of the MUSE coils
+        input_name = 'input.muse'
+        nphi = 16
+        ntheta = nphi
+        surface_filename = TEST_DIR / input_name
+        s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, '', s)
+        bs = BiotSavart(coils)
+        B0avg = calculate_on_axis_B(bs, s)
+        assert np.allclose(B0avg, 0.15)
+
+        pm_opt = PermanentMagnetGrid(
+            s, s_inner, s_outer,  # s_inner and s_outer overwritten in next line since using a FAMUS grid 
+            Bn=np.zeros(s.normal().shape[:2]), 
+        )
+        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus')
+        kwargs = initialize_default_kwargs(algorithm='GPMO')
+        kwargs['K'] == 15000
+        R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
+        b_dipole = DipoleField(
+            pm_opt.dipole_grid_xyz,
+            pm_opt.m, 
+            nfp=s.nfp,
+            coordinate_flag=pm_opt.coordinate_flag,
+            m_maxima=pm_opt.m_maxima,
+        )
+        # Make higher resolution surface for qfm
+        qphi = 2 * nphi
+        quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
+        quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+        s_plot = SurfaceRZFourier.from_focus(
+            surface_filename, range="full torus",
+            quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+        )
+
+        from mpi4py import MPI
+        from simsopt.mhd.vmec import Vmec
+        from simsopt.util.mpi import MpiPartition
+        mpi = MpiPartition(ngroups=1)
+        comm = MPI.COMM_WORLD
+
+        # Make the QFM surfaces
+        Bfield = bs + b_dipole
+        Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
+        qfm_surf = make_qfm(s_plot, Bfield)
+        qfm_surf = qfm_surf.surface
+
+        ### Always use the QA VMEC file and just change the boundary
+        vmec_input = TEST_DIR / "input.LandremanPaul2021_QA"
+        equil = Vmec(vmec_input, mpi)
+        equil.boundary = qfm_surf
+        equil.run()
+
+        run_Poincare_plots(s_plot, bs, b_dipole, 'muse_famus', comm, 'poincare_test', '')
 
 
 if __name__ == "__main__":

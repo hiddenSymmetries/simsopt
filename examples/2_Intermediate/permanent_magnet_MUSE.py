@@ -39,8 +39,8 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # change to 64 for high-resolution runs
-ntheta = 8  # same as above
+nphi = 4  # change to 64 for high-resolution runs
+ntheta = 4  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
 coff = 0.1  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
 poff = 0.02  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
@@ -152,12 +152,13 @@ pm_opt.geo_setup_from_famus(famus_filename)
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'backtracking'
+# algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nBacktracking = 500  # How often to perform the backtrackinig
-nAdjacent = 10  # How many magnets to consider "adjacent" to one another
-nIter_max = 10000  # Number of iterations to run before quitting
-max_nMagnets = 4000  # Max number of magnets to place. If achieved, algorithm quits
-nHistory = 200  # How often to save the algorithm progress
+nAdjacent = 1  # How many magnets to consider "adjacent" to one another
+nIter_max = 50  # Number of iterations to run before quitting
+max_nMagnets = 10  # Max number of magnets to place. If achieved, algorithm quits
+nHistory = 10  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
@@ -166,9 +167,9 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
     kwargs['backtracking'] = nBacktracking
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
+    kwargs['max_nMagnets'] = max_nMagnets
     if algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
-        kwargs['max_nMagnets'] = max_nMagnets
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
