@@ -152,13 +152,12 @@ pm_opt.geo_setup_from_famus(famus_filename)
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'backtracking'
-# algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nBacktracking = 500  # How often to perform the backtrackinig
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
-nIter_max = 50  # Number of iterations to run before quitting
-max_nMagnets = 10  # Max number of magnets to place. If achieved, algorithm quits
-nHistory = 10  # How often to save the algorithm progress
+nIter_max = 15000  # Number of iterations to run before quitting
+max_nMagnets = 20000  # Max number of magnets to place. If achieved, algorithm quits
+nHistory = 200  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
