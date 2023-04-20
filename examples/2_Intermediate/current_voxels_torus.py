@@ -13,6 +13,7 @@ The script should be run as:
 import os
 from pathlib import Path
 import numpy as np
+from matplotlib import pyplot as plt
 import simsoptpp as sopp
 from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
@@ -36,7 +37,7 @@ coff = 1.0  # grid starts offset ~ 5 cm from the plasma surface
 input_name = 'input.circular_tokamak' 
 
 lam = 1e-20
-nu = 1e12
+nu = 1e11
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -121,15 +122,15 @@ t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
-max_iter = 100
-rs_max_iter = 10
-l0_threshold = 5e3
-l0_thresholds = np.linspace(l0_threshold, 4 * l0_threshold, 10, endpoint=True)
+max_iter = 10  # 20
+rs_max_iter = 200  # 50
+l0_threshold = 5e3  # 60 below line
+l0_thresholds = np.linspace(l0_threshold, 12 * l0_threshold, 50, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
-    print_iter=50,
+    print_iter=10,
 )
 
 if wv_grid.P is not None:
@@ -197,19 +198,6 @@ plt.semilogy(fB + fI + lam * fK + fRS / nu, 'g', label='Total objective (not inc
 plt.grid(True)
 plt.legend()
 plt.show()
-
-alpha_history = np.squeeze(np.array(wv_grid.alpha_history))
-P_alpha = np.zeros(alpha_history.shape[0])
-for i in range(alpha_history.shape[0]):
-    P_alpha[i] = np.linalg.norm(wv_grid.P.dot(alpha_history[i, :]) - alpha_history[i, :]) / np.linalg.norm(alpha_history[i, :])
-alpha_history = alpha_history.reshape(alpha_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
-alpha_history += np.ones(alpha_history.shape)
-w_history = np.squeeze(np.array(wv_grid.w_history))
-P_w = np.zeros(w_history.shape[0])
-for i in range(w_history.shape[0]):
-    P_w[i] = np.linalg.norm(wv_grid.P.dot(w_history[i, :]) - w_history[i, :]) / np.linalg.norm(w_history[i, :])
-w_history = w_history.reshape(w_history.shape[0], wv_grid.N_grid, wv_grid.n_functions)
-w_history += np.ones(w_history.shape)
 
 # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
 t1 = time.time()
