@@ -258,7 +258,6 @@ class NormalField(Optimizable):
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
 
-
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
         Set the 'fixed' property for a range of `m` and `n` values.
