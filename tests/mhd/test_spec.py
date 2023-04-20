@@ -292,11 +292,11 @@ class SpecTests(unittest.TestCase):
         # Check result
         self.assertAlmostEqual(s.iota(), 0.55, places=5)
         self.assertAlmostEqual(
-            s.get_profile( 'volume_current', lvol=0)[0],
+            s.get_profile('volume_current', lvol=0)[0],
             0.01659580617394017,
             places=4)
         self.assertAlmostEqual(
-            s.get_profile( 'volume_current', lvol=1)[0],
+            s.get_profile('volume_current', lvol=1)[0],
             0.01659580617394017,
             places=4)
 

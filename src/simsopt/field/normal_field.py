@@ -258,11 +258,6 @@ class NormalField(Optimizable):
         # Update the dofs object
         self._dofs = DOFs(self.get_dofs(), self._make_names())
 
-        # The following methods of graph Optimizable framework need to be
-        # called
-        Optimizable.update_free_dof_size_indices(self)
-        Optimizable._update_full_dof_size_indices(self)
-        Optimizable._set_new_x(self)
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """

@@ -140,7 +140,7 @@ class Spec(Optimizable):
                 filename = f"{filename}.sp"
             logger.info(f"Initializing a SPEC object from file: {filename}")
 
-        if tolerance<=0:
+        if tolerance <= 0:
             raise ValueError(
                 'tolerance should be greater than zero'
             )
@@ -164,47 +164,45 @@ class Spec(Optimizable):
         nmodes = self.allglobal.num_modes
         mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
         stellsym = bool(si.istellsym)
-        if nmodes>0 and self.nvol>1:
+        if nmodes > 0 and self.nvol > 1:
             self.initial_guess = [ 
                 SurfaceRZFourier(nfp=si.nfp, stellsym=stellsym, mpol=si.mpol, ntor=si.ntor) 
-                ] * (self.mvol-1)
-            for mm in range(0, si.mpol+1): # loop on poloidal modes
-                for nn in range(-si.ntor, si.ntor+1): # loop on toroidal modes
+            ] * (self.mvol-1)
+            for mm in range(0, si.mpol+1):  # loop on poloidal modes
+                for nn in range(-si.ntor, si.ntor+1):  # loop on toroidal modes
                     if mm == 0 and nn < 0:
                         continue
-                        
+
                     # Find index in array where Fourier harmonic is located
                     indm = np.where(self.allglobal.mmrzrz[0:nmodes] == mm)
                     indn = np.where(self.allglobal.nnrzrz[0:nmodes] == nn)
                     ind = np.intersect1d(indm, indn)
 
-                    if ind.size==0:
+                    if ind.size == 0:
                         continue
-                    elif ind.size>1:
-                        ValueError( 'Error reading initial guess.' )
-
+                    elif ind.size > 1:
+                        ValueError('Error reading initial guess.')
 
                     # Populate SurfaceRZFourier instances, excepted plasma boundary
-                    for lvol in range(0,self.nvol-1):
-                        self.initial_guess[lvol].set_rc( mm, nn, self.allglobal.allrzrz[0, lvol, ind] )
-                        self.initial_guess[lvol].set_zs( mm, nn, self.allglobal.allrzrz[1, lvol, ind] )
+                    for lvol in range(0, self.nvol-1):
+                        self.initial_guess[lvol].set_rc(mm, nn, self.allglobal.allrzrz[0, lvol, ind])
+                        self.initial_guess[lvol].set_zs(mm, nn, self.allglobal.allrzrz[1, lvol, ind])
 
                         if not si.istellsym:
-                            self.initial_guess[lvol].set_rs( mm, nn, self.allglobal.allrzrz[2, lvol, ind] )
-                            self.initial_guess[lvol].set_zc( mm, nn, self.allglobal.allrzrz[3, lvol, ind] )
+                            self.initial_guess[lvol].set_rs(mm, nn, self.allglobal.allrzrz[2, lvol, ind])
+                            self.initial_guess[lvol].set_zc(mm, nn, self.allglobal.allrzrz[3, lvol, ind])
 
-                    if si.lfreebound: # Populate plasma boundary as well
-                        self.initial_guess[self.nvol-1].set_rc( mm, nn, si.rbc[si.mntor+nn, si.mmpol+mm] )
-                        self.initial_guess[self.nvol-1].set_zs( mm, nn, si.zbs[si.mntor+nn, si.mmpol+mm] )
+                    if si.lfreebound:  # Populate plasma boundary as well
+                        self.initial_guess[self.nvol-1].set_rc(mm, nn, si.rbc[si.mntor+nn, si.mmpol+mm])
+                        self.initial_guess[self.nvol-1].set_zs(mm, nn, si.zbs[si.mntor+nn, si.mmpol+mm])
 
                         if not si.istellsym:
-                            self.initial_guess[self.nvol-1].set_rs( mm, nn, si.rbs[si.mntor+nn, si.mmpol+mm] )
-                            self.initial_guess[self.nvol-1].set_zc( mm, nn, si.zbc[si.mntor+nn, si.mmpol+mm] )
-
+                            self.initial_guess[self.nvol-1].set_rs(mm, nn, si.rbs[si.mntor+nn, si.mmpol+mm])
+                            self.initial_guess[self.nvol-1].set_zc(mm, nn, si.zbc[si.mntor+nn, si.mmpol+mm])
 
             # In general, initial guess is NOT a degree of freedom for the
             # optimization - we thus fix them.
-            for lvol in range(0,self.mvol-1):
+            for lvol in range(0, self.mvol-1):
                 self.initial_guess[lvol].fix_all()
 
         else: 
@@ -299,7 +297,7 @@ class Spec(Optimizable):
             depends_on = [self.normal_field]
         else:
             depends_on = [self._boundary]
-            
+
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=depends_on,
                          external_dof_setter=Spec.set_dofs)
@@ -334,8 +332,8 @@ class Spec(Optimizable):
         """
 
         # Check inputs
-        if not isinstance( pressure_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(pressure_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if pressure_profile.dofs.full_x.size != self.mvol:
@@ -370,8 +368,8 @@ class Spec(Optimizable):
             SpecProfile instance for the volume current profile
         """
 
-        if not isinstance( volume_current_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(volume_current_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if volume_current_profile.dofs.full_x.size != self.mvol:
@@ -408,8 +406,8 @@ class Spec(Optimizable):
             SpecProfile instance for the surface current profile
         """
 
-        if not isinstance( interface_current_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(interface_current_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if interface_current_profile.dofs.full_x.size != self.mvol:
@@ -443,8 +441,8 @@ class Spec(Optimizable):
             SpecProfile instance for the inner rotational transform profile
         """
 
-        if not isinstance( iota_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(iota_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if iota_profile.dofs.full_x.size != self.mvol:
@@ -478,8 +476,8 @@ class Spec(Optimizable):
             SpecProfile instance for the outer rotational transform profile
         """
 
-        if not isinstance( oita_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(oita_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if oita_profile.dofs.full_x.size != self.mvol:
@@ -513,8 +511,8 @@ class Spec(Optimizable):
             SpecProfile instance for the outer rotational transform profile
         """
 
-        if not isinstance( mu_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(mu_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if mu_profile.dofs.full_x.size != self.mvol:
@@ -548,13 +546,13 @@ class Spec(Optimizable):
             SpecProfile instance for the poloidal flux profile
         """
 
-        if not isinstance( pflux_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(pflux_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if pflux_profile.dofs.full_x.size != self.mvol:
             ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
-        
+
         # pflux is a cumulative property
         pflux_profile.cumulative = True
 
@@ -586,13 +584,13 @@ class Spec(Optimizable):
             SpecProfile instance for the toroidal flux profile
         """
 
-        if not isinstance( tflux_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(tflux_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if tflux_profile.dofs.full_x.size != self.mvol:
             ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
-        
+
         # pflux is a cumulative property
         tflux_profile.cumulative = True
 
@@ -624,13 +622,13 @@ class Spec(Optimizable):
             SpecProfile instance for the toroidal flux profile
         """
 
-        if not isinstance( helicity_profile, SpecProfile ):
-            ValueError( 'Input should be a SpecProfile' )
+        if not isinstance(helicity_profile, SpecProfile):
+            ValueError('Input should be a SpecProfile')
 
         # Check size
         if helicity_profile.dofs.full_x.size != self.mvol:
             ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
-        
+
         if helicity_profile is not self._helicity_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._helicity_profile is not None:
@@ -753,7 +751,7 @@ class Spec(Optimizable):
         spec.preset()
         logger.debug("Done with init")
 
-    def run(self, update_guess:bool=True):
+    def run(self, update_guess: bool = True):
         """
         Run SPEC, if needed.
 
@@ -822,34 +820,34 @@ class Spec(Optimizable):
             initial_guess = [s.to_RZFourier() for s in self.initial_guess]
 
             # Loop on modes
-            imn = -1 # counter
-            for mm in range(0,si.mpol+1):
-                for nn in range(-si.ntor,si.ntor+1):
-                    if mm==0 and nn<0:
+            imn = -1  # counter
+            for mm in range(0, si.mpol+1):
+                for nn in range(-si.ntor, si.ntor+1):
+                    if mm == 0 and nn < 0:
                         continue
-                    
+
                     imn += 1
 
                     spec.allglobal.mmrzrz[imn] = mm
                     spec.allglobal.nnrzrz[imn] = nn
 
                     # Populate inner plasma boundaries
-                    for lvol in range(0,self.nvol-1):
-                        spec.allglobal.allrzrz[0, lvol, imn] = initial_guess[lvol].get_rc( mm, nn )
-                        spec.allglobal.allrzrz[1, lvol, imn] = initial_guess[lvol].get_zs( mm, nn )
+                    for lvol in range(0, self.nvol-1):
+                        spec.allglobal.allrzrz[0, lvol, imn] = initial_guess[lvol].get_rc(mm, nn)
+                        spec.allglobal.allrzrz[1, lvol, imn] = initial_guess[lvol].get_zs(mm, nn)
 
                         if not si.istellsym:
-                            spec.allglobal.allrzrz[2, lvol, imn] = initial_guess[lvol].get_rs( mm, nn )
-                            spec.allglobal.allrzrz[3, lvol, imn] = initial_guess[lvol].get_zc( mm, nn )
-                    
+                            spec.allglobal.allrzrz[2, lvol, imn] = initial_guess[lvol].get_rs(mm, nn)
+                            spec.allglobal.allrzrz[3, lvol, imn] = initial_guess[lvol].get_zc(mm, nn)
+
                     # Populate plasma boundary
                     if si.lfreebound:
-                        si.rbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rc( mm, nn )
-                        si.zbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zs( mm, nn )
+                        si.rbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rc(mm, nn)
+                        si.zbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zs(mm, nn)
 
                         if not si.istellsym:
-                            si.rbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rs( mm, nn )
-                            si.zbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zc( mm, nn )
+                            si.rbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rs(mm, nn)
+                            si.zbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zc(mm, nn)
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
@@ -998,7 +996,6 @@ class Spec(Optimizable):
         logger.info("Successfully loaded SPEC results.")
         self.need_to_run_code = False
 
-
         # Deal with unconverged equilibria - these are excluded by 
         # the optimizer, and the objective function is set to a large number
         if self.results.output.ForceErr > self.tolerance:
@@ -1009,21 +1006,21 @@ class Spec(Optimizable):
         # Save geometry as initial guess for next iterations
         if update_guess:
             try:
-                new_guess=None
-                if self.mvol>1:
+                new_guess = None
+                if self.mvol > 1:
                     new_guess = [
                         SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
                     ] * (self.mvol-1)
 
                     for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
                         nnorm = (nn / si.nfp).astype('int')
-                        for lvol in range(0,self.mvol-1):
-                            new_guess[lvol].set_rc( mm, nnorm , self.results.output.Rbc[lvol+1, ii] )
-                            new_guess[lvol].set_zs( mm, nnorm , self.results.output.Zbs[lvol+1, ii] )
+                        for lvol in range(0, self.mvol-1):
+                            new_guess[lvol].set_rc(mm, nnorm, self.results.output.Rbc[lvol+1, ii])
+                            new_guess[lvol].set_zs(mm, nnorm, self.results.output.Zbs[lvol+1, ii])
 
                             if not si.istellsym:
-                                new_guess[lvol].set_rs( mm, nnorm , self.results.output.Rbs[lvol+1, ii] )
-                                new_guess[lvol].set_zc( mm, nnorm , self.results.output.Zbc[lvol+1, ii] )
+                                new_guess[lvol].set_rs(mm, nnorm, self.results.output.Rbs[lvol+1, ii])
+                                new_guess[lvol].set_zc(mm, nnorm, self.results.output.Zbc[lvol+1, ii])
 
                     axis = {}
                     axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
@@ -1042,7 +1039,6 @@ class Spec(Optimizable):
 
                 # Enforce SPEC to use initial guess
                 self.inputlist.linitialize = 0
-
 
         # Group leaders handle deletion of files:
         if self.mpi.proc0_groups:
