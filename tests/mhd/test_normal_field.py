@@ -109,7 +109,7 @@ class NormalFieldTests(unittest.TestCase):
     def test_make_names(self):
         """
         Test routine make_names. 
-        
+
         We verify that first element is vns(0,1), and that
         there are the correct amount of elements
         """

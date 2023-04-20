@@ -68,23 +68,23 @@ class SpecProfile(Profile):
         cumulative quantities in SPEC input file. False by default.
     """
 
-    def __init__(self, data, cumulative:bool=False, psi_edge:float=None):
+    def __init__(self, data, cumulative: bool = False, psi_edge: float = None):
         super().__init__(x0=np.array(data))
         self.local_fix_all()
         self.cumulative = cumulative
         self.psi_edge = psi_edge
 
-    def f(self, lvol:int):
+    def f(self, lvol: int):
         """
         Return the value of the profile in volume lvol
-        
+
         Args:
             lvol: int, list or np.array of int, between 0 and Mvol
         """
 
         # If input is a integer, make an np.array
-        if isinstance(lvol,int) or isinstance(lvol,float):
-           lvol = np.array([lvol])
+        if isinstance(lvol, int) or isinstance(lvol, float):
+            lvol = np.array([lvol])
 
         # If input are floats, make integer out of them
         lvol = np.array([int(l) for l in lvol])
@@ -111,13 +111,13 @@ class SpecProfile(Profile):
             dp/ds = \sum_l [[p]]_l \psi_{edge} \delta(\psi_t-\psi_{t,l})
 
         with p the profile, and the sum is on the interfaces.
-        
+
         Args:
             lvol: int, list or np.array of int, between 1 and Mvol-1. 
         """
         # If input is a integer, make an np.array
-        if isinstance(lvol,int) or isinstance(lvol,float):
-           lvol = np.array([lvol])
+        if isinstance(lvol, int) or isinstance(lvol, float):
+            lvol = np.array([lvol])
 
         # If input are floats, make integer out of them
         lvol = np.array([int(l) for l in lvol])
@@ -132,7 +132,7 @@ class SpecProfile(Profile):
 
         lvolin = [l-1 for l in lvol]
         x_out = self.local_full_x[lvol]
-        x_in  = self.local_full_x[lvolin]
+        x_in = self.local_full_x[lvolin]
 
         return (x_out-x_in) * self.psi_edge
 
@@ -284,5 +284,5 @@ class ProfilePressure(Profile):
         total = 0
         for j in range(int(len(self.parents) / 2)):
             total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(s)\
-                 + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
+                + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
         return total
