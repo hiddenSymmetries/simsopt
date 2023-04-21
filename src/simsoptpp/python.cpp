@@ -120,7 +120,7 @@ PYBIND11_MODULE(simsoptpp, m) {
             return C;
         });
 
-    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n) {
+    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n, bool local) {
         int nphi = Bcoil.shape(0);
         int ntheta = Bcoil.shape(1);
         double *Bcoil_ptr = Bcoil.data();
@@ -154,8 +154,10 @@ PYBIND11_MODULE(simsoptpp, m) {
 
             Btarget_ptr = Btarget.data();
         }
-        double res = 0;
-#pragma omp parallel for reduction(+:res)
+        double numerator_sum = 0.0;
+        double denominator_sum = 0.0;
+
+        #pragma omp parallel for reduction(+:numerator_sum, denominator_sum)
         for(int i=0; i<nphi*ntheta; i++){
             double normN = std::sqrt(n_ptr[3*i+0]*n_ptr[3*i+0] + n_ptr[3*i+1]*n_ptr[3*i+1] + n_ptr[3*i+2]*n_ptr[3*i+2]);
             double Nx = n_ptr[3*i+0]/normN;
@@ -164,9 +166,24 @@ PYBIND11_MODULE(simsoptpp, m) {
             double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
             if(Btarget_ptr != NULL)
                 BcoildotN -= Btarget_ptr[i];
-            res += (BcoildotN * BcoildotN) * normN;
+
+            double mod_Bcoil = std::sqrt(Bcoil_ptr[3*i+0]*Bcoil_ptr[3*i+0] + Bcoil_ptr[3*i+1]*Bcoil_ptr[3*i+1] + Bcoil_ptr[3*i+2]*Bcoil_ptr[3*i+2]);
+            if (local) {
+                numerator_sum += (BcoildotN * BcoildotN) / (mod_Bcoil * mod_Bcoil) * normN;
+            } else {
+                numerator_sum += (BcoildotN * BcoildotN) * normN;
+                denominator_sum += mod_Bcoil * mod_Bcoil * normN;
+            }
         }
-        return 0.5 * res / (nphi*ntheta);
+
+        double result = 0.0;
+        if (local) {
+            result = 0.5 * numerator_sum / (nphi*ntheta);
+        } else {
+            result = numerator_sum / denominator_sum;
+        }
+
+        return result;
     });
 
 #ifdef VERSION_INFO

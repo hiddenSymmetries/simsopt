@@ -32,7 +32,6 @@ start = time.time()
 max_mode = 1
 MAXITER_stage_2 = 50
 MAXITER_single_stage = 20
-finite_beta = True
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
 aspect_ratio_target = 7.0
@@ -45,8 +44,6 @@ ntheta_VMEC = 34
 vc_src_nphi = ntheta_VMEC
 nmodes_coils = 7
 coils_objective_weight = 1e+3
-quasisymmetry_helicity_m = 1
-quasisymmetry_helicity_n = -1
 aspect_ratio_weight = 1
 diff_method = "forward"
 R0 = 1.0
@@ -204,7 +201,7 @@ surf.fix_all()
 surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")
 number_vmec_dofs = int(len(surf.x))
-qs = QuasisymmetryRatioResidual(vmec, quasisymmetry_target_surfaces, helicity_m=quasisymmetry_helicity_m, helicity_n=quasisymmetry_helicity_n)
+qs = QuasisymmetryRatioResidual(vmec, quasisymmetry_target_surfaces, helicity_m=1, helicity_n=-1)
 objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight), (qs.residuals, 0, 1)]
 prob = LeastSquaresProblem.from_tuples(objective_tuple)
 dofs = np.concatenate((JF.x, vmec.x))
