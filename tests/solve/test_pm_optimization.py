@@ -87,7 +87,7 @@ class Testing(unittest.TestCase):
         # optimize the currents in the TF coils
         base_curves, curves, coils = initialize_coils('qa', TEST_DIR, '', s)
         bs = BiotSavart(coils)
-        s, bs = coil_optimization(s, bs, base_curves, curves, '', s, 'qa')
+        s, bs = coil_optimization(s, bs, base_curves, curves, '', s)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 

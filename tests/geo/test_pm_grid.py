@@ -331,8 +331,19 @@ class Testing(unittest.TestCase):
 
     def test_famus_functionality(self):
         """
-            Tests the FocusData class and class functions    
+            Tests the FocusData and FocusPlasmaBnormal classes 
+            and class functions. 
         """
+        fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
+        bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
+        bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'half period')
+        assert bn_plasma.shape == (8, 8)
+        assert np.allclose(bnormal_obj_ncsx.bnc, 0.0)
+        bnormal_obj_ncsx.stellsym = False
+        bnormal_obj_ncsx.bnc = bnormal_obj_ncsx.bns
+        bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'field period')
+        assert bn_plasma.shape == (8, 8)
+
         mag_data = FocusData(TEST_DIR / 'zot80.focus')
         for i in range(mag_data.nMagnets):
             assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
@@ -475,6 +486,9 @@ class Testing(unittest.TestCase):
         cyl_r = mag_data.cyl_r
         discretize_polarizations(mag_data, ophi, pol_axes, pol_types)
         assert not np.allclose(mag_data.cyl_r, cyl_r)
+        fname_corn = TEST_DIR / 'magpie_trial104b_corners_PM4Stell.csv'
+        ophi = orientation_phi(fname_corn) + np.pi
+        assert (np.all(ophi <= 2 * np.pi) and np.all(ophi >= 0.0))
 
     def test_pm_helpers(self):
         """
