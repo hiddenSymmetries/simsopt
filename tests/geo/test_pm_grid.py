@@ -524,6 +524,10 @@ class Testing(unittest.TestCase):
 
         # Test write PermanentMagnetGrid to FAMUS file
         write_pm_optimizer_to_famus('', pm_opt)
+        pm_opt.coordinate_flag = 'cylindrical'
+        write_pm_optimizer_to_famus('', pm_opt)
+        pm_opt.coordinate_flag = 'toroidal'
+        write_pm_optimizer_to_famus('', pm_opt)
         m, m0s = get_FAMUS_dipoles('SIMSOPT_dipole_solution.focus')
         assert np.all(m <= m00)
         for m0 in m0s:
@@ -562,6 +566,8 @@ class Testing(unittest.TestCase):
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         m_history = np.transpose(m_history, [2, 0, 1])
         m_history = m_history.reshape((1, 501, 75460, 3))
+        make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
+        pm_opt.famus_filename = None
         make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
         kwargs['K'] = 5
         with self.assertRaises(ValueError):
