@@ -184,8 +184,8 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 20
-    tmax_fl = 60000
+    nfieldlines = 4
+    tmax_fl = 10000
 
     R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 2.0, nfieldlines)
     Z0 = np.zeros(nfieldlines)
@@ -202,7 +202,7 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, xlims=(0.225, 0.375), ylims=(-0.075, 0.075), surf=s)
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=100, surf=s)
 
 
 def make_qfm(s, Bfield):
@@ -465,7 +465,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
     from simsopt.field.magneticfieldclasses import InterpolatedField
     from simsopt.objectives import SquaredFlux
 
-    n = 64
+    n = 32
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
     r_margin = 0.05
