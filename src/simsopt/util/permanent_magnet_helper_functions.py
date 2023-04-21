@@ -75,7 +75,7 @@ def read_focus_coils(filename):
     return coils, base_currents, ncoils
 
 
-def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
+def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot):
     """
         Optimize the coils for the QA, QH, or other configurations.
     """
@@ -172,7 +172,7 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, config_flag):
     return s, bs
 
 
-def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
+def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
     """
         Make Poincare plots on a surface as in the trace_fieldlines
         example in the examples/1_Simple/ directory.
@@ -187,23 +187,7 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     nfieldlines = 20
     tmax_fl = 60000
 
-    # Different configurations have different cross-sections
-    if 'muse' in config:
-        R0 = np.linspace(0.32, 0.34, nfieldlines)
-    elif 'qa' in config:
-        R0 = np.linspace(0.5, 1.0, nfieldlines)
-    elif 'qh' in config:
-        R0 = np.linspace(0.5, 1.3, nfieldlines)
-    elif config == 'ncsx':
-        R0 = np.linspace(1.0, 1.75, nfieldlines)
-    elif config == 'QH':
-        R0 = np.linspace(12.0, 18.0, nfieldlines)
-    else:
-        raise NotImplementedError(
-            'The configuration flag indicates a plasma equilibrium '
-            'for which the fieldline tracer does not have default '
-            'parameters for.'
-        )
+    R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 2.0, nfieldlines)
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
@@ -474,7 +458,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
             # ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
-def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR):
+def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
     """
         Wrapper function for making Poincare plots.
     """
@@ -509,7 +493,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
         bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm, OUT_DIR)
+    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, OUT_DIR)
 
 
 def make_Bnormal_plots(bs, s_plot, OUT_DIR, bs_filename):
