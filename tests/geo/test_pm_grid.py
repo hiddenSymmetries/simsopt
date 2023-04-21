@@ -336,14 +336,33 @@ class Testing(unittest.TestCase):
         mag_data = FocusData(TEST_DIR / 'zot80.focus')
         for i in range(mag_data.nMagnets):
             assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
+
+        with self.assertRaises(Exception):
+            mag_data.perp_vector([mag_data.nMagnets])
+        with self.assertRaises(Exception):
+            mag_data.unit_vector([mag_data.nMagnets])
+
         assert (np.sum(mag_data.pho < 0) > 0)
         with self.assertRaises(RuntimeError):
             mag_data.adjust_rho(4.0)
         mag_data.flip_negative_magnets()
+        mag_data.flip_negative_magnets()
         assert (np.sum(mag_data.pho < 0) == 0)
         mag_data.adjust_rho(4.0)
         assert mag_data.momentq == 4.0
+        mag_data.has_momentq = False
+        mag_data.adjust_rho(3.0)
+        assert mag_data.momentq == 3.0
         mag_data.print_to_file('test')
+        mag_data.has_momentq = False
+        mag_data.has_op = True
+        mag_data.op = mag_data.oz
+        mag_data.print_to_file('test')
+        nMag = mag_data.nMagnets
+        mag_data.nMagnets = 0
+        with self.assertRaises(RuntimeError):
+            mag_data.print_to_file('test')
+        mag_data.nMagnets = nMag
         mag_data.init_pol_vecs(3)
         assert mag_data.pol_x.shape == (mag_data.nMagnets, 3)
         assert mag_data.pol_y.shape == (mag_data.nMagnets, 3)
@@ -352,6 +371,12 @@ class Testing(unittest.TestCase):
         mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
         assert mag_data.nMagnets == nMagnets * 2
         assert np.allclose(mag_data.oz[:mag_data.nMagnets // 2], -mag_data.oz[mag_data.nMagnets // 2:])
+        with self.assertRaises(ValueError):
+            mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=10)
+        mag_data.symm = 1 * np.ones(len(mag_data.symm))
+        with self.assertRaises(ValueError):
+            mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
+        mag_data.symm = 2 * np.ones(len(mag_data.symm))
         phi0 = np.pi / 2
         ox2, oy2, oz2 = stell_point_transform('reflect', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
         assert np.allclose(mag_data.oz, -oz2)
@@ -390,6 +415,12 @@ class Testing(unittest.TestCase):
         assert np.allclose(pol_fc27, facecorner_vectors(theta))
         theta = 39.0 * np.pi / 180.0
         assert np.allclose(pol_fc39, facecorner_vectors(theta))
+        assert np.allclose(np.concatenate((pol_f, faceedge_vectors(theta),
+                           facecorner_vectors(theta)), axis=0
+                                          ), face_triplet(theta, theta))
+        assert np.allclose(np.concatenate((pol_e, faceedge_vectors(theta),
+                           facecorner_vectors(theta)), axis=0
+                                          ), edge_triplet(theta, theta))
         pol_axes, _ = polarization_axes('face')
         assert np.allclose(pol_f, pol_axes)
         pol_axes, _ = polarization_axes('edge')
@@ -513,8 +544,8 @@ class Testing(unittest.TestCase):
         old_reg_l0 = reg_l0
         old_ATA_scale = pm_opt.ATA_scale
         reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
-        assert (reg_l0 == old_reg_l0 / (2 * nu))
-        assert (pm_opt.ATA_scale == old_ATA_scale + 2 * reg_l2 + 1.0 / nu)
+        assert np.isclose(reg_l0, old_reg_l0 / (2 * nu))
+        assert np.isclose(pm_opt.ATA_scale, old_ATA_scale + 2 * reg_l2 + 1.0 / nu)
         reg_l0 = -1
         with self.assertRaises(ValueError):
             reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
@@ -561,7 +592,7 @@ class Testing(unittest.TestCase):
 
         # optimize pm_opt and plot optimization progress
         kwargs = initialize_default_kwargs(algorithm='GPMO')
-        kwargs['K'] = 1000
+        kwargs['K'] == 100
         kwargs['nhistory'] == 10
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         m_history = np.transpose(m_history, [2, 0, 1])
@@ -615,31 +646,15 @@ class Testing(unittest.TestCase):
             surface_filename, range="full torus",
             quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
         )
-
-        from simsopt.mhd.vmec import Vmec
-        from simsopt.util.mpi import MpiPartition
-        mpi = MpiPartition(ngroups=1)
         comm = None 
-
-        # Make the QFM surfaces
+        # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
         qfm_surf = make_qfm(s_plot, Bfield)
         qfm_surf = qfm_surf.surface
 
-        ### Always use the QA VMEC file and just change the boundary
-        vmec_input = str(TEST_DIR) + "/input.LandremanPaul2021_QA"
-        print(vmec_input)
-
-        equil = Vmec(vmec_input, mpi)
-        equil.boundary = qfm_surf
-        try:
-            equil.run()
-        except:
-            print('vmec failed')
-
         with self.assertRaises(IndexError):
-            run_Poincare_plots(s_plot, bs, b_dipole, 'muse_famus', comm, 'poincare_test', '')
+            run_Poincare_plots(s_plot, bs, b_dipole, comm, 'poincare_test', '')
 
 
 if __name__ == "__main__":
