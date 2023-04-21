@@ -27,6 +27,10 @@ class SquaredFlux(Optimizable):
         target: A ``nphi x ntheta`` numpy array containing target values for the flux. Here 
           ``nphi`` and ``ntheta`` correspond to the number of quadrature points on `surface` 
           in ``phi`` and ``theta`` direction.
+        local: If ``True``, the objective is computed as half the mean of the normal field divided
+            by the magnitude of the magnetic field, squared. If ``False``, the objective is 
+            computed as the mean of the squared normal field divided by the mean of the squared
+            magnetic field.
     """
 
     def __init__(self, surface, field, target=None, local=True):

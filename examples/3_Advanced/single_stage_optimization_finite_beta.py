@@ -15,9 +15,13 @@ from simsopt.objectives import SquaredFlux, QuadraticPenalty, LeastSquaresProble
 from simsopt.geo import (CurveLength, CurveCurveDistance, MeanSquaredCurvature,
                          LpCurveCurvature, ArclengthVariation, curves_to_vtk, create_equally_spaced_curves)
 comm = MPI.COMM_WORLD
+
+
 def pprint(*args, **kwargs):
     if comm.rank == 0:
         print(*args, **kwargs)
+
+
 mpi = MpiPartition()
 parent_path = str(Path(__file__).parent.resolve())
 os.chdir(parent_path)
@@ -122,6 +126,8 @@ JF = Jf + J_CC + J_LENGTH + J_LENGTH_PENALTY + J_CURVATURE + J_MSC
 ##########################################################################################
 pprint(f'  Starting optimization')
 # Initial stage 2 optimization
+
+
 def fun_coils(dofss, info, oustr_dict=[]):
     info['Nfeval'] += 1
     JF.x = dofss
@@ -133,7 +139,7 @@ def fun_coils(dofss, info, oustr_dict=[]):
         BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2) - Jf.target
         BdotN = np.mean(np.abs(BdotN_surf))
         BdotNmax = np.max(np.abs(BdotN_surf))
-        outstr = f"fun_coils#{info['Nfeval']} - J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"#, B·n max={BdotNmax:.1e}"
+        outstr = f"fun_coils#{info['Nfeval']} - J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"  # , B·n max={BdotNmax:.1e}"
         outstr += f", ║∇J coils║={np.linalg.norm(JF.dJ()):.1e}, C-C-Sep={Jccdist.shortest_distance():.2f}"
         cl_string = ", ".join([f"{j.J():.1f}" for j in Jls])
         kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
@@ -142,6 +148,8 @@ def fun_coils(dofss, info, oustr_dict=[]):
         print(outstr)
     return J, grad
 ##########################################################################################
+
+
 def fun_J(dofs_vmec, dofs_coils):
     run_vcasing = False
     if np.sum(prob.x != dofs_vmec) > 0:
@@ -166,6 +174,8 @@ def fun_J(dofs_vmec, dofs_coils):
     J = J_stage_1 + J_stage_2
     return J
 ##########################################################################################
+
+
 def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}, max_mode=1, oustr_dict=[]):
     info['Nfeval'] += 1
     os.chdir(vmec_results_path)
@@ -185,6 +195,8 @@ def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}, max_mode=1, oustr_dict=[]
         fun_J(dofs_vmec, dofs_coils)
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
     return J, grad
+
+
 #############################################################
 ## Perform optimization
 #############################################################
@@ -231,7 +243,7 @@ if comm.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_opt"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
     surf.to_vtk(os.path.join(coils_results_path, "surf_opt"), extra_data=pointData)
-bs.save(os.path.join(coils_results_path,"biot_savart_opt.json"))
+bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
 vmec.write_input(os.path.join(this_path, f'input.final'))
 pprint(f"Aspect ratio after optimization: {vmec.aspect()}")
 pprint(f"Mean iota after optimization: {vmec.mean_iota()}")
