@@ -204,8 +204,8 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 10
-    tmax_fl = 10000
+    nfieldlines = 30
+    tmax_fl = 20000
 
     # Different configurations have different cross-sections
     if 'muse' in config:
@@ -220,6 +220,8 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
         R0 = np.linspace(12.0, 18.0, nfieldlines)
     elif config == 'axisym':
         R0 = np.linspace(0.32, 0.34, nfieldlines)
+    elif config == 'torus':
+        R0 = np.linspace(6, 7, nfieldlines)
     else:
         raise NotImplementedError(
             'The configuration flag indicates a plasma equilibrium '
@@ -230,19 +232,36 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
-    sc_fieldline = SurfaceClassifier(s, h=0.05, p=2)
+    sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
     sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
+    def skip(rs, phis, zs):
+        # The RegularGrindInterpolant3D class allows us to specify a function that
+        # is used in order to figure out which cells to be skipped.  Internally,
+        # the class will evaluate this function on the nodes of the regular mesh,
+        # and if *all* of the eight corners are outside the domain, then the cell
+        # is skipped.  Since the surface may be curved in a way that for some
+        # cells, all mesh nodes are outside the surface, but the surface still
+        # intersects with a cell, we need to have a bit of buffer in the signed
+        # distance (essentially blowing up the surface a bit), to avoid ignoring
+        # cells that shouldn't be ignored
+        rphiz = np.asarray([rs, phis, zs]).T.copy()
+        dists = sc_fieldline.evaluate_rphiz(rphiz)
+        skip = list((dists < -0.05).flatten())
+        print("Skip", sum(skip), "cells out of", len(skip), flush=True)
+        return skip
+
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bfield, R0, Z0, tmax=tmax_fl, tol=1e-8, comm=comm,
-        phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(20000)])
+        bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
+        phis=phis,
+        stopping_criteria=[IterationStoppingCriterion(120000)])
+    #stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
     t2 = time.time()
     print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, xlims=(0.225, 0.375), ylims=(-0.075, 0.075), surf=s)
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, surf=s)  # xlims=(0.225, 0.375), ylims=(-0.075, 0.075), surf=s)
 
 
 def make_qfm(s, Bfield):

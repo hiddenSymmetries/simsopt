@@ -507,7 +507,7 @@ class CircularCoil(MagneticField):
 class CurrentVoxelsField(MagneticField):
     r"""
     Computes the MagneticField induced by N grid cells, each with spatially varying and
-    locally divergence-free current, for the Winding Volume method. This is done by
+    locally divergence-free current, for the Current Voxels method. This is done by
     calling the normal BiotSavart field for each of the cells, and summing the result.
 
     Args:
@@ -517,7 +517,6 @@ class CurrentVoxelsField(MagneticField):
 
     def __init__(self, J, integration_points, grid_scaling, coil_range, nfp=1, stellsym=False):
         MagneticField.__init__(self)
-        print(grid_scaling, coil_range)
         self.integration_points = integration_points
         self.N_grid = integration_points.shape[0]
         self.grid_scaling = grid_scaling
