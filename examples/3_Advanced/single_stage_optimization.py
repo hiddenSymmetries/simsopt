@@ -37,7 +37,7 @@ max_mode = 1
 MAXITER_stage_2 = 50
 MAXITER_single_stage = 30
 finite_beta = True
-vmec_input_filename = f'input.QH_finitebeta'
+vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
 aspect_ratio_target = 7.0
 CC_THRESHOLD = 0.08
@@ -83,9 +83,8 @@ if comm.rank == 0:
 ##########################################################################################
 ##########################################################################################
 # Stage 1
-vmec_input = os.path.join(parent_path, vmec_input_filename)
-pprint(f' Using vmec input file {vmec_input}')
-vmec = Vmec(vmec_input, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
+pprint(f' Using vmec input file {vmec_input_filename}')
+vmec = Vmec(vmec_input_filename, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
 surf = vmec.boundary
 ##########################################################################################
 ##########################################################################################
