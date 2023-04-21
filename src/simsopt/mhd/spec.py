@@ -101,7 +101,7 @@ class Spec(Optimizable):
         if py_spec is None:
             raise RuntimeError(
                 "Using Spec requires py_spec to be installed.")
-
+        
         self.lib = spec
         # For the most commonly accessed fortran modules, provide a
         # shorthand so ".lib" is not needed:
@@ -848,6 +848,8 @@ class Spec(Optimizable):
                         if not si.istellsym:
                             si.rbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rs(mm, nn)
                             si.zbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zc(mm, nn)
+
+        spec.allglobal.num_modes = imn + 1
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
