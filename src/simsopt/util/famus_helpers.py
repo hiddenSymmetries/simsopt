@@ -6,9 +6,104 @@
     to the PM4Stell team and Ken Hammond for his consent to use this file
     and work with the permanent magnet branch of SIMSOPT.
 """
-__all__ = ['FocusData', 'stell_point_transform', 'stell_vector_transform']
+__all__ = ['FocusData', 'FocusPlasmaBnormal', 'stell_point_transform', 'stell_vector_transform']
 import numpy as np
 import sys
+from simsopt.geo import Surface
+
+FOCUS_PLASMAFILE_NHEADER_TOP = 1
+FOCUS_PLASMAFILE_NHEADER_BDRY = 2
+FOCUS_PLASMAFILE_NHEADER_BNORM = 2
+
+
+class FocusPlasmaBnormal(object):
+
+    def __init__(self, fname):
+
+        with open(fname, 'r') as f:
+            lines = f.readlines()
+            f.close()
+
+        # Read numbers of modes and nfp from the header
+        position = FOCUS_PLASMAFILE_NHEADER_TOP
+        splitline = lines[position].split()
+        errmsg = "This does not appear to be a FOCUS-format " \
+                 + "plasma boundary file"
+        assert len(splitline) == 3, errmsg
+
+        Nfou = int(splitline[0])
+        nfp = int(splitline[1])
+        NfouBn = int(splitline[2])
+
+        # Read Fourier harmonics of the normal field on the plasma boundary
+        position = position + 1 + FOCUS_PLASMAFILE_NHEADER_BDRY + Nfou + \
+            FOCUS_PLASMAFILE_NHEADER_BNORM
+
+        self.n = np.zeros(NfouBn)
+        self.m = np.zeros(NfouBn)
+        self.bnc = np.zeros(NfouBn)
+        self.bns = np.zeros(NfouBn)
+        for i in range(NfouBn):
+            splitline = lines[position + i].split()
+            self.n[i] = int(splitline[0])
+            self.m[i] = int(splitline[1])
+            self.bnc[i] = float(splitline[2])
+            self.bns[i] = float(splitline[3])
+        assert np.min(self.m) == 0
+
+        self.nfp = nfp
+        self.NfouBn = NfouBn
+        self.stellsym = np.max(np.abs(self.bnc)) == 0
+
+    def bnormal_grid(self, nphi, ntheta, range):
+        '''
+        Calculates the normal component of the magnetic field on a
+        regularly-spaced 2D grid of points on the surface with a specified
+        resolution.
+
+        Parameters
+        ----------
+          nphi: int
+            Number of grid points in the toroidal dimension per field period.
+          ntheta: int
+            Number of grid points in the poloidal dimension.
+          range: str
+            Extent of the grid in the toroidal dimension. Choices include
+            `half period`, `field period`, or `full torus`.
+
+        Returns
+        -------
+          bnormal: 2D array
+            Normal component of the magnetic field evaluated at each of the
+            grid points.
+        '''
+
+        # Determine the theta and phi points using Simsopt Surface class methods
+        phi = Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=self.nfp)
+        theta = Surface.get_theta_quadpoints(ntheta=ntheta)
+        # Rescale the angles
+        phi = 2.*np.pi*np.array(phi)
+        theta = 2.*np.pi*np.array(theta)
+
+        # Prepare 3D arrays with mode numbers and coefficients
+        Theta, Phi, Mode = np.meshgrid(theta, phi, np.arange(0, self.NfouBn))
+        M = self.m[Mode]
+        N = self.n[Mode]
+        BNS = self.bns[Mode]
+        if not self.stellsym:
+            BNC = self.bnc[Mode]
+
+        # Calculate the values of each mode at each grid point
+        SinGrid = BNS*np.sin(M*Theta - self.nfp*N*Phi)
+        if not self.stellsym:
+            CosGrid = BNC*np.cos(M*Theta - self.nfp*N*Phi)
+
+        # Add the contributions of each mode
+        bnormal = np.sum(SinGrid, axis=2)
+        if not self.stellsym:
+            bnormal = bnormal + np.sum(CosGrid, axis=2)
+
+        return bnormal
 
 
 class FocusData(object):
