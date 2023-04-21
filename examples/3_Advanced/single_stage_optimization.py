@@ -14,14 +14,18 @@ from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual, VirtualCasing
 from simsopt.objectives import SquaredFlux, QuadraticPenalty, LeastSquaresProblem
 from simsopt.geo import (CurveLength, CurveCurveDistance, MeanSquaredCurvature,
-                        LpCurveCurvature, ArclengthVariation, curves_to_vtk, create_equally_spaced_curves)
+                         LpCurveCurvature, ArclengthVariation, curves_to_vtk, create_equally_spaced_curves)
 logging.basicConfig()
 logger = logging.getLogger('single_stage')
 logger.setLevel(1)
 comm = MPI.COMM_WORLD
+
+
 def pprint(*args, **kwargs):
     if comm.rank == 0:
         print(*args, **kwargs)
+
+
 mpi = MpiPartition()
 parent_path = str(Path(__file__).parent.resolve())
 os.chdir(parent_path)
@@ -32,39 +36,39 @@ start = time.time()
 max_mode = 1
 MAXITER_stage_2 = 50
 MAXITER_single_stage = 30
-finite_beta=True
-vmec_input_filename=f'input.QH_finitebeta'
+finite_beta = True
+vmec_input_filename = f'input.QH_finitebeta'
 ncoils = 3
 aspect_ratio_target = 7.0
 CC_THRESHOLD = 0.08
 LENGTH_THRESHOLD = 3.3
 CURVATURE_THRESHOLD = 7
 MSC_THRESHOLD = 10
-nphi_VMEC=34
-ntheta_VMEC=34
-vc_src_nphi=ntheta_VMEC
+nphi_VMEC = 34
+ntheta_VMEC = 34
+vc_src_nphi = ntheta_VMEC
 nmodes_coils = 7
 coils_objective_weight = 1e+3
 quasisymmetry_helicity_m = 1
 quasisymmetry_helicity_n = -1
 aspect_ratio_weight = 1
-diff_method="forward"
+diff_method = "forward"
 R0 = 1.0
 R1 = 0.6
-quasisymmetry_target_surfaces = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
+quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 finite_difference_abs_step = 1e-7
 finite_difference_rel_step = 0
 JACOBIAN_THRESHOLD = 100
-LENGTH_CON_WEIGHT = 0.1 # Weight on the quadratic penalty for the curve length
-LENGTH_WEIGHT = 1e-8 # Weight on the curve lengths in the objective function
-CC_WEIGHT = 1e+0 # Weight for the coil-to-coil distance penalty in the objective function
-CURVATURE_WEIGHT = 1e-3 # Weight for the curvature penalty in the objective function
-MSC_WEIGHT = 1e-3 # Weight for the mean squared curvature penalty in the objective function
-ARCLENGTH_WEIGHT = 1e-9 # Weight for the arclength variation penalty in the objective function
+LENGTH_CON_WEIGHT = 0.1  # Weight on the quadratic penalty for the curve length
+LENGTH_WEIGHT = 1e-8  # Weight on the curve lengths in the objective function
+CC_WEIGHT = 1e+0  # Weight for the coil-to-coil distance penalty in the objective function
+CURVATURE_WEIGHT = 1e-3  # Weight for the curvature penalty in the objective function
+MSC_WEIGHT = 1e-3  # Weight for the mean squared curvature penalty in the objective function
+ARCLENGTH_WEIGHT = 1e-9  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
 directory = f'optimization_QH_finitebeta'
-vmec_verbose=False
+vmec_verbose = False
 # Create output directories
 this_path = os.path.join(parent_path, directory)
 os.makedirs(this_path, exist_ok=True)
@@ -79,7 +83,7 @@ if comm.rank == 0:
 ##########################################################################################
 ##########################################################################################
 # Stage 1
-vmec_input = os.path.join(parent_path,vmec_input_filename)
+vmec_input = os.path.join(parent_path, vmec_input_filename)
 pprint(f' Using vmec input file {vmec_input}')
 vmec = Vmec(vmec_input, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
 surf = vmec.boundary
@@ -129,6 +133,8 @@ JF = Jf + J_CC + J_LENGTH + J_LENGTH_PENALTY + J_CURVATURE + J_MSC
 ##########################################################################################
 pprint(f'  Starting optimization')
 # Initial stage 2 optimization
+
+
 def fun_coils(dofss, info, oustr_dict=[]):
     info['Nfeval'] += 1
     JF.x = dofss
@@ -151,23 +157,25 @@ def fun_coils(dofss, info, oustr_dict=[]):
         print(outstr)
     return J, grad
 ##########################################################################################
+
+
 def fun_J(dofs_vmec, dofs_coils):
     run_vcasing = False
-    if np.sum(prob.x!=dofs_vmec)>0:
+    if np.sum(prob.x != dofs_vmec) > 0:
         prob.x = dofs_vmec
         run_vcasing = True
     J_stage_1 = prob.objective()
     dofs_coils = np.ravel(dofs_coils)
-    if np.sum(JF.x!=dofs_coils)>0:
+    if np.sum(JF.x != dofs_coils) > 0:
         JF.x = dofs_coils
     if run_vcasing:
         try:
             logger.info('Running virtual casing')
             vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
             Jf = SquaredFlux(surf, bs, local=True, target=vc.B_external_normal)
-            if np.sum(Jf.x!=dofs_coils)>0: Jf.x = dofs_coils
+            if np.sum(Jf.x != dofs_coils) > 0: Jf.x = dofs_coils
             JF.opts[0].opts[0].opts[0].opts[0].opts[0] = Jf
-            if np.sum(JF.x!=dofs_coils)>0: JF.x = dofs_coils
+            if np.sum(JF.x != dofs_coils) > 0: JF.x = dofs_coils
         except Exception as e:
             print(e)
             J = JACOBIAN_THRESHOLD
@@ -177,13 +185,15 @@ def fun_J(dofs_vmec, dofs_coils):
     J = J_stage_1 + J_stage_2
     return J
 ##########################################################################################
-def fun(dofss, prob_jacobian=None, info={'Nfeval':0}, max_mode=1, oustr_dict=[]):
+
+
+def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}, max_mode=1, oustr_dict=[]):
     logger.info('Entering fun')
     info['Nfeval'] += 1
     os.chdir(vmec_results_path)
     dofs_vmec = dofss[-number_vmec_dofs:]
     dofs_coils = dofss[:-number_vmec_dofs]
-    J = fun_J(dofs_vmec,dofs_coils)
+    J = fun_J(dofs_vmec, dofs_coils)
     if J > JACOBIAN_THRESHOLD or isnan(J):
         logger.info(f"Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
         J = JACOBIAN_THRESHOLD
@@ -195,13 +205,15 @@ def fun(dofss, prob_jacobian=None, info={'Nfeval':0}, max_mode=1, oustr_dict=[])
         coils_dJ = JF.dJ()
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
         grad_with_respect_to_surface = prob_jacobian.jac(dofs_vmec, dofs_coils)[0]
-        fun_J(dofs_vmec,dofs_coils)
+        fun_J(dofs_vmec, dofs_coils)
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
     return J, grad
+
+
 #############################################################
 ## Perform optimization
 #############################################################
-oustr_dict_inner=[]
+oustr_dict_inner = []
 surf.fix_all()
 surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")
@@ -215,16 +227,16 @@ vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, tr
 Jf = SquaredFlux(surf, bs, local=True, target=vc.B_external_normal)
 
 pprint(f'  Performing stage 2 optimization with {MAXITER_stage_2} iterations')
-info_coils={'Nfeval':0}
-oustr_dict=[]
-res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=(info_coils,oustr_dict), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-12)
+info_coils = {'Nfeval': 0}
+oustr_dict = []
+res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=(info_coils, oustr_dict), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-12)
 dofs[:-number_vmec_dofs] = res.x
 JF.x = dofs[:-number_vmec_dofs]
 Jf = JF.opts[0].opts[0].opts[0].opts[0].opts[0]
 
 mpi.comm_world.Bcast(dofs, root=0)
-opt = make_optimizable(fun_J, dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs], dof_indicators=["dof","non-dof"])
+opt = make_optimizable(fun_J, dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs], dof_indicators=["dof", "non-dof"])
 with MPIFiniteDifference(opt.J, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
     if mpi.proc0_world:
-        res = minimize(fun, dofs, args=(prob_jacobian,{'Nfeval':0},max_mode,oustr_dict_inner), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-9)
+        res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}, max_mode, oustr_dict_inner), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-9)
         dofs = res.x
