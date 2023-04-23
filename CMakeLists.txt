@@ -48,7 +48,7 @@ else()
     	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
     endif()
 endif()
-message(STATUS "CMAKE_FLAGs are ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS are ${CMAKE_CXX_FLAGS}")
 
 find_package(OpenMP)
 find_package(Boost 1.60.0)
