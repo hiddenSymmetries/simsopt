@@ -392,6 +392,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Args:
             stel: Qsc object with a near-axis equilibrium.
             r: the near-axis coordinate radius (in meters).
+            ntheta: number of points in the theta direction for the Fourier transform.
+            mpol: number of poloidal Fourier modes for the surface.
+            ntor: number of toroidal Fourier modes for the surface.
             kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
               You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
         """
