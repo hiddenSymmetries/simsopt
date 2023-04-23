@@ -7,15 +7,10 @@ This module provides a class that handles the SPEC equilibrium code.
 """
 
 import copy
-from ..field.normal_field import NormalField
-from ..geo.surfacerzfourier import SurfaceRZFourier
-from .._core.util import ObjectiveFailure
-from .._core.optimizable import Optimizable
-from .profiles import SpecProfile
 import logging
-from typing import Union
 import os.path
 import traceback
+from typing import Union
 
 import numpy as np
 
@@ -44,6 +39,12 @@ try:
 except ImportError as e:
     pyoculus = None
     logger.debug(str(e))
+
+from .._core.optimizable import Optimizable
+from .._core.util import ObjectiveFailure
+from ..field.normal_field import NormalField
+from ..geo.surfacerzfourier import SurfaceRZFourier
+from .profiles import SpecProfile
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
@@ -160,7 +161,7 @@ class Spec(Optimizable):
 
         # Store initial guess data
         # The initial guess is a collection of SurfaceRZFourier instances,
-        # stored in a lit of size Mvol-1 (the number of inner interfaces)
+        # stored in a list of size Mvol-1 (the number of inner interfaces)
         nmodes = self.allglobal.num_modes
         mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
         stellsym = bool(si.istellsym)
@@ -183,7 +184,7 @@ class Spec(Optimizable):
                     elif ind.size > 1:
                         ValueError('Error reading initial guess.')
 
-                    # Populate SurfaceRZFourier instances, excepted plasma boundary
+                    # Populate SurfaceRZFourier instances, except plasma boundary
                     for lvol in range(0, self.nvol-1):
                         self.initial_guess[lvol].set_rc(mm, nn, self.allglobal.allrzrz[0, lvol, ind])
                         self.initial_guess[lvol].set_zs(mm, nn, self.allglobal.allrzrz[1, lvol, ind])
@@ -227,7 +228,7 @@ class Spec(Optimizable):
         self.files_to_delete = []
 
         # Create a surface object for the boundary:
-        print(f"In __init__, si.istellsym={si.istellsym} stellsym={stellsym}")
+        logger.debug(f"In __init__, si.istellsym={si.istellsym} stellsym={stellsym}")
         self._boundary = SurfaceRZFourier(nfp=si.nfp,
                                           stellsym=stellsym,
                                           mpol=si.mpol,
@@ -252,7 +253,6 @@ class Spec(Optimizable):
                                                             m + si.mmpol]
         self._boundary.local_full_x = self._boundary.get_dofs()
 
-        # self.depends_on = ["boundary"]
         self.need_to_run_code = True
         self.counter = -1
 
@@ -789,7 +789,7 @@ class Spec(Optimizable):
         mpol_capped = np.min([boundary_RZFourier.mpol, si.mmpol])
         ntor_capped = np.min([boundary_RZFourier.ntor, si.mntor])
         stellsym = bool(si.istellsym)
-        print("In run, si.istellsym=", si.istellsym, " stellsym=", stellsym)
+        logger.debug("In run, si.istellsym=", si.istellsym, " stellsym=", stellsym)
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
                 si.rbc[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_rc(m, n)
