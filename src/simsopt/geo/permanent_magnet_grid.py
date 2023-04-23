@@ -97,22 +97,15 @@ class PermanentMagnetGrid:
                 'Normal magnetic field surface data is incorrect shape.'
             )
         self.Bn = Bn
-        self.dr = dr
         if Nx <= 0 or Ny <= 0 or Nz <= 0:
             raise ValueError('Nx, Ny, and Nz should be positive integers')
+        if dr <= 0 or dz <= 0:
+            raise ValueError('dr and dz should be positive floats')
+        self.dr = dr
+        self.dz = dz
         self.Nx = Nx
-        if dz is not None:
-            self.dz = dz
-        else:
-            self.dz = dr
-        if Ny is not None:
-            self.Ny = Ny
-        else:
-            self.Ny = Nx
-        if Nz is not None:
-            self.Nz = Nz
-        else:
-            self.Nz = Nx
+        self.Ny = Ny
+        self.Nz = Nz
 
         if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
             raise NotImplementedError(

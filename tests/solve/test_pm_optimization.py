@@ -5,6 +5,7 @@ import numpy as np
 
 import simsoptpp as sopp
 from simsopt.solve import prox_l0, prox_l1, relax_and_split, GPMO
+from simsopt.solve import setup_initial_condition
 from simsopt.util import *
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.field import BiotSavart
@@ -97,6 +98,7 @@ class Testing(unittest.TestCase):
             Bn=Bnormal,
         )
         pm_opt.geo_setup()
+        setup_initial_condition(pm_opt, np.zeros(pm_opt.ndipoles * 3))
 
         reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
         nu = 1e10  # how strongly to make proxy variable w close to values in m
@@ -132,6 +134,12 @@ class Testing(unittest.TestCase):
         relax_and_split(pm_opt, **kwargs)
         w = pm_opt.m_proxy[~np.isclose(pm_opt.m_proxy, 0.0)]
         assert np.all(np.abs(w) >= reg_l0 * pm_opt.m_maxima[0])
+        kwargs['reg_l1'] = reg_l0
+        with self.assertRaises(ValueError):
+            relax_and_split(pm_opt, **kwargs)
+        kwargs['reg_l0'] = 0.0
+        kwargs['epsilon_RS'] = 1e5
+        relax_and_split(pm_opt, **kwargs)
 
         # Test that all the GPMO variants return the same solutions
         # in various limits.
@@ -179,6 +187,11 @@ class Testing(unittest.TestCase):
         assert np.allclose(errors1, errors5)
         assert np.allclose(Bn_errors1, Bn_errors5)
         assert np.allclose(m_history1, m_history5)
+        with self.assertRaises(ValueError):
+            pm_opt.coordinate_flag = 'cylindrical'
+            errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
+        with self.assertRaises(NotImplementedError):
+            errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='random_name', **kwargs)
 
 
 if __name__ == "__main__":

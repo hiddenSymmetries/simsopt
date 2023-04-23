@@ -92,7 +92,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 
 # optimize the currents in the TF coils
-s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot, 'qa')
+s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 

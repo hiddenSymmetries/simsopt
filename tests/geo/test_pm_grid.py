@@ -6,7 +6,7 @@ import simsoptpp as sopp
 
 from simsopt.field import (BiotSavart, Current, DipoleField, InterpolatedField,
                            coils_via_symmetries, Coil)
-from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier,
+from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier, SurfaceXYZFourier,
                          create_equally_spaced_curves)
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
@@ -33,12 +33,27 @@ class Testing(unittest.TestCase):
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+        s3 = SurfaceXYZFourier(nfp=2, stellsym=True)
+        s4 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=2 * nphi, ntheta=ntheta)
+        s5 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=2 * ntheta)
         s1.extend_via_projected_normal(0.1)
         s2.extend_via_projected_normal(0.2)
 
         with self.assertRaises(ValueError):
             PermanentMagnetGrid(
                 s, s1, s2, Bn, dr=-0.05 
+            )
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid(
+                s3, s1, s2, Bn, 
+            )
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid(
+                s, s1, s4, Bn, 
+            )
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid(
+                s, s1, s5, Bn, 
             )
         with self.assertRaises(TypeError):
             PermanentMagnetGrid(
@@ -51,6 +66,10 @@ class Testing(unittest.TestCase):
         with self.assertRaises(TypeError):
             PermanentMagnetGrid(
                 s, s1, s2, Bn, coil_offset=0.1, dr=0.05, plasma_offset=0.0,
+            )
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid(
+                s, s1, s2, Bn, dz=-0.05,
             )
         with self.assertRaises(TypeError):
             PermanentMagnetGrid(
@@ -115,6 +134,10 @@ class Testing(unittest.TestCase):
         with self.assertRaises(ValueError):
             pm = PermanentMagnetGrid(
                 s, s1, s2, Bn=np.zeros((nphi, ntheta)), pol_vectors=np.ones((5, 3, 3)), coordinate_flag='cylindrical'
+            )
+        with self.assertRaises(NotImplementedError):
+            pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=np.zeros((nphi, ntheta)), coordinate_flag='random_name'
             )
 
     def test_optimize_bad_parameters(self):
