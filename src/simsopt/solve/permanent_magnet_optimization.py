@@ -2,7 +2,7 @@ import numpy as np
 import simsoptpp as sopp
 import warnings
 
-__all__ = ['relax_and_split', 'GPMO', 'prox_l0', 'prox_l1']
+__all__ = ['relax_and_split', 'GPMO', 'prox_l0', 'prox_l1', 'setup_initial_condition']
 
 
 def prox_l0(m, mmax, reg_l0, nu):
@@ -110,11 +110,6 @@ def setup_initial_condition(pm_opt, m0=None):
                 'that are satisfy the maximum bound constraints.'
             )
         pm_opt.m0 = m0
-    elif not hasattr(pm_opt, 'm0'):
-        # initialization to proj(pinv(A) * b) is usually a bad guess,
-        # so defaults to zero here, but can be overwritten
-        # when optimization is performed
-        pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
 
 
 def relax_and_split(pm_opt, m0=None, **kwargs):
@@ -255,6 +250,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
             m_proxy_history.append(m_proxy)
             if np.linalg.norm(m - m_proxy) < kwargs['epsilon_RS']:
                 print('Relax-and-split finished early, at iteration ', i)
+                break
     else:
         m0 = np.ascontiguousarray(m0.reshape(pm_opt.ndipoles, 3))
         # no nonconvex terms being used, so just need one round of the
