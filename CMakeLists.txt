@@ -59,6 +59,12 @@ else()
 endif()
 message(STATUS "CMAKE_CXX_FLAGS are ${CMAKE_CXX_FLAGS}")
 
+if(DEFINED ENV{CONDA_PREFIX})
+  include_directories($ENV{CONDA_PREFIX}/include)
+  link_directories("$ENV{CONDA_PREFIX}/lib")
+  message(STATUS "Conda prefix is $ENV{CONDA_PREFIX}")
+endif()
+
 find_package(OpenMP)
 find_package(Boost 1.60.0)
 if(Boost_FOUND)
