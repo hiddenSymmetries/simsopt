@@ -101,6 +101,9 @@ jobs:
     - name: env after adding to LD_LIBRARY_PATH
       run: env
 
+    - name: Install simsopt package
+      run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI]
+
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
 
