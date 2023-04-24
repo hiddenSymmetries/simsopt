@@ -89,9 +89,6 @@ jobs:
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
-    - name: Install virtual_casing
-      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
-
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
 
@@ -121,5 +118,5 @@ jobs:
 
     - name: Run MPI tests 
       run: | 
-        mpiexec -n 2 python run -m unittest discover -k "mpi" -s tests -v
+        mpiexec -n 2 python -m unittest discover -k "mpi" -s tests -v
 
