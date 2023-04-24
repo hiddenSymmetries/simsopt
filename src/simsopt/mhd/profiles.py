@@ -17,7 +17,7 @@ from .._core.optimizable import Optimizable
 from .._core.types import RealArray
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
-           'ProfilePressure', 'SpecProfile']
+           'ProfilePressure', 'ProfileSpec']
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class Profile(Optimizable):
             plt.show()
 
 
-class SpecProfile(Profile):
+class ProfileSpec(Profile):
     """
     A profile described by an array of size Nvol
 
