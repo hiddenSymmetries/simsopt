@@ -2,6 +2,8 @@ import unittest
 from pathlib import Path
 import json
 
+from qsc import Qsc
+
 import numpy as np
 from simsopt import save, load
 
@@ -379,6 +381,30 @@ class SurfaceRZFourierTests(unittest.TestCase):
         #    true_volume, ", difference:", volume - true_volume)
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
+
+    def test_from_pyQSC(self):
+        """
+        Try reading in a near-axis pyQSC equilibrium.
+        """
+        stel = Qsc.from_paper(1)
+        filename = TEST_DIR / 'input.near_axis_test'
+
+        ntheta = 20
+        mpol = 10
+        ntor = 10
+        r = 0.1
+
+        stel.to_vmec(filename, r=r, ntheta=ntheta, ntorMax=ntor, params={'mpol': mpol, 'ntor': ntor})
+
+        s1 = SurfaceRZFourier.from_pyQSC(stel, r=r, ntheta=ntheta, ntor=ntor, mpol=mpol)
+        s2 = SurfaceRZFourier.from_vmec_input(filename)
+
+        np.testing.assert_allclose(s1.rc, s2.rc)
+        np.testing.assert_allclose(s1.zs, s2.zs)
+        np.testing.assert_allclose(s1.nfp, s2.nfp)
+        np.testing.assert_allclose(s1.stellsym, s2.stellsym)
+        np.testing.assert_allclose(s1.area(), s2.area())
+        np.testing.assert_allclose(s1.volume(), s2.volume())
 
     def test_change_resolution(self):
         """
