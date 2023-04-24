@@ -144,22 +144,22 @@ symmetry::
 To make sure that the coils class has the non-fixed degrees of freedom that
 we specified, we can print the ``dof_names`` property::
 
-  >>> print(coil[0].dof_names)
+  >>> print(coils[0].dof_names)
 
   ['CurveXYZFourier1:xc(0)', 'CurveXYZFourier1:xs(1)', 'CurveXYZFourier1:xc(1)', ...
 
-  >>> print(coil[1].dof_names)
+  >>> print(coils[1].dof_names)
 
   ['Current2:x0', 'CurveXYZFourier2:xc(0)', 'CurveXYZFourier2:xs(1)', 'CurveXYZFourier2:xc(1)', ...
 
-  >>> print(coil[4].dof_names)
+  >>> print(coils[4].dof_names)
 
   ['CurveXYZFourier1:xc(0)', 'CurveXYZFourier1:xs(1)', 'CurveXYZFourier1:xc(1)', ...
 
-Notice that the current appears in the list of dofs for ``coil[1]``
-but not for ``coil[0]``, since we fixed the current for
-``coil[0]``. Also notice that ``coil[4]`` has the same degrees of
-freedom (owned by ``CurveXYZFourier1``) as ``coil[0]``, because coils
+Notice that the current appears in the list of dofs for ``coils[1]``
+but not for ``coils[0]``, since we fixed the current for
+``coils[0]``. Also notice that ``coils[4]`` has the same degrees of
+freedom (owned by ``CurveXYZFourier1``) as ``coils[0]``, because coils
 0 and 4 refer to the same base coil shape and current.
 
 There are several ways to view the objects we have created so far. One
@@ -214,13 +214,19 @@ used and the corresponding terms::
   Jls = [CurveLength(c) for c in base_curves]
 
   # Form the total objective function.
-  objective = Jf + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET)
+  objective = Jf + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 
 In the last line, we have used the fact that the Optimizable objects
 representing the individual terms in the objective can be scaled by a
 constant and added.  (This feature applies to Optimizable objects that
 have a function ``J()`` returning the objective and, if gradients are
-used, a function ``dJ()`` returning the gradient.)
+used, a function ``dJ()`` returning the gradient.)  Also, the
+``"max"`` option to :obj:`~simsopt.objectives.QuadraticPenalty`
+specifies that the length penalty is active if the coil length is too
+large but not if it is too small. You can instead specify a penalty
+for values that are too small or a regular 2-sided quadratic penalty
+by setting the last argument to ``"min"`` or ``"identity"``
+respectively.
 
 You can check the degrees of freedom that will be varied in the
 optimization by printing the ``dof_names`` property of the objective::
@@ -359,6 +365,7 @@ many of which are illustrated in
 - :obj:`~simsopt.geo.CurveCurveDistance`: Useful for ensuring the minimum coil-to-coil distance is at least a specified target value.
 - :obj:`~simsopt.geo.CurveSurfaceDistance`: Useful for ensuring the minimum coil-to-plasma distance is at least a specified target value.
 - :obj:`~simsopt.geo.ArclengthVariation`: Ensures the curves are parameterized using (approximately) a uniform-arclength parameter.
+- :obj:`~simsopt.geo.LinkingNumber`: Prevents coils from becoming topologically linked to each other.
 
 You can click on any of the links above in this section to see the precise definitions of these objective terms.
 
@@ -449,7 +456,7 @@ the previous examples, we additionally define::
       + LENGTH_WEIGHT * sum(Jls) \
       + DISTANCE_WEIGHT * Jdist \
       + CURVATURE_WEIGHT * sum(Jcs) \
-      + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
+      + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
       + ARCLENGTH_WEIGHT * sum(Jals)
 
 As can be seen here, in the stochastic optimization method,
@@ -516,7 +523,7 @@ surface normal vector computed with the results of the virtual casing principle:
   # fact that Optimizable objects with J() and dJ() functions can be
   # multiplied by scalars and added:
   JF = Jf \
-      + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+      + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "identity") for i in range(len(base_curves)))
 
 
 The example above uses very minimal coil regularization: only the deviation
@@ -609,5 +616,5 @@ Finally, the objective function takes the form::
   # fact that Optimizable objects with J() and dJ() functions can be
   # multiplied by scalars and added:
   JF = Jf \
-      + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves))) \
+      + LENGTH_PEN * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "max") for i in range(len(base_curves))) \
       + DIST_PEN * Jdist
