@@ -9,7 +9,7 @@ except ImportError:
     matplotlib = None
 
 from simsopt.mhd import (ProfilePolynomial, ProfileScaled, ProfileSpline,
-                         ProfilePressure, SpecProfile)
+                         ProfilePressure, ProfileSpec)
 
 logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG)
@@ -21,7 +21,7 @@ class ProfilesTests(unittest.TestCase):
         Test initialization and modification of a spec profile
         """
 
-        prof = SpecProfile(np.zeros((8,)))
+        prof = ProfileSpec(np.zeros((8,)))
 
         mvol = 8
         self.assertAlmostEqual(prof.f(0), 0)

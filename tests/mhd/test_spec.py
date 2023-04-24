@@ -24,7 +24,7 @@ except ImportError:
     MPI = None
 
 from simsopt.geo import SurfaceGarabedian
-from simsopt.mhd import SpecProfile
+from simsopt.mhd import ProfileSpec
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
 
@@ -128,7 +128,7 @@ class SpecTests(unittest.TestCase):
         mvol = nvol + s.inputlist.lfreebound
 
         cumulative = False  # Surfaces currents are non-cumulative quantities in SPEC
-        surface_current = SpecProfile(np.zeros((mvol,)), cumulative=cumulative)
+        surface_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
 
         s.interface_current_profile = surface_current
 
@@ -159,7 +159,7 @@ class SpecTests(unittest.TestCase):
         mvol = nvol + s.inputlist.lfreebound
 
         cumulative = True  # Surfaces currents are non-cumulative quantities in SPEC
-        volume_current = SpecProfile(np.zeros((mvol,)), cumulative=cumulative)
+        volume_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
 
         s.volume_current_profile = volume_current
 
@@ -255,7 +255,7 @@ class SpecTests(unittest.TestCase):
 
     def test_optimize_net_toroidal_current(self):
         """
-        This script demonstrate how a SpecProfile can be used to optimize SPEC input
+        This script demonstrate how a ProfileSpec can be used to optimize SPEC input
         profiles to reach a given target.
 
         The initial equilibrium is a free-boundary rotating ellipse with a single plasma
@@ -274,7 +274,7 @@ class SpecTests(unittest.TestCase):
 
         # Define volume current profile
         mvol = s.inputlist.nvol
-        ivolume = SpecProfile(np.zeros((mvol,)), cumulative=True)
+        ivolume = ProfileSpec(np.zeros((mvol,)), cumulative=True)
         s.volume_current_profile = ivolume
 
         # Define dofs
@@ -329,10 +329,6 @@ class SpecTests(unittest.TestCase):
             # boundary to the Garabedian representation:
             surf = SurfaceGarabedian.from_RZFourier(equil.boundary)
             equil.boundary = surf
-
-            # Need to set axis to zero
-            equil.axis['rac'][:] = 0
-            equil.axis['zas'][:] = 0
 
             # SPEC parameters are all fixed by default, while surface
             # parameters are all non-fixed by default. You can choose

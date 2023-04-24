@@ -44,7 +44,7 @@ from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
 from ..field.normal_field import NormalField
 from ..geo.surfacerzfourier import SurfaceRZFourier
-from .profiles import SpecProfile
+from .profiles import ProfileSpec
 
 if MPI is not None:
     from ..util.mpi import MpiPartition
@@ -268,19 +268,6 @@ class Spec(Optimizable):
         self._tflux_profile = None
         self._helicity_profile = None
 
-        # Store all profiles in list for easier access
-        self.profiles = [
-            self._volume_current_profile,
-            self._interface_current_profile,
-            self._pressure_profile,
-            self._iota_profile,
-            self._oita_profile,
-            self._mu_profile,
-            self._pflux_profile,
-            self._tflux_profile,
-            self._helicity_profile
-        ]
-
         # Define normal field - these are the Vns, Vnc harmonics. Can be used as
         # dofs in an optimization
         if si.lfreebound:
@@ -318,7 +305,7 @@ class Spec(Optimizable):
         Getter for the pressure profile
 
         Returns:
-            SpecProfile instance representing the pressure profile
+            ProfileSpec instance representing the pressure profile
         """
         return self._pressure_profile
 
@@ -328,12 +315,12 @@ class Spec(Optimizable):
         Setter for the pressure profile
 
         Args:
-            SpecProfile instance for the pressure profile
+            ProfileSpec instance for the pressure profile
         """
 
         # Check inputs
-        if not isinstance(pressure_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(pressure_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if pressure_profile.dofs.full_x.size != self.mvol:
@@ -355,7 +342,7 @@ class Spec(Optimizable):
         Getter for the volume current profile (Ivolume)
 
         Returns:
-            SpecProfile instance representing the volume current profile
+            ProfileSpec instance representing the volume current profile
         """
         return self._volume_current_profile
 
@@ -365,11 +352,11 @@ class Spec(Optimizable):
         Setter for the volume current profile
 
         Args:
-            SpecProfile instance for the volume current profile
+            ProfileSpec instance for the volume current profile
         """
 
-        if not isinstance(volume_current_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(volume_current_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if volume_current_profile.dofs.full_x.size != self.mvol:
@@ -393,7 +380,7 @@ class Spec(Optimizable):
         Getter for the surface current profile (Isurf)
 
         Returns:
-            SpecProfile instance representing the surface current profile
+            ProfileSpec instance representing the surface current profile
         """
         return self._interface_current_profile
 
@@ -403,11 +390,11 @@ class Spec(Optimizable):
         Setter for the surface current profile
 
         Args:
-            SpecProfile instance for the surface current profile
+            ProfileSpec instance for the surface current profile
         """
 
-        if not isinstance(interface_current_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(interface_current_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if interface_current_profile.dofs.full_x.size != self.mvol:
@@ -428,7 +415,7 @@ class Spec(Optimizable):
         Getter for the inner rotational transform profile (iota)
 
         Returns:
-            SpecProfile instance representing the iota profile
+            ProfileSpec instance representing the iota profile
         """
         return self._iota_profile
 
@@ -438,11 +425,11 @@ class Spec(Optimizable):
         Setter for the inner rotational transform profile (iota)
 
         Args:
-            SpecProfile instance for the inner rotational transform profile
+            ProfileSpec instance for the inner rotational transform profile
         """
 
-        if not isinstance(iota_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(iota_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if iota_profile.dofs.full_x.size != self.mvol:
@@ -463,7 +450,7 @@ class Spec(Optimizable):
         Getter for the outer rotational transform profile (oita)
 
         Returns:
-            SpecProfile instance representing the oita profile
+            ProfileSpec instance representing the oita profile
         """
         return self._oita_profile
 
@@ -473,11 +460,11 @@ class Spec(Optimizable):
         Setter for the outer rotational transform profile (oita)
 
         Args:
-            SpecProfile instance for the outer rotational transform profile
+            ProfileSpec instance for the outer rotational transform profile
         """
 
-        if not isinstance(oita_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(oita_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if oita_profile.dofs.full_x.size != self.mvol:
@@ -498,7 +485,7 @@ class Spec(Optimizable):
         Getter for the mu-profile
 
         Returns:
-            SpecProfile instance representing the mu profile
+            ProfileSpec instance representing the mu profile
         """
         return self._mu_profile
 
@@ -508,11 +495,11 @@ class Spec(Optimizable):
         Setter for the mu profile (oita)
 
         Args:
-            SpecProfile instance for the outer rotational transform profile
+            ProfileSpec instance for the outer rotational transform profile
         """
 
-        if not isinstance(mu_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(mu_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if mu_profile.dofs.full_x.size != self.mvol:
@@ -533,7 +520,7 @@ class Spec(Optimizable):
         Getter for the poloidal flux profile (pflux)
 
         Returns:
-            SpecProfile instance representing the poloidal flux profile
+            ProfileSpec instance representing the poloidal flux profile
         """
         return self._pflux_profile
 
@@ -543,11 +530,11 @@ class Spec(Optimizable):
         Setter for the poloidal flux profile (pflux)
 
         Args:
-            SpecProfile instance for the poloidal flux profile
+            ProfileSpec instance for the poloidal flux profile
         """
 
-        if not isinstance(pflux_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(pflux_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if pflux_profile.dofs.full_x.size != self.mvol:
@@ -571,7 +558,7 @@ class Spec(Optimizable):
         Getter for the toroidal flux profile (tflux)
 
         Returns:
-            SpecProfile instance representing the toroidal flux profile
+            ProfileSpec instance representing the toroidal flux profile
         """
         return self._tflux_profile
 
@@ -581,11 +568,11 @@ class Spec(Optimizable):
         Setter for the toroidal flux profile (tflux)
 
         Args:
-            SpecProfile instance for the toroidal flux profile
+            ProfileSpec instance for the toroidal flux profile
         """
 
-        if not isinstance(tflux_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(tflux_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if tflux_profile.dofs.full_x.size != self.mvol:
@@ -609,7 +596,7 @@ class Spec(Optimizable):
         Getter for the magnetic helicity profile (helicity)
 
         Returns:
-            SpecProfile instance representing the magnetic helicity profile
+            ProfileSpec instance representing the magnetic helicity profile
         """
         return self._helicity_profile
 
@@ -619,11 +606,11 @@ class Spec(Optimizable):
         Setter for the toroidal flux profile (tflux)
 
         Args:
-            SpecProfile instance for the toroidal flux profile
+            ProfileSpec instance for the toroidal flux profile
         """
 
-        if not isinstance(helicity_profile, SpecProfile):
-            ValueError('Input should be a SpecProfile')
+        if not isinstance(helicity_profile, ProfileSpec):
+            ValueError('Input should be a ProfileSpec')
 
         # Check size
         if helicity_profile.dofs.full_x.size != self.mvol:
@@ -722,11 +709,20 @@ class Spec(Optimizable):
         self.inputlist.phiedge = x[0]
         self.inputlist.curtor = x[1]
 
-        # Update phiedge in profiles if necessary. This is important when taking
-        # profiles derivatives.
-        for ii, p in enumerate(self.profiles):
-            if not p is None:
-                self.profiles[ii].phiedge = x[0]
+        profiles = [
+            self._volume_current_profile,
+            self._interface_current_profile,
+            self._pressure_profile,
+            self._iota_profile,
+            self._oita_profile,
+            self._mu_profile,
+            self._pflux_profile,
+            self._tflux_profile,
+            self._helicity_profile
+	    ]
+        for p in profiles:
+            if p is not None:
+                p.phiedge = x[0]
 
     def init(self, filename: str):
         """
@@ -1007,40 +1003,30 @@ class Spec(Optimizable):
 
         # Save geometry as initial guess for next iterations
         if update_guess:
-            try:
-                new_guess = None
-                if self.mvol > 1:
-                    new_guess = [
-                        SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
-                    ] * (self.mvol-1)
+            new_guess = None
+            if self.mvol > 1:
+                new_guess = [
+                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
+                ] * (self.mvol-1)
 
-                    for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
-                        nnorm = (nn / si.nfp).astype('int')
-                        for lvol in range(0, self.mvol-1):
-                            new_guess[lvol].set_rc(mm, nnorm, self.results.output.Rbc[lvol+1, ii])
-                            new_guess[lvol].set_zs(mm, nnorm, self.results.output.Zbs[lvol+1, ii])
+                for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
+                    nnorm = (nn / si.nfp).astype('int')
+                    for lvol in range(0, self.mvol-1):
+                        new_guess[lvol].set_rc(mm, nnorm, self.results.output.Rbc[lvol+1, ii])
+                        new_guess[lvol].set_zs(mm, nnorm, self.results.output.Zbs[lvol+1, ii])
 
-                            if not si.istellsym:
-                                new_guess[lvol].set_rs(mm, nnorm, self.results.output.Rbs[lvol+1, ii])
-                                new_guess[lvol].set_zc(mm, nnorm, self.results.output.Zbc[lvol+1, ii])
+                        if not si.istellsym:
+                            new_guess[lvol].set_rs(mm, nnorm, self.results.output.Rbs[lvol+1, ii])
+                            new_guess[lvol].set_zc(mm, nnorm, self.results.output.Zbc[lvol+1, ii])
 
-                    axis = {}
-                    axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
-                    axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
-                    self.axis = copy.copy(axis)
+                axis = {}
+                axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
+                axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
+                self.axis = copy.copy(axis)
 
-            except:
-                # If the initial guess cannot be read, keep the same initial guess 
-                # for the next run
-                logger.info("Failed to read initial guess.")
-                new_guess = None
-
-            # If successfully read initial guess, replace it
-            if new_guess is not None:
-                self.initial_guess = new_guess
-
-                # Enforce SPEC to use initial guess
-                self.inputlist.linitialize = 0
+            # Enforce SPEC to use initial guess
+            self.initial_guess = new_guess
+            self.inputlist.linitialize = 0
 
         # Group leaders handle deletion of files:
         if self.mpi.proc0_groups:
