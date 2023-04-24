@@ -37,7 +37,7 @@ inline Vec3d cross(Vec3d& a, int i){
 }
 
 
-#if __x86_64__ || __aarch64__       // Use XSIMD
+#if defined(USE_XSIMD)
 
 
 struct Vec3dSimd {

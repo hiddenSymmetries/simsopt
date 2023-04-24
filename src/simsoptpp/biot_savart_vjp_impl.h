@@ -14,7 +14,7 @@
 #define MYIF(c) if(c)
 #endif
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class T, int derivs>
 void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,
@@ -275,7 +275,7 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
 
 #endif
 
-#if __x86_64__ // || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class T, int derivs>
 void biot_savart_vector_potential_vjp_kernel(
