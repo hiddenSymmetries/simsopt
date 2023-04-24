@@ -849,7 +849,7 @@ class Spec(Optimizable):
                             si.rbs[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_rs(mm, nn)
                             si.zbc[si.mntor+nn, si.mmpol+mm] = initial_guess[self.nvol-1].get_zc(mm, nn)
 
-        spec.allglobal.num_modes = imn + 1
+            spec.allglobal.num_modes = imn + 1
 
         # Set profiles from dofs
         if self.pressure_profile is not None:
