@@ -12,6 +12,11 @@
 
 using namespace std;
 
+/* rdtsc returns the Time Stamp Counter, which can serve as a high-resolution, 
+low-overhead way to get CPU timing information.
+The function is implementedd for x86_64, arm64 and PowerPC architectures.
+NOTE: This approach is archaic and should be replaced with a better timing function.
+*/
 #ifdef __x86_64__
 uint64_t rdtsc(){
     unsigned int lo,hi;
