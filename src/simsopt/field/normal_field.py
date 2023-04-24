@@ -1,7 +1,8 @@
-from .._core.optimizable import DOFs, Optimizable
 import logging
 
 import numpy as np
+
+from .._core.optimizable import DOFs, Optimizable
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,6 @@ try:
 except ImportError as e:
     py_spec = None
     logger.debug(str(e))
-
 
 __all__ = ['NormalField']
 

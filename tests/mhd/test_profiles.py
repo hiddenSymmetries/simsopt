@@ -1,16 +1,18 @@
-import unittest
 import logging
+import unittest
+
 import numpy as np
-from simsopt.mhd.profiles import ProfilePolynomial, ProfileScaled, ProfileSpline, \
-    ProfilePressure, SpecProfile
+
+try:
+    import matplotlib
+except ImportError:
+    matplotlib = None
+
+from simsopt.mhd import (ProfilePolynomial, ProfileScaled, ProfileSpline,
+                         ProfilePressure, SpecProfile)
 
 logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG)
-try:
-    import matplotlib
-    matplotlib_found = True
-except ImportError:
-    matplotlib_found = False
 
 
 class ProfilesTests(unittest.TestCase):
@@ -52,7 +54,7 @@ class ProfilesTests(unittest.TestCase):
         np.testing.assert_allclose(prof(s), 3 * (1 - s ** 3))
         np.testing.assert_allclose(prof.dfds(s), 3 * (- 3 * s ** 2))
 
-    @unittest.skipIf(not matplotlib_found,
+    @unittest.skipIf(matplotlib is None,
                      "Matplotlib python module not found")
     def test_plot(self):
         """

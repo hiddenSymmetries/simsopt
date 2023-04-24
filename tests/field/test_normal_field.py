@@ -1,8 +1,15 @@
+import os
 import unittest
 import logging
+
 import numpy as np
-from simsopt.field.normal_field import NormalField
-import os
+
+from simsopt.field import NormalField
+
+try:
+    import py_spec
+except ImportError as e:
+    py_spec = None
 
 from . import TEST_DIR
 
@@ -10,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class NormalFieldTests(unittest.TestCase):
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_initialize_normal_field_from_spec(self):
         """
         Test the initialization of an instance of NormalField using a SPEC input file
@@ -23,6 +31,7 @@ class NormalFieldTests(unittest.TestCase):
         self.assertAlmostEqual(normal_field.get_vns(m=5, n=1), -3.56991494E-05)
         self.assertAlmostEqual(normal_field.get_vns(m=0, n=0), 0.0)
 
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_dofs(self):
         """
         Test access to degrees of freedom, its setter
@@ -106,6 +115,7 @@ class NormalFieldTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normal_field.check_mn(m=0, n=-1)
 
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_make_names(self):
         """
         Test routine make_names. 
@@ -128,6 +138,7 @@ class NormalFieldTests(unittest.TestCase):
         # Check length
         self.assertEqual(len(names), normal_field.ndof)
 
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_change_resolution(self):
         """
         Test that object resolution can be changed.

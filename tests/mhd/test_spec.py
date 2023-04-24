@@ -1,13 +1,11 @@
 from cmath import isnan
-import unittest
-import numpy as np
-import os
 import logging
+import os
 import shutil
+import unittest
 
-#from simsopt.mhd.spec import spec_found
-# if spec_found:
-#    from simsopt.mhd.spec import Spec, Residue, pyoculus_found
+import numpy as np
+
 try:
     import spec
     spec_found = True
@@ -25,13 +23,14 @@ try:
 except ImportError:
     MPI = None
 
-from simsopt.mhd.profiles import SpecProfile
+from simsopt.geo import SurfaceGarabedian
+from simsopt.mhd import SpecProfile
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 
 if (MPI is not None) and spec_found:
-    from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.solve.serial import least_squares_serial_solve
+    from simsopt.mhd import Spec, Residue
+
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
@@ -119,7 +118,7 @@ class SpecTests(unittest.TestCase):
     def test_set_profile_non_cumulative(self):
         """
         Set a SPEC profile of a non-cumulative quantity (surface current in this example)
-        and tries to modify it.
+        and try to modify it.
         """
 
         filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
@@ -257,7 +256,7 @@ class SpecTests(unittest.TestCase):
     def test_optimize_net_toroidal_current(self):
         """
         This script demonstrate how a SpecProfile can be used to optimize SPEC input
-        profiles to reach a givenn target.
+        profiles to reach a given target.
 
         The initial equilibrium is a free-boundary rotating ellipse with a single plasma
         volume, in vacuum.
