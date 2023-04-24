@@ -17,7 +17,7 @@ using namespace std;
 #define MYIF(c) if(c)
 #endif
 */
-#if __x86_64__  || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class T, int derivs>
 void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,
@@ -413,7 +413,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
 }
 #endif
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class T, int derivs>
 void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,

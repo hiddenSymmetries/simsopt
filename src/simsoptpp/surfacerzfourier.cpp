@@ -18,7 +18,7 @@
 
 #define ANGLE_RECOMPUTE 5
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class Array>
 void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
@@ -152,7 +152,7 @@ void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arra
     }
 }
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
@@ -356,7 +356,7 @@ void SurfaceRZFourier<Array>::gammadash2dash2_impl(Array& data) {
     }
 }
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
@@ -461,7 +461,7 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
 
 #endif
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 template<class Array>
 Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
@@ -668,7 +668,7 @@ void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
     }
 }
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
@@ -992,7 +992,7 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
     }
 }
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {

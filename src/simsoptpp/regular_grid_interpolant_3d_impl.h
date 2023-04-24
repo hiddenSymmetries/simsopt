@@ -123,7 +123,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
     }
 
     double* vals_local = got->second.data();
-    #if __x86_64__ || __aarch64__
+    #if defined(USE_XSIMD)
     if(xsimd::simd_type<double>::size >= 3){
         simd_t xyz;
         xyz[0] = x;

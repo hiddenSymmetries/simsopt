@@ -24,7 +24,7 @@ uint64_t rdtsc(){
     asm volatile("mrs %0, cntvct_el0" : "=r" (val));
     return val;
 }
-#elif
+#elif __ppc64__
 uint64_t rdtsc(){
     uint64_t result=0;
     unsigned long int upper, lower,tmp;
@@ -46,7 +46,7 @@ uint64_t rdtsc(){
 #endif
 
 template<class vector_type>
-void profile_biot_savart_nonsimd(int nsources, int ntargets, int nderivatives){
+void profile_biot_savart_openmp(int nsources, int ntargets, int nderivatives){
     // using vector_type = AlignedPaddedVec;
 
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
@@ -70,11 +70,11 @@ void profile_biot_savart_nonsimd(int nsources, int ntargets, int nderivatives){
     auto t1 = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < n; ++i) {
         if(nderivatives == 0)
-            biot_savart_kernel_nosimd<xt::xarray<double>, 0>(pointsx, pointsy, pointsz, gamma, dgamma_by_dphi, B, dB_by_dX, d2B_by_dXdX);
+            biot_savart_kernel_openmp<xt::xarray<double>, 0>(pointsx, pointsy, pointsz, gamma, dgamma_by_dphi, B, dB_by_dX, d2B_by_dXdX);
         else if(nderivatives == 1)
-            biot_savart_kernel_nosimd<xt::xarray<double>, 1>(pointsx, pointsy, pointsz, gamma, dgamma_by_dphi, B, dB_by_dX, d2B_by_dXdX);
+            biot_savart_kernel_openmp<xt::xarray<double>, 1>(pointsx, pointsy, pointsz, gamma, dgamma_by_dphi, B, dB_by_dX, d2B_by_dXdX);
         else
-            biot_savart_kernel_nosimd<xt::xarray<double>, 2>(pointsx, pointsy, pointsz, gamma, dgamma_by_dphi, B, dB_by_dX, d2B_by_dXdX);
+            biot_savart_kernel_openmp<xt::xarray<double>, 2>(pointsx, pointsy, pointsz, gamma, dgamma_by_dphi, B, dB_by_dX, d2B_by_dXdX);
         //if(i==0){
         //    std::cout << B(0, 0) << " " << B(8, 0) << std::endl;
         //    std::cout << dB_by_dX(0, 0, 0) << " " << dB_by_dX(8, 0, 0) << std::endl;
@@ -253,7 +253,7 @@ void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
 
 int main() {
 
-#if __x86_64__ // || __aarch64__
+#if defined(USE_XSIMD)
     cout << "BiotSavart with XSIMD:\n";
     for(int nd=0; nd<3; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;
@@ -267,7 +267,7 @@ int main() {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart_nonsimd<AlignedPaddedVec>(nst, nst, nd);
+            profile_biot_savart<AlignedPaddedVec>(nst, nst, nd);
     }
 
     cout << "BiotSavart with OpenMPI XSIMD:\n";
@@ -275,7 +275,7 @@ int main() {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart<AlignedPaddedVec>(nst, nst, nd);
+            profile_biot_savart_openmp<AlignedPaddedVec>(nst, nst, nd);
     }
 #endif
     /*cout << "BiotSavartVJP with Non XSIMD:\n";
@@ -285,7 +285,8 @@ int main() {
         for(int nst=10; nst<=10000; nst*=10)
             profile_biot_savart_vjp<AlignedPaddedVecPortable>(nst, nst, nd);
     }*/
-#if __x86_64__ //|| __aarch64__
+#if defined(USE_XSIMD)
+
     cout << "BiotSavartVJP with XSIMD:\n";
     for(int nd=0; nd<2; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;

@@ -3,11 +3,17 @@
 #include <limits>
 #include <cmath>
 #include <new>
-
 #include <vector>
+#include "config.h"
+
 using std::vector;
 
-#if __x86_64__ || __aarch64__
+#if !defined(NO_XSIMD) && (defined(__x86_64__) || defined(__aarch64__))
+#define USE_XSIMD
+#endif
+
+
+#if defined(USE_XSIMD)
 
 #include "xsimd/xsimd.hpp"
 namespace xs = xsimd;
@@ -122,7 +128,7 @@ using AlignedPaddedVec = std::vector<double, AlignedPaddedAllocator<double>>;
 
 #endif
 
-#if __x86_64__ || __aarch64__
+#if defined(USE_XSIMD)
 #if __AVX512F__ 
 // On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
 // 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
