@@ -1,6 +1,7 @@
 import os
 import unittest
 import logging
+import simsopt._core.util as util
 
 import numpy as np
 
@@ -29,7 +30,6 @@ class NormalFieldTests(unittest.TestCase):
 
         self.assertAlmostEqual(normal_field.get_vns(m=3, n=-1), 1.71466651E-03)
         self.assertAlmostEqual(normal_field.get_vns(m=5, n=1), -3.56991494E-05)
-        self.assertAlmostEqual(normal_field.get_vns(m=0, n=0), 0.0)
 
     @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_dofs(self):
@@ -42,7 +42,7 @@ class NormalFieldTests(unittest.TestCase):
         normal_field = NormalField.init_from_spec(filename)
 
         # Get dofs
-        dofs = normal_field.get_dofs()
+        dofs = normal_field.local_full_x
 
         # Check size of array
         self.assertEqual(dofs.size, normal_field.ndof)
@@ -56,12 +56,12 @@ class NormalFieldTests(unittest.TestCase):
         # Set dofs to zeros
 
         # ... Check test of size
-        with self.assertRaises(ValueError):
-            normal_field.set_dofs(dofs=np.zeros((normal_field.ndof - 1,)))
+        with self.assertRaises(util.DofLengthMismatchError):
+            normal_field.local_full_x = np.zeros((normal_field.ndof - 1,))
 
         # ... Actually set them to zeros
-        normal_field.set_dofs(dofs=np.zeros((normal_field.ndof,)))
-        dofs = normal_field.get_dofs()
+        normal_field.local_full_x = np.zeros((normal_field.ndof,)) 
+        dofs = normal_field.local_full_x
 
         for el in dofs:
             self.assertEqual(el, 0)
@@ -76,7 +76,7 @@ class NormalFieldTests(unittest.TestCase):
         normal_field.set_vns(m=3, n=-1, value=1)
         normal_field.set_vnc(m=2, n=1, value=-1)
 
-        dofs = normal_field.get_dofs()
+        dofs = normal_field.local_full_x
 
         ii = normal_field.get_index_in_dofs(m=3, n=-1, even=False)
         self.assertEqual(dofs[ii], 1)
@@ -200,7 +200,7 @@ class NormalFieldTests(unittest.TestCase):
 
         for mm in range(0, normal_field.mpol + 1):
             for nn in range(-normal_field.ntor, normal_field.ntor + 1):
-                if mm == 0 and nn < 0:
+                if mm == 0 and nn <= 0:
                     continue
 
                 ii = normal_field.get_index_in_dofs(m=mm, n=nn)
