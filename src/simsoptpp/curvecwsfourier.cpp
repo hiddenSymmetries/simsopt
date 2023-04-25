@@ -325,6 +325,7 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         Array phi_array = xt::zeros<double>({2 * (order + 1)});
         Array theta_array = xt::zeros<double>({2 * (order + 1)});
 
+        double r = 0;
         Array r_array = xt::zeros<double>({4 * (order + 1)});
         Array z_array = xt::zeros<double>({4 * (order + 1)});
         double r_aux1 = 0;
@@ -366,6 +367,7 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
 #pragma omp parallel for
         for (int i = 0; i < counter; ++i)
         {
+            r = 0;
             r_aux1 = 0;
             z_aux1 = 0;
             r_aux2 = 0;
@@ -376,6 +378,9 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
                 for (int j = 0; j < 2 * ntor + 1; ++j)
                 {
                     int n = j - ntor;
+
+                    r += rc(m, j) * cos(m * ptheta - nfp * n * pphi);
+
                     r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
                     r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
 
@@ -497,6 +502,8 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 #pragma omp parallel for
         for (int i = 0; i < counter; ++i)
         {
+            r = 0;
+            dr = 0;
             r_aux1 = 0;
             r_aux2 = 0;
             dr_aux1 = 0;
@@ -671,6 +678,10 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
 #pragma omp parallel for
         for (int i = 0; i < counter; ++i)
         {
+            r = 0;
+            dr = 0;
+            ddr = 0;
+
             r_aux1 = 0;
             r_aux2 = 0;
 
@@ -691,6 +702,7 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
 
                     r += rc(m, j) * cos(m * ptheta - nfp * n * pphi);
                     dr += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * dptheta - nfp * n * dpphi);
+                    ddr += -rc(m, i) * cos(m * ptheta - nfp * n * pphi) * pow((m * dptheta - nfp * n * dpphi), 2) - rc(m, i) * sin(m * ptheta - nfp * n * pphi) * (m * ddptheta - nfp * n * ddpphi);
 
                     r_aux1 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (m * theta_array[i]);
                     r_aux2 += -rc(m, j) * sin(m * ptheta - nfp * n * pphi) * (-nfp * n * phi_array[i]);
