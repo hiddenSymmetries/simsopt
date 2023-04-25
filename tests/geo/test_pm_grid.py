@@ -120,9 +120,19 @@ class Testing(unittest.TestCase):
             pm.geo_setup()
         with self.assertRaises(ValueError):
             pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=Bn
+            )
+            pm.geo_setup(m_maxima=np.ones(4))
+        with self.assertRaises(ValueError):
+            pm = PermanentMagnetGrid(
                 s, s1, s2, Bn=np.zeros((nphi, ntheta))
             )
             pm.geo_setup_from_famus(TEST_DIR / 'zot80.log')
+        with self.assertRaises(ValueError):
+            pm = PermanentMagnetGrid(
+                s, s1, s2, Bn=np.zeros((nphi, ntheta))
+            )
+            pm.geo_setup_from_famus(TEST_DIR / 'zot80.focus', m_maxima=np.ones(4))
         with self.assertRaises(ValueError):
             pm = PermanentMagnetGrid(
                 s, s1, s2, Bn=np.zeros((nphi, ntheta)), pol_vectors=np.ones((5, 3, 2))
@@ -274,6 +284,13 @@ class Testing(unittest.TestCase):
         # Create PM class with cylindrical bricks
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
         pm_opt = PermanentMagnetGrid(s, s1, s2, dr=0.15, Bn=Bn, coordinate_flag='cylindrical')
+        pm_opt.geo_setup()
+        mmax_new = pm_opt.m_maxima / 2.0
+        pm_opt.geo_setup(mmax_new)
+        assert np.allclose(pm_opt.m_maxima, mmax_new)
+        mmax_new = pm_opt.m_maxima[-1] / 2.0
+        pm_opt.geo_setup(mmax_new)
+        assert np.allclose(pm_opt.m_maxima, mmax_new)
         pm_opt.geo_setup()
         _, _, _, = relax_and_split(pm_opt)
         b_dipole = DipoleField(
@@ -571,7 +588,12 @@ class Testing(unittest.TestCase):
             s, s_inner, s_outer,  # s_inner and s_outer overwritten in next line since using a FAMUS grid 
             Bn=np.zeros(s.normal().shape[:2]), 
         )
+        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus', m_maxima=m0s / 2.0)
+        assert np.allclose(pm_opt.m_maxima, m0s / 2.0)
+        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus', m_maxima=m0s[-1] / 3.0)
+        assert np.allclose(pm_opt.m_maxima, m0s[-1] / 3.0)
         pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus')
+        assert np.allclose(pm_opt.m_maxima, m0s)
 
         # Test rescaling 
         reg_l0 = 0.2
