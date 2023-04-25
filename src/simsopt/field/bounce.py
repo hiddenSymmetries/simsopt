@@ -8,7 +8,7 @@ from simsopt.geo.surface import SurfaceClassifier
 from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from nptyping import NDArray, Float
 from scipy.optimize import root_scalar
-from scipy.integrate import solve_ivp, quad, quad_explain
+from scipy.integrate import solve_ivp, quad
 import warnings
 import math
 warnings.catch_warnings()
