@@ -89,6 +89,9 @@ jobs:
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
+    - name: Install virtual_casing
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
 
