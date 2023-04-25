@@ -102,7 +102,7 @@ class Spec(Optimizable):
         if py_spec is None:
             raise RuntimeError(
                 "Using Spec requires py_spec to be installed.")
-        
+
         self.lib = spec
         # For the most commonly accessed fortran modules, provide a
         # shorthand so ".lib" is not needed:
@@ -719,7 +719,7 @@ class Spec(Optimizable):
             self._pflux_profile,
             self._tflux_profile,
             self._helicity_profile
-	    ]
+        ]
         for p in profiles:
             if p is not None:
                 p.phiedge = x[0]
