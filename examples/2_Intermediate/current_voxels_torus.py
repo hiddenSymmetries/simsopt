@@ -123,9 +123,9 @@ print('WV grid initialization took time = ', t2 - t1, ' s')
 wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
 max_iter = 10
-rs_max_iter = 100  # 50
+rs_max_iter = 50  # 50
 l0_threshold = 5e3  # 60 below line
-l0_thresholds = np.linspace(l0_threshold, 16 * l0_threshold, 70, endpoint=True)
+l0_thresholds = np.linspace(l0_threshold, 18 * l0_threshold, 60, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
