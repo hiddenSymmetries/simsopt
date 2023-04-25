@@ -1,7 +1,8 @@
-import logging
-
 import numpy as np
 from scipy.special import ellipk, ellipe
+from simsopt.field.magneticfield import MagneticField
+import simsoptpp as sopp
+import logging
 try:
     from sympy.parsing.sympy_parser import parse_expr
     import sympy as sp
@@ -9,14 +10,7 @@ try:
 except ImportError:
     sympy_found = False
 
-import simsoptpp as sopp
-from .magneticfield import MagneticField
-from .._core.json import GSONable, GSONDecoder
-
 logger = logging.getLogger(__name__)
-
-__all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
-           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField']
 
 
 class ToroidalField(MagneticField):
@@ -111,19 +105,6 @@ class ToroidalField(MagneticField):
                  [-points[:, 0]*points[:, 1]*(points[:, 0]**2+points[:, 1]**2)/points[:, 2],
                   (points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2]), np.zeros((len(points)))]],
                 np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
-
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["points"] = self.get_points_cart()
-        return d
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(d["R0"], d["B0"])
-        decoder = GSONDecoder()
-        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
-        field.set_points_cart(xyz)
-        return field
 
 
 class PoloidalField(MagneticField):
@@ -220,19 +201,6 @@ class PoloidalField(MagneticField):
 
         dB[:] = self.B0/self.R0/self.q*np.array([dB_by_dX1_term1+dB_by_dX1_term2, dB_by_dX2_term1+dB_by_dX2_term2, dB_by_dX3_term1+dB_by_dX3_term2]).T
 
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["points"] = self.get_points_cart()
-        return d
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(d["R0"], d["B0"], d["q"])
-        decoder = GSONDecoder()
-        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
-        field.set_points_cart(xyz)
-        return field
-
 
 class ScalarPotentialRZMagneticField(MagneticField):
     """
@@ -277,60 +245,15 @@ class ScalarPotentialRZMagneticField(MagneticField):
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        B_cyl = np.array(self.Blambdify(r, z, phi)).T
-        # Bx = Br cos(phi) - Bphi sin(phi)
-        B[:, 0] = B_cyl[:, 0] * np.cos(phi) - B_cyl[:, 1] * np.sin(phi)
-        # By = Br sin(phi) + Bphi cos(phi)
-        B[:, 1] = B_cyl[:, 0] * np.sin(phi) + B_cyl[:, 1] * np.cos(phi)
-        B[:, 2] = B_cyl[:, 2]
+        B[:] = np.array(self.Blambdify(r, z, phi)).T
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        dB_cyl = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
-        dBrdx = dB_cyl[:, 0, 0]
-        dBrdy = dB_cyl[:, 1, 0]
-        dBrdz = dB_cyl[:, 2, 0]
-        dBphidx = dB_cyl[:, 0, 1]
-        dBphidy = dB_cyl[:, 1, 1]
-        dBphidz = dB_cyl[:, 2, 1]
-        dB[:, 0, 2] = dB_cyl[:, 0, 2]
-        dB[:, 1, 2] = dB_cyl[:, 1, 2]
-        dB[:, 2, 2] = dB_cyl[:, 2, 2]
-        dcosphidx = -points[:, 0]**2/r**3 + 1/r
-        dsinphidx = -points[:, 0]*points[:, 1]/r**3
-        dcosphidy = -points[:, 0]*points[:, 1]/r**3
-        dsinphidy = -points[:, 1]**2/r**3 + 1/r
-        B_cyl = np.array(self.Blambdify(r, z, phi)).T
-        Br = B_cyl[:, 0]
-        Bphi = B_cyl[:, 1]
-        # Bx = Br cos(phi) - Bphi sin(phi)
-        dB[:, 0, 0] = dBrdx * np.cos(phi) + Br * dcosphidx - dBphidx * np.sin(phi) \
-            - Bphi * dsinphidx
-        dB[:, 1, 0] = dBrdy * np.cos(phi) + Br * dcosphidy - dBphidy * np.sin(phi) \
-            - Bphi * dsinphidy
-        dB[:, 2, 0] = dBrdz * np.cos(phi) - dBphidz * np.sin(phi)
-        # By = Br sin(phi) + Bphi cos(phi)
-        dB[:, 0, 1] = dBrdx * np.sin(phi) + Br * dsinphidx + dBphidx * np.cos(phi) \
-            + Bphi * dcosphidx
-        dB[:, 1, 1] = dBrdy * np.sin(phi) + Br * dsinphidy + dBphidy * np.cos(phi) \
-            + Bphi * dcosphidy
-        dB[:, 2, 1] = dBrdz * np.sin(phi) + dBphidz * np.cos(phi)
-
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["points"] = self.get_points_cart()
-        return d
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(d["phi_str"])
-        decoder = GSONDecoder()
-        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
-        field.set_points_cart(xyz)
-        return field
+        dB[:] = np.array(self.dBlambdify_by_dX(r, z, phi)).transpose((2, 0, 1))
 
 
 class CircularCoil(MagneticField):
@@ -369,21 +292,17 @@ class CircularCoil(MagneticField):
 
         self.rotMatrix = np.array([
             [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
-             -np.sin(phi / 2)**2 * np.sin(2 * theta),
+             -np.sin(phi / 2)**2 * np.sin(2 * theta), 
              np.cos(theta) * np.sin(phi)],
-            [-np.sin(phi / 2)**2 * np.sin(2 * theta),
-             np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
+            [-np.sin(phi / 2)**2 * np.sin(2 * theta), 
+             np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2, 
              np.sin(phi) * np.sin(theta)],
             [-np.cos(theta) * np.sin(phi),
-             -np.sin(phi) * np.sin(theta),
+             -np.sin(phi) * np.sin(theta), 
              np.cos(phi)]
         ])
 
         self.rotMatrixInv = np.array(self.rotMatrix.T)
-
-    @property
-    def I(self):
-        return self.Inorm * 25e5
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -482,24 +401,10 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
 
-        num = (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2))
-        denom = ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31))
-        fak = num/denom
-        pts = fak[:, None]*np.concatenate((-points[:, 1][:, None], points[:, 0][:, None], np.zeros((points.shape[0], 1))), axis=-1)
-        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, pts.T).T
-
-    def as_dict(self, serial_objs_dict):
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["points"] = self.get_points_cart()
-        return d
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(d["r0"], d["center"], d["I"], d["normal"])
-        decoder = GSONDecoder()
-        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
-        field.set_points_cart(xyz)
-        return field
+        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, np.array(
+            (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
+            ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31)) *
+            np.array([-points[:, 1], points[:, 0], 0])).T)
 
 
 class Dommaschk(MagneticField):
@@ -533,24 +438,6 @@ class Dommaschk(MagneticField):
         points = self.get_points_cart_ref()
         dB[:] = np.add.reduce(sopp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
 
-    @property
-    def mn(self):
-        return np.column_stack((self.m, self.n))
-
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["points"] = self.get_points_cart()
-        return d
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        decoder = GSONDecoder()
-        mn = decoder.process_decoded(d["mn"], serial_objs_dict, recon_objs)
-        field = cls(mn, d["coeffs"])
-        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
-        field.set_points_cart(xyz)
-        return field
-
 
 class Reiman(MagneticField):
     '''
@@ -583,19 +470,6 @@ class Reiman(MagneticField):
         points = self.get_points_cart_ref()
         dB[:] = sopp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
-    def as_dict(self, serial_objs_dict):
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        d["points"] = self.get_points_cart()
-        return d
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(d["iota0"], d["iota1"], d["k"], d["epsilonk"], d["m0"])
-        decoder = GSONDecoder()
-        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
-        field.set_points_cart(xyz)
-        return field
-
 
 class UniformInterpolationRule(sopp.UniformInterpolationRule):
     pass
@@ -611,7 +485,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
     This resulting interpolant can then be evaluated very quickly.
     """
 
-    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False, skip=None):
+    def __init__(self, field, degree, rrange, phirange, zrange, extrapolate=True, nfp=1, stellsym=False):
         r"""
         Args:
             field: the underlying :mod:`simsopt.field.magneticfield.MagneticField` to be interpolated.
@@ -629,19 +503,6 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             stellsym: Whether to exploit stellarator symmetry. In this case
                       ``z`` is always mapped to be positive, hence it makes sense to use
                       ``zmin=0``.
-            skip: a function that takes in a point (in cylindrical (r,phi,z)
-                  coordinates) and returns whether to skip that location when
-                  building the interpolant or not. The signature should be
-
-                  .. code-block:: Python
-
-                      def skip(r: double, phi: double, z: double) -> bool:
-                          ...
-
-                  See also here
-                  https://github.com/hiddenSymmetries/simsopt/pull/227 for a
-                  graphical illustration.
-
         """
         MagneticField.__init__(self)
         if stellsym and zrange[0] != 0:
@@ -649,14 +510,10 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
         if nfp > 1 and abs(phirange[1] - 2*np.pi/nfp) > 1e-14:
             logger.warning(fr"Sure about phirange[1]={phirange[1]}? When exploiting rotational symmetry, the interpolant is never evaluated for phi>2\pi/nfp.")
 
-        if skip is None:
-            def skip(xs, ys, zs):
-                return [False for _ in xs]
-
-        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym, skip)
+        sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym)
         self.__field = field
 
-    def to_vtk(self, filename):
+    def to_vtk(self, filename, h=0.1):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
         degree = self.rule.degree
         MagneticField.to_vtk(
@@ -667,6 +524,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             rmin=self.r_range[0], rmax=self.r_range[1],
             zmin=self.z_range[0], zmax=self.z_range[1]
         )
+
 
 class SolovevField(MagneticField):
     """
