@@ -79,7 +79,7 @@ class PermanentMagnetGrid:
         pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
             Optional set of local coordinate systems for each dipole, 
             which specifies which directions should be considered grid-aligned.
-            Ncoords can be > 3, as in the PM4Stell design. 
+            Ncoords can be > 3, as in the PM4Stell design.
     """
 
     def __init__(
@@ -89,7 +89,7 @@ class PermanentMagnetGrid:
         dr=0.1, dz=0.1,
         Nx=10, Ny=10, Nz=10,
         coordinate_flag='cartesian',
-        pol_vectors=None
+        pol_vectors=None,
     ):
         Bn = np.array(Bn)
         if len(Bn.shape) != 2: 
@@ -262,7 +262,7 @@ class PermanentMagnetGrid:
             contig(self.xyz_uniform[:, 2])
         )
 
-    def geo_setup_from_famus(self, famus_filename):
+    def geo_setup_from_famus(self, famus_filename, m_maxima=None):
         """
         Function to initialize a SIMSOPT PermanentMagnetGrid from a 
         pre-existing FAMUS file defining a grid of magnets. For
@@ -277,6 +277,10 @@ class PermanentMagnetGrid:
         ----------
         famus_filename : string
             Filename of a FAMUS grid file (a pre-made dipole grid).
+        m_maxima: float or 1D numpy array, shape (Ndipoles)
+            Optional array of maximal dipole magnitudes for the permanent
+            magnets. If not provided, defaults to the common magnets
+            used in the MUSE design, with strengths ~ 1 Tesla.
 
         Returns
         -------
@@ -318,10 +322,21 @@ class PermanentMagnetGrid:
                 self.inds[i] += self.inds[j]
         self.dipole_grid_xyz = premade_dipole_grid
 
-        B_max = 1.465  # value used in FAMUS runs for MUSE
-        mu0 = 4 * np.pi * 1e-7
-        cell_vol = M0s * mu0 / B_max
-        self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
+        if m_maxima is None:
+            B_max = 1.465  # value used in FAMUS runs for MUSE
+            mu0 = 4 * np.pi * 1e-7
+            cell_vol = M0s * mu0 / B_max
+            self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
+        else:
+            if isinstance(m_maxima, float):
+                self.m_maxima = m_maxima * np.ones(self.ndipoles)
+            else:
+                self.m_maxima = m_maxima
+            if len(self.m_maxima) != self.ndipoles:
+                raise ValueError(
+                    'm_maxima passed to geo_setup_from_famus but with '
+                    'the wrong shape, i.e. != number of dipoles.'
+                )
         if self.pol_vectors is not None:
             if self.pol_vectors.shape[0] != self.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
@@ -365,13 +380,19 @@ class PermanentMagnetGrid:
         RPhiZ_grid = RPhiZ_grid.reshape(RPhiZ_grid.shape[0] * RPhiZ_grid.shape[1], RPhiZ_grid.shape[2], 3)
         return RPhiZ_grid
 
-    def geo_setup(self):
+    def geo_setup(self, m_maxima=None):
         """
             Initialize 'b' vector in 0.5 * ||Am - b||^2 part of the optimization,
             corresponding to the normal component of the target fields. Note
             the factor of two in the least-squares term: 0.5 * m.T @ (A.T @ A) @ m - b.T @ m.
             Also initialize the A, A.T @ b, and A.T @ A matrices that are important in the
             optimization problem.
+
+        Args:      
+            m_maxima: float or 1D numpy array, shape (Ndipoles)
+                Optional array of maximal dipole magnitudes for the permanent
+                magnets. If not provided, defaults to the common magnets
+                used in the MUSE design, with strengths ~ 1 Tesla.
         """
         # Have the uniform grid, now need to loop through and eliminate cells.
         t1 = time.time()
@@ -381,8 +402,6 @@ class PermanentMagnetGrid:
         # self.plasma_boundary.unitnormal().reshape(-1, 3)
         normal_inner = self.rz_inner_surface.unitnormal().reshape(-1, 3)   
         normal_outer = self.rz_outer_surface.unitnormal().reshape(-1, 3)   
-        B_max = 1.465  # value used in FAMUS runs for MUSE
-        mu0 = 4 * np.pi * 1e-7
 
         # Make a uniform cylindrical grid, usually with dr=dz, i.e. "cylindrical bricks"
         if self.coordinate_flag == 'cylindrical':
@@ -412,8 +431,6 @@ class PermanentMagnetGrid:
             cell_vol = self.final_grid[:, 0] * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
             # alternatively, weight things roughly by the minor radius
             # cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-
-            self.m_maxima = B_max * cell_vol / mu0
             self.dipole_grid_xyz = np.zeros(self.final_grid.shape)
             self.dipole_grid_xyz[:, 0] = self.final_grid[:, 0] * np.cos(self.final_grid[:, 1])
             self.dipole_grid_xyz[:, 1] = self.final_grid[:, 0] * np.sin(self.final_grid[:, 1])
@@ -433,14 +450,27 @@ class PermanentMagnetGrid:
             self.dipole_grid_xyz = self.dipole_grid_xyz[inds, :]
             self.ndipoles = self.dipole_grid_xyz.shape[0]
             self.pm_phi = np.arctan2(self.dipole_grid_xyz[:, 1], self.dipole_grid_xyz[:, 0])
-            cell_vol = self.dx * self.dy * self.dz 
-            self.m_maxima = B_max * cell_vol / mu0 * np.ones(self.ndipoles)
+            cell_vol = self.dx * self.dy * self.dz * np.ones(self.ndipoles) 
             pointsToVTK(
                 'dipole_grid',
                 contig(self.dipole_grid_xyz[:, 0]),
                 contig(self.dipole_grid_xyz[:, 1]),
                 contig(self.dipole_grid_xyz[:, 2])
             )
+        if m_maxima is None:
+            B_max = 1.465  # value used in FAMUS runs for MUSE
+            mu0 = 4 * np.pi * 1e-7
+            self.m_maxima = B_max * cell_vol / mu0
+        else:
+            if isinstance(m_maxima, float):
+                self.m_maxima = m_maxima * np.ones(self.ndipoles)
+            else:
+                self.m_maxima = m_maxima
+            if len(self.m_maxima) != self.ndipoles:
+                raise ValueError(
+                    'm_maxima passed to geo_setup_from_famus but with '
+                    'the wrong shape, i.e. != number of dipoles.'
+                )
         if self.pol_vectors is not None:
             if self.pol_vectors.shape[0] != self.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
