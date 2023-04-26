@@ -166,7 +166,7 @@ class Spec(Optimizable):
         stellsym = bool(si.istellsym)
         if nmodes > 0 and self.nvol > 1:
             self.initial_guess = [ 
-                SurfaceRZFourier(nfp=si.nfp, stellsym=stellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0, self.nvol-1)
+                SurfaceRZFourier(nfp=si.nfp, stellsym=stellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0, self.mvol-1)
             ]
             for imode in range(0, nmodes):
                 mm = self.allglobal.mmrzrz[imode]
