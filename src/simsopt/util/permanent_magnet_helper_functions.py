@@ -5,7 +5,7 @@ the permanent magnets functionality in the SIMSOPT code.
 __all__ = ['read_focus_coils', 'coil_optimization', 
            'trace_fieldlines', 'make_qfm', 
            'initialize_coils', 'calculate_on_axis_B',
-           'get_FAMUS_dipoles', 'read_FAMUS_grid', 
+           'get_FAMUS_dipoles', 
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'write_pm_optimizer_to_famus',
            'rescale_for_opt', 'initialize_default_kwargs'
@@ -75,7 +75,7 @@ def read_focus_coils(filename):
     return coils, base_currents, ncoils
 
 
-def coil_optimization(s, bs, base_curves, curves, OUT_DIR, config_flag):
+def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot):
     """
         Optimize the coils for the QA, QH, or other configurations.
     """
@@ -90,44 +90,24 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, config_flag):
     ntheta = len(s.quadpoints_theta)
     ncoils = len(base_curves)
 
-    if 'QH' in config_flag:
-        # Weight on the curve lengths in the objective function:
-        LENGTH_WEIGHT = 1e-1
+    # Weight on the curve lengths in the objective function:
+    LENGTH_WEIGHT = 1e-4
 
-        # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-        CC_THRESHOLD = 0.5
-        CC_WEIGHT = 1e3
+    # Threshold and weight for the coil-to-coil distance penalty in the objective function:
+    CC_THRESHOLD = 0.1
+    CC_WEIGHT = 1e-1
 
-        # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-        CS_THRESHOLD = 0.3
-        CS_WEIGHT = 10
+    # Threshold and weight for the coil-to-surface distance penalty in the objective function:
+    CS_THRESHOLD = 0.1
+    CS_WEIGHT = 1e-2
 
-        # Threshold and weight for the curvature penalty in the objective function:
-        CURVATURE_THRESHOLD = 1.
-        CURVATURE_WEIGHT = 1e-6
+    # Threshold and weight for the curvature penalty in the objective function:
+    CURVATURE_THRESHOLD = 0.1
+    CURVATURE_WEIGHT = 1e-9
 
-        # Threshold and weight for the mean squared curvature penalty in the objective function:
-        MSC_THRESHOLD = 1
-        MSC_WEIGHT = 1e-6
-    else:
-        # Weight on the curve lengths in the objective function:
-        LENGTH_WEIGHT = 1e-4
-
-        # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-        CC_THRESHOLD = 0.1
-        CC_WEIGHT = 1e-1
-
-        # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-        CS_THRESHOLD = 0.1
-        CS_WEIGHT = 1e-2
-
-        # Threshold and weight for the curvature penalty in the objective function:
-        CURVATURE_THRESHOLD = 0.1
-        CURVATURE_WEIGHT = 1e-9
-
-        # Threshold and weight for the mean squared curvature penalty in the objective function:
-        MSC_THRESHOLD = 0.1
-        MSC_WEIGHT = 1e-9
+    # Threshold and weight for the mean squared curvature penalty in the objective function:
+    MSC_THRESHOLD = 0.1
+    MSC_WEIGHT = 1e-9
 
     MAXITER = 500  # number of iterations for minimize
 
@@ -192,7 +172,7 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, config_flag):
     return s, bs
 
 
-def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
+def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
     """
         Make Poincare plots on a surface as in the trace_fieldlines
         example in the examples/1_Simple/ directory.
@@ -204,30 +184,9 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 30
+    nfieldlines = 20
     tmax_fl = 20000
-
-    # Different configurations have different cross-sections
-    if 'muse' in config:
-        R0 = np.linspace(0.32, 0.34, nfieldlines)
-    elif 'qa' in config:
-        R0 = np.linspace(0.5, 1.0, nfieldlines)
-    elif 'qh' in config:
-        R0 = np.linspace(0.5, 1.3, nfieldlines)
-    elif config == 'ncsx':
-        R0 = np.linspace(1.0, 1.75, nfieldlines)
-    elif config == 'QH':
-        R0 = np.linspace(12.0, 18.0, nfieldlines)
-    elif config == 'axisym':
-        R0 = np.linspace(0.32, 0.34, nfieldlines)
-    elif config == 'torus':
-        R0 = np.linspace(6, 7, nfieldlines)
-    else:
-        raise NotImplementedError(
-            'The configuration flag indicates a plasma equilibrium '
-            'for which the fieldline tracer does not have default '
-            'parameters for.'
-        )
+    R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 2.0, nfieldlines)
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
@@ -253,15 +212,12 @@ def trace_fieldlines(bfield, label, config, s, comm, OUT_DIR):
 
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
-        phis=phis,
-        stopping_criteria=[IterationStoppingCriterion(120000)])
-    #stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-    t2 = time.time()
-    print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
+        phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        stopping_criteria=[IterationStoppingCriterion(20000)])
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
-        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=400, surf=s)  # xlims=(0.225, 0.375), ylims=(-0.075, 0.075), surf=s)
+        plot_poincare_data(fieldlines_phi_hits, phis, OUT_DIR + f'poincare_fieldline_{label}.png', dpi=100, surf=s)
 
 
 def make_qfm(s, Bfield):
@@ -280,17 +236,17 @@ def make_qfm(s, Bfield):
     qfm = QfmResidual(s, Bfield)
     qfm.J()
 
-    s.change_resolution(16, 16)
+    # s.change_resolution(16, 16)
     vol = Volume(s)
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=500,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=50,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # repeat the optimization for further convergence
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=2000,
+    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=200,
                                                              constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
     return qfm_surface
@@ -320,14 +276,14 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
     elif config_flag == 'qh':
         # generate planar TF coils
         ncoils = 4
-        R0 = 1.0
-        R1 = 0.75
+        R0 = s.get_rc(0, 0)
+        R1 = s.get_rc(1, 0) * 2
         order = 5
 
         # qh needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
-        vmec_file = 'wout_LandremanPaul_QH_variant.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75
+        vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75 / 5.69674966667
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
@@ -348,7 +304,7 @@ def initialize_coils(config_flag, TEST_DIR, OUT_DIR, s):
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.2
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
@@ -390,6 +346,7 @@ def calculate_on_axis_B(bs, s):
     bnormalization = B0avg * surface_area
     print("Bmag at R = ", R0, ", Z = 0: ", B0)
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
+    return B0avg
 
 
 def get_FAMUS_dipoles(famus_filename):
@@ -432,102 +389,6 @@ def get_FAMUS_dipoles(famus_filename):
     mz = mm * np.cos(mt)
     m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
     return m_FAMUS, m0
-
-
-def read_FAMUS_grid(famus_filename, pm_opt, s, s_plot, Bnormal, Bnormal_plot, OUT_DIR):
-    """
-        Reads in and makes vtk plots for a FAMUS grid and
-        solution. Used for the MUSE and NCSX examples.
-    """
-    from simsopt.objectives import SquaredFlux
-    from simsopt.field.magneticfieldclasses import DipoleField
-
-    # FAMUS files are for the half-period surface
-    ox, oy, oz, Ic, m0, p, mp, mt = np.loadtxt(
-        famus_filename, skiprows=3,
-        usecols=[3, 4, 5, 6, 7, 8, 10, 11],
-        delimiter=',', unpack=True
-    )
-
-    print('Number of FAMUS dipoles = ', len(ox))
-
-    # Ic = 0 indices are used to denote grid locations
-    # that should be removed because the ports go there
-    nonzero_inds = (Ic == 1.0)
-    ox = ox[nonzero_inds]
-    oy = oy[nonzero_inds]
-    oz = oz[nonzero_inds]
-    m0 = m0[nonzero_inds]
-    p = p[nonzero_inds]
-    mp = mp[nonzero_inds]
-    mt = mt[nonzero_inds]
-    print('Number of FAMUS dipoles (with ports) = ', len(ox))
-
-    phi = np.arctan2(oy, ox)
-
-    # momentq = 4 for NCSX but always = 1 for MUSE and recent FAMUS runs
-    momentq = np.loadtxt(famus_filename, skiprows=1, max_rows=1, usecols=[1])
-    rho = p ** momentq
-
-    print('Percent of nonzero FAMUS magnets = ', np.count_nonzero(rho) / len(rho))
-    bf_inds = np.logical_or((rho > 0.99), (rho < 0.01))
-    print('Binary fraction = ', np.count_nonzero(bf_inds) / len(rho))
-
-    # Make histogram of the normalized dipole magnitudes
-    plt.figure()
-    plt.hist(abs(rho), bins=np.linspace(0, 1, 30), log=True)
-    plt.grid(True)
-    plt.xlabel('Normalized magnitudes')
-    plt.ylabel('Number of dipoles')
-    plt.savefig(OUT_DIR + 'm_FAMUS_histogram.png')
-
-    # Calculate the effective magnet volume
-    mm = rho * m0
-    mu0 = 4 * np.pi * 1e-7
-    Bmax = 1.4
-    print('FAMUS effective volume = ', np.sum(abs(mm)) * mu0 * 2 * s.nfp / Bmax)
-
-    # Convert from spherical to cartesian vectors
-    mx = mm * np.sin(mt) * np.cos(mp)
-    my = mm * np.sin(mt) * np.sin(mp)
-    mz = mm * np.cos(mt)
-    m_FAMUS = np.ravel((np.array([mx, my, mz]).T))
-
-    coordinate_flag_temp = pm_opt.coordinate_flag
-    pm_opt.coordinate_flag = 'cartesian'
-
-    # Set pm_opt m values to the FAMUS solution so we can use the
-    # plotting routines from the DipoleField class object.
-    pm_opt.m = m_FAMUS
-    pm_opt.m_proxy = m_FAMUS
-
-    # critical change to make sure SIMSOPT and FAMUS use
-    # the same-size magnets
-    pm_opt.m_maxima = m0
-
-    b_dipole_FAMUS = DipoleField(pm_opt)
-    b_dipole_FAMUS.set_points(s.gamma().reshape((-1, 3)))
-    b_dipole_FAMUS._toVTK(OUT_DIR + "Dipole_Fields_FAMUS")
-
-    nphi = len(s.quadpoints_phi)
-    qphi = len(s_plot.quadpoints_phi)
-    ntheta = len(s.quadpoints_phi)
-    Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=-1)
-    f_B_famus = SquaredFlux(s, b_dipole_FAMUS).J()
-    f_B_sf = SquaredFlux(s, b_dipole_FAMUS, -Bnormal).J()
-    print('f_B (only the FAMUS dipoles) = ', f_B_famus)
-    print('f_B (FAMUS total) = ', f_B_sf)
-
-    # Plot Bnormal from optimized Bnormal dipoles
-    b_dipole_FAMUS.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bnormal_FAMUS = np.sum(b_dipole_FAMUS.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-    pointData = {"B_N": Bnormal_FAMUS[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "Bnormal_opt_FAMUS", extra_data=pointData)
-
-    # Plot total Bnormal from optimized Bnormal dipoles + coils
-    pointData = {"B_N": (Bnormal_FAMUS + Bnormal_plot)[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "Bnormal_total_FAMUS", extra_data=pointData)
-    pm_opt.coordinate_flag = coordinate_flag_temp
 
 
 def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_DIR):
@@ -609,17 +470,17 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
                 range(0, m_history.shape[0], 2),
                 repeat=False, blit=True
             )
-            ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
+            # ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
-def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincare, OUT_DIR):
+def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
     """
         Wrapper function for making Poincare plots.
     """
     from simsopt.field.magneticfieldclasses import InterpolatedField
     from simsopt.objectives import SquaredFlux
 
-    n = 64
+    n = 32
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
     r_margin = 0.05
@@ -647,7 +508,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, config_flag, comm, filename_poincar
         bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, config_flag, s_plot, comm, OUT_DIR)
+    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, OUT_DIR)
 
 
 def make_Bnormal_plots(bs, s_plot, OUT_DIR, bs_filename):
@@ -717,7 +578,7 @@ def write_pm_optimizer_to_famus(OUT_DIR, pm_opt):
     with open(filename, "w") as wfile:
         wfile.write(" # Total number of dipoles,  momentq \n")
         wfile.write(
-            "{:6d},  {:4d}\n".format(
+            "{:6d}  {:4d}\n".format(
                 ndipoles, 1
             )
         )
@@ -802,7 +663,7 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['epsilon_RS'] = 1e-3
         kwargs['max_iter_RS'] = 2  # Number of total iterations of the relax-and-split algorithm
         kwargs['reg_l2'] = 0.0
-    elif algorithm == 'GPMO':
+    elif 'GPMO' in algorithm or 'ArbVec' in algorithm:
         kwargs['K'] = 1000
         kwargs["reg_l2"] = 0.0 
         kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K

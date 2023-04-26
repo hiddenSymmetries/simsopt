@@ -2,7 +2,7 @@ import numpy as np
 import simsoptpp as sopp
 import warnings
 
-__all__ = ['relax_and_split', 'GPMO']
+__all__ = ['relax_and_split', 'GPMO', 'prox_l0', 'prox_l1', 'setup_initial_condition']
 
 
 def prox_l0(m, mmax, reg_l0, nu):
@@ -110,11 +110,6 @@ def setup_initial_condition(pm_opt, m0=None):
                 'that are satisfy the maximum bound constraints.'
             )
         pm_opt.m0 = m0
-    elif not hasattr(pm_opt, 'm0'):
-        # initialization to proj(pinv(A) * b) is usually a bad guess,
-        # so defaults to zero here, but can be overwritten
-        # when optimization is performed
-        pm_opt.m0 = np.zeros(pm_opt.ndipoles * 3)
 
 
 def relax_and_split(pm_opt, m0=None, **kwargs):
@@ -255,6 +250,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
             m_proxy_history.append(m_proxy)
             if np.linalg.norm(m - m_proxy) < kwargs['epsilon_RS']:
                 print('Relax-and-split finished early, at iteration ', i)
+                break
     else:
         m0 = np.ascontiguousarray(m0.reshape(pm_opt.ndipoles, 3))
         # no nonconvex terms being used, so just need one round of the
@@ -282,10 +278,8 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     GPMO is a greedy algorithm alternative to
     the relax-and-split algorithm for solving the permanent
     magnet optimization problem. Full-strength magnets are placed
-    one-by-one according to minimize a submodular objective function
-    such as the mutual coherence of ATA. Actually defaults to minimizing
-    the MSE (fB) that is the usual objective for permanent magnet
-    optimization. Allows for a number of keyword arguments that 
+    one-by-one according to minimize 
+    the MSE (fB). Allows for a number of keyword arguments that 
     facilitate some basic backtracking (error correction) and 
     placing magnets together so no isolated magnets occur.
 
@@ -332,6 +326,20 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         algorithm_kwargs.pop("reg_l2")
     else:
         reg_l2 = 0.0
+
+    # check that algorithm can generate K binary dipoles
+    if "K" in algorithm_kwargs.keys():
+        if algorithm_kwargs["K"] > pm_opt.ndipoles:
+            warnings.warn(
+                'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
+                ' so the algorithm will set K = the total number and proceed.'
+            )
+            algorithm_kwargs["K"] = pm_opt.ndipoles
+        print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
+
+    if "nhistory" in algorithm_kwargs.keys() and "K" in algorithm_kwargs.keys():
+        if algorithm_kwargs['nhistory'] > algorithm_kwargs['K']:
+            raise ValueError('nhistory must be less than K for the GPMO algorithm.')
 
     Nnorms = contig(np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1))))
 
@@ -383,15 +391,6 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             normal_norms=Nnorms,
             **algorithm_kwargs
         )
-    elif algorithm == 'mutual_coherence':  # GPMO using mutual coherence instead of MSE 
-        ATb = A_obj.T @ pm_opt.b_obj
-        algorithm_history, Bn_history, m_history, m = sopp.GPMO_MC(
-            A_obj=contig(A_obj.T),
-            b_obj=contig(pm_opt.b_obj),
-            ATb=contig(ATb),
-            normal_norms=Nnorms,
-            **algorithm_kwargs
-        )
     else:
         raise NotImplementedError(
             'Requested algorithm variant is incorrect or not yet implemented'
@@ -400,17 +399,6 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     # rescale m and m_history
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
 
-    # check that algorithm worked correctly to generate K binary dipoles
-    if "K" in algorithm_kwargs.keys():
-        if algorithm_kwargs["K"] > pm_opt.ndipoles:
-            warnings.warn(
-                'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
-                ' so the algorithm will set K = the total number and proceed.'
-            )
-            algorithm_kwargs["K"] = pm_opt.ndipoles
-        print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
-    else:
-        print('Number of binary dipoles to use in GPMO algorithm = ', np.count_nonzero(np.sum(m ** 2, axis=-1)))
     print(np.count_nonzero(m))
     print(
         'Number of binary dipoles returned by GPMO algorithm = ',
