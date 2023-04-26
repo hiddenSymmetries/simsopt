@@ -827,7 +827,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, 
     Array& pol_vectors, int K, bool verbose, int nhistory, int backtracking, 
     Array& dipole_grid_xyz, int Nadjacent, double thresh_angle, 
-    int max_nMagnets)
+    int max_nMagnets, Array& x_init)
 {
     int ngrid = A_obj.shape(1);
     int nPolVecs = pol_vectors.shape(1);
@@ -843,9 +843,9 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     vector<int> x_sign(N);
 
     // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
-    Array objective_history = xt::zeros<double>({nhistory + 1});
-    Array Bn_history = xt::zeros<double>({nhistory + 1});
+    Array m_history = xt::zeros<double>({N, 3, nhistory + 2});
+    Array objective_history = xt::zeros<double>({nhistory + 2});
+    Array Bn_history = xt::zeros<double>({nhistory + 2});
 
     // print out the names of the error columns
     if (verbose)
@@ -879,6 +879,15 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
     int num_nonzero = 0;
     Array num_nonzeros = xt::zeros<int>({nhistory + 1});
+
+    // Initialize the solution according to user input
+    initialize_GPMO_ArbVec(x_init, pol_vectors, x, x_vec, x_sign, 
+        A_obj, Aij_mj_sum, R2s, Gamma_complement, num_nonzero);
+    num_nonzeros(0) = num_nonzero;
+
+    // Save a record of the magnet array as initialized
+    print_GPMO(0, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
+        Bn_history, m_history, mmax_sum, normal_norms_ptr);
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
@@ -948,7 +957,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
         num_nonzero += 1;
 
         // Backtrack by removing adjacent dipoles that are equal and opposite
-        if ((k >= backtracking) and ((k % backtracking) == 0)) {
+        if ((k % backtracking) == 0) {
 
             int wyrm_sum = 0;
 
@@ -1060,6 +1069,136 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
     return std::make_tuple(objective_history, Bn_history, m_history, 
                            num_nonzeros, x);
+}
+
+/*  
+ *  Initializes the solution vector and related arrays according to a 
+ *  user-input initial guess supplied to the GPMO algorithm with arbitrary
+ *  vectors.
+ */
+void initialize_GPMO_ArbVec(Array& x_init, Array& pol_vectors, 
+         Array& x, vector<int>& x_vec, vector<int>& x_sign, 
+         Array& A_obj, Array& Aij_mj_sum, vector<double>& R2s, 
+	 Array& Gamma_complement, int& num_nonzero) {
+
+    // Ensure that size of initialization vector agrees with that of solution
+    if (x_init.shape(1) != 3) {
+        throw std::runtime_error("Second dimension of initialiation vector "
+                  "`x_init` must be 3");
+    }
+    int N = x_init.shape(0);
+    if (x.shape(0) != N) {
+        throw std::runtime_error("Number of magnets in initialization array "
+ 	          " does not match the number of magnets\n in the solution "
+		  " vector");
+    }
+    int nPolVecs = pol_vectors.shape(1);
+    int NNp = N*nPolVecs;
+    int ngrid = A_obj.shape(1);
+
+    int n_initialized = 0;
+    int n_OutOfTol = 0;
+    double tol = (double) 4*std::numeric_limits<float>::epsilon();
+
+    double* Aij_ptr = &(A_obj(0, 0));
+    double* Aij_mj_ptr = &(Aij_mj_sum(0));
+    double* pol_vec_ptr = &(pol_vectors(0,0,0));
+
+    num_nonzero = 0;
+    for (int j = 0; j < N; j++) {
+
+        // Do not change solution arrays if dipole is initialized to zero
+        if (x_init(j,0) == 0 && x_init(j,1) == 0 && x_init(j,2) == 0) {
+	    continue;
+        }
+
+        n_initialized++;
+
+	// Otherwise, find the allowable polarization vector and sign that 
+	// best match the initial guess for the dipole moment
+        double min_sqDiff = std::numeric_limits<double>::infinity();
+	int m_min;
+	int sign_min;
+        for (int m = 0; m < nPolVecs; m++) {
+            double sqDiffPos = 0;
+            double sqDiffNeg = 0;
+            for (int l = 0; l < 3; l++) {
+                sqDiffPos += pow(x_init(j,l) - pol_vectors(j,m,l), 2);
+                sqDiffNeg += pow(x_init(j,l) + pol_vectors(j,m,l), 2);
+	    }
+            if (sqDiffPos < min_sqDiff) { 
+                min_sqDiff = sqDiffPos; 
+		m_min = m;
+                sign_min = 1;
+	    }
+	    if (sqDiffNeg < min_sqDiff) { 
+		min_sqDiff = sqDiffNeg; 
+		m_min = m;
+		sign_min = -1;
+	    }
+	}
+
+	// Check if the initialized vector is closer to zero than any of the
+	// allowable dipole moments
+	double sqDiffNull = 0;
+	for (int l = 0; l < 3; l++) {
+	    sqDiffNull += pow(x_init(j,l), 2);
+	}
+	if (sqDiffNull < min_sqDiff) {
+	    min_sqDiff = sqDiffNull;
+	    m_min = 0;
+	    sign_min = 0;
+	}
+
+	// Update solution vector and associated arrays to the nearest
+	// allowable dipole moment vector (if nonzero)
+	if (sign_min != 0) {
+
+            num_nonzero++;
+
+            // Solution vector and metadata about type ID and sign
+    	    for (int l = 0; l < 3; l++) {
+    	        x(j,l) = sign_min * pol_vectors(j,m_min,l);
+            }
+	    x_vec[j] = m_min;
+	    x_sign[j] = sign_min;
+            Gamma_complement(j) = false;
+
+            // Running totals for normal field at test points on plasma
+            for (int l = 0; l < 3; l++) {
+                int pol_ind = l + 3 * (nPolVecs * j + m_min);
+                int j_ind = (3 * j + l) * ngrid;
+                #pragma omp parallel for schedule(static)
+                for(int i = 0; i < ngrid; ++i) {
+                    Aij_mj_ptr[i] += 
+                        sign_min * pol_vec_ptr[pol_ind] * Aij_ptr[i + j_ind];
+                }
+            }
+
+            // Assign high values to contributions of the magnet to R2
+            for (int m = 0; m < nPolVecs; m++) {
+	        R2s[j*nPolVecs + m] = 1e50;
+	        R2s[NNp + j*nPolVecs + m] = 1e50;
+            }
+	}
+
+	// Check if the discrepancy between the initialization vector and the
+	// assigned vector exceeds the tolerance for single-precision floats
+	for (int l = 0; l < 3; l++) {
+	    if (abs(x_init(j,l) - x(j,l)) > tol) {
+	        n_OutOfTol++;
+		break;
+	    }
+	}
+    }
+
+    if (n_OutOfTol != 0) {
+        printf("    WARNING: %d of %d dipoles in the initialization vector "
+               "disagree \n    with the allowable dipole moments to single "
+	       "floating precision. These \n    dipoles will be initialized "
+	       "to the nearest allowable moments or zero.\n", 
+	       n_OutOfTol, n_initialized);
+    }
 }
 
 // Variant of the GPMO algorithm for solving the permanent magnet optimization
