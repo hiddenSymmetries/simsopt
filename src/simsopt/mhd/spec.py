@@ -163,43 +163,35 @@ class Spec(Optimizable):
         # The initial guess is a collection of SurfaceRZFourier instances,
         # stored in a list of size Mvol-1 (the number of inner interfaces)
         nmodes = self.allglobal.num_modes
-        mn = si.ntor+1 + si.mpol*(2*si.ntor+1)
         stellsym = bool(si.istellsym)
         if nmodes > 0 and self.nvol > 1:
             self.initial_guess = [ 
-                SurfaceRZFourier(nfp=si.nfp, stellsym=stellsym, mpol=si.mpol, ntor=si.ntor) 
-            ] * (self.mvol-1)
-            for mm in range(0, si.mpol+1):  # loop on poloidal modes
-                for nn in range(-si.ntor, si.ntor+1):  # loop on toroidal modes
-                    if mm == 0 and nn < 0:
-                        continue
+                SurfaceRZFourier(nfp=si.nfp, stellsym=stellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0,self.nvol-1)
+            ]
+            for imode in range(0, nmodes):
+                mm = self.allglobal.mmrzrz[imode]
+                nn = self.allglobal.nnrzrz[imode]
+                if mm>si.mpol:
+                    continue
+                if abs(nn)>si.ntor:
+                    continue
 
-                    # Find index in array where Fourier harmonic is located
-                    indm = np.where(self.allglobal.mmrzrz[0:nmodes] == mm)
-                    indn = np.where(self.allglobal.nnrzrz[0:nmodes] == nn)
-                    ind = np.intersect1d(indm, indn)
+                # Populate SurfaceRZFourier instances, except plasma boundary
+                for lvol in range(0, self.nvol-1):
+                    self.initial_guess[lvol].set_rc(mm, nn, self.allglobal.allrzrz[0, lvol, imode])
+                    self.initial_guess[lvol].set_zs(mm, nn, self.allglobal.allrzrz[1, lvol, imode])
 
-                    if ind.size == 0:
-                        continue
-                    elif ind.size > 1:
-                        ValueError('Error reading initial guess.')
+                    if not si.istellsym:
+                        self.initial_guess[lvol].set_rs(mm, nn, self.allglobal.allrzrz[2, lvol, imode])
+                        self.initial_guess[lvol].set_zc(mm, nn, self.allglobal.allrzrz[3, lvol, imode])
 
-                    # Populate SurfaceRZFourier instances, except plasma boundary
-                    for lvol in range(0, self.nvol-1):
-                        self.initial_guess[lvol].set_rc(mm, nn, self.allglobal.allrzrz[0, lvol, ind])
-                        self.initial_guess[lvol].set_zs(mm, nn, self.allglobal.allrzrz[1, lvol, ind])
+                if si.lfreebound:  # Populate plasma boundary as well
+                    self.initial_guess[self.nvol-1].set_rc(mm, nn, si.rbc[si.mntor+nn, si.mmpol+mm])
+                    self.initial_guess[self.nvol-1].set_zs(mm, nn, si.zbs[si.mntor+nn, si.mmpol+mm])
 
-                        if not si.istellsym:
-                            self.initial_guess[lvol].set_rs(mm, nn, self.allglobal.allrzrz[2, lvol, ind])
-                            self.initial_guess[lvol].set_zc(mm, nn, self.allglobal.allrzrz[3, lvol, ind])
-
-                    if si.lfreebound:  # Populate plasma boundary as well
-                        self.initial_guess[self.nvol-1].set_rc(mm, nn, si.rbc[si.mntor+nn, si.mmpol+mm])
-                        self.initial_guess[self.nvol-1].set_zs(mm, nn, si.zbs[si.mntor+nn, si.mmpol+mm])
-
-                        if not si.istellsym:
-                            self.initial_guess[self.nvol-1].set_rs(mm, nn, si.rbs[si.mntor+nn, si.mmpol+mm])
-                            self.initial_guess[self.nvol-1].set_zc(mm, nn, si.zbc[si.mntor+nn, si.mmpol+mm])
+                    if not si.istellsym:
+                        self.initial_guess[self.nvol-1].set_rs(mm, nn, si.rbs[si.mntor+nn, si.mmpol+mm])
+                        self.initial_guess[self.nvol-1].set_zc(mm, nn, si.zbc[si.mntor+nn, si.mmpol+mm])
 
             # In general, initial guess is NOT a degree of freedom for the
             # optimization - we thus fix them.
