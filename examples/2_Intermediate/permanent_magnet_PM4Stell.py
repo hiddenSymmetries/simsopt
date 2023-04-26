@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
     This example sript uses the GPMO backtracking algorithm with 
     arbitrarily-defined polarization vectors to optimize magnets in an 
@@ -15,6 +16,7 @@
 
 import os
 import numpy as np
+from pathlib import Path
 from matplotlib import pyplot as plt
 import time
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
@@ -33,11 +35,11 @@ N = 16
 nphi = N
 ntheta = N
 nfp = 3
-algorithm = 'baseline'  # 'ArbVec_backtracking'
+algorithm = 'ArbVec_backtracking'
 nBacktracking = 500 
 nAdjacent = 10
-nIter_max = 40000
-max_nMagnets = 10000
+nIter_max = 4000
+max_nMagnets = 1000
 thresh_angle = np.pi / np.sqrt(2)
 nHistory = 100
 out_dir = 'PM4Stell_' + str(int(thresh_angle * 180 / np.pi)) + 'deg_nb' + str(nBacktracking) + '_na' + str(nAdjacent) + '/' 
@@ -45,9 +47,8 @@ os.makedirs(out_dir, exist_ok=True)
 print('out directory = ', out_dir)
 
 # Obtain the plasma boundary for the NCSX configuration
-dir_pm4stell = '../../tests/test_files/'
-dir_ncsx_surf = dir_pm4stell + ''
-fname_plasma = dir_ncsx_surf + 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
 lcfs_ncsx = SurfaceRZFourier.from_focus(fname_plasma, range='half period', \
                                         nphi=nphi, ntheta=ntheta)
 s1 = SurfaceRZFourier.from_focus(fname_plasma, range='half period', \
@@ -69,8 +70,7 @@ bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
 bn_plasma = bnormal_obj_ncsx.bnormal_grid(nphi, ntheta, 'half period')
 
 # Obtain the NCSX TF coil data and calculate their normal field on the boundary
-dir_ncsx_coils = dir_pm4stell + ''
-fname_ncsx_coils = dir_ncsx_coils + 'tf_only_half_tesla_symmetry_baxis_PM4Stell.focus'
+fname_ncsx_coils = TEST_DIR / 'tf_only_half_tesla_symmetry_baxis_PM4Stell.focus'
 # ncsx_tfcoils = read_focus_coils(fname_ncsx_coils, nfp)
 base_curves, base_currents, ncoils = read_focus_coils(fname_ncsx_coils)
 coils = []
@@ -92,8 +92,8 @@ bn_total = bn_plasma + bn_tfcoils
 make_Bnormal_plots(bs_tfcoils, s_plot, out_dir, "biot_savart_initial")
 
 # Obtain data on the magnet arrangement
-fname_argmt = dir_pm4stell + 'magpie_trial104b_PM4Stell.focus'
-fname_corn = dir_pm4stell + 'magpie_trial104b_corners_PM4Stell.csv'
+fname_argmt = TEST_DIR / 'magpie_trial104b_PM4Stell.focus'
+fname_corn = TEST_DIR / 'magpie_trial104b_corners_PM4Stell.csv'
 mag_data = FocusData(fname_argmt)
 nMagnets_tot = mag_data.nMagnets
 
@@ -196,4 +196,4 @@ plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
-plt.show()
+# plt.show()
