@@ -310,6 +310,20 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             raise ValueError('ArbVec_backtracking algorithm currently ' \
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
+        nGridPoints = int(A_obj.shape[1]/3)
+        if "m_init" in algorithm_kwargs.keys():
+            if algorithm_kwargs["m_init"].shape[0] != nGridPoints:
+                raise ValueError('Initialization vector `m_init` must have ' \
+                        'as many rows as there are dipoles in the grid');
+            elif algorithm_kwargs["m_init"].shape[1] != 3:
+                raise ValueError('Initialization vector `m_init` must have '\
+                        'three columns')
+            algorithm_kwargs["x_init"] = algorithm_kwargs["m_init"] \
+                / (mmax_vec.reshape(pm_opt.ndipoles, 3))
+            algorithm_kwargs.pop("m_init")
+        else:
+            algorithm_kwargs["x_init"] = \
+                np.ascontiguousarray(np.zeros((nGridPoints,3)))
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_ArbVec_backtracking(
             A_obj=np.ascontiguousarray(A_obj.T),
             b_obj=np.ascontiguousarray(pm_opt.b_obj),
