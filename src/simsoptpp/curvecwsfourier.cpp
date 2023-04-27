@@ -517,7 +517,7 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
                 for (int j = 0; j < 2 * ntor + 1; ++j)
                 {
                     int n = j - ntor;
-
+                    std::cout << "n: " << n << std::endl;
                     r += rc(m, j) * cos(m * theta - nfp * n * phi);
                     dr_dt += -rc(m, j) * sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt);
 
@@ -529,6 +529,9 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
                     d2z_dthetacoeffdt += zs(m, j) * (sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (m * dtheta_by_dthetacoeff[i]) + cos(m * theta - nfp * n * phi) * (m * d2theta_by_dthetacoeffdt[i]));
                     d2z_dphicoeffdt += zs(m, j) * (sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (-nfp * n * dphi_by_dphicoeff[i]) + cos(m * theta - nfp * n * phi) * (-nfp * n * dphi_by_dphicoeff[i]));
+
+                    std::cout << "d2z_dthetacoeffdt: " << d2z_dthetacoeffdt << std::endl;
+                    std::cout << "d2z_dphicoeffdt: " << d2z_dphicoeffdt << std::endl;
 
                     if (!stellsym)
                     {
@@ -554,12 +557,14 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
             d2z_dcoeffdt[i] = d2z_dthetacoeffdt;
             d2z_dcoeffdt[i + counter] = d2z_dphicoeffdt;
+            std::cout << "d2z_dcoeffdt[i]: " << d2z_dcoeffdt[i] << "d2z_dcoeffdt[i + counter]: " << d2z_dcoeffdt[i + counter] << std::endl;
         }
 
-        for (int p = 0; p < counter; p++)
-        {
-            std::cout << dr_dcoeff[p] << d2r_dcoeffdt[p] << d2z_dcoeffdt[p] << std::endl;
-        }
+        /*         for (int p = 0; p < counter; p++)
+                {
+                    std::cout << dr_dcoeff[p] << d2r_dcoeffdt[p] << d2z_dcoeffdt[p] << std::endl;
+                }
+         */
 
         for (int p = 0; p < counter; p++)
         {
