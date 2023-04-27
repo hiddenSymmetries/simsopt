@@ -878,7 +878,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     Array Connect = connectivity_matrix(dipole_grid_xyz, Nadjacent);
 
     int num_nonzero = 0;
-    Array num_nonzeros = xt::zeros<int>({nhistory + 1});
+    Array num_nonzeros = xt::zeros<int>({nhistory + 2});
 
     // Initialize the solution according to user input
     initialize_GPMO_ArbVec(x_init, pol_vectors, x, x_vec, x_sign, 
