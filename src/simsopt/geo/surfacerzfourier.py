@@ -10,6 +10,13 @@ from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.json import GSONDecoder
+from .._core.dev import SimsoptRequires
+
+try:
+    from qsc import Qsc
+    from qsc.util import to_Fourier
+except ImportError:
+    Qsc = None
 
 logger = logging.getLogger(__name__)
 
@@ -371,6 +378,39 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             if not stellsym:
                 surf.rs[m[j], n[j] + ntor] = rs[j]
                 surf.zc[m[j], n[j] + ntor] = zc[j]
+
+        surf.local_full_x = surf.get_dofs()
+        return surf
+
+    @classmethod
+    @SimsoptRequires(Qsc is not None, "from_pyQSC method requires pyQSC module")
+    def from_pyQSC(cls, stel: Qsc, r: float = 0.1, ntheta=20, mpol=10, ntor=20, **kwargs):
+        """
+        Initialize the surface from a pyQSC object. This creates a surface
+        from a near-axis equilibrium with a specified minor radius `r` (in meters).
+
+        Args:
+            stel: Qsc object with a near-axis equilibrium.
+            r: the near-axis coordinate radius (in meters).
+            ntheta: number of points in the theta direction for the Fourier transform.
+            mpol: number of poloidal Fourier modes for the surface.
+            ntor: number of toroidal Fourier modes for the surface.
+            kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
+              You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
+        """
+        # Get surface shape at fixed off-axis toroidal angle phi
+        R_2D, Z_2D, _ = stel.Frenet_to_cylindrical(r, ntheta)
+
+        # Fourier transform the result.
+        RBC, RBS, ZBC, ZBS = to_Fourier(R_2D, Z_2D, stel.nfp, mpol, ntor, stel.lasym)
+
+        surf = cls(mpol=mpol, ntor=ntor, nfp=stel.nfp, stellsym=not stel.lasym, **kwargs)
+
+        surf.rc = RBC.transpose()
+        surf.zs = ZBS.transpose()
+        if stel.lasym:
+            surf.rs = RBS.transpose()
+            surf.zc = ZBC.transpose()
 
         surf.local_full_x = surf.get_dofs()
         return surf
