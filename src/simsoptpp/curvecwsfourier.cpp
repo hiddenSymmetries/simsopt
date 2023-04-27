@@ -454,8 +454,8 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
         dtheta_by_dthetacoeff[counter] = CWSt;
         dphi_by_dphicoeff[counter] = CWSt;
-        d2theta_by_dthetacoeffdt[counter] = 0;
-        d2phi_by_dphicoeffdt[counter] = 0;
+        d2theta_by_dthetacoeffdt[counter] = 1;
+        d2phi_by_dphicoeffdt[counter] = 1;
 
         counter++;
 
@@ -499,8 +499,8 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
         dphi_dt += phi_l;
         dtheta_dt += theta_l;
 
-// SURFACE
-#pragma omp parallel for
+        // SURFACE
+        // #pragma omp parallel for
         for (int i = 0; i < counter; ++i)
         {
             r = 0;
@@ -554,6 +554,11 @@ void CurveCWSFourier<Array>::dgammadash_by_dcoeff_impl(Array &data)
 
             d2z_dcoeffdt[i] = d2z_dthetacoeffdt;
             d2z_dcoeffdt[i + counter] = d2z_dphicoeffdt;
+        }
+
+        for (int p = 0; p < counter; p++)
+        {
+            std::cout << dr_dcoeff[p] << d2r_dcoeffdt[p] << d2z_dcoeffdt[p] << std::endl;
         }
 
         for (int p = 0; p < counter; p++)
