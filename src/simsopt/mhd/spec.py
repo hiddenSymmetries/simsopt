@@ -998,8 +998,8 @@ class Spec(Optimizable):
             new_guess = None
             if self.mvol > 1:
                 new_guess = [
-                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor)
-                ] * (self.mvol-1)
+                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0, self.mvol-1)
+                ]
 
                 for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
                     nnorm = (nn / si.nfp).astype('int')
