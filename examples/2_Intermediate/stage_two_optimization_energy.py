@@ -8,11 +8,7 @@ just zero.
 The objective is given by
 
     J = (1/2) \int |B dot n|^2 ds
-        + LENGTH_WEIGHT * (sum CurveLength)
-        + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
-        + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
-        + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
-
+        + ENERGY_WEIGHT * Vacuum_energy
 if any of the weights are increased, or the thresholds are tightened, the coils
 are more regular and better separated, but the target normal field may not be
 achieved as well. This example demonstrates the adjustment of weights and
@@ -52,23 +48,8 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-6)
+ENERGY_WEIGHT = Weight(1e-6)
 
-# Threshold and weight for the coil-to-coil distance penalty in the objective function:
-CC_THRESHOLD = 0.1
-CC_WEIGHT = 1000
-
-# Threshold and weight for the coil-to-surface distance penalty in the objective function:
-CS_THRESHOLD = 0.3
-CS_WEIGHT = 10
-
-# Threshold and weight for the curvature penalty in the objective function:
-CURVATURE_THRESHOLD = 5.
-CURVATURE_WEIGHT = 1e-6
-
-# Threshold and weight for the mean squared curvature penalty in the objective function:
-MSC_THRESHOLD = 5
-MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -97,35 +78,42 @@ base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
 # of the currents:
+# Note to sefl: shall we fix the current or the toroidal flux ? 
+# Need to think of this in terms of degrees of freedom 
+
+# Let us first fix the currents 
 base_currents[0].fix_all()
 
+# Generate coils symmetrically from those base curves
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
+# Export those coils to vtk to visualize them 
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData) 
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
-Jls = [CurveLength(c) for c in base_curves]
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
-Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
-Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+JE = SquaredFlux(s, bs)  # vaccum energy as a sum of fluxes - this term should be changed to the actual expression 
+#Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+#Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+#Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+#Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+
+# Objectives for that study:
+#   - implement analytical jxB as a gradient of magnetic energy
+#   - implement the derivative with autodiff 
+#   - compare both results 
 
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_WEIGHT * sum(Jls) \
-    + CC_WEIGHT * Jccdist \
-    + CS_WEIGHT * Jcsdist \
-    + CURVATURE_WEIGHT * sum(Jcs) \
-    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
+    + ENERGY_WEIGHT * JE #sum(JE) 
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -139,12 +127,12 @@ def fun(dofs):
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
-    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    # cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+    # kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+    # msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+    # outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    # outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+    # outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad
 
@@ -182,7 +170,7 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 # subsequent optimization with reduced penalty for the coil length. This will
 # result in slightly longer coils but smaller `B·n` on the surface.
 dofs = res.x
-LENGTH_WEIGHT *= 0.1
+ENERGY_WEIGHT *= 0.1
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}

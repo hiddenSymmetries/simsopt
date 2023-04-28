@@ -10,7 +10,7 @@ from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
 import simsoptpp as sopp
 
-__all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
+__all__ = ['VacuumEnergy','CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
            'MeanSquaredCurvature', 'LinkingNumber']
 
@@ -23,6 +23,30 @@ def curve_length_pure(l):
     return jnp.mean(l)
 
 
+class VacuumEnergy(Optimizable):
+    r"""
+    Vacuum energy is a class that computes the magnetic energy over all space
+    resulting from a set of coils 
+    """
+    
+    def __init__(self, coils):
+        self.coils = coils
+
+    def J(self):
+        """
+        This returns the value of the quantity (vacuum energy as sum of fluxes) 
+        beware of singularities
+        """
+    
+    @derivative_dec 
+    def dJ(self):
+        """
+        This returns the value of the derivative (analytical): JxB
+        """
+
+    return_fn_map = {'J': J, 'dJ': dJ}
+        
+    
 class CurveLength(Optimizable):
     r"""
     CurveLength is a class that computes the length of a curve, i.e.
