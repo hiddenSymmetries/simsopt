@@ -10,13 +10,6 @@ using namespace std;
 // only computes B, one that computes B and \nabla B, and one that computes B,
 // \nabla B, and \nabla\nabla B.
 
-/*
-#if __cplusplus >= 201703L
-#define MYIF(c) if constexpr(c)
-#else
-#define MYIF(c) if(c)
-#endif
-*/
 #if defined(USE_XSIMD)
 
 template<class T, int derivs>
@@ -590,51 +583,26 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
 
             auto dgamma_by_dphi_j_simd = Vec3dStd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
-            /*
-            A_i.x += dgamma_by_dphi_j_simd.x * norm_diff_inv;
-            A_i.y += dgamma_by_dphi_j_simd.y * norm_diff_inv;
-            A_i.z += dgamma_by_dphi_j_simd.z * norm_diff_inv;
-            */
             A_i += dgamma_by_dphi_j_simd * norm_diff_inv;
 
             if constexpr(derivs > 0) {
 #pragma unroll
                 for(int k=0; k<3; k++) {
                     auto diffk_norm_diff_3_inv = norm_diff_3_inv * diff[k];
-                    /*
-                    dA_dX_i[k].x -= dgamma_by_dphi_j_simd.x * diffk_norm_diff_3_inv;
-                    dA_dX_i[k].y -= dgamma_by_dphi_j_simd.y * diffk_norm_diff_3_inv;
-                    dA_dX_i[k].z -= dgamma_by_dphi_j_simd.z * diffk_norm_diff_3_inv;
-                    */
                     dA_dX_i[k] -= dgamma_by_dphi_j_simd * diffk_norm_diff_3_inv;
                 }
                 if constexpr(derivs > 1) {
                     auto term124fak = dgamma_by_dphi_j_simd;
                     auto fak5 = 3.*norm_diff_3_inv*norm_diff_inv*norm_diff_inv;
-                    /*
-                    term124fak.x *= fak5;
-                    term124fak.y *= fak5;
-                    term124fak.z *= fak5;
-                    */
                     term124fak *= fak5;
 #pragma unroll
                     for(int k1=0; k1<3; k1++) {
 #pragma unroll
                         for(int k2=0; k2<=k1; k2++) {
                             auto term12 = diff[k1]*diff[k2];
-                            /*
-                            d2A_dXdX_i[3*k1 + k2].x = term124fak.x * term12 + d2A_dXdX_i[3*k1 + k2].x;
-                            d2A_dXdX_i[3*k1 + k2].y = term124fak.y * term12 + d2A_dXdX_i[3*k1 + k2].y;
-                            d2A_dXdX_i[3*k1 + k2].z = term124fak.z * term12 + d2A_dXdX_i[3*k1 + k2].z;
-                            */
                             d2A_dXdX_i[3*k1 + k2] += term124fak * term12;
 
                             if(k1 == k2) {
-                                /*
-                                d2A_dXdX_i[3*k1 + k2].x -= norm_diff_3_inv * dgamma_by_dphi_j_simd.x;
-                                d2A_dXdX_i[3*k1 + k2].y -= norm_diff_3_inv * dgamma_by_dphi_j_simd.y;
-                                d2A_dXdX_i[3*k1 + k2].z -= norm_diff_3_inv * dgamma_by_dphi_j_simd.z;
-                                */
                                 d2A_dXdX_i[3*k1 + k2] -= norm_diff_3_inv * dgamma_by_dphi_j_simd;
                             }
                         }

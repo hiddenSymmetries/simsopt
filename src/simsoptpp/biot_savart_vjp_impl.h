@@ -450,7 +450,6 @@ void biot_savart_vector_potential_vjp_kernel(
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dStd();
-        // auto vgrad_i = vector<Vec3dStd, xs::aligned_allocator<Vec3dStd, XSIMD_DEFAULT_ALIGNMENT>>{
         auto vgrad_i = vector<Vec3dStd>{
                 Vec3dStd(), Vec3dStd(), Vec3dStd()
             };
@@ -476,22 +475,12 @@ void biot_savart_vector_potential_vjp_kernel(
             auto norm_diff_inv_3 = norm_diff_inv * norm_diff_inv * norm_diff_inv;
 
             auto res_dgamma_by_dphi_add = v_i * norm_diff_inv;
-            /*
-            res_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_dgamma_by_dphi_add.x);
-            res_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_dgamma_by_dphi_add.y);
-            res_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_dgamma_by_dphi_add.z);
-            */
             res_dgamma_by_dphi_ptr[3*j+0] += res_dgamma_by_dphi_add.x;
             res_dgamma_by_dphi_ptr[3*j+1] += res_dgamma_by_dphi_add.y;
             res_dgamma_by_dphi_ptr[3*j+2] += res_dgamma_by_dphi_add.z;
 
             auto vi_dot_dgamma_dphi_j = inner(v_i, dgamma_j_by_dphi);
             auto res_gamma_add = diff * (vi_dot_dgamma_dphi_j * norm_diff_inv_3);
-            /*
-            res_gamma_ptr[3*j+0] += xsimd::hadd(res_gamma_add.x);
-            res_gamma_ptr[3*j+1] += xsimd::hadd(res_gamma_add.y);
-            res_gamma_ptr[3*j+2] += xsimd::hadd(res_gamma_add.z);
-            */
             res_gamma_ptr[3*j+0] += res_gamma_add.x;
             res_gamma_ptr[3*j+1] += res_gamma_add.y;
             res_gamma_ptr[3*j+2] += res_gamma_add.z;
@@ -509,14 +498,7 @@ void biot_savart_vector_potential_vjp_kernel(
                 res_grad_gamma_add.x += inner(vgrad_i[0], dgamma_j_by_dphi) * norm_diff_inv_3;
                 res_grad_gamma_add.y += inner(vgrad_i[1], dgamma_j_by_dphi) * norm_diff_inv_3;
                 res_grad_gamma_add.z += inner(vgrad_i[2], dgamma_j_by_dphi) * norm_diff_inv_3;
-                /*
-                res_grad_dgamma_by_dphi_ptr[3*j+0] += xsimd::hadd(res_grad_dgamma_by_dphi_add.x);
-                res_grad_dgamma_by_dphi_ptr[3*j+1] += xsimd::hadd(res_grad_dgamma_by_dphi_add.y);
-                res_grad_dgamma_by_dphi_ptr[3*j+2] += xsimd::hadd(res_grad_dgamma_by_dphi_add.z);
-                res_grad_gamma_ptr[3*j+0] += xsimd::hadd(res_grad_gamma_add.x);
-                res_grad_gamma_ptr[3*j+1] += xsimd::hadd(res_grad_gamma_add.y);
-                res_grad_gamma_ptr[3*j+2] += xsimd::hadd(res_grad_gamma_add.z);
-                */
+
                 res_grad_dgamma_by_dphi_ptr[3*j+0] += res_grad_dgamma_by_dphi_add.x;
                 res_grad_dgamma_by_dphi_ptr[3*j+1] += res_grad_dgamma_by_dphi_add.y;
                 res_grad_dgamma_by_dphi_ptr[3*j+2] += res_grad_dgamma_by_dphi_add.z;
