@@ -15,19 +15,22 @@
 '''
 
 import os
-import numpy as np
 from pathlib import Path
-from matplotlib import pyplot as plt
 import time
-from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
+
+from matplotlib import pyplot as plt
+import numpy as np
+
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.field import Coil
+from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, write_pm_optimizer_to_famus, make_Bnormal_plots
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils
 from simsopt.util.polarization_project import polarization_axes, orientation_phi, \
     discretize_polarizations
+
 t_start = time.time()
 
 # Set some parameters
