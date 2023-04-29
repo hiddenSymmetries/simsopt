@@ -111,7 +111,11 @@ dofs_coils_length = len(JF.x)
 
 
 def fun(dofs):
-    JF, bs, base_curves, curves, coils, Jf, Jls, Jccdist, Jcs, Jmscs = create_cws_from_dofs(dofs_cws=dofs[dofs_coils_length:], dofs_coils=dofs[:dofs_coils_length])
+    dofs_cws = dofs[dofs_coils_length:]
+    dofs_coils = dofs[:dofs_coils_length]
+    JF, bs, base_curves, curves, coils, Jf, Jls, Jccdist, Jcs, Jmscs = create_cws_from_dofs(dofs_cws=dofs_cws, dofs_coils=dofs_coils)
+    cws.x = dofs_cws
+    JF.x = dofs_coils
     J = JF.J()
     coils_dJ = JF.dJ()
     ## Mixed term - derivative of squared flux with respect to the surface shape
