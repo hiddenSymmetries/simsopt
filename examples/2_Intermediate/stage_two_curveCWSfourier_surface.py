@@ -33,23 +33,31 @@ MSC_WEIGHT = 0.01
 # SURFACE INPUT FILES FOR TESTING
 wout = "/Users/rogeriojorge/local/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4m.nc"
 
-MAXITER = 10 
+MAXITER = 20
 minor_radius_factor_cws = 1.9
 ncoils = 3
-order = 6  # order of dofs of cws curves
+order = 4  # order of dofs of cws curves
 numquadpoints = 13 * order
 ntheta = 50
-nphi = 50
+nphi = 32
+
+mpol = 1
+ntor = 1
+
+JACOBIAN_THRESHOLD = 100
 
 # CREATE SURFACES
 s = SurfaceRZFourier.from_wout(wout, range="half period", ntheta=ntheta, nphi=nphi)
 s_full = SurfaceRZFourier.from_wout(wout, range="full torus", ntheta=ntheta, nphi=int(nphi*2*s.nfp))
-cws = SurfaceRZFourier.from_nphi_ntheta(nphi, ntheta, "half period", s.nfp)
-cws_full = SurfaceRZFourier.from_nphi_ntheta(int(nphi*2*s.nfp), ntheta, "full torus", s.nfp)
+cws = SurfaceRZFourier.from_nphi_ntheta(nphi, ntheta, "half period", s.nfp, mpol=mpol, ntor=ntor)
+cws_full = SurfaceRZFourier.from_nphi_ntheta(int(nphi*2*s.nfp), ntheta, "full torus", s.nfp, mpol=mpol, ntor=ntor)
 
 R = s.get_rc(0, 0)
-cws.set_dofs([R, s.get_zs(1, 0)*minor_radius_factor_cws, s.get_zs(1, 0)*minor_radius_factor_cws])
-cws_full.set_dofs([R, s.get_zs(1, 0)*minor_radius_factor_cws, s.get_zs(1, 0)*minor_radius_factor_cws])
+cws.rc[0, ntor] = R
+cws.rc[1, ntor] = s.get_zs(1, 0)*minor_radius_factor_cws
+cws.zs[1, ntor] = s.get_zs(1, 0)*minor_radius_factor_cws
+cws.local_full_x = cws.get_dofs()
+cws_full.x = cws.x
 
 
 def create_cws_from_dofs(dofs_cws=cws.x, dofs_coils=None):
@@ -115,40 +123,45 @@ def fun(dofs):
     dofs_coils = dofs[:dofs_coils_length]
     JF, bs, base_curves, curves, coils, Jf, Jls, Jccdist, Jcs, Jmscs = create_cws_from_dofs(dofs_cws=dofs_cws, dofs_coils=dofs_coils)
     cws.x = dofs_cws
+    cws_full.x = dofs_cws
     JF.x = dofs_coils
     J = JF.J()
-    coils_dJ = JF.dJ()
-    ## Mixed term - derivative of squared flux with respect to the surface shape
-    n = cws.normal()
-    absn = np.linalg.norm(n, axis=2)
-    B = bs.B().reshape((nphi, ntheta, 3))
-    dB_by_dX = bs.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-    Bcoil = bs.B().reshape(n.shape)
-    unitn = n * (1./absn)[:, :, None]
-    Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-    mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
-    B_n = Bcoil_n
-    B_diff = Bcoil
-    B_N = np.sum(Bcoil * n, axis=2)
-    assert Jf.local
-    dJdx = (B_n/mod_Bcoil**2)[:, :, None] * (np.sum(dB_by_dX*(n-B*(B_N/mod_Bcoil**2)[:, :, None])[:, :, None, :], axis=3))
-    dJdN = (B_n/mod_Bcoil**2)[:, :, None] * B_diff - 0.5 * (B_N**2/absn**3/mod_Bcoil**2)[:, :, None] * n
-    deriv = cws.dnormal_by_dcoeff_vjp(dJdN/(nphi*ntheta)) + cws.dgamma_by_dcoeff_vjp(dJdx/(nphi*ntheta))
-    mixed_dJ = Derivative({cws: deriv})(cws)
-    ## Put both gradients together
-    grad_with_respect_to_coils = coils_dJ
-    grad_with_respect_to_surface = mixed_dJ
-    grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
+    if np.isnan(J):
+        J = JACOBIAN_THRESHOLD
+        grad = [0]*len(dofs)
+        print(f'J is nan, outputting J = {JACOBIAN_THRESHOLD}')
+    else:
+        coils_dJ = JF.dJ()
+        ## Mixed term - derivative of squared flux with respect to the surface shape
+        n = cws.normal()
+        absn = np.linalg.norm(n, axis=2)
+        B = bs.B().reshape((nphi, ntheta, 3))
+        dB_by_dX = bs.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        Bcoil = bs.B().reshape(n.shape)
+        unitn = n * (1./absn)[:, :, None]
+        Bcoil_n = np.sum(Bcoil*unitn, axis=2)
+        mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+        B_n = Bcoil_n
+        B_diff = Bcoil
+        B_N = np.sum(Bcoil * n, axis=2)
+        dJdx = (B_n/mod_Bcoil**2)[:, :, None] * (np.sum(dB_by_dX*(n-B*(B_N/mod_Bcoil**2)[:, :, None])[:, :, None, :], axis=3))
+        dJdN = (B_n/mod_Bcoil**2)[:, :, None] * B_diff - 0.5 * (B_N**2/absn**3/mod_Bcoil**2)[:, :, None] * n
+        deriv = cws.dnormal_by_dcoeff_vjp(dJdN/(nphi*ntheta)) + cws.dgamma_by_dcoeff_vjp(dJdx/(nphi*ntheta))
+        mixed_dJ = Derivative({cws: deriv})(cws)
+        ## Put both gradients together
+        grad_with_respect_to_coils = coils_dJ
+        grad_with_respect_to_surface = mixed_dJ
+        grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
-    jf = Jf.J()
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    outstr = f"J={J:.3e}, Jf={jf:.3e}, ⟨B·n⟩={BdotN:.1e}"
-    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
-    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}"
-    print(outstr)
+        jf = Jf.J()
+        BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+        outstr = f"J={J:.3e}, Jf={jf:.3e}, ⟨B·n⟩={BdotN:.1e}"
+        cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+        kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+        msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+        outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+        outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}"
+        print(outstr)
     return J, grad
 
 
@@ -160,8 +173,8 @@ res = minimize(
     fun,
     dofs,
     jac=True,
-    method="L-BFGS-B",
-    options={"maxiter": MAXITER, "maxcor": 300},
+    method="BFGS",
+    options={"maxiter": MAXITER},
     tol=1e-15,
 )
 
