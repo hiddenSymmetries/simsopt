@@ -37,7 +37,7 @@ MAXITER = 1000
 minor_radius_factor_cws = 1.9
 ncoils = 6
 order = 8  # order of dofs of cws curves
-numquadpoints = 13 * order
+quadpoints = 13 * order
 ntheta = 32
 nphi = 32
 
@@ -57,7 +57,7 @@ for i in range(ncoils):
         mpol=cws.mpol,
         ntor=cws.ntor,
         idofs=cws.x,
-        numquadpoints=numquadpoints,
+        quadpoints=quadpoints,
         order=order,
         nfp=cws.nfp,
         stellsym=cws.stellsym,

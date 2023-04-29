@@ -37,7 +37,7 @@ MAXITER = 20
 minor_radius_factor_cws = 1.9
 ncoils = 3
 order = 4  # order of dofs of cws curves
-numquadpoints = 13 * order
+quadpoints = 13 * order
 ntheta = 50
 nphi = 32
 
@@ -67,7 +67,7 @@ def create_cws_from_dofs(dofs_cws=cws.x, dofs_coils=None):
             mpol=cws.mpol,
             ntor=cws.ntor,
             idofs=dofs_cws,
-            numquadpoints=numquadpoints,
+            quadpoints=quadpoints,
             order=order,
             nfp=cws.nfp,
             stellsym=cws.stellsym,
