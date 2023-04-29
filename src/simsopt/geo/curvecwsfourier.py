@@ -33,13 +33,13 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveCWSFourier.set_dofs(self, dofs)
-    
+
     def get_dofs_surface(self):
         """
         This function returns the number of the dofs associated with the Coil Winding Surface
         """
         return np.asarray(sopp.CurveCWSFourier.get_dofs_surface(self))
-    
+
     def num_dofs_surface(self):
         """
         This function returns the number of the dofs associated with the Coil Winding Surface

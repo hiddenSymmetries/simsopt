@@ -36,7 +36,7 @@ wout = "/Users/rogeriojorge/local/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4
 MAXITER = 10 
 minor_radius_factor_cws = 1.9
 ncoils = 3
-order = 6 # order of dofs of cws curves
+order = 6  # order of dofs of cws curves
 numquadpoints = 13 * order
 ntheta = 50
 nphi = 50
@@ -50,6 +50,7 @@ cws_full = SurfaceRZFourier.from_nphi_ntheta(int(nphi*2*s.nfp), ntheta, "full to
 R = s.get_rc(0, 0)
 cws.set_dofs([R, s.get_zs(1, 0)*minor_radius_factor_cws, s.get_zs(1, 0)*minor_radius_factor_cws])
 cws_full.set_dofs([R, s.get_zs(1, 0)*minor_radius_factor_cws, s.get_zs(1, 0)*minor_radius_factor_cws])
+
 
 def create_cws_from_dofs(dofs_cws=cws.x, dofs_coils=None):
     base_curves = []
@@ -65,9 +66,9 @@ def create_cws_from_dofs(dofs_cws=cws.x, dofs_coils=None):
         )
         angle = (i+0.5)*(2*np.pi)/((2)*s.nfp*ncoils)
         curve_dofs = np.zeros(len(curve_cws.get_dofs()),)
-        curve_dofs[0]=1
-        curve_dofs[2*order+2]=0
-        curve_dofs[2*order+3]=angle
+        curve_dofs[0] = 1
+        curve_dofs[2*order+2] = 0
+        curve_dofs[2*order+3] = angle
         curve_cws.set_dofs(curve_dofs)
         curve_cws.fix(0)
         curve_cws.fix(2*order+2)
@@ -94,6 +95,7 @@ def create_cws_from_dofs(dofs_cws=cws.x, dofs_coils=None):
         JF.x = dofs_coils
     return JF, bs, base_curves, curves, coils, Jf, Jls, Jccdist, Jcs, Jmscs
 
+
 JF, bs, base_curves, curves, coils, Jf, Jls, Jccdist, Jcs, Jmscs = create_cws_from_dofs()
 
 bs.set_points(s_full.gamma().reshape((-1, 3)))
@@ -106,6 +108,8 @@ cws_full.to_vtk(OUT_DIR + "cws_init")
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 dofs_coils_length = len(JF.x)
+
+
 def fun(dofs):
     JF, bs, base_curves, curves, coils, Jf, Jls, Jccdist, Jcs, Jmscs = create_cws_from_dofs(dofs_cws=dofs[dofs_coils_length:], dofs_coils=dofs[:dofs_coils_length])
     J = JF.J()
@@ -142,6 +146,7 @@ def fun(dofs):
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}"
     print(outstr)
     return J, grad
+
 
 dofs_coils = np.copy(JF.x)
 dofs_cws = np.copy(cws.x)

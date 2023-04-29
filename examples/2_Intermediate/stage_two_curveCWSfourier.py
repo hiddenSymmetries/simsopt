@@ -35,11 +35,11 @@ wout = "/Users/rogeriojorge/local/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4
 
 MAXITER = 1000 
 minor_radius_factor_cws = 1.9
-ncoils = 5
-order = 12 # order of dofs of cws curves
+ncoils = 6
+order = 8  # order of dofs of cws curves
 numquadpoints = 13 * order
-ntheta = 50
-nphi = 50
+ntheta = 32
+nphi = 32
 
 # CREATE SURFACES
 s = SurfaceRZFourier.from_wout(wout, range="half period", ntheta=ntheta, nphi=nphi)
@@ -64,9 +64,9 @@ for i in range(ncoils):
     )
     angle = (i+0.5)*(2*np.pi)/((2)*s.nfp*ncoils)
     curve_dofs = np.zeros(len(curve_cws.get_dofs()),)
-    curve_dofs[0]=1
-    curve_dofs[2*order+2]=0
-    curve_dofs[2*order+3]=angle
+    curve_dofs[0] = 1
+    curve_dofs[2*order+2] = 0
+    curve_dofs[2*order+3] = angle
     curve_cws.set_dofs(curve_dofs)
     curve_cws.fix(0)
     curve_cws.fix(2*order+2)
@@ -102,6 +102,7 @@ JF = (
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 )
 
+
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
@@ -116,6 +117,7 @@ def fun(dofs):
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}"
     print(outstr)
     return J, grad
+
 
 dofs = np.copy(JF.x)
 
