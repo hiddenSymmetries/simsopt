@@ -620,8 +620,8 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
 
         dtheta_by_dthetacoeff[counter] = CWSt;
         dphi_by_dphicoeff[counter] = CWSt;
-        d2theta_by_dthetacoeffdt[counter] = 0;
-        d2phi_by_dphicoeffdt[counter] = 0;
+        d2theta_by_dthetacoeffdt[counter] = 1;
+        d2phi_by_dphicoeffdt[counter] = 1;
         d3theta_by_dthetacoeffdt2[counter] = 0;
         d3phi_by_dphicoeffdt2[counter] = 0;
 
@@ -742,8 +742,8 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
             data(k, 1, p) = d3r_dcoeffdt2[p] * sin(phi) + 2 * (d2r_dcoeffdt[p] * cos(phi) * dphi_dt) - dr_dcoeff[p] * (sin(phi) * pow(dphi_dt, 2) - cos(phi) * d2phi_dt2);
             data(k, 2, p) = d3z_dcoeffdt2[p];
 
-            data(k, 0, p + counter) = d3r_dcoeffdt2[p + counter] * cos(phi) - 2 * d2r_dcoeffdt[p + counter] * sin(phi) * dphi_dt - r * sin(phi) * d3phi_by_dphicoeffdt2[p + counter] + (-sin(phi) * d2phi_dt2 - cos(phi) * pow(dphi_dt, 2)) * dr_dcoeff[p + counter] + (-2 * dr_dt * sin(phi) - 2 * r * dphi_dt * cos(phi)) * d2phi_by_dphicoeffdt[p + counter] + (sin(phi) * (-d2r_dt2 + r * pow(dphi_dt, 2)) + cos(phi) * (-2 * dr_dt * dphi_dt - r * d2phi_dt2)) * dphi_by_dphicoeff[p + counter];
-            data(k, 1, p + counter) = d3r_dcoeffdt2[p + counter] * sin(phi) + 2 * d2r_dcoeffdt[p + counter] * cos(phi) * dphi_dt + r * cos(phi) * d3phi_by_dphicoeffdt2[p + counter] + (cos(phi) * d2phi_dt2 - sin(phi) * pow(dphi_dt, 2)) * dr_dcoeff[p + counter] + (2 * dr_dt * cos(phi) - 2 * r * dphi_dt * sin(phi)) * d2phi_by_dphicoeffdt[p + counter] + (cos(phi) * (d2r_dt2 - r * pow(dphi_dt, 2)) + sin(phi) * (-2 * dr_dt * dphi_dt - r * d2phi_dt2)) * dphi_by_dphicoeff[p + counter];
+            data(k, 0, p + counter) = d3r_dcoeffdt2[p + counter] * cos(phi) - 2 * d2r_dcoeffdt[p + counter] * sin(phi) * dphi_dt - r * sin(phi) * d3phi_by_dphicoeffdt2[p] + (-sin(phi) * d2phi_dt2 - cos(phi) * pow(dphi_dt, 2)) * dr_dcoeff[p + counter] + (-2 * dr_dt * sin(phi) - 2 * r * dphi_dt * cos(phi)) * d2phi_by_dphicoeffdt[p] + (sin(phi) * (-d2r_dt2 + r * pow(dphi_dt, 2)) + cos(phi) * (-2 * dr_dt * dphi_dt - r * d2phi_dt2)) * dphi_by_dphicoeff[p];
+            data(k, 1, p + counter) = d3r_dcoeffdt2[p + counter] * sin(phi) + 2 * d2r_dcoeffdt[p + counter] * cos(phi) * dphi_dt + r * cos(phi) * d3phi_by_dphicoeffdt2[p] + (cos(phi) * d2phi_dt2 - sin(phi) * pow(dphi_dt, 2)) * dr_dcoeff[p + counter] + (2 * dr_dt * cos(phi) - 2 * r * dphi_dt * sin(phi)) * d2phi_by_dphicoeffdt[p] + (cos(phi) * (d2r_dt2 - r * pow(dphi_dt, 2)) + sin(phi) * (-2 * dr_dt * dphi_dt - r * d2phi_dt2)) * dphi_by_dphicoeff[p];
             data(k, 2, p + counter) = d3z_dcoeffdt2[p + counter];
         }
     }
