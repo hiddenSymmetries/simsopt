@@ -13,6 +13,7 @@ import numpy as np
 from mpi4py import MPI
 from pathlib import Path
 from scipy.optimize import minimize
+from simsopt import load
 from simsopt.util import MpiPartition
 from simsopt.geo import SurfaceRZFourier
 from simsopt._core.derivative import Derivative
@@ -39,33 +40,33 @@ start = time.time()
 ##########################################################################################
 max_mode = 1
 MAXITER_stage_2 = 40
-MAXITER_single_stage = 15
+MAXITER_single_stage = 20
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp2_QA')
-ncoils = 4
-nmodes_coils = 8
+ncoils = 5
+nmodes_coils = 10
 quadpoints = 13 * nmodes_coils
 aspect_ratio_target = 7.0
-CC_THRESHOLD = 0.08
-LENGTH_THRESHOLD = 3.3
-CURVATURE_THRESHOLD = 7
-MSC_THRESHOLD = 10
-nphi_VMEC = 34
-ntheta_VMEC = 34
+CC_THRESHOLD = 0.1
+LENGTH_THRESHOLD = 6.5
+CURVATURE_THRESHOLD = 15
+MSC_THRESHOLD = 15
+nphi_VMEC = 32
+ntheta_VMEC = 32
 coils_objective_weight = 1e+3
 aspect_ratio_weight = 1
 diff_method = "forward"
 R0 = 1.0
 R1 = 0.6
-minor_radius_factor_cws = 2.0
+minor_radius_factor_cws = 2.5
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-finite_difference_abs_step = 1e-7
-finite_difference_rel_step = 0
-JACOBIAN_THRESHOLD = 100
+finite_difference_abs_step = 1e-4
+finite_difference_rel_step = 1e-3
+JACOBIAN_THRESHOLD = 10000
 LENGTH_CON_WEIGHT = 0.1  # Weight on the quadratic penalty for the curve length
 LENGTH_WEIGHT = 1e-8  # Weight on the curve lengths in the objective function
-CC_WEIGHT = 1e+0  # Weight for the coil-to-coil distance penalty in the objective function
+CC_WEIGHT = 5e3  # Weight for the coil-to-coil distance penalty in the objective function
 CURVATURE_WEIGHT = 1e-3  # Weight for the curvature penalty in the objective function
-MSC_WEIGHT = 1e-3  # Weight for the mean squared curvature penalty in the objective function
+MSC_WEIGHT = 1e-3 # Weight for the mean squared curvature penalty in the objective function
 ARCLENGTH_WEIGHT = 1e-9  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
@@ -91,28 +92,35 @@ surf = vmec.boundary
 #Stage 2
 cws = SurfaceRZFourier.from_nphi_ntheta(nphi_VMEC, ntheta_VMEC, "half period", surf.nfp)
 cws.set_dofs([surf.get_rc(0, 0), surf.get_zs(1, 0)*minor_radius_factor_cws, surf.get_zs(1, 0)*minor_radius_factor_cws])
-base_curves = []
-for i in range(ncoils):
-    curve_cws = CurveCWSFourier(
-        mpol=cws.mpol,
-        ntor=cws.ntor,
-        idofs=cws.x,
-        quadpoints=quadpoints,
-        order=nmodes_coils,
-        nfp=cws.nfp,
-        stellsym=cws.stellsym,
-    )
-    angle = (i+0.5)*(2*np.pi)/((2)*cws.nfp*ncoils)
-    curve_dofs = np.zeros(len(curve_cws.get_dofs()),)
-    curve_dofs[0] = 1
-    curve_dofs[2*nmodes_coils+2] = 0
-    curve_dofs[2*nmodes_coils+3] = angle
-    curve_cws.set_dofs(curve_dofs)
-    curve_cws.fix(0)
-    curve_cws.fix(2*nmodes_coils+2)
-    base_curves.append(curve_cws)
-base_currents = [Current(1)*1e5 for i in range(ncoils)]
-base_currents[0].fix_all()
+
+if os.path.exists(os.path.join(coils_results_path, "biot_savart_opt.json")):
+    bs_temporary = load(os.path.join(coils_results_path, "biot_savart_opt.json"))
+    ncoils = int(len(bs_temporary.coils)/surf.nfp/2)
+    base_curves = [bs_temporary.coils[i]._curve for i in range(ncoils)]
+    base_currents = [bs_temporary.coils[i]._current for i in range(ncoils)]
+else:
+    base_curves = []
+    for i in range(ncoils):
+        curve_cws = CurveCWSFourier(
+            mpol=cws.mpol,
+            ntor=cws.ntor,
+            idofs=cws.x,
+            quadpoints=quadpoints,
+            order=nmodes_coils,
+            nfp=cws.nfp,
+            stellsym=cws.stellsym,
+        )
+        angle = (i+0.5)*(2*np.pi)/((2)*cws.nfp*ncoils)
+        curve_dofs = np.zeros(len(curve_cws.get_dofs()),)
+        curve_dofs[0] = 1
+        curve_dofs[2*nmodes_coils+2] = 0
+        curve_dofs[2*nmodes_coils+3] = angle
+        curve_cws.set_dofs(curve_dofs)
+        curve_cws.fix(0)
+        curve_cws.fix(2*nmodes_coils+2)
+        base_curves.append(curve_cws)
+    base_currents = [Current(1)*1e5 for i in range(ncoils)]
+    base_currents[0].fix_all()
 
 ##########################################################################################
 ##########################################################################################
@@ -142,7 +150,7 @@ J_CURVATURE = CURVATURE_WEIGHT * sum(Jcs)
 J_MSC = MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for i, J in enumerate(Jmscs))
 J_ALS = ARCLENGTH_WEIGHT * sum(Jals)
 J_LENGTH_PENALTY = LENGTH_CON_WEIGHT * sum([QuadraticPenalty(Jls[i], LENGTH_THRESHOLD) for i in range(len(base_curves))])
-JF = Jf + J_CC + J_LENGTH + J_LENGTH_PENALTY + J_CURVATURE + J_MSC
+JF = Jf + J_CC + J_LENGTH_PENALTY + J_LENGTH + J_CURVATURE + J_MSC
 ##########################################################################################
 pprint(f'  Starting optimization')
 ##########################################################################################
@@ -242,7 +250,7 @@ pprint(f"  Mean iota before stage 2 optimization: {vmec.mean_iota()}")
 pprint(f"  Quasisymmetry objective stage 2 before optimization: {qs.total()}")
 pprint(f"  Squared flux before stage 2 optimization: {Jf.J()}")
 pprint(f'Performing stage 2 optimization with ~{MAXITER_stage_2} iterations')
-res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-12)
+res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-7)
 bs.set_points(surf.gamma().reshape((-1, 3)))
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
@@ -269,7 +277,7 @@ x0 = np.copy(np.concatenate((JF.x, vmec.x)))
 dofs = np.concatenate((JF.x, vmec.x))
 with MPIFiniteDifference(prob.objective, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
     if mpi.proc0_world:
-        res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-15)
+        res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-7)
 mpi.comm_world.Bcast(dofs, root=0)
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)

@@ -16,10 +16,17 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
         \theta(t) &= phi_{l} t + \sum_{m=0}^{\text{order}} phi_{c,m}\cos(m t) + \sum_{m=1}^{\text{order}} phi_{s,m}\sin(m t) \\
     """
 
-    def __init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym):
+    def __init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym, dofs=None):
         #quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
+        if not np.isscalar(quadpoints):
+            quadpoints = len(quadpoints)
         sopp.CurveCWSFourier.__init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym)
-        Curve.__init__(self, external_dof_setter=CurveCWSFourier.set_dofs_impl, x0=self.get_dofs())
+        if dofs is None:
+            Curve.__init__(self, external_dof_setter=CurveCWSFourier.set_dofs_impl,
+                           x0=self.get_dofs())
+        else:
+            Curve.__init__(self, external_dof_setter=CurveCWSFourier.set_dofs_impl,
+                           dofs=dofs)
 
     def get_dofs(self):
         """
@@ -46,12 +53,10 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
         """
         return sopp.CurveCWSFourier.num_dofs_surface(self)
 
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        quadpoints = GSONDecoder().process_decoded(d['quadpoints'], serial_objs_dict, recon_objs)
-        curve = cls(quadpoints,
-                    d["order"],
-                    d["nfp"],
-                    d["stellsym"])
-        curve.local_full_x = d["x0"]
-        return curve
+    # @classmethod
+    # def from_dict(cls, d, serial_objs_dict, recon_objs):
+    #     quadpoints = GSONDecoder().process_decoded(d['quadpoints'], serial_objs_dict, recon_objs)
+    #     curve = cls(mpol=d["mpol"], ntor=d["ntor"], idofs=d["idofs"], quadpoints=len(quadpoints),
+    #                 order=d["order"], nfp=d["nfp"], stellsym=d["stellsym"])
+    #     curve.local_full_x = d["x"]
+    #     return curve
