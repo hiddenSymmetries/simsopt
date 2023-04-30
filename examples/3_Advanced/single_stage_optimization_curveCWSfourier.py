@@ -38,7 +38,7 @@ start = time.time()
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
-max_modes = [1,1,1,1,1,2,2,2,2,3,3,3,4,4]
+max_modes = [1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4]
 MAXITER_stage_2 = 200
 MAXITER_single_stage = 100
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp2_QA')
@@ -66,7 +66,7 @@ LENGTH_CON_WEIGHT = 0.1  # Weight on the quadratic penalty for the curve length
 LENGTH_WEIGHT = 1e-8  # Weight on the curve lengths in the objective function
 CC_WEIGHT = 5e3  # Weight for the coil-to-coil distance penalty in the objective function
 CURVATURE_WEIGHT = 1e-8  # Weight for the curvature penalty in the objective function
-MSC_WEIGHT = 1e-8 # Weight for the mean squared curvature penalty in the objective function
+MSC_WEIGHT = 1e-8  # Weight for the mean squared curvature penalty in the objective function
 ARCLENGTH_WEIGHT = 1e-9  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
@@ -155,7 +155,7 @@ J_CURVATURE = CURVATURE_WEIGHT * sum(Jcs)
 J_MSC = MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, f="max") for i, J in enumerate(Jmscs))
 J_ALS = ARCLENGTH_WEIGHT * sum(Jals)
 J_LENGTH_PENALTY = LENGTH_CON_WEIGHT * sum([QuadraticPenalty(Jls[i], LENGTH_THRESHOLD, f="max") for i in range(len(base_curves))])
-JF = Jf + J_CC + J_LENGTH_PENALTY + J_CURVATURE + J_ALS + J_MSC# + J_LENGTH
+JF = Jf + J_CC + J_LENGTH_PENALTY + J_CURVATURE + J_ALS + J_MSC  # + J_LENGTH
 ##########################################################################################
 pprint(f'  Starting optimization')
 ##########################################################################################
@@ -242,16 +242,16 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
 #############################################################
 ##########################################################################################
 for max_mode in max_modes:
-    surf.fix_all();surf_full.fix_all()
+    surf.fix_all(); surf_full.fix_all()
     surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
     surf_full.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
-    surf.fix("rc(0,0)");surf_full.fix("rc(0,0)")
+    surf.fix("rc(0,0)"); surf_full.fix("rc(0,0)")
     number_vmec_dofs = int(len(surf.x))
     qs = QuasisymmetryRatioResidual(vmec, quasisymmetry_target_surfaces, helicity_m=1, helicity_n=0)
     objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight),
                        (vmec.mean_iota, mean_iota_target, mean_iota_weight),
                        (qs.residuals, 0, 1),
-    ]
+                       ]
     prob = LeastSquaresProblem.from_tuples(objective_tuple)
     dofs = np.concatenate((JF.x, vmec.x))
     pprint(f"  Aspect ratio before stage 2 optimization: {vmec.aspect()}")
