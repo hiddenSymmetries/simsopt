@@ -38,26 +38,26 @@ start = time.time()
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
-max_modes = [1,1,1,1,2,2,2,3,3]
+max_modes = [1,1,1,1,1,2,2,2,2,3,3,3,4,4]
 MAXITER_stage_2 = 200
 MAXITER_single_stage = 100
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp2_QA')
 ncoils = 6
-nmodes_coils = 10
+nmodes_coils = 12
 quadpoints = 150
 aspect_ratio_target = 7.0
 CC_THRESHOLD = 0.1
-LENGTH_THRESHOLD = 4.5
+LENGTH_THRESHOLD = 5.5
 CURVATURE_THRESHOLD = 14
 MSC_THRESHOLD = 14
-nphi_VMEC = 32
-ntheta_VMEC = 32
-coils_objective_weight = 1e+3
+nphi_VMEC = 40
+ntheta_VMEC = 40
+coils_objective_weight = 5e+3
 aspect_ratio_weight = 1e-1
 mean_iota_target = 0.41
-mean_iota_weight = 1e+1
-diff_method = "forward"
-minor_radius_factor_cws = 4
+mean_iota_weight = 1e+0
+diff_method = "centered"
+minor_radius_cws = 0.6
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 finite_difference_abs_step = 1e-5
 finite_difference_rel_step = 1e-3
@@ -89,11 +89,13 @@ if os.path.exists(os.path.join(this_path, "input.final")):
 pprint(f' Using vmec input file {vmec_input_filename}')
 vmec = Vmec(vmec_input_filename, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
 surf = vmec.boundary
+vmec_full = Vmec(vmec_input_filename, mpi=mpi, verbose=vmec_verbose, nphi=int(nphi_VMEC*2*surf.nfp), ntheta=ntheta_VMEC, range_surface='full torus')
+surf_full = vmec_full.boundary
 ##########################################################################################
 ##########################################################################################
 #Stage 2
 cws = SurfaceRZFourier.from_nphi_ntheta(nphi_VMEC, ntheta_VMEC, "half period", surf.nfp)
-cws.set_dofs([surf.get_rc(0, 0), surf.get_zs(1, 0)*minor_radius_factor_cws, surf.get_zs(1, 0)*minor_radius_factor_cws])
+cws.set_dofs([surf.get_rc(0, 0), minor_radius_cws, minor_radius_cws])
 
 if os.path.exists(os.path.join(coils_results_path, "biot_savart_opt.json")):
     bs_temporary = load(os.path.join(coils_results_path, "biot_savart_opt.json"))
@@ -130,14 +132,15 @@ else:
 coils = coils_via_symmetries(base_curves, base_currents, surf.nfp, True)
 curves = [c.curve for c in coils]
 bs = BiotSavart(coils)
-bs.set_points(surf.gamma().reshape((-1, 3)))
-Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
-BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
+bs.set_points(surf_full.gamma().reshape((-1, 3)))
+Bbs = bs.B().reshape((int(nphi_VMEC*2*surf.nfp), ntheta_VMEC, 3))
+BdotN_surf = np.sum(Bbs * surf_full.unitnormal(), axis=2)
 if comm.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_init"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
-    surf.to_vtk(os.path.join(coils_results_path, "surf_init"), extra_data=pointData)
+    surf_full.to_vtk(os.path.join(coils_results_path, "surf_init"), extra_data=pointData)
     cws.to_vtk(os.path.join(coils_results_path, "cws_init"))
+bs.set_points(surf.gamma().reshape((-1, 3)))
 ##########################################################################################
 ##########################################################################################
 Jf = SquaredFlux(surf, bs, local=True)
@@ -260,9 +263,9 @@ for max_mode in max_modes:
     Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
     BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
     if comm.rank == 0:
-        curves_to_vtk(curves, os.path.join(coils_results_path, "curves_after_stage2"))
+        curves_to_vtk(curves, os.path.join(coils_results_path, f"curves_after_stage2_maxmode{max_mode}"))
         pointData = {"B_N": BdotN_surf[:, :, None]}
-        surf.to_vtk(os.path.join(coils_results_path, "surf_after_stage2"), extra_data=pointData)
+        surf.to_vtk(os.path.join(coils_results_path, f"surf_after_stage2_maxmode{max_mode}"), extra_data=pointData)
     pprint(f'Performing single stage optimization with ~{MAXITER_single_stage} iterations')
     pprint(f"  Aspect ratio before single stage optimization: {vmec.aspect()}")
     pprint(f"  Mean iota before single stage optimization: {vmec.mean_iota()}")
@@ -284,15 +287,20 @@ for max_mode in max_modes:
         if mpi.proc0_world:
             res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-4)
     mpi.comm_world.Bcast(dofs, root=0)
-    Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
-    BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
+    surf_full.x = surf.x
+    bs.set_points(surf_full.gamma().reshape((-1, 3)))
+    Bbs = bs.B().reshape((int(nphi_VMEC*2*surf.nfp), ntheta_VMEC, 3))
+    BdotN_surf = np.sum(Bbs * surf_full.unitnormal(), axis=2)
     if comm.rank == 0:
-        curves_to_vtk(curves, os.path.join(coils_results_path, "curves_opt"))
+        curves_to_vtk(curves, os.path.join(coils_results_path, f"curves_opt_maxmode{max_mode}"))
         pointData = {"B_N": BdotN_surf[:, :, None]}
-        surf.to_vtk(os.path.join(coils_results_path, "surf_opt"), extra_data=pointData)
-        cws.to_vtk(os.path.join(coils_results_path, "cws_opt"))
-    bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
-    vmec.write_input(os.path.join(this_path, f'input.final'))
+        surf_full.to_vtk(os.path.join(coils_results_path, f"surf_opt_maxmode{max_mode}"), extra_data=pointData)
+        cws.to_vtk(os.path.join(coils_results_path, f"cws_opt_maxmode{max_mode}"))
+    bs.set_points(surf.gamma().reshape((-1, 3)))
+    bs.save(os.path.join(coils_results_path, f"biot_savart_opt_maxmode{max_mode}.json"))
+    vmec.write_input(os.path.join(this_path, f'input.maxmode{max_mode}'))
+bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
+vmec.write_input(os.path.join(this_path, f'input.final'))
 pprint(f"  Aspect ratio after optimization: {vmec.aspect()}")
 pprint(f"  Mean iota after optimization: {vmec.mean_iota()}")
 pprint(f"  Quasisymmetry objective after optimization: {qs.total()}")
