@@ -242,9 +242,10 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
 #############################################################
 ##########################################################################################
 for max_mode in max_modes:
-    surf.fix_all()
+    surf.fix_all();surf_full.fix_all()
     surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
-    surf.fix("rc(0,0)")
+    surf_full.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
+    surf.fix("rc(0,0)");surf_full.fix("rc(0,0)")
     number_vmec_dofs = int(len(surf.x))
     qs = QuasisymmetryRatioResidual(vmec, quasisymmetry_target_surfaces, helicity_m=1, helicity_n=0)
     objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight),
