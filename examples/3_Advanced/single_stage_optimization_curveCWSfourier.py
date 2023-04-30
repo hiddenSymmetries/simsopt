@@ -260,13 +260,14 @@ for max_mode in max_modes:
     pprint(f"  Squared flux before stage 2 optimization: {Jf.J()}")
     pprint(f'Performing stage 2 optimization with ~{MAXITER_stage_2} iterations')
     res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-7)
-    bs.set_points(surf.gamma().reshape((-1, 3)))
-    Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
-    BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
+    bs.set_points(surf_full.gamma().reshape((-1, 3)))
+    Bbs = bs.B().reshape((int(nphi_VMEC*2*surf.nfp), ntheta_VMEC, 3))
+    BdotN_surf = np.sum(Bbs * surf_full.unitnormal(), axis=2)
     if comm.rank == 0:
         curves_to_vtk(curves, os.path.join(coils_results_path, f"curves_after_stage2_maxmode{max_mode}"))
         pointData = {"B_N": BdotN_surf[:, :, None]}
-        surf.to_vtk(os.path.join(coils_results_path, f"surf_after_stage2_maxmode{max_mode}"), extra_data=pointData)
+        surf_full.to_vtk(os.path.join(coils_results_path, f"surf_after_stage2_maxmode{max_mode}"), extra_data=pointData)
+    bs.set_points(surf.gamma().reshape((-1, 3)))
     pprint(f'Performing single stage optimization with ~{MAXITER_single_stage} iterations')
     pprint(f"  Aspect ratio before single stage optimization: {vmec.aspect()}")
     pprint(f"  Mean iota before single stage optimization: {vmec.mean_iota()}")
