@@ -152,13 +152,18 @@ plt.figure
 plot(coils + [s], engine="matplotlib", close=True)
 
 curves = [c.curve for c in coils]
-current_density =  [c.current for c in coils]
+currents_coils  =  [c.current for c in coils]
+current_density =  np.zeros(np.size(currents_coils))
+print(np.size(current_density))
+print(currents_coils[1].current)
 print(np.size(coils))
 
 for ii in range(np.size(curves)):
     #current_density[ii] /= CurveLength(curves[ii])
     longueur = CurveLength(curves[ii])
+    current_density[ii] = currents_coils[ii].get_value()/longueur.J()
     outstr = f"L={longueur.J():.1e}"
+    outstr += f", J={current_density[ii]:.1e}"
     print(outstr)
 
 #         # In order to get local current density, need to multiply j
