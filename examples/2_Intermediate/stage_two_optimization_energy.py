@@ -30,7 +30,7 @@ from simsopt.geo import curves_to_vtk, create_equally_spaced_curves, plot
 from simsopt.field import BiotSavart
 from simsopt.field import Current, coils_via_symmetries
 from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, VacuumEnergy
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -45,7 +45,7 @@ R1 = 0.5
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 5
 
-# Weight on the curve lengths in the objective function. We use the `Weight`
+# Weight on the cvacuum energy in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
 ENERGY_WEIGHT = Weight(1e-6)
@@ -97,7 +97,7 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
-JE = SquaredFlux(s, bs)  # vaccum energy as a sum of fluxes - this term should be changed to the actual expression 
+JE = VacuumEnergy(coils, bs)  # vaccum energy as a sum of fluxes - this term should be changed to the actual expression 
 #Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 #Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 #Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
@@ -113,7 +113,7 @@ JE = SquaredFlux(s, bs)  # vaccum energy as a sum of fluxes - this term should b
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + ENERGY_WEIGHT * JE #sum(JE) 
+    + ENERGY_WEIGHT * JE 
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we

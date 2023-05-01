@@ -3,6 +3,7 @@ from deprecated import deprecated
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
+from simsopt.field import BiotSavart
 # from monty.json import MontyDecoder, MSONable
 
 from .jit import jit
@@ -29,20 +30,42 @@ class VacuumEnergy(Optimizable):
     resulting from a set of coils 
     """
     
-    def __init__(self, coils):
+    def __init__(self, coils, field):
         self.coils = coils
+        self.field = field
+        # bs = BiotSavart(coils) # a defnir dans le script two_stage_optim
+        Optimizable().__init__(depends_on=[coils])
 
     def J(self):
         """
         This returns the value of the quantity (vacuum energy as sum of fluxes) 
         beware of singularities
         """
+        E = self.field.B()
     
     @derivative_dec 
     def dJ(self):
         """
         This returns the value of the derivative (analytical): JxB
         """
+        # Let us try to implement the analytical derivative first
+        curves = [c.curve for c in self.coils]
+        current_density =  [c.current for c in self.coils]
+        for ii in range(np.size(curves)):
+            current_density[ii] /= CurveLength(curves[ii]).J()
+            
+        # In order to get local current density, need to multiply j
+        # by tangent vector at points 'points'
+        # Let's do it for one coil only at first
+
+        local_current = current_density[1]*curves[1].frenet_frame.t
+        # for ii in range(np.size(curves)):
+        #     Frenet = frenet_frame(self.curves[ii])
+        #     local_current[ii,:] = current_density[ii]*Frenet.t
+        
+        return np.cross(local_current, self.field.B(points))
+        
+
 
     return_fn_map = {'J': J, 'dJ': dJ}
         
