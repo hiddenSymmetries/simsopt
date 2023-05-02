@@ -14,7 +14,7 @@
   NFP = 0002
   MPOL = 0004
   NTOR = 0004
-  PHIEDGE =    0.03144
+  PHIEDGE = 0.0312592
 !----- Free Boundary Parameters -----
   LFREEB = F
   NVACSKIP =    6

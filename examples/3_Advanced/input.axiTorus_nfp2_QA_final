@@ -9,11 +9,11 @@ LASYM = F
 MPOL = 6
 NTOR = 6
 NS_ARRAY    =    101
-NITER_ARRAY =   5000
+NITER_ARRAY =   8000
 FTOL_ARRAY  =  1e-16
 
 ! ---- Boundary toroidal flux ----
-PHIEDGE = 0.03144
+PHIEDGE = 0.0312592
 
 ! ---- Pressure profile specification ----
 PMASS_TYPE = "power_series"
