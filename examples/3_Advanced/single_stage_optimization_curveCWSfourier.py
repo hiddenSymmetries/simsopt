@@ -27,8 +27,8 @@ parent_path = str(Path(__file__).parent.resolve())
 ############## Input parameters
 ##########################################################################################
 nfp = 2
-max_modes = [3, 3, 3, 4, 4]  # [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
-maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 5, 4: 6}
+max_modes = [3, 3, 3, 3, 4, 4, 4, 5, 5, 5]  # [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
+maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 5, 4: 6, 5: 7}
 MAXITER_stage_2 = 500
 MAXITER_single_stage = 110
 if max_modes[0] > 2:
