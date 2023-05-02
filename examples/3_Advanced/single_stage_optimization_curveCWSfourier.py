@@ -15,59 +15,51 @@ from pathlib import Path
 from scipy.optimize import minimize
 from simsopt import load
 from simsopt.util import MpiPartition
-from simsopt.geo import SurfaceRZFourier
 from simsopt._core.derivative import Derivative
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt._core.finite_difference import MPIFiniteDifference
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty, LeastSquaresProblem
-from simsopt.geo import (CurveLength, CurveCurveDistance, MeanSquaredCurvature, CurveCWSFourier,
+from simsopt.geo import (CurveLength, CurveCurveDistance, MeanSquaredCurvature, CurveCWSFourier, SurfaceRZFourier,
                          LpCurveCurvature, ArclengthVariation, curves_to_vtk, create_equally_spaced_curves)
-comm = MPI.COMM_WORLD
-
-
-def pprint(*args, **kwargs):
-    if comm.rank == 0:
-        print(*args, **kwargs)
-
-
-mpi = MpiPartition()
 parent_path = str(Path(__file__).parent.resolve())
-os.chdir(parent_path)
-start = time.time()
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
-max_modes = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4]
-MAXITER_stage_2 = 220
-MAXITER_single_stage = 40
 nfp = 3
-vmec_input_filename = os.path.join(parent_path, 'inputs', f'input.nfp{nfp}_QA')
-if nfp == 2:
-    ncoils = 3
-    mean_iota_target = 0.35
-    minor_radius_cws = 0.55
-    aspect_ratio_target = 7.5
+max_modes = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
+maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 5, 4: 5}
+MAXITER_stage_2 = 500
+MAXITER_single_stage = 110
+if max_modes[0]>2:
+    vmec_input_filename = os.path.join(parent_path, f'input.axiTorus_nfp{nfp}_QA')
+else:
+    vmec_input_filename = os.path.join(parent_path, 'inputs', f'input.nfp{nfp}_QA')
+if nfp==2:
+    ncoils = 4
+    nmodes_coils = 16
+    minor_radius_cws = 0.5
+    nphi_VMEC = 50
+    quadpoints = 280
     CC_THRESHOLD = 0.07
-    LENGTH_THRESHOLD = 6.5
     CURVATURE_THRESHOLD = 30
-    MSC_THRESHOLD = 40
+    MSC_THRESHOLD = 30
 else:
     ncoils = 3
-    mean_iota_target = 0.35
-    minor_radius_cws = 0.6
-    aspect_ratio_target = 7.5
-    CC_THRESHOLD = 0.06
-    LENGTH_THRESHOLD = 6.5
-    CURVATURE_THRESHOLD = 30
-    MSC_THRESHOLD = 40
-nmodes_coils = 12
-quadpoints = 150
-nphi_VMEC = 32
-ntheta_VMEC = 32
-coils_objective_weight = 5e+3
-aspect_ratio_weight = 1e-1
-mean_iota_weight = 5e+1
+    nmodes_coils = 16
+    minor_radius_cws = 0.45
+    nphi_VMEC = 42
+    quadpoints = 280
+    CC_THRESHOLD = 0.07
+    CURVATURE_THRESHOLD = 25
+    MSC_THRESHOLD = 25
+mean_iota_target = 0.41
+aspect_ratio_target = 9
+LENGTH_THRESHOLD = 6.5
+ntheta_VMEC = 50
+coils_objective_weight = 3e+4
+aspect_ratio_weight = 1e+1
+mean_iota_weight = 5e+3
 diff_method = "forward"
 quasisymmetry_weight = 50
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
@@ -76,13 +68,14 @@ finite_difference_rel_step = 0
 JACOBIAN_THRESHOLD = 10000
 LENGTH_CON_WEIGHT = 0.1  # Weight on the quadratic penalty for the curve length
 LENGTH_WEIGHT = 1e-8  # Weight on the curve lengths in the objective function
-CC_WEIGHT = 5e3  # Weight for the coil-to-coil distance penalty in the objective function
-CURVATURE_WEIGHT = 1e-7  # Weight for the curvature penalty in the objective function
-MSC_WEIGHT = 1e-7  # Weight for the mean squared curvature penalty in the objective function
-ARCLENGTH_WEIGHT = 5e-8  # Weight for the arclength variation penalty in the objective function
+CC_WEIGHT = 1e0  # Weight for the coil-to-coil distance penalty in the objective function
+CURVATURE_WEIGHT = 1e-6  # Weight for the curvature penalty in the objective function
+MSC_WEIGHT = 1e-6  # Weight for the mean squared curvature penalty in the objective function
+ARCLENGTH_WEIGHT = 1e-7  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
 directory = f'optimization_cws_singlestage_{vmec_input_filename[-7:]}_ncoils{ncoils}'
+if max_modes[0]>2: directory += '_axiTorus'
 vmec_verbose = False
 # Create output directories
 this_path = os.path.join(parent_path, directory)
@@ -90,12 +83,17 @@ os.makedirs(this_path, exist_ok=True)
 os.chdir(this_path)
 vmec_results_path = os.path.join(this_path, "vmec")
 coils_results_path = os.path.join(this_path, "coils")
+comm = MPI.COMM_WORLD
 if comm.rank == 0:
     os.makedirs(vmec_results_path, exist_ok=True)
     os.makedirs(coils_results_path, exist_ok=True)
 ##########################################################################################
+def pprint(*args, **kwargs):
+    if comm.rank == 0:
+        print(*args, **kwargs)
 ##########################################################################################
 # Stage 1
+mpi = MpiPartition()
 if os.path.exists(os.path.join(this_path, "input.final")):
     vmec_input_filename = os.path.join(this_path, "input.final")
 pprint(f' Using vmec input file {vmec_input_filename}')
@@ -136,7 +134,7 @@ else:
         curve_cws.fix(2*nmodes_coils+2)
         base_curves.append(curve_cws)
     base_currents = [Current(1)*1e5 for i in range(ncoils)]
-    # base_currents[0].fix_all()
+    # base_currents[0].fix_all() ## Uncomment this if current goes to zero
 
 ##########################################################################################
 ##########################################################################################
@@ -263,6 +261,9 @@ def callback(xk):
 #############################################################
 ##########################################################################################
 for max_mode in max_modes:
+    pprint('Max mode =',max_mode)
+    vmec.indata.mpol = maxmodes_mpol_mapping[max_mode]
+    vmec.indata.ntor = maxmodes_mpol_mapping[max_mode]
     surf.fix_all(); surf_full.fix_all()
     surf.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
     surf_full.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
@@ -278,12 +279,15 @@ for max_mode in max_modes:
                        ]
     prob = LeastSquaresProblem.from_tuples(objective_tuple)
     dofs = np.concatenate((JF.x, vmec.x))
-    pprint(f"  Aspect ratio before stage 2 optimization: {vmec.aspect()}")
-    pprint(f"  Mean iota before stage 2 optimization: {vmec.mean_iota()}")
-    pprint(f"  Quasisymmetry objective stage 2 before optimization: {qs.total()}")
-    pprint(f"  Squared flux before stage 2 optimization: {Jf.J()}")
-    pprint(f'Performing stage 2 optimization with ~{MAXITER_stage_2} iterations')
-    res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2})
+    try:
+        pprint(f"  Aspect ratio before stage 2 optimization: {vmec.aspect()}")
+        pprint(f"  Mean iota before stage 2 optimization: {vmec.mean_iota()}")
+        pprint(f"  Quasisymmetry objective stage 2 before optimization: {qs.total()}")
+        pprint(f"  Squared flux before stage 2 optimization: {Jf.J()}")
+        pprint(f'Performing stage 2 optimization with ~{MAXITER_stage_2} iterations')
+    except Exception as e:
+        pprint(e)
+    res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300})
     bs.set_points(surf_full.gamma().reshape((-1, 3)))
     Bbs = bs.B().reshape((int(nphi_VMEC*2*surf.nfp), ntheta_VMEC, 3))
     BdotN_surf = np.sum(Bbs * surf_full.unitnormal(), axis=2)
@@ -292,11 +296,14 @@ for max_mode in max_modes:
         pointData = {"B_N": BdotN_surf[:, :, None]}
         surf_full.to_vtk(os.path.join(coils_results_path, f"surf_after_stage2_maxmode{max_mode}"), extra_data=pointData)
     bs.set_points(surf.gamma().reshape((-1, 3)))
-    pprint(f'Performing single stage optimization with ~{MAXITER_single_stage} iterations')
-    pprint(f"  Aspect ratio before single stage optimization: {vmec.aspect()}")
-    pprint(f"  Mean iota before single stage optimization: {vmec.mean_iota()}")
-    pprint(f"  Quasisymmetry objective before single stage optimization: {qs.total()}")
-    pprint(f"  Squared flux before single stage optimization: {Jf.J()}")
+    try:
+        pprint(f'Performing single stage optimization with ~{MAXITER_single_stage} iterations and maxmode {max_mode}')
+        pprint(f"  Aspect ratio before single stage optimization: {vmec.aspect()}")
+        pprint(f"  Mean iota before single stage optimization: {vmec.mean_iota()}")
+        pprint(f"  Quasisymmetry objective before single stage optimization: {qs.total()}")
+        pprint(f"  Squared flux before single stage optimization: {Jf.J()}")
+    except Exception as e:
+        pprint(e)
     Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
     BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
     BdotN = np.mean(np.abs(BdotN_surf))
@@ -313,7 +320,7 @@ for max_mode in max_modes:
     iteration_count = 0
     with MPIFiniteDifference(prob.objective, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
         if mpi.proc0_world:
-            res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), callback=callback, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER_single_stage, 'maxfun': MAXITER_single_stage})
+            res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), callback=callback, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER_single_stage, 'maxcor': 300})
     mpi.comm_world.Bcast(dofs, root=0)
     surf_full.x = surf.x
     bs.set_points(surf_full.gamma().reshape((-1, 3)))
