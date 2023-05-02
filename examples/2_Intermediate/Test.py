@@ -159,13 +159,40 @@ print(currents_coils[1].current)
 print(np.size(coils))
 
 for ii in range(np.size(curves)):
-    #current_density[ii] /= CurveLength(curves[ii])
     longueur = CurveLength(curves[ii])
     current_density[ii] = currents_coils[ii].get_value()/longueur.J()
     outstr = f"L={longueur.J():.1e}"
     outstr += f", J={current_density[ii]:.1e}"
     print(outstr)
 
+frenet = curves[1].frenet_frame()
+print("Unit tangent to 1st coil")
+print(frenet[0][:,:])
+print("Unit tangent evaluated at those points")
+print(curves[1].gammadash())
+
+print("Normal displacement of first coil curve")
+epsilon = 1e-2 # normal displacement of coil curve to remove singularities
+print((1+epsilon)*frenet[1][:,:]-frenet[1][:,:])
+
+# points where to evaluate the magnetic field 
+# bs.set_points(curves[ii].gammadash())
+# Practically: need to displace by a epsilon in the normal direction
+
+########################################
+#    Test plot normal vector field     #
+########################################
+
+# from mpl_toolkits.mplot3d import axes3d
+
+# fig = plt.figure()
+# ax = fig.add_subplot( projection='3d')
+# x, y, z = np.meshgrid(np.linspace(0.5, 1.5, np.size(frenet[1][:,0])),
+#                       np.linspace(-0.5, 0.7, np.size(frenet[1][:,1])),
+#                       np.linspace(-0.5, 0.5, np.size(frenet[1][:,2])))
+
+# ax.quiver(x, y, z, frenet[1][:,0], frenet[1][:,1], frenet[1][:,2], length=0.1)
+# plt.show()
 #         # In order to get local current density, need to multiply j
 #         # by tangent vector at points 'points'
 #         # Let's do it for one coil only at first
