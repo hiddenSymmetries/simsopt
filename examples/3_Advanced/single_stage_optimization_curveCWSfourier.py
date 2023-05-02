@@ -26,41 +26,41 @@ parent_path = str(Path(__file__).parent.resolve())
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
-nfp = 3
-max_modes = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
-maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 5, 4: 5}
+nfp = 2
+max_modes = [3, 3, 3, 4, 4]  # [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
+maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 5, 4: 6}
 MAXITER_stage_2 = 500
 MAXITER_single_stage = 110
-if max_modes[0]>2:
+if max_modes[0] > 2:
     vmec_input_filename = os.path.join(parent_path, f'input.axiTorus_nfp{nfp}_QA')
 else:
     vmec_input_filename = os.path.join(parent_path, 'inputs', f'input.nfp{nfp}_QA')
-if nfp==2:
+if nfp == 2:
     ncoils = 4
-    nmodes_coils = 16
+    nmodes_coils = 14
     minor_radius_cws = 0.5
     nphi_VMEC = 50
-    quadpoints = 280
-    CC_THRESHOLD = 0.07
+    quadpoints = 260
+    CC_THRESHOLD = 0.09
     CURVATURE_THRESHOLD = 30
     MSC_THRESHOLD = 30
 else:
     ncoils = 3
-    nmodes_coils = 16
+    nmodes_coils = 14
     minor_radius_cws = 0.45
-    nphi_VMEC = 42
-    quadpoints = 280
+    nphi_VMEC = 40
+    quadpoints = 240
     CC_THRESHOLD = 0.07
     CURVATURE_THRESHOLD = 25
     MSC_THRESHOLD = 25
 mean_iota_target = 0.41
 aspect_ratio_target = 9
 LENGTH_THRESHOLD = 6.5
-ntheta_VMEC = 50
+ntheta_VMEC = 44
 coils_objective_weight = 3e+4
 aspect_ratio_weight = 1e+1
 mean_iota_weight = 5e+3
-diff_method = "forward"
+diff_method = "centered"
 quasisymmetry_weight = 50
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 finite_difference_abs_step = 1e-7
@@ -75,7 +75,7 @@ ARCLENGTH_WEIGHT = 1e-7  # Weight for the arclength variation penalty in the obj
 ##########################################################################################
 ##########################################################################################
 directory = f'optimization_cws_singlestage_{vmec_input_filename[-7:]}_ncoils{ncoils}'
-if max_modes[0]>2: directory += '_axiTorus'
+if max_modes[0] > 2: directory += '_axiTorus'
 vmec_verbose = False
 # Create output directories
 this_path = os.path.join(parent_path, directory)
@@ -88,9 +88,13 @@ if comm.rank == 0:
     os.makedirs(vmec_results_path, exist_ok=True)
     os.makedirs(coils_results_path, exist_ok=True)
 ##########################################################################################
+
+
 def pprint(*args, **kwargs):
     if comm.rank == 0:
         print(*args, **kwargs)
+
+
 ##########################################################################################
 # Stage 1
 mpi = MpiPartition()
@@ -261,7 +265,7 @@ def callback(xk):
 #############################################################
 ##########################################################################################
 for max_mode in max_modes:
-    pprint('Max mode =',max_mode)
+    pprint('Max mode =', max_mode)
     vmec.indata.mpol = maxmodes_mpol_mapping[max_mode]
     vmec.indata.ntor = maxmodes_mpol_mapping[max_mode]
     surf.fix_all(); surf_full.fix_all()

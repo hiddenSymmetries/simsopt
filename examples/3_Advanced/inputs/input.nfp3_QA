@@ -4,9 +4,9 @@
   NITER = 10000
   NSTEP =  200
   TCON0 =   2.00E+00
-  NS_ARRAY    =      25
+  NS_ARRAY    =      16
   NITER_ARRAY =    2500
-  FTOL_ARRAY  = 1.0E-14
+  FTOL_ARRAY  = 1.0E-12
   PRECON_TYPE = 'none'
   PREC2D_THRESHOLD =   1.000000E-19
 !----- Grid Parameters -----
@@ -14,7 +14,7 @@
   NFP = 0003
   MPOL = 0004
   NTOR = 0004
-  PHIEDGE =    0.04
+  PHIEDGE =    0.03457
 !----- Free Boundary Parameters -----
   LFREEB = F
   NVACSKIP =    6
