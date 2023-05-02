@@ -406,6 +406,17 @@ class SurfaceRZFourierTests(unittest.TestCase):
         np.testing.assert_allclose(s1.area(), s2.area())
         np.testing.assert_allclose(s1.volume(), s2.volume())
 
+        # test possible bug due to memory leak
+        from simsopt.configs import get_ncsx_data
+        _, _, ma = get_ncsx_data()
+        qsc = Qsc(ma.rc, np.insert(ma.zs,0,0), nfp=3, etabar=-0.408)
+        phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_period.x = full_torus.x
+        # insert appropr
+
     def test_change_resolution(self):
         """
         Check that we can change mpol and ntor.
