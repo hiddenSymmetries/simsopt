@@ -3,11 +3,12 @@ from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
+from scipy import interpolate
 
 from .curve import Curve, JaxCurve
 from .._core.json import GSONDecoder
 import simsoptpp as sopp
-from simsopt.util.coil_util import * 
+from simsopt.util.fourier_interpolation import sin_coeff, cos_coeff
 
 __all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier']
 
@@ -116,10 +117,58 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             ppp: number of quadpoints divided by ``order``.
             accuracy: Increases the resolution with which the integration of the fourier coefficients is done.
         """
+        with open(filename, 'r') as f:
+            allCoilsValues = f.read().splitlines()[3:] 
     
-        coilPos = importCurves(filename)
+        coilN=0
+        coilPos=[[]]
+        for nVals in range(len(allCoilsValues)):
+            vals=allCoilsValues[nVals].split()
+            try:
+                floatVals = [float(nVals) for nVals in vals][0:3]
+                coilPos[coilN].append(floatVals)
+            except:
+                try:
+                    floatVals = [float(nVals) for nVals in vals[0:3]][0:3]
+                    coilPos[coilN].append(floatVals)
+                    coilN=coilN+1
+                    coilPos.append([])
+                except:
+                    break
+    
+        coilPos = coilPos[:-1]
         
-        coilsFourier = [get_curves_fourier(coil,order,accuracy) for coil in coilPos]
+        coilsFourier = []
+        
+        for curve in coilPos:
+            xArr=[i[0] for i in curve]
+            yArr=[i[1] for i in curve]
+            zArr=[i[2] for i in curve]
+
+            L = [0 for i in range(len(xArr))]
+            for itheta in range(1,len(xArr)): 
+                dx = xArr[itheta]-xArr[itheta-1]
+                dy = yArr[itheta]-yArr[itheta-1]
+                dz = zArr[itheta]-zArr[itheta-1]
+                dL = np.sqrt(dx*dx+dy*dy+dz*dz)
+                L[itheta]=L[itheta-1]+dL
+
+            L = np.array(L)*2*pi/L[-1] 
+        
+            xf  = interpolate.CubicSpline(L,xArr) #use the CubicSpline method with periodic bc instead? would require closing the line.
+            yf  = interpolate.CubicSpline(L,yArr)
+            zf  = interpolate.CubicSpline(L,zArr)
+            
+            order_interval = range(order+1)
+            curvesFourierXS=[sin_coeff(xf,j,accuracy) for j in order_interval]
+            curvesFourierXC=[cos_coeff(xf,j,accuracy) for j in order_interval]
+            curvesFourierYS=[sin_coeff(yf,j,accuracy) for j in order_interval]
+            curvesFourierYC=[cos_coeff(yf,j,accuracy) for j in order_interval]
+            curvesFourierZS=[sin_coeff(zf,j,accuracy) for j in order_interval]
+            curvesFourierZC=[cos_coeff(zf,j,accuracy) for j in order_interval]
+            
+            coilsFourier.append(np.concatenate([curvesFourierXS,curvesFourierXC,curvesFourierYS,curvesFourierYC,curvesFourierZS,curvesFourierZC]))
+    
         coilsFourier = np.asarray(coilsFourier)
         coilsFourier = coilsFourier.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
         coilsFourier = np.transpose(coilsFourier)
