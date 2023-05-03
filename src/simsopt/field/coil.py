@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 from simsopt.util.coil_util import * 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file','coils_via_file_new',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -228,8 +228,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
-
-def coils_via_file(filename,order,ppp=20,accuracy=500):
+def coils_via_file(filename,order,ppp=20, accuracy = 500):
     """
     This function loads a coils. file containing the cartesian coordinates for several coils
     and returns an array with the corresponding coils.
@@ -240,32 +239,6 @@ def coils_via_file(filename,order,ppp=20,accuracy=500):
         ppp: number of quadpoints divided by ``order``.
         accuracy: Increases the resolution with which the integration of the fourier coefficients is done.
     """
-    coilPos, currents = importCoils_and_current(filename)
-    
-    coilsFourier = [get_curves_fourier(coil,order,accuracy) for coil in coilPos]
-    coilsFourier = np.asarray(coilsFourier)
-    coilsFourier = coilsFourier.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
-    coilsFourier = np.transpose(coilsFourier)
-    
-    num_coils = coilsFourier.shape[1]//6
-    curves = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
-    for ic in range(num_coils):
-        dofs = curves[ic].dofs_matrix
-        dofs[0][0] = coilsFourier[0, 6*ic + 1]
-        dofs[1][0] = coilsFourier[0, 6*ic + 3]
-        dofs[2][0] = coilsFourier[0, 6*ic + 5]
-        for io in range(0, min(order, coilsFourier.shape[0]-1)):
-            dofs[0][2*io+1] = coilsFourier[io+1, 6*ic + 0]
-            dofs[0][2*io+2] = coilsFourier[io+1, 6*ic + 1]
-            dofs[1][2*io+1] = coilsFourier[io+1, 6*ic + 2]
-            dofs[1][2*io+2] = coilsFourier[io+1, 6*ic + 3]
-            dofs[2][2*io+1] = coilsFourier[io+1, 6*ic + 4]
-            dofs[2][2*io+2] = coilsFourier[io+1, 6*ic + 5]
-        curves[ic].local_x = np.concatenate(dofs)
-    coils = [Coil(curves[i], Current(currents[i])) for i in range(num_coils)]
-    return coils
-
-def coils_via_file_new(filename,order,ppp=20, accuracy = 500):
     with open(filename, 'r') as f:
         allCoilsValues = f.read().splitlines()[3:] 
         
