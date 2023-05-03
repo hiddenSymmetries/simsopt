@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 from simsopt.util.coil_util import * 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file','coils_via_file_new',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -263,6 +263,24 @@ def coils_via_file(filename,order,ppp=20,accuracy=500):
             dofs[2][2*io+2] = coilsFourier[io+1, 6*ic + 5]
         curves[ic].local_x = np.concatenate(dofs)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(num_coils)]
+    return coils
+
+def coils_via_file_new(filename,order,ppp=20, accuracy = 500):
+    with open(filename, 'r') as f:
+        allCoilsValues = f.read().splitlines()[3:] 
+        
+    currents=[]
+    flag=True
+    for nVals in range(len(allCoilsValues)-1):
+        vals=allCoilsValues[nVals].split()
+        if flag:
+            currents.append(float(vals[3]))
+            flag=False
+        if len(vals)>4:
+            flag=True
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp, Cartesian=True, accuracy = accuracy)
+    coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
+    
     return coils
 
 def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
