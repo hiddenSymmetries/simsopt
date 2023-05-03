@@ -7,6 +7,7 @@ import jax.numpy as jnp
 from .curve import Curve, JaxCurve
 from .._core.json import GSONDecoder
 import simsoptpp as sopp
+from simsopt.util.coil_util import * 
 
 __all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier']
 
@@ -102,7 +103,43 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
             coils[ic].local_x = np.concatenate(dofs)
         return coils
-
+    
+    @staticmethod
+    def load_curves_from_coils_file(filename,order,ppp = 20,accuracy=500):
+        """
+        This function reads a coils. file containing the cartesian coordinates for several coils 
+        and returns an array with the corresponding curves.
+        
+        Args:
+            filename: Name of the file to read.
+            order: Maximum order of the Fourier expansion.
+            ppp: number of quadpoints divided by ``order``.
+            accuracy: Increases the resolution with which the integration of the fourier coefficients is done.
+        """
+    
+        coilPos = importCurves(filename)
+        
+        coilsFourier = [get_curves_fourier(coil,order,accuracy) for coil in coilPos]
+        coilsFourier = np.asarray(coilsFourier)
+        coilsFourier = coilsFourier.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
+        coilsFourier = np.transpose(coilsFourier)
+        
+        num_coils = coilsFourier.shape[1]//6
+        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
+        for ic in range(num_coils):
+            dofs = coils[ic].dofs_matrix
+            dofs[0][0] = coilsFourier[0, 6*ic + 1]
+            dofs[1][0] = coilsFourier[0, 6*ic + 3]
+            dofs[2][0] = coilsFourier[0, 6*ic + 5]
+            for io in range(0, min(order, coilsFourier.shape[0]-1)):
+                dofs[0][2*io+1] = coilsFourier[io+1, 6*ic + 0]
+                dofs[0][2*io+2] = coilsFourier[io+1, 6*ic + 1]
+                dofs[1][2*io+1] = coilsFourier[io+1, 6*ic + 2]
+                dofs[1][2*io+2] = coilsFourier[io+1, 6*ic + 3]
+                dofs[2][2*io+1] = coilsFourier[io+1, 6*ic + 4]
+                dofs[2][2*io+2] = coilsFourier[io+1, 6*ic + 5]
+            coils[ic].local_x = np.concatenate(dofs)
+        return coils
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = len(dofs)//3
