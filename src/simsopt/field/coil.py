@@ -6,9 +6,9 @@ from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
+from simsopt.util.coil_util import * 
 
-
-__all__ = ['Coil', 'Current', 'coils_via_symmetries',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -39,6 +39,49 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
+    
+    
+    @staticmethod
+    def export_coils(filename,coils,NFP):
+        with open(filename, "w") as txt_file:
+            txt_file.write("periods "+str(NFP)+"\n")
+            txt_file.write("begin filament\n")
+            txt_file.write("mirror NIL\n")
+        for coil in coils:
+            with open(filename, "ab") as txt_file:
+                coilE=coil.curve.gamma()
+                coilE=np.c_[coilE, coil.current.get_value()*np.ones(len(coilE))]
+                coilLast=coilE[-1]
+                coilE=coilE[:-1, :]
+                np.savetxt(txt_file, coilE, fmt='%.8e')
+                coilLast[3]=0.0
+                coilLast=np.append(coilLast,"1")
+                coilLast=np.append(coilLast,"Modular")
+                np.savetxt(txt_file, coilLast, fmt='%.10s', newline=" ")
+                txt_file.write(b"\n")
+        with open(filename, "ab") as txt_file:
+            txt_file.write(b"end\n")
+            
+    @staticmethod
+    def export_coils_in_cartesian(filename,curves,currents,NFP):
+        with open(filename, "w") as txt_file:
+            txt_file.write("periods "+str(NFP)+"\n")
+            txt_file.write("begin filament\n")
+            txt_file.write("mirror NIL\n")
+        for count,coil in enumerate(curves):
+            with open(filename, "ab") as txt_file:
+                coilE=coil.gamma()
+                coilE=np.c_[coilE, currents[count]*np.ones(len(coilE))]
+                coilLast=coilE[-1]
+                coilE=coilE[:-1, :]
+                np.savetxt(txt_file, coilE, fmt='%.8e')
+                coilLast[3]=0.0
+                coilLast=np.append(coilLast,"1")
+                coilLast=np.append(coilLast,"Modular")
+                np.savetxt(txt_file, coilLast, fmt='%.10s', newline=" ")
+                txt_file.write(b"\n")
+        with open(filename, "ab") as txt_file:
+            txt_file.write(b"end\n")
 
 
 class CurrentBase(Optimizable):
@@ -185,6 +228,42 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
+
+def coils_via_file(filename,order,ppp=20,accuracy=500):
+    """
+    This function loads a coils. file containing the cartesian coordinates for several coils
+    and returns an array with the corresponding coils.
+    
+    Args:
+        filename: Name of the file to read.
+        order: Maximum order of the Fourier expansion.
+        ppp: number of quadpoints divided by ``order``.
+        accuracy: Increases the resolution with which the integration of the fourier coefficients is done.
+    """
+    coilPos, currents = importCoils_and_current(filename)
+    
+    coilsFourier = [get_curves_fourier(coil,order,accuracy) for coil in coilPos]
+    coilsFourier = np.asarray(coilsFourier)
+    coilsFourier = coilsFourier.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
+    coilsFourier = np.transpose(coilsFourier)
+    
+    num_coils = coilsFourier.shape[1]//6
+    curves = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
+    for ic in range(num_coils):
+        dofs = curves[ic].dofs_matrix
+        dofs[0][0] = coilsFourier[0, 6*ic + 1]
+        dofs[1][0] = coilsFourier[0, 6*ic + 3]
+        dofs[2][0] = coilsFourier[0, 6*ic + 5]
+        for io in range(0, min(order, coilsFourier.shape[0]-1)):
+            dofs[0][2*io+1] = coilsFourier[io+1, 6*ic + 0]
+            dofs[0][2*io+2] = coilsFourier[io+1, 6*ic + 1]
+            dofs[1][2*io+1] = coilsFourier[io+1, 6*ic + 2]
+            dofs[1][2*io+2] = coilsFourier[io+1, 6*ic + 3]
+            dofs[2][2*io+1] = coilsFourier[io+1, 6*ic + 4]
+            dofs[2][2*io+2] = coilsFourier[io+1, 6*ic + 5]
+        curves[ic].local_x = np.concatenate(dofs)
+    coils = [Coil(curves[i], Current(currents[i])) for i in range(num_coils)]
+    return coils
 
 def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
     """
