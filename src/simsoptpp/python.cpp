@@ -120,7 +120,7 @@ PYBIND11_MODULE(simsoptpp, m) {
             return C;
         });
 
-    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n, bool local) {
+    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n, std::string definition) {
         int nphi = Bcoil.shape(0);
         int ntheta = Bcoil.shape(1);
         double *Bcoil_ptr = Bcoil.data();
@@ -154,33 +154,64 @@ PYBIND11_MODULE(simsoptpp, m) {
 
             Btarget_ptr = Btarget.data();
         }
+        // Convert "definition" from string to int for faster comparisons inside
+        // the loop.
+        enum definition_type {DEFINITION_QUADRATIC_FLUX, DEFINITION_NORMALIZED, DEFINITION_LOCAL};
+        definition_type definition_int;
+        if (definition == "quadratic flux") {
+            definition_int = DEFINITION_QUADRATIC_FLUX;
+        } else if (definition == "normalized") {
+            definition_int = DEFINITION_NORMALIZED;
+        } else if (definition == "local") {
+            definition_int = DEFINITION_LOCAL;
+        } else {
+            throw std::runtime_error("Unrecognized value for 'definition'.");
+        }
         double numerator_sum = 0.0;
         double denominator_sum = 0.0;
+        double mod_B_squared;
 
         #pragma omp parallel for reduction(+:numerator_sum, denominator_sum)
         for(int i=0; i<nphi*ntheta; i++){
-            double normN = std::sqrt(n_ptr[3*i+0]*n_ptr[3*i+0] + n_ptr[3*i+1]*n_ptr[3*i+1] + n_ptr[3*i+2]*n_ptr[3*i+2]);
-            double Nx = n_ptr[3*i+0]/normN;
-            double Ny = n_ptr[3*i+1]/normN;
-            double Nz = n_ptr[3*i+2]/normN;
-            double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
+            double normN = std::sqrt(
+                n_ptr[3 * i + 0] * n_ptr[3 * i + 0] 
+                + n_ptr[3 * i + 1] * n_ptr[3 * i + 1] 
+                + n_ptr[3 * i + 2] * n_ptr[3 * i + 2]
+            );
+            double Nx = n_ptr[3 * i + 0] / normN;
+            double Ny = n_ptr[3 * i + 1] / normN;
+            double Nz = n_ptr[3 * i + 2] / normN;
+            double BcoildotN = (
+                Bcoil_ptr[3 * i + 0] * Nx 
+                + Bcoil_ptr[3 * i + 1] * Ny 
+                + Bcoil_ptr[3 * i + 2] * Nz
+            );
             if(Btarget_ptr != NULL)
                 BcoildotN -= Btarget_ptr[i];
 
-            double mod_Bcoil = std::sqrt(Bcoil_ptr[3*i+0]*Bcoil_ptr[3*i+0] + Bcoil_ptr[3*i+1]*Bcoil_ptr[3*i+1] + Bcoil_ptr[3*i+2]*Bcoil_ptr[3*i+2]);
-            if (local) {
-                numerator_sum += (BcoildotN * BcoildotN) / (mod_Bcoil * mod_Bcoil) * normN;
-            } else {
+            if (definition_int != DEFINITION_QUADRATIC_FLUX)
+                mod_B_squared = 
+                    Bcoil_ptr[3 * i + 0] * Bcoil_ptr[3 * i + 0] 
+                    + Bcoil_ptr[3 * i + 1] * Bcoil_ptr[3 * i + 1] 
+                    + Bcoil_ptr[3 * i + 2] * Bcoil_ptr[3 * i + 2];
+            
+            if (definition_int == DEFINITION_QUADRATIC_FLUX) {
                 numerator_sum += (BcoildotN * BcoildotN) * normN;
-                denominator_sum += mod_Bcoil * mod_Bcoil * normN;
+            } else if (definition_int == DEFINITION_NORMALIZED){
+                numerator_sum += (BcoildotN * BcoildotN) * normN;
+                denominator_sum += mod_B_squared * normN;
+            } else if (definition_int == DEFINITION_LOCAL) {
+                numerator_sum += (BcoildotN * BcoildotN) / mod_B_squared * normN;
+            } else {
+                throw std::runtime_error("Should never reach this point.");
             }
         }
 
-        double result = 0.0;
-        if (local) {
-            result = 0.5 * numerator_sum / (nphi*ntheta);
+        double result;
+        if (definition_int == DEFINITION_NORMALIZED) {
+            result = 0.5 * numerator_sum / denominator_sum;
         } else {
-            result = numerator_sum / denominator_sum;
+            result = 0.5 * numerator_sum / (nphi * ntheta);
         }
 
         return result;
