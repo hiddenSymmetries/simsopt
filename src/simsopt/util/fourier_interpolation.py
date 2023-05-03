@@ -8,7 +8,7 @@ data that is known on a uniform grid in a periodic domain.
 """
 
 import numpy as np
-
+from math import pi
 # Get machine precision
 eps = np.finfo(float).eps
 
@@ -52,3 +52,41 @@ def fourier_interpolation(fk, x):
 
     # Evaluate interpolant as matrix-vector products
     return np.dot(D, w * fk) / np.dot(D, w)
+
+
+def sin_coeff(f, n, accuracy = 50, L=pi):
+    '''
+    Calculates the coefficients for the sine of order n in the Fourier expansion of function f.
+    
+    Args:
+        f: function to fourier expand
+        n: order of the coefficient
+    ''' 
+    a, b = 0, 2*L
+    dx = (b - a) / accuracy
+    integration = 0
+    x=np.linspace(a, b, accuracy)
+    
+    integration=np.sum(f(x) * np.sin((n * pi * x) / L))
+    integration *= dx
+    
+    return (1 / L) * integration
+
+def cos_coeff(f, n, accuracy = 50, L=pi):
+    '''
+    Calculates the coefficients for the cosine of order n in the Fourier expansion of function f.
+    
+    Args:
+        f: function to Fourier expand
+        n: order of the coefficient
+    ''' 
+    a, b = 0, 2*L
+    dx = (b - a) / accuracy
+    integration = 0
+    x=np.linspace(a, b, accuracy)
+
+    integration=np.sum(f(x) * np.cos((n * pi * x) / L))
+    integration *= dx
+
+    if n==0: integration=integration/2
+    return (1 / L) * integration
