@@ -72,41 +72,9 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
-
-    @staticmethod
-    def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
-        """
-        This function loads a file containing Fourier coefficients for several coils.
-        The file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
-        The columns are in the following order,
-
-            sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
-
-        """
-        coil_data = np.loadtxt(filename, delimiter=delimiter)
-
-        assert coil_data.shape[1] % 6 == 0
-        assert order <= coil_data.shape[0]-1
-
-        num_coils = coil_data.shape[1]//6
-        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
-        for ic in range(num_coils):
-            dofs = coils[ic].dofs_matrix
-            dofs[0][0] = coil_data[0, 6*ic + 1]
-            dofs[1][0] = coil_data[0, 6*ic + 3]
-            dofs[2][0] = coil_data[0, 6*ic + 5]
-            for io in range(0, min(order, coil_data.shape[0]-1)):
-                dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
-                dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
-                dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]
-                dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
-                dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
-                dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
-            coils[ic].local_x = np.concatenate(dofs)
-        return coils
     
     @staticmethod
-    def load_curves_from_file_new(filename, order=None, ppp=20, delimiter=',',Cartesian=False, accuracy = 500):
+    def load_curves_from_file(filename, order=None, ppp=20, delimiter=',',Cartesian=False, accuracy = 500):
         """
         This function loads a file containing Fourier coefficients for several coils.
         The file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
@@ -194,91 +162,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coils[ic].local_x = np.concatenate(dofs)
         return coils
     
-    @staticmethod
-    def load_curves_from_coils_file(filename,order,ppp = 20,accuracy=500):
-        """
-        This function reads a coils. file containing the cartesian coordinates for several coils 
-        and returns an array with the corresponding curves.
-        
-        Args:
-            filename: Name of the file to read.
-            order: Maximum order of the Fourier expansion.
-            ppp: number of quadpoints divided by ``order``.
-            accuracy: Increases the resolution with which the integration of the fourier coefficients is done.
-        """
-        with open(filename, 'r') as f:
-            allCoilsValues = f.read().splitlines()[3:] 
-    
-        coilN=0
-        coilPos=[[]]
-        for nVals in range(len(allCoilsValues)):
-            vals=allCoilsValues[nVals].split()
-            try:
-                floatVals = [float(nVals) for nVals in vals][0:3]
-                coilPos[coilN].append(floatVals)
-            except:
-                try:
-                    floatVals = [float(nVals) for nVals in vals[0:3]][0:3]
-                    coilPos[coilN].append(floatVals)
-                    coilN=coilN+1
-                    coilPos.append([])
-                except:
-                    break
-    
-        coilPos = coilPos[:-1]
-        
-        coilsFourier = []
-        
-        for curve in coilPos:
-            xArr=[i[0] for i in curve]
-            yArr=[i[1] for i in curve]
-            zArr=[i[2] for i in curve]
-
-            L = [0 for i in range(len(xArr))]
-            for itheta in range(1,len(xArr)): 
-                dx = xArr[itheta]-xArr[itheta-1]
-                dy = yArr[itheta]-yArr[itheta-1]
-                dz = zArr[itheta]-zArr[itheta-1]
-                dL = np.sqrt(dx*dx+dy*dy+dz*dz)
-                L[itheta]=L[itheta-1]+dL
-
-            L = np.array(L)*2*pi/L[-1] 
-        
-            xf  = interpolate.CubicSpline(L,xArr) #use the CubicSpline method with periodic bc instead? would require closing the line.
-            yf  = interpolate.CubicSpline(L,yArr)
-            zf  = interpolate.CubicSpline(L,zArr)
-            
-            order_interval = range(order+1)
-            curvesFourierXS=[sin_coeff(xf,j,accuracy) for j in order_interval]
-            curvesFourierXC=[cos_coeff(xf,j,accuracy) for j in order_interval]
-            curvesFourierYS=[sin_coeff(yf,j,accuracy) for j in order_interval]
-            curvesFourierYC=[cos_coeff(yf,j,accuracy) for j in order_interval]
-            curvesFourierZS=[sin_coeff(zf,j,accuracy) for j in order_interval]
-            curvesFourierZC=[cos_coeff(zf,j,accuracy) for j in order_interval]
-            
-            coilsFourier.append(np.concatenate([curvesFourierXS,curvesFourierXC,curvesFourierYS,curvesFourierYC,curvesFourierZS,curvesFourierZC]))
-    
-        coilsFourier = np.asarray(coilsFourier)
-        coilsFourier = coilsFourier.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
-        coilsFourier = np.transpose(coilsFourier)
-        
-        num_coils = coilsFourier.shape[1]//6
-        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
-        for ic in range(num_coils):
-            dofs = coils[ic].dofs_matrix
-            dofs[0][0] = coilsFourier[0, 6*ic + 1]
-            dofs[1][0] = coilsFourier[0, 6*ic + 3]
-            dofs[2][0] = coilsFourier[0, 6*ic + 5]
-            for io in range(0, min(order, coilsFourier.shape[0]-1)):
-                dofs[0][2*io+1] = coilsFourier[io+1, 6*ic + 0]
-                dofs[0][2*io+2] = coilsFourier[io+1, 6*ic + 1]
-                dofs[1][2*io+1] = coilsFourier[io+1, 6*ic + 2]
-                dofs[1][2*io+2] = coilsFourier[io+1, 6*ic + 3]
-                dofs[2][2*io+1] = coilsFourier[io+1, 6*ic + 4]
-                dofs[2][2*io+2] = coilsFourier[io+1, 6*ic + 5]
-            coils[ic].local_x = np.concatenate(dofs)
-        return coils
-
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = len(dofs)//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
