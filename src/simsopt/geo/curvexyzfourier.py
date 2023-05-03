@@ -108,9 +108,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coil_data = []
             
             for curve in coilPos:
-                xArr=[i[0] for i in curve]
-                yArr=[i[1] for i in curve]
-                zArr=[i[2] for i in curve]
+                xArr, yArr, zArr = np.transpose(curve)
 
                 L = [0 for i in range(len(xArr))]
                 for itheta in range(1,len(xArr)): 
@@ -135,7 +133,92 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 curvesFourierZC=[cos_coeff(zf,j,accuracy) for j in order_interval]
                 
                 coil_data.append(np.concatenate([curvesFourierXS,curvesFourierXC,curvesFourierYS,curvesFourierYC,curvesFourierZS,curvesFourierZC]))
+
+            coil_data = np.asarray(coil_data)
+            coil_data = coil_data.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
+            coil_data = np.transpose(coil_data)
+        else:  
+            coil_data = np.loadtxt(filename, delimiter=delimiter)
+
+        assert coil_data.shape[1] % 6 == 0
+        assert order <= coil_data.shape[0]-1
+
+        num_coils = coil_data.shape[1]//6
+        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
+        for ic in range(num_coils):
+            dofs = coils[ic].dofs_matrix
+            dofs[0][0] = coil_data[0, 6*ic + 1]
+            dofs[1][0] = coil_data[0, 6*ic + 3]
+            dofs[2][0] = coil_data[0, 6*ic + 5]
+            for io in range(0, min(order, coil_data.shape[0]-1)):
+                dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
+                dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
+                dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]
+                dofs[1][2*io+2] = coil_data[io+1, 6*ic + 3]
+                dofs[2][2*io+1] = coil_data[io+1, 6*ic + 4]
+                dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
+            coils[ic].local_x = np.concatenate(dofs)
+        return coils
+    
+    @staticmethod
+    def load_curves_from_file_new(filename, order=None, ppp=20, delimiter=',',Cartesian=False, accuracy = 500):
+        """
+        This function loads a file containing Fourier coefficients for several coils.
+        The file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
+        The columns are in the following order,
+
+            sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
+
+        """
+        if Cartesian:
+            with open(filename, 'r') as f:
+                allCoilsValues = f.read().splitlines()[3:] 
         
+            coilN=0
+            coilPos=[[]]
+            for nVals in range(len(allCoilsValues)):
+                vals=allCoilsValues[nVals].split()
+                try:
+                    floatVals = [float(nVals) for nVals in vals][0:3]
+                    coilPos[coilN].append(floatVals)
+                except:
+                    try:
+                        floatVals = [float(nVals) for nVals in vals[0:3]][0:3]
+                        coilPos[coilN].append(floatVals)
+                        coilN=coilN+1
+                        coilPos.append([])
+                    except:
+                        break
+        
+            coilPos = coilPos[:-1]
+            
+            coil_data = []
+            
+             # Compute the Fourier coefficients for each coil
+            for curve in coilPos:
+                xArr, yArr, zArr = np.transpose(curve)
+
+                # Compute the arclength parameterization of the curve
+                dL = np.sqrt(np.sum(np.diff(curve, axis=0)**2, axis=1))
+                L = np.concatenate(([0], np.cumsum(dL)))
+                L = L*2*pi/L[-1]
+
+                # Interpolate the curve with a cubic spline
+                xf  = interpolate.CubicSpline(L,xArr) #use the CubicSpline method with periodic bc instead? would require closing the line.
+                yf  = interpolate.CubicSpline(L,yArr)
+                zf  = interpolate.CubicSpline(L,zArr)
+                
+                # Compute the Fourier coefficients
+                order_interval = range(order+1)
+                curvesFourierXS=[sin_coeff(xf,j,accuracy) for j in order_interval]
+                curvesFourierXC=[cos_coeff(xf,j,accuracy) for j in order_interval]
+                curvesFourierYS=[sin_coeff(yf,j,accuracy) for j in order_interval]
+                curvesFourierYC=[cos_coeff(yf,j,accuracy) for j in order_interval]
+                curvesFourierZS=[sin_coeff(zf,j,accuracy) for j in order_interval]
+                curvesFourierZC=[cos_coeff(zf,j,accuracy) for j in order_interval]
+                
+                coil_data.append(np.concatenate([curvesFourierXS,curvesFourierXC,curvesFourierYS,curvesFourierYC,curvesFourierZS,curvesFourierZC]))
+
             coil_data = np.asarray(coil_data)
             coil_data = coil_data.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
             coil_data = np.transpose(coil_data)

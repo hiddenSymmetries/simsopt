@@ -1,5 +1,5 @@
 from simsopt.geo import CurveXYZFourier
-from simsopt.field import coils_via_file, Coil, coils_via_file_new
+from simsopt.field import coils_via_file, Coil
 from simsopt.util.coil_util import *
 
 file = "inputs/coils.tester"
@@ -46,3 +46,12 @@ file = "inputs/coils.tester"
 #Coil.export_coils("output_new", coils_new, 1)
 #Coil.export_coils("output_old", coils_old, 1)
 #print(importCurves("output_new") == importCurves("output_old"))
+#--------------------------------------------------------------------------------------
+curves_old = CurveXYZFourier.load_curves_from_file(file, 19,ppp=5,Cartesian=True)
+curves_new = CurveXYZFourier.load_curves_from_file_new(file, 19,ppp=5,Cartesian=True)
+
+currents = [1]*len(curves_old)
+
+Coil.export_coils_in_cartesian("output_new", curves_new,currents, 1)
+Coil.export_coils_in_cartesian("output_old", curves_old,currents, 1)
+print(importCurves("output_new") == importCurves("output_old"))
