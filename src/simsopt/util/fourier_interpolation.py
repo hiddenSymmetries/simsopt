@@ -9,6 +9,7 @@ data that is known on a uniform grid in a periodic domain.
 
 import numpy as np
 from math import pi
+from scipy.integrate import quadrature
 # Get machine precision
 eps = np.finfo(float).eps
 
@@ -54,7 +55,7 @@ def fourier_interpolation(fk, x):
     return np.dot(D, w * fk) / np.dot(D, w)
 
 
-def sin_coeff(f, n, accuracy = 50, L=pi):
+def sin_coeff(f, n, L=pi):
     '''
     Calculates the coefficients for the sine of order n in the Fourier expansion of function f.
     
@@ -62,17 +63,20 @@ def sin_coeff(f, n, accuracy = 50, L=pi):
         f: function to fourier expand
         n: order of the coefficient
     ''' 
-    a, b = 0, 2*L
-    dx = (b - a) / accuracy
-    integration = 0
-    x=np.linspace(a, b, accuracy)
     
-    integration=np.sum(f(x) * np.sin((n * pi * x) / L))
-    integration *= dx
+    a, b = 0, 2 * L
     
+    # Define the integrand function
+    def integrand(x):
+        return f(x) * np.sin((n * pi * x) / L)
+    
+    # Compute the integration using quadrature
+    integration, _ = quadrature(integrand, a, b)
+
     return (1 / L) * integration
 
-def cos_coeff(f, n, accuracy = 50, L=pi):
+
+def cos_coeff(f, n, L=pi):
     '''
     Calculates the coefficients for the cosine of order n in the Fourier expansion of function f.
     
@@ -80,13 +84,14 @@ def cos_coeff(f, n, accuracy = 50, L=pi):
         f: function to Fourier expand
         n: order of the coefficient
     ''' 
-    a, b = 0, 2*L
-    dx = (b - a) / accuracy
-    integration = 0
-    x=np.linspace(a, b, accuracy)
-
-    integration=np.sum(f(x) * np.cos((n * pi * x) / L))
-    integration *= dx
+    a, b = 0, 2 * L
+    
+    # Define the integrand function
+    def integrand(x):
+        return f(x) * np.cos((n * pi * x) / L)
+    
+    # Compute the integration using quadrature
+    integration, _ = quadrature(integrand, a, b)
 
     if n==0: integration=integration/2
     return (1 / L) * integration
