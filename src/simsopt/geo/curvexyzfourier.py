@@ -1,6 +1,6 @@
 from math import pi
 from itertools import chain
-
+import time
 import numpy as np
 import jax.numpy as jnp
 from scipy import interpolate
@@ -120,20 +120,14 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 L = L*2*pi/L[-1]
 
                 # Interpolate the curve with a cubic spline
-                xf  = interpolate.CubicSpline(L,xArr) #use the CubicSpline method with periodic bc instead? would require closing the line.
+                xf  = interpolate.CubicSpline(L,xArr) 
                 yf  = interpolate.CubicSpline(L,yArr)
                 zf  = interpolate.CubicSpline(L,zArr)
                 
                 # Compute the Fourier coefficients
                 order_interval = range(order+1)
-                curvesFourierXS=[sin_coeff(xf,j) for j in order_interval]
-                curvesFourierXC=[cos_coeff(xf,j) for j in order_interval]
-                curvesFourierYS=[sin_coeff(yf,j) for j in order_interval]
-                curvesFourierYC=[cos_coeff(yf,j) for j in order_interval]
-                curvesFourierZS=[sin_coeff(zf,j) for j in order_interval]
-                curvesFourierZC=[cos_coeff(zf,j) for j in order_interval]
-                
-                coil_data.append(np.concatenate([curvesFourierXS,curvesFourierXC,curvesFourierYS,curvesFourierYC,curvesFourierZS,curvesFourierZC]))
+                curvesFourier = [[sin_coeff(f, j) for j in order_interval] + [cos_coeff(f, j) for j in order_interval] for f in [xf, yf, zf]]
+                coil_data.append(np.concatenate(curvesFourier))
 
             coil_data = np.asarray(coil_data)
             coil_data = coil_data.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
