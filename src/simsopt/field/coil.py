@@ -186,8 +186,9 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
 
 def coils_via_file(filename,order,ppp=20):
     """
-    This function loads a coils. file containing the cartesian coordinates for several coils
-    and returns an array with the corresponding coils.
+    This function loads a file in MAKEGRID input format containing the cartesian coordinates and the currents for several coils
+    and returns an array with the corresponding coils. The format is introduced at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
     
     Args:
         filename: Name of the file to read.
@@ -206,7 +207,7 @@ def coils_via_file(filename,order,ppp=20):
             flag=False
         if len(vals)>4:
             flag=True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp, Cartesian=True)
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
     
     return coils
