@@ -40,50 +40,6 @@ class Coil(sopp.Coil, Optimizable):
         """
         return self.curve.plot(**kwargs)
     
-    
-    @staticmethod
-    def export_coils(filename,coils,NFP):
-        with open(filename, "w") as txt_file:
-            txt_file.write("periods "+str(NFP)+"\n")
-            txt_file.write("begin filament\n")
-            txt_file.write("mirror NIL\n")
-        for coil in coils:
-            with open(filename, "ab") as txt_file:
-                coilE=coil.curve.gamma()
-                coilE=np.c_[coilE, coil.current.get_value()*np.ones(len(coilE))]
-                coilLast=coilE[-1]
-                coilE=coilE[:-1, :]
-                np.savetxt(txt_file, coilE, fmt='%.8e')
-                coilLast[3]=0.0
-                coilLast=np.append(coilLast,"1")
-                coilLast=np.append(coilLast,"Modular")
-                np.savetxt(txt_file, coilLast, fmt='%.10s', newline=" ")
-                txt_file.write(b"\n")
-        with open(filename, "ab") as txt_file:
-            txt_file.write(b"end\n")
-            
-    @staticmethod
-    def export_coils_in_cartesian(filename,curves,currents,NFP):
-        with open(filename, "w") as txt_file:
-            txt_file.write("periods "+str(NFP)+"\n")
-            txt_file.write("begin filament\n")
-            txt_file.write("mirror NIL\n")
-        for count,coil in enumerate(curves):
-            with open(filename, "ab") as txt_file:
-                coilE=coil.gamma()
-                coilE=np.c_[coilE, currents[count]*np.ones(len(coilE))]
-                coilLast=coilE[-1]
-                coilE=coilE[:-1, :]
-                np.savetxt(txt_file, coilE, fmt='%.8e')
-                coilLast[3]=0.0
-                coilLast=np.append(coilLast,"1")
-                coilLast=np.append(coilLast,"Modular")
-                np.savetxt(txt_file, coilLast, fmt='%.10s', newline=" ")
-                txt_file.write(b"\n")
-        with open(filename, "ab") as txt_file:
-            txt_file.write(b"end\n")
-
-
 class CurrentBase(Optimizable):
 
     def __init__(self, **kwargs):
@@ -228,7 +184,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
-def coils_via_file(filename,order,ppp=20, accuracy = 500):
+def coils_via_file(filename,order,ppp=20):
     """
     This function loads a coils. file containing the cartesian coordinates for several coils
     and returns an array with the corresponding coils.
@@ -237,7 +193,6 @@ def coils_via_file(filename,order,ppp=20, accuracy = 500):
         filename: Name of the file to read.
         order: Maximum order of the Fourier expansion.
         ppp: number of quadpoints divided by ``order``.
-        accuracy: Increases the resolution with which the integration of the fourier coefficients is done.
     """
     with open(filename, 'r') as f:
         allCoilsValues = f.read().splitlines()[3:] 
@@ -251,7 +206,7 @@ def coils_via_file(filename,order,ppp=20, accuracy = 500):
             flag=False
         if len(vals)>4:
             flag=True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp, Cartesian=True, accuracy = accuracy)
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp, Cartesian=True)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
     
     return coils

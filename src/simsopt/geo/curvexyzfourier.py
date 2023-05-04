@@ -74,14 +74,17 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         sopp.CurveXYZFourier.set_dofs(self, dofs)
     
     @staticmethod
-    def load_curves_from_file(filename, order=None, ppp=20, delimiter=',',Cartesian=False, accuracy = 500):
+    def load_curves_from_file(filename, order=None, ppp=20, delimiter=',',Cartesian=False):
         """
-        This function loads a file containing Fourier coefficients for several coils.
-        The file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
+        This function loads a file containing Fourier coefficients for several coils if `Cartesian = False`
+        or the cartesian coordinates for several coils if `Cartesian = True`.
+        For the Fourier coefficient case, the file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
         The columns are in the following order,
 
             sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
 
+        For the cartesian case, The format is introduced at
+        https://princetonuniversity.github.io/STELLOPT/MAKEGRID
         """
         if Cartesian:
             with open(filename, 'r') as f:
@@ -107,7 +110,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             
             coil_data = []
             
-             # Compute the Fourier coefficients for each coil
+            # Compute the Fourier coefficients for each coil
             for curve in coilPos:
                 xArr, yArr, zArr = np.transpose(curve)
 
@@ -123,12 +126,12 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 
                 # Compute the Fourier coefficients
                 order_interval = range(order+1)
-                curvesFourierXS=[sin_coeff(xf,j,accuracy) for j in order_interval]
-                curvesFourierXC=[cos_coeff(xf,j,accuracy) for j in order_interval]
-                curvesFourierYS=[sin_coeff(yf,j,accuracy) for j in order_interval]
-                curvesFourierYC=[cos_coeff(yf,j,accuracy) for j in order_interval]
-                curvesFourierZS=[sin_coeff(zf,j,accuracy) for j in order_interval]
-                curvesFourierZC=[cos_coeff(zf,j,accuracy) for j in order_interval]
+                curvesFourierXS=[sin_coeff(xf,j) for j in order_interval]
+                curvesFourierXC=[cos_coeff(xf,j) for j in order_interval]
+                curvesFourierYS=[sin_coeff(yf,j) for j in order_interval]
+                curvesFourierYC=[cos_coeff(yf,j) for j in order_interval]
+                curvesFourierZS=[sin_coeff(zf,j) for j in order_interval]
+                curvesFourierZC=[cos_coeff(zf,j) for j in order_interval]
                 
                 coil_data.append(np.concatenate([curvesFourierXS,curvesFourierXC,curvesFourierYS,curvesFourierYC,curvesFourierZS,curvesFourierZC]))
 
