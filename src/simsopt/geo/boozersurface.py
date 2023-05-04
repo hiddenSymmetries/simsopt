@@ -67,6 +67,7 @@ class BoozerSurface(Optimizable):
 
         elif boozer_type == 'ls':
             # first try BFGS
+            #res = self.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=self.constraint_weight, iota=iota, G=G, method='manual')
             res = self.compute_boozerls_BFGS(tol=1e-10, maxiter=1e3, constraint_weight=self.constraint_weight, iota=iota, G=G)
             iota, G = res['iota'], res['G']
             
