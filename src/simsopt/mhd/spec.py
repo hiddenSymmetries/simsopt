@@ -85,7 +85,7 @@ class Spec(Optimizable):
           except for the first and most recent ones from worker group 0. If
           ``True``, all output files will be kept.
         tolerance: Max force balance residue to consider the equilibrium as
-          converged; if |f|>tolerance, raise ObjectiveFailure exception. By
+          converged; if :math:`|f|>` tolerance, raise ``ObjectiveFailure`` exception. By
           default set to 1E-12.
     """
 
