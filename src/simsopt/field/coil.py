@@ -184,16 +184,12 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
-def coils_via_file(filename,order,ppp=20):
+def coils_via_file(filename,order,quadpoints=64,maxiter=1000):
     """
-    This function loads a file in MAKEGRID input format containing the cartesian coordinates and the currents for several coils
-    and returns an array with the corresponding coils. The format is introduced at
-    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+    This function loads a file in MAKEGRID input format containing the cartesian coordinates 
+    and the currents for several coils and returns an array with the corresponding coils. 
+    The format is introduced at https://princetonuniversity.github.io/STELLOPT/MAKEGRID
     
-    Args:
-        filename: Name of the file to read.
-        order: Maximum order of the Fourier expansion.
-        ppp: number of quadpoints divided by ``order``.
     """
     with open(filename, 'r') as f:
         allCoilsValues = f.read().splitlines()[3:] 
@@ -207,7 +203,7 @@ def coils_via_file(filename,order,ppp=20):
             flag=False
         if len(vals)>4:
             flag=True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp)
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, quadpoints=quadpoints,maxiter=maxiter)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
     
     return coils

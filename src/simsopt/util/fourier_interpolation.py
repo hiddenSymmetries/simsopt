@@ -55,7 +55,7 @@ def fourier_interpolation(fk, x):
     return np.dot(D, w * fk) / np.dot(D, w)
 
 
-def sin_coeff(f, n, L=pi):
+def sin_coeff(f, n, L=pi, maxiter=1000):
     '''
     Calculates the coefficients for the sine of order n in the Fourier expansion of function f.
     
@@ -71,12 +71,12 @@ def sin_coeff(f, n, L=pi):
         return f(x) * np.sin((n * pi * x) / L)
     
     # Compute the integration using quadrature
-    integration, _ = quadrature(integrand, a, b)
+    integration, _ = quadrature(integrand, a, b,maxiter=maxiter)
 
     return (1 / L) * integration
 
 
-def cos_coeff(f, n, L=pi):
+def cos_coeff(f, n, L=pi, maxiter=1000):
     '''
     Calculates the coefficients for the cosine of order n in the Fourier expansion of function f.
     
@@ -91,7 +91,7 @@ def cos_coeff(f, n, L=pi):
         return f(x) * np.cos((n * pi * x) / L)
     
     # Compute the integration using quadrature
-    integration, _ = quadrature(integrand, a, b)
+    integration, _ = quadrature(integrand, a, b,maxiter=maxiter)
 
     if n==0: integration=integration/2
     return (1 / L) * integration

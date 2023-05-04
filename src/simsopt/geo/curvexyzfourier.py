@@ -74,7 +74,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         sopp.CurveXYZFourier.set_dofs(self, dofs)
     
     @staticmethod
-    def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
+    def load_curves_from_file(filename, order, quadpoints=64, delimiter=',',maxiter=1000):
         """
         This function loads a file containing Fourier coefficients
         or the cartesian coordinates for several coils.
@@ -126,7 +126,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 
                 # Compute the Fourier coefficients
                 order_interval = range(order+1)
-                curvesFourier = [[sin_coeff(f, j) for j in order_interval] + [cos_coeff(f, j) for j in order_interval] for f in [xf, yf, zf]]
+                curvesFourier = [[sin_coeff(f, j,maxiter=maxiter) for j in order_interval] + [cos_coeff(f, j,maxiter=maxiter) for j in order_interval] for f in [xf, yf, zf]]
                 coil_data.append(np.concatenate(curvesFourier))
 
             coil_data = np.asarray(coil_data)
@@ -139,7 +139,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         assert order <= coil_data.shape[0]-1
 
         num_coils = coil_data.shape[1]//6
-        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
+        coils = [CurveXYZFourier(quadpoints, order) for i in range(num_coils)]
         for ic in range(num_coils):
             dofs = coils[ic].dofs_matrix
             dofs[0][0] = coil_data[0, 6*ic + 1]
