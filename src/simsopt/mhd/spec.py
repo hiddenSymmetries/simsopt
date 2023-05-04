@@ -777,7 +777,7 @@ class Spec(Optimizable):
         mpol_capped = np.min([boundary_RZFourier.mpol, si.mmpol])
         ntor_capped = np.min([boundary_RZFourier.ntor, si.mntor])
         stellsym = bool(si.istellsym)
-        logger.debug("In run, si.istellsym=", si.istellsym, " stellsym=", stellsym)
+        logger.debug(f"In run, si.istellsym = {si.istellsym} stellsym = {stellsym}")
         for m in range(mpol_capped + 1):
             for n in range(-ntor_capped, ntor_capped + 1):
                 si.rbc[n + si.mntor, m + si.mmpol] = boundary_RZFourier.get_rc(m, n)
