@@ -104,7 +104,7 @@ if comm.rank == 0:
     surf.to_vtk(os.path.join(coils_results_path, "surf_init"), extra_data=pointData)
 ##########################################################################################
 ##########################################################################################
-Jf = SquaredFlux(surf, bs, local=True)
+Jf = SquaredFlux(surf, bs, definition="local")
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=len(curves))
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for i, c in enumerate(base_curves)]
@@ -178,7 +178,7 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
         B_n = Bcoil_n
         B_diff = Bcoil
         B_N = np.sum(Bcoil * n, axis=2)
-        assert Jf.local
+        assert Jf.definition == "local"
         dJdx = (B_n/mod_Bcoil**2)[:, :, None] * (np.sum(dB_by_dX*(n-B*(B_N/mod_Bcoil**2)[:, :, None])[:, :, None, :], axis=3))
         dJdN = (B_n/mod_Bcoil**2)[:, :, None] * B_diff - 0.5 * (B_N**2/absn**3/mod_Bcoil**2)[:, :, None] * n
         deriv = surf.dnormal_by_dcoeff_vjp(dJdN/(nphi_VMEC*ntheta_VMEC)) + surf.dgamma_by_dcoeff_vjp(dJdx/(nphi_VMEC*ntheta_VMEC))
@@ -212,7 +212,7 @@ objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight), (qs.
 prob = LeastSquaresProblem.from_tuples(objective_tuple)
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
-Jf = SquaredFlux(surf, bs, local=True)
+Jf = SquaredFlux(surf, bs, definition="local")
 pprint(f"Aspect ratio before optimization: {vmec.aspect()}")
 pprint(f"Mean iota before optimization: {vmec.mean_iota()}")
 pprint(f"Quasisymmetry objective before optimization: {qs.total()}")
