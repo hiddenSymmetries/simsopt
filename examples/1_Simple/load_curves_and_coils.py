@@ -48,7 +48,7 @@ file = "inputs/coils.tester"
 #Coil.export_coils("output_old", coils_old, 1)
 #print(importCurves("output_new") == importCurves("output_old"))
 #--------------------------------------------------------------------------------------
-curves_old = CurveXYZFourier.load_curves_from_file(file, 19,ppp=5,Cartesian=True)
+curves_old = CurveXYZFourier.load_curves_from_file(file, 19,ppp=5)
 #curves_new = CurveXYZFourier.load_curves_from_file_new(file, 19,ppp=5,Cartesian=True)
 
 currents = [Current(1)]*len(curves_old)

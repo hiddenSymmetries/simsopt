@@ -74,10 +74,10 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         sopp.CurveXYZFourier.set_dofs(self, dofs)
     
     @staticmethod
-    def load_curves_from_file(filename, order=None, ppp=20, delimiter=',',Cartesian=False):
+    def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
         """
-        This function loads a file containing Fourier coefficients for several coils if `Cartesian = False`
-        or the cartesian coordinates for several coils if `Cartesian = True`.
+        This function loads a file containing Fourier coefficients
+        or the cartesian coordinates for several coils.
         For the Fourier coefficient case, the file is expected to have :mod:`6*num_coils` many columns, and :mod:`order+1` many rows.
         The columns are in the following order,
 
@@ -86,7 +86,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         For the cartesian case, The format is introduced at
         https://princetonuniversity.github.io/STELLOPT/MAKEGRID
         """
-        if Cartesian:
+        if "coils." in filename:
             with open(filename, 'r') as f:
                 allCoilsValues = f.read().splitlines()[3:] 
         
