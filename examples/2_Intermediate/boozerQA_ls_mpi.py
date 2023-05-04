@@ -67,7 +67,7 @@ KAPPA_THRESHOLD = 15.
 MSC_THRESHOLD = 15.
 IOTAS_TARGET = -0.4
 
-RES_WEIGHT = 1e3
+RES_WEIGHT = 1e4
 LENGTH_WEIGHT = 1.
 MR_WEIGHT = 1.
 CC_WEIGHT = 1e2
@@ -80,23 +80,35 @@ Jnqs = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS)
 Jbr = BoozerResidual(boozer_surface, BiotSavart(coils))
 J_nonQSRatio = MPIObjective([Jnqs], comm)
 JBoozerResidual = MPIObjective([Jbr], comm)
-Jiotas = IOTAS_WEIGHT * QuadraticPenalty(mean_iota, IOTAS_TARGET, 'identity')
+Jiotas = QuadraticPenalty(mean_iota, IOTAS_TARGET, 'identity')
 if rank == 0:
     J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius only on innermost surface
 else:
     J_major_radius = 0 * QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius only on innermost surface
 
-Jls = LENGTH_WEIGHT * QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
+Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
-Jcs = KAPPA_WEIGHT * sum([LpCurveCurvature(c, 2, KAPPA_THRESHOLD) for c in base_curves])
-Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jmr = MR_WEIGHT * MPIObjective([J_major_radius], comm)
-Jals = [ArclengthVariation(c) for c in base_curves]
+Jcs = sum([LpCurveCurvature(c, 2, KAPPA_THRESHOLD) for c in base_curves])
+msc_list = [MeanSquaredCurvature(c) for c in base_curves]
+J_msc = sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in msc_list)
+Jmr = MPIObjective([J_major_radius], comm)
+Jals = sum([ArclengthVariation(c) for c in base_curves])
 
-JF = J_nonQSRatio + RES_WEIGHT * JBoozerResidual + Jiotas + Jmr \
-    + Jls + CC_WEIGHT * Jccdist + Jcs\
-    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + ARCLENGTH_WEIGHT * sum(Jals)
+
+JF = J_nonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEIGHT * Jmr \
+    + LENGTH_WEIGHT * Jls + CC_WEIGHT * Jccdist + KAPPA_WEIGHT * Jcs\
+    + MSC_WEIGHT * J_msc \
+    + ARCLENGTH_WEIGHT * Jals
+
+penalty_list = {"JnonQSRatio":[1, J_nonQSRatio],
+                "JBoozerResidual":[RES_WEIGHT, JBoozerResidual],
+                "JIotas":[IOTAS_WEIGHT, Jiotas],
+                "JMr":[MR_WEIGHT, Jmr],
+                "Jls":[LENGTH_WEIGHT, Jls],
+                "Jccdist":[CC_WEIGHT, Jccdist],
+                "Jcurv":[KAPPA_WEIGHT, Jcs],
+                "Jmsc":[MSC_WEIGHT, J_msc],
+                "Jals":[ARCLENGTH_WEIGHT, Jals]}
 
 boozer_surface.surface.to_vtk(OUT_DIR + f"surf_init_{rank}")
 if comm is None or comm.rank == 0:
@@ -126,31 +138,53 @@ def fun(dofs):
         boozer_surface.res['G'] = G_prev
     
     return J, grad
-
+#JF = J_nonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEIGHT * Jmr \
+#    + LENGTH_WEIGHT * Jls + CC_WEIGHT * Jccdist + Jcs\
+#    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
+#    + ARCLENGTH_WEIGHT * sum(Jals)
 def callback(x):
     J = JF.J()
     grad = JF.dJ()
     
-    cl_string = ", ".join([f"{J.J():.3f}" for J in ls])
+    cl_string = ", ".join([f"{J.J():5.3f}" for J in ls])
     kappa_string = ", ".join([f"{np.max(c.kappa()):.3f}" for c in base_curves])
-    msc_string = ", ".join([f"{Jmsc.J():.3f}" for Jmsc in Jmscs])
+    msc_string = ", ".join([f"{Jmsc.J():.3f}" for Jmsc in msc_list])
     iotas_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(iotas.J()) if comm is not None else iotas.J()) ])
-    mr_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.major_radius()) if comm is not None else boozer_surface.surface.major_radius() ) ])
+    mr_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.minor_radius()) if comm is not None else boozer_surface.surface.minor_radius() ) ])
+    mR_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.major_radius()) if comm is not None else boozer_surface.surface.major_radius() ) ])
     ar_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.aspect_ratio()) if comm is not None else boozer_surface.surface.aspect_ratio() ) ])
     br_string = ", ".join([f"{val:.3e}" for val in (comm.allgather(Jbr.J()) if comm is not None else Jbr.J() ) ])
     nqs_ratio_string = ", ".join([f"{val:.3e}" for val in (comm.allgather(Jnqs.J()) if comm is not None else Jnqs.J() ) ])
-    outstr = f"\nJ={J:.3e}\n"
-    outstr += f"nqas_ratio_string=[{nqs_ratio_string}], \n"
-    outstr += f"br=[{br_string}], \n"
-    outstr += f"mean_iota={mean_iota.J():.3f}, \n"
-    outstr += f"iotas=[{iotas_string}], \n"
-    outstr += f"mr=[{mr_string}], \n"
-    outstr += f"AR=[{ar_string}], \n"
-    outstr += f"Len=sum([{cl_string}])={sum(J.J() for J in ls):.3f},\n"
-    outstr += f"kappa=[{kappa_string}], \n"
-    outstr += f"msc=[{msc_string}], \n"
-    outstr += f"cc_dist={Jccdist.shortest_distance():.3f}, \n"
-    outstr += f"║∇J║={np.linalg.norm(grad):.3e}\n\n"
+    
+    width = 35
+    outstr = "\n"
+    s = "J"; outstr += f"{s:{width}} {J:.3e} \n"
+    s = "║∇J║"; outstr += f"{s:{width}} {np.linalg.norm(grad):.3e} \n\n"
+    
+    width = 15
+    for pen in penalty_list.keys():
+        s = pen; outstr+=f"{s:<{width}} "
+    outstr+="\n"
+    for pen in penalty_list.keys():
+        w = penalty_list[pen][0]
+        val = penalty_list[pen][1].J()
+        outstr+=f"{w*val:<{width}.3e} "
+
+    outstr+="\n\n"
+    width = 35
+    s = "nonQS ratio";     outstr += f"{s:{width}} {nqs_ratio_string} \n"
+    s = "Boozer Residual"; outstr += f"{s:{width}} {br_string} \n"
+    s = "<ι>"; outstr += f"{s:{width}} {mean_iota.J():.3f} \n"
+    s = "ι on surfaces"; outstr += f"{s:{width}} {iotas_string} \n"
+    s = "major radius on surfaces"; outstr += f"{s:{width}} {mR_string} \n"
+    s = "minor radius on surfaces"; outstr += f"{s:{width}} {mr_string} \n"
+    s = "aspect ratio on surfaces"; outstr += f"{s:{width}} {ar_string} \n"
+    s = "shortest coil to coil distance"; outstr += f"{s:{width}} {Jccdist.shortest_distance():.3f} \n"
+    s = "coil lengths"; outstr += f"{s:{width}} {cl_string} \n"
+    s = "coil length sum"; outstr += f"{s:{width}} {sum(J.J() for J in ls):.3f} \n"
+    s = "max κ"; outstr += f"{s:{width}} {kappa_string} \n"
+    s = "∫ κ^2 dl / ∫ dl"; outstr += f"{s:{width}} {msc_string} \n"
+    outstr+="\n\n"
     if comm is None or comm.rank == 0:
         print(outstr, flush=True)
 
@@ -175,7 +209,7 @@ def callback(x):
 
 dofs = JF.x
 callback(dofs)
-#quit()
+quit()
 
 print("""
 ################################################################################
