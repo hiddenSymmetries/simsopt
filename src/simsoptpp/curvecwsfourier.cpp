@@ -670,6 +670,13 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
                 r += rc(m, j) * cos(m * theta - nfp * n * phi);
                 dr_dt += -rc(m, j) * sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt);
                 d2r_dt2 += -rc(m, j) * cos(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) - rc(m, j) * sin(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2);
+
+                if (!stellsym)
+                {
+                    r += rs(m, j) * sin(m * theta - nfp * n * phi);
+                    dr_dt += rs(m, j) * cos(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt);
+                    d2r_dt2 += -rs(m, j) * sin(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) + rs(m, j) * cos(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2);
+                }
             }
         }
 
@@ -707,6 +714,20 @@ void CurveCWSFourier<Array>::dgammadashdash_by_dcoeff_impl(Array &data)
                     d3z_dthetacoeffdt2 += zs(m, j) * ((-cos(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) - sin(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2) * (m * dtheta_by_dthetacoeff[i])) - 2 * sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (m * d2theta_by_dthetacoeffdt[i]) + cos(m * theta - nfp * n * phi) * (m * d3theta_by_dthetacoeffdt2[i]));
                     d3z_dphicoeffdt2 += zs(m, j) * ((-cos(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) - sin(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2) * (-nfp * n * dphi_by_dphicoeff[i])) - 2 * sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (-nfp * n * d2phi_by_dphicoeffdt[i]) + cos(m * theta - nfp * n * phi) * (-nfp * n * d3phi_by_dphicoeffdt2[i]));
                     // STELLSYM IS MISSING FOR NOW
+                    if (!stellsym)
+                    {
+                        dr_dthetacoeff += rs(m, j) * cos(m * theta - nfp * n * phi) * (m * dtheta_by_dthetacoeff[i]);
+                        dr_dphicoeff += rs(m, j) * cos(m * theta - nfp * n * phi) * (-nfp * n * dphi_by_dphicoeff[i]);
+
+                        d2r_dthetacoeffdt += rs(m, j) * (sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (m * dtheta_by_dthetacoeff[i]) + cos(m * theta - nfp * n * phi) * (m * d2theta_by_dthetacoeffdt[i]));
+                        d2r_dphicoeffdt += rs(m, j) * (sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (-nfp * n * dphi_by_dphicoeff[i]) + cos(m * theta - nfp * n * phi) * (-nfp * n * dphi_by_dphicoeff[i]));
+
+                        d3r_dthetacoeffdt2 += rs(m, j) * ((-cos(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) - sin(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2) * (m * dtheta_by_dthetacoeff[i])) - 2 * sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (m * d2theta_by_dthetacoeffdt[i]) + cos(m * theta - nfp * n * phi) * (m * d3theta_by_dthetacoeffdt2[i]));
+                        d3r_dphicoeffdt2 += rs(m, j) * ((-cos(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) - sin(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2) * (-nfp * n * dphi_by_dphicoeff[i])) - 2 * sin(m * theta - nfp * n * phi) * (m * dtheta_dt - nfp * n * dphi_dt) * (-nfp * n * d2phi_by_dphicoeffdt[i]) + cos(m * theta - nfp * n * phi) * (-nfp * n * d3phi_by_dphicoeffdt2[i]));
+
+                        d3z_dthetacoeffdt2 += -zc(m, j) * ((-sin(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) + cos(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2)) * (m * dtheta_by_dthetacoeff[i]) + cos(m * theta - nfp * n * phi) * 2 * (m * dtheta_dt - nfp * n * dphi_dt) * (m * d2theta_by_dthetacoeffdt[i]) + sin(m * theta - nfp * n * phi) * (m * d3theta_by_dthetacoeffdt2[i]));
+                        d3z_dphicoeffdt2 += -zc(m, j) * ((-sin(m * theta - nfp * n * phi) * pow((m * dtheta_dt - nfp * n * dphi_dt), 2) + cos(m * theta - nfp * n * phi) * (m * d2theta_dt2 - nfp * n * d2phi_dt2)) * (-nfp * n * dphi_by_dphicoeff[i]) + cos(m * theta - nfp * n * phi) * 2 * (m * dtheta_dt - nfp * n * dphi_dt) * (-nfp * n * d2phi_by_dphicoeffdt[i]) + sin(m * theta - nfp * n * phi) * (-nfp * n * d3phi_by_dphicoeffdt2[i]));
+                    }
                 }
             }
             data(k, 0, i) = d3r_dthetacoeffdt2 * cos(phi) - 2 * (d2r_dthetacoeffdt * sin(phi) * dphi_dt) - dr_dthetacoeff * (cos(phi) * pow(dphi_dt, 2) + sin(phi) * d2phi_dt2);
