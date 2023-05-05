@@ -380,6 +380,8 @@ void CurveCWSFourier<Array>::dgamma_by_dcoeff_impl(Array &data)
         theta += theta_l * CWSt;
 
         // SURFACE
+
+        // this needs to go inside the next for, inside an if
         for (int m = 0; m <= mpol; ++m)
         {
             for (int j = 0; j < 2 * ntor + 1; ++j)

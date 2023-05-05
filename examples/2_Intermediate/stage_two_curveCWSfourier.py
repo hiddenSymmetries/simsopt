@@ -31,7 +31,7 @@ MSC_THRESHOLD = 6
 MSC_WEIGHT = 0.01
 
 # SURFACE INPUT FILES FOR TESTING
-wout = "/Users/rogeriojorge/local/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4m.nc"
+wout = "/home/joaobiu/pic/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4m.nc"
 
 MAXITER = 1000 
 minor_radius_factor_cws = 1.9
