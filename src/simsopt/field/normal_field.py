@@ -17,7 +17,7 @@ __all__ = ['NormalField']
 
 class NormalField(Optimizable):
     r"""
-    ``NormalField`` represents the normal field on a boundary, for example the
+    ``NormalField`` represents the magnetic field normal to a toroidal surface, for example the
     computational boundary of SPEC free-boundary.
 
     Args:
@@ -25,12 +25,12 @@ class NormalField(Optimizable):
         stellsym: Whether (=True) or not (=False) stellarator symmetry is enforced.
         mpol: Poloidal Fourier resolution
         ntor: Toroidal Fourier resolution
-        vns: Odd fourier modes of :math: `\mathbf{B}\cdot\mathbf{\hat{n}}`. 2D array of size
+        vns: Odd fourier modes of :math:`\mathbf{B}\cdot\mathbf{\hat{n}}`. 2D array of size
           (mpol+1)x(2ntor+1). Set to None to fill with zeros
 
             vns( mm, self.ntor+nn ) is the mode (mm,nn)
 
-        vnc: Even fourier modes of :math: `\mathbf{B}\cdot\mathbf{\hat{n}}`. 2D array of size
+        vnc: Even fourier modes of :math:`\mathbf{B}\cdot\mathbf{\hat{n}}`. 2D array of size
           (mpol+1)x(2ntor+1). Ignored if stellsym if True. Set to None to fill with zeros
 
             vnc( mm, self.ntor+nn ) is the mode (mm,nn)

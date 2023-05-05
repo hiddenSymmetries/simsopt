@@ -63,9 +63,9 @@ class ProfileSpec(Profile):
     Args:
         data: 1D numpy array containing the profile value in each volume
         cumulative: Set to True if the profile is cumulative, i.e. if the value 
-        in volume lvol is the integrated quantity from the axis to volume lvol.
-        Only the toroidal flux, poloidal flux and the volume currents are 
-        cumulative quantities in SPEC input file. False by default.
+            in volume lvol is the integrated quantity from the axis to volume lvol.
+            Only the toroidal flux, poloidal flux and the volume currents are 
+            cumulative quantities in SPEC input file. False by default.
     """
 
     def __init__(self, data, cumulative: bool = False, psi_edge: float = None):
@@ -101,11 +101,12 @@ class ProfileSpec(Profile):
     def dfds(self, lvol):
         """
         Returns the derivative of the profile w.r.t s accross interface. 
-                The derivative is returned at the interface lvol, with
-                the innermost interface being lvol=1. (Volume lvol is bounded
-                by interface lvol and lvol+1, with innermost volume being lvol=0)
+        The derivative is returned at the interface lvol, with
+        the innermost interface being lvol=1. (Volume lvol is bounded
+        by interface lvol and lvol+1, with innermost volume being lvol=0)
 
-        Here s is defined as s = psi_t/psi_edge. Thus, 
+        Here :math:`s` is defined as :math:`s = \psi_t/\psi_{edge}`. Thus,
+
         .. math::
 
             dp/ds = \sum_l [[p]]_l \psi_{edge} \delta(\psi_t-\psi_{t,l})
