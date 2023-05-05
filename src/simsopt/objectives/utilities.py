@@ -6,7 +6,7 @@ from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 from .._core.json import GSONable
 
-__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
+__all__ = ['MPIOptimizable', 'MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
 
 
 def forward_backward(P, L, U, rhs, iterative_refinement=False):
@@ -48,6 +48,42 @@ def sum_across_comm(derivative, comm):
             alldata = np.asarray([alldata])
         newdict[k] = alldata
     return Derivative(newdict)
+
+
+class MPIOptimizable(Optimizable):
+
+    def __init__(self, optimizables, attributes, comm):
+        r"""
+
+        """
+
+        from simsopt._core.util import parallel_loop_bounds
+        startidx, endidx = parallel_loop_bounds(comm, len(optimizables))
+        self.local_optimizables = optimizables[startidx:endidx]
+        self.global_optimizables = optimizables
+        
+        self.comm = comm
+        self.attributes = attributes
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=optimizables)
+    
+    def __getitem__(self, key):
+        if self.need_to_communicate:
+            self.communicate()
+        return self.global_optimizables[key]
+
+    def communicate(self):
+        if self.need_to_communicate:
+            for attr in self.attributes:
+                local_vals = [getattr(J, attr) for J in self.local_optimizables]
+                global_vals = local_vals if self.comm is None else [i for o in self.comm.allgather(local_vals) for i in o]
+                for val, J in zip(global_vals, self.global_optimizables):
+                    if J in self.local_optimizables:
+                        continue
+                    setattr(J, attr, val)
+            self.need_to_communicate = False
+
+    def recompute_bell(self, parent=None):
+        self.need_to_communicate = True
 
 
 class MPIObjective(Optimizable):

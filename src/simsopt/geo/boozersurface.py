@@ -54,7 +54,7 @@ class BoozerSurface(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
     
-    def run_code(self, boozer_type, iota, G=None):
+    def run_code(self, boozer_type, iota, G=None, verbose=True):
         """
         Run the default solvers.
         """
@@ -62,18 +62,18 @@ class BoozerSurface(Optimizable):
             return
 
         if boozer_type == 'exact':
-            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G)
+            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G, verbose=verbose)
             return res
 
         elif boozer_type == 'ls':
             # first try BFGS
             #res = self.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=self.constraint_weight, iota=iota, G=G, method='manual')
-            res = self.compute_boozerls_BFGS(tol=1e-10, maxiter=1e3, constraint_weight=self.constraint_weight, iota=iota, G=G)
+            res = self.compute_boozerls_BFGS(tol=1e-10, maxiter=1e3, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
             iota, G = res['iota'], res['G']
             
             ## polish off using Newton's method
             self.need_to_run_code = True
-            res = self.compute_boozerls_newton(tol=1e-11, maxiter=20, constraint_weight=self.constraint_weight, iota=iota, G=G)
+            res = self.compute_boozerls_newton(tol=1e-11, maxiter=20, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
             return res
         else:
             raise Exception(f"boozer_type not supported: {boozer_type}")
@@ -472,7 +472,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return res
 
-    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
+    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None, verbose=False):
         """
         This function solves the Boozer Surface residual equation exactly.  For
         this to work, we need the right balance of quadrature points, degrees
@@ -612,6 +612,10 @@ class BoozerSurface(Optimizable):
             "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "PLU": (P, L, U),
             "mask": mask, 'type': 'exact', "vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp
         }
+        
+        if verbose:
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}", flush=True)
+
         self.res = res
         self.need_to_run_code = False
         return res
@@ -704,7 +708,7 @@ class BoozerSurface(Optimizable):
             H[:nsurfdofs, :nsurfdofs] += self.reg.d2J()
         return r, J, H
 
-    def compute_boozerls_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, hessian=False):
+    def compute_boozerls_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, hessian=False, verbose=False):
         r"""
         """
         if not self.need_to_run_code:
@@ -748,10 +752,11 @@ class BoozerSurface(Optimizable):
         self.res = resdict
         self.need_to_run_code = False
         
-        print(f"BFGS solve - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
+        if verbose:
+            print(f"BFGS solve - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
         return resdict
 
-    def compute_boozerls_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
+    def compute_boozerls_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., verbose=False):
         """
         """
         if not self.need_to_run_code:
@@ -807,5 +812,6 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
         
-        print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||grad||_inf = {np.linalg.norm(res['firstorderop'], ord=np.inf):.3e}", flush=True)
+        if verbose:
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||grad||_inf = {np.linalg.norm(res['firstorderop'], ord=np.inf):.3e}", flush=True)
         return res
