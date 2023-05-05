@@ -1,13 +1,13 @@
 &INDATA
-! This file created by simsopt on May 01 2023, 18:27:34
+! This file created by simsopt on May 05 2023, 10:18:16
 
 ! ---- Geometric parameters ----
 NFP = 3
 LASYM = F
 
 ! ---- Resolution parameters ----
-MPOL = 5
-NTOR = 5
+MPOL = 6
+NTOR = 6
 NS_ARRAY    =     16
 NITER_ARRAY =   2500
 FTOL_ARRAY  =  1e-12

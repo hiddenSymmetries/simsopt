@@ -27,41 +27,45 @@ parent_path = str(Path(__file__).parent.resolve())
 ############## Input parameters
 ##########################################################################################
 nfp = 2
-max_modes = [3, 3, 3, 3, 4, 4, 4, 5, 5, 5]  # [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
-maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 5, 4: 6, 5: 7}
+max_modes = [3, 3, 3, 4,4,4, 5, 5, 5, 6, 6]  # [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
+maxmodes_mpol_mapping = {1: 3, 2: 4, 3: 6, 4: 7, 5: 7}
 MAXITER_stage_2 = 500
-MAXITER_single_stage = 110
-if max_modes[0] > 2:
+MAXITER_single_stage = 300
+if max_modes[0] == 3:
     vmec_input_filename = os.path.join(parent_path, f'input.axiTorus_nfp{nfp}_QA')
+elif max_modes[0] > 3:
+    vmec_input_filename = os.path.join(parent_path, f'input.axiTorus_nfp{nfp}_QA_final')
 else:
     vmec_input_filename = os.path.join(parent_path, 'inputs', f'input.nfp{nfp}_QA')
 if nfp == 2:
+    ncoils = 3
+    nmodes_coils = 16
+    minor_radius_cws = 0.55
+    nphi_VMEC = 55
+    quadpoints = 260
+    CC_THRESHOLD = 0.1
+    CURVATURE_THRESHOLD = 32
+    MSC_THRESHOLD = 32
+    ARCLENGTH_WEIGHT = 5e-8
+else:
     ncoils = 4
     nmodes_coils = 14
-    minor_radius_cws = 0.5
-    nphi_VMEC = 50
-    quadpoints = 260
-    CC_THRESHOLD = 0.09
-    CURVATURE_THRESHOLD = 30
-    MSC_THRESHOLD = 30
-else:
-    ncoils = 3
-    nmodes_coils = 14
     minor_radius_cws = 0.45
-    nphi_VMEC = 40
+    nphi_VMEC = 42
     quadpoints = 240
-    CC_THRESHOLD = 0.07
-    CURVATURE_THRESHOLD = 25
-    MSC_THRESHOLD = 25
+    CC_THRESHOLD = 0.06
+    CURVATURE_THRESHOLD = 32
+    MSC_THRESHOLD = 32
+    ARCLENGTH_WEIGHT = 3e-8
 mean_iota_target = 0.41
 aspect_ratio_target = 9
-LENGTH_THRESHOLD = 6.5
-ntheta_VMEC = 44
+LENGTH_THRESHOLD = 7.5
+ntheta_VMEC = 50
 coils_objective_weight = 3e+4
 aspect_ratio_weight = 1e+1
 mean_iota_weight = 5e+3
-diff_method = "centered"
-quasisymmetry_weight = 50
+diff_method = "forward"
+quasisymmetry_weight = 1e2
 quasisymmetry_target_surfaces = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 finite_difference_abs_step = 1e-7
 finite_difference_rel_step = 0
@@ -71,7 +75,6 @@ LENGTH_WEIGHT = 1e-8  # Weight on the curve lengths in the objective function
 CC_WEIGHT = 1e0  # Weight for the coil-to-coil distance penalty in the objective function
 CURVATURE_WEIGHT = 1e-6  # Weight for the curvature penalty in the objective function
 MSC_WEIGHT = 1e-6  # Weight for the mean squared curvature penalty in the objective function
-ARCLENGTH_WEIGHT = 1e-7  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
 directory = f'optimization_cws_singlestage_{vmec_input_filename[-7:]}_ncoils{ncoils}'
@@ -273,9 +276,8 @@ for max_mode in max_modes:
     surf_full.fixed_range(mmin=0, mmax=max_mode, nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)"); surf_full.fix("rc(0,0)")
     number_vmec_dofs = int(len(surf.x))
-    # vmec.run();pprint('b0 =',vmec.wout.b0, 'phiedge =', vmec.indata.phiedge)
-    # vmec.indata.phiedge = vmec.indata.phiedge/vmec.wout.b0 # try to maintain b0 to one
-    # vmec.run();pprint('b0 =',vmec.wout.b0, 'phiedge =', vmec.indata.phiedge)
+    # phiedge1 = vmec.indata.phiedge;vmec.run()
+    # pprint(f'phiedge is {phiedge1} and it should be {vmec.indata.phiedge/vmec.wout.volavgB} for volavgB to be 1.')
     qs = QuasisymmetryRatioResidual(vmec, quasisymmetry_target_surfaces, helicity_m=1, helicity_n=0)
     objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight),
                        (vmec.mean_iota, mean_iota_target, mean_iota_weight),
