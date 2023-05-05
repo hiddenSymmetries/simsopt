@@ -3,12 +3,11 @@ from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier, BoozerSurface
     ToroidalFlux, Volume, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas, BoozerResidual, \
     LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
 from simsopt._core import load
-from simsopt.objectives import MPIObjective
+from simsopt.objectives import MPIObjective, MPIOptimizable
 from simsopt.field import BiotSavart, coils_via_symmetries
 from simsopt.configs import get_ncsx_data
 from simsopt.objectives import QuadraticPenalty
 from scipy.optimize import minimize
-from qsc import Qsc as Qsc
 import numpy as np
 import os
 try:
@@ -16,53 +15,43 @@ try:
     comm = MPI.COMM_WORLD
     rank = comm.rank
     size = comm.size
+    def pprint(*args, **kwargs):
+        if comm.rank == 0:  # only print on rank 0
+            print(*args, **kwargs)
+
 except ImportError:
     comm = None
-    rank = 0
     size = 1
-
-"""
-"""
+    pprint = print
 
 # Directory for output
 IN_DIR = "./inputs/input_ncsx/"
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-print("Running 2_Intermediate/boozerQA_ls.py")
-print("================================")
+pprint("Running 2_Intermediate/boozerQA_ls.py")
+pprint("================================")
 
-base_curves, base_currents, ma = get_ncsx_data()
-coils = coils_via_symmetries(base_curves, base_currents, 3, True)
-curves = [c.curve for c in coils]
-bs = BiotSavart(coils)
-bs_tf = BiotSavart(coils)
-current_sum = sum(abs(c.current.get_value()) for c in coils)
+base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress= load(IN_DIR + f"ncsx_init.json")
+nsurfaces = 2
+surfaces = surfaces[:nsurfaces]
+boozer_surfaces = boozer_surfaces[:nsurfaces]
+ress = ress[:nsurfaces]
+
+for boozer_surface, res in zip(boozer_surfaces, ress):
+    boozer_surface.run_code('ls', res['iota'], res['G'], verbose=False)
+
 ncoils = len(base_curves)
 
-## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
-# Resolution details of surface on which we optimize for qa
-mpol = 6
-ntor = 6
-stellsym = True
-nfp = 3
+mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
+mpi_boozer_surfaces = MPIOptimizable(boozer_surfaces, ["res", "need_to_run_code"], comm)
 
-phis = np.linspace(0, 1/nfp, 2*ntor+1+5, endpoint=False)
-thetas = np.linspace(0, 1, 2*mpol+1+5, endpoint=False)
-s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+mrs = [MajorRadius(boozer_surface) for boozer_surface in boozer_surfaces]
+iotas = [Iotas(boozer_surface) for boozer_surface in boozer_surfaces]
+nonQSs = [NonQuasiSymmetricRatio(boozer_surface, BiotSavart(coils)) for boozer_surface in boozer_surfaces]
+brs = [BoozerResidual(boozer_surface, BiotSavart(coils)) for boozer_surface in boozer_surfaces]
 
-boozer_surface, res = load(IN_DIR + f"surface_{rank}.json")
-res = boozer_surface.run_code('ls', res['iota'], res['G'])
-
-## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES ##
-bs_nonQS = BiotSavart(coils)
-mr = MajorRadius(boozer_surface)
-ls = [CurveLength(c) for c in base_curves]
-iotas = Iotas(boozer_surface)
-mean_iota = MPIObjective([iotas], comm)
-
-
-CC_THRESHOLD = 0.15
+MIN_DIST_THRESHOLD = 0.15
 KAPPA_THRESHOLD = 15.
 MSC_THRESHOLD = 15.
 IOTAS_TARGET = -0.4
@@ -70,148 +59,120 @@ IOTAS_TARGET = -0.4
 RES_WEIGHT = 1e4
 LENGTH_WEIGHT = 1.
 MR_WEIGHT = 1.
-CC_WEIGHT = 1e2
+MIN_DIST_WEIGHT = 1e2
 KAPPA_WEIGHT = 1.
 MSC_WEIGHT = 1.
 IOTAS_WEIGHT = 1.
 ARCLENGTH_WEIGHT = 1e-2
 
-Jnqs = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS)
-Jbr = BoozerResidual(boozer_surface, BiotSavart(coils))
-J_nonQSRatio = MPIObjective([Jnqs], comm)
-JBoozerResidual = MPIObjective([Jbr], comm)
+mean_iota = MPIObjective(iotas, comm, needs_splitting=True)
 Jiotas = QuadraticPenalty(mean_iota, IOTAS_TARGET, 'identity')
-if rank == 0:
-    J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius only on innermost surface
-else:
-    J_major_radius = 0 * QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius only on innermost surface
+JnonQSRatio = MPIObjective(nonQSs, comm, needs_splitting=True)
+JBoozerResidual = MPIObjective(brs, comm, needs_splitting=True)
+Jmajor_radius = MPIObjective([len(mrs)*QuadraticPenalty(mr, mr.J(), 'identity') if idx == 0 else 0*QuadraticPenalty(mr, mr.J(), 'identity') for idx, mr in enumerate(mrs)], comm, needs_splitting=True)
 
+ls = [CurveLength(c) for c in base_curves]
 Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+Jccdist = CurveCurveDistance(curves, MIN_DIST_THRESHOLD, num_basecurves=ncoils)
 Jcs = sum([LpCurveCurvature(c, 2, KAPPA_THRESHOLD) for c in base_curves])
 msc_list = [MeanSquaredCurvature(c) for c in base_curves]
-J_msc = sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in msc_list)
-Jmr = MPIObjective([J_major_radius], comm)
+Jmsc = sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in msc_list)
 Jals = sum([ArclengthVariation(c) for c in base_curves])
 
-
-JF = J_nonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEIGHT * Jmr \
-    + LENGTH_WEIGHT * Jls + CC_WEIGHT * Jccdist + KAPPA_WEIGHT * Jcs\
-    + MSC_WEIGHT * J_msc \
+JF = JnonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEIGHT * Jmajor_radius \
+    + LENGTH_WEIGHT * Jls + MIN_DIST_WEIGHT * Jccdist + KAPPA_WEIGHT * Jcs\
+    + MSC_WEIGHT * Jmsc \
     + ARCLENGTH_WEIGHT * Jals
 
-penalty_list = {"JnonQSRatio":[1, J_nonQSRatio],
-                "JBoozerResidual":[RES_WEIGHT, JBoozerResidual],
-                "JIotas":[IOTAS_WEIGHT, Jiotas],
-                "JMr":[MR_WEIGHT, Jmr],
-                "Jls":[LENGTH_WEIGHT, Jls],
-                "Jccdist":[CC_WEIGHT, Jccdist],
-                "Jcurv":[KAPPA_WEIGHT, Jcs],
-                "Jmsc":[MSC_WEIGHT, J_msc],
-                "Jals":[ARCLENGTH_WEIGHT, Jals]}
+# let's fix the coil current
+base_currents[0].fix_all()
 
 boozer_surface.surface.to_vtk(OUT_DIR + f"surf_init_{rank}")
 if comm is None or comm.rank == 0:
     curves_to_vtk(curves, OUT_DIR + f"curves_init")
 
-# let's fix the coil current
-base_currents[0].fix_all()
+prevs = {'sdofs':[surface.x.copy() for surface in mpi_surfaces],
+        'iota':[boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
+        'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces],
+        'J': JF.J(),
+        'dJ':JF.dJ().copy(),
+        'it': 0}
 
 def fun(dofs):
+    # initialize to last accepted surface values
+    for idx, surface in enumerate(mpi_surfaces):
+        surface.x =   prevs['sdofs'][idx]
+    for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
+        boozer_surface.res['iota'] = prevs['iota'][idx]
+        boozer_surface.res['G'] =    prevs['G'][idx]
+    
     # save these as a backup in case the boozer surface Newton solve fails
-    sdofs_prev = boozer_surface.surface.x
-    iota_prev = boozer_surface.res['iota']
-    G_prev = boozer_surface.res['G']
-
+    alldofs = MPI.COMM_WORLD.allgather(dofs)
+    assert np.all(np.norm(alldofs[0]-d)==0 for d in alldofs)
+ 
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
     
-    success = boozer_surface.res['success'] if comm is not None else MPI.COMM_WORLD.allreduce(boozer_surface.res['success'], op=MPI.LAND)
+    success = np.all([boozer_surface.res['success'] for boozer_surface in mpi_boozer_surfaces])
     if not success:
-        # failed, so reset back to previous surface and return a large value
-        # of the objective.  The purpose is to trigger the line search to reduce
-        # the step size.
-        J = 1e3
-        boozer_surface.surface.x = sdofs_prev
-        boozer_surface.res['iota'] = iota_prev
-        boozer_surface.res['G'] = G_prev
-    
+        J = prevs['J']
+        grad = -prevs['dJ']
+        for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
+            boozer_surface.surface.x = prevs['sdofs'][idx]
+            boozer_surface.res['iota'] = prevs['iota'][idx]
+            boozer_surface.res['G'] = prevs['G'][idx]
     return J, grad
-#JF = J_nonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEIGHT * Jmr \
-#    + LENGTH_WEIGHT * Jls + CC_WEIGHT * Jccdist + Jcs\
-#    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-#    + ARCLENGTH_WEIGHT * sum(Jals)
-def callback(x):
-    J = JF.J()
-    grad = JF.dJ()
-    
-    cl_string = ", ".join([f"{J.J():5.3f}" for J in ls])
-    kappa_string = ", ".join([f"{np.max(c.kappa()):.3f}" for c in base_curves])
-    msc_string = ", ".join([f"{Jmsc.J():.3f}" for Jmsc in msc_list])
-    iotas_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(iotas.J()) if comm is not None else iotas.J()) ])
-    mr_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.minor_radius()) if comm is not None else boozer_surface.surface.minor_radius() ) ])
-    mR_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.major_radius()) if comm is not None else boozer_surface.surface.major_radius() ) ])
-    ar_string = ", ".join([f"{val:.3f}" for val in (comm.allgather(boozer_surface.surface.aspect_ratio()) if comm is not None else boozer_surface.surface.aspect_ratio() ) ])
-    br_string = ", ".join([f"{val:.3e}" for val in (comm.allgather(Jbr.J()) if comm is not None else Jbr.J() ) ])
-    nqs_ratio_string = ", ".join([f"{val:.3e}" for val in (comm.allgather(Jnqs.J()) if comm is not None else Jnqs.J() ) ])
-    
-    width = 35
-    outstr = "\n"
-    s = "J"; outstr += f"{s:{width}} {J:.3e} \n"
-    s = "║∇J║"; outstr += f"{s:{width}} {np.linalg.norm(grad):.3e} \n\n"
-    
-    width = 15
-    for pen in penalty_list.keys():
-        s = pen; outstr+=f"{s:<{width}} "
-    outstr+="\n"
-    for pen in penalty_list.keys():
-        w = penalty_list[pen][0]
-        val = penalty_list[pen][1].J()
-        outstr+=f"{w*val:<{width}.3e} "
 
-    outstr+="\n\n"
+def callback(x):
+    for idx, surface in enumerate(mpi_surfaces):
+        prevs['sdofs'][idx] = surface.x.copy()
+    for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
+        prevs['iota'][idx]  = boozer_surface.res['iota']
+        prevs['G'][idx]     = boozer_surface.res['G']
+    prevs['J']     = JF.J()
+    prevs['dJ']    = JF.dJ().copy()    
+    
+    cl_string = ", ".join([f"{J.J():5.6f}" for J in ls])
+    kappa_string = ", ".join([f"{np.max(c.kappa()):.6f}" for c in base_curves])
+    msc_string = ", ".join([f"{Jmsc.J():.6f}" for Jmsc in msc_list])
+    iotas_string = ", ".join([f"{boozer_surface.res['iota']:.6f}" for boozer_surface in boozer_surfaces])
+    mr_string = ", ".join([f"{surface.minor_radius():.6f}" for surface in surfaces])
+    mR_string = ", ".join([f"{surface.major_radius():.6f}" for surface in surfaces])
+    ar_string = ", ".join([f"{surface.aspect_ratio():.6f}" for surface in surfaces])
+    vol_string = ", ".join([f"{surface.volume():.6f}" for surface in surfaces])
+    br_string = ", ".join([f"{br.J():.6e}" for br in brs])
+    nqs_ratio_string = ", ".join([f"{np.sqrt(nonqs.J()):.6e}" for nonqs in nonQSs])
+
+    width = 35
+    outstr = f"\nIteration {prevs['it']}\n"
+    s = "J"; outstr += f"{s:{width}} {JF.J():.6e} \n"
+    s = "║∇J║"; outstr += f"{s:{width}} {np.linalg.norm(JF.dJ()):.6e} \n\n"
+
     width = 35
     s = "nonQS ratio";     outstr += f"{s:{width}} {nqs_ratio_string} \n"
     s = "Boozer Residual"; outstr += f"{s:{width}} {br_string} \n"
-    s = "<ι>"; outstr += f"{s:{width}} {mean_iota.J():.3f} \n"
+    s = "<ι>"; outstr += f"{s:{width}} {mean_iota.J():.6f} \n"
     s = "ι on surfaces"; outstr += f"{s:{width}} {iotas_string} \n"
     s = "major radius on surfaces"; outstr += f"{s:{width}} {mR_string} \n"
     s = "minor radius on surfaces"; outstr += f"{s:{width}} {mr_string} \n"
     s = "aspect ratio on surfaces"; outstr += f"{s:{width}} {ar_string} \n"
+    s = "volume"; outstr += f"{s:{width}} {vol_string} \n"
     s = "shortest coil to coil distance"; outstr += f"{s:{width}} {Jccdist.shortest_distance():.3f} \n"
     s = "coil lengths"; outstr += f"{s:{width}} {cl_string} \n"
     s = "coil length sum"; outstr += f"{s:{width}} {sum(J.J() for J in ls):.3f} \n"
     s = "max κ"; outstr += f"{s:{width}} {kappa_string} \n"
     s = "∫ κ^2 dl / ∫ dl"; outstr += f"{s:{width}} {msc_string} \n"
     outstr+="\n\n"
-    if comm is None or comm.rank == 0:
-        print(outstr, flush=True)
 
+    pprint(outstr)
+    prevs['it']+=1
 
-#print("""
-#################################################################################
-#### Perform a Taylor test ######################################################
-#################################################################################
-#""")
-#f = fun
-#dofs = JF.x
-#np.random.seed(1)
-#h = np.random.uniform(size=dofs.shape)
-#J0, dJ0 = f(dofs)
-#dJh = sum(dJ0 * h)
-#for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9]:
-#    J1, _ = f(dofs + 2*eps*h)
-#    J2, _ = f(dofs + eps*h)
-#    J3, _ = f(dofs - eps*h)
-#    J4, _ = f(dofs - 2*eps*h)
-#    print("err", ((J1*(-1/12) + J2*(8/12) + J3*(-8/12) + J4*(1/12))/eps - dJh)/np.linalg.norm(dJh))
 
 dofs = JF.x
 callback(dofs)
-quit()
 
-print("""
+pprint("""
 ################################################################################
 ### Run the optimization #######################################################
 ################################################################################
@@ -224,5 +185,5 @@ res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER},
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
 
-print("End of 2_Intermediate/boozerQA_ls.py")
-print("================================")
+pprint("End of 2_Intermediate/boozerQA_ls.py")
+pprint("================================")
