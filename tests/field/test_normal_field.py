@@ -1,10 +1,10 @@
 import os
 import unittest
 import logging
-import simsopt._core.util as util
 
 import numpy as np
 
+from simsopt._core.util import DofLengthMismatchError
 from simsopt.field import NormalField
 
 try:
@@ -56,7 +56,7 @@ class NormalFieldTests(unittest.TestCase):
         # Set dofs to zeros
 
         # ... Check test of size
-        with self.assertRaises(util.DofLengthMismatchError):
+        with self.assertRaises(DofLengthMismatchError):
             normal_field.local_full_x = np.zeros((normal_field.ndof - 1,))
 
         # ... Actually set them to zeros
