@@ -56,11 +56,7 @@ class NormalField(Optimizable):
             self.ndof = 2 * (self.ntor + self.mpol * (2 * self.ntor + 1)) + 1
 
         # Pack in a single array
-        if self.stellsym:
-            nvn = self.ntor + self.mpol*(2*self.ntor+1)
-        else:
-            nvn = 2*(self.ntor + self.mpol*(2*self.ntor+1)) + 1
-        dofs = np.zeros((nvn,))
+        dofs = np.zeros((self.ndof,))
 
         # Populate dofs array
         vns_shape = vns.shape
