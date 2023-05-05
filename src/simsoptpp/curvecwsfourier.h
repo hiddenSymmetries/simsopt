@@ -22,7 +22,6 @@ public:
     Array theta_s;
 
     // SURFACE
-    // const shared_ptr<Surface<Array>> surface;
     int mpol;
     int ntor;
     vector<double> idofs; // = vector<double>(num_dofs(), 0.);
@@ -48,11 +47,6 @@ public:
 
     inline int num_dofs() override
     {
-        /*
-        if (stellsym)
-            return 2 * order + 1;
-        else
-        */
         return 2 * (2 * order + 1) + 2;
     }
 
@@ -169,11 +163,13 @@ public:
                                           { return dgammadashdash_by_dcoeff_impl(A); });
     }
 
-    /* Array &dgammadashdashdash_by_dcoeff() override
+    /*
+    Array &dgammadashdashdash_by_dcoeff() override
     {
         return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array &A)
                                           { return dgammadashdashdash_by_dcoeff_impl(A); });
-    } */
+    }
+    */
 
     void gamma_impl(Array &data, Array &quadpoints) override;
     void gammadash_impl(Array &data) override;
@@ -182,7 +178,5 @@ public:
     void dgamma_by_dcoeff_impl(Array &data) override;
     void dgammadash_by_dcoeff_impl(Array &data) override;
     void dgammadashdash_by_dcoeff_impl(Array &data) override;
-    /*
     void dgammadashdashdash_by_dcoeff_impl(Array &data) override;
-    */
 };
