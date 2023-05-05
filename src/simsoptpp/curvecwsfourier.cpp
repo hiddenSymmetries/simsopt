@@ -894,6 +894,12 @@ void CurveCWSFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array &data)
         double d2r_dt2 = 0;
         double d3r_dt3 = 0;
 
+        Array dr_dcoeff = xt::zeros<double>({4 * (order + 1)});
+        Array d2r_dcoeffdt = xt::zeros<double>({4 * (order + 1)});
+        Array d3r_dcoeffdt2 = xt::zeros<double>({4 * (order + 1)});
+        Array d4r_dcoeffdt3 = xt::zeros<double>({4 * (order + 1)});
+        Array d4z_dcoeffdt3 = xt::zeros<double>({4 * (order + 1)});
+
         double dr_dthetacoeff = 0;
         double dr_dphicoeff = 0;
         double d2r_dthetacoeffdt = 0;
@@ -1130,27 +1136,46 @@ void CurveCWSFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array &data)
                     }
                 }
             }
-            data(k, 0, i) = d4r_dthetacoeffdt3 * cos(phi)  
-                    - 3 * d3r_dthetacoeffdt2 * sin(phi) * dphi_dt 
-                    - 3 * d2r_dthetacoeffdt * cos(phi) * pow(dphi_dt, 2)
-                    - 3 * d2r_dthetacoeffdt * sin(phi) * d2phi_dt2
-                    + dr_dthetacoeff * sin(phi) * (pow(dphi_dt, 3) -  d3phi_dt3)
-                    - 3 * dr_dthetacoeff * cos(phi) * dphi_dt * d2phi_dt2;
-            
-            data(k, 1, i) = d4r_dthetacoeffdt3 * sin(phi) 
-                    + 3 * (d3r_dthetacoeffdt2 * cos(phi) * dphi_dt) 
-                    - 3 * (d2r_dthetacoeffdt * sin(phi) * pow(dphi_dt, 2)) 
-                    + 3 * (d2r_dthetacoeffdt * cos(phi) * d2phi_dt2) 
-                    - 3 * dr_dthetacoeff * sin(phi) * dphi_dt * d2phi_dt2  
-                    + dr_dthetacoeff * cos(phi) * (d3phi_dt3 - pow(dphi_dt, 3));
 
-            data(k, 2, i) = d4z_dthetacoeffdt3;
+            dr_dcoeff[i] = dr_dthetacoeff;
+            dr_dcoeff[i + counter] = dr_dphicoeff;
+
+            d2r_dcoeffdt[i] = d2r_dthetacoeffdt;
+            d2r_dcoeffdt[i + counter] = d2r_dphicoeffdt;
+
+            d3r_dcoeffdt2[i] = d3r_dthetacoeffdt2;
+            d3r_dcoeffdt2[i + counter] = d3r_dphicoeffdt2;
+
+            d4r_dcoeffdt3[i] = d4r_dthetacoeffdt3;
+            d4r_dcoeffdt3[i + counter] = d4r_dphicoeffdt3;
+
+            d4z_dcoeffdt3[i] = d4z_dthetacoeffdt3;
+            d4z_dcoeffdt3[i + counter] = d4z_dphicoeffdt3;
+        }
+
+        for (int i = 0; i < counter; i++)
+        {
+            data(k, 0, i) = d4r_dcoeffdt3[i] * cos(phi)  
+                    - 3 * d3r_dcoeffdt2[i] * sin(phi) * dphi_dt 
+                    - 3 * d2r_dcoeffdt[i] * cos(phi) * pow(dphi_dt, 2)
+                    - 3 * d2r_dcoeffdt[i] * sin(phi) * d2phi_dt2
+                    + dr_dcoeff[i] * sin(phi) * (pow(dphi_dt, 3) -  d3phi_dt3)
+                    - 3 * dr_dcoeff[i] * cos(phi) * dphi_dt * d2phi_dt2;
+            
+            data(k, 1, i) = d4r_dcoeffdt3[i] * sin(phi) 
+                    + 3 * (d3r_dcoeffdt2[i] * cos(phi) * dphi_dt) 
+                    - 3 * (d2r_dcoeffdt[i] * sin(phi) * pow(dphi_dt, 2)) 
+                    + 3 * (d2r_dcoeffdt[i] * cos(phi) * d2phi_dt2) 
+                    - 3 * dr_dcoeff[i] * sin(phi) * dphi_dt * d2phi_dt2  
+                    + dr_dcoeff[i] * cos(phi) * (d3phi_dt3 - pow(dphi_dt, 3));
+
+            data(k, 2, i) = d4z_dcoeffdt3[i];
 
 
             //FALTA APENAS ISTO!!!!
             data(k, 0, i + counter) = 0;
             data(k, 1, i + counter) = 0;
-            data(k, 2, i + counter) = d4z_dphicoeffdt3;
+            data(k, 2, i + counter) = d4z_dcoeffdt3[i + counter];
         }
     }
     data *= 2 * M_PI * 2 * M_PI * 2 * M_PI;
