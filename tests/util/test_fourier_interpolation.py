@@ -2,8 +2,9 @@
 
 import unittest
 import numpy as np
-from simsopt.util.fourier_interpolation import fourier_interpolation
-
+from numpy.testing import assert_allclose
+from simsopt.util.fourier_interpolation import fourier_interpolation, sin_coeff, cos_coeff
+from math import pi
 
 class FourierInterpolationTests(unittest.TestCase):
 
@@ -60,6 +61,57 @@ class FourierInterpolationTests(unittest.TestCase):
 
                     #print('data:', data, ', xrequest:', xrequest, ', y:', y)
                     np.testing.assert_allclose(y, yexpected, rtol=1e-10, atol=1e-10)
+    
+def sawtooth(x, L=1):
+    x = np.mod(x, 2*L)
+    return x/L
+
+def triangle(x, L=1):
+    x = np.mod(x, 2*L)
+    return np.where(x < L, x/L, -x/L+2) 
+
+def square_wave(x, L=1):
+    x = np.mod(x, 2*L)
+    return np.where(x < L, -1, 1)
+
+def x_square(x, L=1):
+    return (x-L)**2
+
+
+class TestFourierCoefficients(unittest.TestCase):
+    
+    def setUp(self):
+        self.L = 5
+        self.f1 = lambda x: sawtooth(x, self.L)
+        self.f2 = lambda x: triangle(x, self.L)
+        self.f3 = lambda x: square_wave(x,self.L)
+        self.f4 = lambda x: x_square(x,self.L)
+    
+    def test_sin_coeff_sawtooth(self):
+        for n in range(1,30):
+            self.assertAlmostEqual(sin_coeff(self.f1, n, self.L),-2/(n*np.pi), places=6)
+            self.assertAlmostEqual(sin_coeff(self.f2, n, self.L), 0, places=6)
+            self.assertAlmostEqual(sin_coeff(self.f3, n, self.L), 2*((-1)**n-1)/(n*pi), places=4)
+            self.assertAlmostEqual(sin_coeff(self.f4, n, self.L), 0, places=6)
+
+    def test_cos_coeff(self):
+        for n in range(1,30):
+            self.assertAlmostEqual(cos_coeff(self.f1, n, self.L),0, places=6)
+            self.assertAlmostEqual(cos_coeff(self.f2, n, self.L),2*(((-1)**n-1)/(n*pi)**2), places=6)
+            self.assertAlmostEqual(cos_coeff(self.f3, n, self.L), 0, places=6)
+            self.assertAlmostEqual(cos_coeff(self.f4, n, self.L), 4*self.L**2/(n*pi)**2, places=6)
+
+    def test_cos_coeff_order0(self):
+        n = 0
+        self.assertAlmostEqual(cos_coeff(self.f1,n,self.L),1, places=6)
+        self.assertAlmostEqual(cos_coeff(self.f2,n,self.L),0.5, places=6)
+        self.assertAlmostEqual(cos_coeff(self.f3,n,self.L),0, places=6)
+        self.assertAlmostEqual(cos_coeff(self.f4, n, self.L), self.L**2/3, places=6)
+        
+        
+
+
+        
 
 
 if __name__ == "__main__":

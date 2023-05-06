@@ -55,7 +55,7 @@ def fourier_interpolation(fk, x):
     return np.dot(D, w * fk) / np.dot(D, w)
 
 
-def sin_coeff(f, n, L=pi, maxiter=1000):
+def sin_coeff(f, n, L=pi, maxiter=2000):
     '''
     Calculates the coefficients for the sine of order n in the Fourier expansion of function f.
     
@@ -76,7 +76,7 @@ def sin_coeff(f, n, L=pi, maxiter=1000):
     return (1 / L) * integration
 
 
-def cos_coeff(f, n, L=pi, maxiter=1000):
+def cos_coeff(f, n, L=pi, maxiter=2000):
     '''
     Calculates the coefficients for the cosine of order n in the Fourier expansion of function f.
     
