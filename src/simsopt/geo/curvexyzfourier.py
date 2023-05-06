@@ -74,7 +74,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         sopp.CurveXYZFourier.set_dofs(self, dofs)
     
     @staticmethod
-    def load_curves_from_file(filename, order, quadpoints=64, delimiter=',',maxiter=1000):
+    def load_curves_from_file(filename, order, quadpoints=64, delimiter=',',maxiter=2000):
         """
         This function loads a file containing Fourier coefficients
         or the cartesian coordinates for several coils.
