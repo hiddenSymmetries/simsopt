@@ -184,7 +184,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
-def coils_via_file(filename,order,quadpoints=64,maxiter=1000):
+def coils_via_file(filename,order,ppp=20,maxiter=1000,tol=1e-8):
     """
     This function loads a file in MAKEGRID input format containing the cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
@@ -203,7 +203,7 @@ def coils_via_file(filename,order,quadpoints=64,maxiter=1000):
             flag=False
         if len(vals)>4:
             flag=True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, quadpoints=quadpoints,maxiter=maxiter)
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp,maxiter=maxiter,tol=tol)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
     
     return coils

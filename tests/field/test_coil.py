@@ -1,14 +1,15 @@
 import unittest
 import json
-
+import os
 import numpy as np
+from numpy.testing import assert_equal,assert_allclose
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum
-from simsopt.field.coil import coils_to_makegrid, coils_to_focus
+from simsopt.field.coil import coils_to_makegrid, coils_to_focus, coils_via_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
@@ -149,3 +150,25 @@ class CoilFormatConvertTesting(unittest.TestCase):
         stellsym = True
         curves, currents, ma = get_ncsx_data()        
         coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
+    
+        
+    def test_coils_via_file(self):
+        # Load already optimized coils:
+        curves, currents, ma = get_ncsx_data()  
+        
+        order = 25
+        # write coils to MAKEGRID file
+        coils_to_makegrid("coils.file_to_load", curves, currents,nfp=1)
+        loaded_coils = coils_via_file("coils.file_to_load", order, 10,maxiter=5000,tol=1e-8)
+        
+        currents = [current.get_value() for current in currents]
+        gamma = [curve.gamma() for curve in curves]
+        loaded_gamma = [coil.curve.gamma() for coil in loaded_coils]
+        loaded_currents = [coil._current.get_value() for coil in loaded_coils]
+        
+        os.remove("coils.file_to_load")
+        assert_allclose(gamma, loaded_gamma,atol=0.0017, rtol=0.91)
+        assert_equal(currents, loaded_currents)
+
+if __name__ == "__main__":
+    unittest.main()
