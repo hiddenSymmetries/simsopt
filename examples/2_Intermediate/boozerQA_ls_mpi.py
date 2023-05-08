@@ -131,38 +131,24 @@ def callback(x):
     prevs['J']     = JF.J()
     prevs['dJ']    = JF.dJ().copy()    
     
-    cl_string = ", ".join([f"{J.J():5.6f}" for J in ls])
-    kappa_string = ", ".join([f"{np.max(c.kappa()):.6f}" for c in base_curves])
-    msc_string = ", ".join([f"{Jmsc.J():.6f}" for Jmsc in msc_list])
-    iotas_string = ", ".join([f"{boozer_surface.res['iota']:.6f}" for boozer_surface in boozer_surfaces])
-    mr_string = ", ".join([f"{surface.minor_radius():.6f}" for surface in surfaces])
-    mR_string = ", ".join([f"{surface.major_radius():.6f}" for surface in surfaces])
-    ar_string = ", ".join([f"{surface.aspect_ratio():.6f}" for surface in surfaces])
-    vol_string = ", ".join([f"{surface.volume():.6f}" for surface in surfaces])
-    br_string = ", ".join([f"{br.J():.6e}" for br in brs])
-    nqs_ratio_string = ", ".join([f"{np.sqrt(nonqs.J()):.6e}" for nonqs in nonQSs])
-    is_self_intersecting_string = ", ".join([f"{surface.is_self_intersecting()}" for surface in surfaces])
-
     width = 35
     outstr = f"\nIteration {prevs['it']}\n"
     s = "J"; outstr += f"{s:{width}} {JF.J():.6e} \n"
     s = "║∇J║"; outstr += f"{s:{width}} {np.linalg.norm(JF.dJ()):.6e} \n\n"
-
-    width = 35
-    s = "nonQS ratio";     outstr += f"{s:{width}} {nqs_ratio_string} \n"
-    s = "Boozer Residual"; outstr += f"{s:{width}} {br_string} \n"
+    s = "nonQS ratio";     outstr += f"{s:{width}}" + ", ".join([f'{np.sqrt(nonqs.J()):.6e}' for nonqs in nonQSs]) +"\n"
+    s = "Boozer Residual"; outstr += f"{s:{width}}" + ", ".join([f'{br.J():.6e}' for br in brs]) + "\n"
     s = "<ι>"; outstr += f"{s:{width}} {mean_iota.J():.6f} \n"
-    s = "ι on surfaces"; outstr += f"{s:{width}} {iotas_string} \n"
-    s = "major radius on surfaces"; outstr += f"{s:{width}} {mR_string} \n"
-    s = "minor radius on surfaces"; outstr += f"{s:{width}} {mr_string} \n"
-    s = "aspect ratio on surfaces"; outstr += f"{s:{width}} {ar_string} \n"
-    s = "volume"; outstr += f"{s:{width}} {vol_string} \n"
-    s = "surfaces are self-intersecting"; outstr += f"{s:{width}} {is_self_intersecting_string} \n"
+    s = "ι on surfaces"; outstr += f"{s:{width}}" + ", ".join([f"{boozer_surface.res['iota']:.6f}" for boozer_surface in boozer_surfaces]) + "\n"
+    s = "major radius on surfaces"; outstr += f"{s:{width}}" + ', '.join([f'{surface.major_radius():.6f}' for surface in surfaces]) + "\n"
+    s = "minor radius on surfaces"; outstr += f"{s:{width}}" + ', '.join([f'{surface.minor_radius():.6f}' for surface in surfaces]) + "\n"
+    s = "aspect ratio on surfaces"; outstr += f"{s:{width}}" + ', '.join([f'{surface.aspect_ratio():.6f}' for surface in surfaces]) + "\n"
+    s = "volume"; outstr += f"{s:{width}}" + ', '.join([f'{surface.volume():.6f}' for surface in surfaces]) + "\n"
+    s = "surfaces are self-intersecting"; outstr += f"{s:{width}}" + ', '.join([f'{surface.is_self_intersecting()}' for surface in surfaces]) + "\n"
     s = "shortest coil to coil distance"; outstr += f"{s:{width}} {Jccdist.shortest_distance():.3f} \n"
-    s = "coil lengths"; outstr += f"{s:{width}} {cl_string} \n"
+    s = "coil lengths"; outstr += f"{s:{width}}" + ', '.join([f'{J.J():5.6f}' for J in ls]) + "\n"
     s = "coil length sum"; outstr += f"{s:{width}} {sum(J.J() for J in ls):.3f} \n"
-    s = "max κ"; outstr += f"{s:{width}} {kappa_string} \n"
-    s = "∫ κ^2 dl / ∫ dl"; outstr += f"{s:{width}} {msc_string} \n"
+    s = "max κ"; outstr += f"{s:{width}}" + ', '.join([f'{np.max(c.kappa()):.6f}' for c in base_curves]) + "\n"
+    s = "∫ κ^2 dl / ∫ dl"; outstr += f"{s:{width}}"  + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
     outstr+="\n\n"
 
     pprint(outstr)
