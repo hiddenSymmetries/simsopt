@@ -15,6 +15,7 @@ try:
     comm = MPI.COMM_WORLD
     rank = comm.rank
     size = comm.size
+    
     def pprint(*args, **kwargs):
         if comm.rank == 0:  # only print on rank 0
             print(*args, **kwargs)
@@ -32,7 +33,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 pprint("Running 2_Intermediate/boozerQA.py")
 pprint("================================")
 
-base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress= load(IN_DIR + f"ncsx_init.json")
+base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + f"ncsx_init.json")
 nsurfaces = 2
 surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
@@ -89,24 +90,21 @@ boozer_surface.surface.to_vtk(OUT_DIR + f"surf_init_{rank}")
 if comm is None or comm.rank == 0:
     curves_to_vtk(curves, OUT_DIR + f"curves_init")
 
-prevs = {'sdofs':[surface.x.copy() for surface in mpi_surfaces],
-        'iota':[boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
-        'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces],
-        'J': JF.J(),
-        'dJ':JF.dJ().copy(),
-        'it': 0}
+prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
+         'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces], 'J': JF.J(), 'dJ': JF.dJ().copy(), 'it': 0}
+
 
 def fun(dofs):
     # initialize to last accepted surface values
     for idx, surface in enumerate(mpi_surfaces):
-        surface.x =   prevs['sdofs'][idx]
+        surface.x = prevs['sdofs'][idx]
     for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
         boozer_surface.res['iota'] = prevs['iota'][idx]
-        boozer_surface.res['G'] =    prevs['G'][idx]
+        boozer_surface.res['G'] = prevs['G'][idx]
     
     # save these as a backup in case the boozer surface Newton solve fails
     alldofs = MPI.COMM_WORLD.allgather(dofs)
-    assert np.all(np.norm(alldofs[0]-d)==0 for d in alldofs)
+    assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
  
     JF.x = dofs
     J = JF.J()
@@ -122,20 +120,21 @@ def fun(dofs):
             boozer_surface.res['G'] = prevs['G'][idx]
     return J, grad
 
+
 def callback(x):
     for idx, surface in enumerate(mpi_surfaces):
         prevs['sdofs'][idx] = surface.x.copy()
     for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
-        prevs['iota'][idx]  = boozer_surface.res['iota']
-        prevs['G'][idx]     = boozer_surface.res['G']
-    prevs['J']     = JF.J()
-    prevs['dJ']    = JF.dJ().copy()    
+        prevs['iota'][idx] = boozer_surface.res['iota']
+        prevs['G'][idx] = boozer_surface.res['G']
+    prevs['J'] = JF.J()
+    prevs['dJ'] = JF.dJ().copy()
     
     width = 35
     outstr = f"\nIteration {prevs['it']}\n"
     outstr += f"{'J':{width}} {JF.J():.6e} \n"
     outstr += f"{'║∇J║':{width}} {np.linalg.norm(JF.dJ()):.6e} \n\n"
-    outstr += f"{'nonQS ratio':{width}}" + ", ".join([f'{np.sqrt(nonqs.J()):.6e}' for nonqs in nonQSs]) +"\n"
+    outstr += f"{'nonQS ratio':{width}}" + ", ".join([f'{np.sqrt(nonqs.J()):.6e}' for nonqs in nonQSs]) + "\n"
     outstr += f"{'Boozer Residual':{width}}" + ", ".join([f'{br.J():.6e}' for br in brs]) + "\n"
     outstr += f"{'<ι>':{width}} {mean_iota.J():.6f} \n"
     outstr += f"{'ι on surfaces':{width}}" + ", ".join([f"{boozer_surface.res['iota']:.6f}" for boozer_surface in boozer_surfaces]) + "\n"
@@ -148,11 +147,11 @@ def callback(x):
     outstr += f"{'coil lengths':{width}}" + ', '.join([f'{J.J():5.6f}' for J in ls]) + "\n"
     outstr += f"{'coil length sum':{width}} {sum(J.J() for J in ls):.3f} \n"
     outstr += f"{'max κ':{width}}" + ', '.join([f'{np.max(c.kappa()):.6f}' for c in base_curves]) + "\n"
-    outstr += f"{'∫ κ^2 dl / ∫ dl':{width}}"  + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
-    outstr+="\n\n"
+    outstr += f"{'∫ κ^2 dl / ∫ dl':{width}}" + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
+    outstr += "\n\n"
 
     pprint(outstr)
-    prevs['it']+=1
+    prevs['it'] += 1
 
 
 dofs = JF.x
