@@ -41,8 +41,6 @@ ress = ress[:nsurfaces]
 for boozer_surface, res in zip(boozer_surfaces, ress):
     boozer_surface.run_code('ls', res['iota'], res['G'], verbose=False)
 
-ncoils = len(base_curves)
-
 mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
 mpi_boozer_surfaces = MPIOptimizable(boozer_surfaces, ["res", "need_to_run_code"], comm)
 
@@ -73,7 +71,7 @@ Jmajor_radius = MPIObjective([len(mrs)*QuadraticPenalty(mr, mr.J(), 'identity') 
 
 ls = [CurveLength(c) for c in base_curves]
 Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
-Jccdist = CurveCurveDistance(curves, MIN_DIST_THRESHOLD, num_basecurves=ncoils)
+Jccdist = CurveCurveDistance(curves, MIN_DIST_THRESHOLD, num_basecurves=len(base_curves))
 Jcs = sum([LpCurveCurvature(c, 2, KAPPA_THRESHOLD) for c in base_curves])
 msc_list = [MeanSquaredCurvature(c) for c in base_curves]
 Jmsc = sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in msc_list)
@@ -143,6 +141,7 @@ def callback(x):
     vol_string = ", ".join([f"{surface.volume():.6f}" for surface in surfaces])
     br_string = ", ".join([f"{br.J():.6e}" for br in brs])
     nqs_ratio_string = ", ".join([f"{np.sqrt(nonqs.J()):.6e}" for nonqs in nonQSs])
+    is_self_intersecting_string = ", ".join([f"{surface.is_self_intersecting()}" for surface in surfaces])
 
     width = 35
     outstr = f"\nIteration {prevs['it']}\n"
@@ -158,6 +157,7 @@ def callback(x):
     s = "minor radius on surfaces"; outstr += f"{s:{width}} {mr_string} \n"
     s = "aspect ratio on surfaces"; outstr += f"{s:{width}} {ar_string} \n"
     s = "volume"; outstr += f"{s:{width}} {vol_string} \n"
+    s = "surfaces are self-intersecting"; outstr += f"{s:{width}} {is_self_intersecting_string} \n"
     s = "shortest coil to coil distance"; outstr += f"{s:{width}} {Jccdist.shortest_distance():.3f} \n"
     s = "coil lengths"; outstr += f"{s:{width}} {cl_string} \n"
     s = "coil length sum"; outstr += f"{s:{width}} {sum(J.J() for J in ls):.3f} \n"

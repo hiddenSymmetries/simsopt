@@ -7,6 +7,16 @@ try:
 except ImportError:
     gridToVTK = None
 
+try:
+    from ground.base import get_context
+except ImportError:
+    get_context = None
+
+try:
+    from bentley_ottmann.planar import contour_self_intersects
+except ImportError:
+    contour_self_intersects = None
+
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.dev import SimsoptRequires
@@ -309,7 +319,7 @@ class Surface(Optimizable):
         implement this abstract method.
         """
         raise NotImplementedError
-
+    
     def cross_section(self, phi, thetas=None):
         """
         This function takes in a cylindrical angle :math:`\phi` and returns the cross
@@ -421,6 +431,22 @@ class Surface(Optimizable):
         cross_section = np.zeros((sol.size, 3))
         self.gamma_lin(cross_section, sol, theta)
         return cross_section
+    
+    @SimsoptRequires(get_context is not None, "is_self_intersecting requires ground package")
+    @SimsoptRequires(contour_self_intersects is not None, "is_self_intersecting requires the bentley_ottmann package")
+    def is_self_intersecting(self, angle=0.):
+        """
+        
+        """
+
+        cs = self.cross_section(angle)
+        R = np.sqrt( cs[:,0]**2 + cs[:,1]**2)
+        Z = cs[:, 2]
+    
+        context = get_context()
+        Point, Contour = context.point_cls, context.contour_cls
+        contour = Contour([ Point(R[i], Z[i]) for i in range(cs.shape[0]) ])
+        return contour_self_intersects(contour)
 
     def aspect_ratio(self):
         r"""
