@@ -39,6 +39,11 @@ inline Vec3d cross(Vec3d& a, int i){
 
 #if defined(USE_XSIMD)
 
+/*
+Vec3dSimd implements a packed 3d vector that stores the multiple points in vector registers
+The packing takes place at the component level. XSIMD automatically determines the size of
+the vector register and packs appropritate number of points in each instance of Vec3dSimd struct
+*/
 
 struct Vec3dSimd {
     simd_t x;
@@ -209,6 +214,10 @@ inline simd_t normsq(Vec3dSimd& a){
 
 constexpr size_t ALIGN_BYTES = 32;
 
+/*
+Vec3dStd implements a standard 3d vector.  Unlike Vec3dSimd, Vec3dStd  stores a single point
+in each instance of Vec3dStd struct
+*/
 struct alignas(ALIGN_BYTES) Vec3dStd {
     double x;
     double y;
@@ -368,203 +377,6 @@ inline Vec3dStd cross(int i, Vec3dStd& b){
 
 inline double normsq(Vec3dStd& a){
     return a.x * a.x + a.y * a.y + a.z * a.z;
-}
-
-struct alignas(ALIGN_BYTES) Vec3dSimdPortable1 {
-    double x[4];
-
-    Vec3dSimdPortable1() : x{0.0, 0.0, 0.0, 0.0} {
-    }
-
-    Vec3dSimdPortable1(const double x_, const double y_, const double z_) {
-        x[0] = x_; x[1] = y_; x[2] = z_; x[3] = 0;
-    }
-
-    Vec3dSimdPortable1(Vec3d xyz) {
-        x[0] = xyz[0]; x[1] = xyz[1]; x[2] = xyz[2]; x[3] = 0;
-    }
-
-    /* Vec3dSimdPortable(const double& x_, const double& y_, const double& z_) {
-        x[0] = x_; x[1] = y_; x[2] = z_; x[3] = 0;
-    }*/
-
-    Vec3dSimdPortable1(double* xptr, double* yptr, double *zptr){
-        x[0] = *xptr;
-        x[1] = *yptr;
-        x[2] = *zptr;
-        x[3] = 0;
-    }
-
-    void store_aligned(double* xptr, double* yptr, double *zptr){
-        *xptr = x[0];
-        *yptr = x[1];
-        *zptr = x[2];
-    }
-
-    double& operator[] (int i){
-        return x[i];
-    }
-
-    friend Vec3dSimdPortable1 operator+(Vec3dSimdPortable1 lhs, const Vec3d& rhs) {
-        lhs.x[0] += rhs[0];
-        lhs.x[1] += rhs[1];
-        lhs.x[2] += rhs[2];
-        return lhs;
-    }
-
-    friend Vec3dSimdPortable1 operator+(Vec3dSimdPortable1 lhs, const Vec3dSimdPortable1& rhs) {
-        auto x1 = lhs.x;
-        auto x2 = rhs.x;
-        #pragma omp simd aligned(x1, x2: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] += x2[i];
-        }
-        return lhs;
-    }
-
-    Vec3dSimdPortable1& operator+=(const Vec3dSimdPortable1& rhs) {
-        auto x1 = this->x;
-        auto x2 = rhs.x;
-        #pragma omp simd aligned(x1, x2: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] += x2[i];
-        }
-        return *this;
-    }
-
-    Vec3dSimdPortable1& operator-=(const Vec3dSimdPortable1& rhs) {
-        auto x1 = this->x;
-        auto x2 = rhs.x;
-        #pragma omp simd aligned(x1, x2: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] -= x2[i];
-        }
-        return *this;
-    }
-
-    Vec3dSimdPortable1& operator*=(const double& rhs) {
-        auto x1 = this->x;
-        #pragma omp simd aligned(x1: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] *= rhs;
-        }
-        return *this;
-    }
-
-    friend Vec3dSimdPortable1 operator-(Vec3dSimdPortable1 in) {
-        auto x = in.x;
-        #pragma omp simd aligned(x: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x[i] = -x[i];
-        }
-        return in;
-    }
-
-    friend Vec3dSimdPortable1 operator-(Vec3dSimdPortable1 lhs, const Vec3d& rhs) {
-        lhs.x[0] -= rhs[0];
-        lhs.x[1] -= rhs[1];
-        lhs.x[2] -= rhs[2];
-        lhs.x[3] -= 0;
-        return lhs;
-    }
-
-    friend Vec3dSimdPortable1 operator-(Vec3dSimdPortable1 lhs, const Vec3dSimdPortable1& rhs) {
-        auto x1 = lhs.x;
-        auto x2 = rhs.x;
-        #pragma omp simd aligned(x1, x2: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] -= x2[i];
-        }
-        return lhs;
-    }
-
-    friend Vec3dSimdPortable1 operator*(Vec3dSimdPortable1 lhs, const double& rhs) {
-        auto x1 = lhs.x;
-        #pragma omp simd aligned(x1: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] *= rhs;
-        }
-        return lhs;
-    }
-
-    friend Vec3dSimdPortable1 operator*(const double& lhs, Vec3dSimdPortable1 rhs) {
-        auto x1 = rhs.x;
-        #pragma omp simd aligned(x1: ALIGN_BYTES)
-        for (int i = 0; i < 4; i++){
-            x1[i] *= lhs;
-        }
-        return rhs;
-    }
-};
-
-inline double inner(const Vec3dSimdPortable1& a, const Vec3dSimdPortable1& b){
-    auto x1 = a.x;
-    auto x2 = b.x;
-    double inn_prod = 0;
-    #pragma omp simd aligned(x1, x2: ALIGN_BYTES) reduction(+: inn_prod)
-    for (int i = 0; i < 4; i++){
-        inn_prod += x1[i] * x2[i];
-    }
-    return inn_prod;
-}
-
-inline double inner(const Vec3d& b, const Vec3dSimdPortable1& a){
-    return a.x[0] * b[0] + a.x[1] * b[1] + a.x[2] * b[2];
-}
-
-inline double inner(const Vec3dSimdPortable1& a, const Vec3d& b){
-    return a.x[0] * b[0] + a.x[1] * b[1] + a.x[2] * b[2];
-}
-
-inline double inner(int i, Vec3dSimdPortable1& a){
-    return a[i];
-}
-
-inline Vec3dSimdPortable1 cross(Vec3dSimdPortable1& a, Vec3dSimdPortable1& b){
-    return Vec3dSimdPortable1(
-            (a.x[1] * b.x[2] - a.x[2] * b.x[1]),
-            (a.x[2] * b.x[0] - a.x[0] * b.x[2]),
-            (a.x[0] * b.x[1] - a.x[1] * b.x[0]));
-}
-
-inline Vec3dSimdPortable1 cross(Vec3dSimdPortable1& a, Vec3d& b){
-    return Vec3dSimdPortable1(
-            (a.x[1] * b[2] - a.x[2] * b[1]),
-            (a.x[2] * b[0] - a.x[0] * b[2]),
-            (a.x[0] * b[1] - a.x[1] * b[0]));
-}
-
-inline Vec3dSimdPortable1 cross(Vec3d& a, Vec3dSimdPortable1& b){
-    return Vec3dSimdPortable1(
-            a[1] * b.x[2] - a[2] * b.x[1],
-            a[2] * b.x[0] - a[0] * b.x[2],
-            a[0] * b.x[1] - a[1] * b.x[0]);
-}
-
-inline Vec3dSimdPortable1 cross(Vec3dSimdPortable1& a, int i){
-    switch(i) {
-        case 0: return Vec3dSimdPortable1(0., a.x[2], -a.x[1]);
-        case 1: return Vec3dSimdPortable1(-a.x[2], 0., a.x[0]);
-        case 2: return Vec3dSimdPortable1(a.x[1], -a.x[0], 0.);
-    }
-}
-
-inline Vec3dSimdPortable1 cross(int i, Vec3dSimdPortable1& b){
-    switch(i) {
-        case 0: return Vec3dSimdPortable1(0., -b.x[2], b.x[1]);
-        case 1: return Vec3dSimdPortable1(b.x[2], 0., -b.x[0]);
-        case 2: return Vec3dSimdPortable1(-b.x[1], b.x[0], 0.);
-    }
-}
-
-inline double normsq(Vec3dSimdPortable1& a){
-    auto x1 = a.x;
-    double inn_prod = 0;
-    #pragma omp simd aligned(x1: ALIGN_BYTES) reduction(+: inn_prod)
-    for (int i = 0; i < 4; i++){
-        inn_prod += x1[i] * x1[i];
-    }
-    return inn_prod;
 }
 
 #endif
