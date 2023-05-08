@@ -302,6 +302,22 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
 
     :math:`G` is known for exact boozer surfaces, so if ``G=None`` is passed, then that
     value is used instead.
+
+    Args:
+        surface: The surface to use for the computation
+        iota: the surface rotational transform
+        G: a constant that is a function of the coil currents in vacuum field
+        biotsavart: the Biot-Savart magnetic field
+        derivatives: how many spatial derivatives of the residual to compute
+        weight_inv_modB: whether or not to weight the residual by :math:`\|\mathbf B\|`.  This 
+                         is useful to activate so that the residual does not scale with the 
+                         coil currents.
+
+    Returns:
+        the residual at the surface quadrature points and optionally the spatial derivatives
+        of the residual.
+
+
     """
     
     assert derivatives in [0, 1]
@@ -843,8 +859,18 @@ class Iotas(Optimizable):
 
 class BoozerResidual(Optimizable):
     r"""
-    """
+    This term returns the Boozer residual penalty term
     
+    .. math::
+       J = \int_0^{1/n_{\text{fp}}} \int_0^1 \| \mathbf r \|^2 ~d\theta ~d\varphi + w (\text{label.J()-boozer_surface.constraint_weight})^2.
+    
+    where
+    
+    .. math::
+        \mathbf r = \frac{1}{\|\mathbf B\|}[G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)]
+    
+    """
+
     def __init__(self, boozer_surface, bs):
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
@@ -864,12 +890,20 @@ class BoozerResidual(Optimizable):
         self.recompute_bell()
 
     def J(self):
+        """
+        Return the value of the penalty function.
+        """
+        
         if self._J is None:
             self.compute()
         return self._J
     
     @derivative_dec
     def dJ(self):
+        """
+        Return the derivative of the penalty function with respect to the coil degrees of freedom.
+        """
+
         if self._dJ is None:
             self.compute()
         return self._dJ
