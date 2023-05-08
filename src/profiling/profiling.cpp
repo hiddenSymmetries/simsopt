@@ -29,7 +29,7 @@ uint64_t rdtsc(){
     asm volatile("mrs %0, cntvct_el0" : "=r" (val));
     return val;
 }
-#elif __ppc64__
+#elif __powerpc__
 uint64_t rdtsc(){
     uint64_t result=0;
     unsigned long int upper, lower,tmp;
@@ -44,7 +44,7 @@ uint64_t rdtsc(){
                 );
     result = upper;
     result = result << 32;
-    result = result |l ower;
+    result = result | lower;
 
     return(result);
 }
