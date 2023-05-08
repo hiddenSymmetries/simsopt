@@ -703,7 +703,7 @@ class BoozerSurface(Optimizable):
         Hnl = boozer[2]
         d2rl = np.zeros((dofs.shape[0], dofs.shape[0]))
         d2rl[:nsurfdofs, :nsurfdofs] = np.sqrt(constraint_weight)*self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        H = Hnl + drl[:,None] @ drl[None,:] + drz[:,None] @ drz[None, :] + rl * d2rl
+        H = Hnl + drl[:, None] @ drl[None, :] + drz[:, None] @ drz[None, :] + rl * d2rl
         if self.reg is not None:
             H[:nsurfdofs, :nsurfdofs] += self.reg.d2J()
         return r, J, H
@@ -727,9 +727,9 @@ class BoozerSurface(Optimizable):
             options={'maxiter': maxiter, 'gtol': tol})
     
         resdict = {
-                "residual": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'type':'ls', 'solver':'BFGS',
-                "firstorderop":res.jac, "constraint_weight":constraint_weight, "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel),
-                "vjp":boozer_surface_dlsqgrad_dcoils_vjp
+            "residual": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'type': 'ls', 'solver': 'BFGS',
+            "firstorderop": res.jac, "constraint_weight": constraint_weight, "labelerr": np.abs((self.label.J()-self.targetlabel)/self.targetlabel),
+            "vjp": boozer_surface_dlsqgrad_dcoils_vjp
         }
         
         if G is None:
@@ -796,18 +796,11 @@ class BoozerSurface(Optimizable):
             s.set_dofs(x[:-2])
             iota = x[-2]
             G = x[-1]
-        
-        #res = {
-        #   "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "type": "ls",
-        #   "PLU":(P,L,U), "firstorderop":dval, "constraint_weight":constraint_weight, "iota":iota, "G":G,
-        #   "type":'ls', "labelerr":np.abs((self.label.J()-self.targetlabel)/self.targetlabel), "cond":np.linalg.cond(d2val),-
-        #   "reg": self.reg.J() if self.reg is not None else 0.
-        #}
 
         res = {
-           "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "firstorderop": dval,
-           "PLU" : (P, L, U), 'iota': iota, "G": G, "type": "ls", "vjp": boozer_surface_dlsqgrad_dcoils_vjp
-           }
+            "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "firstorderop": dval,
+            "PLU": (P, L, U), 'iota': iota, "G": G, "type": "ls", "vjp": boozer_surface_dlsqgrad_dcoils_vjp
+        }
 
         self.res = res
         self.need_to_run_code = False

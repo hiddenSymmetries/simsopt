@@ -440,12 +440,12 @@ class Surface(Optimizable):
         """
 
         cs = self.cross_section(angle)
-        R = np.sqrt( cs[:,0]**2 + cs[:,1]**2)
+        R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
         Z = cs[:, 2]
     
         context = get_context()
         Point, Contour = context.point_cls, context.contour_cls
-        contour = Contour([ Point(R[i], Z[i]) for i in range(cs.shape[0]) ])
+        contour = Contour([Point(R[i], Z[i]) for i in range(cs.shape[0])])
         return contour_self_intersects(contour)
 
     def aspect_ratio(self):
