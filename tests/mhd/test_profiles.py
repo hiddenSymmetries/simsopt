@@ -175,27 +175,12 @@ class ProfilesTests(unittest.TestCase):
         for j in range(2):
             np.testing.assert_allclose(
                 pressure(s),
-                ne(s) *
-                Te(s) +
-                nD(s) *
-                TD(s) +
-                nT(s) *
-                TT(s),
+                ne(s) * Te(s) + nD(s) * TD(s) + nT(s) * TT(s),
                 atol=atol)
             np.testing.assert_allclose(
                 pressure.dfds(s),
-                ne.dfds(s) *
-                Te(s) +
-                ne(s) *
-                Te.dfds(s) +
-                nD.dfds(s) *
-                TD(s) +
-                nD(s) *
-                TD.dfds(s) +
-                nT.dfds(s) *
-                TT(s) +
-                nT(s) *
-                TT.dfds(s),
+                ne.dfds(s) * Te(s) + nT.dfds(s) * TT(s) + nD.dfds(s) * TD(s) +
+                ne(s) * Te.dfds(s) + nT(s) * TT.dfds(s) + nD(s) * TD.dfds(s),
                 atol=atol)
             # Try changing some dofs before the 2nd loop iteration:
             ne.x = 2.0e20 * np.array([1.0, 0.0, 0.0, -1.0, 0.0])

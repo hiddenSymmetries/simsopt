@@ -82,7 +82,7 @@ class NormalField(Optimizable):
             names=self._make_names())
 
     @classmethod
-    def init_from_spec(cls, filename):
+    def from_spec(cls, filename):
         """
         Initialize using the harmonics in SPEC input file
         """
