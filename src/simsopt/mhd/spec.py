@@ -263,7 +263,7 @@ class Spec(Optimizable):
         # Define normal field - these are the Vns, Vnc harmonics. Can be used as
         # dofs in an optimization
         if si.lfreebound:
-            self.normal_field = NormalField.init_from_spec(filename)
+            self.normal_field = NormalField.from_spec(filename)
         else:
             self.normal_field = None
 

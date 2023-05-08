@@ -435,10 +435,6 @@ class SpecTests(unittest.TestCase):
         # Initialize SPEC from an input file
         spec = Spec(filename)
 
-        # set axis to zero
-        spec.axis['rac'][:] = 0
-        spec.axis['zas'][:] = 0
-
         # The main resonant surface is iota = p / q:
         p = -8
         q = 7
