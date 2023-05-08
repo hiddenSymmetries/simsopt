@@ -537,41 +537,6 @@ class Testing(unittest.TestCase):
         assert_allclose(ccdist, loaded_ccdist, rtol=2e-3)
         
         os.remove("coils.file_to_load")
-       
-       
-    #def test_load_curves_from_file3(self): #just to make sure the issue is not coils_to_makegrid
-    #    order = 10
-    #    ppp = 10
-    #    curves, currents, ma = get_w7x_data(Nt_coils=order,ppp=ppp)  
-    #    
-    #    currents = currents[0:5]
-    #    curves = curves[0:5]
-#
-    #    THIS_DIR = (Path(__file__).parent).resolve()
-    #    loaded_curves = CurveXYZFourier.load_curves_from_file( THIS_DIR / "../test_files/coils.w7x_std_mc", order, ppp,maxiter=10000,tol=1e-12)
-    #    loaded_curves = loaded_curves[0:5]
-    #    
-    #    gamma = [curve.gamma() for curve in curves]
-    #    loaded_gamma = [curve.gamma() for curve in loaded_curves]
-    #    
-    #    assert_allclose(gamma, loaded_gamma)
-    #    
-    #    kappa = [np.max(curve.kappa()) for curve in curves]
-    #    loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
-    #    
-    #    assert_allclose(kappa, loaded_kappa,rtol=0.04)
-    #    
-    #    
-    #    length = [CurveLength(c).J() for c in curves]
-    #    loaded_length = [CurveLength(c).J() for c in loaded_curves]
-    #    
-    #    assert_allclose(length, loaded_length, rtol=2e-3)
-    #    
-    #    ccdist = CurveCurveDistance(curves, 0).J()
-    #    loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
-    #    
-    #    assert_allclose(ccdist, loaded_ccdist, rtol=2e-3)
-
         
 
 
