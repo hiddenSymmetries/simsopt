@@ -54,7 +54,19 @@ class MPIOptimizable(Optimizable):
 
     def __init__(self, optimizables, attributes, comm):
         r"""
+        Ensures that a list of Optimizables on separate ranks have a consistent set of attributes on all ranks.
+        For example, say that all ranks have the list ``optimizables``.  Rank ``i`` modifies attributes
+        of ``optimizable[i]``. The value attribute ``attr``, i.e., ``optimizables[i].attr`` potentially
+        will be different on ranks ``i`` and ``j``, for ``i`` not equal to ``j``.  This class ensures that
+        if the cache is invalidated on the ``Optimizables`` in the list ``optimizables``, then when the list
+        is accessed, the attributes in ``attributes`` will be communicated accross all ranks.
 
+        Args:
+            objectives: A python list of ``Optimizables`` with attributes in ``attributes`` that can be
+                        communicated using ``mpi4py``.
+            attributes: A python list of strings corresponding to the list of attributes that is to be
+                        maintained consistent across all ranks.
+            comm: The MPI communicator to use.
         """
 
         from simsopt._core.util import parallel_loop_bounds
@@ -65,6 +77,11 @@ class MPIOptimizable(Optimizable):
         self.comm = comm
         self.attributes = attributes
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=optimizables)
+
+        for opt in self.optimizables:
+            for attr in self.attributes:
+                if not hasattr(opt, attr):
+                    raise Exception(f'All Optimizables in the optimizable list must contain the attribute {attr}')
     
     def __getitem__(self, key):
         if self.need_to_communicate:
