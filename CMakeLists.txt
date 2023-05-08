@@ -54,7 +54,7 @@ else()
     elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")  
     	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
     else()
-    	set(CMAKE_CXX_FLAGS "-O3 -mfma -ffp-contract=fast")
+    	set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
     endif()
 endif()
 message(STATUS "CMAKE_CXX_FLAGS are ${CMAKE_CXX_FLAGS}")
@@ -104,7 +104,7 @@ else()
 endif()
 
 add_subdirectory(thirdparty/pybind11)
-add_subdirectory(thirdparty/fmt)
+add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
@@ -128,7 +128,7 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
@@ -146,7 +146,7 @@ set_target_properties(profiling
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-target_link_libraries(profiling PRIVATE fmt::fmt)
+target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
 
 
 
