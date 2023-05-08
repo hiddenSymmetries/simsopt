@@ -195,31 +195,28 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
           throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = 1;
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
     double* res_gamma_ptr = &(res_gamma(0, 0));
     double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
     double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
-    for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
+    for(int i = 0; i < num_points; i++) {
         Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dStd();
         auto vgrad_i = vector<Vec3dStd>{
                 Vec3dStd(), Vec3dStd(), Vec3dStd()
             };
 #pragma unroll
-        for(int k=0; k<simd_size; k++){
             for (int d = 0; d < 3; ++d) {
-                v_i[d+k] = v(i+k, d);
+                v_i[d] = v(i, d);
                 MYIF(derivs>0) {
 #pragma unroll
                     for (int dd = 0; dd < 3; ++dd) {
-                        vgrad_i[dd][d+k] = vgrad(i+k, dd, d);
+                        vgrad_i[dd][d] = vgrad(i, dd, d);
                     }
                 }
             }
-        }
 
         for (int j = 0; j < num_quad_points; ++j) {
             auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };
@@ -440,31 +437,28 @@ void biot_savart_vector_potential_vjp_kernel(
           throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = 1;
     double* gamma_j_ptr = &(gamma(0, 0));
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
     double* res_gamma_ptr = &(res_gamma(0, 0));
     double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
     double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
-    for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
+    for(int i = 0; i < num_points; i++) {
         Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dStd();
         auto vgrad_i = vector<Vec3dStd>{
                 Vec3dStd(), Vec3dStd(), Vec3dStd()
             };
 #pragma unroll
-        for(int k=0; k<simd_size; k++){
             for (int d = 0; d < 3; ++d) {
-                v_i[d+k] = v(i+k, d);
+                v_i[d] = v(i, d);
                 MYIF(derivs>0) {
 #pragma unroll
                     for (int dd = 0; dd < 3; ++dd) {
-                        vgrad_i[dd][d+k] = vgrad(i+k, dd, d);
+                        vgrad_i[dd][d] = vgrad(i, dd, d);
                     }
                 }
             }
-        }
 
 
         for (int j = 0; j < num_quad_points; ++j) {
