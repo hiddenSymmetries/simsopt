@@ -152,23 +152,41 @@ class CoilFormatConvertTesting(unittest.TestCase):
         coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
     
         
-    def test_coils_via_file(self):
-        # Load already optimized coils:
-        curves, currents, ma = get_ncsx_data()  
-        
+    def test_coils_via_file(self):     
         order = 25
-        # write coils to MAKEGRID file
-        coils_to_makegrid("coils.file_to_load", curves, currents,nfp=1)
-        loaded_coils = coils_via_file("coils.file_to_load", order, 10,maxiter=5000,tol=1e-8)
+        ppp = 10
         
-        currents = [current.get_value() for current in currents]
+        curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)  
+        coils_to_makegrid("coils.file_to_load", curves, currents,nfp=1)
+        
+        loaded_coils = coils_via_file("coils.file_to_load", order, ppp, maxiter=5000, tol=1e-8)
+        
+        currents = [current for current in currents]
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [coil.curve.gamma() for coil in loaded_coils]
-        loaded_currents = [coil._current.get_value() for coil in loaded_coils]
+        loaded_currents = [coil._current for coil in loaded_coils]
+        coils = [Coil(curve, current) for curve,current in zip(curves,currents)]
         
-        os.remove("coils.file_to_load")
-        assert_allclose(gamma, loaded_gamma,atol=0.0017, rtol=0.91)
+        np.random.seed(1)
+        
+        bs = BiotSavart(coils)
+        loaded_bs = BiotSavart(loaded_coils)
+        
+        points = np.asarray(17 * [[0.9, 0.4, -0.85]])
+        points += 0.01 * (np.random.rand(*points.shape)-0.5)
+        bs.set_points(points)
+        loaded_bs.set_points(points)
+        
+        B = bs.B()
+        loaded_B = loaded_bs.B()
+
+        assert_allclose(B,loaded_B)
+        assert_allclose(gamma, loaded_gamma,atol=0.002)
+        
+        currents = [current.get_value() for current in currents]
+        loaded_currents = [coil._current.get_value() for coil in loaded_coils]
         assert_equal(currents, loaded_currents)
+        os.remove("coils.file_to_load")
 
 if __name__ == "__main__":
     unittest.main()
