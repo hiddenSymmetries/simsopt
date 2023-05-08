@@ -29,7 +29,7 @@ IN_DIR = "./inputs/input_ncsx/"
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-pprint("Running 2_Intermediate/boozerQA_ls.py")
+pprint("Running 2_Intermediate/boozerQA.py")
 pprint("================================")
 
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress= load(IN_DIR + f"ncsx_init.json")
@@ -133,22 +133,22 @@ def callback(x):
     
     width = 35
     outstr = f"\nIteration {prevs['it']}\n"
-    s = "J"; outstr += f"{s:{width}} {JF.J():.6e} \n"
-    s = "║∇J║"; outstr += f"{s:{width}} {np.linalg.norm(JF.dJ()):.6e} \n\n"
-    s = "nonQS ratio";     outstr += f"{s:{width}}" + ", ".join([f'{np.sqrt(nonqs.J()):.6e}' for nonqs in nonQSs]) +"\n"
-    s = "Boozer Residual"; outstr += f"{s:{width}}" + ", ".join([f'{br.J():.6e}' for br in brs]) + "\n"
-    s = "<ι>"; outstr += f"{s:{width}} {mean_iota.J():.6f} \n"
-    s = "ι on surfaces"; outstr += f"{s:{width}}" + ", ".join([f"{boozer_surface.res['iota']:.6f}" for boozer_surface in boozer_surfaces]) + "\n"
-    s = "major radius on surfaces"; outstr += f"{s:{width}}" + ', '.join([f'{surface.major_radius():.6f}' for surface in surfaces]) + "\n"
-    s = "minor radius on surfaces"; outstr += f"{s:{width}}" + ', '.join([f'{surface.minor_radius():.6f}' for surface in surfaces]) + "\n"
-    s = "aspect ratio on surfaces"; outstr += f"{s:{width}}" + ', '.join([f'{surface.aspect_ratio():.6f}' for surface in surfaces]) + "\n"
-    s = "volume"; outstr += f"{s:{width}}" + ', '.join([f'{surface.volume():.6f}' for surface in surfaces]) + "\n"
-    s = "surfaces are self-intersecting"; outstr += f"{s:{width}}" + ', '.join([f'{surface.is_self_intersecting()}' for surface in surfaces]) + "\n"
-    s = "shortest coil to coil distance"; outstr += f"{s:{width}} {Jccdist.shortest_distance():.3f} \n"
-    s = "coil lengths"; outstr += f"{s:{width}}" + ', '.join([f'{J.J():5.6f}' for J in ls]) + "\n"
-    s = "coil length sum"; outstr += f"{s:{width}} {sum(J.J() for J in ls):.3f} \n"
-    s = "max κ"; outstr += f"{s:{width}}" + ', '.join([f'{np.max(c.kappa()):.6f}' for c in base_curves]) + "\n"
-    s = "∫ κ^2 dl / ∫ dl"; outstr += f"{s:{width}}"  + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
+    outstr += f"{'J':{width}} {JF.J():.6e} \n"
+    outstr += f"{'║∇J║':{width}} {np.linalg.norm(JF.dJ()):.6e} \n\n"
+    outstr += f"{'nonQS ratio':{width}}" + ", ".join([f'{np.sqrt(nonqs.J()):.6e}' for nonqs in nonQSs]) +"\n"
+    outstr += f"{'Boozer Residual':{width}}" + ", ".join([f'{br.J():.6e}' for br in brs]) + "\n"
+    outstr += f"{'<ι>':{width}} {mean_iota.J():.6f} \n"
+    outstr += f"{'ι on surfaces':{width}}" + ", ".join([f"{boozer_surface.res['iota']:.6f}" for boozer_surface in boozer_surfaces]) + "\n"
+    outstr += f"{'major radius on surfaces':{width}}" + ', '.join([f'{surface.major_radius():.6f}' for surface in surfaces]) + "\n"
+    outstr += f"{'minor radius on surfaces':{width}}" + ', '.join([f'{surface.minor_radius():.6f}' for surface in surfaces]) + "\n"
+    outstr += f"{'aspect ratio radius on surfaces':{width}}" + ', '.join([f'{surface.aspect_ratio():.6f}' for surface in surfaces]) + "\n"
+    outstr += f"{'volume':{width}}" + ', '.join([f'{surface.volume():.6f}' for surface in surfaces]) + "\n"
+    outstr += f"{'surfaces are self-intersecting':{width}}" + ', '.join([f'{surface.is_self_intersecting()}' for surface in surfaces]) + "\n"
+    outstr += f"{'shortest coil to coil distance':{width}} {Jccdist.shortest_distance():.3f} \n"
+    outstr += f"{'coil lengths':{width}}" + ', '.join([f'{J.J():5.6f}' for J in ls]) + "\n"
+    outstr += f"{'coil length sum':{width}} {sum(J.J() for J in ls):.3f} \n"
+    outstr += f"{'max κ':{width}}" + ', '.join([f'{np.max(c.kappa()):.6f}' for c in base_curves]) + "\n"
+    outstr += f"{'∫ κ^2 dl / ∫ dl':{width}}"  + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
     outstr+="\n\n"
 
     pprint(outstr)
