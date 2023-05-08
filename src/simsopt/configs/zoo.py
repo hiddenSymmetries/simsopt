@@ -20,7 +20,7 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
-    filename = str(THIS_DIR / './NCSX.dat')
+    filename = THIS_DIR / 'NCSX.dat'
     curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 3
     currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
@@ -60,7 +60,7 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
-    filename = str(THIS_DIR / './HSX.dat')
+    filename = THIS_DIR / 'HSX.dat'
     curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 4
     currents = [Current(c) for c in [-1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05]]
@@ -157,7 +157,7 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
 
     Returns: 3 element tuple containing the coils, currents, and the magnetic axis.
     """
-    filename = str(THIS_DIR / "./W7-X.dat")
+    filename = THIS_DIR / "W7-X.dat"
     curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 5
     amperes = 15000.0
