@@ -12,6 +12,7 @@ import logging
 import numpy as np
 import numpy.polynomial.polynomial as poly
 from scipy.interpolate import InterpolatedUnivariateSpline
+import numbers
 
 from .._core.optimizable import Optimizable
 from .._core.types import RealArray
@@ -83,7 +84,7 @@ class ProfileSpec(Profile):
         """
 
         # If input is a integer, make an np.array
-        if isinstance(lvol, int) or isinstance(lvol, float):
+        if isinstance(lvol, numbers.Number):
             lvol = np.array([lvol])
 
         # If input are floats, make integer out of them
@@ -117,7 +118,7 @@ class ProfileSpec(Profile):
             lvol: int, list or np.array of int, between 1 and Mvol-1. 
         """
         # If input is a integer, make an np.array
-        if isinstance(lvol, int) or isinstance(lvol, float):
+        if isinstance(lvol, numbers.Number):
             lvol = np.array([lvol])
 
         # If input are floats, make integer out of them
