@@ -422,7 +422,6 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
           throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = 1;
     auto dA_dX_i = vector<Vec3dStd>();
     if constexpr(derivs > 0) {
         dA_dX_i = vector<Vec3dStd>{
@@ -442,7 +441,7 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
-    for(int i = 0; i < num_points; i += simd_size) {
+    for(int i = 0; i < num_points; i++) {
         auto point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto A_i   = Vec3dStd();
         if constexpr(derivs > 0) {
