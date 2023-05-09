@@ -62,7 +62,7 @@ class BoozerSurface(Optimizable):
             return
 
         if boozer_type == 'exact':
-            res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G, verbose=verbose)
+            res = self.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G, verbose=verbose)
             return res
 
         elif boozer_type == 'ls':
@@ -160,7 +160,7 @@ class BoozerSurface(Optimizable):
 
         d2l = np.zeros((x.shape[0], x.shape[0]))
         d2l[:nsurfdofs, :nsurfdofs] = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-
+        
         H = np.concatenate((
             H,
             np.sqrt(constraint_weight) * d2l[None, :, :],
