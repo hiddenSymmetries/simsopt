@@ -78,7 +78,7 @@ class BoozerSurface(Optimizable):
         else:
             raise Exception(f"boozer_type not supported: {boozer_type}")
 
-    def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
+    def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, weight_inv_modB=False):
         r"""
         Define the residual
 
@@ -116,7 +116,7 @@ class BoozerSurface(Optimizable):
 
         s.set_dofs(sdofs)
 
-        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives, weight_inv_modB=weight_inv_modB)
 
         r = boozer[0]
 
@@ -621,6 +621,11 @@ class BoozerSurface(Optimizable):
         return res
 
     def boozerls_penalty(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False):
+        """
+        This function returns the same thing as `boozer_penalty_constraints` when `scalarized=True` and `weight_inv_modB=True`.  It
+        is much faster since it calls a vectorized implementation in cpp.
+        """
+
         # this is essentially the scalarize option in previous implementation. This should be merged in that case...
         assert derivatives in [0, 1, 2]
         if optimize_G:
@@ -630,7 +635,7 @@ class BoozerSurface(Optimizable):
         else:
             sdofs = dofs[:-1]
             iota = dofs[-1]
-            G = None
+            G = 2. * np.pi * np.sum(np.abs([coil.current.get_value() for coil in self.biotsavart._coils])) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         
         s = self.surface
         nphi = s.quadpoints_phi.size
@@ -639,8 +644,6 @@ class BoozerSurface(Optimizable):
         
         s.set_dofs(sdofs)
         
-        #boozer = residual(s, iota, G, self.bs, derivatives=derivatives)
-        # initialize
         surface = self.surface
         biotsavart = self.biotsavart
         x = surface.gamma()
@@ -659,6 +662,7 @@ class BoozerSurface(Optimizable):
             dxphi_dc = surface.dgammadash1_by_dcoeff()
             dxtheta_dc = surface.dgammadash2_by_dcoeff()
             dB_dx = biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+
         if derivatives == 2:
             d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
             
@@ -687,25 +691,32 @@ class BoozerSurface(Optimizable):
         
         dl = np.zeros(dofs.shape)
         drz = np.zeros(dofs.shape)
-        dl[:nsurfdofs] = self.label.dJ()
+        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
         
         Jnl = boozer[1]
+        if not optimize_G:
+            Jnl = Jnl[:-1]
+
         drl = np.sqrt(constraint_weight) * dl
         drz = np.sqrt(constraint_weight) * drz
         J = Jnl + rl * drl + rz * drz
         if self.reg is not None:
             J[:nsurfdofs] += self.reg.dJ()
-        
+
         if derivatives == 1:
             return r, J
         
         Hnl = boozer[2]
+        if not optimize_G:
+            Hnl = Hnl[:-1, :-1]
+
         d2rl = np.zeros((dofs.shape[0], dofs.shape[0]))
         d2rl[:nsurfdofs, :nsurfdofs] = np.sqrt(constraint_weight)*self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
         H = Hnl + drl[:, None] @ drl[None, :] + drz[:, None] @ drz[None, :] + rl * d2rl
         if self.reg is not None:
             H[:nsurfdofs, :nsurfdofs] += self.reg.d2J()
+
         return r, J, H
 
     def compute_boozerls_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, hessian=False, verbose=False):
