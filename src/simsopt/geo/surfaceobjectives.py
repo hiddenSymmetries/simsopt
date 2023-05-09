@@ -411,16 +411,15 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
     d2residual_by_dcdiota = -(dB2_dc[..., None, :] * xtheta[..., :, None] + B2[..., None, None] * dxtheta_dc)
     d2residual_by_diotadiota = np.zeros(dresidual_diota.shape)
 
-
     if weight_inv_modB:
         d2B2_dcdc = 2*(np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc, optimize=True)+np.einsum('ijkpl,ijpn,ijkm,ijl->ijmn', d2B_by_dXdX, dx_dc, dx_dc, B, optimize=True))
-        d2modB_dc2 = (2*B2[:, :, None, None] * d2B2_dcdc -dB2_dc[:, :, :, None]*dB2_dc[:, :, None, :])*(1/(4*B2[:, :, None, None]**1.5))
+        d2modB_dc2 = (2*B2[:, :, None, None] * d2B2_dcdc - dB2_dc[:, :, :, None]*dB2_dc[:, :, None, :])*(1/(4*B2[:, :, None, None]**1.5))
         d2w_dc2 = (2*dmodB_dc[:, :, :, None] * dmodB_dc[:, :, None, :] - modB[:, :, None, None] * d2modB_dc2)/modB[:, :, None, None]**3.
 
         d2rtil_dcdc = residual[..., None, None] * d2w_dc2[:, :, None, ...] \
-                + dw_dc[:, :, None, :, None] * dresidual_dc[:, :, :, None, :] \
-                + dw_dc[:, :, None, None, :] * dresidual_dc[:, :, :, :, None] \
-                + w[:, :, None, None, None] * d2residual_by_dcdc
+            + dw_dc[:, :, None, :, None] * dresidual_dc[:, :, :, None, :] \
+            + dw_dc[:, :, None, None, :] * dresidual_dc[:, :, :, :, None] \
+            + w[:, :, None, None, None] * d2residual_by_dcdc
         d2rtil_dcdiota = w[:, :, None, None] * d2residual_by_dcdiota + dw_dc[:, :, None, :] * dresidual_diota[..., None] 
         d2rtil_diotadiota = np.zeros(dresidual_diota.shape)
     else:
