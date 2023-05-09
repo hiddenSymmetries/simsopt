@@ -6,7 +6,7 @@ from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
-from simsopt.util.coil_util import * 
+
 
 __all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
