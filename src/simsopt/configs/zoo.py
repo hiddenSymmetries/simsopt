@@ -104,7 +104,7 @@ def get_giuliani_data(Nt_coils=16, Nt_ma=10, ppp=10, length=18, nsurfaces=5):
     assert length in [18, 20, 22, 24]
     assert nsurfaces in [5, 9]
 
-    filename = str(THIS_DIR / f'./GIULIANI_length{length}_nsurfaces{nsurfaces}')
+    filename = THIS_DIR / f'./GIULIANI_length{length}_nsurfaces{nsurfaces}'
     curves = CurveXYZFourier.load_curves_from_file(filename.with_suffix('.curves'), order=Nt_coils, ppp=ppp)
     currents = [Current(c) for c in np.loadtxt(filename.with_suffix('.currents'))]
     ma_dofs = np.loadtxt(filename.with_suffix('.ma'))
