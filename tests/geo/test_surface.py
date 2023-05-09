@@ -377,14 +377,17 @@ class isSelfIntersecting(unittest.TestCase):
     def test_is_self_intersecting(self):
         # dofs1 results in a surface that is self-intersecting
         # dofs2 results in a surface that is not self-intersecting
-        dofs1 = np.array([1. , 0. , 0. , 0. , 0. , 0.1, 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0.1, 0. , 0. , 0. , 0. , 0. , 0. , 0.1])
+        dofs1 = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,\
+                          0., 0., 0., 0., 0., 0., 0.1])
         s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
         s.x = dofs1 
         assert s.is_self_intersecting()
         
-        dofs2 = np.array([1. , 0. , 0. , 0. , 0. , 0.1, 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0. , 0.1, 0. , 0. , 0. , 0. , 0. , 0. , 0. ])
+        dofs2 = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
+                          0., 0., 0., 0., 0., 0., 0.1])
         s.x = dofs2 
         assert not s.is_self_intersecting()
+
 
 if __name__ == "__main__":
     unittest.main()
