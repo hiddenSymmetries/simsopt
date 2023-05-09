@@ -422,6 +422,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         np.testing.assert_allclose(J0, J1)
         norm = np.max(np.abs(H0))
         assert np.all(np.abs((H0-H1)/norm) < 1e-13)
-        
+       
+
 if __name__ == "__main__":
     unittest.main()

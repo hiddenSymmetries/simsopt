@@ -94,6 +94,7 @@ if comm is None or comm.rank == 0:
 prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
          'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces], 'J': JF.J(), 'dJ': JF.dJ().copy(), 'it': 0}
 
+
 def fun(dofs):
     # initialize to last accepted surface values
     for idx, surface in enumerate(mpi_surfaces):
