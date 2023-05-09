@@ -94,7 +94,7 @@ else()
             libs/lexical_cast libs/container libs/move libs/smart_ptr libs/multi_array
             libs/functional libs/function libs/type_index libs/container_hash libs/bind
         CONFIGURE_COMMAND ./bootstrap.sh --prefix=<PREFIX>
-        BUILD_COMMAND ./b2 headers --prefix=${boost_DIR}
+        BUILD_COMMAND ./b2 headers define=_HAS_AUTO_PTR_ETC --prefix=${boost_DIR}
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND ""
     )
