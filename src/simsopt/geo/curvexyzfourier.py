@@ -1,6 +1,6 @@
 from math import pi
 from itertools import chain
-import time
+
 import numpy as np
 import jax.numpy as jnp
 from scipy import interpolate
@@ -150,7 +150,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         assert order <= coil_data.shape[0]-1
 
         num_coils = coil_data.shape[1]//6
-        coils = [CurveXYZFourier(ppp*order, order) for i in range(num_coils)]
+        coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
         for ic in range(num_coils):
             dofs = coils[ic].dofs_matrix
             dofs[0][0] = coil_data[0, 6*ic + 1]
