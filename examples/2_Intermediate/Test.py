@@ -31,7 +31,7 @@ from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves, plot
-from simsopt.field import BiotSavart
+from simsopt.field import BiotSavart, Coil
 from simsopt.field import Current, coils_via_symmetries
 from simsopt.geo import CurveLength, CurveCurveDistance, \
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
@@ -169,11 +169,53 @@ frenet = curves[1].frenet_frame()
 print("Unit tangent to 1st coil")
 print(frenet[0][:,:])
 print("Unit tangent evaluated at those points")
-print(curves[1].gammadash())
+print(0.1*curves[1].gammadash())
 
 print("Normal displacement of first coil curve")
 epsilon = 1e-2 # normal displacement of coil curve to remove singularities
 print((1+epsilon)*frenet[1][:,:]-frenet[1][:,:])
+
+current_density_vec = current_density[1]*frenet[0][:,:]
+print("Current density vector along curve 2")
+print(current_density_vec)
+
+
+
+inward_shifted = curves[1].gamma() + epsilon*frenet[1][:,:]
+bst = BiotSavart(coils)
+bst.set_points(inward_shifted.reshape(-1,3))
+B = bst.B()
+print("Magnetic field along shifted curve 2")
+print(B)
+
+shape_gradient = np.cross(current_density_vec,B)
+print("JxB")
+print(shape_gradient)
+
+
+print("dx/dOmega_i")
+print( curves[1].dgamma_by_dcoeff())
+
+dgamma_dcoeff = curves[1].dgamma_by_dcoeff()
+dgamma_dcoeff_1 = [dgamma_dcoeff[:][0,0], dgamma_dcoeff[:][0,1], dgamma_dcoeff[:][0,2]]
+
+firstmat = np.transpose(dgamma_dcoeff[:,:])
+print(firstmat)
+print(firstmat[0,0])
+print(firstmat[1,0])
+print(firstmat[2,0])
+
+
+print("Tailles")
+print(np.size(dgamma_dcoeff))
+print(np.size(dgamma_dcoeff_1))
+print(np.size(shape_gradient))
+
+
+#integrand = np.dot(shape_gradient, np.transpose(dgamma_dcoeff_1))
+#print("integrand")
+#print(integrand)
+
 
 # points where to evaluate the magnetic field 
 # bs.set_points(curves[ii].gammadash())
