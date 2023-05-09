@@ -189,7 +189,15 @@ def coils_via_file(filename,order,ppp=20,maxiter=1000,tol=1e-8):
     This function loads a file in MAKEGRID input format containing the cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
     The format is introduced at https://princetonuniversity.github.io/STELLOPT/MAKEGRID
-    
+    Args:
+        filename: file to load.
+        order: maximum order in the fourier expansion.
+        ppp: point-per-period: number of quadrature points per period.
+        delimiter: in the case of a file containing Fourier coefficients the delimiter between coefficients.
+        maxiter: maximum number of iterations for the integration method.
+        tol: minimum tolerance for the convergence of the integration method.
+    Returns:
+        A list of objects Coil with the fourier coefficients and currents given by the file.
     """
     with open(filename, 'r') as f:
         allCoilsValues = f.read().splitlines()[3:] 

@@ -62,6 +62,11 @@ def sin_coeff(f, n, L=pi, maxiter=2000, tol = 1.48e-8):
     Args:
         f: function to fourier expand
         n: order of the coefficient
+        L: half of the function period
+        maxiter: maximum number of interations per integration
+        tol: integration tolerance     
+    Returns:
+        The sine coefficient of order n for function f with period 2L 
     ''' 
     
     a, b = 0, 2 * L
@@ -83,6 +88,11 @@ def cos_coeff(f, n, L=pi, maxiter=2000, tol = 1.48e-8):
     Args:
         f: function to Fourier expand
         n: order of the coefficient
+        L: half of the function period
+        maxiter: maximum number of interations per integration
+        tol: integration tolerance
+    Returns:
+        The cosine coefficient of order n for function f with period 2L 
     ''' 
     a, b = 0, 2 * L
     

@@ -85,13 +85,17 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
         For the cartesian case, The format is introduced at
         https://princetonuniversity.github.io/STELLOPT/MAKEGRID
-        args:
+        
+        Args:
             filename: file to load.
             order: maximum order in the fourier expansion.
             ppp: point-per-period: number of quadrature points per period.
             delimiter: in the case of a file containing Fourier coefficients the delimiter between coefficients.
             maxiter: maximum number of iterations for the integration method.
-            tol: minimum tolerance for the convergence of the integration method.
+            tol: minimum tolerance for the convergence of the integration method. 
+        Returns:
+            A list of objects CurveXYZFourier with the coefficients given by the file.
+             
         """
         if "coils." in str(filename):
             with open(filename, 'r') as f:
