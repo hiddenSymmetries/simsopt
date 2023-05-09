@@ -320,7 +320,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
 
     """
     
-    assert derivatives in [0, 1]
+    assert derivatives in [0, 1, 2]
 
     user_provided_G = G is not None
     if not user_provided_G:
@@ -371,7 +371,6 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
         dB2_dc = 2*np.einsum('ijk,ijkl->ijl', B, dB_dc, optimize=True)
         dmodB_dc = 0.5*dB2_dc/np.sqrt(B2[:, :, None])
         dw_dc = -dmodB_dc/modB[:, :, None]**2
-        # d/dc(r*dS) = dr/dc * dS + dS_dc * r
         drtil_dc = residual[..., None] * dw_dc[:, :, None, :] + w[:, :, None, None] * dresidual_dc
         drtil_diota = w[:, :, None] * dresidual_diota
     else:
@@ -394,54 +393,55 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
     else:
         J = np.concatenate((drtil_dc_flattened, drtil_diota_flattened), axis=1)
     
-    return r, J
+    if derivatives == 1:
+        return r, J
 
-#    d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
-#    d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc)
-#    dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc)
-#
-#    term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc)
-#    term2 = np.einsum('ijlmn,ijl->ijmn', d2B_dcdc, B)
-#    d2B2_dcdc = 2*(term1 + term2)
-#
-#    term1 = -(dxphi_dc[..., None, :] + iota * dxtheta_dc[..., None, :]) * dB2_dc[..., None, :, None]
-#    term2 = -(dxphi_dc[..., :, None] + iota * dxtheta_dc[..., :, None]) * dB2_dc[..., None, None, :]
-#    term3 = -(xphi[..., None, None] + iota * xtheta[..., None, None]) * d2B2_dcdc[..., None, :, :]
-#    d2residual_by_dcdc = G * d2B_dcdc + term1 + term2 + term3
-#    d2residual_by_dcdiota = -(dB2_dc[..., None, :] * xtheta[..., :, None] + B2[..., None, None] * dxtheta_dc)
-#    d2residual_by_diotadiota = np.zeros(dresidual_diota.shape)
-#
-#    d2residual_by_dcdc_flattened = d2residual_by_dcdc.reshape((nphi*ntheta*3, nsurfdofs, nsurfdofs))
-#    d2residual_by_dcdiota_flattened = d2residual_by_dcdiota.reshape((nphi*ntheta*3, nsurfdofs))
-#    d2residual_by_diotadiota_flattened = d2residual_by_diotadiota.reshape((nphi*ntheta*3,))
-#
-#    if user_provided_G:
-#        d2residual_by_dcdG = dB_dc
-#        d2residual_by_diotadG = np.zeros(dresidual_diota.shape)
-#        d2residual_by_dGdG = np.zeros(dresidual_dG.shape)
-#        d2residual_by_dcdG_flattened = d2residual_by_dcdG.reshape((nphi*ntheta*3, nsurfdofs))
-#        d2residual_by_diotadG_flattened = d2residual_by_diotadG.reshape((nphi*ntheta*3,))
-#        d2residual_by_dGdG_flattened = d2residual_by_dGdG.reshape((nphi*ntheta*3,))
-#        H = np.zeros((nphi*ntheta*3, nsurfdofs + 2, nsurfdofs + 2))
-#        # noqa turns out linting so that we can align everything neatly
-#        H[:, :nsurfdofs, :nsurfdofs] = d2residual_by_dcdc_flattened        # noqa (0, 0) dcdc
-#        H[:, :nsurfdofs, nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (0, 1) dcdiota
-#        H[:, :nsurfdofs, nsurfdofs+1] = d2residual_by_dcdG_flattened        # noqa (0, 2) dcdG
-#        H[:, nsurfdofs, :nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (1, 0) diotadc
-#        H[:, nsurfdofs, nsurfdofs] = d2residual_by_diotadiota_flattened  # noqa (1, 1) diotadiota
-#        H[:, nsurfdofs, nsurfdofs+1] = d2residual_by_diotadiota_flattened  # noqa (1, 2) diotadG
-#        H[:, nsurfdofs+1, :nsurfdofs] = d2residual_by_dcdG_flattened        # noqa (2, 0) dGdc
-#        H[:, nsurfdofs+1, nsurfdofs] = d2residual_by_diotadG_flattened     # noqa (2, 1) dGdiota
-#        H[:, nsurfdofs+1, nsurfdofs+1] = d2residual_by_dGdG_flattened        # noqa (2, 2) dGdG
-#    else:
-#        H = np.zeros((nphi*ntheta*3, nsurfdofs + 1, nsurfdofs + 1))
-#
-#        H[:, :nsurfdofs, :nsurfdofs] = d2residual_by_dcdc_flattened        # noqa (0, 0) dcdc
-#        H[:, :nsurfdofs, nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (0, 1) dcdiota
-#        H[:, nsurfdofs, :nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (1, 0) diotadc
-#        H[:, nsurfdofs, nsurfdofs] = d2residual_by_diotadiota_flattened  # noqa (1, 1) diotadiota
-#
-#    return r, J, H
+    d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
+    d2B_dcdc = np.einsum('ijkpl,ijpn,ijkm->ijlmn', d2B_by_dXdX, dx_dc, dx_dc)
+    dB2_dc = 2. * np.einsum('ijl,ijlm->ijm', B, dB_dc)
+
+    term1 = np.einsum('ijlm,ijln->ijmn', dB_dc, dB_dc)
+    term2 = np.einsum('ijlmn,ijl->ijmn', d2B_dcdc, B)
+    d2B2_dcdc = 2*(term1 + term2)
+
+    term1 = -(dxphi_dc[..., None, :] + iota * dxtheta_dc[..., None, :]) * dB2_dc[..., None, :, None]
+    term2 = -(dxphi_dc[..., :, None] + iota * dxtheta_dc[..., :, None]) * dB2_dc[..., None, None, :]
+    term3 = -(xphi[..., None, None] + iota * xtheta[..., None, None]) * d2B2_dcdc[..., None, :, :]
+    d2residual_by_dcdc = G * d2B_dcdc + term1 + term2 + term3
+    d2residual_by_dcdiota = -(dB2_dc[..., None, :] * xtheta[..., :, None] + B2[..., None, None] * dxtheta_dc)
+    d2residual_by_diotadiota = np.zeros(dresidual_diota.shape)
+
+    d2residual_by_dcdc_flattened = d2residual_by_dcdc.reshape((nphi*ntheta*3, nsurfdofs, nsurfdofs))
+    d2residual_by_dcdiota_flattened = d2residual_by_dcdiota.reshape((nphi*ntheta*3, nsurfdofs))
+    d2residual_by_diotadiota_flattened = d2residual_by_diotadiota.reshape((nphi*ntheta*3,))
+
+    if user_provided_G:
+        d2residual_by_dcdG = dB_dc
+        d2residual_by_diotadG = np.zeros(dresidual_diota.shape)
+        d2residual_by_dGdG = np.zeros(dresidual_dG.shape)
+        d2residual_by_dcdG_flattened = d2residual_by_dcdG.reshape((nphi*ntheta*3, nsurfdofs))
+        d2residual_by_diotadG_flattened = d2residual_by_diotadG.reshape((nphi*ntheta*3,))
+        d2residual_by_dGdG_flattened = d2residual_by_dGdG.reshape((nphi*ntheta*3,))
+        H = np.zeros((nphi*ntheta*3, nsurfdofs + 2, nsurfdofs + 2))
+        # noqa turns out linting so that we can align everything neatly
+        H[:, :nsurfdofs, :nsurfdofs] = d2residual_by_dcdc_flattened        # noqa (0, 0) dcdc
+        H[:, :nsurfdofs, nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (0, 1) dcdiota
+        H[:, :nsurfdofs, nsurfdofs+1] = d2residual_by_dcdG_flattened        # noqa (0, 2) dcdG
+        H[:, nsurfdofs, :nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (1, 0) diotadc
+        H[:, nsurfdofs, nsurfdofs] = d2residual_by_diotadiota_flattened  # noqa (1, 1) diotadiota
+        H[:, nsurfdofs, nsurfdofs+1] = d2residual_by_diotadiota_flattened  # noqa (1, 2) diotadG
+        H[:, nsurfdofs+1, :nsurfdofs] = d2residual_by_dcdG_flattened        # noqa (2, 0) dGdc
+        H[:, nsurfdofs+1, nsurfdofs] = d2residual_by_diotadG_flattened     # noqa (2, 1) dGdiota
+        H[:, nsurfdofs+1, nsurfdofs+1] = d2residual_by_dGdG_flattened        # noqa (2, 2) dGdG
+    else:
+        H = np.zeros((nphi*ntheta*3, nsurfdofs + 1, nsurfdofs + 1))
+
+        H[:, :nsurfdofs, :nsurfdofs] = d2residual_by_dcdc_flattened        # noqa (0, 0) dcdc
+        H[:, :nsurfdofs, nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (0, 1) dcdiota
+        H[:, nsurfdofs, :nsurfdofs] = d2residual_by_dcdiota_flattened     # noqa (1, 0) diotadc
+        H[:, nsurfdofs, nsurfdofs] = d2residual_by_diotadiota_flattened  # noqa (1, 1) diotadiota
+
+    return r, J, H
 
 
 def parameter_derivatives(surface: Surface,

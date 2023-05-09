@@ -90,9 +90,9 @@ boozer_surface.surface.to_vtk(OUT_DIR + f"surf_init_{rank}")
 if comm is None or comm.rank == 0:
     curves_to_vtk(curves, OUT_DIR + f"curves_init")
 
+# dictionary used to save the last accepted surface dofs in the line search, in case Newton's method fails
 prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
          'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces], 'J': JF.J(), 'dJ': JF.dJ().copy(), 'it': 0}
-
 
 def fun(dofs):
     # initialize to last accepted surface values
@@ -102,7 +102,6 @@ def fun(dofs):
         boozer_surface.res['iota'] = prevs['iota'][idx]
         boozer_surface.res['G'] = prevs['G'][idx]
     
-    # save these as a backup in case the boozer surface Newton solve fails
     alldofs = MPI.COMM_WORLD.allgather(dofs)
     assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
  
@@ -122,6 +121,8 @@ def fun(dofs):
 
 
 def callback(x):
+    # since this set of coil dofs was accepted, set the backup surface dofs
+    # to accepted ones in case future Newton solves fail.
     for idx, surface in enumerate(mpi_surfaces):
         prevs['sdofs'][idx] = surface.x.copy()
     for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
