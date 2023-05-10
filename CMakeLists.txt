@@ -94,7 +94,7 @@ else()
             libs/lexical_cast libs/container libs/move libs/smart_ptr libs/multi_array
             libs/functional libs/function libs/type_index libs/container_hash libs/bind
         CONFIGURE_COMMAND ./bootstrap.sh --prefix=<PREFIX>
-        BUILD_COMMAND ./b2 headers define=_HAS_AUTO_PTR_ETC --prefix=${boost_DIR}
+        BUILD_COMMAND ./b2 headers define=_HAS_AUTO_PTR_ETC=1 --prefix=${boost_DIR}
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND ""
     )
@@ -124,7 +124,7 @@ pybind11_add_module(${PROJECT_NAME}
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
@@ -143,7 +143,7 @@ endif()
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
     PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
 target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
