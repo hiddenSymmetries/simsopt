@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries','coils_via_file',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'coils_via_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -39,7 +39,8 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
-    
+
+
 class CurrentBase(Optimizable):
 
     def __init__(self, **kwargs):
@@ -184,7 +185,8 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
-def coils_via_file(filename,order,ppp=20,maxiter=1000,tol=1e-8):
+
+def coils_via_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
     """
     This function loads a file in MAKEGRID input format containing the cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
@@ -201,20 +203,21 @@ def coils_via_file(filename,order,ppp=20,maxiter=1000,tol=1e-8):
     """
     with open(filename, 'r') as f:
         allCoilsValues = f.read().splitlines()[3:] 
-        
-    currents=[]
-    flag=True
+
+    currents = []
+    flag = True
     for nVals in range(len(allCoilsValues)-1):
-        vals=allCoilsValues[nVals].split()
+        vals = allCoilsValues[nVals].split()
         if flag:
             currents.append(float(vals[3]))
-            flag=False
-        if len(vals)>4:
-            flag=True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp,maxiter=maxiter,tol=tol)
+            flag = False
+        if len(vals) > 4:
+            flag = True
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp, maxiter=maxiter, tol=tol)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
-    
+
     return coils
+
 
 def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=False):
     """

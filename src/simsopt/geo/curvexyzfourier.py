@@ -72,9 +72,9 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
-    
+
     @staticmethod
-    def load_curves_from_file(filename:str, order:int, ppp=20, delimiter=',',maxiter=2000 , tol = 1.48e-8):
+    def load_curves_from_file(filename: str, order: int, ppp=20, delimiter=',', maxiter=2000, tol=1.48e-8):
         """
         This function loads a file containing Fourier coefficients
         or the cartesian coordinates for several coils.
@@ -85,7 +85,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
         For the cartesian case, The format is introduced at
         https://princetonuniversity.github.io/STELLOPT/MAKEGRID
-        
+
         Args:
             filename: file to load.
             order: maximum order in the fourier expansion.
@@ -95,16 +95,16 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             tol: minimum tolerance for the convergence of the integration method. 
         Returns:
             A list of objects CurveXYZFourier with the coefficients given by the file.
-             
+
         """
         if "coils." in str(filename):
             with open(filename, 'r') as f:
                 allCoilsValues = f.read().splitlines()[3:] 
-        
-            coilN=0
-            coilPos=[[]]
+
+            coilN = 0
+            coilPos = [[]]
             for nVals in range(len(allCoilsValues)):
-                vals=allCoilsValues[nVals].split()
+                vals = allCoilsValues[nVals].split()
                 try:
                     floatVals = [float(nVals) for nVals in vals][0:3]
                     coilPos[coilN].append(floatVals)
@@ -112,15 +112,15 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                     try:
                         floatVals = [float(nVals) for nVals in vals[0:3]][0:3]
                         coilPos[coilN].append(floatVals)
-                        coilN=coilN+1
+                        coilN = coilN+1
                         coilPos.append([])
                     except:
                         break
-        
+
             coilPos = coilPos[:-1]
-            
+
             coil_data = []
-            
+
             # Compute the Fourier coefficients for each coil
             for curve in coilPos:
                 xArr, yArr, zArr = np.transpose(curve)
@@ -131,17 +131,17 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 L = L*2*pi/L[-1]
 
                 # Interpolate the curve with a cubic spline
-                xf  = interpolate.CubicSpline(L,xArr) 
-                yf  = interpolate.CubicSpline(L,yArr)
-                zf  = interpolate.CubicSpline(L,zArr)
-                
+                xf = interpolate.CubicSpline(L, xArr) 
+                yf = interpolate.CubicSpline(L, yArr)
+                zf = interpolate.CubicSpline(L, zArr)
+
                 # Compute the Fourier coefficients
                 order_interval = range(order+1)
-                curvesFourier = [[sin_coeff(f, j,maxiter=maxiter, tol=tol) for j in order_interval] + [cos_coeff(f, j,maxiter=maxiter, tol=tol) for j in order_interval] for f in [xf, yf, zf]]
+                curvesFourier = [[sin_coeff(f, j, maxiter=maxiter, tol=tol) for j in order_interval] + [cos_coeff(f, j, maxiter=maxiter, tol=tol) for j in order_interval] for f in [xf, yf, zf]]
                 coil_data.append(np.concatenate(curvesFourier))
 
             coil_data = np.asarray(coil_data)
-            coil_data = coil_data.reshape(6*len(coilPos),order+1) #There are 6*order coefficients per coil
+            coil_data = coil_data.reshape(6*len(coilPos), order+1)  # There are 6*order coefficients per coil
             coil_data = np.transpose(coil_data)
         else:  
             coil_data = np.loadtxt(filename, delimiter=delimiter)
@@ -165,7 +165,8 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 dofs[2][2*io+2] = coil_data[io+1, 6*ic + 5]
             coils[ic].local_x = np.concatenate(dofs)
         return coils
-    
+
+
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = len(dofs)//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
