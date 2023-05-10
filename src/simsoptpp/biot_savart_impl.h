@@ -9,6 +9,11 @@ using namespace std;
 // compile time, e.g. the compiler creates three different functions, one that
 // only computes B, one that computes B and \nabla B, and one that computes B,
 // \nabla B, and \nabla\nabla B.
+#if __cplusplus >= 201703L
+#define MYIF(c) if constexpr(c)
+#else
+#define MYIF(c) if(c)
+#endif
 
 #if defined(USE_XSIMD)
 
@@ -23,13 +28,13 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
     auto dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
-    if constexpr(derivs > 0) {
+    MYIF(derivs > 0) {
         dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
     auto d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
-    if constexpr(derivs > 1) {
+    MYIF(derivs > 1) {
         d2B_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd(),
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd(),
@@ -44,12 +49,12 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto B_i   = Vec3dSimd();
-        if constexpr(derivs > 0) {
+        MYIF(derivs > 0) {
             dB_dX_i[0] *= 0.;
             dB_dX_i[1] *= 0.;
             dB_dX_i[2] *= 0.;
         }
-        if constexpr(derivs > 1) {
+        MYIF(derivs > 1) {
             d2B_dXdX_i[0] *= 0.; d2B_dXdX_i[1] *= 0.; d2B_dXdX_i[2] *= 0.;
             d2B_dXdX_i[3] *= 0.; d2B_dXdX_i[4] *= 0.; d2B_dXdX_i[5] *= 0.;
             d2B_dXdX_i[6] *= 0.; d2B_dXdX_i[7] *= 0.; d2B_dXdX_i[8] *= 0.;
@@ -67,7 +72,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
             B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
 
-            if constexpr(derivs > 0) {
+            MYIF(derivs > 0) {
                 auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
                 auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff*(3.*norm_diff_inv);
                 auto norm_diff = norm_diff_2*norm_diff_inv;
@@ -90,7 +95,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                     dB_dX_i[k].z = xsimd::fma(tempz, norm_diff_4_inv, dB_dX_i[k].z);
 
                 }
-                if constexpr(derivs > 1) {
+                MYIF(derivs > 1) {
                     auto norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;;
                     auto norm_diff_7_inv = norm_diff_4_inv*norm_diff_3_inv;
                     auto term124fak = (-3.)*norm_diff_5_inv;
@@ -138,14 +143,14 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             B(i+j, 0) = fak * B_i.x[j];
             B(i+j, 1) = fak * B_i.y[j];
             B(i+j, 2) = fak * B_i.z[j];
-            if constexpr(derivs > 0) {
+            MYIF(derivs > 0) {
                 for(int k=0; k<3; k++) {
                     dB_by_dX(i+j, k, 0) = fak*dB_dX_i[k].x[j];
                     dB_by_dX(i+j, k, 1) = fak*dB_dX_i[k].y[j];
                     dB_by_dX(i+j, k, 2) = fak*dB_dX_i[k].z[j];
                 }
             }
-            if constexpr(derivs > 1) {
+            MYIF(derivs > 1) {
                 for(int k1=0; k1<3; k1++) {
                     for(int k2=0; k2<=k1; k2++) {
                         d2B_by_dXdX(i+j, k1, k2, 0) = fak*d2B_dXdX_i[3*k1 + k2].x[j];
@@ -174,15 +179,14 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
           throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = 1;
     auto dB_dX_i = vector<Vec3dStd>();
-    if constexpr(derivs > 0) {
+    MYIF(derivs > 0) {
         dB_dX_i = vector<Vec3dStd>{
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
     auto d2B_dXdX_i = vector<Vec3dStd>();
-    if constexpr(derivs > 1) {
+    MYIF(derivs > 1) {
         d2B_dXdX_i = vector<Vec3dStd>{
             Vec3dStd(), Vec3dStd(), Vec3dStd(),
             Vec3dStd(), Vec3dStd(), Vec3dStd(),
@@ -194,15 +198,15 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
     double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
-    for(int i = 0; i < num_points; i += simd_size) {
+    for(int i = 0; i < num_points; i++) {
         auto point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto B_i   = Vec3dStd();
-        if constexpr(derivs > 0) {
+        MYIF(derivs > 0) {
             dB_dX_i[0] *= 0.;
             dB_dX_i[1] *= 0.;
             dB_dX_i[2] *= 0.;
         }
-        if constexpr(derivs > 1) {
+        MYIF(derivs > 1) {
             d2B_dXdX_i[0] *= 0.; d2B_dXdX_i[1] *= 0.; d2B_dXdX_i[2] *= 0.;
             d2B_dXdX_i[3] *= 0.; d2B_dXdX_i[4] *= 0.; d2B_dXdX_i[5] *= 0.;
             d2B_dXdX_i[6] *= 0.; d2B_dXdX_i[7] *= 0.; d2B_dXdX_i[8] *= 0.;
@@ -219,7 +223,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
 
             B_i += (dgamma_by_dphi_j_cross_diff * norm_diff_3_inv);
 
-            if constexpr(derivs > 0) {
+            MYIF(derivs > 0) {
                 auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
                 auto three_dgamma_by_dphi_cross_diff_by_norm_diff = dgamma_by_dphi_j_cross_diff*(3.*norm_diff_inv);
                 auto norm_diff = norm_diff_2*norm_diff_inv;
@@ -232,7 +236,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                     dB_dX_i[k] += temp * norm_diff_4_inv;
 
                 }
-                if constexpr(derivs > 1) {
+                MYIF(derivs > 1) {
                     auto norm_diff_5_inv = norm_diff_4_inv*norm_diff_inv;;
                     auto norm_diff_7_inv = norm_diff_4_inv*norm_diff_3_inv;
                     auto term124fak = (-3.)*norm_diff_5_inv;
@@ -260,14 +264,14 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
         B(i, 0) = fak * B_i.x;
         B(i, 1) = fak * B_i.y;
         B(i, 2) = fak * B_i.z;
-        if constexpr(derivs > 0) {
+        MYIF(derivs > 0) {
             for(int k=0; k<3; k++) {
                 dB_by_dX(i, k, 0) = fak*dB_dX_i[k].x;
                 dB_by_dX(i, k, 1) = fak*dB_dX_i[k].y;
                 dB_by_dX(i, k, 2) = fak*dB_dX_i[k].z;
             }
         }
-        if constexpr(derivs > 1) {
+        MYIF(derivs > 1) {
             for(int k1=0; k1<3; k1++) {
                 for(int k2=0; k2<=k1; k2++) {
                     d2B_by_dXdX(i, k1, k2, 0) = fak*d2B_dXdX_i[3*k1 + k2].x;
@@ -298,13 +302,13 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
     int num_quad_points    = gamma.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
     auto dA_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
-    if constexpr(derivs > 0) {
+    MYIF(derivs > 0) {
         dA_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
     auto d2A_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
-    if constexpr(derivs > 1) {
+    MYIF(derivs > 1) {
         d2A_dXdX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd(),
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd(),
@@ -319,12 +323,12 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
     for(int i = 0; i < num_points; i += simd_size) {
         auto point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto A_i   = Vec3dSimd();
-        if constexpr(derivs > 0) {
+        MYIF(derivs > 0) {
             dA_dX_i[0] *= 0.;
             dA_dX_i[1] *= 0.;
             dA_dX_i[2] *= 0.;
         }
-        if constexpr(derivs > 1) {
+        MYIF(derivs > 1) {
             d2A_dXdX_i[0] *= 0.; d2A_dXdX_i[1] *= 0.; d2A_dXdX_i[2] *= 0.;
             d2A_dXdX_i[3] *= 0.; d2A_dXdX_i[4] *= 0.; d2A_dXdX_i[5] *= 0.;
             d2A_dXdX_i[6] *= 0.; d2A_dXdX_i[7] *= 0.; d2A_dXdX_i[8] *= 0.;
@@ -340,7 +344,7 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             A_i.y = xsimd::fma(dgamma_by_dphi_j_simd.y , norm_diff_inv, A_i.y) ;
             A_i.z = xsimd::fma(dgamma_by_dphi_j_simd.z , norm_diff_inv, A_i.z) ;
 
-            if constexpr(derivs > 0) {
+            MYIF(derivs > 0) {
 #pragma unroll
                 for(int k=0; k<3; k++) {
                     auto diffk_norm_diff_3_inv = norm_diff_3_inv * diff[k];
@@ -348,7 +352,7 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
                     dA_dX_i[k].y = xsimd::fnma(dgamma_by_dphi_j_simd.y, diffk_norm_diff_3_inv, dA_dX_i[k].y);
                     dA_dX_i[k].z = xsimd::fnma(dgamma_by_dphi_j_simd.z, diffk_norm_diff_3_inv, dA_dX_i[k].z);
                 }
-                if constexpr(derivs > 1) {
+                MYIF(derivs > 1) {
                     auto term124fak = dgamma_by_dphi_j_simd;
                     auto fak5 = 3.*norm_diff_3_inv*norm_diff_inv*norm_diff_inv;
                     term124fak.x *= fak5;
@@ -386,14 +390,14 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             A(i+j, 0) = fak * A_i.x[j];
             A(i+j, 1) = fak * A_i.y[j];
             A(i+j, 2) = fak * A_i.z[j];
-            if constexpr(derivs > 0) {
+            MYIF(derivs > 0) {
                 for(int k=0; k<3; k++) {
                     dA_by_dX(i+j, k, 0) = fak*dA_dX_i[k].x[j];
                     dA_by_dX(i+j, k, 1) = fak*dA_dX_i[k].y[j];
                     dA_by_dX(i+j, k, 2) = fak*dA_dX_i[k].z[j];
                 }
             }
-            if constexpr(derivs > 1) {
+            MYIF(derivs > 1) {
                 for(int k1=0; k1<3; k1++) {
                     for(int k2=0; k2<=k1; k2++) {
                         d2A_by_dXdX(i+j, k1, k2, 0) = fak*d2A_dXdX_i[3*k1 + k2].x[j];
@@ -423,13 +427,13 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
     auto dA_dX_i = vector<Vec3dStd>();
-    if constexpr(derivs > 0) {
+    MYIF(derivs > 0) {
         dA_dX_i = vector<Vec3dStd>{
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
     auto d2A_dXdX_i = vector<Vec3dStd>();
-    if constexpr(derivs > 1) {
+    MYIF(derivs > 1) {
         d2A_dXdX_i = vector<Vec3dStd>{
             Vec3dStd(), Vec3dStd(), Vec3dStd(),
             Vec3dStd(), Vec3dStd(), Vec3dStd(),
@@ -444,12 +448,12 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
     for(int i = 0; i < num_points; i++) {
         auto point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto A_i   = Vec3dStd();
-        if constexpr(derivs > 0) {
+        MYIF(derivs > 0) {
             dA_dX_i[0] *= 0.;
             dA_dX_i[1] *= 0.;
             dA_dX_i[2] *= 0.;
         }
-        if constexpr(derivs > 1) {
+        MYIF(derivs > 1) {
             d2A_dXdX_i[0] *= 0.; d2A_dXdX_i[1] *= 0.; d2A_dXdX_i[2] *= 0.;
             d2A_dXdX_i[3] *= 0.; d2A_dXdX_i[4] *= 0.; d2A_dXdX_i[5] *= 0.;
             d2A_dXdX_i[6] *= 0.; d2A_dXdX_i[7] *= 0.; d2A_dXdX_i[8] *= 0.;
@@ -463,13 +467,13 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             auto dgamma_by_dphi_j_simd = Vec3dStd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
             A_i += dgamma_by_dphi_j_simd * norm_diff_inv;
 
-            if constexpr(derivs > 0) {
+            MYIF(derivs > 0) {
 #pragma unroll
                 for(int k=0; k<3; k++) {
                     auto diffk_norm_diff_3_inv = norm_diff_3_inv * diff[k];
                     dA_dX_i[k] -= dgamma_by_dphi_j_simd * diffk_norm_diff_3_inv;
                 }
-                if constexpr(derivs > 1) {
+                MYIF(derivs > 1) {
                     auto term124fak = dgamma_by_dphi_j_simd;
                     auto fak5 = 3.*norm_diff_3_inv*norm_diff_inv*norm_diff_inv;
                     term124fak *= fak5;
@@ -498,14 +502,14 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
         A(i, 0) = fak * A_i.x;
         A(i, 1) = fak * A_i.y;
         A(i, 2) = fak * A_i.z;
-        if constexpr(derivs > 0) {
+        MYIF(derivs > 0) {
             for(int k=0; k<3; k++) {
                 dA_by_dX(i, k, 0) = fak*dA_dX_i[k].x;
                 dA_by_dX(i, k, 1) = fak*dA_dX_i[k].y;
                 dA_by_dX(i, k, 2) = fak*dA_dX_i[k].z;
             }
         }
-        if constexpr(derivs > 1) {
+        MYIF(derivs > 1) {
             for(int k1=0; k1<3; k1++) {
                 for(int k2=0; k2<=k1; k2++) {
                     d2A_by_dXdX(i, k1, k2, 0) = fak*d2A_dXdX_i[3*k1 + k2].x;
