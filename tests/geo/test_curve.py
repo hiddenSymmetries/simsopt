@@ -15,8 +15,7 @@ from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data  
 from simsopt.field.coil import coils_to_makegrid
-from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, ArclengthVariation
+from simsopt.geo import CurveLength, CurveCurveDistance
 
 
 try:
