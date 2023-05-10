@@ -406,11 +406,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf = cls(mpol=mpol, ntor=ntor, nfp=stel.nfp, stellsym=not stel.lasym, **kwargs)
 
-        surf.rc = RBC.transpose()
-        surf.zs = ZBS.transpose()
+        surf.rc[:, :] = RBC.transpose()
+        surf.zs[:, :] = ZBS.transpose()
         if stel.lasym:
-            surf.rs = RBS.transpose()
-            surf.zc = ZBC.transpose()
+            surf.rs[:, :] = RBS.transpose()
+            surf.zc[:, :] = ZBC.transpose()
 
         surf.local_full_x = surf.get_dofs()
         return surf
