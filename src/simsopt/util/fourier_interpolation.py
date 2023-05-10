@@ -55,10 +55,10 @@ def fourier_interpolation(fk, x):
     return np.dot(D, w * fk) / np.dot(D, w)
 
 
-def sin_coeff(f, n, L=pi, maxiter=2000, tol = 1.48e-8):
+def sin_coeff(f, n, L=pi, maxiter=2000, tol=1.48e-8):
     '''
     Calculates the coefficients for the sine of order n in the Fourier expansion of function f.
-    
+
     Args:
         f: function to fourier expand
         n: order of the coefficient
@@ -68,23 +68,23 @@ def sin_coeff(f, n, L=pi, maxiter=2000, tol = 1.48e-8):
     Returns:
         The sine coefficient of order n for function f with period 2L 
     ''' 
-    
+
     a, b = 0, 2 * L
-    
+
     # Define the integrand function
     def integrand(x):
         return f(x) * np.sin((n * pi * x) / L)
-    
+
     # Compute the integration using quadrature
-    integration, _ = quadrature(integrand, a, b,maxiter=maxiter, tol=tol)
+    integration, _ = quadrature(integrand, a, b, maxiter=maxiter, tol=tol)
 
     return (1 / L) * integration
 
 
-def cos_coeff(f, n, L=pi, maxiter=2000, tol = 1.48e-8):
+def cos_coeff(f, n, L=pi, maxiter=2000, tol=1.48e-8):
     '''
     Calculates the coefficients for the cosine of order n in the Fourier expansion of function f.
-    
+
     Args:
         f: function to Fourier expand
         n: order of the coefficient
@@ -95,13 +95,13 @@ def cos_coeff(f, n, L=pi, maxiter=2000, tol = 1.48e-8):
         The cosine coefficient of order n for function f with period 2L 
     ''' 
     a, b = 0, 2 * L
-    
+
     # Define the integrand function
     def integrand(x):
         return f(x) * np.cos((n * pi * x) / L)
-    
-    # Compute the integration using quadrature
-    integration, _ = quadrature(integrand, a, b,maxiter=maxiter, tol=tol)
 
-    if n==0: integration=integration/2
+    # Compute the integration using quadrature
+    integration, _ = quadrature(integrand, a, b, maxiter=maxiter, tol=tol)
+
+    if n == 0: integration = integration/2
     return (1 / L) * integration

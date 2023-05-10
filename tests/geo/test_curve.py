@@ -440,7 +440,7 @@ class Testing(unittest.TestCase):
                 for curve in coils:
                     ax = curve.plot(engine=engine, ax=ax, show=False, close=close)
                 c.plot(engine=engine, ax=ax, close=close, plot_derivative=True, show=show)
-                
+
     def test_rotated_curve_gamma_impl(self):
         rc = get_curve("CurveXYZFourier", True, x=100)
         c = rc.curve
@@ -470,74 +470,71 @@ class Testing(unittest.TestCase):
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_serialization(curvetype, rotated)
-                    
+
     def test_load_curves_from_file_ncsx(self):
         ppp = 10
         order = 25
-        
-        curves, currents, ma = get_ncsx_data(Nt_coils=order ,ppp=ppp)  
-        
+
+        curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)  
+
         # write coils to MAKEGRID file
-        coils_to_makegrid("coils.file_to_load", curves, currents,nfp=1)
-        loaded_curves = CurveXYZFourier.load_curves_from_file("coils.file_to_load", order, ppp,maxiter=5000,tol=1e-8)
-        
+        coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
+        loaded_curves = CurveXYZFourier.load_curves_from_file("coils.file_to_load", order, ppp, maxiter=5000, tol=1e-8)
+
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [curve.gamma() for curve in loaded_curves]
-        
-        assert_allclose(gamma, loaded_gamma,atol=2e-3)
-        
+
+        assert_allclose(gamma, loaded_gamma, atol=2e-3)
+
         kappa = [np.max(curve.kappa()) for curve in curves]
         loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
-        
-        assert_allclose(kappa, loaded_kappa,rtol=0.1)
-        
-        
+
+        assert_allclose(kappa, loaded_kappa, rtol=0.1)
+
         length = [CurveLength(c).J() for c in curves]
         loaded_length = [CurveLength(c).J() for c in loaded_curves]
-        
+
         assert_allclose(length, loaded_length, rtol=2e-4)
-        
+
         ccdist = CurveCurveDistance(curves, 0).J()
         loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
-        
+
         assert_allclose(ccdist, loaded_ccdist, rtol=2e-4)
-        
+
         os.remove("coils.file_to_load")
 
     def test_load_curves_from_file_w7x(self):
         ppp = 4
-        curves, currents, ma = get_w7x_data(Nt_coils=48,ppp=ppp)  
-        
+        curves, currents, ma = get_w7x_data(Nt_coils=48, ppp=ppp)  
+
         currents = currents[0:5]
         curves = curves[0:5]
         order = 48
         # write coils to MAKEGRID file
-        coils_to_makegrid("coils.file_to_load", curves, currents,nfp=1)
-        loaded_curves = CurveXYZFourier.load_curves_from_file("coils.file_to_load", order, ppp,maxiter=5000,tol=1e-8)
-        
+        coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
+        loaded_curves = CurveXYZFourier.load_curves_from_file("coils.file_to_load", order, ppp, maxiter=5000, tol=1e-8)
+
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [curve.gamma() for curve in loaded_curves]
-        
-        assert_allclose(gamma, loaded_gamma,atol=1e-3)
-        
+
+        assert_allclose(gamma, loaded_gamma, atol=1e-3)
+
         kappa = [np.max(curve.kappa()) for curve in curves]
         loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
-        
-        assert_allclose(kappa, loaded_kappa,atol=0.04)
-        
-        
+
+        assert_allclose(kappa, loaded_kappa, atol=0.04)
+
         length = [CurveLength(c).J() for c in curves]
         loaded_length = [CurveLength(c).J() for c in loaded_curves]
-        
+
         assert_allclose(length, loaded_length, rtol=2e-3)
-        
+
         ccdist = CurveCurveDistance(curves, 0).J()
         loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
-        
+
         assert_allclose(ccdist, loaded_ccdist, rtol=2e-3)
-        
+
         os.remove("coils.file_to_load")
-        
 
 
 if __name__ == "__main__":
