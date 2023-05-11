@@ -10,6 +10,7 @@ residuals_20*.dat
 _skbuild/
 build/
 build-cmake/
+cmake_build/
 dist/
 .eggs/
 pip-wheel-metadata/
@@ -68,3 +69,4 @@ tests/boundary*
 
 # Version file
 src/simsopt/_version.py
+
