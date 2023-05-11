@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'coils_via_file',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -186,7 +186,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     return coils
 
 
-def coils_via_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
+def load_coils_from_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
     """
     This function loads a file in MAKEGRID input format containing the cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
