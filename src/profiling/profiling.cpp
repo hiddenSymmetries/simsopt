@@ -1,6 +1,7 @@
 #include "xtensor/xrandom.hpp"
 #include "xtensor/xlayout.hpp"
-#include "biot_savart_c.h"
+#include "simdhelpers.h"
+#include "biot_savart_impl.h"
 #include "biot_savart_vjp_c.h"
 
 #include <chrono>
@@ -8,13 +9,52 @@
 #include <iomanip>
 #include <cstdlib>
 #include <stdint.h>
+
+using namespace std;
+
+/* rdtsc returns the Time Stamp Counter, which can serve as a high-resolution, 
+low-overhead way to get CPU timing information.
+The function is implementedd for x86_64, arm64 and PowerPC architectures.
+NOTE: This approach is archaic and should be replaced with a better timing function.
+*/
+#ifdef __x86_64__
 uint64_t rdtsc(){
     unsigned int lo,hi;
     __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
     return ((uint64_t)hi << 32) | lo;
 }
+#elif __aarch64__
+uint64_t rdtsc(){
+    uint64_t val;
+    asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+    return val;
+}
+#elif __powerpc__
+uint64_t rdtsc(){
+    uint64_t result=0;
+    unsigned long int upper, lower,tmp;
+    __asm__ volatile(
+                "0:                  \n"
+                "\tmftbu   %0           \n"
+                "\tmftb    %1           \n"
+                "\tmftbu   %2           \n"
+                "\tcmpw    %2,%0        \n"
+                "\tbne     0b         \n"
+                : "=r"(upper),"=r"(lower),"=r"(tmp)
+                );
+    result = upper;
+    result = result << 32;
+    result = result | lower;
 
+    return(result);
+}
+#endif
+
+
+template<class vector_type>
 void profile_biot_savart(int nsources, int ntargets, int nderivatives){ 
+    // using vector_type = AlignedPaddedVec;
+
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> gamma          = xt::random::randn<double>({nsources, 3});
     xt::xarray<double> dgamma_by_dphi = xt::random::randn<double>({nsources, 3});
@@ -54,10 +94,14 @@ void profile_biot_savart(int nsources, int ntargets, int nderivatives){
     std::cout << std::setw (10) << nsources*ntargets 
         << std::setw (13) << simdtime/n 
         << std::setw (19) << std::setprecision(5) << (interactions/(1e9 * simdtime/1000.)) 
-        << std::setw (19)<< clockcycles/interactions << std::endl;
+        << std::setw (19)<< clockcycles/interactions 
+        << std::endl;
 }
 
+template<class vector_type>
 void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){ 
+    // using vector_type = AlignedPaddedVec;
+
     xt::xarray<double> points         = xt::random::randn<double>({ntargets, 3});
     xt::xarray<double> gamma          = xt::random::randn<double>({nsources, 3});
     xt::xarray<double> dgamma_by_dphi = xt::random::randn<double>({nsources, 3});
@@ -96,9 +140,11 @@ void profile_biot_savart_vjp(int nsources, int ntargets, int nderivatives){
     std::cout << std::setw (10) << nsources*ntargets 
         << std::setw (13) << simdtime/n 
         << std::setw (19) << std::setprecision(5) << (interactions/(1e9 * simdtime/1000.)) 
-        << std::setw (19)<< clockcycles/interactions << std::endl;
+        << std::setw (19)<< clockcycles/interactions 
+        << std::endl;
 }
 
+/*
 #include <functional>
 #include "regular_grid_interpolant_3d.h"
 template<class Type, std::size_t rank, xt::layout_type layout>
@@ -121,7 +167,8 @@ Vec batchify(std::function<Vec(double, double, double)>& f, Vec xs, Vec ys, Vec 
     }
     return res;
 }
-
+*/
+/*
 void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
     std::function<Vec(double, double, double)> f = [](double x, double y, double z) { return Vec{x+2*y+3*z, x*x+y*y+z*z, sin(5*x)*cos(x)+sin(y*x)+exp(z)}; };
     double x = 0.13;
@@ -159,23 +206,45 @@ void profile_interpolation(InterpolationRule rule, int nx, int ny, int nz){
     //    << std::setw (13) << time/samples
     //    << std::setw (19) << std::setprecision(5) << (err.first+err.second)/2 << std::endl;
 }
+*/
 
 
 
 int main() {
+
+#if defined(USE_XSIMD)
+    cout << "BiotSavart with XSIMD:\n";
+#else
+    cout << "BiotSavart with No-XSIMD:\n";
+#endif
     for(int nd=0; nd<3; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart(nst, nst, nd);
+            profile_biot_savart<AlignedPaddedVec>(nst, nst, nd);
     }
 
+
+    /*cout << "BiotSavartVJP with Non XSIMD:\n";
     for(int nd=0; nd<2; nd++) {
         std::cout << "Number of derivatives: " << nd << std::endl;
         std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
         for(int nst=10; nst<=10000; nst*=10)
-            profile_biot_savart_vjp(nst, nst, nd);
+            profile_biot_savart_vjp<AlignedPaddedVecPortable>(nst, nst, nd);
+    }*/
+#if defined(USE_XSIMD)
+    cout << "BiotSavartVJP with XSIMD:\n";
+#else
+    cout << "BiotSavartVJP with Non XSIMD:\n";
+#endif
+    for(int nd=0; nd<2; nd++) {
+        std::cout << "Number of derivatives: " << nd << std::endl;
+        std::cout << "         N" << " Time (in ms)" << " Gigainteractions/s" << " cycles/interaction" << std::endl;
+        for(int nst=10; nst<=10000; nst*=10)
+            profile_biot_savart_vjp<AlignedPaddedVec>(nst, nst, nd);
     }
+
+    /*
     for (int deg = 1; deg <= 6; ++deg) {
         for (int n = 1; n*deg <= 128; n*=2) {
             profile_interpolation(UniformInterpolationRule(deg), n, n, n);
@@ -183,6 +252,7 @@ int main() {
         }
         std::cout << std::endl;
     }
+    */
     //profile_interpolation(UniformInterpolationRule(2), 64, 64, 64);
     //profile_interpolation(UniformInterpolationRule(8), 2, 2, 2);
 
