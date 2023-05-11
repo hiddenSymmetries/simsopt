@@ -4,7 +4,7 @@ import time
 from matplotlib import pyplot as plt
 # from scipy.linalg import svd
 
-__all__ = ['relax_and_split_increasingl0', 'cstlsq', ]
+__all__ = ['relax_and_split_increasingl0', 'cstlsq', 'exact_convex_solve']
 
 
 def prox_group_l0(alpha, threshold, n, num_basis):
@@ -100,23 +100,29 @@ def relax_and_split_increasingl0(
     current_voxels.alpha_history = []
     current_voxels.w_history = []
     t1 = time.time()
+    set_point = True
     #w_opt = alpha_opt  # np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     for j, threshold in enumerate(l0_thresholds):
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
+        if j > (2.0 * len(l0_thresholds) / 3.0) and set_point:
+            rs_max_iter = 3 * rs_max_iter
+            set_point = False
         for k in range(rs_max_iter):
-            if j == 0 and k == 0:
+            if j == 0 and k == 0 and len(l0_thresholds) > 1:
                 nu_algo = 1e100
                 step_size_i = 1.0 / L0
+                max_it = 5000
             else:
                 nu_algo = nu
                 step_size_i = step_size
+                max_it = max_iter
             alpha_opt_prev = alpha_opt 
             BTb_ITbI_nuw = BTb + sigma * ITbI + w_opt / nu_algo
             lam_nu = (lam + 1.0 / nu_algo)
             # max_it = max_iter + 1
             # print(w_opt, alpha_opt)
-            for i in range(max_iter + 1):
+            for i in range(max_it + 1):
                 vi = contig(alpha_opt + i / (i + 3) * (alpha_opt - alpha_opt_prev))
                 alpha_opt_prev = alpha_opt
                 alpha_opt = P.dot(
@@ -177,6 +183,8 @@ def relax_and_split_increasingl0(
             for k in range(num_basis):
                 current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, :, j, i]
                 current_voxels.J_sparse[:, j, i] += ws[:, k] * current_voxels.Phi[k, :, j, i]
+    #current_voxels.J = current_voxels.Phi[0, :, :, :]
+    # print('J = ', current_voxels.J)
     t2 = time.time()
     print('Time to compute J = ', t2 - t1, ' s')
     return (alpha_opt, 
@@ -359,3 +367,45 @@ def cstlsq(
             0.5 * np.array(f_I), 
             f_0,
             )
+
+
+def exact_convex_solve(current_voxels, lam=0.0, sigma=1.0):
+    """
+    """
+    t1 = time.time()
+    n = current_voxels.N_grid
+    num_basis = current_voxels.n_functions
+    N = n * num_basis
+    B = current_voxels.B_matrix
+    I = current_voxels.Itarget_matrix
+    BT = B.T
+    b = current_voxels.b_rhs
+    b_I = current_voxels.Itarget_rhs
+    BTb = BT @ b
+    IT = I.T
+    ITbI = IT * b_I 
+    I = I.reshape(1, len(current_voxels.Itarget_matrix))
+    IT = I.T
+    b_I = b_I.reshape(1, 1)
+    b = b.reshape(len(b), 1)
+    ITbI = (IT * b_I).reshape(len(BTb), 1)   
+    BTb = (BTb.reshape(len(BTb), 1))   
+    C = current_voxels.C
+    CT = C.T
+    H = np.linalg.inv(BT @ B + lam * np.eye(N) + sigma * IT @ I)
+    CHCT = C @ H @ CT
+    CHCTinv = np.linalg.pinv(CHCT)
+    alpha_opt = H @ (np.eye(N) - CT @ CHCTinv @ C @ H) @ (BTb + sigma * ITbI)
+    current_voxels.alphas = alpha_opt
+    current_voxels.w = alpha_opt
+    current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))
+    alphas = current_voxels.alphas.reshape(n, num_basis)
+    for i in range(3):
+        for j in range(current_voxels.Phi.shape[2]):
+            for k in range(num_basis):
+                current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, :, j, i]
+    current_voxels.J_sparse = current_voxels.J
+    t2 = time.time()
+    print('Time to run algo = ', t2 - t1, ' s')
+    return alpha_opt
+

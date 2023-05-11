@@ -556,9 +556,9 @@ class CurrentVoxelsField(MagneticField):
                 J_temp[:, :, 2] = Jz
                 J_full[index:index + self.N_grid, :, :] = J_temp
 
-                int_points = np.transpose(np.array([ox_temp, oy_temp, oz_temp]), [1, 2, 0])
-                int_points_full[index:index + self.N_grid, :, :] = int_points
-
+                int_points_full[index:index + self.N_grid, :, 0] = ox_temp
+                int_points_full[index:index + self.N_grid, :, 1] = oy_temp
+                int_points_full[index:index + self.N_grid, :, 2] = oz_temp
                 index += self.N_grid
 
         self.int_points_full = int_points_full 
@@ -567,26 +567,31 @@ class CurrentVoxelsField(MagneticField):
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         contig = np.ascontiguousarray
-        B[:] = sopp.current_voxels_field_B_SIMD(
+        # B[:] = sopp.current_voxels_field_B_SIMD(
+        # print(self.int_points_full)
+        print(points.shape, self.int_points_full.shape, self.J_full.shape)
+        B[:] = sopp.current_voxels_field_B(
             contig(points), 
             contig(self.int_points_full), 
             contig(self.J_full)
         ) * self.grid_scaling
-
         # function returns factor of shape (num_points, 3, num_cells, n_functions)
         # factor = sopp.current_voxels_field_Bext(points, self.current_voxels.integration_points_full, self.current_voxels.Phi_full) * self.grid_scaling
         # B[:] = np.tensordot(factor, self.alphas_full, ((2, 3), (0, 1)))
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
+        raise ValueError('dB_by_dX calculation not yet implemented')
         dB[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
+        raise ValueError('Vector potential calculation not yet implemented')
         A[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
+        raise ValueError('dA_by_dX calculation not yet implemented')
         dA[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
 
     def as_dict(self, serial_objs_dict) -> dict:

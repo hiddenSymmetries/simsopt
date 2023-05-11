@@ -23,7 +23,7 @@ Array current_voxels_field_B(Array& points, Array& integration_points, Array& J)
 
     double fak = 1e-7;
     Array B = xt::zeros<double>({num_points, 3});
-#pragma omp parallel for schedule(static)
+// #pragma omp parallel for schedule(static)
     for (int i = 0; i < num_points; i++) {  // loop through quadrature points on plasma surface
 	double rx = points(i, 0);
 	double ry = points(i, 1);
@@ -158,7 +158,7 @@ Array current_voxels_field_Bext(Array& points, Array& integration_points, Array&
     	        double rvec_mag = sqrt(rvecx * rvecx + rvecy * rvecy + rvecz * rvecz);
     	        double rvec_inv3 = 1.0 / (rvec_mag * (rvec_mag * rvec_mag));
     	        for (int k = 0; k < num_basis_functions; k++) {
-        		    double Jx = Phi(jj, j, k, 0);
+                    double Jx = Phi(jj, j, k, 0);
     	            double Jy = Phi(jj, j, k, 1);
     	            double Jz = Phi(jj, j, k, 2);
                     B(i, jj, k) += ((Jy * rvecz - Jz * rvecy) * nx + (Jz * rvecx - Jx * rvecz) * ny + (Jx * rvecy - Jy * rvecx) * nz) * rvec_inv3;

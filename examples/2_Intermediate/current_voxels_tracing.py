@@ -11,10 +11,12 @@ The script should be run as:
 """
 
 import os
+import logging
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
 import simsoptpp as sopp
+import simsopt
 from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
@@ -26,18 +28,22 @@ from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
+logging.basicConfig()
+logger = logging.getLogger('simsopt.field.tracing')
+logger.setLevel(1)
 
 t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 32
-poff = 2.0  # grid end offset ~ 10 cm from the plasma surface
-coff = 1.0  # grid starts offset ~ 5 cm from the plasma surface
-input_name = 'input.circular_tokamak' 
+ntheta = nphi
+#poff = 0.9  # grid end offset ~ 10 cm from the plasma surface
+#coff = 0.3  # grid starts offset ~ 5 cm from the plasma surface
+# input_name = 'input.circular_tokamak' 
+input_name = 'input.LandremanPaul2021_QA'
 
-lam = 1e-20
+lam = 1e-30
 nu = 1e100
 
 # Read in the plasma equilibrium file
@@ -47,12 +53,13 @@ s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi
 s.nfp = 2
 s.stellsym = True
 
-qphi = s.nfp * nphi * 2 * 2
-quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
-quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+qphi = s.nfp * nphi * 2
+#quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
+#quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
-    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+    nphi=qphi, ntheta=ntheta 
+    #quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
 s_plot.nfp = 2
 s_plot.stellsym = True
@@ -94,22 +101,40 @@ for n in range(s.ntor + 1):
 
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
-curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
-Itarget = 0.5e6
+Itarget = 0.45e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
+fac1 = 1.2
+fac2 = 5
+fac3 = 8
+#create the outside boundary for the PMs
+s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period', nfp=2, stellsym=True)
+s_out.set_rc(0, 0, s.get_rc(0, 0) * fac1)
+s_out.set_rc(1, 0, s.get_rc(1, 0) * fac3)
+s_out.set_zs(1, 0, s.get_rc(1, 0) * fac3)
+s_out.to_vtk(OUT_DIR + "surf_out")
+
+#create the inside boundary for the PMs
+s_in = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period', nfp=2, stellsym=True)
+s_in.set_rc(0, 0, s.get_rc(0, 0) * fac1)
+s_in.set_rc(1, 0, s.get_rc(1, 0) * fac2)
+s_in.set_zs(1, 0, s.get_rc(1, 0) * fac2)
+s_in.to_vtk(OUT_DIR + "surf_in")
+
 nx = 6
-Nx = 30
+Nx = 18
 Ny = Nx
 Nz = Nx 
 # Finally, initialize the current voxels 
 t1 = time.time()
 wv_grid = CurrentVoxelsGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
-    coil_offset=coff, 
+    # coil_offset=coff, 
+    rz_inner_surface=s_in,
+    rz_outer_surface=s_out,
     Nx=Nx, Ny=Ny, Nz=Nz, 
-    plasma_offset=poff,
+    # plasma_offset=poff,
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
     filename=surface_filename,
@@ -119,11 +144,11 @@ wv_grid = CurrentVoxelsGrid(
 )
 wv_grid.rz_inner_surface.to_vtk(OUT_DIR + 'inner')
 wv_grid.rz_outer_surface.to_vtk(OUT_DIR + 'outer')
+wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
-wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
-max_iter = 4000
+max_iter = 10000
 rs_max_iter = 1  # 50
 l0_threshold = 0.0  # 60 below line
 l0_thresholds = [l0_threshold] 
@@ -209,17 +234,18 @@ t1 = time.time()
 # biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
 bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
 print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
-n = 32
+n = 20
 rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
 zs = s_plot.gamma()[:, :, 2]
-r_margin = 2
-rrange = (np.min(rs) - r_margin, np.max(rs) + r_margin, n)
+rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
 zrange = (0, np.max(zs), n // 2)
-degree = 2
+degree = 4
 
 # compute the fieldlines from the initial locations specified above
-sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
+
+####### s -> s_plot here is critical!!!
+sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
 sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
 
@@ -240,11 +266,28 @@ def skip(rs, phis, zs):
     return skip
 
 
+# Load in the optimized coils from stage_two_optimization.py:
+coils_filename = Path(__file__).parent / "../1_Simple/inputs" / "biot_savart_opt.json"
+bs = simsopt.load(coils_filename)
+make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_precomputed")
 bsh = InterpolatedField(
-    bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
+    # bs, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
+    bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym,  # skip=skip
 )
+# bsh.set_points(s_plot.gamma().reshape((-1, 3)))
 bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-trace_fieldlines(bsh, 'poincare_torus', 'torus', s_plot, comm, OUT_DIR)
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
+Bh = bsh.B()
+B = bs_wv.B()
+calculate_on_axis_B(bs_wv, s)
+print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
+print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
+# trace_fieldlines(bs_wv, 'poincare_torus', s_plot, comm, OUT_DIR)
+nfieldlines = 10
+R0 = np.linspace(1.2125346, 1.295, nfieldlines)
+trace_fieldlines(bsh, 'poincare_torus', s_plot, comm, OUT_DIR, R0)
 t2 = time.time()
 print(OUT_DIR)
 

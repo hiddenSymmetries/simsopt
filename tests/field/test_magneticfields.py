@@ -16,6 +16,7 @@ except ImportError:
 from simsopt._core.json import SIMSON, GSONDecoder, GSONEncoder
 from simsopt.configs import get_ncsx_data
 from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
+                           CurrentVoxelsField,
                            DipoleField, Dommaschk, InterpolatedField,
                            MagneticFieldSum, PoloidalField, Reiman,
                            ScalarPotentialRZMagneticField, ToroidalField,
@@ -985,6 +986,83 @@ class Testing(unittest.TestCase):
         ]
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
+
+    def test_currentvoxels_field(self):
+        n = 1
+        nx = 10
+        ny = nx
+        nz = nx
+        J = np.zeros((n, nx ** 3, 3))
+        J[:, :, 0] = 1e6
+        voxel_location = np.zeros((1, 3))  # 10 * np.ones((1, 3))  # far away
+        voxel_location[0, 1] = 20
+        dx = 0.1
+        dy = dx
+        dz = dx
+        grid_scaling = dx ** 3 / nx ** 3
+        x_leftpoints = [0]
+        y_leftpoints = [20]  # x_leftpoints
+        z_leftpoints = [0]  # x_leftpoints 
+        xrange = np.zeros((n, nx))
+        yrange = np.zeros((n, ny))
+        zrange = np.zeros((n, nz))
+        for i in range(n):
+            xrange[i, :] = np.linspace(
+                x_leftpoints[i], 
+                x_leftpoints[i] + dx,
+                nx,
+                endpoint=True
+            ) - dx / 2.0
+            yrange[i, :] = np.linspace(
+                y_leftpoints[i], 
+                y_leftpoints[i] + dy,
+                ny,
+                endpoint=True
+            ) - dy / 2.0
+            zrange[i, :] = np.linspace(
+                z_leftpoints[i], 
+                z_leftpoints[i] + dz,
+                nz,
+                endpoint=True
+            ) - dz / 2.0
+        # build up array of the integration points
+        XYZ_integration = np.zeros((n, nx ** 3, 3))
+        for i in range(n):
+            X_n, Y_n, Z_n = np.meshgrid(
+                xrange[i, :], yrange[i, :], zrange[i, :], 
+                indexing='ij'
+            )
+            XYZ_integration[i, :, :] = np.transpose(np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]).reshape(nx ** 3, 3) 
+        print(XYZ_integration, grid_scaling)
+        bs_wv = CurrentVoxelsField(J, XYZ_integration, grid_scaling, 'full torus', nfp=1, stellsym=False)
+        points = np.zeros((10, 3))  # np.random.rand(10, 3) - 0.5
+        bs_wv.set_points(points)
+
+        # now compute the equivalent dipole field
+        m = np.zeros((1, 3))
+        m[0, 1] = 1
+        m[0, 2] = -1
+        m = dx ** 4 / 4.0 * 1e6 * m
+        bs_dipole = DipoleField(
+            voxel_location,
+            m,
+            stellsym=False,
+            coordinate_flag='cartesian'
+        )
+        bs_dipole.set_points(points)
+        print(bs_wv.B(), bs_dipole.B())
+
+        # Do it yourself in python
+        for i in range(points.shape[0]):
+            Bi = 0.0
+            for j in range(XYZ_integration.shape[1]):
+                r_minus_rprime = points[i] - XYZ_integration[0, j, :]
+                Jcrossr = np.cross(J, r_minus_rprime)
+                rmag3 = np.linalg.norm(r_minus_rprime, axis=-1) ** 3
+                Bi += Jcrossr / rmag3
+            Bi *= grid_scaling * 1e-7
+            print(i, Bi)
+        assert np.allclose(bs_wv.B(), bs_dipole.B())
 
 
 if __name__ == "__main__":

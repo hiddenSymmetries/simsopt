@@ -15,6 +15,7 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 import numpy as np
 import simsoptpp as sopp
+import simsopt
 from simsopt.geo import SurfaceRZFourier, Curve, CurveRZFourier, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart

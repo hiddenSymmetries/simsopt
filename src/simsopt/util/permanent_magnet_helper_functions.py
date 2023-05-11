@@ -8,7 +8,8 @@ __all__ = ['read_focus_coils', 'coil_optimization',
            'get_FAMUS_dipoles', 
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'write_pm_optimizer_to_famus',
-           'rescale_for_opt', 'initialize_default_kwargs'
+           'rescale_for_opt', 'initialize_default_kwargs',
+           'make_curve_at_theta0'
            ]
 
 import numpy as np
@@ -172,7 +173,7 @@ def coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot):
     return s, bs
 
 
-def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
+def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
     """
         Make Poincare plots on a surface as in the trace_fieldlines
         example in the examples/1_Simple/ directory.
@@ -184,10 +185,14 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
     t1 = time.time()
 
     # set fieldline tracer parameters
-    nfieldlines = 20
-    tmax_fl = 20000
-    R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 2.0, nfieldlines)
+    nfieldlines = len(R0)
+    tmax_fl = 10000
+
+    # R0 = np.linspace(s.get_rc(0, 0) - s.get_rc(1, 0), s.get_rc(0, 0) + s.get_rc(1, 0), nfieldlines)
+    # R0 = np.linspace(1.2125346, 1.295, nfieldlines)
+
     Z0 = np.zeros(nfieldlines)
+    print('R0s = ', R0)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
@@ -212,8 +217,8 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR):
 
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
-        phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(20000)])
+        phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+    # stopping_criteria=[IterationStoppingCriterion(200000)])
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
@@ -487,7 +492,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
     rrange = (np.min(rs) - r_margin, np.max(rs) + r_margin, n)
     phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
     zrange = (0, np.max(zs), n // 2)
-    degree = 2
+    degree = 4
     t1 = time.time()
     nphi = len(s_plot.quadpoints_phi)
     ntheta = len(s_plot.quadpoints_theta)
@@ -668,3 +673,33 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs["reg_l2"] = 0.0 
         kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K
     return kwargs
+
+
+def make_curve_at_theta0(s, numquadpoints):
+    from simsopt.geo import CurveRZFourier
+
+    order = s.ntor + 1
+    quadpoints = np.linspace(0, 1, numquadpoints, endpoint=True)
+    curve = CurveRZFourier(quadpoints, order, nfp=1, stellsym=True)
+    r_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
+    z_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
+    for m in range(s.mpol + 1):
+        if m == 0:
+            nmin = 0
+        else: 
+            nmin = -s.ntor
+        for n in range(nmin, s.ntor + 1):
+            r_mn[m, n + s.ntor] = s.get_rc(m, n)
+            z_mn[m, n + s.ntor] = s.get_zs(m, n)
+    r_n = np.sum(r_mn, axis=0)
+    z_n = np.sum(z_mn, axis=0)
+    for n in range(s.ntor + 1):
+        if n == 0:
+            curve.rc[n] = r_n[n + s.ntor]
+        else:
+            curve.rc[n] = r_n[n + s.ntor] + r_n[-n + s.ntor]
+            curve.zs[n - 1] = -z_n[n + s.ntor] + z_n[-n + s.ntor]
+
+    curve.x = curve.get_dofs()
+    curve.x = curve.x  # need to do this to transfer data to C++
+    return curve

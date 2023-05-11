@@ -1,5 +1,6 @@
 import numpy as np
 from simsopt.geo import Surface, SurfaceRZFourier
+from simsopt.geo import create_equally_spaced_curves, curves_to_vtk
 from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
 from pyevtk.vtk import VtkVoxel
 
@@ -170,6 +171,7 @@ class CurrentVoxelsGrid:
         self.Nz = Nz
         self.OUT_DIR = OUT_DIR
         self.n_functions = 11  # hard-coded for linear basis
+        #self.n_functions = 11  # hard-coded for linear basis
         self.sparse_constraint_matrix = sparse_constraint_matrix
 
         if not isinstance(plasma_boundary, SurfaceRZFourier):
@@ -229,6 +231,13 @@ class CurrentVoxelsGrid:
         if famus_filename is None:
             if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
                 raise ValueError("Outer surface is not SurfaceRZFourier object.")
+
+        # shift surfaces by making major radius slightly larger
+        #self.rz_inner_surface.set_rc(0, 0, self.rz_inner_surface.get_rc(0, 0) * 1.2)
+        #self.rz_outer_surface.set_rc(0, 0, self.rz_outer_surface.get_rc(0, 0) * 1.2)
+        #c = create_equally_spaced_curves(1, self.plasma_boundary.nfp, stellsym=True, R0=self.rz_inner_surface.get_rc(0, 0), R1=1, order=5)
+        #for curve in c:
+        #    curves_to_vtk([curve], self.OUT_DIR + f"surface_curve")
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to get the SurfaceRZFourier objects done")
 
@@ -306,7 +315,7 @@ class CurrentVoxelsGrid:
 
         # Initialize Phi
         t1 = time.time()
-        self._setup_polynomial_basis()
+        self._setup_polynomial_basis(True)
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to setup Phi.")
 
@@ -487,6 +496,7 @@ class CurrentVoxelsGrid:
 
                 index += n
 
+        self.XYZ_integration_full = XYZ_integration_full
         contig = np.ascontiguousarray
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full)
@@ -517,6 +527,12 @@ class CurrentVoxelsGrid:
             contig(self.XYZ_integration[:, :, 1].flatten()),
             contig(self.XYZ_integration[:, :, 2].flatten()),
             data=data
+        )
+        pointsToVTK(
+            vtkname + '_quadrature_full',
+            contig(XYZ_integration_full[:, :, 0].flatten()),
+            contig(XYZ_integration_full[:, :, 1].flatten()),
+            contig(XYZ_integration_full[:, :, 2].flatten()),
         )
         _voxels_to_vtk(vtkname + '_voxels', self.XYZ_integration)
         _voxels_to_vtk(vtkname + '_voxels_full', XYZ_integration_full)
@@ -564,6 +580,7 @@ class CurrentVoxelsGrid:
         dJz_dz = -(Jvec[:, :, :, 1:, 2] - Jvec[:, :, :, :-1, 2]) / self.dz
         divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
         divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
+        print('divJ max = ', np.max(np.abs(divJ)), divJ.shape)
 
         Jx = Jvec_avg[:, 0]
         Jy = Jvec_avg[:, 1]
@@ -629,6 +646,21 @@ class CurrentVoxelsGrid:
         Jvec_zmin = np.mean(np.mean(Jvec_full_internal[:, :, :, 0, :], axis=-2), axis=-2)
         Jvec_zmax = np.mean(np.mean(Jvec_full_internal[:, :, :, -1, :], axis=-2), axis=-2)
 
+        Jvec = Jvec_full_internal.reshape(n * nsym, self.nx, self.ny, self.nz, 3)
+        dJx_dx = -(Jvec[:, 1:, :, :, 0] - Jvec[:, :-1, :, :, 0]) / self.dx
+        dJy_dy = -(Jvec[:, :, 1:, :, 1] - Jvec[:, :, :-1, :, 1]) / self.dy
+        dJz_dz = -(Jvec[:, :, :, 1:, 2] - Jvec[:, :, :, :-1, 2]) / self.dz
+        divJ_total = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
+        divJ_total = np.sum(np.sum(np.sum(divJ_total, axis=1), axis=1), axis=1)
+
+        dJx_dx_edge = -(Jvec[:, 0, :, :, 0]) / self.dx
+        dJy_dy_edge = -(Jvec[:, :, 0, :, 1]) / self.dy
+        dJz_dz_edge = -(Jvec[:, :, :, 0, 2]) / self.dz
+        print('divJ total = ', np.max(np.abs(divJ_total)), divJ_total.shape)
+        bad_inds = np.ravel(np.where(np.abs(divJ_total) > 1e-3))
+        print(bad_inds, len(bad_inds))
+        print('divJ edges = ', dJx_dx_edge, dJy_dy_edge, dJz_dz_edge) 
+
         contig = np.ascontiguousarray
         data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
                 "J_normalized": 
@@ -640,12 +672,12 @@ class CurrentVoxelsGrid:
                 #(contig(Jx_sp / Jvec_normalization_sp), 
                 # contig(Jy_sp / Jvec_normalization_sp), 
                 # contig(Jz_sp / Jvec_normalization_sp)),
-                "Jvec_xmin": (contig(Jvec_xmin), contig(Jvec_xmin), contig(Jvec_xmin)), 
-                "Jvec_xmax": (contig(Jvec_xmax), contig(Jvec_xmax), contig(Jvec_xmax)), 
-                "Jvec_ymin": (contig(Jvec_ymin), contig(Jvec_ymin), contig(Jvec_ymin)), 
-                "Jvec_ymax": (contig(Jvec_ymax), contig(Jvec_ymax), contig(Jvec_ymax)), 
-                "Jvec_zmin": (contig(Jvec_zmin), contig(Jvec_zmin), contig(Jvec_zmin)), 
-                "Jvec_zmax": (contig(Jvec_zmax), contig(Jvec_zmax), contig(Jvec_zmax)), 
+                "Jvec_xmin": (contig(Jvec_xmin[:, 0]), contig(Jvec_xmin[:, 1]), contig(Jvec_xmin[:, 2])), 
+                "Jvec_xmax": (contig(Jvec_xmax[:, 0]), contig(Jvec_xmax[:, 1]), contig(Jvec_xmax[:, 2])), 
+                "Jvec_ymin": (contig(Jvec_ymin[:, 0]), contig(Jvec_ymin[:, 1]), contig(Jvec_ymin[:, 2])), 
+                "Jvec_ymax": (contig(Jvec_ymax[:, 0]), contig(Jvec_ymax[:, 1]), contig(Jvec_ymax[:, 2])), 
+                "Jvec_zmin": (contig(Jvec_zmin[:, 0]), contig(Jvec_zmin[:, 1]), contig(Jvec_zmin[:, 2])), 
+                "Jvec_zmax": (contig(Jvec_zmax[:, 0]), contig(Jvec_zmax[:, 1]), contig(Jvec_zmax[:, 2])), 
                 } 
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full), data=data
@@ -666,6 +698,20 @@ class CurrentVoxelsGrid:
             contig(self.XYZ_uniform[:, 0]),
             contig(self.XYZ_uniform[:, 1]),
             contig(self.XYZ_uniform[:, 2])
+        )
+        Jvec_full_internal = np.reshape(Jvec_full_internal, (n * nsym, self.nx * self.ny * self.nz, 3))
+        data = {
+            "Jvec": (contig(Jvec_full_internal[:, :, 0].flatten()), 
+                     contig(Jvec_full_internal[:, :, 1].flatten()),
+                     contig(Jvec_full_internal[:, :, 2].flatten())
+                     )
+        }
+        pointsToVTK(
+            vtkname + '_quadrature_full_solution',
+            contig(self.XYZ_integration_full[:, :, 0].flatten()),
+            contig(self.XYZ_integration_full[:, :, 1].flatten()),
+            contig(self.XYZ_integration_full[:, :, 2].flatten()),
+            data=data
         )
 
         fig = plt.figure(700, figsize=(12, 12))
@@ -730,6 +776,9 @@ class CurrentVoxelsGrid:
                 nz,
                 endpoint=True
             ) - dz / 2.0
+        #xrange = np.sin(xrange * (2 * np.pi) / dx)
+        #yrange = np.sin(yrange * (2 * np.pi) / dy)
+        #zrange = np.sin(zrange * (2 * np.pi) / dz)
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
         zeros = np.zeros(n)
         ones = np.ones(n)
@@ -748,7 +797,7 @@ class CurrentVoxelsGrid:
                         Phi[8, :, i, j, k, :] = np.array([zeros, xrange[:, i], zeros]).T
                         Phi[9, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
                         Phi[10, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
-        # Shift all the basis functions but their midpoints in every cell, to sort of normalize them
+        # Shift all the basis functions by their midpoints in every cell, to sort of normalize them
         else:
             for i in range(nx):
                 for j in range(ny):
@@ -765,7 +814,7 @@ class CurrentVoxelsGrid:
                         Phi[9, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, -yrange[:, j] + y_leftpoints, zeros]).T / np.cbrt(dx * dy * dz)
                         Phi[10, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, zeros, -zrange[:, k] + z_leftpoints]).T / np.cbrt(dx * dy * dz)
 
-        for i in range(11):
+        for i in range(self.n_functions):
             dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / dx
             dJy_dy = -(Phi[i, :, :, 1:, :, 1] - Phi[i, :, :, :-1, :, 1]) / dy
             dJz_dz = -(Phi[i, :, :, :, 1:, 2] - Phi[i, :, :, :, :-1, 2]) / dz
@@ -773,6 +822,7 @@ class CurrentVoxelsGrid:
             divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
             assert np.allclose(divJ, 0.0)
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
+        print('Phi = ', self.Phi[0, :, :, :])
 
         # build up array of the integration points
         XYZ_integration = np.zeros((n, nx * ny * nz, 3))
@@ -855,17 +905,17 @@ class CurrentVoxelsGrid:
 
                 Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
-                geo_factor += sopp.current_voxels_field_Bext_SIMD(
+                # geo_factor += sopp.current_voxels_field_Bext_SIMD(
+                geo_factor += sopp.current_voxels_field_Bext(
                     points, 
                     contig(int_points), 
-                    #contig(Phivec_full[:, index:index + n, :, :])
                     contig(Phivec_transpose),
                     plasma_unitnormal
                 )
-                Itarget_matrix += sopp.current_voxels_field_Bext_SIMD(
+                # Itarget_matrix += sopp.current_voxels_field_Bext_SIMD(
+                Itarget_matrix += sopp.current_voxels_field_Bext(
                     points_curve, 
                     contig(int_points), 
-                    #contig(Phivec_full[:, index:index + n, :, :])
                     contig(Phivec_transpose),
                     contig(curve_dl)
                 )
@@ -873,7 +923,6 @@ class CurrentVoxelsGrid:
                 index += n
 
         self.geo_factor = geo_factor
-        self.Itarget_matrix = Itarget_matrix
         t2 = time.time()
         print('Computing full coil surface grid took t = ', t2 - t1, ' s')
         t1 = time.time()
@@ -910,6 +959,10 @@ class CurrentVoxelsGrid:
 
         self.B_matrix = B_matrix
         self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
+
+        # Phi0 = self.Phi.reshape(self.n_functions * self.N_grid, self.n * self.ny * self.nz, 3)  
+        # Itarget_matrix = np.sum(Phi0[:, :, 2], axis=-1)
+        self.Itarget_matrix = Itarget_matrix
         self.Itarget_matrix = nphi_loop_inv * coil_integration_factor * self.Itarget_matrix.reshape(
             points_curve.shape[0], n * num_basis
         )
@@ -931,6 +984,7 @@ class CurrentVoxelsGrid:
         t1 = time.time()
 
         # Find the coil boundary points at phi = pi / 2
+        minus_x_indices = []
         if nfp == 2:
             minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
             x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
@@ -1226,7 +1280,7 @@ class CurrentVoxelsGrid:
         qq = 0
         for i in range(n):
             for j in range(6):
-                #print(i, j, flux[i, j])
+                # print(i, j, flux[i, j])
                 if (i in self.x_inds) and (j == 1) and (self.coil_range != 'full torus'):
                     k_ind = self.z_flip_x[q]
                     assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
