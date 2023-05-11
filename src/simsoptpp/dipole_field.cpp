@@ -510,14 +510,13 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
 
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
     Array dB = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
     double fak = 1e-7;
 
     #pragma omp parallel for schedule(static)
-    for(int i = 0; i < num_points; i += simd_size) {
+    for(int i = 0; i < num_points; i++) {
         auto point_i = Vec3dStd();
         auto dB_i1   = Vec3dStd();
         auto dB_i2   = Vec3dStd();
@@ -573,14 +572,13 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
     Array dA = xt::zeros<double>({points.shape(0), points.shape(1), points.shape(1)});
     double* m_points_ptr = &(m_points(0, 0));
     double* m_ptr = &(m(0, 0));
     double fak = 1e-7;
 
     #pragma omp parallel for schedule(static)
-    for(int i = 0; i < num_points; i += simd_size) {
+    for(int i = 0; i < num_points; i++) {
         auto point_i = Vec3dStd();
         auto dA_i1   = Vec3dStd();
         auto dA_i2   = Vec3dStd();
@@ -681,8 +679,8 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
                     // Calculate new dipole location after accounting for the symmetries
                     // reflect the y and z-components and then rotate by phi0
                     auto mp_x_new = mp_j.x * cphi0 - mp_j.y * sphi0 * pow(-1, stell);
-                            simd_t mp_y_new = mp_j.x * sphi0 + mp_j.y * cphi0 * pow(-1, stell);
-                            simd_t mp_z_new = mp_j.z * pow(-1, stell);
+                    auto mp_y_new = mp_j.x * sphi0 + mp_j.y * cphi0 * pow(-1, stell);
+                    auto mp_z_new = mp_j.z * pow(-1, stell);
                     auto mp_j_new = Vec3dStd(mp_x_new, mp_y_new, mp_z_new);
 
                     // Calculate new phi location if switching to cylindrical coordinates
@@ -705,8 +703,8 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
                     G_i.z = 3.0 * rdotn * r.z * rmag_inv_5 - n_i.z * rmag_inv_3;
 
                     if (coordinate_flag == cylindrical_str) {
-                        auto Ax_temp = (G_i.x * cphi0[k] + G_i.y * sphi0) * pow(-1, stell);
-                        auto Ay_temp = (- G_i.x * sphi0[k] + G_i.y * cphi0);
+                        auto Ax_temp = (G_i.x * cphi0 + G_i.y * sphi0) * pow(-1, stell);
+                        auto Ay_temp = (- G_i.x * sphi0 + G_i.y * cphi0);
                         A(i, j, 0) += fak * (Ax_temp * cphi_new + Ay_temp * sphi_new);
                         A(i, j, 1) += fak * (-Ax_temp * sphi_new + Ay_temp * cphi_new);
                         A(i, j, 2) += fak * G_i.z;
