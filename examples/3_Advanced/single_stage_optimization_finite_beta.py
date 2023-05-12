@@ -179,7 +179,7 @@ def fun_J(dofs_vmec, dofs_coils):
             Jf.target = vc.B_external_normal
             if np.sum(Jf.x != dofs_coils) > 0: Jf.x = dofs_coils
         except ObjectiveFailure as e:
-            J = JACOBIAN_THRESHOLD
+            pass
     bs.set_points(surf.gamma().reshape((-1, 3)))
     J_stage_2 = coils_objective_weight * JF.J()
     J = J_stage_1 + J_stage_2
