@@ -93,8 +93,6 @@ class DOFs(GSONable, Hashable):
         """
         if x is None:
             x = np.array([])
-        elif np.isscalar(x):
-            x = np.array([x], dtype=np.double)
         else:
             x = np.asarray(x, dtype=np.double)
 
