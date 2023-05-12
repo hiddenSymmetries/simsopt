@@ -131,7 +131,9 @@ pprint(f'  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
-
+## The function fun_coils defined below is used to only optimize the coils at the beginning
+## and then optimize the coils and the surface together. This makes the overall optimization
+## more efficient as the number of iterations needed to achieve a good solution is reduced.
 
 def fun_coils(dofss, info):
     info['Nfeval'] += 1
@@ -154,7 +156,10 @@ def fun_coils(dofss, info):
     return J, grad
 ##########################################################################################
 ##########################################################################################
-
+## The function fun_J defined below is used to calculate the objective function value
+## from the coils and the surface using the virtual casing principle. As this function
+## is used also to calculate the derivatives using finite difference, it was separated
+## from the function fun below.
 
 def fun_J(dofs_vmec, dofs_coils):
     run_vcasing = False
@@ -181,7 +186,7 @@ def fun_J(dofs_vmec, dofs_coils):
     return J
 ##########################################################################################
 ##########################################################################################
-
+## The function fun defined below is used to optimize the coils and the surface together.
 
 def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}):
     info['Nfeval'] += 1
