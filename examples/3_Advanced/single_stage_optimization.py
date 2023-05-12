@@ -34,11 +34,8 @@ os.chdir(parent_path)
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
-# Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER_stage_2 = 10 if ci else 50
-MAXITER_single_stage = 5 if ci else 15
-# Remaining input parameters
+MAXITER_stage_2 = 10
+MAXITER_single_stage = 10
 max_mode = 1
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp4_QH_warm_start')
 ncoils = 3
