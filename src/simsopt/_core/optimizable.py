@@ -1695,7 +1695,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             self.dof_indicators = dof_indicators
 
         def J(self):
-            dofs = [self.local_full_x]
+            dofs = np.atleast_2d(self.local_full_x)
             # Re-Assemble dofs, non_dofs and opts to args, kwargs
             args = []
             kwargs = {}
