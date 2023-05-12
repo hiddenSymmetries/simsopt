@@ -9,7 +9,6 @@ This script requires the VirtualCasing module to be installed.
 Rogerio Jorge, April 2023
 """
 import os
-import glob
 import numpy as np
 from mpi4py import MPI
 from math import isnan
@@ -89,7 +88,7 @@ surf = vmec.boundary
 ##########################################################################################
 ##########################################################################################
 # Finite Beta Virtual Casing Principle
-vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
+vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
 total_current_vmec = vmec.external_current() / (2 * surf.nfp)
 ##########################################################################################
 ##########################################################################################
@@ -175,7 +174,7 @@ def fun_J(dofs_vmec, dofs_coils):
         JF.x = dofs_coils
     if run_vcasing:
         try:
-            vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
+            vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
             Jf.target = vc.B_external_normal
             if np.sum(Jf.x != dofs_coils) > 0: Jf.x = dofs_coils
         except ObjectiveFailure as e:
@@ -208,16 +207,6 @@ def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}):
         fun_J(dofs_vmec, dofs_coils)
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
-    # Remove spurious files
-    for vcasing_file in glob.glob("vcasing*"): os.remove(vcasing_file)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-    os.chdir(parent_path)
-    for vcasing_file in glob.glob("vcasing*"): os.remove(vcasing_file)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-    os.chdir(this_path)
-    for vcasing_file in glob.glob("vcasing*"): os.remove(vcasing_file)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-
     return J, grad
 
 
@@ -235,7 +224,7 @@ objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight), (qs.
 prob = LeastSquaresProblem.from_tuples(objective_tuple)
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
-vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
+vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
 Jf = SquaredFlux(surf, bs, definition="local", target=vc.B_external_normal)
 pprint(f"Aspect ratio before optimization: {vmec.aspect()}")
 pprint(f"Mean iota before optimization: {vmec.mean_iota()}")

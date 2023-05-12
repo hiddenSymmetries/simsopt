@@ -7,7 +7,6 @@ To accelerate convergence, a stage 2 optimization is done before the single stag
 Rogerio Jorge, April 2023
 """
 import os
-import glob
 import numpy as np
 from mpi4py import MPI
 from pathlib import Path
@@ -189,13 +188,6 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
         grad_with_respect_to_surface = np.ravel(prob_dJ) + coils_objective_weight * mixed_dJ
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
-
-    # Remove spurious files
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-    os.chdir(parent_path)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-    os.chdir(this_path)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
 
     return J, grad
 
