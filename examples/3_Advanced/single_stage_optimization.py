@@ -120,7 +120,9 @@ pprint(f'  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
-
+## The function fun_coils defined below is used to only optimize the coils at the beginning
+## and then optimize the coils and the surface together. This makes the overall optimization
+## more efficient as the number of iterations needed to achieve a good solution is reduced.
 
 def fun_coils(dofss, info):
     info['Nfeval'] += 1
@@ -143,7 +145,7 @@ def fun_coils(dofss, info):
     return J, grad
 ##########################################################################################
 ##########################################################################################
-
+## The function fun defined below is used to optimize the coils and the surface together.
 
 def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
     info['Nfeval'] += 1
