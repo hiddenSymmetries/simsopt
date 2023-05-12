@@ -1655,10 +1655,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                     elif dof_indicators[i] == "non-dof":
                         non_dofs.append(arg)
                     elif dof_indicators[i] == "dof":
-                        if dof_indicators.count("dof") == 1:
-                            dofs = arg
-                        else:
-                            dofs.append(arg)
+                        dofs.append(arg)
                     else:
                         raise ValueError
                 for i, k in enumerate(kwargs.keys()):
@@ -1689,6 +1686,8 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                     else:
                         non_dofs.append(v)
                         dof_indicators.append("non-dof")
+            # Make sure that dofs is a flat array
+            dofs = np.asarray(dofs).flatten()
 
             # Create args map and kwargs map
             super().__init__(x0=dofs, depends_on=opts)
@@ -1696,7 +1695,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             self.dof_indicators = dof_indicators
 
         def J(self):
-            dofs = self.local_full_x
+            dofs = [self.local_full_x]
             # Re-Assemble dofs, non_dofs and opts to args, kwargs
             args = []
             kwargs = {}
@@ -1709,10 +1708,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                     args.append(self.parents[opt_ind])
                     opt_ind += 1
                 elif self.dof_indicators[i] == 'dof':
-                    if self.dof_indicators.count("dof") == 1:
-                        args.append(dofs)
-                    else:
-                        args.append(dofs[dof_ind])
+                    args.append(dofs[dof_ind])
                     dof_ind += 1
                 elif self.dof_indicators[i] == 'non-dof':
                     args.append(self.non_dofs[non_dof_ind])
