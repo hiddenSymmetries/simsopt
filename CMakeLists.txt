@@ -34,6 +34,7 @@ endif()
 IF(DEFINED ENV{NO_XSIMD})
    set(NO_XSIMD ON)
 ENDIF()
+set(_HAS_AUTO_PTR_ETC 1)
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
@@ -66,7 +67,7 @@ if(DEFINED ENV{CONDA_PREFIX})
 endif()
 
 find_package(OpenMP)
-find_package(Boost 1.60.0)
+find_package(Boost 1.76.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
@@ -83,7 +84,7 @@ else()
         ${boost_target}
         PREFIX ${boost_DIR}
         GIT_REPOSITORY https://github.com/boostorg/boost.git
-        GIT_TAG boost-1.76.0
+        GIT_TAG boost-1.82.0
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
         GIT_SUBMODULES tools/build tools/boost_install libs/config libs/numeric
