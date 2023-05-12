@@ -10,7 +10,6 @@ Rogerio Jorge, April 2023
 """
 import os
 import glob
-import time
 import numpy as np
 from mpi4py import MPI
 from math import isnan
@@ -35,13 +34,14 @@ def pprint(*args, **kwargs):
 mpi = MpiPartition()
 parent_path = str(Path(__file__).parent.resolve())
 os.chdir(parent_path)
-start = time.time()
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+MAXITER_stage_2 = 10 if ci else 50
+MAXITER_single_stage = 5 if ci else 15
+# Remaining input parameters
 max_mode = 1
-MAXITER_stage_2 = 50
-MAXITER_single_stage = 15
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
 ncoils = 3
 aspect_ratio_target = 7.0
