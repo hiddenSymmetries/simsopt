@@ -16,6 +16,7 @@ from math import isnan
 from pathlib import Path
 from scipy.optimize import minimize
 from simsopt.util import MpiPartition
+from simsopt._core.util import ObjectiveFailure
 from simsopt._core.optimizable import make_optimizable
 from simsopt._core.finite_difference import MPIFiniteDifference
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
@@ -135,6 +136,7 @@ pprint(f'  Starting optimization')
 ## and then optimize the coils and the surface together. This makes the overall optimization
 ## more efficient as the number of iterations needed to achieve a good solution is reduced.
 
+
 def fun_coils(dofss, info):
     info['Nfeval'] += 1
     JF.x = dofss
@@ -161,6 +163,7 @@ def fun_coils(dofss, info):
 ## is used also to calculate the derivatives using finite difference, it was separated
 ## from the function fun below.
 
+
 def fun_J(dofs_vmec, dofs_coils):
     run_vcasing = False
     if np.sum(prob.x != dofs_vmec) > 0:
@@ -173,13 +176,10 @@ def fun_J(dofs_vmec, dofs_coils):
     if run_vcasing:
         try:
             vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
-            Jf = SquaredFlux(surf, bs, definition="local", target=vc.B_external_normal)
+            Jf.target = vc.B_external_normal
             if np.sum(Jf.x != dofs_coils) > 0: Jf.x = dofs_coils
-            JF.opts[0].opts[0].opts[0].opts[0].opts[0] = Jf
-            if np.sum(JF.x != dofs_coils) > 0: JF.x = dofs_coils
-        except Exception as e:
+        except ObjectiveFailure as e:
             J = JACOBIAN_THRESHOLD
-            Jf = JF.opts[0].opts[0].opts[0].opts[0].opts[0]
     bs.set_points(surf.gamma().reshape((-1, 3)))
     J_stage_2 = coils_objective_weight * JF.J()
     J = J_stage_1 + J_stage_2
@@ -187,6 +187,7 @@ def fun_J(dofs_vmec, dofs_coils):
 ##########################################################################################
 ##########################################################################################
 ## The function fun defined below is used to optimize the coils and the surface together.
+
 
 def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}):
     info['Nfeval'] += 1
@@ -253,7 +254,6 @@ if comm.rank == 0:
 pprint(f'  Performing single stage optimization with ~{MAXITER_single_stage} iterations')
 dofs[:-number_vmec_dofs] = res.x
 JF.x = dofs[:-number_vmec_dofs]
-Jf = JF.opts[0].opts[0].opts[0].opts[0].opts[0]
 mpi.comm_world.Bcast(dofs, root=0)
 opt = make_optimizable(fun_J, dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs], dof_indicators=["dof", "non-dof"])
 with MPIFiniteDifference(opt.J, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
