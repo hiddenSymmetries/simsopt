@@ -115,7 +115,7 @@ if comm.rank == 0:
     surf.to_vtk(os.path.join(coils_results_path, "surf_init"), extra_data=pointData)
 ##########################################################################################
 ##########################################################################################
-Jf = SquaredFlux(surf, bs, local=True, target=vc.B_external_normal)
+Jf = SquaredFlux(surf, bs, definition="local", target=vc.B_external_normal)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=len(curves))
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for i, c in enumerate(base_curves)]
@@ -170,7 +170,7 @@ def fun_J(dofs_vmec, dofs_coils):
     if run_vcasing:
         try:
             vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
-            Jf = SquaredFlux(surf, bs, local=True, target=vc.B_external_normal)
+            Jf = SquaredFlux(surf, bs, definition="local", target=vc.B_external_normal)
             if np.sum(Jf.x != dofs_coils) > 0: Jf.x = dofs_coils
             JF.opts[0].opts[0].opts[0].opts[0].opts[0] = Jf
             if np.sum(JF.x != dofs_coils) > 0: JF.x = dofs_coils
@@ -232,7 +232,7 @@ prob = LeastSquaresProblem.from_tuples(objective_tuple)
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
 vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC)
-Jf = SquaredFlux(surf, bs, local=True, target=vc.B_external_normal)
+Jf = SquaredFlux(surf, bs, definition="local", target=vc.B_external_normal)
 pprint(f"Aspect ratio before optimization: {vmec.aspect()}")
 pprint(f"Mean iota before optimization: {vmec.mean_iota()}")
 pprint(f"Quasisymmetry objective before optimization: {qs.total()}")
