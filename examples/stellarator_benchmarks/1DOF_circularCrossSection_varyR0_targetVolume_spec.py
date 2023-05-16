@@ -53,6 +53,11 @@ surf.set_zs(1, 0, 0.1)
 print('rc:', surf.rc)
 print('zs:', surf.zs)
 
+# Set the coordinate axis position
+equil.axis['rac'][0] = 1    # R00
+equil.axis['rac'][1] = 0.1  # R10
+equil.axis['zas'][1] = 0.1  # Z10
+
 # Surface parameters are all non-fixed by default.  You can choose
 # which parameters are optimized by setting their 'fixed' attributes.
 surf.fix_all()
