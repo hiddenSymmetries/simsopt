@@ -49,12 +49,12 @@ surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range=coil_range, nphi=nphi, ntheta=ntheta)
 
 qphi = s.nfp * nphi * 2
-#quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
-#quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
+quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
-    nphi=qphi, ntheta=ntheta 
-    #quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+    # nphi=qphi, ntheta=ntheta 
+    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
 if coil_range == 'half period':
     s.nfp = 2
@@ -79,13 +79,13 @@ t1 = time.time()
 numquadpoints = nphi * s.nfp * 2
 curve = make_curve_at_theta0(s, numquadpoints)
 curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
-Itarget = 1e6
+Itarget = 30e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
-fac1 = 1  # .5
-fac2 = 2.45
-fac3 = 2.5
+fac1 = 1.6
+fac2 = 4.25
+fac3 = 5
 
 #create the outside boundary for the PMs
 s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=coil_range, nfp=s.nfp, stellsym=s.stellsym)
@@ -102,7 +102,7 @@ s_in.set_zs(1, 0, s.get_rc(1, 0) * fac2)
 s_in.to_vtk(OUT_DIR + "surf_in")
 
 nx = 10
-Nx = 10
+Nx = 20
 Ny = Nx
 Nz = Nx 
 # Finally, initialize the current voxels 
@@ -128,12 +128,15 @@ wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
-max_iter = 1000
-rs_max_iter = 1  # 20
-nu = 1e100  # 1e13
-lam = 1e-16 
-l0_threshold = 1e4  # 1e4
-l0_thresholds = [0.0]  # np.linspace(l0_threshold, 200 * l0_threshold, 40, endpoint=True)
+t1 = time.time()
+max_iter = 20
+rs_max_iter = 120
+nu = 1e13
+lam = 1e-30 
+l0_threshold = 5e4  # 1e4
+# best: max_iter = 20, rs_max_iter = 100, nu=1e13, l0 = 5e4, 20, 40
+l0_thresholds = np.linspace(l0_threshold, 25 * l0_threshold, 100, endpoint=True)
+
 alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
@@ -173,21 +176,6 @@ print('fB_direct = ', fB_direct)
 gamma = curve.gamma().reshape(-1, 3)
 bs_wv.set_points(gamma)
 gammadash = curve.gammadash().reshape(-1, 3)
-gamma_2D = gamma[:, :2]
-gammadash_2D = gammadash[:, :2]
-B_cv = bs_wv.B()
-B_dot_gammadash = B_cv * gammadash
-B_2D = B_cv[:, :2]
-plt.figure()
-plt.quiver(gamma_2D[:, 0], gamma_2D[:, 1], gammadash_2D[:, 0], gammadash_2D[:, 1], color='r')
-plt.grid(True)
-plt.figure()
-plt.quiver(gamma_2D[:, 0], gamma_2D[:, 1], B_2D[:, 0], B_2D[:, 1], color='b')
-plt.grid(True)
-# print(gammadash, B_cv, B_dot_gammadash)
-#gammadash_normalized = np.linalg.norm(gammadash, axis=-1)
-#for i in range(len(gammadash_normalized)):
-#    gammadash[i, :] = gammadash[i, :] / gammadash_normalized[i]
 Bnormal_Itarget_curve = np.sum(bs_wv.B() * gammadash, axis=-1)
 mu0 = 4 * np.pi * 1e-7
 # print(curve.quadpoints)
@@ -224,7 +212,9 @@ wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
-trace_field = False
+calculate_on_axis_B(bs_wv, s)
+
+trace_field = True
 if trace_field:
     t1 = time.time()
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -248,23 +238,18 @@ if trace_field:
         return skip
 
     # Load in the optimized coils from stage_two_optimization.py:
-    coils_filename = Path(__file__).parent / "../1_Simple/inputs" / "biot_savart_opt.json"
-    bs = simsopt.load(coils_filename)
-    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_precomputed")
     bsh = InterpolatedField(
-        bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
+        bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym,  # skip=skip
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    bs.set_points(s_plot.gamma().reshape((-1, 3)))
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
     make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
     Bh = bsh.B()
     B = bs_wv.B()
-    calculate_on_axis_B(bs_wv, s)
     print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
     print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
-    nfieldlines = 10
-    R0 = np.linspace(1.2125346, 1.295, nfieldlines)
+    nfieldlines = 20
+    R0 = np.linspace(6, 7.9, nfieldlines)
     trace_fieldlines(bsh, 'current_voxels_axisymmetric_poincare', s_plot, comm, OUT_DIR, R0)
     t2 = time.time()
 print(OUT_DIR)

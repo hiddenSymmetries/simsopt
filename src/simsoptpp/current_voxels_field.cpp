@@ -23,7 +23,7 @@ Array current_voxels_field_B(Array& points, Array& integration_points, Array& J)
 
     double fak = 1e-7;
     Array B = xt::zeros<double>({num_points, 3});
-// #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (int i = 0; i < num_points; i++) {  // loop through quadrature points on plasma surface
 	double rx = points(i, 0);
 	double ry = points(i, 1);

@@ -554,6 +554,9 @@ class CurrentVoxelsField(MagneticField):
                 J_temp[:, :, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
                 J_temp[:, :, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
                 J_temp[:, :, 2] = Jz
+                #J_temp[:, :, 0] = Jx * np.cos(phi0) - Jy * np.sin(phi0) * stell
+                #J_temp[:, :, 1] = Jx * np.sin(phi0) + Jy * np.cos(phi0) * stell
+                #J_temp[:, :, 2] = Jz * stell
                 J_full[index:index + self.N_grid, :, :] = J_temp
 
                 int_points_full[index:index + self.N_grid, :, 0] = ox_temp
@@ -567,17 +570,12 @@ class CurrentVoxelsField(MagneticField):
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         contig = np.ascontiguousarray
-        # B[:] = sopp.current_voxels_field_B_SIMD(
-        # print(self.int_points_full)
-        print(points.shape, self.int_points_full.shape, self.J_full.shape)
-        B[:] = sopp.current_voxels_field_B(
+        # B[:] = sopp.current_voxels_field_B(
+        B[:] = sopp.current_voxels_field_B_SIMD(
             contig(points), 
             contig(self.int_points_full), 
             contig(self.J_full)
         ) * self.grid_scaling
-        # function returns factor of shape (num_points, 3, num_cells, n_functions)
-        # factor = sopp.current_voxels_field_Bext(points, self.current_voxels.integration_points_full, self.current_voxels.Phi_full) * self.grid_scaling
-        # B[:] = np.tensordot(factor, self.alphas_full, ((2, 3), (0, 1)))
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()

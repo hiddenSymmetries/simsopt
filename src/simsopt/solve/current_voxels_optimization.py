@@ -4,12 +4,19 @@ import time
 from matplotlib import pyplot as plt
 # from scipy.linalg import svd
 
-__all__ = ['relax_and_split_increasingl0', 'cstlsq', 'exact_convex_solve']
+__all__ = ['relax_and_split_increasingl0', 'cstlsq', 'exact_convex_solve']  # , 'l1_solve']
 
 
 def prox_group_l0(alpha, threshold, n, num_basis):
     alpha_mat = alpha.reshape(n, num_basis)
     alpha_mat[np.linalg.norm(alpha_mat.reshape(n, num_basis), axis=-1) < threshold, :] = 0.0
+    return alpha_mat.reshape(n * num_basis, 1)
+
+
+def prox_group_l1(alpha, threshold, n, num_basis):
+    alpha_mat = alpha.reshape(n, num_basis)
+    #alpha_mat[np.linalg.norm(alpha_mat.reshape(n, num_basis), axis=-1) < threshold, :] = 0.0
+    #alpha_mat = np.sign(alpha_mat, ax) * np.maximum(np.abs(alpha_mat) - reg_l1 * nu, 0) * np.ravel(mmax_vec)
     return alpha_mat.reshape(n * num_basis, 1)
 
 

@@ -186,7 +186,7 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
 
     # set fieldline tracer parameters
     nfieldlines = len(R0)
-    tmax_fl = 10000
+    tmax_fl = 8000
 
     # R0 = np.linspace(s.get_rc(0, 0) - s.get_rc(1, 0), s.get_rc(0, 0) + s.get_rc(1, 0), nfieldlines)
     # R0 = np.linspace(1.2125346, 1.295, nfieldlines)
@@ -680,7 +680,7 @@ def make_curve_at_theta0(s, numquadpoints):
 
     order = s.ntor + 1
     quadpoints = np.linspace(0, 1, numquadpoints, endpoint=True)
-    curve = CurveRZFourier(quadpoints, order, nfp=1, stellsym=True)
+    curve = CurveRZFourier(quadpoints, order, nfp=s.nfp, stellsym=True)
     r_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
     z_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
     for m in range(s.mpol + 1):
