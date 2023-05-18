@@ -78,7 +78,7 @@ class MPIOptimizable(Optimizable):
         self.attributes = attributes
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=optimizables)
 
-        for opt in self.optimizables:
+        for opt in optimizables:
             for attr in self.attributes:
                 if not hasattr(opt, attr):
                     raise Exception(f'All Optimizables in the optimizable list must contain the attribute {attr}')

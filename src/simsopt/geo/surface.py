@@ -651,6 +651,64 @@ class Surface(Optimizable):
         dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
         return np.sign(mean_area) * dmean_area_ds/(2*np.pi)
 
+    def d2mean_cross_sectional_area_by_dcoeff_dcoeff(self):
+        """
+        Return the second derivative of the mean cross sectional area wrt surface coefficients
+        """
+
+        g = self.gamma()
+        g1 = self.gammadash1()
+        g2 = self.gammadash2()
+
+        dg_ds = self.dgamma_by_dcoeff()
+        dg1_ds = self.dgammadash1_by_dcoeff()
+        dg2_ds = self.dgammadash2_by_dcoeff()
+
+        x = g[:, :, 0, None]
+        y = g[:, :, 1, None]
+
+        dx_ds = dg_ds[:, :, 0, :]
+        dy_ds = dg_ds[:, :, 1, :]
+
+        r = np.sqrt(x**2+y**2)
+        dr_ds = (x*dx_ds+y*dy_ds)/r
+        dr2_ds2 = -(2*x*dx_ds + 2*y*dy_ds)**2/(4*r**3) + (2*dx_ds**2 + 2*dy_ds**2)/(2*r)
+
+        xvarphi = g1[:, :, 0, None]
+        yvarphi = g1[:, :, 1, None]
+        zvarphi = g1[:, :, 2, None]
+
+        xtheta = g2[:, :, 0, None]
+        ytheta = g2[:, :, 1, None]
+        ztheta = g2[:, :, 2, None]
+
+        dxvarphi_ds = dg1_ds[:, :, 0, :]
+        dyvarphi_ds = dg1_ds[:, :, 1, :]
+        dzvarphi_ds = dg1_ds[:, :, 2, :]
+
+        dxtheta_ds = dg2_ds[:, :, 0, :]
+        dytheta_ds = dg2_ds[:, :, 1, :]
+        dztheta_ds = dg2_ds[:, :, 2, :]
+
+        mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
+        dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
+        d2mean_area_ds2 =  (-2*dr_ds*((yvarphi*ztheta - ytheta*zvarphi)*dx_ds + \
+                            y*zvarphi*dxtheta_ds - y*ztheta*dxvarphi_ds - xvarphi*ztheta*dy_ds + \
+                            xtheta*zvarphi*dy_ds - xvarphi*y*dztheta_ds + xtheta*y*dzvarphi_ds + \
+                            x*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + yvarphi*dztheta_ds - \
+                            ytheta*dzvarphi_ds)))/r**2 + (2*zvarphi*dxtheta_ds*dy_ds - \
+                            2*xvarphi*dy_ds*dztheta_ds - 2*dxvarphi_ds*(ztheta*dy_ds + \
+                            y*dztheta_ds) + 2*(y*dxtheta_ds + xtheta*dy_ds)*dzvarphi_ds + \
+                            2*dx_ds*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + \
+                            yvarphi*dztheta_ds - ytheta*dzvarphi_ds) + \
+                            x*(2*dyvarphi_ds*dztheta_ds - 2*dytheta_ds*dzvarphi_ds))/r + \
+                            (-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
+                            ytheta*zvarphi))*((2*dr_ds**2)/r^3 - dr2_ds2/r**2)
+        
+        return d2mean_area_ds2
+
+
+
     def arclength_poloidal_angle(self):
         """
         Computes poloidal angle based on arclenth along magnetic surface at
