@@ -162,14 +162,13 @@ public:
         return check_the_persistent_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array &A)
                                           { return dgammadashdash_by_dcoeff_impl(A); });
     }
-
-    /*
+ 
     Array &dgammadashdashdash_by_dcoeff() override
     {
         return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array &A)
                                           { return dgammadashdashdash_by_dcoeff_impl(A); });
     }
-    */
+    
 
     void gamma_impl(Array &data, Array &quadpoints) override;
     void gammadash_impl(Array &data) override;
