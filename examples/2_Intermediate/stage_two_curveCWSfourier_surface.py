@@ -33,10 +33,10 @@ MSC_WEIGHT = 0.01
 # SURFACE INPUT FILES FOR TESTING
 wout = "/Users/rogeriojorge/local/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4m.nc"
 
-MAXITER = 20
+MAXITER = 200
 minor_radius_factor_cws = 1.9
-ncoils = 3
-order = 4  # order of dofs of cws curves
+ncoils = 4
+order = 6  # order of dofs of cws curves
 quadpoints = 13 * order
 ntheta = 50
 nphi = 32
@@ -94,10 +94,10 @@ def create_cws_from_dofs(dofs_cws=cws.x, dofs_coils=None):
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
     JF = (
         Jf
-        + LENGTH_WEIGHT * sum(QuadraticPenalty(J, LENGTH_THRESHOLD) for J in Jls)
-        + CC_WEIGHT * Jccdist
-        + CURVATURE_WEIGHT * sum(Jcs)
-        + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
+        # + LENGTH_WEIGHT * sum(QuadraticPenalty(J, LENGTH_THRESHOLD) for J in Jls)
+        # + CC_WEIGHT * Jccdist
+        # + CURVATURE_WEIGHT * sum(Jcs)
+        # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
     )
     if dofs_coils is not None:
         JF.x = dofs_coils
@@ -142,11 +142,11 @@ def fun(dofs):
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
         mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
         B_n = Bcoil_n
-        B_diff = Bcoil
+        # B_diff = Bcoil
         B_N = np.sum(Bcoil * n, axis=2)
         dJdx = (B_n/mod_Bcoil**2)[:, :, None] * (np.sum(dB_by_dX*(n-B*(B_N/mod_Bcoil**2)[:, :, None])[:, :, None, :], axis=3))
-        dJdN = (B_n/mod_Bcoil**2)[:, :, None] * B_diff - 0.5 * (B_N**2/absn**3/mod_Bcoil**2)[:, :, None] * n
-        deriv = cws.dnormal_by_dcoeff_vjp(dJdN/(nphi*ntheta)) + cws.dgamma_by_dcoeff_vjp(dJdx/(nphi*ntheta))
+        # dJdN = (B_n/mod_Bcoil**2)[:, :, None] * B_diff - 0.5 * (B_N**2/absn**3/mod_Bcoil**2)[:, :, None] * n
+        deriv = cws.dgamma_by_dcoeff_vjp(dJdx/(nphi*ntheta))
         mixed_dJ = Derivative({cws: deriv})(cws)
         ## Put both gradients together
         grad_with_respect_to_coils = coils_dJ
