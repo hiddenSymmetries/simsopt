@@ -60,3 +60,7 @@ jobs:
         run: |
           conda build --no-test conda.recipe
 
+      - name: Build on PR
+        if: github.event_name == 'pull_request'
+        run: |
+          conda build --no-test conda.recipe
