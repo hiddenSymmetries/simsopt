@@ -654,7 +654,7 @@ class Testing(unittest.TestCase):
 
         # Test build of the MUSE coils
         input_name = 'input.muse'
-        nphi = 8
+        nphi = 32
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
