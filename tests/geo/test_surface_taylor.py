@@ -109,7 +109,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
         d2fest = (fpluseps-df0)/eps
         err = np.abs(d2fest - d2fval)
 
-        print(err/err_old)
+        print(err, err/err_old)
         assert err < 0.6 * err_old
         err_old = err
     print("###################################################################")
@@ -409,6 +409,82 @@ class SurfaceTaylorTests(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_volume_coefficient_derivative(s)
+
+    def test_mean_area_second_derivative(self):
+        """
+        Taylor test for the second derivative of the volume w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_mean_area_second_derivative(s)
+
+    def subtest_mean_area_second_derivative(self, s):
+        x = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.mean_cross_sectional_area()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dmean_cross_sectional_area_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2mean_cross_sectional_area_by_dcoeff_dcoeff()
+        np.random.seed(1)
+        direction1 = np.random.rand(*(x.shape))-0.5
+        direction2 = np.random.rand(*(x.shape))-0.5
+        
+        f0 = f(x)
+        df0 = df(x) @ direction1
+        d2fval = direction2.T @ d2f(x) @ direction1
+        epsilons = np.power(2., -np.asarray(range(7, 16)))
+        print("###################################################################")
+        err_old = 1e9
+        for eps in epsilons:
+            fpluseps = df(x + eps * direction2) @ direction1
+            d2fest = (fpluseps-df0)/eps
+            err = np.abs(d2fest - d2fval)
+            
+            print(err, err/err_old)
+            assert err < 0.6 * err_old or err < 1e-10
+            err_old = err
+        print("###################################################################")
+
+    def test_AR_second_derivative(self):
+        """
+        Taylor test for the second derivative of the volume w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s = get_surface(surfacetype, stellsym)
+                    self.subtest_AR_second_derivative(s)
+
+    def subtest_AR_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.aspect_ratio()
+
+        def df(dofs):
+            s.x = dofs
+            return s.daspect_ratio_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2aspect_ratio_by_dcoeff_dcoeff()
+        taylor_test2(f, df, d2f, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+
+
 
     def subtest_surface_phi_derivative(self, surfacetype, stellsym):
         epss = [0.5**i for i in range(10, 15)]
