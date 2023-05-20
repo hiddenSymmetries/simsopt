@@ -203,6 +203,10 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
         s: plasma boundary surface.
         comm: MPI COMM_WORLD object for using MPI for tracing.
         OUT_DIR: Output directory to save files to.
+        R0: 1D numpy array containing the cylindrical R locations
+          that should be sampled by the field tracing (usually the
+          points are from the magnetic axis to the plasma boundary
+          at the phi = 0 plane).
     """
     from simsopt.field.tracing import particles_to_vtk, compute_fieldlines, \
         LevelsetStoppingCriterion, plot_poincare_data, \
@@ -214,9 +218,6 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
     nfieldlines = len(R0)
     tmax_fl = 8000
 
-    # R0 = np.linspace(s.get_rc(0, 0) - s.get_rc(1, 0), s.get_rc(0, 0) + s.get_rc(1, 0), nfieldlines)
-    # R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-
     Z0 = np.zeros(nfieldlines)
     print('R0s = ', R0)
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
@@ -225,16 +226,8 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
     sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
     sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
+    # See field tracing example in examples/1_Simple for description
     def skip(rs, phis, zs):
-        # The RegularGrindInterpolant3D class allows us to specify a function that
-        # is used in order to figure out which cells to be skipped.  Internally,
-        # the class will evaluate this function on the nodes of the regular mesh,
-        # and if *all* of the eight corners are outside the domain, then the cell
-        # is skipped.  Since the surface may be curved in a way that for some
-        # cells, all mesh nodes are outside the surface, but the surface still
-        # intersects with a cell, we need to have a bit of buffer in the signed
-        # distance (essentially blowing up the surface a bit), to avoid ignoring
-        # cells that shouldn't be ignored
         rphiz = np.asarray([rs, phis, zs]).T.copy()
         dists = sc_fieldline.evaluate_rphiz(rphiz)
         skip = list((dists < -0.05).flatten())
@@ -244,7 +237,6 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
         phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-    # stopping_criteria=[IterationStoppingCriterion(200000)])
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
@@ -497,7 +489,7 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, OUT_
             # ani.save(OUT_DIR + 'm_history' + str(i) + '.mp4')
 
 
-def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
+def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR, R0):
     """
     Wrapper function for making Poincare plots.
 
@@ -508,11 +500,15 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
         comm: MPI COMM_WORLD object for using MPI for tracing.
         filename_poincare: Filename for the output poincare picture.
         OUT_DIR: String denoting file where to save outputs.
+        R0: 1D numpy array containing the cylindrical R locations
+          that should be sampled by the field tracing (usually the
+          points are from the magnetic axis to the plasma boundary
+          at the phi = 0 plane).
     """
     from simsopt.field.magneticfieldclasses import InterpolatedField
     from simsopt.objectives import SquaredFlux
 
-    n = 32
+    n = 20
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
     r_margin = 0.05
@@ -536,7 +532,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, OUT_DIR):
         bs + b_dipole, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
     )
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, OUT_DIR)
+    trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, OUT_DIR, R0)
 
 
 def make_Bnormal_plots(bs, s_plot, OUT_DIR, bs_filename):

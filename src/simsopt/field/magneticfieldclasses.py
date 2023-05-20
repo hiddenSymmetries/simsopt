@@ -570,8 +570,7 @@ class CurrentVoxelsField(MagneticField):
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         contig = np.ascontiguousarray
-        # B[:] = sopp.current_voxels_field_B(
-        B[:] = sopp.current_voxels_field_B_SIMD(
+        B[:] = sopp.current_voxels_field_B(
             contig(points), 
             contig(self.int_points_full), 
             contig(self.J_full)

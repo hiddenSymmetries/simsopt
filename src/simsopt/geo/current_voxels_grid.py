@@ -884,14 +884,12 @@ class CurrentVoxelsGrid:
 
                 Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
                 int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
-                # geo_factor += sopp.current_voxels_field_Bext_SIMD(
                 geo_factor += sopp.current_voxels_field_Bext(
                     points, 
                     contig(int_points), 
                     contig(Phivec_transpose),
                     plasma_unitnormal
                 )
-                # Itarget_matrix += sopp.current_voxels_field_Bext_SIMD(
                 Itarget_matrix += sopp.current_voxels_field_Bext(
                     points_curve, 
                     contig(int_points), 

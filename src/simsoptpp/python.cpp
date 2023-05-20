@@ -69,9 +69,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("make_current_voxels_grid" , &make_current_voxels_grid);
     m.def("acc_prox_grad_descent" , &acc_prox_grad_descent);
     m.def("current_voxels_field_B" , &current_voxels_field_B);
-    m.def("current_voxels_field_B_SIMD" , &current_voxels_field_B_SIMD);
     m.def("current_voxels_field_Bext" , &current_voxels_field_Bext);
-    m.def("current_voxels_field_Bext_SIMD" , &current_voxels_field_Bext_SIMD);
 
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

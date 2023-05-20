@@ -696,7 +696,8 @@ class Testing(unittest.TestCase):
         qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
-        run_Poincare_plots(s_plot, bs, b_dipole, comm, 'poincare_test', '')
+        R0 = np.linspace(1.1, 1.3)
+        run_Poincare_plots(s_plot, bs, b_dipole, comm, 'poincare_test', '', R0)
 
 
 if __name__ == "__main__":
