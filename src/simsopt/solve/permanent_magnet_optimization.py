@@ -7,25 +7,25 @@ __all__ = ['relax_and_split', 'GPMO', 'prox_l0', 'prox_l1', 'setup_initial_condi
 
 def prox_l0(m, mmax, reg_l0, nu):
     """
-        Proximal operator for L0 regularization.
-        Note that the m values are normalized before hard
-        thresholding to avoid only truncating the magnets on the
-        inner side of the configuration (which are often important!).
-        Note also the in principle the hard threshold here should be:
-        hard_threshold = sqrt(2 * reg_l0 * nu). But we can always imagine
-        rescaling nu (or reg_l0) such that hard_threshold = 2 * reg_l0 * nu
-        instead (for instance nu -> 2 * nu ** 2 and reg_l0 -> reg_l0 ** 2).
+    Proximal operator for L0 regularization.
+    Note that the m values are normalized before hard
+    thresholding to avoid only truncating the magnets on the
+    inner side of the configuration (which are often important!).
+    Note also the in principle the hard threshold here should be:
+    hard_threshold = sqrt(2 * reg_l0 * nu). But we can always imagine
+    rescaling nu (or reg_l0) such that hard_threshold = 2 * reg_l0 * nu
+    instead (for instance nu -> 2 * nu ** 2 and reg_l0 -> reg_l0 ** 2).
 
-        Args:
-            m: 2D numpy array, shape (ndipoles, 3)
-                The permanent magnet dipole vectors.
-            mmax: 1D numpy array, shape (ndipoles)
-                The maximal dipole strengths of each of the permanent magnets.
-            reg_l0: double
-                The amount of L0 regularization used in the problem.
-            nu: double
-                The strength of the "relaxing" term in the relax-and-split algorithm
-                used for permanent magnet optimization.
+    Args:
+        m: 2D numpy array, shape (ndipoles, 3)
+            The permanent magnet dipole vectors.
+        mmax: 1D numpy array, shape (ndipoles)
+            The maximal dipole strengths of each of the permanent magnets.
+        reg_l0: double
+            The amount of L0 regularization used in the problem.
+        nu: double
+            The strength of the "relaxing" term in the relax-and-split algorithm
+            used for permanent magnet optimization.
     """
     ndipoles = len(m) // 3
     mmax_vec = np.array([mmax, mmax, mmax]).T
@@ -36,21 +36,21 @@ def prox_l0(m, mmax, reg_l0, nu):
 
 def prox_l1(m, mmax, reg_l1, nu):
     """
-        Proximal operator for L1 regularization.
-        Note that the m values are normalized before soft
-        thresholding to avoid only truncating the magnets on the
-        inner side of the configuration (which are often important!).
+    Proximal operator for L1 regularization.
+    Note that the m values are normalized before soft
+    thresholding to avoid only truncating the magnets on the
+    inner side of the configuration (which are often important!).
 
-        Args:
-            m: 2D numpy array, shape (ndipoles, 3)
-                The permanent magnet dipole vectors.
-            mmax: 1D numpy array, shape (ndipoles)
-                The maximal dipole strengths of each of the permanent magnets.
-            reg_l1: double
-                The amount of L1 regularization used in the problem.
-            nu: double
-                The strength of the "relaxing" term in the relax-and-split algorithm
-                used for permanent magnet optimization.
+    Args:
+        m: 2D numpy array, shape (ndipoles, 3)
+            The permanent magnet dipole vectors.
+        mmax: 1D numpy array, shape (ndipoles)
+            The maximal dipole strengths of each of the permanent magnets.
+        reg_l1: double
+            The amount of L1 regularization used in the problem.
+        nu: double
+            The strength of the "relaxing" term in the relax-and-split algorithm
+            used for permanent magnet optimization.
     """
     ndipoles = len(m) // 3
     mmax_vec = np.array([mmax, mmax, mmax]).T
@@ -60,16 +60,16 @@ def prox_l1(m, mmax, reg_l1, nu):
 
 def projection_L2_balls(x, mmax):
     """
-        Project the vector x onto a series of L2 balls in R3.
-        Only used here for checking if the initial guess for the
-        permanent magnets is inside the feasible region
-        before optimization begins.
+    Project the vector x onto a series of L2 balls in R3.
+    Only used here for checking if the initial guess for the
+    permanent magnets is inside the feasible region
+    before optimization begins.
 
-        Args:
-            x: 1D numpy array, shape (ndipoles * 3)
-                The current solution vector for the dipole vectors of the magnets.
-            mmax: 1D numpy array, shape (ndipoles)
-                The maximal dipole strength of each of the magnets.
+    Args:
+        x: 1D numpy array, shape (ndipoles * 3)
+            The current solution vector for the dipole vectors of the magnets.
+        mmax: 1D numpy array, shape (ndipoles)
+            The maximal dipole strength of each of the magnets.
     """
     N = len(x) // 3
     x_shaped = x.reshape(N, 3)
@@ -80,16 +80,16 @@ def projection_L2_balls(x, mmax):
 
 def setup_initial_condition(pm_opt, m0=None):
     """
-        If an initial guess for the dipole moments is specified,
-        checks the initial condition lies in the allowed hypersurface.
-        If an initial guess is not specified, defaults to initializing
-        the permanent magnet dipole moments to all zeros.
+    If an initial guess for the dipole moments is specified,
+    checks the initial condition lies in the allowed hypersurface.
+    If an initial guess is not specified, defaults to initializing
+    the permanent magnet dipole moments to all zeros.
 
-        Args:
-            pm_opt: PermanentMagnetGrid class object
-                Permanent magnet grid for optimization.
-            m0: 1D numpy array, shape (ndipoles * 3)
-                Initial guess for the dipole vectors.
+    Args:
+        pm_opt: PermanentMagnetGrid class object
+            Permanent magnet grid for optimization.
+        m0: 1D numpy array, shape (ndipoles * 3)
+            Initial guess for the dipole vectors.
     """
     # Initialize initial guess for the dipole strengths
     if m0 is not None:
@@ -398,17 +398,10 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
 
     # rescale m and m_history
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
-
-    print(np.count_nonzero(m))
     print(
         'Number of binary dipoles returned by GPMO algorithm = ',
         np.count_nonzero(np.sum(m, axis=-1))
     )
-    sum_i = 0
-    for i in range(m.shape[0]):
-        if not np.all(np.isclose(m[i, :], 0.0)):
-            sum_i += 1
-    print(sum_i)
 
     # rescale the m that have been saved every Nhistory iterations
     for i in range(m_history.shape[-1]):

@@ -25,7 +25,8 @@ from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
                          PermanentMagnetGrid, SurfaceRZFourier,
                          create_equally_spaced_curves)
 from simsopt.solve import relax_and_split
-#from . import TEST_DIR
+from simsoptpp import dipole_field_Bn
+
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 
@@ -478,8 +479,6 @@ class Testing(unittest.TestCase):
         m = np.array([0.5, 0.5, 0.5])
         m_loc = np.array([0.1, -0.1, 1]).reshape(1, 3)
         field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
-        nphi = 4
-        ntheta = 4
         Bfield = DipoleField(
             m_loc,
             m,
@@ -505,8 +504,6 @@ class Testing(unittest.TestCase):
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
-        nphi = 4
-        ntheta = 4
         Bfield = DipoleField(
             m_loc,
             m,
@@ -540,8 +537,6 @@ class Testing(unittest.TestCase):
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
-        nphi = 4
-        ntheta = 4
         Bfield = DipoleField(
             m_loc,
             m,
@@ -569,7 +564,6 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
         # Repeat in cylindrical coords
-        ntheta = 4
         Bfield = DipoleField(
             m_loc,
             m,
@@ -659,10 +653,10 @@ class Testing(unittest.TestCase):
             bs.set_points(s.gamma().reshape((-1, 3)))
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
             pm_opt = PermanentMagnetGrid(
-                s, s_inner, s_outer, 
+                s,
                 Bn=Bn, 
             )
-            pm_opt.geo_setup()
+            pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
             dipoles = np.random.rand(pm_opt.ndipoles * 3)
             pm_opt.m = dipoles
             b_dipole = DipoleField(
@@ -682,7 +676,25 @@ class Testing(unittest.TestCase):
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+            Bn_dipole_only = np.sum(b_dipole.B().reshape(-1, 3) * s.unitnormal().reshape(-1, 3), axis=1)
             assert np.isclose(B_opt, B_dipole_field)
+            A_dipole = dipole_field_Bn(
+                s.gamma().reshape(-1, 3),
+                pm_opt.dipole_grid_xyz,
+                s.unitnormal().reshape(-1, 3),
+                s.nfp,
+                s.stellsym,
+                pm_opt.b_obj,
+                pm_opt.coordinate_flag
+            )
+            # Rescale
+            A_dipole = A_dipole.reshape(Ngrid, pm_opt.ndipoles * 3)
+            Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
+            for i in range(A_dipole.shape[0]):
+                A_dipole[i, :] = A_dipole[i, :] * np.sqrt(Nnorms[i] / Ngrid)
+            ATb = A_dipole.T @ pm_opt.b_obj
+            assert np.allclose(A_dipole, pm_opt.A_obj)
+            assert np.allclose(ATb, pm_opt.ATb)
             # check integral Bn^2
             f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj, ord=2) ** 2
             f_B = SquaredFlux(s, b_dipole, -Bn).J()

@@ -15,7 +15,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m);
 
 Array dipole_field_dA(Array& points, Array& m_points, Array& m);
 
-std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag="cartesian", double R0=0.0);
+Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag="cartesian", double R0=0.0);
 
 std::tuple<Array, Array> define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(Array& phi, Array& normal_inner, Array& normal_outer, Array& dipole_grid_rz, Array& r_inner, Array& r_outer, Array& z_inner, Array& z_outer);
 

@@ -31,7 +31,7 @@ class Testing(unittest.TestCase):
             part of the permanent magnet problem. 
         """
         ndipoles = 100
-        nquad = 1024
+        nquad = 512
         max_iter = 100
         m_maxima = np.random.rand(ndipoles) * 10
         m0 = np.zeros((ndipoles, 3))
@@ -88,16 +88,16 @@ class Testing(unittest.TestCase):
         # optimize the currents in the TF coils
         base_curves, curves, coils = initialize_coils('qa', TEST_DIR, '', s)
         bs = BiotSavart(coils)
-        s, bs = coil_optimization(s, bs, base_curves, curves, '', s)
+        bs = coil_optimization(s, bs, base_curves, curves, '')
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
         pm_opt = PermanentMagnetGrid(
-            s, s_inner, s_outer,
+            s, 
             dr=dr,
             Bn=Bnormal,
         )
-        pm_opt.geo_setup()
+        pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
         setup_initial_condition(pm_opt, np.zeros(pm_opt.ndipoles * 3))
 
         reg_l0 = 0.05  # Threshold off magnets with 5% or less strength

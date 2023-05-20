@@ -253,10 +253,10 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
             dA(i + k, 1, 0) = fak * dA_i2.x[k];
             dA(i + k, 1, 1) = fak * dA_i2.y[k];
             dA(i + k, 1, 2) = fak * dA_i2.z[k];
-	        dA(i + k, 2, 0) = fak * dA_i3.x[k];
-	        dA(i + k, 2, 1) = fak * dA_i3.y[k]; 
+	    dA(i + k, 2, 0) = fak * dA_i3.x[k];
+	    dA(i + k, 2, 1) = fak * dA_i3.y[k]; 
             dA(i + k, 2, 2) = fak * dA_i3.z[k];
-	    }
+	}
     }
     return dA;
 }
@@ -274,7 +274,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 // coordinate_flag: which coordinate system should be considered "grid-aligned"
 // R0: Major radius of the device, needed if a simple toroidal coordinate system is desired
 // returns the optimization matrix, or inductance, A
-std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag, double R0)
+Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag, double R0)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -290,7 +290,6 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
     int num_dipoles = m_points.shape(0);
     constexpr int simd_size = xsimd::simd_type<double>::size;
     Array A = xt::zeros<double>({num_points, num_dipoles, 3});
-    Array ATb = xt::zeros<double>({num_dipoles, 3});
 
     std::string cylindrical_str = "cylindrical";
     std::string toroidal_str = "toroidal";
@@ -379,12 +378,7 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
             }
         }
     }
-    // compute ATb
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A.data()), num_points, 3 * num_dipoles);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(b.data()), 1, num_points);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATb.data()), 1, 3 * num_dipoles);
-    eigen_res = eigen_v*eigen_mat;
-    return std::make_tuple(A, ATb);
+    return A;
 }
 
 #else
@@ -529,7 +523,7 @@ Array dipole_field_dB(Array& points, Array& m_points, Array& m) {
             auto r = point_i - mp_j;
             auto rmag_2     = normsq(r);
             auto rmag_inv   = rsqrt(rmag_2);
-	        auto rmag_inv_2 = rmag_inv * rmag_inv;
+	    auto rmag_inv_2 = rmag_inv * rmag_inv;
             auto rmag_inv_3 = rmag_inv * rmag_inv_2;
             auto rmag_inv_5 = rmag_inv_3 * rmag_inv_2;
             auto rdotm = inner(r, m_j);
@@ -592,7 +586,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
             auto r = point_i - mp_j;
             auto rmag_2     = normsq(r);
             auto rmag_inv   = rsqrt(rmag_2);
-	        auto rmag_inv_2 = rmag_inv * rmag_inv;
+	    auto rmag_inv_2 = rmag_inv * rmag_inv;
             auto rmag_inv_3 = rmag_inv * rmag_inv_2;
             auto mcrossr = cross(m_j, r);
             dA_i1.x += rmag_inv_3 * (- 3.0 * mcrossr.x * r.x * rmag_inv_2);
@@ -632,7 +626,7 @@ Array dipole_field_dA(Array& points, Array& m_points, Array& m) {
 // coordinate_flag: which coordinate system should be considered "grid-aligned"
 // R0: Major radius of the device, needed if a simple toroidal coordinate system is desired
 // returns the optimization matrix, or inductance, A
-std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag, double R0) 
+Array dipole_field_Bn(Array& points, Array& m_points, Array& unitnormal, int nfp, int stellsym, Array& b, std::string coordinate_flag, double R0) 
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -647,7 +641,6 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
     int num_points = points.shape(0);
     int num_dipoles = m_points.shape(0);
     Array A = xt::zeros<double>({num_points, num_dipoles, 3});
-    Array ATb = xt::zeros<double>({num_dipoles, 3});
   
     std::string cylindrical_str = "cylindrical"; 
     std::string toroidal_str = "toroidal"; 
@@ -731,12 +724,7 @@ std::tuple<Array, Array> dipole_field_Bn(Array& points, Array& m_points, Array& 
             }
         }
     }
-    // compute ATb
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A.data()), num_points, 3 * num_dipoles);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(b.data()), 1, num_points);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(ATb.data()), 1, 3 * num_dipoles);
-    eigen_res = eigen_v*eigen_mat;
-    return std::make_tuple(A, ATb);
+    return A;
 }
 
 #endif
@@ -965,10 +953,10 @@ std::tuple<Array, Array> define_a_uniform_cylindrical_grid_between_two_toroidal_
                 new_grids(ind_count + i * rz_max, 0) = Rpoint;
                 new_grids(ind_count + i * rz_max, 1) = phi_i; 
                 new_grids(ind_count + i * rz_max, 2) = Zpoint;
-            ind_count += 1;
+                ind_count += 1;
             }
-	    }
-	    inds(i) = ind_count;
+	}
+	inds(i) = ind_count;
     }
     return std::make_tuple(new_grids, inds);
 }

@@ -527,6 +527,10 @@ class DipoleField(MagneticField):
             The field-period symmetry of the dipole-grid.
         coordinate_flag: string (default "cartesian").
             The global coordinate system that should be considered grid-aligned in the calculation.
+            The options are "cartesian" (rectangular bricks), "cylindrical" (cylindrical bricks),
+            and "toroidal" (uniform grid in simple toroidal coordinates). Note that this ASSUMES
+            that the global coordinate system for the dipole locations is one of these three
+            choices, so be careful if your permanent magnets are shaped/arranged differently!
         m_maxima: 1D numpy array, shape (ndipoles,).
             The maximum dipole strengths of each magnet in the grid. If not specified, defaults
             to using the largest dipole strength of the magnets in dipole_grid, and using this
@@ -541,7 +545,7 @@ class DipoleField(MagneticField):
         MagneticField.__init__(self)        
         if coordinate_flag == 'toroidal':
             warnings.warn('Note that if using simple toroidal coordinates, '
-                          'the major radius must be specified through R0.')
+                          'the major radius must be specified through R0 argument.')
         self.R0 = R0
         self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
 
