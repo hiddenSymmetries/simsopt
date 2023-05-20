@@ -64,8 +64,9 @@ qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
-    fname_plasma, range="full torus",
-    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+    fname_plasma,
+    quadpoints_phi=quadpoints_phi, 
+    quadpoints_theta=quadpoints_theta
 )
 
 # Obtain the normal field on the plasma boundary arising from plasma currents
@@ -131,12 +132,16 @@ pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
-pm_ncsx = PermanentMagnetGrid(lcfs_ncsx, s1, s2,
-                              Bn=bn_total, 
-                              coordinate_flag='cartesian', 
-                              pol_vectors=pol_vectors)
+pm_ncsx = PermanentMagnetGrid(
+    lcfs_ncsx, 
+    Bn=bn_total, 
+    coordinate_flag='cartesian', 
+) 
 # Using m_maxima functionality to try out unrealistically strong magnets
-pm_ncsx.geo_setup_from_famus(fname_argmt)  # , m_maxima=np.ones())
+B_max = 5  # 5 Tesla!!!!
+mu0 = 4 * np.pi * 1e-7
+m_maxima = B_max / mu0
+pm_ncsx.geo_setup_from_famus(fname_argmt, pol_vectors=pol_vectors, m_maxima=m_maxima)
 
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')

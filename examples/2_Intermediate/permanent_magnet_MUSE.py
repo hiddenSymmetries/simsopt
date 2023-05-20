@@ -73,8 +73,9 @@ qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
-    surface_filename, range="full torus",
-    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+    surface_filename,
+    quadpoints_phi=quadpoints_phi, 
+    quadpoints_theta=quadpoints_theta
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
@@ -140,14 +141,13 @@ premade_dipole_grid = np.array([ox, oy, oz]).T
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, s_inner, s_outer,  # s_inner and s_outer overwritten in next line since using a FAMUS grid 
+    s, 
     dr=dr,
     Bn=Bnormal, 
     coordinate_flag='cartesian',
-    # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
-    pol_vectors=pol_vectors
 )
-pm_opt.geo_setup_from_famus(famus_filename)
+# pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
+pm_opt.geo_setup_from_famus(famus_filename, pol_vectors=pol_vectors)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -192,7 +192,9 @@ min_ind = np.argmin(R2_history)
 pm_opt.m = np.ravel(m_history[:, :, min_ind])
 
 # Print effective permanent magnet volume
-M_max = 1.465 / (4 * np.pi * 1e-7)
+B_max = 1.465
+mu0 = 4 * np.pi * 1e-7
+M_max = B_max / mu0 
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
@@ -254,8 +256,6 @@ bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
 print('f_B = ', f_B_sf)
-B_max = 1.465
-mu0 = 4 * np.pi * 1e-7
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume = ', total_volume)
 
@@ -268,7 +268,6 @@ if vmec_flag:
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=1)
-    comm = MPI.COMM_WORLD
 
     # Make the QFM surfaces
     t1 = time.time()

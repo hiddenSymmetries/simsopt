@@ -416,10 +416,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
         full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         full_period.x = full_torus.x
-        
+
         np.testing.assert_allclose(full_torus.rc, full_period.rc)
         np.testing.assert_allclose(full_torus.zs, full_period.zs)
-        
+
         np.random.seed(1)
         # non stell sym for code coverage
         qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)

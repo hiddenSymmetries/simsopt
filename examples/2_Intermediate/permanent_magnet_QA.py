@@ -47,7 +47,6 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-comm = None
 nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = 8
 dr = 0.02  # cylindrical bricks with radial extent 2 cm
@@ -55,7 +54,7 @@ coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-# Read in the plasma equilibrium file
+# Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -84,15 +83,16 @@ qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range="full torus",
-    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+    surface_filename, 
+    quadpoints_phi=quadpoints_phi, 
+    quadpoints_theta=quadpoints_theta
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 
 # optimize the currents in the TF coils
-s, bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR, s_plot)
+bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
@@ -105,11 +105,11 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
-    s, s_inner, s_outer,
+    s, 
     dr=dr,
     Bn=Bnormal,
 )
-pm_opt.geo_setup()
+pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
 
 reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
 nu = 1e10  # how strongly to make proxy variable w close to values in m
@@ -154,7 +154,9 @@ except ValueError:
         'This is probably an indication that a mp4 python writer was not available for use.'
     )
 # Print effective permanent magnet volume
-M_max = 1.465 / (4 * np.pi * 1e-7)
+B_max = 1.465
+mu0 = 4 * np.pi * 1e-7
+M_max = B_max / mu0 
 dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
@@ -211,8 +213,6 @@ s_plot.to_vtk(OUT_DIR + "m_proxy_optimized", extra_data=pointData)
 # Print optimized f_B and other metrics
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
 print('f_B = ', f_B_sf)
-B_max = 1.465
-mu0 = 4 * np.pi * 1e-7
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 total_volume_sparse = np.sum(np.sqrt(np.sum(pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume for m and m_proxy = ', total_volume, total_volume_sparse)
@@ -241,7 +241,6 @@ if vmec_flag:
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=1)
-    comm = MPI.COMM_WORLD
 
     # Make the QFM surface
     t1 = time.time()

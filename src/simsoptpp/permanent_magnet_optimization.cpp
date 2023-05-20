@@ -525,7 +525,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
@@ -693,7 +693,7 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 	        R2s[N3 + 3 * cj + j] = 1e50;
 	    }
 	}
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
@@ -912,7 +912,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                    backtracking);
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
                        Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", 
@@ -1056,7 +1056,7 @@ std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, A
 	    R2s[NNp + skj[k]*nPolVecs + m] = 1e50;
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
@@ -1155,7 +1155,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 	    R2s[N3 + 3 * skj[k] + j] = 1e50;
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }

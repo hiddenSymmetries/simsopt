@@ -52,10 +52,7 @@ class SquaredFlux(Optimizable):
         unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        if self.Btarget is not None:
-            B_n = (Bcoil_n - self.Btarget)
-        else:
-            B_n = Bcoil_n
+        B_n = (Bcoil_n - self.Btarget)
         dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)

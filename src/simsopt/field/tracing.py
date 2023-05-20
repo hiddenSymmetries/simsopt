@@ -816,9 +816,8 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     import matplotlib.pyplot as plt
     from math import ceil, sqrt
     nrowcol = ceil(sqrt(len(phis)))
+    plt.figure()
     fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
-    gs = fig.add_gridspec(nrowcol, nrowcol, hspace=0, wspace=0)
-    axs = gs.subplots()
     color = None
     for i in range(len(phis)):
         row = i//nrowcol
@@ -833,8 +832,6 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             axs[row, col].set_ylabel("$z$")
         if col == 1:
             axs[row, col].set_yticklabels([])
-        if row == 0:
-            axs[row, col].set_xticklabels([])
         if xlims is not None:
             axs[row, col].set_xlim(xlims)
         if ylims is not None:
@@ -854,13 +851,9 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
 
         # if passed a surface, plot the plasma surface outline
         if surf is not None:
-            xyz_plasma = surf.gamma()
-            r_plasma = np.ravel(np.sqrt(xyz_plasma[:, :, 0] ** 2 + xyz_plasma[:, :, 1] ** 2))
-            phi_plasma = np.ravel(np.arctan2(xyz_plasma[:, :, 1], xyz_plasma[:, :, 0]))
-            z_plasma = np.ravel(xyz_plasma[:, :, 2])
-            phi_inds = np.isclose(phi_plasma, phis[i] * np.ones(len(phi_plasma)))
-            r_interp = np.append(r_plasma[phi_inds], (r_plasma[phi_inds])[0])
-            z_interp = np.append(z_plasma[phi_inds], (z_plasma[phi_inds])[0])
+            cross_section = surf.cross_section(phi=phis[i])
+            r_interp = np.sqrt(cross_section[:, 0] ** 2 + cross_section[:, 1] ** 2)
+            z_interp = cross_section[:, 2]
             axs[row, col].plot(r_interp, z_interp, linewidth=1, c='k')
 
     plt.tight_layout()
