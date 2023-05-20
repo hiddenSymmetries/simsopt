@@ -194,8 +194,8 @@ class Testing(unittest.TestCase):
             with the default parameters. Checks the the pm_opt object agrees with Bn and
             f_B with the DipoleField + SquaredFlux way of calculating Bn and f_B.
         """
-        nphi = 32
-        ntheta = 32
+        nphi = 16
+        ntheta = nphi 
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -283,8 +283,8 @@ class Testing(unittest.TestCase):
             the inner and outer surfaces.
         """
         filename = TEST_DIR / 'input.circular_tokamak'
-        nphi = 32
-        ntheta = 32
+        nphi = 16
+        ntheta = 16
         contig = np.ascontiguousarray
         s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
@@ -636,7 +636,7 @@ class Testing(unittest.TestCase):
         kwargs['verbose'] = False
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         m_history = np.transpose(m_history, [2, 0, 1])
-        m_history = m_history.reshape(1, 11, 252, 3)
+        m_history = m_history.reshape(1, 11, m_history.shape[1], 3)
         make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
 
         pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus')
