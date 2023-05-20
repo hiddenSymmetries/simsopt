@@ -616,30 +616,34 @@ class DipoleField(MagneticField):
 
     .. math::
 
-        B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{i=1}^{N} (\frac{3\mathbf{r}_i\cdot \mathbf{m}_i}{|\mathbf{r}_i|^5}\mathbf{r}_i - \frac{\mathbf{m}_i}{|\mathbf{r}_i|^3})
+        B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{i=1}^{N} \left(\frac{3\mathbf{r}_i\cdot \mathbf{m}_i}{|\mathbf{r}_i|^5}\mathbf{r}_i - \frac{\mathbf{m}_i}{|\mathbf{r}_i|^3}\right)
 
-    where :math:`\mu_0=4\pi 10^{-7}` is the permeability of free space
-    and :math:\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i is the
-    vector between the field evaluation point and the dipole i
+    where :math:`\mu_0=4\pi\times 10^{-7}\;N/A^2` is the permeability of free space
+    and :math:`\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i` is the
+    vector between the field evaluation point and the dipole :math:`i`
     position.
 
     Args:
-        dipole_grid: 2D numpy array, shape (ndipoles, 3)
+        dipole_grid: 2D numpy array, shape (ndipoles, 3).
             A set of points corresponding to the locations of magnetic dipoles.
-        dipole_vectors: 2D numpy array, shape (ndipoles, 3)
+        dipole_vectors: 2D numpy array, shape (ndipoles, 3).
             The dipole vectors of each of the dipoles in the grid.
-        stellsym: bool (default True)
+        stellsym: bool (default True).
             Whether or not the dipole grid is stellarator symmetric.
-        nfp: int (default 1)
+        nfp: int (default 1).
             The field-period symmetry of the dipole-grid.
-        coordinate_flag: string (default "cartesian")
+        coordinate_flag: string (default "cartesian").
             The global coordinate system that should be considered grid-aligned in the calculation.
-        m_maxima: 1D numpy array, shape (ndipoles)
+            The options are "cartesian" (rectangular bricks), "cylindrical" (cylindrical bricks),
+            and "toroidal" (uniform grid in simple toroidal coordinates). Note that this ASSUMES
+            that the global coordinate system for the dipole locations is one of these three
+            choices, so be careful if your permanent magnets are shaped/arranged differently!
+        m_maxima: 1D numpy array, shape (ndipoles,).
             The maximum dipole strengths of each magnet in the grid. If not specified, defaults
             to using the largest dipole strength of the magnets in dipole_grid, and using this
             value for all the dipoles. Needed for plotting normalized dipole magnitudes in the
             vtk functionality.
-        R0: double
+        R0: double.
             The value of the major radius of the stellarator needed only for simple toroidal
             coordinates.
     """
@@ -648,7 +652,7 @@ class DipoleField(MagneticField):
         MagneticField.__init__(self)        
         if coordinate_flag == 'toroidal':
             warnings.warn('Note that if using simple toroidal coordinates, '
-                          'the major radius must be specified through R0.')
+                          'the major radius must be specified through R0 argument.')
         self.R0 = R0
         self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
 
@@ -750,7 +754,7 @@ class DipoleField(MagneticField):
 
     def _toVTK(self, vtkname):
         """
-            Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
+            Write dipole data into a VTK file (acknowledgements to Caoxiang's CoilPy code).
 
         Args:
             vtkname (str): VTK filename, will be appended with .vts or .vtu.

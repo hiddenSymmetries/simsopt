@@ -1,11 +1,11 @@
 """
-    This file contains definitions and functions for generating the 
-    PM4Stell magnet orientations and other magnet functionality.
+This file contains definitions and functions for generating the 
+PM4Stell magnet orientations and other magnet functionality.
 
-    This file was copied over from the MAGPIE code used for generating 
-    permanent magnet structures. All credit for this code is thanks 
-    to the PM4Stell team and Ken Hammond for his consent to use this file
-    and work with the permanent magnet branch of SIMSOPT.
+This file was copied over from the MAGPIE code used for generating 
+permanent magnet structures. All credit for this code is thanks 
+to the PM4Stell team and Ken Hammond for his consent to use this file
+and work with the permanent magnet branch of SIMSOPT.
 """
 __all__ = ['faceedge_vectors', 'facecorner_vectors', 'edge_triplet', 
            'orientation_phi', 'polarization_axes', 'discretize_polarizations',
@@ -216,13 +216,13 @@ pol_ec23 = np.concatenate((pol_ec23_pos, -pol_ec23_pos), axis=0)
 
 def faceedge_vectors(theta):
     """
-        Generates an array of unit vectors for a set of face-edge polarizations
-        defined by the polar angle theta with respect to the nearest face-normal
-        vector.
+    Generates an array of unit vectors for a set of face-edge polarizations
+    defined by the polar angle theta with respect to the nearest face-normal
+    vector.
 
-        Args:
-            theta: double
-                Polar angle theta between polarizations and nearest face-normal vector
+    Args:
+        theta: double
+            Polar angle theta between polarizations and nearest face-normal vector
     """
 
     # Unique vector component magnitudes
@@ -248,9 +248,12 @@ def faceedge_vectors(theta):
 
 def facecorner_vectors(theta):
     """
-        Generates an array of unit vectors for a set of face-corner polarizations
-        defined by the polar angle theta with respect to the nearest face-normal
-        vector.
+    Generates an array of unit vectors for a set of face-corner polarizations
+    defined by the polar angle theta with respect to the nearest face-normal
+    vector.
+
+    Args:
+        theta: polar angle theta with respect to the nearest face-normal vector.
     """
 
     # Unique vector component magnitudes
@@ -276,18 +279,18 @@ def facecorner_vectors(theta):
 
 def face_triplet(theta_fe, theta_fc):
     """
-        Generates a set of vectors corresponding to the "face-triplet" set of 
-        polarization types: face, face-edge, and face-corner.
+    Generates a set of vectors corresponding to the "face-triplet" set of 
+    polarization types: face, face-edge, and face-corner.
 
-        Args: 
-            theta_fe: double
-                Angle with respect to the nearest face-normal for the face-edge type
-            theta_fc: double
-                Angle with respect to the nearest face-normal for face-corner type
+    Args: 
+        theta_fe: double
+            Angle with respect to the nearest face-normal for the face-edge type
+        theta_fc: double
+            Angle with respect to the nearest face-normal for face-corner type
 
-        Returns:
-            vectors: double array
-                3-column array in which each row is one unit vector in the full set
+    Returns:
+        vectors: double array
+            3-column array in which each row is one unit vector in the full set
     """
     return np.concatenate((pol_f, faceedge_vectors(theta_fe),
                            facecorner_vectors(theta_fc)), 
@@ -297,18 +300,18 @@ def face_triplet(theta_fe, theta_fc):
 
 def edge_triplet(theta_fe, theta_fc):
     """
-        Generates a set of vectors corresponding to the "edge-triplet" set of 
-        polarization types: edge, face-edge, and face-corner.
+    Generates a set of vectors corresponding to the "edge-triplet" set of 
+    polarization types: edge, face-edge, and face-corner.
 
-        Args:
-            theta_fe: double
-                Angle with respect to the nearest face-normal for the face-edge type
-            theta_fc: double
-                Angle with respect to the nearest face-normal for face-corner type
+    Args:
+        theta_fe: double
+            Angle with respect to the nearest face-normal for the face-edge type
+        theta_fc: double
+            Angle with respect to the nearest face-normal for face-corner type
 
-        Returns:
-            vectors: double array
-                3-column array in which each row is one unit vector in the full set
+    Returns:
+        vectors: double array
+            3-column array in which each row is one unit vector in the full set
     """
     return np.concatenate((pol_e, faceedge_vectors(theta_fe),
                            facecorner_vectors(theta_fc)), 
@@ -354,25 +357,25 @@ def orientation_phi(corners_fname):
 
 def polarization_axes(polarizations):
     """
-        Populates an array of allowable polarization vectors based on an input
-        list of names. Also outputs a 1D array with an integer corresponding
-        to the polarization type in the order it appears in the list of names.
+    Populates an array of allowable polarization vectors based on an input
+    list of names. Also outputs a 1D array with an integer corresponding
+    to the polarization type in the order it appears in the list of names.
 
-        Args:
-            polarizations: list of strings
-                List of names of polarization types. Each type should not be listed
-                more than once
+    Args:
+        polarizations: list of strings
+            List of names of polarization types. Each type should not be listed
+            more than once
 
-        Returns:
-            pol_axes: 2d double array
-                Allowable axes for the magnets expressed as unit vectors in local
-                cylindrical coordinates. The first, second, and third columns 
-                contain the r, phi, and z components, respectively.
-            pol_type: 1d integer array
-                ID number for the polarization type associated with each row
-                in pol_axes. The ID corresponds to the order in which the type
-                appears in the input list (polarizations). The first type is given
-                an ID of 1.
+    Returns:
+        pol_axes: 2d double array
+            Allowable axes for the magnets expressed as unit vectors in local
+            cylindrical coordinates. The first, second, and third columns 
+            contain the r, phi, and z components, respectively.
+        pol_type: 1d integer array
+            ID number for the polarization type associated with each row
+            in pol_axes. The ID corresponds to the order in which the type
+            appears in the input list (polarizations). The first type is given
+            an ID of 1.
     """
 
     pol_axes = np.zeros((0, 3))
@@ -446,28 +449,28 @@ def polarization_axes(polarizations):
 
 def discretize_polarizations(mag_data, orientation_phi, pol_axes, pol_type):
     """
-        Adjusts the polarization axes of a set of dipole moments to the closest
-        from a set of allowable axes. 
+    Adjusts the polarization axes of a set of dipole moments to the closest
+    from a set of allowable axes. 
 
-        Also populates the pol_x, pol_y, pol_z, and pol_id arrays within the
-        input instance of the mag_data class, providing all of the allowable 
-        polarization vectors for each magnet in the lab frame.
+    Also populates the pol_x, pol_y, pol_z, and pol_id arrays within the
+    input instance of the mag_data class, providing all of the allowable 
+    polarization vectors for each magnet in the lab frame.
 
-        Args:
-            mag_data: mag_data object
-                Instance of the mag_data class characterizing the dipole moments
-                of a set of magnets, whose orientations are to be updated.
-            orientation_phi: double array
-                Orientation angle defining a reference axes for the allowable axes
-                for each respective magnet (as described in the documentation for 
-                orientation_phi().) Number of elements must agree with the number
-                of magnets in mag_data.
-            pol_axes: double array with 3 columns 
-                Set of Cartesian unit vectors defining the allowable polarization
-                vectors for each magnet. The first, second, and third columns 
-                contain the x, y, and z components, respectively.
-            pol_type: integer array
-                Type IDs corresponding to each row in pol_axes.
+    Args:
+        mag_data: mag_data object
+            Instance of the mag_data class characterizing the dipole moments
+            of a set of magnets, whose orientations are to be updated.
+        orientation_phi: double array
+            Orientation angle defining a reference axes for the allowable axes
+            for each respective magnet (as described in the documentation for 
+            orientation_phi().) Number of elements must agree with the number
+            of magnets in mag_data.
+        pol_axes: double array with 3 columns 
+            Set of Cartesian unit vectors defining the allowable polarization
+            vectors for each magnet. The first, second, and third columns 
+            contain the x, y, and z components, respectively.
+        pol_type: integer array
+            Type IDs corresponding to each row in pol_axes.
     """
 
     nMagnets = mag_data.nMagnets

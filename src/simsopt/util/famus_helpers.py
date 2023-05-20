@@ -1,10 +1,10 @@
 """
-    This file contains a class for reading in FOCUS-style data files. 
+This file contains a class for reading in FOCUS-style data files. 
 
-    This file was copied over from the MAGPIE code used for generating 
-    permanent magnet structures. All credit for this code is thanks 
-    to the PM4Stell team and Ken Hammond for his consent to use this file
-    and work with the permanent magnet branch of SIMSOPT.
+This file was copied over from the MAGPIE code used for generating 
+permanent magnet structures. All credit for this code is thanks 
+to the PM4Stell team and Ken Hammond for his consent to use this file
+and work with the permanent magnet branch of SIMSOPT.
 """
 __all__ = ['FocusData', 'FocusPlasmaBnormal', 'stell_point_transform', 'stell_vector_transform']
 import numpy as np
@@ -22,7 +22,6 @@ class FocusPlasmaBnormal(object):
 
         with open(fname, 'r') as f:
             lines = f.readlines()
-            f.close()
 
         # Read numbers of modes and nfp from the header
         position = FOCUS_PLASMAFILE_NHEADER_TOP
@@ -108,10 +107,10 @@ class FocusPlasmaBnormal(object):
 
 class FocusData(object):
     """
-        Class object for reading in FOCUS-style data files.
+    Class object for reading in FOCUS-style data files.
 
-        Args:
-            filename: a FOCUS file
+    Args:
+        filename: a FOCUS file
     """
 
     propNames = ['type', 'symm', 'coilname', 'ox', 'oy', 'oz', 'Ic', 'M_0', \
@@ -226,8 +225,8 @@ class FocusData(object):
 
     def unit_vector(self, inds):
         """
-            Returns the x, y, and z components of a Cartesian unit vector in the 
-            polarizaton direction of the nth magnet
+        Returns the x, y, and z components of a Cartesian unit vector in the 
+        polarizaton direction of the nth magnet
         """
         if len(inds) > 0 and max(inds) > self.nMagnets-1:
             raise Exception('unit_vector: requested magnet %d does not exist' \
@@ -239,8 +238,8 @@ class FocusData(object):
 
     def perp_vector(self, inds):
         """
-            Returns the x, y, and z components of a Cartesian unit vector 
-            perpendicular to the polarizaton direction of the nth magnet
+        Returns the x, y, and z components of a Cartesian unit vector 
+        perpendicular to the polarizaton direction of the nth magnet
         """
         if len(inds) > 0 and max(inds) > self.nMagnets-1:
             raise Exception('unit_vector: requested magnet %d does not exist' \
@@ -253,8 +252,8 @@ class FocusData(object):
 
     def flip_negative_magnets(self):
         """
-            For magnets with negative rho values, adjust the orientation angles
-            (mt and mp) so that the rho value can be negated to a positive value
+        For magnets with negative rho values, adjust the orientation angles
+        (mt and mp) so that the rho value can be negated to a positive value
         """
         # Indices of magnets with negative rho values
         neg_inds = np.where(self.pho < 0)[0]
@@ -276,7 +275,11 @@ class FocusData(object):
 
     def adjust_rho(self, q_new):
         """
-            Adjust rho according to the desired momentq
+        Adjust rho according to the desired momentq
+
+        Args:
+            q_new: New exponent to use for FAMUS representation
+              of dipole magnitudes.
         """
         if min(self.pho) < 0:
             raise RuntimeError('adjust_rho: rho contains negative values')
@@ -343,13 +346,13 @@ class FocusData(object):
 
     def init_pol_vecs(self, n_pol):
         """
-            Initializes arrays for the x, y, and z components of allowable
-            polarization vectors, as an array giving the ID of the polarization
-            vector actually used for the respective magnet (0 means magnet is off)
+        Initializes arrays for the x, y, and z components of allowable
+        polarization vectors, as an array giving the ID of the polarization
+        vector actually used for the respective magnet (0 means magnet is off)
 
-            Args:
-                n_pol: int
-                    Number of allowed polarization vectors, typically 3 or 12.
+        Args:
+            n_pol: int
+                Number of allowed polarization vectors, typically 3 or 12.
         """
         self.nPol = n_pol
         self.pol_x = np.zeros((self.nMagnets, n_pol))

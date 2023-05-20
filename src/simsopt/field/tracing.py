@@ -831,8 +831,6 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             axs[row, col].set_ylabel("$z$")
         if col == 1:
             axs[row, col].set_yticklabels([])
-        #if row == 0:
-        #    axs[row, col].set_xticklabels([])
         if xlims is not None:
             axs[row, col].set_xlim(xlims)
         if ylims is not None:
