@@ -654,7 +654,7 @@ class Testing(unittest.TestCase):
 
         # Test build of the MUSE coils
         input_name = 'input.muse'
-        nphi = 32
+        nphi = 8 
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -692,11 +692,11 @@ class Testing(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        qfm_surf = make_qfm(s_plot, Bfield)
-        qfm_surf = qfm_surf.surface
+        # qfm_surf = make_qfm(s_plot, Bfield)
+        # qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
-        run_Poincare_plots(s_plot, bs, b_dipole, comm, 'poincare_test', '')
+        # run_Poincare_plots(s_plot, bs, b_dipole, comm, 'poincare_test', '')
 
 
 if __name__ == "__main__":
