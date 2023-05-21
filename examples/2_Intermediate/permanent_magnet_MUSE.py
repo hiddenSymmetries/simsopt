@@ -39,11 +39,22 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # change to 64 for high-resolution runs
-ntheta = 8  # same as above
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    nphi = 2
+    nIter_max = 100
+    nBacktracking = 50
+    max_nMagnets = 20
+    downsample = 100  # downsample the FAMUS grid of magnets by this factor
+else:
+    nphi = 16  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    nBacktracking = 200
+    max_nMagnets = 1000
+    downsample = 1
+
+ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
-coff = 0.1  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
-poff = 0.02  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
@@ -131,14 +142,6 @@ pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 print('pol_vectors_shape = ', pol_vectors.shape)
 
-# remove any dipoles where the diagnostic ports should be
-nonzero_inds = (Ic == 1.0)
-ox = ox[nonzero_inds]
-oy = oy[nonzero_inds]
-oz = oz[nonzero_inds]
-pol_vectors = pol_vectors[nonzero_inds, :, :]
-premade_dipole_grid = np.array([ox, oy, oz]).T
-
 # Finally, initialize the permanent magnet class
 pm_opt = PermanentMagnetGrid(
     s, 
@@ -147,23 +150,20 @@ pm_opt = PermanentMagnetGrid(
     coordinate_flag='cartesian',
 )
 # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
-pm_opt.geo_setup_from_famus(famus_filename, pol_vectors=pol_vectors)
+pm_opt.geo_setup_from_famus(famus_filename, pol_vectors=pol_vectors, downsample=downsample)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
-nBacktracking = 500  # How often to perform the backtrackinig
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
-nIter_max = 2000  # Number of iterations to run before quitting
-max_nMagnets = 1000  # Max number of magnets to place. If achieved, algorithm quits
-nHistory = 100  # How often to save the algorithm progress
+nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = nIter_max
+kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nHistory
 if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking
+    kwargs['backtracking'] = nBacktracking  # How often to perform the backtrackinig
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     kwargs['max_nMagnets'] = max_nMagnets

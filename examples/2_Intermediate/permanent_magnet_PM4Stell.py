@@ -33,18 +33,27 @@ from simsopt.util.polarization_project import polarization_axes, orientation_phi
 
 t_start = time.time()
 
-# Set some parameters
-N = 16
+# Set some parameters -- warning this is super low resolution!
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    N = 2  # >= 64 for high-resolution runs
+    nIter_max = 100
+    max_nMagnets = 20
+    downsample = 100  # drastically downsample the grid if running CI
+else:
+    N = 16  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    max_nMagnets = 2000
+    downsample = 1
+
 nphi = N
 ntheta = N
 nfp = 3
 algorithm = 'ArbVec_backtracking'
-nBacktracking = 500 
+nBacktracking = 200 
 nAdjacent = 10
-nIter_max = 4000
-max_nMagnets = 1000
 thresh_angle = np.pi / np.sqrt(2)
-nHistory = 100
+nHistory = 10
 out_dir = 'PM4Stell_' + str(int(thresh_angle * 180 / np.pi)) + 'deg_nb' + str(nBacktracking) + '_na' + str(nAdjacent) + '/' 
 os.makedirs(out_dir, exist_ok=True)
 print('out directory = ', out_dir)
@@ -141,7 +150,12 @@ pm_ncsx = PermanentMagnetGrid(
 B_max = 5  # 5 Tesla!!!!
 mu0 = 4 * np.pi * 1e-7
 m_maxima = B_max / mu0
-pm_ncsx.geo_setup_from_famus(fname_argmt, pol_vectors=pol_vectors, m_maxima=m_maxima)
+pm_ncsx.geo_setup_from_famus(
+    fname_argmt, 
+    pol_vectors=pol_vectors, 
+    m_maxima=m_maxima, 
+    downsample=downsample
+)
 
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')
@@ -159,32 +173,31 @@ R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 
-# Make BiotSavart object from the dipoles and plot solution 
-b_dipole = DipoleField(
-    pm_ncsx.dipole_grid_xyz,
-    pm_ncsx.m,
-    nfp=s_plot.nfp,
-    coordinate_flag=pm_ncsx.coordinate_flag,
-    m_maxima=pm_ncsx.m_maxima,
-)
-b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir + "Dipole_Fields")
-make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
-Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
-Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles 
-pointData = {"B_N": Bnormal_plasma[:, :, None]}
-s_plot.to_vtk(out_dir + "Bnormal_plasma", extra_data=pointData)
-pointData = {"B_N": Bnormal_dipoles[:, :, None]}
-s_plot.to_vtk(out_dir + "Bnormal_dipoles", extra_data=pointData)
-pointData = {"B_N": Bnormal_coils[:, :, None]}
-s_plot.to_vtk(out_dir + "Bnormal_coils", extra_data=pointData)
-pointData = {"B_N": Bnormal_total[:, :, None]}
-s_plot.to_vtk(out_dir + "Bnormal_total", extra_data=pointData)
-
 # Save files
 if False:
+    # Make BiotSavart object from the dipoles and plot solution 
+    b_dipole = DipoleField(
+        pm_ncsx.dipole_grid_xyz,
+        pm_ncsx.m,
+        nfp=s_plot.nfp,
+        coordinate_flag=pm_ncsx.coordinate_flag,
+        m_maxima=pm_ncsx.m_maxima,
+    )
+    b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    b_dipole._toVTK(out_dir + "Dipole_Fields")
+    make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
+    Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+    Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+    Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
+    Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles 
+    pointData = {"B_N": Bnormal_plasma[:, :, None]}
+    s_plot.to_vtk(out_dir + "Bnormal_plasma", extra_data=pointData)
+    pointData = {"B_N": Bnormal_dipoles[:, :, None]}
+    s_plot.to_vtk(out_dir + "Bnormal_dipoles", extra_data=pointData)
+    pointData = {"B_N": Bnormal_coils[:, :, None]}
+    s_plot.to_vtk(out_dir + "Bnormal_coils", extra_data=pointData)
+    pointData = {"B_N": Bnormal_total[:, :, None]}
+    s_plot.to_vtk(out_dir + "Bnormal_total", extra_data=pointData)
     write_pm_optimizer_to_famus(out_dir, pm_ncsx)
     np.savetxt(out_dir + 'R2_history.txt', R2_history)
     np.savetxt(out_dir + 'absBn_history.txt', Bn_history)

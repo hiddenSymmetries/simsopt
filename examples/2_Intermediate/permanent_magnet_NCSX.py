@@ -38,11 +38,15 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # change to 64 for a real run
-ntheta = 8  # same as above
-dr = 0.02  # Radial extent in meters of the cylindrical permanent magnet bricks
-coff = 0.02  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
-poff = 0.1  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    nphi = 4  # change to 64 for a real run
+    downsample = 100  # drastically downsample the PM grid for CI
+else:
+    nphi = 16
+    downsample = 1
+
+ntheta = nphi
 surface_flag = 'wout'
 input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
@@ -52,12 +56,6 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / input_name
 famus_filename = TEST_DIR / famus_filename
 s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_outer = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-
-# Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_projected_normal(poff)
-s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
@@ -89,14 +87,14 @@ pm_opt = PermanentMagnetGrid(
     Bn=Bnormal, 
     coordinate_flag='cylindrical',
 )
-pm_opt.geo_setup_from_famus(famus_filename)
+pm_opt.geo_setup_from_famus(famus_filename, downsample=downsample)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000
-kwargs['nhistory'] = 50
+kwargs['K'] = 500
+kwargs['nhistory'] = 20
 
 # Optimize the permanent magnets greedily
 t1 = time.time()

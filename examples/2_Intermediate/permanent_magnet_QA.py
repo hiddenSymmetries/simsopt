@@ -47,9 +47,16 @@ from simsopt.util.permanent_magnet_helper_functions import *
 t_start = time.time()
 
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 8
-dr = 0.02  # cylindrical bricks with radial extent 2 cm
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = nphi
+    dr = 0.05  # cylindrical bricks with radial extent 5 cm
+else:
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 16
+    dr = 0.02  # cylindrical bricks with radial extent 2 cm
+
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
@@ -122,19 +129,19 @@ reg_l0, _, _, nu = rescale_for_opt(
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs()
 kwargs['nu'] = nu  # Strength of the "relaxation" part of relax-and-split
-kwargs['max_iter'] = 40  # Number of iterations to take in a convex step
-kwargs['max_iter_RS'] = 20  # Number of total iterations of the relax-and-split algorithm
+kwargs['max_iter'] = 10  # Number of iterations to take in a convex step
+kwargs['max_iter_RS'] = 10  # Number of total iterations of the relax-and-split algorithm
 kwargs['reg_l0'] = reg_l0
 
 # Optimize the permanent magnets. This actually solves
-# 20 full relax-and-split problems, and uses the result of each
+# 2 full relax-and-split problems, and uses the result of each
 # problem to initialize the next, increasing L0 threshold each time,
 # until thresholding over all magnets with strengths < 50% the max.
 m0 = np.zeros(pm_opt.ndipoles * 3) 
 total_m_history = []
 total_mproxy_history = []
 total_RS_history = []
-for i in range(20):
+for i in range(2):
     print('Relax-and-split iteration ', i, ', L0 threshold = ', reg_l0)
     reg_l0_scaled = reg_l0 * (i + 1) / 2.0
     kwargs['reg_l0'] = reg_l0_scaled

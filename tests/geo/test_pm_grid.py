@@ -27,8 +27,8 @@ class Testing(unittest.TestCase):
             Test that the permanent magnet optimizer initialization
             correctly catches bad instances of the function arguments.
         """
-        nphi = 32
-        ntheta = 32
+        nphi = 4
+        ntheta = nphi
         Bn = np.zeros((nphi, ntheta))
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -119,8 +119,8 @@ class Testing(unittest.TestCase):
             Test that the permanent magnet optimize
             correctly catches bad instances of the function arguments.
         """
-        nphi = 32
-        ntheta = 32
+        nphi = 4
+        ntheta = nphi
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -174,8 +174,8 @@ class Testing(unittest.TestCase):
             that both surfaces still have the same values of the
             toroidal angle. 
         """
-        nphi = 32
-        ntheta = 32
+        nphi = 8
+        ntheta = nphi
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         p = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s.extend_via_projected_normal(0.1)
@@ -194,7 +194,7 @@ class Testing(unittest.TestCase):
             with the default parameters. Checks the the pm_opt object agrees with Bn and
             f_B with the DipoleField + SquaredFlux way of calculating Bn and f_B.
         """
-        nphi = 16
+        nphi = 8
         ntheta = nphi 
         s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -284,7 +284,7 @@ class Testing(unittest.TestCase):
         """
         filename = TEST_DIR / 'input.circular_tokamak'
         nphi = 16
-        ntheta = 16
+        ntheta = nphi
         contig = np.ascontiguousarray
         s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
@@ -377,7 +377,7 @@ class Testing(unittest.TestCase):
         bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'field period')
         assert bn_plasma.shape == (8, 8)
 
-        mag_data = FocusData(TEST_DIR / 'zot80.focus')
+        mag_data = FocusData(TEST_DIR / 'zot80.focus', downsample=100)
         for i in range(mag_data.nMagnets):
             assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
 
@@ -509,7 +509,7 @@ class Testing(unittest.TestCase):
         pol_axes, pol_types = polarization_axes(['fc_ftri', 'fc_etri'])
         assert np.allclose(pol_types, np.ravel(np.array([np.ones(vec_shape), 2 * np.ones(vec_shape)])))
         pol_axes, pol_types = polarization_axes(['face', 'fc_ftri', 'fe_ftri'])
-        mag_data = FocusData(TEST_DIR / 'zot80.focus')
+        mag_data = FocusData(TEST_DIR / 'zot80.focus', downsample=100)
         mag_data.init_pol_vecs(len(pol_axes))
         ox = mag_data.ox
         oy = mag_data.oy
@@ -603,7 +603,7 @@ class Testing(unittest.TestCase):
         write_pm_optimizer_to_famus('', pm_opt)
 
         # Load in file we made to FocusData class and do some tests
-        mag_data = FocusData('SIMSOPT_dipole_solution.focus')
+        mag_data = FocusData('SIMSOPT_dipole_solution.focus', downsample=10)
         for i in range(mag_data.nMagnets):
             assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
         mag_data.print_to_file('test')
@@ -639,17 +639,17 @@ class Testing(unittest.TestCase):
         m_history = m_history.reshape(1, 11, m_history.shape[1], 3)
         make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
 
-        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus')
+        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus', downsample=100)
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
         kwargs['K'] = 5
         with self.assertRaises(ValueError):
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
 
-    def test_pm_high_res(self):
+    def test_pm_post_processing(self):
         """
-            Test the functions like QFM and poincare cross sections that
-            can be only run with high resolution solutions.
+            Test the helper functions for QFM and poincare cross sections that
+            are typically run after a successful PM optimization.
         """
 
         # Test build of the MUSE coils
@@ -667,10 +667,11 @@ class Testing(unittest.TestCase):
             s,
             Bn=np.zeros(s.normal().shape[:2]), 
         )
-        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus')
+        # drastically downsample the grid for speed here
+        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus', downsample=100)
         kwargs = initialize_default_kwargs(algorithm='GPMO')
         kwargs['verbose'] = False
-        kwargs['K'] = 15000
+        kwargs['K'] = 500
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,

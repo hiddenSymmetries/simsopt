@@ -190,9 +190,10 @@ class PermanentMagnetGrid:
 
     def geo_setup_from_famus(
         self,
-        famus_filename, 
+        famus_filename,
         m_maxima=None,
         pol_vectors=None,
+        downsample=1,
     ):
         """
         Function to initialize a SIMSOPT PermanentMagnetGrid from a 
@@ -208,7 +209,14 @@ class PermanentMagnetGrid:
             Optional array of maximal dipole magnitudes for the permanent
             magnets. If not provided, defaults to the common magnets
             used in the MUSE design, with strengths ~ 1 Tesla.
-
+        pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
+            Optional set of local coordinate systems for each dipole, 
+            which specifies which directions should be considered grid-aligned.
+            Ncoords can be > 3, as in the PM4Stell design.
+        downsample: int
+            Optional integer for downsampling the FAMUS grid, since
+            the MUSE and other grids can be very high resolution
+            and this makes CI take a long while.
         Returns
         -------
         None.
@@ -223,12 +231,16 @@ class PermanentMagnetGrid:
             skiprows=3, usecols=[3, 4, 5, 6, 7], delimiter=',', unpack=True
         )
 
-        # remove any dipoles where the diagnostic ports should be
-        nonzero_inds = (Ic == 1.0)
+        # Downsample the resolution as needed 
+        inds_total = np.arange(len(ox))
+        inds_downsampled = inds_total[::downsample]
+
+        # also remove any dipoles where the diagnostic ports should be
+        nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled) 
+        self.Ic_inds = nonzero_inds
         ox = ox[nonzero_inds]
         oy = oy[nonzero_inds]
         oz = oz[nonzero_inds]
-        self.Ic_inds = nonzero_inds
         premade_dipole_grid = np.array([ox, oy, oz]).T
         self.ndipoles = premade_dipole_grid.shape[0]
 
@@ -247,7 +259,7 @@ class PermanentMagnetGrid:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
             cell_vol = M0s * mu0 / B_max
-            self.m_maxima = B_max * cell_vol[self.Ic_inds] / mu0
+            self.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
             if isinstance(m_maxima, float):
                 self.m_maxima = m_maxima * np.ones(self.ndipoles)
@@ -268,7 +280,8 @@ class PermanentMagnetGrid:
                                  'must be 3')
             elif self.coordinate_flag != 'cartesian':
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
-            elif pol_vectors.shape[0] != self.ndipoles:
+            pol_vectors = pol_vectors[nonzero_inds, ::]
+            if pol_vectors.shape[0] != self.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
 
