@@ -12,7 +12,60 @@ from ..objectives.utilities import forward_backward
 
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'Iotas', 
-           'MajorRadius', 'NonQuasiSymmetricRatio', 'BoozerResidual']
+           'MajorRadius', 'NonQuasiSymmetricRatio', 'BoozerResidual', 
+           'AspectRatio']
+
+class AspectRatio(Optimizable):
+    """
+    Wrapper class for surface area label.
+    """
+
+    def __init__(self, surface, range=None, nphi=None, ntheta=None):
+
+        if range is not None or nphi is not None or ntheta is not None:
+            if range is None:
+                if surface.stellsym:
+                    range = Surface.RANGE_HALF_PERIOD
+                else:
+                    range = Surface.RANGE_FIELD_PERIOD
+            if nphi is None:
+                nphi = len(surface.quadpoints_phi)
+            if ntheta is None:
+                ntheta = len(surface.quadpoints_theta)
+            self.surface = surface.__class__.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=range, nfp=surface.nfp, stellsym=surface.stellsym, \
+                                                              mpol=surface.mpol, ntor=surface.ntor, dofs=surface.dofs)
+        else:
+            self.surface = surface
+
+        self.range = range
+        self.nphi = nphi
+        self.ntheta = ntheta
+
+        super().__init__(depends_on=[self.surface])
+
+    def J(self):
+        """
+        Compute the area of a surface.
+        """
+        return self.surface.aspect_ratio()
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative({self.surface: self.dJ_by_dsurfacecoefficients()})
+
+    def dJ_by_dsurfacecoefficients(self):
+        """
+        Calculate the partial derivatives with respect to the surface coefficients.
+        """
+        return self.surface.daspect_ratio_by_dcoeff()
+
+    def d2J_by_dsurfacecoefficientsdsurfacecoefficients(self):
+        """
+        Calculate the second partial derivatives with respect to the surface coefficients.
+        """
+        return self.surface.d2aspect_ratio_by_dcoeff_dcoeff()
+
+
 
 
 class Area(Optimizable):
