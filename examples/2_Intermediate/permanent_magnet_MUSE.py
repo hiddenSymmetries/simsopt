@@ -96,7 +96,7 @@ make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-mag_data = FocusData(famus_filename)
+mag_data = FocusData(famus_filename, downsample=downsample)
 
 # Determine the allowable polarization types and reject the negatives
 pol_axes = np.zeros((0, 3))
@@ -125,18 +125,9 @@ if PM4Stell_orientations:
     pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
-ox, oy, oz, Ic = np.loadtxt(
-    famus_filename, 
-    skiprows=3, usecols=[3, 4, 5, 6], 
-    delimiter=',', unpack=True
-)
-
-# Not normalized to 1 like quadpoints_phi!
-premade_dipole_grid = np.array([ox, oy, oz]).T
-ophi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
-
+ophi = np.arctan2(mag_data.oy, mag_data.ox) 
 discretize_polarizations(mag_data, ophi, pol_axes, pol_type)
-pol_vectors = np.zeros((ox.shape[0], len(pol_type), 3))
+pol_vectors = np.zeros((mag_data.nMagnets, len(pol_type), 3))
 pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z

@@ -107,7 +107,7 @@ make_Bnormal_plots(bs_tfcoils, s_plot, out_dir, "biot_savart_initial")
 # Obtain data on the magnet arrangement
 fname_argmt = TEST_DIR / 'magpie_trial104b_PM4Stell.focus'
 fname_corn = TEST_DIR / 'magpie_trial104b_corners_PM4Stell.csv'
-mag_data = FocusData(fname_argmt)
+mag_data = FocusData(fname_argmt, downsample=downsample)
 nMagnets_tot = mag_data.nMagnets
 
 # Determine the allowable polarization types and reject the negatives

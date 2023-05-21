@@ -280,8 +280,7 @@ class PermanentMagnetGrid:
                                  'must be 3')
             elif self.coordinate_flag != 'cartesian':
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
-            pol_vectors = pol_vectors[nonzero_inds, ::]
-            if pol_vectors.shape[0] != self.ndipoles:
+            elif pol_vectors.shape[0] != self.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
 
