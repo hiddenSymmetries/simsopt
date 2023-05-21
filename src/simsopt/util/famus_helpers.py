@@ -118,7 +118,7 @@ class FocusData(object):
 
     float_inds = [3, 4, 5, 7, 8, 10, 11]
 
-    def __init__(self, filename):
+    def __init__(self, filename, downsample=1):
 
         self.nMagnets = 0
         self.nPol = 0
@@ -126,9 +126,9 @@ class FocusData(object):
         # initialize to # of mandatory properties ('op' is currently optional)
         self.nProps = len(FocusData.propNames) - 1
 
-        self.read_from_file(filename)
+        self.read_from_file(filename, downsample)
 
-    def read_from_file(self, filename):
+    def read_from_file(self, filename, downsample):
 
         focusfile = open(filename, 'r')
 
@@ -222,6 +222,26 @@ class FocusData(object):
         # Add space for a negative sign in the max float length if necessary
         if self.min_float_val >= 0:
             self.max_float_length = self.max_float_length+1
+
+        # Drop magnets from downsample and port locations
+        inds_total = np.arange(self.nMagnets)
+        inds_downsampled = inds_total[::downsample]
+
+        # also remove any dipoles where the diagnostic ports should be
+        nonzero_inds = np.intersect1d(np.ravel(np.where(self.Ic == 1.0)), inds_downsampled) 
+        self.ox = self.ox[nonzero_inds]
+        self.oy = self.oy[nonzero_inds]
+        self.oz = self.oz[nonzero_inds]
+        self.magtype = self.magtype[nonzero_inds]
+        self.symm = self.symm[nonzero_inds]
+        self.coilname = np.array(self.coilname)[nonzero_inds]
+        self.coilname = self.coilname.tolist()
+        self.M_0 = self.M_0[nonzero_inds] 
+        self.pho = self.pho[nonzero_inds] 
+        self.Lc = self.Lc[nonzero_inds] 
+        self.mp = self.mp[nonzero_inds] 
+        self.mt = self.mt[nonzero_inds]
+        self.nMagnets = len(nonzero_inds)
 
     def unit_vector(self, inds):
         """

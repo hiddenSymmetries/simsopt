@@ -69,7 +69,7 @@ class Testing(unittest.TestCase):
         """
         nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
         ntheta = 8
-        dr = 0.02  # cylindrical bricks with radial extent 2 cm
+        dr = 0.04  # cylindrical bricks with radial extent 4 cm
         coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
         poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
         input_name = 'input.LandremanPaul2021_QA_lowres'
