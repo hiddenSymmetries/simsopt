@@ -147,17 +147,20 @@ def fun(dofs):
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad
+#_______________________________________________________#
+# PLOT THE COILS 
+#_______________________________________________________#
+#plt.figure
+#plot(coils + [s], engine="matplotlib", close=True)
 
-plt.figure
-plot(coils + [s], engine="matplotlib", close=True)
-
+#________________________________________________________
+# EXTRACT COILS PARAMETERS 
+#________________________________________________________
 curves = [c.curve for c in coils]
 currents_coils  =  [c.current for c in coils]
 current_density =  np.zeros(np.size(currents_coils))
-print(np.size(current_density))
-print(currents_coils[1].current)
-print(np.size(coils))
 
+# current density in each coil 
 for ii in range(np.size(curves)):
     longueur = CurveLength(curves[ii])
     current_density[ii] = currents_coils[ii].get_value()/longueur.J()
@@ -165,52 +168,140 @@ for ii in range(np.size(curves)):
     outstr += f", J={current_density[ii]:.1e}"
     print(outstr)
 
-frenet = curves[1].frenet_frame()
-print("Unit tangent to 1st coil")
-print(frenet[0][:,:])
-print("Unit tangent evaluated at those points")
-print(0.1*curves[1].gammadash())
 
-print("Normal displacement of first coil curve")
-epsilon = 1e-2 # normal displacement of coil curve to remove singularities
-print((1+epsilon)*frenet[1][:,:]-frenet[1][:,:])
+#frenet = curves[1].frenet_frame()
+#print("Unit tangent to 1st coil")
+#print(frenet[0][:,:])
+#print("Unit tangent evaluated at those points")
+#print(0.1*curves[1].gammadash())
 
-current_density_vec = current_density[1]*frenet[0][:,:]
-print("Current density vector along curve 2")
-print(current_density_vec)
+#print("Normal displacement of first coil curve")
+#epsilon = 1e-2 # normal displacement of coil curve to remove singularities
+#print((1+epsilon)*frenet[1][:,:]-frenet[1][:,:])
+
+#current_density_vec = current_density[1]*frenet[0][:,:]
+#print("Current density vector along curve 2")
+#print(current_density_vec)
+
+#print("dx/dOmega_i")
+#print( curves[1].dgamma_by_dcoeff())
+
+# bst = BiotSavart(coils)
+# k = 1 #coil index
+# inward_shifted = curves[k-1].gamma() - epsilon*frenet[1][:,:]
+# bst.set_points(inward_shifted.reshape(-1,3))
+# B = bst.B()
+
+#print("Magnetic field along shifted curve " + str(k-1) + ":")
+#print(B)
+
+#shape_gradient = np.cross(current_density_vec,B)
+
+# print("JxB")
+# print(shape_gradient)
+# print(np.shape(shape_gradient))
+
+#______________________________________________________#
+# ABOVE: SHAPE GRADIENT PART 
+#______________________________________________________#
 
 
 
-inward_shifted = curves[1].gamma() + epsilon*frenet[1][:,:]
+# dgamma_dcoeff for 1st coil
+#dgamma_dcoeff = curves[k-1].dgamma_by_dcoeff()
+#print("dgamma/dcoeff")
+#print(dgamma_dcoeff)
+
+
+# print(drdomega_pos[0])
+# print(drdomega_pos[0][0,0][0])
+# print(drdomega_pos[0][0,1][0])
+# print(drdomega_pos[0][0,2][0])
+
+
+#_______________________________________________________#
+# BELOW: FOURIER COEFFICIENTS 
+#_______________________________________________________#
+
 bst = BiotSavart(coils)
-bst.set_points(inward_shifted.reshape(-1,3))
-B = bst.B()
-print("Magnetic field along shifted curve 2")
-print(B)
+epsilon = 1e-2 # normal displacement of coil curve to remove singularities
 
-shape_gradient = np.cross(current_density_vec,B)
-print("JxB")
-print(shape_gradient)
+ncurves = np.size(curves)
+ratios  = np.zeros((3,75))
+dEdOmega_ = np.zeros((ncurves,33))
+
+for k in range(ncurves):
+    frenet = curves[k].frenet_frame() # frenet frame
+    current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
+    inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
+    bst.set_points(inward_shifted.reshape(-1,3)) # set points for B
+    B = bst.B() # Evaluate B on inward displaced curve
+    shape_gradient = np.cross(current_density_vec,B)
+    dgamma_dcoeff = curves[k].dgamma_by_dcoeff() # dr/dOmega
+    drdomega_pos = np.split(dgamma_dcoeff, 75)   # Collect pos. along curve
+    # differentiate the energy wrt Fourier modes (dofs)
+    for i in range(33):
+        for j in range(75): # compute dot product along curve
+            ratios[0][j] = drdomega_pos[j][0,0][i]
+            ratios[1][j] = drdomega_pos[j][0,1][i]
+            ratios[2][j] = drdomega_pos[j][0,2][i]    
+            #print(np.shape(ratios))
+            integrand = np.diag(np.dot(shape_gradient,ratios))
+            #print(integrand)
+            #print(np.shape(integrand))
+            dEdOmega_[k][i] = np.trapz(integrand)
+            #print(dEdomega1)
+
+dEdOmega = np.sum(dEdOmega_,axis=0)
+print(dEdOmega)
 
 
-print("dx/dOmega_i")
-print( curves[1].dgamma_by_dcoeff())
 
-dgamma_dcoeff = curves[1].dgamma_by_dcoeff()
-dgamma_dcoeff_1 = [dgamma_dcoeff[:][0,0], dgamma_dcoeff[:][0,1], dgamma_dcoeff[:][0,2]]
+#dxdomega = drdomega_pos[0][0,0]
+#dydomega = drdomega_pos[0][1,0]
+#dzdomega = drdomega_pos[0][2,0]
 
-firstmat = np.transpose(dgamma_dcoeff[:,:])
-print(firstmat)
-print(firstmat[0,0])
-print(firstmat[1,0])
-print(firstmat[2,0])
+#print([dxdomega,dydomega,dzdomega])
 
 
-print("Tailles")
-print(np.size(dgamma_dcoeff))
-print(np.size(dgamma_dcoeff_1))
-print(np.size(shape_gradient))
+#drdomega_x = drdomega_pos[0][0,0]
+#drdomega_y = dgamma_dcoeff[0][1][:] 
+#drdomega_z = dgamma_dcoeff[0][2][:] 
 
+#print(drdomega_x)
+#print(np.size(drdomega_x))
+
+#print("dx/dOmega")
+#dx_domega = np.transpose([dxdomega_x,dxdomega_y,dxdomega_z])
+#print(dx_domega)
+
+
+
+#print("Tailles")
+#print(np.size(dgamma_dcoeff[:][0][0]))
+#print(np.size(shape_gradient))
+
+#print("dr/domega1(phi0)")
+#print('('+ str(dgamma_dcoeff[0][0][0])+ ','+str(dgamma_dcoeff[0][1][0])+','+ str(dgamma_dcoeff[0][2][0])+')')
+
+
+
+# A1 = [1,2,3]
+# A2 = [4,5,6]
+# A3 = [7,8,9]
+
+# B = np.arange(10,19).reshape((3,3))
+# Tot = np.transpose([A1, A2, A3])
+
+# A = np.arange(6).reshape((2,3))
+# C = np.arange(7,13).reshape((2,3))
+
+# print(np.transpose(A))
+# print(C)
+
+# print(np.diag(np.dot(np.transpose(A),C)))
+
+#print(np.diag(np.dot(np.transpose(Tot), B)))
 
 #integrand = np.dot(shape_gradient, np.transpose(dgamma_dcoeff_1))
 #print("integrand")
