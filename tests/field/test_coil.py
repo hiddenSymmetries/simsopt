@@ -9,7 +9,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve
 from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum
-from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_file
+from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
@@ -151,14 +151,14 @@ class CoilFormatConvertTesting(unittest.TestCase):
         curves, currents, ma = get_ncsx_data()        
         coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
 
-    def test_load_coils_from_file(self):     
+    def test_load_coils_from_makegrid_file(self):     
         order = 25
         ppp = 10
 
         curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)  
         coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
 
-        loaded_coils = load_coils_from_file("coils.file_to_load", order, ppp)
+        loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)
 
         currents = [current for current in currents]
         gamma = [curve.gamma() for curve in curves]

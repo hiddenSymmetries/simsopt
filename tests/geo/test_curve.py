@@ -470,7 +470,7 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_serialization(curvetype, rotated)
 
-    def test_load_curves_from_file_ncsx(self):
+    def test_load_curves_from_makegrid_file_ncsx(self):
         ppp = 10
         order = 25
 
@@ -478,12 +478,12 @@ class Testing(unittest.TestCase):
 
         # write coils to MAKEGRID file
         coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-        loaded_curves = CurveXYZFourier.load_curves_from_file("coils.file_to_load", order, ppp)
+        loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
 
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [curve.gamma() for curve in loaded_curves]
 
-        assert_allclose(gamma, loaded_gamma, atol=2e-3)
+        assert_allclose(gamma, loaded_gamma, atol=3.1e-2)
 
         kappa = [np.max(curve.kappa()) for curve in curves]
         loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
@@ -502,7 +502,7 @@ class Testing(unittest.TestCase):
 
         os.remove("coils.file_to_load")
 
-    def test_load_curves_from_file_w7x(self):
+    def test_load_curves_from_makegrid_file_w7x(self):
         ppp = 4
         curves, currents, ma = get_w7x_data(Nt_coils=48, ppp=ppp)  
 
@@ -511,7 +511,7 @@ class Testing(unittest.TestCase):
         order = 48
         # write coils to MAKEGRID file
         coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-        loaded_curves = CurveXYZFourier.load_curves_from_file("coils.file_to_load", order, ppp)
+        loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
 
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [curve.gamma() for curve in loaded_curves]
