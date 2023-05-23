@@ -198,5 +198,28 @@ for k in range(ncurves):
 
 print(dEdOmega_)
 print(np.shape(dEdOmega_))
-# dEdOmega = np.sum(dEdOmega_,axis=0)
-# print(dEdOmega)
+dEdOmega = np.sum(dEdOmega_,axis=0)
+print(dEdOmega)
+
+
+#______________________________________________________________
+# ENERGY COMPUTATION FROM A.dl
+#______________________________________________________________
+
+Ei = np.zeros(ncurves)
+for k in range(ncurves):
+    frenet = curves[k].frenet_frame() # frenet frame
+    dl = curves[k].incremental_arclength()
+    #print("dl")
+    #print(np.shape(dl))
+    current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
+    #print("current density")
+    #print(np.shape(current_density_vec))
+    inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
+    bst.set_points(inward_shifted.reshape(-1,3)) # set points for A
+    A = bst.A()
+    #print(np.shape(A))
+    integrand = np.diag(np.dot(A,np.transpose(current_density_vec)))
+    Ei[k] = np.mean(np.multiply(integrand,dl))
+E = np.sum(Ei)
+print(E)

@@ -34,8 +34,6 @@ class VacuumEnergy(Optimizable):
         self.coils = coils
         self.field = field
         self.epsilon = epsilon
-        x0 = [c.curve.get_dofs() for c in coils]
-        # bs = BiotSavart(coils) # a defnir dans le script two_stage_optim
         super().__init__(depends_on = coils)
 
     def J(self):
@@ -43,8 +41,32 @@ class VacuumEnergy(Optimizable):
         This returns the value of the quantity (vacuum energy as sum of fluxes) 
         beware of singularities
         """
-        E = np.dot(self.field.B(), self.field.B())
+        epsilon = self.epsilon
+        bst = self.field
+        curves = [c.curve for c in self.coils]
+        ncurves = np.size(curves)
+        current_density =  [c.current for c in self.coils]
+        for ii in range(np.size(curves)):
+            current_density[ii] /= CurveLength(curves[ii]).J()
+        Ei = np.zeros(ncurves)
+        
+        for k in range(ncurves):
+            frenet = curves[k].frenet_frame() # frenet frame
+            dl = curves[k].incremental_arclength()
+            #print("dl")
+            #print(np.shape(dl))
+            current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
+            #print("current density")
+            #print(np.shape(current_density_vec))
+            inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
+            bst.set_points(inward_shifted.reshape(-1,3)) # set points for A
+            A = bst.A()
+            #print(np.shape(A))
+            integrand = np.diag(np.dot(A,np.transpose(current_density_vec)))
+            Ei[k] = np.mean(np.multiply(integrand,dl))
+        E = np.sum(Ei)
         return E
+    
     
     @derivative_dec 
     def dJ(self):
@@ -77,6 +99,7 @@ class VacuumEnergy(Optimizable):
             shape_gradient = np.cross(current_density_vec,B)
             dgamma_dcoeff = curves[k].dgamma_by_dcoeff() # dr/dOmega
             drdomega_pos = np.split(dgamma_dcoeff, 75)   # Collect pos. along curve
+            dl = curves[k].incremental_arclength()
             # differentiate the energy wrt Fourier modes (dofs)
             for i in range(33):
                 for j in range(75): # compute dot product along curve
@@ -87,12 +110,10 @@ class VacuumEnergy(Optimizable):
                     integrand = np.diag(np.dot(shape_gradient,ratios))
                     #print(integrand)
                     #print(np.shape(integrand))
-                    dEdOmega_[k][i] = np.trapz(integrand)
-                    #print(dEdomega1)
-
-        #print(dEdOmega_)
+                integrand_ = np.multiply(integrand,dl)
+                dEdOmega_[k][i] = np.mean(integrand_)
+                    
         dEdOmega = np.sum(dEdOmega_,axis=0)
-        #print(dEdOmega)
 
         return dEdOmega_
         

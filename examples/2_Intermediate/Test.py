@@ -140,7 +140,7 @@ for ii in range(np.size(curves)):
     current_density[ii] = currents_coils[ii].get_value()/longueur.J()
     outstr = f"L={longueur.J():.1e}"
     outstr += f", J={current_density[ii]:.1e}"
-    print(outstr)
+    #print(outstr)
 
 
 
