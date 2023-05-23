@@ -3,7 +3,7 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_allclose
-from simsopt.util.fourier_interpolation import fourier_interpolation, sin_coeff, cos_coeff
+from simsopt.util.fourier_interpolation import fourier_interpolation
 from math import pi
 
 
