@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_file',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -186,7 +186,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     return coils
 
 
-def load_coils_from_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
+def load_coils_from_makegrid_file(filename, order, ppp=20):
     """
     This function loads a file in MAKEGRID input format containing the cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
@@ -195,9 +195,6 @@ def load_coils_from_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
         filename: file to load.
         order: maximum order in the fourier expansion.
         ppp: point-per-period: number of quadrature points per period.
-        delimiter: in the case of a file containing Fourier coefficients the delimiter between coefficients.
-        maxiter: maximum number of iterations for the integration method.
-        tol: minimum tolerance for the convergence of the integration method.
     Returns:
         A list of objects Coil with the fourier coefficients and currents given by the file.
     """
@@ -213,7 +210,7 @@ def load_coils_from_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
             flag = False
         if len(vals) > 4:
             flag = True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp)
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
     return coils
