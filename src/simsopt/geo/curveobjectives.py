@@ -36,7 +36,7 @@ class VacuumEnergy(Optimizable):
         self.epsilon = epsilon
         x0 = [c.curve.get_dofs() for c in coils]
         # bs = BiotSavart(coils) # a defnir dans le script two_stage_optim
-        super().__init__(depends_on=coils)
+        super().__init__(depends_on = coils)
 
     def J(self):
         """

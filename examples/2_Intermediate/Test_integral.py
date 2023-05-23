@@ -89,6 +89,9 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
+#print("Coils degrees of Freedom")
+#print(np.shape(coils[0].curve.get_dofs()))
+
 curves = [c.curve for c in coils]
 curves_to_vtk(curves, OUT_DIR + "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -124,8 +127,8 @@ def fun(dofs):
 #_______________________________________________________#
 # PLOT THE COILS 
 #_______________________________________________________#
-plt.figure
-plot(coils + [s], engine="matplotlib", close=True)
+#plt.figure
+#plot(coils + [s], engine="matplotlib", close=True)
 
 #________________________________________________________
 # EXTRACT COILS PARAMETERS 
@@ -134,266 +137,66 @@ curves = [c.curve for c in coils]
 currents_coils  =  [c.current for c in coils]
 current_density =  np.zeros(np.size(currents_coils))
 
+#________________________________________________________
+# COMPUTE CURVE LENGTH int 1*dl
+#________________________________________________________
+gamma_dash = curves[0].gammadash()
+print(np.shape(gamma_dash))
+print(curves[0].incremental_arclength())
+print(gamma_dash)
+print(np.linalg.norm(gamma_dash, axis=1))
+longueur= np.mean(np.linalg.norm(gamma_dash, axis=1))
+longueur2 = np.mean(curves[0].incremental_arclength())
+longueur3 = CurveLength(curves[0]).J()
+print(longueur-longueur2)
+print(longueur3-longueur)
+
+
+
 # current density in each coil 
 for ii in range(np.size(curves)):
     longueur = CurveLength(curves[ii])
     current_density[ii] = currents_coils[ii].get_value()/longueur.J()
-    outstr = f"L={longueur.J():.1e}"
+    outstr = f"L={longueur.J():.3e}"
     outstr += f", J={current_density[ii]:.1e}"
     print(outstr)
 
-
-
-
-
-# """ print("""
-# ################################################################################
-# ### Perform a Taylor test ######################################################
-# ################################################################################
-# """)
-# f = fun
-# dofs = JF.x
-# np.random.seed(1)
-# h = np.random.uniform(size=dofs.shape)
-# J0, dJ0 = f(dofs)
-# dJh = sum(dJ0 * h)
-# for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
-#     J1, _ = f(dofs + eps*h)
-#     J2, _ = f(dofs - eps*h)
-#     print("err", (J1-J2)/(2*eps) - dJh)
-
-# print("""
-# ################################################################################
-# ### Run the optimisation #######################################################
-# ################################################################################
-# """)
-# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-# curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
-# pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-# s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
-
-
-# # We now use the result from the optimization as the initial guess for a
-# # subsequent optimization with reduced penalty for the coil length. This will
-# # result in slightly longer coils but smaller `B·n` on the surface.
-# dofs = res.x
-# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-# curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
-# pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-# s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
-
-# # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
-# bs.save(OUT_DIR + "biot_savart_opt.json")
-
-
-# # Plot the coils 
-# plt.figure
-# plot(coils + [s], engine="matplotlib", close=True) """
-
-
-
-
-
-
-#___________________________________________________________________________________
-# TRASH ____________________________________________________________________________
-#___________________________________________________________________________________
-
-#frenet = curves[1].frenet_frame()
-#print("Unit tangent to 1st coil")
-#print(frenet[0][:,:])
-#print("Unit tangent evaluated at those points")
-#print(0.1*curves[1].gammadash())
-
-#print("Normal displacement of first coil curve")
-#epsilon = 1e-2 # normal displacement of coil curve to remove singularities
-#print((1+epsilon)*frenet[1][:,:]-frenet[1][:,:])
-
-#current_density_vec = current_density[1]*frenet[0][:,:]
-#print("Current density vector along curve 2")
-#print(current_density_vec)
-
-#print("dx/dOmega_i")
-#print( curves[1].dgamma_by_dcoeff())
-
-# bst = BiotSavart(coils)
-# k = 1 #coil index
-# inward_shifted = curves[k-1].gamma() - epsilon*frenet[1][:,:]
-# bst.set_points(inward_shifted.reshape(-1,3))
-# B = bst.B()
-
-#print("Magnetic field along shifted curve " + str(k-1) + ":")
-#print(B)
-
-#shape_gradient = np.cross(current_density_vec,B)
-
-# print("JxB")
-# print(shape_gradient)
-# print(np.shape(shape_gradient))
-
-#______________________________________________________#
-# ABOVE: SHAPE GRADIENT PART 
-#______________________________________________________#
-
-
-
-# dgamma_dcoeff for 1st coil
-#dgamma_dcoeff = curves[k-1].dgamma_by_dcoeff()
-#print("dgamma/dcoeff")
-#print(dgamma_dcoeff)
-
-
-# print(drdomega_pos[0])
-# print(drdomega_pos[0][0,0][0])
-# print(drdomega_pos[0][0,1][0])
-# print(drdomega_pos[0][0,2][0])
-
-
-#_______________________________________________________#
+# _______________________________________________________#
 # BELOW: FOURIER COEFFICIENTS 
-#_______________________________________________________#
+# _______________________________________________________#
 
-# bst = BiotSavart(coils)
-# epsilon = 1e-2 # normal displacement of coil curve to remove singularities
+bst = BiotSavart(coils)
+epsilon = 1e-2 # normal displacement of coil curve to remove singularities
 
-# ncurves = np.size(curves)
-# ratios  = np.zeros((3,75))
-# dEdOmega_ = np.zeros((ncurves,curves[0].num_dofs()))
+ncurves = np.size(curves)
+ratios  = np.zeros((3,75))
+dEdOmega_ = np.zeros((ncurves,curves[0].num_dofs()))
 
-# for k in range(ncurves):
-#     frenet = curves[k].frenet_frame() # frenet frame
-#     current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
-#     inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
-#     bst.set_points(inward_shifted.reshape(-1,3)) # set points for B
-#     B = bst.B() # Evaluate B on inward displaced curve
-#     shape_gradient = np.cross(current_density_vec,B)
-#     dgamma_dcoeff = curves[k].dgamma_by_dcoeff() # dr/dOmega
-#     drdomega_pos = np.split(dgamma_dcoeff, 75)   # Collect pos. along curve
-#     # differentiate the energy wrt Fourier modes (dofs)
-#     for i in range(33):
-#         for j in range(75): # compute dot product along curve
-#             ratios[0][j] = drdomega_pos[j][0,0][i]
-#             ratios[1][j] = drdomega_pos[j][0,1][i]
-#             ratios[2][j] = drdomega_pos[j][0,2][i]    
-#             #print(np.shape(ratios))
-#             integrand = np.diag(np.dot(shape_gradient,ratios))
-#             #print(integrand)
-#             #print(np.shape(integrand))
-#             dEdOmega_[k][i] = np.trapz(integrand)
-#             #print(dEdomega1)
+for k in range(ncurves):
+    frenet = curves[k].frenet_frame() # frenet frame
+    current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
+    inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
+    bst.set_points(inward_shifted.reshape(-1,3)) # set points for B
+    B = bst.B() # Evaluate B on inward displaced curve
+    shape_gradient = np.cross(current_density_vec,B)
+    dgamma_dcoeff = curves[k].dgamma_by_dcoeff() # dr/dOmega
+    drdomega_pos = np.split(dgamma_dcoeff, 75)   # Collect pos. along curve
+    dl = curves[k].incremental_arclength()
+    # differentiate the energy wrt Fourier modes (dofs)
+    for i in range(33):
+        for j in range(75): # compute dot product along curve
+            ratios[0][j] = drdomega_pos[j][0,0][i]
+            ratios[1][j] = drdomega_pos[j][0,1][i]
+            ratios[2][j] = drdomega_pos[j][0,2][i]    
+            #print(np.shape(ratios))
+            integrand = np.diag(np.dot(shape_gradient,ratios))
+            #print(integrand)
+            #print(np.shape(integrand))
+        integrand_ = np.multiply(integrand,dl)
+        dEdOmega_[k][i] = np.mean(integrand)
+        #print(dEdomega1)
 
-# print(dEdOmega_)
+print(dEdOmega_)
+print(np.shape(dEdOmega_))
 # dEdOmega = np.sum(dEdOmega_,axis=0)
 # print(dEdOmega)
-
-
-
-#dxdomega = drdomega_pos[0][0,0]
-#dydomega = drdomega_pos[0][1,0]
-#dzdomega = drdomega_pos[0][2,0]
-
-#print([dxdomega,dydomega,dzdomega])
-
-
-#drdomega_x = drdomega_pos[0][0,0]
-#drdomega_y = dgamma_dcoeff[0][1][:] 
-#drdomega_z = dgamma_dcoeff[0][2][:] 
-
-#print(drdomega_x)
-#print(np.size(drdomega_x))
-
-#print("dx/dOmega")
-#dx_domega = np.transpose([dxdomega_x,dxdomega_y,dxdomega_z])
-#print(dx_domega)
-
-
-
-#print("Tailles")
-#print(np.size(dgamma_dcoeff[:][0][0]))
-#print(np.size(shape_gradient))
-
-#print("dr/domega1(phi0)")
-#print('('+ str(dgamma_dcoeff[0][0][0])+ ','+str(dgamma_dcoeff[0][1][0])+','+ str(dgamma_dcoeff[0][2][0])+')')
-
-
-
-# A1 = [1,2,3]
-# A2 = [4,5,6]
-# A3 = [7,8,9]
-
-# B = np.arange(10,19).reshape((3,3))
-# Tot = np.transpose([A1, A2, A3])
-
-# A = np.arange(6).reshape((2,3))
-# C = np.arange(7,13).reshape((2,3))
-
-# print(np.transpose(A))
-# print(C)
-
-# print(np.diag(np.dot(np.transpose(A),C)))
-
-#print(np.diag(np.dot(np.transpose(Tot), B)))
-
-#integrand = np.dot(shape_gradient, np.transpose(dgamma_dcoeff_1))
-#print("integrand")
-#print(integrand)
-
-
-# points where to evaluate the magnetic field 
-# bs.set_points(curves[ii].gammadash())
-# Practically: need to displace by a epsilon in the normal direction
-
-########################################
-#    Test plot normal vector field     #
-########################################
-
-# from mpl_toolkits.mplot3d import axes3d
-
-# fig = plt.figure()
-# ax = fig.add_subplot( projection='3d')
-# x, y, z = np.meshgrid(np.linspace(0.5, 1.5, np.size(frenet[1][:,0])),
-#                       np.linspace(-0.5, 0.7, np.size(frenet[1][:,1])),
-#                       np.linspace(-0.5, 0.5, np.size(frenet[1][:,2])))
-
-# ax.quiver(x, y, z, frenet[1][:,0], frenet[1][:,1], frenet[1][:,2], length=0.1)
-# plt.show()
-#         # In order to get local current density, need to multiply j
-#         # by tangent vector at points 'points'
-#         # Let's do it for one coil only at first
-
-#     #local_current = current_density[1]*curves[1].frenet_frame.t
-# #print(local_current)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
