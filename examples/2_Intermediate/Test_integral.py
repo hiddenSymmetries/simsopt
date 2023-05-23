@@ -146,49 +146,49 @@ for ii in range(np.size(curves)):
 
 
 
-print("""
-################################################################################
-### Perform a Taylor test ######################################################
-################################################################################
-""")
-f = fun
-dofs = JF.x
-np.random.seed(1)
-h = np.random.uniform(size=dofs.shape)
-J0, dJ0 = f(dofs)
-dJh = sum(dJ0 * h)
-for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
-    J1, _ = f(dofs + eps*h)
-    J2, _ = f(dofs - eps*h)
-    print("err", (J1-J2)/(2*eps) - dJh)
+# """ print("""
+# ################################################################################
+# ### Perform a Taylor test ######################################################
+# ################################################################################
+# """)
+# f = fun
+# dofs = JF.x
+# np.random.seed(1)
+# h = np.random.uniform(size=dofs.shape)
+# J0, dJ0 = f(dofs)
+# dJh = sum(dJ0 * h)
+# for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+#     J1, _ = f(dofs + eps*h)
+#     J2, _ = f(dofs - eps*h)
+#     print("err", (J1-J2)/(2*eps) - dJh)
 
-print("""
-################################################################################
-### Run the optimisation #######################################################
-################################################################################
-""")
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
-
-
-# We now use the result from the optimization as the initial guess for a
-# subsequent optimization with reduced penalty for the coil length. This will
-# result in slightly longer coils but smaller `B·n` on the surface.
-dofs = res.x
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
-
-# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
-bs.save(OUT_DIR + "biot_savart_opt.json")
+# print("""
+# ################################################################################
+# ### Run the optimisation #######################################################
+# ################################################################################
+# """)
+# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
+# pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+# s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 
 
-# Plot the coils 
-plt.figure
-plot(coils + [s], engine="matplotlib", close=True)
+# # We now use the result from the optimization as the initial guess for a
+# # subsequent optimization with reduced penalty for the coil length. This will
+# # result in slightly longer coils but smaller `B·n` on the surface.
+# dofs = res.x
+# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
+# pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+# s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
+
+# # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
+# bs.save(OUT_DIR + "biot_savart_opt.json")
+
+
+# # Plot the coils 
+# plt.figure
+# plot(coils + [s], engine="matplotlib", close=True) """
 
 
 

@@ -30,24 +30,29 @@ class VacuumEnergy(Optimizable):
     resulting from a set of coils 
     """
     
-    def __init__(self, coils, field):
+    def __init__(self, coils, field, epsilon):
         self.coils = coils
         self.field = field
+        self.epsilon = epsilon
+        x0 = [c.curve.get_dofs() for c in coils]
         # bs = BiotSavart(coils) # a defnir dans le script two_stage_optim
-        Optimizable().__init__(depends_on=[coils])
+        super().__init__(depends_on=coils)
 
     def J(self):
         """
         This returns the value of the quantity (vacuum energy as sum of fluxes) 
         beware of singularities
         """
-        E = self.field.B()
+        E = np.dot(self.field.B(), self.field.B())
+        return E
     
     @derivative_dec 
     def dJ(self):
         """
         This returns the value of the derivative (analytical): JxB
         """
+        epsilon = self.epsilon
+        bst = self.field
         # Let us try to implement the analytical derivative first
         curves = [c.curve for c in self.coils]
         current_density =  [c.current for c in self.coils]
@@ -59,11 +64,37 @@ class VacuumEnergy(Optimizable):
         # Let's do it for one coil only at first
 
         local_current = current_density[1]*curves[1].frenet_frame.t
-        # for ii in range(np.size(curves)):
-        #     Frenet = frenet_frame(self.curves[ii])
-        #     local_current[ii,:] = current_density[ii]*Frenet.t
-        
-        return np.cross(local_current, self.field.B(points))
+        ncurves = np.size(curves)
+        ratios  = np.zeros((3,75))
+        dEdOmega_ = np.zeros((ncurves,curves[0].num_dofs()))
+
+        for k in range(ncurves):
+            frenet = curves[k].frenet_frame() # frenet frame
+            current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
+            inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
+            bst.set_points(inward_shifted.reshape(-1,3)) # set points for B
+            B = bst.B() # Evaluate B on inward displaced curve
+            shape_gradient = np.cross(current_density_vec,B)
+            dgamma_dcoeff = curves[k].dgamma_by_dcoeff() # dr/dOmega
+            drdomega_pos = np.split(dgamma_dcoeff, 75)   # Collect pos. along curve
+            # differentiate the energy wrt Fourier modes (dofs)
+            for i in range(33):
+                for j in range(75): # compute dot product along curve
+                    ratios[0][j] = drdomega_pos[j][0,0][i]
+                    ratios[1][j] = drdomega_pos[j][0,1][i]
+                    ratios[2][j] = drdomega_pos[j][0,2][i]    
+                    #print(np.shape(ratios))
+                    integrand = np.diag(np.dot(shape_gradient,ratios))
+                    #print(integrand)
+                    #print(np.shape(integrand))
+                    dEdOmega_[k][i] = np.trapz(integrand)
+                    #print(dEdomega1)
+
+        #print(dEdOmega_)
+        dEdOmega = np.sum(dEdOmega_,axis=0)
+        #print(dEdOmega)
+
+        return dEdOmega_
         
 
 
