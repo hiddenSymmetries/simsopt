@@ -3,12 +3,12 @@ from itertools import chain
 
 import numpy as np
 import jax.numpy as jnp
-from scipy import interpolate
+from scipy.fft import rfft
 
 from .curve import Curve, JaxCurve
 from .._core.json import GSONDecoder
 import simsoptpp as sopp
-from simsopt.util.fourier_interpolation import sin_coeff, cos_coeff
+
 
 __all__ = ['CurveXYZFourier', 'JaxCurveXYZFourier']
 
@@ -74,7 +74,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         sopp.CurveXYZFourier.set_dofs(self, dofs)
 
     @staticmethod
-    def load_curves_from_file(filename: str, order: int, ppp=20, delimiter=',', maxiter=2000, tol=1.48e-8):
+    def load_curves_from_file(filename: str, order: int, ppp=20, delimiter=','):
         """
         This function loads a file containing Fourier coefficients
         or the cartesian coordinates for several coils.
@@ -91,8 +91,6 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             order: maximum order in the fourier expansion.
             ppp: point-per-period: number of quadrature points per period.
             delimiter: in the case of a file containing Fourier coefficients the delimiter between coefficients.
-            maxiter: maximum number of iterations for the integration method.
-            tol: minimum tolerance for the convergence of the integration method. 
         Returns:
             A list of objects CurveXYZFourier with the coefficients given by the file.
 
@@ -125,19 +123,20 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             for curve in coilPos:
                 xArr, yArr, zArr = np.transpose(curve)
 
-                # Compute the arclength parameterization of the curve
-                dL = np.sqrt(np.sum(np.diff(curve, axis=0)**2, axis=1))
-                L = np.concatenate(([0], np.cumsum(dL)))
-                L = L*2*pi/L[-1]
-
-                # Interpolate the curve with a cubic spline
-                xf = interpolate.CubicSpline(L, xArr) 
-                yf = interpolate.CubicSpline(L, yArr)
-                zf = interpolate.CubicSpline(L, zArr)
+                curvesFourier = []
 
                 # Compute the Fourier coefficients
-                order_interval = range(order+1)
-                curvesFourier = [[sin_coeff(f, j, maxiter=maxiter, tol=tol) for j in order_interval] + [cos_coeff(f, j, maxiter=maxiter, tol=tol) for j in order_interval] for f in [xf, yf, zf]]
+                for x in [xArr, yArr, zArr]:
+                    assert len(x) >= 2*order  # the order of the fft is limited by the number of samples
+                    xf = rfft(x)/len(x)
+
+                    fft_0 = [xf[0].real]  # find the 0 order coefficient
+                    fft_cos = 2*xf[1:order+1].real  # find the cosine coefficients
+                    fft_sin = -2*xf[:order+1].imag  # find the sine coefficients
+
+                    combined_fft = np.concatenate([fft_sin, fft_0, fft_cos])
+                    curvesFourier.append(combined_fft)
+
                 coil_data.append(np.concatenate(curvesFourier))
 
             coil_data = np.asarray(coil_data)
