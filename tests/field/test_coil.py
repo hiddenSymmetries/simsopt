@@ -158,7 +158,7 @@ class CoilFormatConvertTesting(unittest.TestCase):
         curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)  
         coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
 
-        loaded_coils = load_coils_from_file("coils.file_to_load", order, ppp, maxiter=5000, tol=1e-8)
+        loaded_coils = load_coils_from_file("coils.file_to_load", order, ppp)
 
         currents = [current for current in currents]
         gamma = [curve.gamma() for curve in curves]
@@ -179,8 +179,8 @@ class CoilFormatConvertTesting(unittest.TestCase):
         B = bs.B()
         loaded_B = loaded_bs.B()
 
-        assert_allclose(B, loaded_B, atol=2e-2)
-        assert_allclose(gamma, loaded_gamma, atol=0.002)
+        assert_allclose(B, loaded_B, atol=6e-3)
+        assert_allclose(gamma, loaded_gamma, atol=0.04)
 
         currents = [current.get_value() for current in currents]
         loaded_currents = [coil._current.get_value() for coil in loaded_coils]

@@ -213,7 +213,7 @@ def load_coils_from_file(filename, order, ppp=20, maxiter=1000, tol=1e-8):
             flag = False
         if len(vals) > 4:
             flag = True
-    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp, maxiter=maxiter, tol=tol)
+    curves = CurveXYZFourier.load_curves_from_file(filename, order=order, ppp=ppp)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
     return coils
