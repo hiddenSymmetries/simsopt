@@ -1,10 +1,13 @@
+import sys
 import numpy as np
 from simsoptpp import acc_prox_grad_descent, matmult, matmult_sparseA
 import time
 from matplotlib import pyplot as plt
-# from scipy.linalg import svd
+from scipy.linalg import cholesky
+from scipy.sparse import csc_matrix, spdiags, vstack, hstack, eye
+from scipy.sparse.linalg import minres, LinearOperator
 
-__all__ = ['relax_and_split_increasingl0', 'cstlsq', 'exact_convex_solve']  # , 'l1_solve']
+__all__ = ['relax_and_split_increasingl0', 'cstlsq', 'exact_convex_solve', 'ras_minres']
 
 
 def prox_group_l0(alpha, threshold, n, num_basis):
@@ -118,8 +121,10 @@ def relax_and_split_increasingl0(
         for k in range(rs_max_iter):
             if j == 0 and k == 0 and len(l0_thresholds) > 1:
                 nu_algo = 1e100
+                #nu_algo = nu
                 step_size_i = 1.0 / L0
                 max_it = 5000
+                #max_it = max_iter 
             else:
                 nu_algo = nu
                 step_size_i = step_size
@@ -416,3 +421,180 @@ def exact_convex_solve(current_voxels, lam=0.0, sigma=1.0):
     print('Time to run algo = ', t2 - t1, ' s')
     return alpha_opt
 
+
+def ras_minres(
+        current_voxels, lam=0.0, nu=1e20, max_iter=5000, sigma=1.0,
+        rs_max_iter=1, l0_thresholds=[0.0], print_iter=10,
+        alpha0=None, OUT_DIR=''):
+    """
+        This function performs a relax-and-split algorithm for solving the 
+        current voxel problem. The convex part of the solve is done with
+        accelerated projected gradient descent and the nonconvex part 
+        can be solved with the prox of the group l0 norm... hard 
+        thresholding on the whole set of alphas in a grid cell. 
+    """
+    n = current_voxels.N_grid
+    nfp = current_voxels.plasma_boundary.nfp
+    num_basis = current_voxels.n_functions
+    N = n * num_basis
+    if alpha0 is not None:
+        alpha_opt = alpha0
+    else:
+        alpha_opt = np.zeros((N, 1))  # (np.random.rand(N, 1) - 0.5) * 1e4  
+
+    B = current_voxels.B_matrix
+    I = current_voxels.Itarget_matrix
+    BT = B.T
+    b = current_voxels.b_rhs
+    b_I = current_voxels.Itarget_rhs
+    BTb = (BT @ b).reshape(-1, 1)
+    IT = I.T
+    ITbI = (IT * b_I).reshape(-1, 1) 
+    contig = np.ascontiguousarray
+    I = I.reshape(1, len(current_voxels.Itarget_matrix))
+    IT = I.T
+    b_I = b_I.reshape(1, 1)
+    b_B = b.reshape(len(b), 1)
+    alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
+    C = current_voxels.C
+    K = C.shape[0]
+    CT = C.T
+    lam_nu = (lam + 1.0 / nu)
+    scale = 1e6
+    A = scale * np.vstack((B, np.sqrt(sigma) * I))
+    b = scale * np.vstack((b_B, np.sqrt(sigma) * b_I))
+    AT = A.T
+    ATb = AT @ b
+
+    def A_fun(x):
+        alpha = x[:N]
+        Ax = np.vstack(((AT @ (A @ alpha) + lam_nu * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
+        return Ax
+
+    def A_fun_nu0(x):
+        alpha = x[:N]
+        Ax = np.vstack(((AT @ (A @ alpha) + lam * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
+        return Ax
+
+    A_operator = LinearOperator((N + K, N + K), matvec=A_fun)
+    A_operator_nu0 = LinearOperator((N + K, N + K), matvec=A_fun_nu0)
+
+    lam_opt = np.zeros((K, 1))
+    tol = 1e-30
+    f0 = []
+    fB = []
+    fI = []
+    fK = []
+    fRS = []
+    fC = []
+    f_Bw = []
+    f_Iw = []
+    f_Kw = []
+    f_0w = []
+    f_RS = []
+    current_voxels.alpha_history = []
+    current_voxels.w_history = []
+    t1 = time.time()
+    set_point = True
+    w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
+    for j, threshold in enumerate(l0_thresholds):
+        print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
+        if j > (2.0 * len(l0_thresholds) / 3.0) and set_point:
+            rs_max_iter = 3 * rs_max_iter
+            set_point = False
+        for k in range(rs_max_iter):
+            if (j == 0) and (k == 0) and (len(l0_thresholds) > 1):
+                A_op = A_operator_nu0
+                nu_algo = 1e100
+                max_it = 50000
+            else:
+                A_op = A_operator
+                max_it = max_iter
+                nu_algo = nu
+            rhs = ATb + w_opt / nu_algo
+            rhs = np.vstack((rhs.reshape(len(rhs), 1), np.zeros((K, 1))))
+
+            def callback(xk):
+                xk = xk[:N, np.newaxis]
+                fB = np.linalg.norm(B @ xk - b_B) ** 2
+                fI = sigma * np.linalg.norm(I @ xk - b_I) ** 2
+                fK = lam * np.linalg.norm(xk) ** 2
+                fRS = np.linalg.norm(xk - w_opt) ** 2 / nu_algo / scale ** 2
+                f = fB + fI + fK + fRS
+                print(f, fB, fI, fK, fRS,
+                      np.linalg.norm(C.dot(xk)))
+
+            # now MINRES
+            t1 = time.time()
+            x0 = np.vstack((alpha_opt, lam_opt)) 
+            sys.stdout = open(OUT_DIR + 'minres_output.txt', 'w')
+            print('Total ', 'fB ', 'sigma * fI ', 'kappa * fK ', 'C*alpha')
+            alpha_opt, _ = minres(A_op, rhs, x0=x0, tol=tol, maxiter=max_it, callback=callback)
+            t2 = time.time()
+            sys.stdout.close()
+            sys.stdout = open("/dev/stdout", "w")
+            t3 = t2 - t1
+            #print('MINRES took = ', t3, ' s')
+            alpha_opt = alpha_opt.reshape(-1, 1)
+            lam_opt = alpha_opt[N:]
+            alpha_opt = alpha_opt[:N]
+            #if k != 0:
+            #    print(f_B[-1], f_I[-1], f_K[-1], f_C[-1])
+            f_0, f_B, f_I, f_K, f_RS, f_C = np.loadtxt(OUT_DIR + 'minres_output.txt', skiprows=1, unpack=True)
+            f0 += f_0.tolist()
+            fB += f_B.tolist()
+            fI += f_I.tolist()
+            fK += f_K.tolist()
+            fRS += f_RS.tolist()
+            fC += f_C.tolist()
+            #print(f_B[-1], f_I[-1], f_K[-1], f_C[-1])
+
+            if threshold > 0:
+                f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b_B), ord=2) ** 2)
+                f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2)
+                f_Kw.append(np.linalg.norm(np.ravel(w_opt)) ** 2) 
+                #f_RS.append(np.linalg.norm(alpha_opt - w_opt) ** 2) 
+                # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
+                f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
+                current_voxels.w_history.append(w_opt)
+                current_voxels.alpha_history.append(alpha_opt)
+                print('w : ', j, k, 
+                      f_Bw[-1], 
+                      f_Iw[-1] * sigma, 
+                      lam * f_Kw[-1], 
+                      f_RS[-1],  # / nu,
+                      f_0w[-1], ' / ', n, ', ',
+                      )
+
+            # now do the prox step
+            w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
+
+    t2 = time.time()
+    print('Time to run algo = ', t2 - t1, ' s')
+    t1 = time.time()
+    alpha_opt = np.ravel(alpha_opt)
+    print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
+    current_voxels.alphas = alpha_opt
+    current_voxels.w = np.ravel(w_opt)
+    current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))
+    current_voxels.J_sparse = np.zeros((n, current_voxels.Phi.shape[2], 3))
+    alphas = current_voxels.alphas.reshape(n, num_basis)
+    ws = current_voxels.w.reshape(n, num_basis)
+    for i in range(3):
+        for j in range(current_voxels.Phi.shape[2]):
+            for k in range(num_basis):
+                current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, :, j, i]
+                current_voxels.J_sparse[:, j, i] += ws[:, k] * current_voxels.Phi[k, :, j, i]
+    t2 = time.time()
+    print('Time to compute J = ', t2 - t1, ' s')
+    return (alpha_opt, 
+            0.5 * 2 * np.array(fB) * nfp, 
+            0.5 * np.array(fK), 
+            0.5 * np.array(fI), 
+            0.5 * np.array(fRS),  # / nu,
+            f0,
+            fC,
+            0.5 * 2 * np.array(f_Bw) * nfp, 
+            0.5 * np.array(f_Kw), 
+            0.5 * np.array(f_Iw)
+            )

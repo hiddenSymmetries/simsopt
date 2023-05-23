@@ -818,17 +818,18 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     plt.figure()
     fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
     color = None
+    fs = 16
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
-        if i != len(phis) - 1:
+        if (i != 0) and (i != len(phis) - 1):
             axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
         else:
             axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='right', y=0.0)
         if row == nrowcol - 1:
-            axs[row, col].set_xlabel("$r$")
+            axs[row, col].set_xlabel("$r$", fontsize=fs)
         if col == 0:
-            axs[row, col].set_ylabel("$z$")
+            axs[row, col].set_ylabel("$z$", fontsize=fs)
         if col == 1:
             axs[row, col].set_yticklabels([])
         if xlims is not None:
@@ -844,7 +845,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
             axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=2, linewidths=0, c=color)
-
+        axs[row, col].tick_params(axis='both', which='major', labelsize=fs-2)
         plt.rc('axes', axisbelow=True)
         axs[row, col].grid(True, linewidth=0.5)
 

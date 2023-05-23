@@ -435,7 +435,7 @@ class CurrentVoxelsGrid:
         print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
 
-    def to_vtk_before_solve(self, vtkname):
+    def to_vtk_before_solve(self, vtkname, plot_quadrature_points=False):
         """
             Write voxel geometry data into a VTK file.
 
@@ -503,19 +503,20 @@ class CurrentVoxelsGrid:
             "Phi3": (contig(Phi[3, :, :, 0].flatten()), contig(Phi[3, :, :, 1].flatten()), contig(Phi[3, :, :, 2].flatten())),
             "Phi4": (contig(Phi[4, :, :, 0].flatten()), contig(Phi[4, :, :, 1].flatten()), contig(Phi[4, :, :, 2].flatten())),
         }
-        pointsToVTK(
-            vtkname + '_quadrature',
-            contig(self.XYZ_integration[:, :, 0].flatten()),
-            contig(self.XYZ_integration[:, :, 1].flatten()),
-            contig(self.XYZ_integration[:, :, 2].flatten()),
-            data=data
-        )
-        pointsToVTK(
-            vtkname + '_quadrature_full',
-            contig(XYZ_integration_full[:, :, 0].flatten()),
-            contig(XYZ_integration_full[:, :, 1].flatten()),
-            contig(XYZ_integration_full[:, :, 2].flatten()),
-        )
+        if plot_quadrature_points:
+            pointsToVTK(
+                vtkname + '_quadrature',
+                contig(self.XYZ_integration[:, :, 0].flatten()),
+                contig(self.XYZ_integration[:, :, 1].flatten()),
+                contig(self.XYZ_integration[:, :, 2].flatten()),
+                data=data
+            )
+            pointsToVTK(
+                vtkname + '_quadrature_full',
+                contig(XYZ_integration_full[:, :, 0].flatten()),
+                contig(XYZ_integration_full[:, :, 1].flatten()),
+                contig(XYZ_integration_full[:, :, 2].flatten()),
+            )
         _voxels_to_vtk(vtkname + '_voxels', self.XYZ_integration)
         _voxels_to_vtk(vtkname + '_voxels_full', XYZ_integration_full)
         print("Max quadrature x:", np.max(self.XYZ_integration[:, :, 0]))
@@ -523,7 +524,7 @@ class CurrentVoxelsGrid:
         print("Max quadrature z:", np.max(self.XYZ_integration[:, :, 2]))
         print("Min quadrature z:", np.min(self.XYZ_integration[:, :, 2]))
 
-    def to_vtk_after_solve(self, vtkname):
+    def to_vtk_after_solve(self, vtkname, plot_quadrature_points=False):
         """
             Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
 
@@ -692,19 +693,20 @@ class CurrentVoxelsGrid:
             contig(self.XYZ_uniform[:, 2])
         )
         Jvec_full_internal = np.reshape(Jvec_full_internal, (n * nsym, self.nx * self.ny * self.nz, 3))
-        data = {
-            "Jvec": (contig(Jvec_full_internal[:, :, 0].flatten()), 
-                     contig(Jvec_full_internal[:, :, 1].flatten()),
-                     contig(Jvec_full_internal[:, :, 2].flatten())
-                     )
-        }
-        pointsToVTK(
-            vtkname + '_quadrature_full_solution',
-            contig(self.XYZ_integration_full[:, :, 0].flatten()),
-            contig(self.XYZ_integration_full[:, :, 1].flatten()),
-            contig(self.XYZ_integration_full[:, :, 2].flatten()),
-            data=data
-        )
+        if plot_quadrature_points: 
+            data = {
+                "Jvec": (contig(Jvec_full_internal[:, :, 0].flatten()), 
+                         contig(Jvec_full_internal[:, :, 1].flatten()),
+                         contig(Jvec_full_internal[:, :, 2].flatten())
+                         )
+            }
+            pointsToVTK(
+                vtkname + '_quadrature_full_solution',
+                contig(self.XYZ_integration_full[:, :, 0].flatten()),
+                contig(self.XYZ_integration_full[:, :, 1].flatten()),
+                contig(self.XYZ_integration_full[:, :, 2].flatten()),
+                data=data
+            )
 
         fig = plt.figure(700, figsize=(12, 12))
         ax = fig.add_subplot(projection='3d')
@@ -1007,7 +1009,7 @@ class CurrentVoxelsGrid:
             if len(z_flipped) > 0:  # and y_ind not in z_flipped_inds_y:
                 z_flipped_inds_y.append(z_flipped[0])
                 y_inds.append(y_ind)
-                print(y_ind, z_flipped, coil_points[y_ind, :], coil_points[z_flipped, :])
+                # print(y_ind, z_flipped, coil_points[y_ind, :], coil_points[z_flipped, :])
         self.y_inds = y_inds 
         self.z_flip_x = z_flipped_inds_x
         self.z_flip_y = z_flipped_inds_y
@@ -1160,7 +1162,7 @@ class CurrentVoxelsGrid:
                                        ] = flux_factor[0, i, :]
                 i_constraint += 1
             if np.all(self.connection_list[i, :, 2] < 0):
-                if (i in x_inds) and (self.coil_range != 'full torus'):
+                if (i in x_inds) and (self.coil_range != 'full torus') and nfp != 2:
                     flux_constraint_matrix[i_constraint, 
                                            i * num_basis:(i + 1) * num_basis
                                            ] = flux_factor[2, i, :]
@@ -1192,14 +1194,14 @@ class CurrentVoxelsGrid:
 
         if self.sparse_constraint_matrix:
             C = flux_constraint_matrix.tocsc()
-            CT = C.transpose()
-            CCT_inv = np.linalg.pinv((C @ CT).todense(), rcond=1e-8, hermitian=True)
-            projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
+            #CT = C.transpose()
+            #CCT_inv = np.linalg.pinv((C @ CT).todense(), rcond=1e-8, hermitian=True)
+            #projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
         else:
             C = flux_constraint_matrix
-            CT = C.transpose()
-            CCT_inv = np.linalg.pinv(C @ CT, rcond=1e-8, hermitian=True)
-            projection_onto_constraints = np.eye(N) - CT @ CCT_inv @ C
+            #CT = C.transpose()
+            #CCT_inv = np.linalg.pinv(C @ CT, rcond=1e-8, hermitian=True)
+            #projection_onto_constraints = np.eye(N) - CT @ CCT_inv @ C
             #sparse_eye(N, format="csc", dtype="double") - csc_matrix(CT @ CCT_inv @ C)
 
         ##### TEMPORARY
@@ -1214,7 +1216,7 @@ class CurrentVoxelsGrid:
         # S2 = np.linalg.svd(projection_onto_constraints.todense(), compute_uv=False)
         # plt.semilogy(S2, 'bo')
         self.C = C    
-        self.P = projection_onto_constraints
+        #self.P = projection_onto_constraints
 
     def check_fluxes(self):
         """

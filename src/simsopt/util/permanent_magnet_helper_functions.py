@@ -216,7 +216,7 @@ def trace_fieldlines(bfield, label, s, comm, OUT_DIR, R0):
 
     # set fieldline tracer parameters
     nfieldlines = len(R0)
-    tmax_fl = 8000
+    tmax_fl = 20000
 
     Z0 = np.zeros(nfieldlines)
     print('R0s = ', R0)

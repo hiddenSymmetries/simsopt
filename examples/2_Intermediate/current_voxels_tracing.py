@@ -272,7 +272,7 @@ bs = simsopt.load(coils_filename)
 make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_precomputed")
 bsh = InterpolatedField(
     # bs, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
-    bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym,  # skip=skip
+    bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
 )
 # bsh.set_points(s_plot.gamma().reshape((-1, 3)))
 bsh.set_points(s_plot.gamma().reshape((-1, 3)))
@@ -285,7 +285,7 @@ calculate_on_axis_B(bs_wv, s)
 print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
 print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
 # trace_fieldlines(bs_wv, 'poincare_torus', s_plot, comm, OUT_DIR)
-nfieldlines = 10
+nfieldlines = 30
 R0 = np.linspace(1.2125346, 1.295, nfieldlines)
 trace_fieldlines(bsh, 'poincare_torus', s_plot, comm, OUT_DIR, R0)
 t2 = time.time()
