@@ -34,7 +34,7 @@ class VacuumEnergy(Optimizable):
         self.coils = coils
         self.field = field
         self.epsilon = epsilon
-        super().__init__(depends_on = coils)
+        super().__init__( depends_on = coils)
 
     def J(self):
         """
@@ -45,9 +45,9 @@ class VacuumEnergy(Optimizable):
         bst = self.field
         curves = [c.curve for c in self.coils]
         ncurves = np.size(curves)
-        current_density =  [c.current for c in self.coils]
+        current_density =  [c.current.get_value() for c in self.coils]
         for ii in range(np.size(curves)):
-            current_density[ii] /= CurveLength(curves[ii]).J()
+            current_density[ii]/=(CurveLength(curves[ii]).J())
         Ei = np.zeros(ncurves)
         
         for k in range(ncurves):
@@ -68,24 +68,22 @@ class VacuumEnergy(Optimizable):
         return E
     
     
-    @derivative_dec 
+    #@derivative_dec 
     def dJ(self):
         """
-        This returns the value of the derivative (analytical): JxB
+        This returns an array of derivatives of the energy with respect to the 
+        dofs, namely the Fourier harmonics of the coils curves and the currents.
         """
         epsilon = self.epsilon
         bst = self.field
         # Let us try to implement the analytical derivative first
         curves = [c.curve for c in self.coils]
-        current_density =  [c.current for c in self.coils]
+        current_density =  [c.current.get_value() for c in self.coils]
         for ii in range(np.size(curves)):
-            current_density[ii] /= CurveLength(curves[ii]).J()
+            current_density[ii] /= (CurveLength(curves[ii]).J())
             
-        # In order to get local current density, need to multiply j
-        # by tangent vector at points 'points'
-        # Let's do it for one coil only at first
 
-        local_current = current_density[1]*curves[1].frenet_frame.t
+        #local_current = current_density[1]*curves[1].frenet_frame.t
         ncurves = np.size(curves)
         ratios  = np.zeros((3,75))
         dEdOmega_ = np.zeros((ncurves,curves[0].num_dofs()))
@@ -113,13 +111,12 @@ class VacuumEnergy(Optimizable):
                 integrand_ = np.multiply(integrand,dl)
                 dEdOmega_[k][i] = np.mean(integrand_)
                     
-        dEdOmega = np.sum(dEdOmega_,axis=0)
-
-        return dEdOmega_
-        
-
-
-    return_fn_map = {'J': J, 'dJ': dJ}
+        #dEdOmega = np.sum(dEdOmega_,axis=0)
+        #return np.zeros((135,))
+        dEdOmega = np.reshape(dEdOmega_,-1)
+        return dEdOmega[0:int((ncurves/4)*33)+3]
+    
+    #return_fn_map = {'J': J, 'dJ': dJ}
         
     
 class CurveLength(Optimizable):

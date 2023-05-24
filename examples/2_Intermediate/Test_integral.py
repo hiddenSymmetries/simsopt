@@ -89,6 +89,9 @@ coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
+print(coils[0].dofs_free_status)
+print(coils[1].dofs_free_status)
+
 #print("Coils degrees of Freedom")
 #print(np.shape(coils[0].curve.get_dofs()))
 
@@ -101,16 +104,17 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 Jf = SquaredFlux(s, bs)
 JE = VacuumEnergy(coils, bs, epsilon)
 
-
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = FLUX_WEIGHT * Jf \
     +  JE \
+  
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
 
 
 def fun(dofs):
@@ -196,10 +200,11 @@ for k in range(ncurves):
         dEdOmega_[k][i] = np.mean(integrand)
         #print(dEdomega1)
 
-print(dEdOmega_)
-print(np.shape(dEdOmega_))
-dEdOmega = np.sum(dEdOmega_,axis=0)
-print(dEdOmega)
+print(np.reshape(dEdOmega_,-1))
+print(np.shape(np.reshape(dEdOmega_,-1)))
+# dEdOmega = np.sum(dEdOmega_,axis=0)
+# print(dEdOmega)
+
 
 
 #______________________________________________________________

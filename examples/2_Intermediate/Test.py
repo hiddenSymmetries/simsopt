@@ -54,7 +54,7 @@ epsilon = 1e-2
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-FLUX_WEIGHT = Weight(1e-6)
+FLUX_WEIGHT = Weight(1e-3)
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -87,6 +87,7 @@ base_currents[0].fix_all()
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
+bst = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
@@ -96,14 +97,20 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
-JE = VacuumEnergy(coils, bs, epsilon)
+JE = VacuumEnergy(coils, bst, epsilon)
+
 
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-JF = FLUX_WEIGHT * Jf \
-    +  JE \
+# JF = FLUX_WEIGHT * Jf \
+#     +  JE \
+
+JF = JE
+
+print(np.shape(JF.x))
+print(JF.x)
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -111,13 +118,16 @@ JF = FLUX_WEIGHT * Jf \
 
 
 def fun(dofs):
+ #   print(np.shape(JF.x))
+ #   print(np.shape(dofs))
     JF.x = dofs
     J = JF.J()
+ #   print(JF.dJ)
     grad = JF.dJ()
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    outstr += f", JE={JE:.2e}"
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, "
+    outstr += f"JE={JE.J():.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad
@@ -135,12 +145,12 @@ currents_coils  =  [c.current for c in coils]
 current_density =  np.zeros(np.size(currents_coils))
 
 # current density in each coil 
-for ii in range(np.size(curves)):
-    longueur = CurveLength(curves[ii])
-    current_density[ii] = currents_coils[ii].get_value()/longueur.J()
-    outstr = f"L={longueur.J():.1e}"
-    outstr += f", J={current_density[ii]:.1e}"
-    #print(outstr)
+# for ii in range(np.size(curves)):
+#     longueur = CurveLength(curves[ii])
+#     current_density[ii] = currents_coils[ii].get_value()/longueur.J()
+#     outstr = f"L={longueur.J():.1e}"
+#     outstr += f", J={current_density[ii]:.1e}"
+#     #print(outstr)
 
 
 
