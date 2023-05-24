@@ -108,43 +108,45 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
     @staticmethod
     def load_curves_from_makegrid_file(filename: str, order: int, ppp=20):
         """
-        This function loads a Makegrid file containing the cartesian coordinates for several coils and finds the corresponding fourier coefficients through an fft.
-        The format is introduced at https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+        This function loads a Makegrid input file containing the Cartesian
+        coordinates for several coils and finds the corresponding Fourier
+        coefficients through an fft. The format is described at
+        https://princetonuniversity.github.io/STELLOPT/MAKEGRID
 
         Args:
             filename: file to load.
-            order: maximum order in the fourier expansion.
-            ppp: point-per-period: number of quadrature points per period.
-        Returns:
-            A list of objects CurveXYZFourier with the fourier coefficients found through an fft.
+            order: maximum mode number in the Fourier series. 
+            ppp: points-per-period: number of quadrature points per period.
 
+        Returns:
+            A list of ``CurveXYZFourier`` objects.
         """
 
         with open(filename, 'r') as f:
-            allCoilsValues = f.read().splitlines()[3:] 
+            file_lines = f.read().splitlines()[3:] 
 
-        coilN = 0
-        coilPos = [[]]
-        for nVals in range(len(allCoilsValues)):
-            vals = allCoilsValues[nVals].split()
+        coil_n = 0
+        curve_data = [[]]
+        for j_line in range(len(file_lines)):
+            vals = file_lines[j_line].split()
             try:
-                floatVals = [float(nVals) for nVals in vals][0:3]
-                coilPos[coilN].append(floatVals)
+                float_vals = [float(val) for val in vals][0:3]
+                curve_data[coil_n].append(float_vals)
             except:
                 try:
-                    floatVals = [float(nVals) for nVals in vals[0:3]][0:3]
-                    coilPos[coilN].append(floatVals)
-                    coilN = coilN+1
-                    coilPos.append([])
+                    float_vals = [float(val) for val in vals[0:3]][0:3]
+                    curve_data[coil_n].append(float_vals)
+                    coil_n = coil_n + 1
+                    curve_data.append([])
                 except:
                     break
 
-        coilPos = coilPos[:-1]
+        curve_data = curve_data[:-1]
 
         coil_data = []
 
         # Compute the Fourier coefficients for each coil
-        for curve in coilPos:
+        for curve in curve_data:
             xArr, yArr, zArr = np.transpose(curve)
 
             curvesFourier = []
@@ -164,7 +166,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coil_data.append(np.concatenate(curvesFourier))
 
         coil_data = np.asarray(coil_data)
-        coil_data = coil_data.reshape(6*len(coilPos), order+1)  # There are 6*order coefficients per coil
+        coil_data = coil_data.reshape(6*len(curve_data), order+1)  # There are 6*order coefficients per coil
         coil_data = np.transpose(coil_data)
 
         assert coil_data.shape[1] % 6 == 0

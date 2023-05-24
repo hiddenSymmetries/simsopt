@@ -8,8 +8,7 @@ data that is known on a uniform grid in a periodic domain.
 """
 
 import numpy as np
-from math import pi
-from scipy.integrate import quadrature
+
 # Get machine precision
 eps = np.finfo(float).eps
 
