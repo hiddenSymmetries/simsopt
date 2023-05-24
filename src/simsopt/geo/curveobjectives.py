@@ -30,10 +30,11 @@ class VacuumEnergy(Optimizable):
     resulting from a set of coils 
     """
     
-    def __init__(self, coils, field, epsilon):
+    def __init__(self, coils, field, epsilon, ncoils):
         self.coils = coils
         self.field = field
         self.epsilon = epsilon
+        self.ncoils = ncoils # parameter accounting for symmetry 
         super().__init__( depends_on = coils)
 
     def J(self):
@@ -42,6 +43,7 @@ class VacuumEnergy(Optimizable):
         beware of singularities
         """
         epsilon = self.epsilon
+        ncoils = self.ncoils
         bst = self.field
         curves = [c.curve for c in self.coils]
         ncurves = np.size(curves)
@@ -50,7 +52,8 @@ class VacuumEnergy(Optimizable):
             current_density[ii]/=(CurveLength(curves[ii]).J())
         Ei = np.zeros(ncurves)
         
-        for k in range(ncurves):
+        #for k in range(ncurves):
+        for k in range(ncoils):
             frenet = curves[k].frenet_frame() # frenet frame
             dl = curves[k].incremental_arclength()
             #print("dl")
@@ -63,32 +66,45 @@ class VacuumEnergy(Optimizable):
             A = bst.A()
             #print(np.shape(A))
             integrand = np.diag(np.dot(A,np.transpose(current_density_vec)))
-            Ei[k] = np.mean(np.multiply(integrand,dl))
+            Ei[k] = 0.5*np.mean(np.multiply(integrand,dl))
         E = np.sum(Ei)
         return E
     
+    def derivative_current(coil,epsilon,bst):
+        curve_ = coil.curve
+        frenet = curve_.frenet_frame() # frenet frame
+        tangent = frenet[0][:,:]
+        dl = curve_.incremental_arclength()
+        inward_shifted = curve_.gamma() - epsilon*frenet[1][:,:] # normal 
+        bst.set_points(inward_shifted.reshape(-1,3)) # set points for A
+        A = bst.A()
+        integrand = np.diag(np.dot(A,np.transpose(tangent)))
+
+        return np.mean(np.multiply(integrand,dl))
     
-    #@derivative_dec 
+    #@derivative_dec  # Bug with this derivative decorator
     def dJ(self):
         """
         This returns an array of derivatives of the energy with respect to the 
         dofs, namely the Fourier harmonics of the coils curves and the currents.
         """
         epsilon = self.epsilon
+        ncoils = self.ncoils
         bst = self.field
-        # Let us try to implement the analytical derivative first
+        coils = self.coils
+
         curves = [c.curve for c in self.coils]
         current_density =  [c.current.get_value() for c in self.coils]
         for ii in range(np.size(curves)):
             current_density[ii] /= (CurveLength(curves[ii]).J())
             
-
-        #local_current = current_density[1]*curves[1].frenet_frame.t
         ncurves = np.size(curves)
         ratios  = np.zeros((3,75))
         dEdOmega_ = np.zeros((ncurves,curves[0].num_dofs()))
 
-        for k in range(ncurves):
+        # compute the energy derivatives with respect to coil Fourier harmonics
+        #for k in range(ncurves):
+        for k in range(ncoils):
             frenet = curves[k].frenet_frame() # frenet frame
             current_density_vec = current_density[k]*frenet[0][:,:]     # tangent 
             inward_shifted = curves[k].gamma() - epsilon*frenet[1][:,:] # normal 
@@ -114,7 +130,18 @@ class VacuumEnergy(Optimizable):
         #dEdOmega = np.sum(dEdOmega_,axis=0)
         #return np.zeros((135,))
         dEdOmega = np.reshape(dEdOmega_,-1)
-        return dEdOmega[0:int((ncurves/4)*33)+3]
+
+        # compute the energy derivatives with respect to the coil currents
+        non_fixed_curr = 0
+        dEdI = []
+        for i in range(ncoils):
+            free = coils[i].dofs_free_status
+            if free[0]:
+                non_fixed_curr+=1
+                dEdI.append(VacuumEnergy.derivative_current(coils[i], epsilon, bst))
+    
+
+        return np.concatenate((dEdI,dEdOmega[0:int((ncurves/4)*33)]))
     
     #return_fn_map = {'J': J, 'dJ': dJ}
         

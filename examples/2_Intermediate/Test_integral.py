@@ -92,6 +92,8 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 print(coils[0].dofs_free_status)
 print(coils[1].dofs_free_status)
 
+
+
 #print("Coils degrees of Freedom")
 #print(np.shape(coils[0].curve.get_dofs()))
 
