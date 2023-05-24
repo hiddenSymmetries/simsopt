@@ -125,23 +125,23 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         with open(filename, 'r') as f:
             file_lines = f.read().splitlines()[3:] 
 
-        coil_n = 0
-        curve_data = [[]]
+        curve_data = []
+        single_curve_data = []
         for j_line in range(len(file_lines)):
             vals = file_lines[j_line].split()
-            try:
-                float_vals = [float(val) for val in vals][0:3]
-                curve_data[coil_n].append(float_vals)
-            except:
-                try:
-                    float_vals = [float(val) for val in vals[0:3]][0:3]
-                    curve_data[coil_n].append(float_vals)
-                    coil_n = coil_n + 1
-                    curve_data.append([])
-                except:
-                    break
-
-        curve_data = curve_data[:-1]
+            n_vals = len(vals)
+            if n_vals == 4:
+                float_vals = [float(val) for val in vals[:3]]
+                single_curve_data.append(float_vals)
+            elif n_vals == 6:
+                # This must be the last line of the coil
+                curve_data.append(single_curve_data)
+                single_curve_data = []
+            elif n_vals == 1:
+                # Presumably the line that is just "end"
+                break
+            else:
+                raise RuntimeError("Should not get here")
 
         coil_data = []
 
@@ -149,37 +149,37 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         for curve in curve_data:
             xArr, yArr, zArr = np.transpose(curve)
 
-            curvesFourier = []
+            curves_Fourier = []
 
             # Compute the Fourier coefficients
             for x in [xArr, yArr, zArr]:
                 assert len(x) >= 2*order  # the order of the fft is limited by the number of samples
-                xf = rfft(x)/len(x)
+                xf = rfft(x) / len(x)
 
                 fft_0 = [xf[0].real]  # find the 0 order coefficient
-                fft_cos = 2*xf[1:order+1].real  # find the cosine coefficients
-                fft_sin = -2*xf[:order+1].imag  # find the sine coefficients
+                fft_cos = 2 * xf[1:order + 1].real  # find the cosine coefficients
+                fft_sin = -2 * xf[:order + 1].imag  # find the sine coefficients
 
                 combined_fft = np.concatenate([fft_sin, fft_0, fft_cos])
-                curvesFourier.append(combined_fft)
+                curves_Fourier.append(combined_fft)
 
-            coil_data.append(np.concatenate(curvesFourier))
+            coil_data.append(np.concatenate(curves_Fourier))
 
         coil_data = np.asarray(coil_data)
-        coil_data = coil_data.reshape(6*len(curve_data), order+1)  # There are 6*order coefficients per coil
+        coil_data = coil_data.reshape(6 * len(curve_data), order + 1)  # There are 6 * order coefficients per coil
         coil_data = np.transpose(coil_data)
 
         assert coil_data.shape[1] % 6 == 0
         assert order <= coil_data.shape[0]-1
 
-        num_coils = coil_data.shape[1]//6
+        num_coils = coil_data.shape[1] // 6
         coils = [CurveXYZFourier(order*ppp, order) for i in range(num_coils)]
         for ic in range(num_coils):
             dofs = coils[ic].dofs_matrix
             dofs[0][0] = coil_data[0, 6*ic + 1]
             dofs[1][0] = coil_data[0, 6*ic + 3]
             dofs[2][0] = coil_data[0, 6*ic + 5]
-            for io in range(0, min(order, coil_data.shape[0]-1)):
+            for io in range(0, min(order, coil_data.shape[0] - 1)):
                 dofs[0][2*io+1] = coil_data[io+1, 6*ic + 0]
                 dofs[0][2*io+2] = coil_data[io+1, 6*ic + 1]
                 dofs[1][2*io+1] = coil_data[io+1, 6*ic + 2]

@@ -2,7 +2,6 @@ import unittest
 import json
 import os
 import numpy as np
-from numpy.testing import assert_equal, assert_allclose
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -160,11 +159,17 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
         loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)
 
-        currents = [current for current in currents]
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [coil.curve.gamma() for coil in loaded_coils]
-        loaded_currents = [coil._current for coil in loaded_coils]
+        loaded_currents = [coil.current for coil in loaded_coils]
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+
+        for j_coil in range(len(coils)):
+            np.testing.assert_allclose(
+                currents[j_coil].get_value(),
+                loaded_currents[j_coil].get_value()
+            )
+            np.testing.assert_allclose(curves[j_coil].x, loaded_coils[j_coil].curve.x)
 
         np.random.seed(1)
 
@@ -172,19 +177,16 @@ class CoilFormatConvertTesting(unittest.TestCase):
         loaded_bs = BiotSavart(loaded_coils)
 
         points = np.asarray(17 * [[0.9, 0.4, -0.85]])
-        points += 0.01 * (np.random.rand(*points.shape)-0.5)
+        points += 0.01 * (np.random.rand(*points.shape) - 0.5)
         bs.set_points(points)
         loaded_bs.set_points(points)
 
         B = bs.B()
         loaded_B = loaded_bs.B()
 
-        assert_allclose(B, loaded_B, atol=6e-3)
-        assert_allclose(gamma, loaded_gamma, atol=0.04)
+        np.testing.assert_allclose(B, loaded_B)
+        np.testing.assert_allclose(gamma, loaded_gamma)
 
-        currents = [current.get_value() for current in currents]
-        loaded_currents = [coil._current.get_value() for coil in loaded_coils]
-        assert_equal(currents, loaded_currents)
         os.remove("coils.file_to_load")
 
 
