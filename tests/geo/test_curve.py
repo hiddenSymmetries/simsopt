@@ -5,7 +5,6 @@ import os
 
 
 import numpy as np
-from numpy.testing import assert_allclose
 
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
@@ -470,65 +469,44 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_serialization(curvetype, rotated)
 
-    def test_load_curves_from_makegrid_file_ncsx(self):
-        ppp = 10
-        order = 25
-
-        curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)  
-
-        # write coils to MAKEGRID file
-        coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-        loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
-
-        gamma = [curve.gamma() for curve in curves]
-        loaded_gamma = [curve.gamma() for curve in loaded_curves]
-
-        assert_allclose(gamma, loaded_gamma, atol=3.1e-2)
-
-        kappa = [np.max(curve.kappa()) for curve in curves]
-        loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
-
-        assert_allclose(kappa, loaded_kappa, rtol=0.1)
-
-        length = [CurveLength(c).J() for c in curves]
-        loaded_length = [CurveLength(c).J() for c in loaded_curves]
-
-        assert_allclose(length, loaded_length, rtol=2e-4)
-
-        ccdist = CurveCurveDistance(curves, 0).J()
-        loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
-
-        assert_allclose(ccdist, loaded_ccdist, rtol=2e-4)
-
-        os.remove("coils.file_to_load")
-
-    def test_load_curves_from_makegrid_file_w7x(self):
+    def test_load_curves_from_makegrid_file(self):
+        get_config_functions = [get_ncsx_data, get_w7x_data]
+        order = 10
         ppp = 4
-        curves, currents, ma = get_w7x_data(Nt_coils=48, ppp=ppp)  
 
-        currents = currents[0:5]
-        curves = curves[0:5]
-        order = 48
-        # write coils to MAKEGRID file
-        coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-        loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
+        for get_config_function in get_config_functions:
+            curves, currents, ma = get_config_function(Nt_coils=order, ppp=ppp)  
 
-        gamma = [curve.gamma() for curve in curves]
-        loaded_gamma = [curve.gamma() for curve in loaded_curves]
+            # write coils to MAKEGRID file
+            coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
+            loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
 
-        assert_allclose(gamma, loaded_gamma, atol=5e-2)
+            assert len(curves) == len(loaded_curves)
 
-        length = [CurveLength(c).J() for c in curves]
-        loaded_length = [CurveLength(c).J() for c in loaded_curves]
+            for j in range(len(curves)):
+                np.testing.assert_allclose(curves[j].x, loaded_curves[j].x)
 
-        assert_allclose(length, loaded_length, rtol=2e-3)
+            gamma = [curve.gamma() for curve in curves]
+            loaded_gamma = [curve.gamma() for curve in loaded_curves]
 
-        ccdist = CurveCurveDistance(curves, 0).J()
-        loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
+            np.testing.assert_allclose(gamma, loaded_gamma)
 
-        assert_allclose(ccdist, loaded_ccdist, rtol=2e-3)
+            kappa = [np.max(curve.kappa()) for curve in curves]
+            loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
 
-        os.remove("coils.file_to_load")
+            np.testing.assert_allclose(kappa, loaded_kappa)
+
+            length = [CurveLength(c).J() for c in curves]
+            loaded_length = [CurveLength(c).J() for c in loaded_curves]
+
+            np.testing.assert_allclose(length, loaded_length)
+
+            ccdist = CurveCurveDistance(curves, 0).J()
+            loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
+
+            np.testing.assert_allclose(ccdist, loaded_ccdist)
+
+            os.remove("coils.file_to_load")
 
 
 if __name__ == "__main__":

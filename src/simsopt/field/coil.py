@@ -199,7 +199,7 @@ def load_coils_from_makegrid_file(filename, order, ppp=20):
         ppp: points-per-period: number of quadrature points per period.
 
     Returns:
-        A list of Coil objects with the Fourier coefficients and currents given by the file.
+        A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
     """
     with open(filename, 'r') as f:
         all_coils_values = f.read().splitlines()[3:] 
@@ -213,6 +213,7 @@ def load_coils_from_makegrid_file(filename, order, ppp=20):
             flag = False
         if len(vals) > 4:
             flag = True
+
     curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
