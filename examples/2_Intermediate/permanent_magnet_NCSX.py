@@ -37,12 +37,16 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-# Set some parameters
-nphi = 8  # change to 64 for a real run
-ntheta = 8  # same as above
-dr = 0.02  # Radial extent in meters of the cylindrical permanent magnet bricks
-coff = 0.02  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
-poff = 0.1  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
+# Set some parameters -- if doing CI, lower the resolution
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    nphi = 4  # change to 64 for a real run
+    downsample = 100  # drastically downsample the PM grid for CI
+else:
+    nphi = 16
+    downsample = 1
+
+ntheta = nphi
 surface_flag = 'wout'
 input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
@@ -52,17 +56,11 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 surface_filename = TEST_DIR / input_name
 famus_filename = TEST_DIR / famus_filename
 s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_outer = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-
-# Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_projected_normal(poff)
-s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
-OUT_DIR = 'output_permanent_magnet_GPMO_NCSX/'
-os.makedirs(OUT_DIR, exist_ok=True)
+out_dir = Path("output_permanent_magnet_GPMO_NCSX")
+out_dir.mkdir(parents=True, exist_ok=True)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -82,21 +80,19 @@ RB = mu0 * net_poloidal_current_Amperes / (2 * np.pi)
 bs = ToroidalField(R0=1, B0=RB)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+kwargs_geo = {"coordinate_flag": "cylindrical", "downsample": downsample}
 
 # Finally, initialize the permanent magnet class
-pm_opt = PermanentMagnetGrid(
-    s,
-    Bn=Bnormal, 
-    coordinate_flag='cylindrical',
+pm_opt = PermanentMagnetGrid.geo_setup_from_famus(
+    s, Bnormal, famus_filename, **kwargs_geo
 )
-pm_opt.geo_setup_from_famus(famus_filename)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 2000
-kwargs['nhistory'] = 50
+kwargs['K'] = 500
+kwargs['nhistory'] = 20
 
 # Optimize the permanent magnets greedily
 t1 = time.time()
@@ -113,7 +109,7 @@ plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
-plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
+plt.savefig(out_dir / 'GPMO_MSE_history.png')
 
 # Set final m to the minimum achieved during the optimization
 min_ind = np.argmin(R2_history)
@@ -127,15 +123,21 @@ dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 
-save_plots = False
+save_plots = False 
 if save_plots:
     # Save the MSE history and history of the m vectors
-    np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
-    np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
+    np.savetxt(
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt", 
+        m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1)
+    )
+    np.savetxt(
+        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
+        R2_history
+    )
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
+    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
 
     # Look through the solutions as function of K and make plots
     for k in range(0, kwargs["nhistory"] + 1, 50):
@@ -148,19 +150,20 @@ if save_plots:
             m_maxima=pm_opt.m_maxima,
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-        b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
+        K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
+        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         print("Total fB = ",
               0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
+        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         pointData = {"B_N": Bnormal_total[:, :, None]}
-        s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)), extra_data=pointData)
+        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
 
     # write solution to FAMUS-type file
-    write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
+    pm_opt.write_to_famus(out_dir)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
@@ -189,7 +192,7 @@ print('Total volume = ', total_volume)
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is at least 64 x 64 resolution.
-vmec_flag = False
+vmec_flag = False 
 if vmec_flag:
     from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
@@ -209,7 +212,7 @@ if vmec_flag:
     t1 = time.time()
 
     ### Always use the QA VMEC file and just change the boundary
-    vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
+    vmec_input = os.path.join(os.getcwd(), "..", "..", "tests", "test_files", "input.LandremanPaul2021_QA")
     equil = Vmec(vmec_input, mpi)
     equil.boundary = qfm_surf
     equil.run()

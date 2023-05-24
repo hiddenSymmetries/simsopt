@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'coils_via_symmetries',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -183,6 +183,40 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
+    return coils
+
+
+def load_coils_from_makegrid_file(filename, order, ppp=20):
+    """
+    This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
+    and the currents for several coils and returns an array with the corresponding coils. 
+    The format is described at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+
+    Args:
+        filename: file to load.
+        order: maximum mode number in the Fourier expansion.
+        ppp: points-per-period: number of quadrature points per period.
+
+    Returns:
+        A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
+    """
+    with open(filename, 'r') as f:
+        all_coils_values = f.read().splitlines()[3:] 
+
+    currents = []
+    flag = True
+    for j in range(len(all_coils_values)-1):
+        vals = all_coils_values[j].split()
+        if flag:
+            currents.append(float(vals[3]))
+            flag = False
+        if len(vals) > 4:
+            flag = True
+
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp)
+    coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
+
     return coils
 
 

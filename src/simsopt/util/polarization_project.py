@@ -7,12 +7,9 @@ permanent magnet structures. All credit for this code is thanks
 to the PM4Stell team and Ken Hammond for his consent to use this file
 and work with the permanent magnet branch of SIMSOPT.
 """
-__all__ = ['faceedge_vectors', 'facecorner_vectors', 'edge_triplet', 
-           'orientation_phi', 'polarization_axes', 'discretize_polarizations',
+__all__ = ['orientation_phi', 'polarization_axes', 'discretize_polarizations',
            'face_triplet', 'edge_triplet',
-           'pol_f', 'pol_e', 'pol_c', 'pol_fe', 'pol_fc', 'pol_ec',
-           'pol_fe17', 'pol_fe23', 'pol_fe30', 'pol_fc27', 'pol_fc39', 'pol_ec23']
-
+           ]
 import sys
 
 import numpy as np

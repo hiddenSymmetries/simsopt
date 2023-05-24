@@ -653,11 +653,9 @@ class Testing(unittest.TestCase):
             bs = BiotSavart(coils)
             bs.set_points(s.gamma().reshape((-1, 3)))
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-            pm_opt = PermanentMagnetGrid(
-                s,
-                Bn=Bn, 
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, Bn, s_inner, s_outer
             )
-            pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
             dipoles = np.random.rand(pm_opt.ndipoles * 3)
             pm_opt.m = dipoles
             b_dipole = DipoleField(

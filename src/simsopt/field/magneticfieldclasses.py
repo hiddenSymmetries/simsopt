@@ -648,7 +648,7 @@ class DipoleField(MagneticField):
     """
 
     def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
-        MagneticField.__init__(self)        
+        super().__init__()        
         if coordinate_flag == 'toroidal':
             warnings.warn('Note that if using simple toroidal coordinates, '
                           'the major radius must be specified through R0 argument.')
@@ -788,7 +788,7 @@ class DipoleField(MagneticField):
         data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
         from pyevtk.hl import pointsToVTK
         pointsToVTK(
-            vtkname, ox, oy, oz, data=data
+            str(vtkname), ox, oy, oz, data=data
         )
 
 

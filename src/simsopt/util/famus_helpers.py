@@ -76,7 +76,6 @@ class FocusPlasmaBnormal(object):
             Normal component of the magnetic field evaluated at each of the
             grid points.
         '''
-
         # Determine the theta and phi points using Simsopt Surface class methods
         phi = Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=self.nfp)
         theta = Surface.get_theta_quadpoints(ntheta=ntheta)
@@ -112,13 +111,12 @@ class FocusData(object):
     Args:
         filename: a FOCUS file
     """
-
     propNames = ['type', 'symm', 'coilname', 'ox', 'oy', 'oz', 'Ic', 'M_0', \
                  'pho', 'Lc', 'mp', 'mt', 'op']
 
     float_inds = [3, 4, 5, 7, 8, 10, 11]
 
-    def __init__(self, filename):
+    def __init__(self, filename, downsample=1):
 
         self.nMagnets = 0
         self.nPol = 0
@@ -126,102 +124,119 @@ class FocusData(object):
         # initialize to # of mandatory properties ('op' is currently optional)
         self.nProps = len(FocusData.propNames) - 1
 
-        self.read_from_file(filename)
+        self.read_from_file(filename, downsample)
 
-    def read_from_file(self, filename):
+    def read_from_file(self, filename, downsample):
 
-        focusfile = open(filename, 'r')
+        with open(str(filename), 'r') as focusfile: 
+            # Ignore the first line in the file
+            line1 = focusfile.readline()
 
-        # Ignore the first line in the file
-        line1 = focusfile.readline()
+            # Record the number of magnets and the momentq
+            line2data = [int(number) for number in \
+                         focusfile.readline().strip().split()]
+            self.nMagnets = line2data[0]
+            if len(line2data) > 1:
+                self.momentq = line2data[1]
+                self.has_momentq = True
+            else:
+                self.has_momentq = False
 
-        # Record the number of magnets and the momentq
-        line2data = [int(number) for number in \
-                     focusfile.readline().strip().split()]
-        self.nMagnets = line2data[0]
-        if len(line2data) > 1:
-            self.momentq = line2data[1]
-            self.has_momentq = True
-        else:
-            self.has_momentq = False
+            # Initialize the property data arrays
+            self.magtype = np.zeros(self.nMagnets)
+            self.symm = np.zeros(self.nMagnets)
+            self.coilname = []
+            self.ox = np.zeros(self.nMagnets)
+            self.oy = np.zeros(self.nMagnets)
+            self.oz = np.zeros(self.nMagnets)
+            self.Ic = np.zeros(self.nMagnets)
+            self.M_0 = np.zeros(self.nMagnets)
+            self.pho = np.zeros(self.nMagnets)
+            self.Lc = np.zeros(self.nMagnets)
+            self.mp = np.zeros(self.nMagnets)
+            self.mt = np.zeros(self.nMagnets)
+            self.op = np.zeros(self.nMagnets)
 
-        # Initialize the property data arrays
-        self.magtype = np.zeros(self.nMagnets)
-        self.symm = np.zeros(self.nMagnets)
-        self.coilname = []
-        self.ox = np.zeros(self.nMagnets)
-        self.oy = np.zeros(self.nMagnets)
-        self.oz = np.zeros(self.nMagnets)
-        self.Ic = np.zeros(self.nMagnets)
-        self.M_0 = np.zeros(self.nMagnets)
-        self.pho = np.zeros(self.nMagnets)
-        self.Lc = np.zeros(self.nMagnets)
-        self.mp = np.zeros(self.nMagnets)
-        self.mt = np.zeros(self.nMagnets)
-        self.op = np.zeros(self.nMagnets)
+            # Ignore the third line in the file
+            line3 = focusfile.readline()
 
-        # Ignore the third line in the file
-        line3 = focusfile.readline()
+            # Read the data for each magnet from the file
+            count = 0
+            self.max_float_length = 0
+            self.min_float_val = 0
+            for i in range(self.nMagnets):
 
-        # Read the data for each magnet from the file
-        count = 0
-        self.max_float_length = 0
-        self.min_float_val = 0
-        for i in range(self.nMagnets):
+                linedata = focusfile.readline().strip().split(',')
+                if len(linedata) < self.nProps:
+                    raise Exception(('Problem accessing data for magnet %d in ' \
+                                     + 'file ' + filename) % (i))
 
-            linedata = focusfile.readline().strip().split(',')
-            if len(linedata) < self.nProps:
-                raise Exception(('Problem accessing data for magnet %d in ' \
-                                 + 'file ' + filename) % (i))
+                self.magtype[i] = int(linedata[0])
+                self.symm[i] = int(linedata[1])
+                self.coilname.append(linedata[2].strip())
+                self.ox[i] = np.double(linedata[3])
+                self.oy[i] = np.double(linedata[4])
+                self.oz[i] = np.double(linedata[5])
+                self.Ic[i] = int(float(linedata[6].strip()))
+                self.M_0[i] = np.double(linedata[7])
+                self.pho[i] = np.double(linedata[8])
+                self.Lc[i] = int(float(linedata[9].strip()))
+                self.mp[i] = np.double(linedata[10])
+                self.mt[i] = np.double(linedata[11])    
 
-            self.magtype[i] = int(linedata[0])
-            self.symm[i] = int(linedata[1])
-            self.coilname.append(linedata[2].strip())
-            self.ox[i] = np.double(linedata[3])
-            self.oy[i] = np.double(linedata[4])
-            self.oz[i] = np.double(linedata[5])
-            self.Ic[i] = int(float(linedata[6].strip()))
-            self.M_0[i] = np.double(linedata[7])
-            self.pho[i] = np.double(linedata[8])
-            self.Lc[i] = int(float(linedata[9].strip()))
-            self.mp[i] = np.double(linedata[10])
-            self.mt[i] = np.double(linedata[11])    
-
-            # Check for presence of op parameter
-            if i == 0:
-                if len(linedata) > self.nProps:
-                    try:
-                        testnum = np.double(linedata[12])
-                        self.has_op = True
-                        self.nProps = self.nProps + 1
-                    except:
+                # Check for presence of op parameter
+                if i == 0:
+                    if len(linedata) > self.nProps:
+                        try:
+                            testnum = np.double(linedata[12])
+                            self.has_op = True
+                            self.nProps = self.nProps + 1
+                        except:
+                            self.has_op = False
+                    else:
                         self.has_op = False
-                else:
-                    self.has_op = False
 
-            # Record op parameter if applicable
-            if self.has_op:
-                self.op[i] = np.double(linedata[12])
+                # Record op parameter if applicable
+                if self.has_op:
+                    self.op[i] = np.double(linedata[12])
 
-            # Keep track of the longest and lowest-valued floats recorded
-            max_float_length = max([len(linedata[i].strip()) for i \
-                                    in FocusData.float_inds])
-            if max_float_length > self.max_float_length:
-                self.max_float_length = max_float_length
-            min_float_val = min([np.double(linedata[i]) for i \
-                                 in FocusData.float_inds])
-            if min_float_val < self.min_float_val:
-                self.min_float_val = min_float_val
+                # Keep track of the longest and lowest-valued floats recorded
+                max_float_length = max([len(linedata[i].strip()) for i \
+                                        in FocusData.float_inds])
+                if max_float_length > self.max_float_length:
+                    self.max_float_length = max_float_length
+                min_float_val = min([np.double(linedata[i]) for i \
+                                     in FocusData.float_inds])
+                if min_float_val < self.min_float_val:
+                    self.min_float_val = min_float_val
 
-            count += 1
-
-        focusfile.close()
+                count += 1
 
         self.max_name_length = max([len(string) for string in self.coilname])
 
         # Add space for a negative sign in the max float length if necessary
         if self.min_float_val >= 0:
             self.max_float_length = self.max_float_length+1
+
+        # Drop magnets from downsample and port locations
+        inds_total = np.arange(self.nMagnets)
+        inds_downsampled = inds_total[::downsample]
+
+        # also remove any dipoles where the diagnostic ports should be
+        nonzero_inds = np.intersect1d(np.ravel(np.where(self.Ic == 1.0)), inds_downsampled) 
+        self.ox = self.ox[nonzero_inds]
+        self.oy = self.oy[nonzero_inds]
+        self.oz = self.oz[nonzero_inds]
+        self.magtype = self.magtype[nonzero_inds]
+        self.symm = self.symm[nonzero_inds]
+        self.coilname = np.array(self.coilname)[nonzero_inds]
+        self.coilname = self.coilname.tolist()
+        self.M_0 = self.M_0[nonzero_inds] 
+        self.pho = self.pho[nonzero_inds] 
+        self.Lc = self.Lc[nonzero_inds] 
+        self.mp = self.mp[nonzero_inds] 
+        self.mt = self.mt[nonzero_inds]
+        self.nMagnets = len(nonzero_inds)
 
     def unit_vector(self, inds):
         """
@@ -295,54 +310,58 @@ class FocusData(object):
             self.has_momentq = True
 
     def print_to_file(self, filename):
+        """
+        Write the FocusData class object information to a FOCUS
+        style file.
 
+        Args:
+            filename: string denoting the name of the output file.
+        """
         if self.nMagnets < 1:
             raise RuntimeError('print_to_file: no magnets to print')
 
-        focusfile = open(filename, 'w')
+        with open(str(filename), 'w') as focusfile: 
 
-        if self.has_momentq:
-            focusfile.write('Total number of dipoles, momentq\n')
-            focusfile.write('%10d %5g\n' % (self.nMagnets, self.momentq))
-        else:
-            focusfile.write('Total number of dipoles\n')
-            focusfile.write('%10d\n' % (self.nMagnets))
-
-        # String format specifiers: float length, decimal precision, name length
-        lf = '%s' % (self.max_float_length) 
-        nd = '%s' % (self.max_float_length - 7)
-        ln = '%s' % (self.max_name_length)
-
-        # Write the header line for the individual magnet data
-        focusfile.write(('%s, '*2 + '%'+ln+'s, ' + ('%'+lf+'s, ')*3 + \
-                         '%s, ' + ('%'+lf+'s, ')*2 + '%s, ' + \
-                         ('%'+lf+'s, ')*2) % \
-                        tuple(FocusData.propNames[:12]))
-        if self.has_op:
-            focusfile.write(('%'+lf+'s, \n') % (FocusData.propNames[12]))
-        else:
-            focusfile.write('\n')
-
-        # Write the data for each magnet to the file
-        for i in range(self.nMagnets):
-
-            lineStr = ('%4d, '*2 + '%'+ln+'s, ' + \
-                       ('%'+lf+'.'+nd+'E, ')*3 + '%2d, ' + \
-                       ('%'+lf+'.'+nd+'E, ')*2 + '%2d, ' + \
-                       ('%'+lf+'.'+nd+'E, ')*2) %  \
-                (self.magtype[i], self.symm[i], self.coilname[i], \
-                 self.ox[i], self.oy[i], self.oz[i], self.Ic[i],  \
-                 self.M_0[i], self.pho[i], self.Lc[i], \
-                 self.mp[i], self.mt[i])
-
-            if self.has_op:
-                lineStr = lineStr + ('%'+lf+'.'+nd+'E, \n') % self.op[i]
+            if self.has_momentq:
+                focusfile.write('Total number of dipoles, momentq\n')
+                focusfile.write('%10d %5g\n' % (self.nMagnets, self.momentq))
             else:
-                lineStr = lineStr + '\n'
+                focusfile.write('Total number of dipoles\n')
+                focusfile.write('%10d\n' % (self.nMagnets))
 
-            focusfile.write(lineStr)
+            # String format specifiers: float length, decimal precision, name length
+            lf = '%s' % (self.max_float_length) 
+            nd = '%s' % (self.max_float_length - 7)
+            ln = '%s' % (self.max_name_length)
 
-        focusfile.close()
+            # Write the header line for the individual magnet data
+            focusfile.write(('%s, ' * 2 + '%' + ln + 's, ' + ('%' + lf + 's, ') * 3 + \
+                             '%s, ' + ('%' + lf + 's, ') * 2 + '%s, ' + \
+                             ('%' + lf + 's, ') * 2) % \
+                            tuple(FocusData.propNames[:12]))
+            if self.has_op:
+                focusfile.write(('%' + lf + 's, \n') % (FocusData.propNames[12]))
+            else:
+                focusfile.write('\n')
+
+            # Write the data for each magnet to the file
+            for i in range(self.nMagnets):
+
+                lineStr = ('%4d, ' * 2 + '%' + ln + 's, ' + \
+                           ('%' + lf + '.' + nd + 'E, ') * 3 + '%2d, ' + \
+                           ('%' + lf + '.' + nd + 'E, ') * 2 + '%2d, ' + \
+                           ('%' + lf + '.' + nd + 'E, ') * 2) %  \
+                    (self.magtype[i], self.symm[i], self.coilname[i], \
+                     self.ox[i], self.oy[i], self.oz[i], self.Ic[i],  \
+                     self.M_0[i], self.pho[i], self.Lc[i], \
+                     self.mp[i], self.mt[i])
+
+                if self.has_op:
+                    lineStr = lineStr + ('%' + lf + '.' + nd + 'E, \n') % self.op[i]
+                else:
+                    lineStr = lineStr + '\n'
+
+                focusfile.write(lineStr)
 
     def init_pol_vecs(self, n_pol):
         """
@@ -385,7 +404,6 @@ class FocusData(object):
                 assumed to be located. Must be between 1 and 2*nfp, inclusive.
                 Sector 1 starts at toroidal angle 0.
         '''
-
         symm_inds = np.where(self.symm == 2)[0]
         n_symm = len(symm_inds)
         if n_symm == 0:

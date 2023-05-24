@@ -4,8 +4,9 @@ import unittest
 import numpy as np
 
 import simsoptpp as sopp
-from simsopt.solve import prox_l0, prox_l1, relax_and_split, GPMO
-from simsopt.solve import setup_initial_condition
+from simsopt.solve.permanent_magnet_optimization import prox_l0, prox_l1
+from simsopt.solve.permanent_magnet_optimization import setup_initial_condition
+from simsopt.solve import relax_and_split, GPMO
 from simsopt.util import *
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.field import BiotSavart
@@ -69,7 +70,7 @@ class Testing(unittest.TestCase):
         """
         nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
         ntheta = 8
-        dr = 0.02  # cylindrical bricks with radial extent 2 cm
+        dr = 0.04  # cylindrical bricks with radial extent 4 cm
         coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
         poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
         input_name = 'input.LandremanPaul2021_QA_lowres'
@@ -86,27 +87,23 @@ class Testing(unittest.TestCase):
         s_outer.extend_via_projected_normal(poff + coff)
 
         # optimize the currents in the TF coils
-        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, '', s)
+        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
         bs = BiotSavart(coils)
-        bs = coil_optimization(s, bs, base_curves, curves, '')
+        bs = coil_optimization(s, bs, base_curves, curves)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-        pm_opt = PermanentMagnetGrid(
-            s, 
-            dr=dr,
-            Bn=Bnormal,
+        kwargs_geo = {"dr": dr}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+            s, Bnormal, s_inner, s_outer, **kwargs_geo
         )
-        pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
         setup_initial_condition(pm_opt, np.zeros(pm_opt.ndipoles * 3))
 
         reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
         nu = 1e10  # how strongly to make proxy variable w close to values in m
 
         # Rescale the hyperparameters and then add contributions to ATA and ATb
-        reg_l0, _, _, nu = rescale_for_opt(
-            pm_opt, reg_l0, 0.0, 0.0, nu
-        )
+        reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
         # Set some hyperparameters for the optimization
         kwargs = initialize_default_kwargs()
@@ -123,9 +120,7 @@ class Testing(unittest.TestCase):
         nu = 1e10  # how strongly to make proxy variable w close to values in m
 
         # Rescale the hyperparameters and then add contributions to ATA and ATb
-        reg_l0, _, _, nu = rescale_for_opt(
-            pm_opt, reg_l0, 0.0, 0.0, nu
-        )
+        reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
         # Set some hyperparameters for the optimization
         kwargs = initialize_default_kwargs()

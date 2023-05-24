@@ -38,12 +38,23 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-# Set some parameters
-nphi = 8  # change to 64 for high-resolution runs
-ntheta = 8  # same as above
+# Set some parameters -- if doing CI, lower the resolution
+ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+if ci:
+    nphi = 2
+    nIter_max = 100
+    nBacktracking = 50
+    max_nMagnets = 20
+    downsample = 100  # downsample the FAMUS grid of magnets by this factor
+else:
+    nphi = 16  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    nBacktracking = 200
+    max_nMagnets = 1000
+    downsample = 1
+
+ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
-coff = 0.1  # Offset from the plasma surface of the start of the permanent magnet grid, in meters
-poff = 0.02  # Offset from the plasma surface of the end of the permanent magnet grid, in meters
 input_name = 'input.muse'
 
 # Read in the plasma equilibrium file
@@ -56,11 +67,11 @@ s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nph
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
-OUT_DIR = 'output_permanent_magnet_MUSE_GPMO_scratch/'
-os.makedirs(OUT_DIR, exist_ok=True)
+out_dir = Path("output_permanent_magnet_GPMO_MUSE")
+out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, OUT_DIR, s)
+base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -79,18 +90,19 @@ s_plot = SurfaceRZFourier.from_focus(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # Set up correct Bnormal from TF coils 
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-mag_data = FocusData(famus_filename)
+# Load a downsampled version of the magnet grid from a FAMUS file
+mag_data = FocusData(famus_filename, downsample=downsample)
 
-# Determine the allowable polarization types and reject the negatives
+# Set the allowable orientations of the magnets to be face-aligned
+# i.e. the local x, y, or z directions
 pol_axes = np.zeros((0, 3))
 pol_type = np.zeros(0, dtype=int)
-
 pol_axes_f, pol_type_f = polarization_axes(['face'])
 ntype_f = int(len(pol_type_f)/2)
 pol_axes_f = pol_axes_f[:ntype_f, :]
@@ -98,6 +110,7 @@ pol_type_f = pol_type_f[:ntype_f]
 pol_axes = np.concatenate((pol_axes, pol_axes_f), axis=0)
 pol_type = np.concatenate((pol_type, pol_type_f))
 
+# Optionally add additional types of allowed orientations
 PM4Stell_orientations = False
 if PM4Stell_orientations:
     pol_axes_fe_ftri, pol_type_fe_ftri = polarization_axes(['fe_ftri'])
@@ -106,7 +119,6 @@ if PM4Stell_orientations:
     pol_type_fe_ftri = pol_type_fe_ftri[:ntype_fe_ftri] + 1
     pol_axes = np.concatenate((pol_axes, pol_axes_fe_ftri), axis=0)
     pol_type = np.concatenate((pol_type, pol_type_fe_ftri))
-
     pol_axes_fc_ftri, pol_type_fc_ftri = polarization_axes(['fc_ftri'])
     ntype_fc_ftri = int(len(pol_type_fc_ftri)/2)
     pol_axes_fc_ftri = pol_axes_fc_ftri[:ntype_fc_ftri, :]
@@ -114,56 +126,33 @@ if PM4Stell_orientations:
     pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
-ox, oy, oz, Ic = np.loadtxt(
-    famus_filename, 
-    skiprows=3, usecols=[3, 4, 5, 6], 
-    delimiter=',', unpack=True
-)
-
-# Not normalized to 1 like quadpoints_phi!
-premade_dipole_grid = np.array([ox, oy, oz]).T
-ophi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
-
+ophi = np.arctan2(mag_data.oy, mag_data.ox) 
 discretize_polarizations(mag_data, ophi, pol_axes, pol_type)
-pol_vectors = np.zeros((ox.shape[0], len(pol_type), 3))
+pol_vectors = np.zeros((mag_data.nMagnets, len(pol_type), 3))
 pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 print('pol_vectors_shape = ', pol_vectors.shape)
 
-# remove any dipoles where the diagnostic ports should be
-nonzero_inds = (Ic == 1.0)
-ox = ox[nonzero_inds]
-oy = oy[nonzero_inds]
-oz = oz[nonzero_inds]
-pol_vectors = pol_vectors[nonzero_inds, :, :]
-premade_dipole_grid = np.array([ox, oy, oz]).T
+# pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
+# which is the default, so no need to specify it here. 
+kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
 
 # Finally, initialize the permanent magnet class
-pm_opt = PermanentMagnetGrid(
-    s, 
-    dr=dr,
-    Bn=Bnormal, 
-    coordinate_flag='cartesian',
-)
-# pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
-pm_opt.geo_setup_from_famus(famus_filename, pol_vectors=pol_vectors)
+pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs) 
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
-nBacktracking = 500  # How often to perform the backtrackinig
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
-nIter_max = 2000  # Number of iterations to run before quitting
-max_nMagnets = 1000  # Max number of magnets to place. If achieved, algorithm quits
-nHistory = 100  # How often to save the algorithm progress
+nHistory = 20  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = nIter_max
+kwargs['K'] = nIter_max  # Maximum number of GPMO iterations to run
 kwargs['nhistory'] = nHistory
 if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking
+    kwargs['backtracking'] = nBacktracking  # How often to perform the backtrackinig
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)
     kwargs['max_nMagnets'] = max_nMagnets
@@ -185,7 +174,7 @@ plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
-plt.savefig(OUT_DIR + 'GPMO_MSE_history.png')
+plt.savefig(out_dir / 'GPMO_MSE_history.png')
 
 # Set final m to the minimum achieved during the optimization
 min_ind = np.argmin(R2_history)
@@ -202,13 +191,18 @@ print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
 save_plots = False
 if save_plots:
     # Save the MSE history and history of the m vectors
-    np.savetxt(OUT_DIR + 'mhistory_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1))
-    np.savetxt(OUT_DIR + 'R2history_K' + str(kwargs['K']) + '_nphi' + str(nphi) + '_ntheta' + str(ntheta) + '.txt', R2_history)
-
+    np.savetxt(
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt", 
+        m_history.reshape(pm_opt.ndipoles * 3, kwargs['nhistory'] + 1)
+    )
+    np.savetxt(
+        out_dir / f"R2history_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
+        R2_history
+    )
     # Plot the SIMSOPT GPMO solution
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
+    make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
 
     # Look through the solutions as function of K and make plots
     for k in range(0, kwargs["nhistory"] + 1, 50):
@@ -221,19 +215,19 @@ if save_plots:
             m_maxima=pm_opt.m_maxima,
         )
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-        b_dipole._toVTK(OUT_DIR + "Dipole_Fields_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
-        print("Total fB = ",
-              0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
+        K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
+        b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
+        print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
 
         # For plotting Bn on the full torus surface at the end with just the dipole fields
-        make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)))
+        make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}")
         pointData = {"B_N": Bnormal_total[:, :, None]}
-        s_plot.to_vtk(OUT_DIR + "m_optimized_K" + str(int(kwargs['K'] / kwargs['nhistory'] * k)), extra_data=pointData)
+        s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
 
     # write solution to FAMUS-type file
-    write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
+    pm_opt.write_to_famus(out_dir)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
