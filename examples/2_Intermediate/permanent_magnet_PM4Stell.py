@@ -4,6 +4,7 @@
     arbitrarily-defined polarization vectors to optimize magnets in an 
     arrangement around the NCSX plasma in the C09R00 configuration with 
     an average magnetic field strength on axis of about 0.5 T.
+    
     This test applies the backtracking approach to the PM4Stell magnet arrangement
     with face-triplet polarizations. The threshold angle for removal of magnet 
     pairs is set by the user, unlike the normal backtracking algorithm
@@ -28,8 +29,8 @@ from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, write_pm_optimizer_to_famus, make_Bnormal_plots
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils
-from simsopt.util.polarization_project import polarization_axes, orientation_phi, \
-    discretize_polarizations
+from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
+                                               discretize_polarizations)
 
 t_start = time.time()
 
@@ -43,30 +44,33 @@ if ci:
 else:
     N = 16  # >= 64 for high-resolution runs
     nIter_max = 10000
-    max_nMagnets = 2000
+    max_nMagnets = 1000
     downsample = 1
 
 nphi = N
 ntheta = N
-nfp = 3
 algorithm = 'ArbVec_backtracking'
 nBacktracking = 200 
 nAdjacent = 10
-thresh_angle = np.pi / np.sqrt(2)
+thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
-out_dir = 'PM4Stell_' + str(int(thresh_angle * 180 / np.pi)) + 'deg_nb' + str(nBacktracking) + '_na' + str(nAdjacent) + '/' 
-os.makedirs(out_dir, exist_ok=True)
+angle = int(thresh_angle * 180 / np.pi)
+out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}") 
+out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
 # Obtain the plasma boundary for the NCSX configuration
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
-lcfs_ncsx = SurfaceRZFourier.from_focus(fname_plasma, range='half period', \
-                                        nphi=nphi, ntheta=ntheta)
-s1 = SurfaceRZFourier.from_focus(fname_plasma, range='half period', \
-                                 nphi=nphi, ntheta=ntheta)
-s2 = SurfaceRZFourier.from_focus(fname_plasma, range='half period', \
-                                 nphi=nphi, ntheta=ntheta)
+lcfs_ncsx = SurfaceRZFourier.from_focus(
+    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
+)
+s1 = SurfaceRZFourier.from_focus(
+    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
+)
+s2 = SurfaceRZFourier.from_focus(
+    fname_plasma, range='half period', nphi=nphi, ntheta=ntheta
+)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -84,7 +88,6 @@ bn_plasma = bnormal_obj_ncsx.bnormal_grid(nphi, ntheta, 'half period')
 
 # Obtain the NCSX TF coil data and calculate their normal field on the boundary
 fname_ncsx_coils = TEST_DIR / 'tf_only_half_tesla_symmetry_baxis_PM4Stell.focus'
-# ncsx_tfcoils = read_focus_coils(fname_ncsx_coils, nfp)
 base_curves, base_currents, ncoils = read_focus_coils(fname_ncsx_coils)
 coils = []
 for i in range(ncoils):
@@ -99,8 +102,10 @@ for i in range(ncoils):
 ncsx_tfcoils = coils
 bs_tfcoils = BiotSavart(ncsx_tfcoils)
 bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
-bn_tfcoils = np.sum(bs_tfcoils.B().reshape((nphi, ntheta, 3)) \
-                    * lcfs_ncsx.unitnormal(), axis=2)
+bn_tfcoils = np.sum(
+    bs_tfcoils.B().reshape((nphi, ntheta, 3)) * lcfs_ncsx.unitnormal(), 
+    axis=2
+)
 bn_total = bn_plasma + bn_tfcoils
 make_Bnormal_plots(bs_tfcoils, s_plot, out_dir, "biot_savart_initial")
 
@@ -140,21 +145,15 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-# Initialize the permanent magnet grid from the PM4Stell arrangement
-pm_ncsx = PermanentMagnetGrid(
-    lcfs_ncsx, 
-    Bn=bn_total, 
-    coordinate_flag='cartesian', 
-) 
 # Using m_maxima functionality to try out unrealistically strong magnets
 B_max = 5  # 5 Tesla!!!!
 mu0 = 4 * np.pi * 1e-7
 m_maxima = B_max / mu0
-pm_ncsx.geo_setup_from_famus(
-    fname_argmt, 
-    pol_vectors=pol_vectors, 
-    m_maxima=m_maxima, 
-    downsample=downsample
+kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample}
+
+# Initialize the permanent magnet grid from the PM4Stell arrangement
+pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
+    lcfs_ncsx, bn_total, fname_argmt, **kwargs_geo
 )
 
 # Optimize with the GPMO algorithm
@@ -184,28 +183,27 @@ if False:
         m_maxima=pm_ncsx.m_maxima,
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    b_dipole._toVTK(out_dir + "Dipole_Fields")
+    b_dipole._toVTK(out_dir / "Dipole_Fields")
     make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
     Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles 
     pointData = {"B_N": Bnormal_plasma[:, :, None]}
-    s_plot.to_vtk(out_dir + "Bnormal_plasma", extra_data=pointData)
+    s_plot.to_vtk(out_dir / "Bnormal_plasma", extra_data=pointData)
     pointData = {"B_N": Bnormal_dipoles[:, :, None]}
-    s_plot.to_vtk(out_dir + "Bnormal_dipoles", extra_data=pointData)
+    s_plot.to_vtk(out_dir / "Bnormal_dipoles", extra_data=pointData)
     pointData = {"B_N": Bnormal_coils[:, :, None]}
-    s_plot.to_vtk(out_dir + "Bnormal_coils", extra_data=pointData)
+    s_plot.to_vtk(out_dir / "Bnormal_coils", extra_data=pointData)
     pointData = {"B_N": Bnormal_total[:, :, None]}
-    s_plot.to_vtk(out_dir + "Bnormal_total", extra_data=pointData)
-    write_pm_optimizer_to_famus(out_dir, pm_ncsx)
-    np.savetxt(out_dir + 'R2_history.txt', R2_history)
-    np.savetxt(out_dir + 'absBn_history.txt', Bn_history)
+    s_plot.to_vtk(out_dir / "Bnormal_total", extra_data=pointData)
+    write_pm_optimizer_to_famus(pm_ncsx, out_dir)
+    np.savetxt(out_dir / 'R2_history.txt', R2_history)
+    np.savetxt(out_dir / 'absBn_history.txt', Bn_history)
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir + 'm_history_nmags=%d_nhist=%d.txt' % (nmags, nhist), \
-               m_history_2d)
+    np.savetxt(out_dir / 'm_history_nmags=%d_nhist=%d.txt' % (nmags, nhist), m_history_2d)
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 

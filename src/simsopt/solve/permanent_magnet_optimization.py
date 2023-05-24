@@ -2,7 +2,7 @@ import numpy as np
 import simsoptpp as sopp
 import warnings
 
-__all__ = ['relax_and_split', 'GPMO', 'prox_l0', 'prox_l1', 'setup_initial_condition']
+__all__ = ['relax_and_split', 'GPMO']
 
 
 def prox_l0(m, mmax, reg_l0, nu):
@@ -98,10 +98,7 @@ def setup_initial_condition(pm_opt, m0=None):
                 'Initial dipole guess is incorrect shape --'
                 ' guess must be 1D with shape (ndipoles * 3).'
             )
-        m0_temp = projection_L2_balls(
-            m0,
-            pm_opt.m_maxima
-        )
+        m0_temp = projection_L2_balls(m0, pm_opt.m_maxima)
         # check if m0 lies inside the hypersurface spanned by
         # L2 balls, which we require it does
         if not np.allclose(m0, m0_temp):
@@ -158,14 +155,16 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
                 also the number of times that MwPGP is called,
                 and the number of times a prox is computed.
             verbose: Prints out all the loss term errors separately.
+
+    Returns:
+        errors: Total optimization loss after each convex sub-problem
+          is solved.
+        m_history: Solution for the permanent magnets after each 
+          convex sub-problem is solved.
+        m_proxy_history: Sparse solution for the permanent magnets
+          after each convex sub-problem is solved.
+
     """
-
-    if not hasattr(pm_opt, "A_obj"):
-        raise ValueError(
-            "The PermanentMagnetClass needs to use geo_setup() or "
-            "geo_setup_from_famus() before calling optimization routines."
-        )
-
     # change to row-major order for the C++ code
     A_obj = np.ascontiguousarray(pm_opt.A_obj)
     ATb = np.ascontiguousarray(np.reshape(pm_opt.ATb, (pm_opt.ndipoles, 3)))
@@ -185,17 +184,17 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
 
     # set the nonconvex step in the algorithm
     reg_rs = 0.0
-    if "nu" in kwargs.keys():
+    if "nu" in kwargs:
         nu = kwargs["nu"]
     else:
         nu = 1e100
 
-    if "reg_l0" in kwargs.keys():
+    if "reg_l0" in kwargs:
         reg_l0 = kwargs["reg_l0"]
     else:
         reg_l0 = 0.0
 
-    if "reg_l1" in kwargs.keys():
+    if "reg_l1" in kwargs:
         reg_l1 = kwargs["reg_l1"]
     else:
         reg_l1 = 0.0
@@ -221,7 +220,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
     kwargs['alpha'] = alpha_max
 
     kwargs_convex = {}
-    for key in kwargs.keys():
+    for key in kwargs:
         if 'RS' not in key: 
             kwargs_convex[key] = kwargs[key]
 
@@ -273,7 +272,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
     return errors, m_history, m_proxy_history
 
 
-def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
+def GPMO(pm_opt, algorithm='baseline', **kwargs):
     """
     GPMO is a greedy algorithm alternative to
     the relax-and-split algorithm for solving the permanent
@@ -287,18 +286,72 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
         pm_opt: PermanentMagnetGrid class object
             The grid of permanent magnets to optimize.
         algorithm: string
-            The type of greedy algorithm to use. Options are
-            baseline (the simple implementation of GPMO), multi
-            (place multiple magnets per iteration), backtracking
-            (backtrack every few hundred iterations to improve the
-            solution), ArbVec (the simple implementation of GPMO,
-            but with arbitrary oriented polarization vectors), and
-            ArbVec_backtracking (same as above but w/ backtracking).
-            Easiest to use is baseline but most effective algorithm
-            is ArbVec_backtracking.
-        algorithm_kwargs: dict
+            The type of greedy algorithm to use. Options are:
+            ...
+            'baseline' (the simple implementation of GPMO), 
+            'multi' (GPMO, but placing multiple magnets per iteration), 
+            'backtracking' (backtrack every few hundred iterations to 
+              improve the solution), 
+            'ArbVec' (the simple implementation of GPMO, but with 
+              arbitrary oriented polarization vectors), 
+            'ArbVec_backtracking' (same as above but w/ backtracking).
+            ...
+            Easiest algorithm to use is 'baseline' but most effective 
+            algorithm is 'ArbVec_backtracking'.
+        kwargs: dict
             Keyword argument dictionary for the GPMO algorithm
-            and its variants.
+            and its variants. The following variables can be passed: 
+            K: integer
+              Maximum number of GPMO iterations to run.
+            nhistory: integer
+              Every 'nhistory' iterations, the loss terms are recorded.
+            Nadjacent: integer
+              Number of neighbor cells to consider 'adjacent'
+              to one another, for the purposes of placing multiple
+              magnets or doing backtracking. Not a keyword argument for
+              'baseline' and 'ArbVec'.
+            dipole_grid_xyz: 2D numpy array, shape (ndipoles, 3).
+              XYZ coordinates of the permanent magnet locations. Needed for 
+              figuring out which permanent magnets are adjacent to one another.
+              Not a keyword argument for 'baseline' and 'ArbVec'.
+            max_nMagnets: integer.   
+              Maximum number of magnets to place before algorithm quits. Only
+              a keyword argument for 'backtracking' and 'ArbVec_backtracking'
+              since without any backtracking, this is the same parameter as 'K'.
+            backtracking: integer.
+              Every 'backtracking' iterations, a backtracking is performed to
+              remove suboptimal magnets. Only a keyword argument for 
+              'backtracking' and 'ArbVec_backtracking' algorithms.
+            thresh_angle: float.
+              If the angle between adjacent dipole moments > thresh_angle,
+              these dipoles are considered suboptimal and liable to removed
+              during a backtracking step. Only a keyword argument for
+              'ArbVec_backtracking' algorithm.
+            single_direction: int, must be = 0, 1, or 2.
+              Specify to only place magnets with orientations in a single 
+              direction, e.g. only magnets pointed in the +- x direction. 
+              Keyword argument only for 'baseline', 'multi', and 'backtracking'
+              since the 'ArbVec...' algorithms have local coordinate systems
+              and therefore can specify the same constraint and much more
+              via the 'pol_vectors' argument.
+            pol_vector: 3D numpy array, shape (ndipoles, nPolarizationDirections, 3)
+              List of allowed polarization (orientation) directions for every
+              dipole in the grid. Only a keyword argument for 'ArbVec' and
+              'ArbVec_backtracking' algorithms. 
+            reg_l2: float.
+              L2 regularization value, applied through the mmax argument in
+              the GPMO algorithm. See the paper for how this works. 
+            verbose: bool.
+              If True, print out the algorithm progress every 'nhistory'
+              iterations. Also needed to record the algorithm history. 
+
+    Returns:
+        errors: Total optimization loss values, recorded every 
+          'nhistory' iterations.
+        Bn_errors: |Bn| errors, recorded every 'nhistory' iterations.
+        m_history: Solution for the permanent magnets, recorded after
+          'nhistory' iterations.
+
     """
     if not hasattr(pm_opt, "A_obj"):
         raise ValueError(
@@ -317,28 +370,24 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
     mmax_vec = contig(np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3))
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in algorithm_kwargs.keys():
+    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in kwargs:
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
-    # Run one of the greedy algorithm (GPMO) variants
-    if "reg_l2" in algorithm_kwargs.keys():
-        reg_l2 = algorithm_kwargs["reg_l2"]
-        algorithm_kwargs.pop("reg_l2")
-    else:
-        reg_l2 = 0.0
+    # Set the L2 regularization if it is included in the kwargs 
+    reg_l2 = kwargs.pop("reg_l2", 0.0)
 
     # check that algorithm can generate K binary dipoles
-    if "K" in algorithm_kwargs.keys():
-        if algorithm_kwargs["K"] > pm_opt.ndipoles:
+    if "K" in kwargs:
+        if kwargs["K"] > pm_opt.ndipoles:
             warnings.warn(
                 'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
                 ' so the algorithm will set K = the total number and proceed.'
             )
-            algorithm_kwargs["K"] = pm_opt.ndipoles
-        print('Number of binary dipoles to use in GPMO algorithm = ', algorithm_kwargs["K"])
+            kwargs["K"] = pm_opt.ndipoles
+        print('Number of binary dipoles to use in GPMO algorithm = ', kwargs["K"])
 
-    if "nhistory" in algorithm_kwargs.keys() and "K" in algorithm_kwargs.keys():
-        if algorithm_kwargs['nhistory'] > algorithm_kwargs['K']:
+    if "nhistory" in kwargs and "K" in kwargs:
+        if kwargs['nhistory'] > kwargs['K']:
             raise ValueError('nhistory must be less than K for the GPMO algorithm.')
 
     Nnorms = contig(np.ravel(np.sqrt(np.sum(pm_opt.plasma_boundary.normal() ** 2, axis=-1))))
@@ -350,7 +399,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            **algorithm_kwargs
+            **kwargs
         )
     elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(
@@ -359,7 +408,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             pol_vectors=contig(pm_opt.pol_vectors),
-            **algorithm_kwargs
+            **kwargs
         )
     elif algorithm == 'backtracking':  # GPMOb
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_backtracking(
@@ -367,7 +416,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            **algorithm_kwargs
+            **kwargs
         )
         pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
     elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
@@ -381,7 +430,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
             pol_vectors=contig(pm_opt.pol_vectors),
-            **algorithm_kwargs
+            **kwargs
         )
     elif algorithm == 'multi':  # GPMOm
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_multi(
@@ -389,7 +438,7 @@ def GPMO(pm_opt, algorithm='baseline', **algorithm_kwargs):
             b_obj=contig(pm_opt.b_obj),
             mmax=np.sqrt(reg_l2)*mmax_vec,
             normal_norms=Nnorms,
-            **algorithm_kwargs
+            **kwargs
         )
     else:
         raise NotImplementedError(

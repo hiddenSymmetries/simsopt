@@ -11,7 +11,11 @@ from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier, SurfaceXYZFourie
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import *
-from simsopt.util.polarization_project import *
+from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vectors,
+                                               pol_e, pol_f, pol_fe, pol_c, 
+                                               pol_fc, pol_ec, pol_fc27, pol_fc39,
+                                               pol_ec23, pol_fe17, pol_fe23, pol_fe30)
+
 
 #from . import TEST_DIR
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -40,78 +44,70 @@ class Testing(unittest.TestCase):
             s3, Bn, 
         )
 
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid(
-                s, Bn, dr=-0.05 
-            )
         with self.assertRaises(TypeError):
-            PermanentMagnetGrid(
-                s,
-            )
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid(
-                s, Bn, Nx=-2 
-            )
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn)
         with self.assertRaises(TypeError):
-            pm_opt = PermanentMagnetGrid(
-                s, Bn,
-            )
-            pm_opt.geo_setup_between_toroidal_surfaces() 
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1)
         with self.assertRaises(ValueError):
-            PermanentMagnetGrid(
-                s, Bn, dz=-0.05
-            )
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(Bn, s1, s2, s)
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s1, s, s2, Bn)
         with self.assertRaises(TypeError):
-            PermanentMagnetGrid(
-                10,
+            PermanentMagnetGrid(s)
+        with self.assertRaises(ValueError):
+            kwargs = {"dr": -0.05}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            kwargs = {"dz": -0.05}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            kwargs = {"Nx": -2}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            kwargs = {"Ny": -2}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            kwargs = {"Nz": -2}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": [10]}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            kwargs = {"coordinate_flag": "toroidal", "pol_vectors": [10]}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, 0, s1, s2)
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, np.zeros((nphi, ntheta // 2)), s1, s2)
+        with self.assertRaises(ValueError):
+            kwargs = {"m_maxima": np.ones(4)}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+        with self.assertRaises(ValueError):
+            PermanentMagnetGrid.geo_setup_from_famus(s, np.zeros((nphi, ntheta)), TEST_DIR / 'zot80.log')
+        with self.assertRaises(ValueError):
+            kwargs = {"m_maxima": np.ones(4)}
+            PermanentMagnetGrid.geo_setup_from_famus(
+                s, np.zeros((nphi, ntheta)), TEST_DIR / 'zot80.focus', **kwargs
             )
         with self.assertRaises(ValueError):
-            PermanentMagnetGrid(
-                s, Bn, coordinate_flag='cylindrical',
-            )
-            pm_opt.geo_setup_between_toroidal_surfaces(s1, s2, pol_vectors=[10])
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid(
-                s, Bn=0.0 
+            kwargs = {"pol_vectors": np.ones((5, 3, 2))}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
             )
         with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta // 2))
+            kwargs = {"pol_vectors": np.ones((5, 3))}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
             )
-            pm.geo_setup_between_toroidal_surfaces(s1, s2)
         with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=Bn
+            kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": np.ones((5, 3, 3))}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
             )
-            pm.geo_setup_between_toroidal_surfaces(s1, s2, m_maxima=np.ones(4))
-        with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta))
-            )
-            pm.geo_setup_from_famus(TEST_DIR / 'zot80.log')
-        with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta))
-            )
-            pm.geo_setup_from_famus(TEST_DIR / 'zot80.focus', m_maxima=np.ones(4))
-        with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta))
-            )
-            pm.geo_setup_between_toroidal_surfaces(s1, s2, pol_vectors=np.ones((5, 3, 2)))
-        with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta)),
-            )
-            pm.geo_setup_between_toroidal_surfaces(s1, s2, pol_vectors=np.ones((5, 3)))
-        with self.assertRaises(ValueError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta)), coordinate_flag='cylindrical'
-            )
-            pm.geo_setup_between_toroidal_surfaces(s1, s2, pol_vectors=np.ones((5, 3, 3)))
         with self.assertRaises(NotImplementedError):
-            pm = PermanentMagnetGrid(
-                s, Bn=np.zeros((nphi, ntheta)), coordinate_flag='random_name'
+            kwargs = {"coordinate_flag": "random"}
+            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
             )
 
     def test_optimize_bad_parameters(self):
@@ -136,8 +132,8 @@ class Testing(unittest.TestCase):
 
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetGrid(s, dr=0.15, Bn=Bn)
-        pm_opt.geo_setup_between_toroidal_surfaces(s1, s2)
+        kwargs = {"dr": 0.15}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs) 
 
         # Note that the rest of the optimization parameters are checked
         # interactively when python permanent_magnet_optimization.py True 
@@ -211,8 +207,8 @@ class Testing(unittest.TestCase):
 
         # Create PM class
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetGrid(s, dr=0.15, Bn=Bn)
-        pm_opt.geo_setup_between_toroidal_surfaces(s1, s2)
+        kwargs = {"dr": 0.15}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs) 
         _, _, _, = relax_and_split(pm_opt)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
@@ -241,22 +237,21 @@ class Testing(unittest.TestCase):
 
         # Create PM class with cylindrical bricks
         Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-        pm_opt = PermanentMagnetGrid(s, dr=0.15, Bn=Bn, coordinate_flag='cylindrical')
-        pm_opt.geo_setup_between_toroidal_surfaces(s1, s2)
+        kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical"}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo) 
         mmax_new = pm_opt.m_maxima / 2.0
-        pm_opt.geo_setup_between_toroidal_surfaces(s1, s2, m_maxima=mmax_new)
+        kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical", "m_maxima": mmax_new}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo) 
         assert np.allclose(pm_opt.m_maxima, mmax_new)
         mmax_new = pm_opt.m_maxima[-1] / 2.0
-        pm_opt.geo_setup_between_toroidal_surfaces(s1, s2, m_maxima=mmax_new)
+        kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical", "m_maxima": mmax_new}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo) 
         assert np.allclose(pm_opt.m_maxima, mmax_new)
-        pm_opt.geo_setup_between_toroidal_surfaces(s1, s2)
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2)
         _, _, _, = relax_and_split(pm_opt)
         b_dipole = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            pm_opt.m_proxy,
-            nfp=s.nfp,
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
+            pm_opt.dipole_grid_xyz, pm_opt.m_proxy, nfp=s.nfp,
+            coordinate_flag=pm_opt.coordinate_flag, m_maxima=pm_opt.m_maxima,
         )
         b_dipole.set_points(s.gamma().reshape(-1, 3))
 
@@ -285,7 +280,6 @@ class Testing(unittest.TestCase):
         filename = TEST_DIR / 'input.circular_tokamak'
         nphi = 16
         ntheta = nphi
-        contig = np.ascontiguousarray
         s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
         s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
         s2 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
@@ -316,14 +310,14 @@ class Testing(unittest.TestCase):
 
         # Try with cylindrical functionality 
         grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-            contig(phi), 
-            contig(normal_inner), 
-            contig(normal_outer),
-            contig(RphiZ), 
-            contig(r_inner), 
-            contig(r_outer), 
-            contig(z_inner), 
-            contig(z_outer)
+            phi, 
+            normal_inner, 
+            normal_outer,
+            RphiZ, 
+            r_inner, 
+            r_outer, 
+            z_inner, 
+            z_outer
         )
         inds = np.array(inds, dtype=int)
         for i in reversed(range(1, len(inds))):
@@ -340,17 +334,12 @@ class Testing(unittest.TestCase):
         assert (np.max(r_fit) < (r0 + 2.0))
 
         # Repeat with cartesian functionality
-        XYZ = np.array([X, Y, Z]).T.reshape(-1, 3)
-        normal_inner = s1.unitnormal().reshape(-1, 3)   
-        normal_outer = s2.unitnormal().reshape(-1, 3)
-        xyz_inner = s1.gamma().reshape(-1, 3)
-        xyz_outer = s2.gamma().reshape(-1, 3)
         final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            contig(normal_inner), 
-            contig(normal_outer), 
-            contig(XYZ), 
-            contig(xyz_inner), 
-            contig(xyz_outer)
+            normal_inner, 
+            normal_outer, 
+            XYZ, 
+            xyz_inner, 
+            xyz_outer
         )
         inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
         final_grid = final_grid[inds, :]
@@ -555,30 +544,29 @@ class Testing(unittest.TestCase):
 
         # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
         s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc', range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, '', s)
+        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
 
         s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc', range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('qh', TEST_DIR, '', s)
+        base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
 
         # Repeat with wrapper function
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, '', s)
+        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
 
         # Test rescaling
-        pm_opt = PermanentMagnetGrid(
-            s,
-            Bn=np.zeros((nphi, ntheta)), 
-        )
-        pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
+        Bn = np.zeros((nphi, ntheta))
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+            s, Bn, s_inner, s_outer 
+        ) 
         reg_l0 = 0.2
         reg_l1 = 0.1
         reg_l2 = 1e-4
@@ -596,11 +584,11 @@ class Testing(unittest.TestCase):
             reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
 
         # Test write PermanentMagnetGrid to FAMUS file
-        write_pm_optimizer_to_famus('', pm_opt)
+        write_pm_optimizer_to_famus(pm_opt)
         pm_opt.coordinate_flag = 'cylindrical'
-        write_pm_optimizer_to_famus('', pm_opt)
+        write_pm_optimizer_to_famus(pm_opt)
         pm_opt.coordinate_flag = 'toroidal'
-        write_pm_optimizer_to_famus('', pm_opt)
+        write_pm_optimizer_to_famus(pm_opt)
 
         # Load in file we made to FocusData class and do some tests
         mag_data = FocusData('SIMSOPT_dipole_solution.focus', downsample=10)
@@ -627,7 +615,7 @@ class Testing(unittest.TestCase):
         assert kwargs['K'] == 1000
 
         # Test Bnormal plots
-        make_Bnormal_plots(bs, s, '', 'biot_savart_test')
+        make_Bnormal_plots(bs, s)
 
         # optimize pm_opt and plot optimization progress
         kwargs = initialize_default_kwargs(algorithm='GPMO')
@@ -637,11 +625,12 @@ class Testing(unittest.TestCase):
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
         m_history = np.transpose(m_history, [2, 0, 1])
         m_history = m_history.reshape(1, 11, m_history.shape[1], 3)
-        make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
+        make_optimization_plots(R2_history, m_history, m_history, pm_opt)
 
-        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus', downsample=100)
+        kwargs_geo = {"downsample": 100}
+        pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bn, TEST_DIR / 'zot80.focus', **kwargs_geo)
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
-        make_optimization_plots(R2_history, m_history, m_history, pm_opt, '')
+        make_optimization_plots(R2_history, m_history, m_history, pm_opt)
         kwargs['K'] = 5
         with self.assertRaises(ValueError):
             R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
@@ -658,17 +647,17 @@ class Testing(unittest.TestCase):
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, '', s)
+        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
 
-        pm_opt = PermanentMagnetGrid(
-            s,
-            Bn=np.zeros(s.normal().shape[:2]), 
-        )
         # drastically downsample the grid for speed here
-        pm_opt.geo_setup_from_famus(TEST_DIR / 'zot80.focus', downsample=100)
+        kwargs = {"downsample": 100}
+        pm_opt = PermanentMagnetGrid.geo_setup_from_famus(
+            s, Bn=np.zeros(s.normal().shape[:2]), 
+            famus_filename=(TEST_DIR / 'zot80.focus'), **kwargs,
+        ) 
         kwargs = initialize_default_kwargs(algorithm='GPMO')
         kwargs['verbose'] = False
         kwargs['K'] = 500
