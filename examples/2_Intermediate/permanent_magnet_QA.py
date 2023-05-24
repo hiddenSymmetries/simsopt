@@ -120,9 +120,7 @@ reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
 nu = 1e10  # how strongly to make proxy variable w close to values in m
 
 # Rescale the hyperparameters and then add contributions to ATA and ATb
-reg_l0, _, _, nu = rescale_for_opt(
-    pm_opt, reg_l0, 0.0, 0.0, nu
-)
+reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs()
@@ -237,7 +235,7 @@ dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
 num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.ndipoles * 100
 
 # write solution to FAMUS-type file
-write_pm_optimizer_to_famus(pm_opt, out_dir)
+pm_opt.write_to_famus(out_dir)
 
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma

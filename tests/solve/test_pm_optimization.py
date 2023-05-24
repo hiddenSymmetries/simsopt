@@ -103,9 +103,7 @@ class Testing(unittest.TestCase):
         nu = 1e10  # how strongly to make proxy variable w close to values in m
 
         # Rescale the hyperparameters and then add contributions to ATA and ATb
-        reg_l0, _, _, nu = rescale_for_opt(
-            pm_opt, reg_l0, 0.0, 0.0, nu
-        )
+        reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
         # Set some hyperparameters for the optimization
         kwargs = initialize_default_kwargs()
@@ -122,9 +120,7 @@ class Testing(unittest.TestCase):
         nu = 1e10  # how strongly to make proxy variable w close to values in m
 
         # Rescale the hyperparameters and then add contributions to ATA and ATb
-        reg_l0, _, _, nu = rescale_for_opt(
-            pm_opt, reg_l0, 0.0, 0.0, nu
-        )
+        reg_l0, _, _, nu = pm_opt.rescale_for_opt(reg_l0, 0.0, 0.0, nu)
 
         # Set some hyperparameters for the optimization
         kwargs = initialize_default_kwargs()

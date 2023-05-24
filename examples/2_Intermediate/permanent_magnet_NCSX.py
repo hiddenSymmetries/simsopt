@@ -163,7 +163,7 @@ if save_plots:
         s_plot.to_vtk(out_dir / "m_optimized_K{K_save}_nphi{nphi}_ntheta{ntheta}", extra_data=pointData)
 
     # write solution to FAMUS-type file
-    write_pm_optimizer_to_famus(pm_opt, out_dir)
+    pm_opt.write_to_famus(out_dir)
 
 # Compute metrics with permanent magnet results
 dipoles_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)

@@ -184,20 +184,11 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
 
     # set the nonconvex step in the algorithm
     reg_rs = 0.0
-    if "nu" in kwargs:
-        nu = kwargs["nu"]
-    else:
-        nu = 1e100
-
-    if "reg_l0" in kwargs:
-        reg_l0 = kwargs["reg_l0"]
-    else:
-        reg_l0 = 0.0
-
-    if "reg_l1" in kwargs:
-        reg_l1 = kwargs["reg_l1"]
-    else:
-        reg_l1 = 0.0
+    nu = kwargs.pop("nu", 1e100)
+    reg_l0 = kwargs.pop("reg_l0", 0.0)
+    reg_l1 = kwargs.pop("reg_l1", 0.0)
+    max_iter_RS = kwargs.pop('max_iter_RS', 1)
+    epsilon_RS = kwargs.pop('epsilon_RS', 1e-3)
 
     if (not np.isclose(reg_l0, 0.0, atol=1e-16)) and (not np.isclose(reg_l1, 0.0, atol=1e-16)):
         raise ValueError(' L0 and L1 loss terms cannot be used concurrently.')
@@ -219,16 +210,11 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
         m_proxy = prox(m_proxy, mmax, reg_rs, nu)
     kwargs['alpha'] = alpha_max
 
-    kwargs_convex = {}
-    for key in kwargs:
-        if 'RS' not in key: 
-            kwargs_convex[key] = kwargs[key]
-
     # Begin optimization
     if reg_rs > 0.0:
         # Relax-and-split algorithm
         m = pm_opt.m0
-        for i in range(kwargs['max_iter_RS']):
+        for i in range(max_iter_RS):
             # update m with the CONVEX part of the algorithm
             algorithm_history, _, _, m = convex_step(
                 A_obj=pm_opt.A_obj,
@@ -237,7 +223,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
                 m_proxy=np.ascontiguousarray(m_proxy.reshape(pm_opt.ndipoles, 3)),
                 m0=np.ascontiguousarray(m.reshape(pm_opt.ndipoles, 3)),  # note updated m is new guess
                 m_maxima=mmax,
-                **kwargs_convex
+                **kwargs
             )
             m_history.append(m)
             m = np.ravel(m)
@@ -247,7 +233,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
             # Solve the nonconvex optimization -- i.e. take a prox
             m_proxy = prox(m, mmax, reg_rs, nu)
             m_proxy_history.append(m_proxy)
-            if np.linalg.norm(m - m_proxy) < kwargs['epsilon_RS']:
+            if np.linalg.norm(m - m_proxy) < epsilon_RS:
                 print('Relax-and-split finished early, at iteration ', i)
                 break
     else:
@@ -261,7 +247,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
             m_proxy=m0,
             m0=m0,
             m_maxima=mmax,
-            **kwargs_convex
+            **kwargs
         )
         m = np.ravel(m)
         m_proxy = m

@@ -1,6 +1,7 @@
 import numpy as np
 from simsopt.geo import Surface, SurfaceRZFourier
 import simsoptpp as sopp
+from pathlib import Path
 import warnings
 from pyevtk.hl import pointsToVTK
 
@@ -558,3 +559,134 @@ class PermanentMagnetGrid:
         print('Shape of A matrix = ', self.A_obj.shape)
         print('Shape of b vector = ', self.b_obj.shape)
         print('Initial error on plasma surface = {0:.4e}'.format(total_error))
+
+    def write_to_famus(self, out_dir=Path('')):
+        """
+        Takes a PermanentMagnetGrid object and saves the geometry
+        and optimization solution into a FAMUS input file.
+
+        Args:
+            out_dir: Path object for the output directory for saved files.
+        """
+        ndipoles = self.ndipoles
+        m = self.m.reshape(ndipoles, 3)
+        ox = self.dipole_grid_xyz[:, 0]
+        oy = self.dipole_grid_xyz[:, 1]
+        oz = self.dipole_grid_xyz[:, 2]
+
+        # Transform the solution vector to the Cartesian basis if necessary
+        if self.coordinate_flag == 'cartesian':
+            mx = m[:, 0]
+            my = m[:, 1]
+            mz = m[:, 2]
+        elif self.coordinate_flag == 'cylindrical':
+            cos_ophi = np.cos(self.pm_phi)
+            sin_ophi = np.sin(self.pm_phi)
+            mx = m[:, 0] * cos_ophi - m[:, 1] * sin_ophi
+            my = m[:, 0] * sin_ophi + m[:, 1] * cos_ophi
+            mz = m[:, 2]
+        elif self.coordinate_flag == 'toroidal':
+            ormajor = np.sqrt(ox**2 + oy**2)
+            otheta = np.arctan2(oz, ormajor - self.R0)
+            cos_ophi = np.cos(self.pm_phi)
+            sin_ophi = np.sin(self.pm_phi)
+            cos_otheta = np.cos(otheta)
+            sin_otheta = np.sin(otheta)
+            mx = m[:, 0] * cos_ophi * cos_otheta \
+                - m[:, 1] * sin_ophi              \
+                - m[:, 2] * cos_ophi * sin_otheta
+            my = m[:, 0] * sin_ophi * cos_otheta \
+                + m[:, 1] * cos_ophi              \
+                - m[:, 2] * sin_ophi * sin_otheta
+            mz = m[:, 0] * sin_otheta \
+                + m[:, 2] * cos_otheta
+
+        m0 = self.m_maxima
+        pho = np.sqrt(np.sum(m ** 2, axis=-1)) / m0
+        Lc = 0
+
+        mp = np.arctan2(my, mx)
+        mt = np.arctan2(np.sqrt(mx ** 2 + my ** 2), mz)
+        coilname = ["pm_{:010d}".format(i) for i in range(1, ndipoles + 1)]
+        Ic = 1
+        # symmetry = 2 for stellarator symmetry
+        symmetry = int(self.plasma_boundary.stellsym) + 1
+        filename = out_dir / 'SIMSOPT_dipole_solution.focus'
+
+        with open(filename, "w") as wfile:
+            wfile.write(" # Total number of dipoles,  momentq \n")
+            wfile.write(
+                "{:6d}  {:4d}\n".format(
+                    ndipoles, 1
+                )
+            )
+            wfile.write(
+                "#coiltype, symmetry,  coilname,  ox,  oy,  oz,  Ic,  M_0,  pho,  Lc,  mp,  mt \n"
+            )
+            for i in range(ndipoles):
+                wfile.write(
+                    " 2, {:1d}, {:}, {:15.8E}, {:15.8E}, {:15.8E}, {:2d}, {:15.8E},"
+                    "{:15.8E}, {:2d}, {:15.8E}, {:15.8E} \n".format(
+                        symmetry,
+                        coilname[i],
+                        ox[i],
+                        oy[i],
+                        oz[i],
+                        Ic,
+                        m0[i],
+                        pho[i],
+                        Lc,
+                        mp[i],
+                        mt[i],
+                    )
+                )
+
+    def rescale_for_opt(self, reg_l0, reg_l1, reg_l2, nu):
+        """
+        Scale regularizers to the largest scale of ATA (~1e-6)
+        to avoid regularization >> ||Am - b|| ** 2 term in the optimization.
+        The prox operator uses reg_l0 * nu for the threshold so normalization
+        below allows reg_l0 and reg_l1 values to be exactly the thresholds
+        used in calculation of the prox. Then add contributions to ATA and
+        ATb coming from extra loss terms such as L2 regularization and
+        relax-and-split. Currently does not rescale the L2 and nu
+        hyperparameters, but users may want to play around with this.
+
+        Args:
+            reg_l0: L0 regularization.
+            reg_l1: L1 regularization.
+            reg_l2: L2 regularization.
+            nu: nu hyperparameter in relax-and-split optimization.
+
+        Returns:
+            reg_l0: Rescaled L0 regularization.
+            reg_l1: Rescaled L1 regularization.
+            reg_l2: Rescaled L2 regularization.
+            nu: Rescaled nu hyperparameter in relax-and-split optimization.
+        """
+
+        print('L2 regularization being used with coefficient = {0:.2e}'.format(reg_l2))
+
+        if reg_l0 < 0 or reg_l0 > 1:
+            raise ValueError(
+                'L0 regularization must be between 0 and 1. This '
+                'value is automatically scaled to the largest of the '
+                'dipole maximum values, so reg_l0 = 1 should basically '
+                'truncate all the dipoles to zero. '
+            )
+
+        # Rescale L0 and L1 so that the values used for thresholding
+        # are only parametrized by the values of reg_l0 and reg_l1
+        reg_l0 = reg_l0 / (2 * nu)
+        reg_l1 = reg_l1 / nu
+
+        # may want to rescale nu, otherwise just scan this value
+        # nu = nu / self.ATA_scale
+
+        # Do not rescale L2 term for now.
+        reg_l2 = reg_l2
+
+        # Update algorithm step size if we have extra smooth, convex loss terms
+        self.ATA_scale += 2 * reg_l2 + 1.0 / nu
+
+        return reg_l0, reg_l1, reg_l2, nu
