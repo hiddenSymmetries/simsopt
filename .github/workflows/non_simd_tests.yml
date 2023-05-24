@@ -1,0 +1,125 @@
+# This file is based on examples in
+# https://docs.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
+
+# Note that all the "sudo" commands here appear to cause a warning message
+# "sudo: setrlimit(RLIMIT_CORE): operation not permitted"
+# This appears to be a known harmless annoyance:
+# https://gitlab.alpinelinux.org/alpine/aports/-/issues/11122
+
+name: Tests with no XSIMD
+
+on: 
+  push:
+    branches-ignore: [master]
+    tags-ignore: [v*]
+  pull_request:
+    branches-ignore: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      OMPI_ALLOW_RUN_AS_ROOT: 1
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
+      NO_XSIMD: 1
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.8.15] # To sync with coveragerc use 3 level
+
+    steps:
+    # First print out lots of information. We do this in separate 
+    # "name" blocks because otherwise the output gets mixed together
+    # in the github actions log.
+    
+    - name: Print user and group id
+      run: |
+        set -ex
+        id
+
+    - name: PWD
+      run: |
+        set -ex
+        pwd
+
+    - name: ls -l
+      run: |
+        set -ex
+        ls -l
+
+    - name: apt-get stuff needed for libstell and vmec
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev libopenblas-dev
+
+    - uses: actions/checkout@v3
+
+    - name: Fetch all history for all tags
+      run: git fetch --all --tags --prune --unshallow
+
+    - name: ls -l again
+      run: |
+        set -ex
+        ls -l
+        pwd
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: which python3 after python setup
+      run: which python3
+
+    - name: which pip after python setup
+      run: |
+        python -m pip install --upgrade pip
+        pip --version
+
+    - name: env after adding python
+      run: env
+
+    - name: Install python dependencies
+      run: |
+        sudo apt-get install graphviz graphviz-dev
+        pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
+
+    - name: Install booz_xform
+      run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
+
+    - name: Install virtual_casing
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+
+    - name: ls in /usr/lib/x86_64-linux-gnu
+      run: ls -l /usr/lib/x86_64-linux-gnu
+
+    - name: Add to LD_LIBRARY_PATH so scalapack etc can be found
+      run: echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+
+    - name: env after adding to LD_LIBRARY_PATH
+      run: env
+
+    - name: Install simsopt package
+      run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI]
+
+    - name: Verify that importing simsopt does not automatically initialize MPI
+      run: ./tests/verify_MPI_not_initialized.py
+
+    - name: Run examples as part of integrated tests
+      run: |
+        cd examples
+        ./run_serial_examples
+        ./run_parallel_examples
+
+    - name: Run tests on 1 process 
+      run: | 
+        python -m unittest discover -t tests -v -s tests/field
+        python -m unittest discover -t tests -v -s tests/geo
+        python -m unittest discover -t tests -v -s tests/objectives
+
+    - name: Run MPI tests 
+      run: | 
+        mpiexec -n 2 python -m unittest discover -k "mpi" -s tests -v
+

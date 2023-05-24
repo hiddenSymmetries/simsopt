@@ -18,6 +18,8 @@
 
 #define ANGLE_RECOMPUTE 5
 
+#if defined(USE_XSIMD)
+
 template<class Array>
 void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     int numquadpoints_phi = quadpoints_phi.size();
@@ -72,6 +74,56 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
     }
 }
 
+#else
+
+template<class Array>
+void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints_phi = quadpoints_phi.size();
+    int numquadpoints_theta = quadpoints_theta.size();
+    constexpr int simd_size = 1;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        auto phi  = 2*M_PI*quadpoints_phi[k1];
+        for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
+            auto theta = 2*M_PI * quadpoints_theta[k2];
+            double r(0.);
+            double z(0.);
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
+            for (int m = 0; m <= mpol; ++m) {
+                double sinterm, costerm;
+                for (int i = 0; i < 2*ntor+1; ++i) {
+                    int n  = i - ntor;
+                    // recompute the angle from scratch every so often, to
+                    // avoid accumulating floating point error
+                    if(i % ANGLE_RECOMPUTE == 0) {
+                        sinterm = sin(m*theta - n*nfp*phi);
+                        costerm = cos(m*theta - n*nfp*phi);
+                    }
+                    r += rc(m, i) * costerm;
+                    if(!stellsym) {
+                        r += rs(m, i) * sinterm;
+                        z += zc(m, i) * costerm;
+                    }
+                    z += zs(m, i) * sinterm;
+                    if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                        auto sinterm_old = sinterm;
+                        auto costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+            auto x = r * cos(phi);
+            auto y = r * sin(phi);
+            data(k1, k2, 0) = x;
+            data(k1, k2, 1) = y;
+            data(k1, k2, 2) = z;
+        }
+    }
+}
+
+#endif
 
 template<class Array>
 void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
@@ -100,6 +152,7 @@ void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arra
     }
 }
 
+#if defined(USE_XSIMD)
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
@@ -156,6 +209,59 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
         }
     }
 }
+
+#else
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
+    constexpr int simd_size = 1;
+    #pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
+            double theta = 2*M_PI * quadpoints_theta[k2];
+            double r(0.);
+            double rd(0.);
+            double zd(0.);
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
+            for (int m = 0; m <= mpol; ++m) {
+                double sinterm, costerm;
+                for (int i = 0; i < 2*ntor+1; ++i) {
+                    int n  = i - ntor;
+                     // recompute the angle from scratch every so often, to
+                     // avoid accumulating floating point error
+                    if(i % ANGLE_RECOMPUTE == 0){
+                        sinterm = sin(m*theta-n*nfp*phi);
+                        costerm = cos(m*theta-n*nfp*phi);
+                    }
+                    r  += rc(m, i) * costerm;
+                    rd += rc(m, i) * (n*nfp) * sinterm;
+                    if(!stellsym) {
+                        r  += rs(m, i) * sinterm;
+                        rd += rs(m, i) * (-n*nfp)*costerm;
+                        zd += zc(m, i) * (n*nfp)*sinterm;
+                    }
+                    zd += zs(m, i) * (-n*nfp)*costerm;
+                    if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                        auto sinterm_old = sinterm;
+                        auto costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+            auto xd = 2*M_PI*(rd * cos(phi) - r * sin(phi));
+            auto yd = 2*M_PI*(rd * sin(phi) + r * cos(phi));
+            zd *= 2*M_PI;
+            data(k1, k2, 0) = xd;
+            data(k1, k2, 1) = yd;
+            data(k1, k2, 2) = zd;
+        }
+    }
+}
+
+#endif
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1dash1_impl(Array& data) {
@@ -250,6 +356,8 @@ void SurfaceRZFourier<Array>::gammadash2dash2_impl(Array& data) {
     }
 }
 
+#if defined(USE_XSIMD)
+
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
     constexpr int simd_size = xsimd::simd_type<double>::size;
@@ -302,6 +410,58 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
         }
     }
 }
+
+#else
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
+    constexpr int simd_size = 1;
+    #pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
+            double theta = 2*M_PI * quadpoints_theta[k2];
+            double rd(0.);
+            double zd(0.);
+            double sin_nfpphi = sin(-nfp*phi);
+            double cos_nfpphi = cos(-nfp*phi);
+            for (int m = 0; m <= mpol; ++m) {
+                double sinterm, costerm;
+                for (int i = 0; i < 2*ntor+1; ++i) {
+                    int n  = i - ntor;
+                     // recompute the angle from scratch every so often, to
+                     // avoid accumulating floating point error
+                    if(i % ANGLE_RECOMPUTE == 0) {
+                        sinterm = sin(m*theta-n*nfp*phi);
+                        costerm = cos(m*theta-n*nfp*phi);
+                    }
+                    rd += rc(m, i) * (-m) * sinterm;
+                    if(!stellsym) {
+                        rd += rs(m, i) * m * costerm;
+                        zd += zc(m, i) * (-m) * sinterm;
+                    }
+                    zd += zs(m, i) * m * costerm;
+                    if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                        auto sinterm_old = sinterm;
+                        auto costerm_old = costerm;
+                        sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                        costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                    }
+                }
+            }
+            auto xd = 2*M_PI*rd*cos(phi);
+            auto yd = 2*M_PI*rd*sin(phi);
+            zd *= 2*M_PI;
+            data(k1, k2, 0) = xd;
+            data(k1, k2, 1) = yd;
+            data(k1, k2, 2) = zd;
+        }
+    }
+}
+
+#endif
+
+#if defined(USE_XSIMD)
 template<class Array>
 Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
@@ -382,6 +542,81 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
     return res;
 }
 
+#else
+template<class Array>
+Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
+    Array res = xt::zeros<double>({num_dofs()});
+    constexpr int simd_size = 1;
+    auto resptr = &(res(0));
+    #pragma omp parallel
+    {
+        double* resptr_private = new double[num_dofs()];
+        for (int i = 0; i < num_dofs(); ++i) {
+            resptr_private[i] = 0.;
+        }
+#pragma omp for
+        for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            double phi  = 2*M_PI*quadpoints_phi[k1];
+            double sinphi = sin(phi);
+            double cosphi = cos(phi);
+
+            for(int i = 0; i < numquadpoints_theta; i += simd_size) {
+                double theta = 2*M_PI * quadpoints_theta[i];
+                double v0 = v(k1, i, 0);
+                double v1 = v(k1, i, 1);
+                double v2 = v(k1, i, 2);
+                int counter = 0;
+                int shift0 = -ntor;
+                int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
+                int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
+                int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
+                double sin_nfpphi = sin(-nfp*phi);
+                double cos_nfpphi = cos(-nfp*phi);
+                for (int m = 0; m <= mpol; ++m) {
+                    double sinterm, costerm;
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        int i = n + ntor;
+                         // recompute the angle from scratch every so often, to
+                         // avoid accumulating floating point error
+                        if(i % ANGLE_RECOMPUTE == 0)
+                            sinterm = sin(m*theta-n*nfp*phi);
+                            costerm = cos(m*theta-n*nfp*phi);
+                        if(!(m==0 && n<0)){
+                            resptr_private[counter+shift0] += cosphi * costerm * v0;
+                            resptr_private[counter+shift0] += sinphi * costerm * v1;
+                        }
+                        if(!(stellsym) && !(m==0 && n<=0)){
+                            resptr_private[counter+shift1] += cosphi * sinterm * v0;
+                            resptr_private[counter+shift1] += sinphi * sinterm * v1;
+                        }
+                        if(!(stellsym) && !(m==0 && n<0)){
+                            resptr_private[counter+shift2] += costerm * v2;
+                        }
+                        if(!(m==0 && n<=0)){
+                            resptr_private[counter+shift3] += sinterm * v2;
+                        }
+                        counter++;
+                        if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                            auto sinterm_old = sinterm;
+                            auto costerm_old = costerm;
+                            sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                            costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                        }
+                    }
+                }
+            }
+        }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
+            }
+        }
+    }
+    return res;
+}
+
+#endif
 
 template<class Array>
 void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
@@ -432,6 +667,8 @@ void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
         }
     }
 }
+
+#if defined(USE_XSIMD)
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
@@ -514,6 +751,86 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
     res *= 2*M_PI;
     return res;
 }
+
+#else
+
+template<class Array>
+Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
+    Array res = xt::zeros<double>({num_dofs()});
+    constexpr int simd_size = 1;
+    auto resptr = &(res(0));
+    #pragma omp parallel
+    {
+        double* resptr_private = new double[num_dofs()];
+        for (int i = 0; i < num_dofs(); ++i) {
+            resptr_private[i] = 0.;
+        }
+        #pragma omp for
+        for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            double phi  = 2*M_PI*quadpoints_phi[k1];
+            double sinphi = sin(phi);
+            double cosphi = cos(phi);
+
+            for(int i = 0; i < numquadpoints_theta; i += simd_size) {
+                double theta = 2*M_PI * quadpoints_theta[i];
+                double v0 = v(k1, i, 0);
+                double v1 = v(k1, i, 1);
+                double v2 = v(k1, i, 2);
+
+                int counter = 0;
+                int shift0 = -ntor;
+                int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
+                int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
+                int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
+
+                double sin_nfpphi = sin(-nfp*phi);
+                double cos_nfpphi = cos(-nfp*phi);
+                for (int m = 0; m <= mpol; ++m) {
+                    double sinterm, costerm;
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        int i = n + ntor;
+                        // recompute the angle from scratch every so often, to
+                        // avoid accumulating floating point error
+                        if(i % ANGLE_RECOMPUTE == 0)
+                            sinterm = sin(m*theta-n*nfp*phi);
+                            costerm = cos(m*theta-n*nfp*phi);
+                        if(!(m==0 && n<0)){
+                            resptr_private[counter+shift0] += ((sinterm * ((n*nfp) * cosphi) - costerm * sinphi) * v0);
+                            resptr_private[counter+shift0] += ((sinterm * ((n*nfp) * sinphi) + costerm * cosphi) * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<=0)){
+                            resptr_private[counter+shift1] += ((costerm * ((-n*nfp)*cosphi) - sinterm * sinphi) * v0);
+                            resptr_private[counter+shift1] += ((costerm * ((-n*nfp)*sinphi) + sinterm * cosphi) * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<0)){
+                            resptr_private[counter+shift2] += ((n*nfp)*sinterm * v2);
+                        }
+                        if(!(m==0 && n<=0)){
+                            resptr_private[counter+shift3] += ((-n*nfp)*costerm * v2);
+                        }
+                        counter++;
+                        if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                            auto sinterm_old = sinterm;
+                            auto costerm_old = costerm;
+                            sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                            costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                        }
+                    }
+                }
+            }
+        }
+#pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
+            }
+        }
+    }
+    res *= 2*M_PI;
+    return res;
+}
+
+#endif
 
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data) {
@@ -675,6 +992,8 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
     }
 }
 
+#if defined(USE_XSIMD)
+
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
     Array res = xt::zeros<double>({num_dofs()});
@@ -756,6 +1075,86 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
     res *= 2*M_PI;
     return res;
 }
+
+#else
+
+template<class Array>
+Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
+    Array res = xt::zeros<double>({num_dofs()});
+    constexpr int simd_size = 1;
+    auto resptr = &(res(0));
+    #pragma omp parallel
+    {
+        double* resptr_private = new double[num_dofs()];
+        for (int i = 0; i < num_dofs(); ++i) {
+            resptr_private[i] = 0.;
+        }
+        #pragma omp for
+        for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+            double phi  = 2*M_PI*quadpoints_phi[k1];
+            double sinphi = sin(phi);
+            double cosphi = cos(phi);
+
+            for(int i = 0; i < numquadpoints_theta; i += simd_size) {
+                double theta = 2*M_PI * quadpoints_theta[i];
+                double v0 = v(k1, i, 0);
+                double v1 = v(k1, i, 1);
+                double v2 = v(k1, i, 2);
+
+                int counter = 0;
+                int shift0 = -ntor;
+                int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
+                int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
+                int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
+
+                double sin_nfpphi = sin(-nfp*phi);
+                double cos_nfpphi = cos(-nfp*phi);
+                for (int m = 0; m <= mpol; ++m) {
+                    double sinterm, costerm;
+                    for (int n = -ntor; n <= ntor; ++n) {
+                        int i = n + ntor;
+                        // recompute the angle from scratch every so often, to
+                        // avoid accumulating floating point error
+                        if(i % ANGLE_RECOMPUTE == 0)
+                            sinterm = sin(m*theta-n*nfp*phi);
+                            costerm = cos(m*theta-n*nfp*phi);
+                        if(!(m==0 && n<0)){
+                            resptr_private[counter+shift0] -= (cosphi * m) * (sinterm * v0);
+                            resptr_private[counter+shift0] -= (sinphi * m) * (sinterm * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<=0)){
+                            resptr_private[counter+shift1] += (cosphi * m) * (costerm * v0);
+                            resptr_private[counter+shift1] += (sinphi * m) * (costerm * v1);
+                        }
+                        if(!(stellsym) && !(m==0 && n<0)){
+                            resptr_private[counter+shift2] -= m * (sinterm * v2);
+                        }
+                        if(!(m==0 && n<=0)){
+                            resptr_private[counter+shift3] += m * (costerm * v2);
+                        }
+                        counter++;
+                        if(i % ANGLE_RECOMPUTE != ANGLE_RECOMPUTE - 1){
+                            auto sinterm_old = sinterm;
+                            auto costerm_old = costerm;
+                            sinterm = cos_nfpphi * sinterm_old + costerm_old * sin_nfpphi;
+                            costerm = costerm_old * cos_nfpphi - sinterm_old * sin_nfpphi;
+                        }
+                    }
+                }
+            }
+        }
+        #pragma omp critical
+        {
+            for(int i=0; i<num_dofs(); ++i) {
+                resptr[i] += resptr_private[i];
+            }
+        }
+    }
+    res *= 2*M_PI;
+    return res;
+}
+
+#endif
 
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_impl(Array& data) {
