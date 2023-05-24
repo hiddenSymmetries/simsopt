@@ -188,23 +188,26 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
 
 def load_coils_from_makegrid_file(filename, order, ppp=20):
     """
-    This function loads a file in MAKEGRID input format containing the cartesian coordinates 
+    This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
-    The format is introduced at https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+    The format is described at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+
     Args:
         filename: file to load.
-        order: maximum order in the fourier expansion.
-        ppp: point-per-period: number of quadrature points per period.
+        order: maximum mode number in the Fourier expansion.
+        ppp: points-per-period: number of quadrature points per period.
+
     Returns:
-        A list of objects Coil with the fourier coefficients and currents given by the file.
+        A list of Coil objects with the Fourier coefficients and currents given by the file.
     """
     with open(filename, 'r') as f:
-        allCoilsValues = f.read().splitlines()[3:] 
+        all_coils_values = f.read().splitlines()[3:] 
 
     currents = []
     flag = True
-    for nVals in range(len(allCoilsValues)-1):
-        vals = allCoilsValues[nVals].split()
+    for j in range(len(all_coils_values)-1):
+        vals = all_coils_values[j].split()
         if flag:
             currents.append(float(vals[3]))
             flag = False
