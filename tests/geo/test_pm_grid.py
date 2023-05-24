@@ -573,22 +573,22 @@ class Testing(unittest.TestCase):
         nu = 1e5
         old_reg_l0 = reg_l0
         old_ATA_scale = pm_opt.ATA_scale
-        reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
+        reg_l0, reg_l1, reg_l2, nu = pm_opt.rescale_for_opt(reg_l0, reg_l1, reg_l2, nu)
         assert np.isclose(reg_l0, old_reg_l0 / (2 * nu))
         assert np.isclose(pm_opt.ATA_scale, old_ATA_scale + 2 * reg_l2 + 1.0 / nu)
         reg_l0 = -1
         with self.assertRaises(ValueError):
-            reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
+            reg_l0, reg_l1, reg_l2, nu = pm_opt.rescale_for_opt(reg_l0, reg_l1, reg_l2, nu)
         reg_l0 = 2
         with self.assertRaises(ValueError):
-            reg_l0, reg_l1, reg_l2, nu = rescale_for_opt(pm_opt, reg_l0, reg_l1, reg_l2, nu)
+            reg_l0, reg_l1, reg_l2, nu = pm_opt.rescale_for_opt(reg_l0, reg_l1, reg_l2, nu)
 
         # Test write PermanentMagnetGrid to FAMUS file
-        write_pm_optimizer_to_famus(pm_opt)
+        pm_opt.write_to_famus()
         pm_opt.coordinate_flag = 'cylindrical'
-        write_pm_optimizer_to_famus(pm_opt)
+        pm_opt.write_to_famus()
         pm_opt.coordinate_flag = 'toroidal'
-        write_pm_optimizer_to_famus(pm_opt)
+        pm_opt.write_to_famus()
 
         # Load in file we made to FocusData class and do some tests
         mag_data = FocusData('SIMSOPT_dipole_solution.focus', downsample=10)
@@ -677,16 +677,15 @@ class Testing(unittest.TestCase):
             surface_filename, range="full torus",
             quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
         )
-        comm = None 
 
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        # qfm_surf = make_qfm(s_plot, Bfield)
-        # qfm_surf = qfm_surf.surface
+        qfm_surf = make_qfm(s_plot, Bfield)
+        qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
-        # run_Poincare_plots(s_plot, bs, b_dipole, comm, 'poincare_test', '')
+        run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
 
 
 if __name__ == "__main__":

@@ -197,7 +197,7 @@ if False:
     s_plot.to_vtk(out_dir / "Bnormal_coils", extra_data=pointData)
     pointData = {"B_N": Bnormal_total[:, :, None]}
     s_plot.to_vtk(out_dir / "Bnormal_total", extra_data=pointData)
-    write_pm_optimizer_to_famus(pm_ncsx, out_dir)
+    pm_ncsx.write_to_famus(out_dir)
     np.savetxt(out_dir / 'R2_history.txt', R2_history)
     np.savetxt(out_dir / 'absBn_history.txt', Bn_history)
     nmags = m_history.shape[0]
