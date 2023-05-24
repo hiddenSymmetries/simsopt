@@ -18,7 +18,7 @@ and GPMO permanent magnet optimization papers:
     Physical Review Applied 18, no. 4 (2022): 044006.
 
 This example uses the relax-and-split algorithm for 
-high-dimensional sparse regression. See permanent_magnet_GPMO.py
+high-dimensional sparse regression. See the other examples 
 for using the greedy GPMO algorithm to solve the problem.
 
 The script should be run as:
@@ -46,7 +46,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
-# Set some parameters
+# Set some parameters -- if doing CI, lower the resolution
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 if ci:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
@@ -73,11 +73,11 @@ s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
-OUT_DIR = 'permanent_magnet_QA_output/'
-os.makedirs(OUT_DIR, exist_ok=True)
+out_dir = Path("permanent_magnet_QA_output")
+out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('qa', TEST_DIR, OUT_DIR, s)
+base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -96,10 +96,10 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_initial")
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # optimize the currents in the TF coils
-bs = coil_optimization(s, bs, base_curves, curves, OUT_DIR)
+bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
@@ -111,12 +111,10 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-pm_opt = PermanentMagnetGrid(
-    s, 
-    dr=dr,
-    Bn=Bnormal,
+kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}  
+pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+    s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
-pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
 
 reg_l0 = 0.05  # Threshold off magnets with 5% or less strength
 nu = 1e10  # how strongly to make proxy variable w close to values in m
@@ -153,13 +151,16 @@ for i in range(2):
 
 total_RS_history = np.ravel(np.array(total_RS_history))
 print('Done optimizing the permanent magnet object')
+
+# Try to make a mp4 movie of the optimization progress
 try:
-    make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, OUT_DIR)
+    make_optimization_plots(total_RS_history, total_m_history, total_mproxy_history, pm_opt, out_dir)
 except ValueError:
     print(
         'Attempted to make a mp4 of optimization progress but ValueError was raised. '
         'This is probably an indication that a mp4 python writer was not available for use.'
     )
+
 # Print effective permanent magnet volume
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
@@ -177,7 +178,7 @@ b_dipole_proxy = DipoleField(
     m_maxima=pm_opt.m_maxima,
 )
 b_dipole_proxy.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole_proxy._toVTK(OUT_DIR + "Dipole_Fields_Sparse")
+b_dipole_proxy._toVTK(out_dir / "Dipole_Fields_Sparse")
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,
@@ -186,7 +187,7 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(OUT_DIR + "Dipole_Fields")
+b_dipole._toVTK(out_dir / "Dipole_Fields")
 
 # Print optimized metrics
 print("Total fB = ",
@@ -196,7 +197,7 @@ print("Total fB (sparse) = ",
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_optimized")
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
 Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bnormal_total = Bnormal + Bnormal_dipoles
 Bnormal_dipoles_proxy = np.sum(b_dipole_proxy.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
@@ -209,13 +210,12 @@ print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
 
 # For plotting Bn on the full torus surface at the end with just the dipole fields
-# Do optimization on pre-made grid of dipoles
-make_Bnormal_plots(b_dipole, s_plot, OUT_DIR, "only_m_optimized")
-make_Bnormal_plots(b_dipole_proxy, s_plot, OUT_DIR, "only_m_proxy_optimized")
+make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized")
+make_Bnormal_plots(b_dipole_proxy, s_plot, out_dir, "only_m_proxy_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "m_optimized", extra_data=pointData)
+s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 pointData = {"B_N": Bnormal_total_proxy[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "m_proxy_optimized", extra_data=pointData)
+s_plot.to_vtk(out_dir / "m_proxy_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
@@ -237,7 +237,7 @@ dipoles = pm_opt.m_proxy.reshape(pm_opt.ndipoles, 3)
 num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.ndipoles * 100
 
 # write solution to FAMUS-type file
-write_pm_optimizer_to_famus(OUT_DIR, pm_opt)
+write_pm_optimizer_to_famus(pm_opt, out_dir)
 
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma

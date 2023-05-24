@@ -4,8 +4,9 @@ import unittest
 import numpy as np
 
 import simsoptpp as sopp
-from simsopt.solve import prox_l0, prox_l1, relax_and_split, GPMO
-from simsopt.solve import setup_initial_condition
+from simsopt.solve.permanent_magnet_optimization import prox_l0, prox_l1
+from simsopt.solve.permanent_magnet_optimization import setup_initial_condition
+from simsopt.solve import relax_and_split, GPMO
 from simsopt.util import *
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.field import BiotSavart
@@ -86,18 +87,16 @@ class Testing(unittest.TestCase):
         s_outer.extend_via_projected_normal(poff + coff)
 
         # optimize the currents in the TF coils
-        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, '', s)
+        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
         bs = BiotSavart(coils)
-        bs = coil_optimization(s, bs, base_curves, curves, '')
+        bs = coil_optimization(s, bs, base_curves, curves)
         bs.set_points(s.gamma().reshape((-1, 3)))
         Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
-        pm_opt = PermanentMagnetGrid(
-            s, 
-            dr=dr,
-            Bn=Bnormal,
+        kwargs_geo = {"dr": dr}
+        pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+            s, Bnormal, s_inner, s_outer, **kwargs_geo
         )
-        pm_opt.geo_setup_between_toroidal_surfaces(s_inner, s_outer)
         setup_initial_condition(pm_opt, np.zeros(pm_opt.ndipoles * 3))
 
         reg_l0 = 0.05  # Threshold off magnets with 5% or less strength

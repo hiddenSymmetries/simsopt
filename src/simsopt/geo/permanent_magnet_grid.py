@@ -32,45 +32,20 @@ class PermanentMagnetGrid:
             optimized coils from a basic stage-2 optimization.
             This variable must be specified to run the permanent
             magnet optimization.
-        dr: double
-            Radial grid spacing in the permanent magnet manifold. Used only if 
-            coordinate_flag = cylindrical, then dr is the radial size of the
-            cylindrical bricks in the grid.
-        dz: double
-            Axial grid spacing in the permanent magnet manifold. Used only if
-            coordinate_flag = cylindrical, then dz is the axial size of the
-            cylindrical bricks in the grid.
-        Nx: int
-            Number of points in x to use in a cartesian grid, taken between the 
-            inner and outer toroidal surfaces. Used only if the
-            coordinate_flag = cartesian, then Nx is the x-size of the
-            rectangular cubes in the grid.
-        Ny: int
-            Number of points in y to use in a cartesian grid, taken between the 
-            inner and outer toroidal surfaces. Used only if the
-            coordinate_flag = cartesian, then Ny is the y-size of the
-            rectangular cubes in the grid.
-        Nz: int
-            Number of points in z to use in a cartesian grid, taken between the 
-            inner and outer toroidal surfaces. Used only if the
-            coordinate_flag = cartesian, then Nz is the z-size of the
-            rectangular cubes in the grid.
         coordinate_flag: string
             Flag to specify the coordinate system used for the grid and optimization.
-              This is primarily used to tell the optimizer which coordinate directions
-              should be considered, "grid-aligned". Therefore, you can do weird stuff
-              like cartesian grid-alignment on a simple toroidal grid, which might
-              be self-defeating. However, if coordinate_flag='cartesian' a rectangular
-              Cartesian grid is initialized using the Nx, Ny, and Nz parameters. If
-              the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
-              using the dr and dz parameters.
+            This is primarily used to tell the optimizer which coordinate directions
+            should be considered, "grid-aligned". Therefore, you can do weird stuff
+            like cartesian grid-alignment on a simple toroidal grid, which might
+            be self-defeating. However, if coordinate_flag='cartesian' a rectangular
+            Cartesian grid is initialized using the Nx, Ny, and Nz parameters. If
+            the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
+            using the dr and dz parameters.
     """
 
     def __init__(
         self, plasma_boundary: Surface,
         Bn,
-        dr=0.1, dz=0.1,
-        Nx=10, Ny=10, Nz=10,
         coordinate_flag='cartesian',
     ):
         Bn = np.array(Bn)
@@ -79,15 +54,6 @@ class PermanentMagnetGrid:
                 'Normal magnetic field surface data is incorrect shape.'
             )
         self.Bn = Bn
-        if Nx <= 0 or Ny <= 0 or Nz <= 0:
-            raise ValueError('Nx, Ny, and Nz should be positive integers')
-        if dr <= 0 or dz <= 0:
-            raise ValueError('dr and dz should be positive floats')
-        self.dr = dr
-        self.dz = dz
-        self.Nx = Nx
-        self.Ny = Ny
-        self.Nz = Nz
 
         if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
             raise NotImplementedError(
@@ -188,12 +154,13 @@ class PermanentMagnetGrid:
             contig(self.xyz_uniform[:, 2])
         )
 
+    @classmethod
     def geo_setup_from_famus(
-        self,
+        cls,
+        plasma_boundary,
+        Bn,
         famus_filename,
-        m_maxima=None,
-        pol_vectors=None,
-        downsample=1,
+        **kwargs,
     ):
         """
         Function to initialize a SIMSOPT PermanentMagnetGrid from a 
@@ -205,30 +172,45 @@ class PermanentMagnetGrid:
         ----------
         famus_filename : string
             Filename of a FAMUS grid file (a pre-made dipole grid).
-        m_maxima: float or 1D numpy array, shape (Ndipoles)
-            Optional array of maximal dipole magnitudes for the permanent
-            magnets. If not provided, defaults to the common magnets
-            used in the MUSE design, with strengths ~ 1 Tesla.
-        pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
-            Optional set of local coordinate systems for each dipole, 
-            which specifies which directions should be considered grid-aligned.
-            Ncoords can be > 3, as in the PM4Stell design.
-        downsample: int
-            Optional integer for downsampling the FAMUS grid, since
-            the MUSE and other grids can be very high resolution
-            and this makes CI take a long while.
+        kwargs: The following are valid keyword arguments.
+            m_maxima: float or 1D numpy array, shape (Ndipoles)
+                Optional array of maximal dipole magnitudes for the permanent
+                magnets. If not provided, defaults to the common magnets
+                used in the MUSE design, with strengths ~ 1 Tesla.
+            pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
+                Optional set of local coordinate systems for each dipole, 
+                which specifies which directions should be considered grid-aligned.
+                Ncoords can be > 3, as in the PM4Stell design.
+            coordinate_flag: string
+                Flag to specify the coordinate system used for the grid and optimization.
+                This is primarily used to tell the optimizer which coordinate directions
+                should be considered, "grid-aligned". Therefore, you can do weird stuff
+                like cartesian grid-alignment on a simple toroidal grid, which might
+                be self-defeating. However, if coordinate_flag='cartesian' a rectangular
+                Cartesian grid is initialized using the Nx, Ny, and Nz parameters. If
+                the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
+                using the dr and dz parameters.
+            downsample: int
+                Optional integer for downsampling the FAMUS grid, since
+                the MUSE and other grids can be very high resolution
+                and this makes CI take a long while.
         Returns
         -------
-        None.
+        pm_grid: An initialized PermanentMagnetGrid class object.
 
         """
+        coordinate_flag = kwargs.pop("coordinate_flag", "cartesian")
+        downsample = kwargs.pop("downsample", 1)
+        pol_vectors = kwargs.pop("pol_vectors", None)
+        m_maxima = kwargs.pop("m_maxima", None)
         if str(famus_filename)[-6:] != '.focus':
             raise ValueError('Famus filename must end in .focus')
 
-        self.famus_filename = famus_filename
+        pm_grid = cls(plasma_boundary, Bn, coordinate_flag)
+        pm_grid.famus_filename = famus_filename
         ox, oy, oz, Ic, M0s = np.loadtxt(
-            self.famus_filename,
-            skiprows=3, usecols=[3, 4, 5, 6, 7], delimiter=',', unpack=True
+            famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7], 
+            delimiter=',', unpack=True
         )
 
         # Downsample the resolution as needed 
@@ -237,35 +219,35 @@ class PermanentMagnetGrid:
 
         # also remove any dipoles where the diagnostic ports should be
         nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled) 
-        self.Ic_inds = nonzero_inds
+        pm_grid.Ic_inds = nonzero_inds
         ox = ox[nonzero_inds]
         oy = oy[nonzero_inds]
         oz = oz[nonzero_inds]
         premade_dipole_grid = np.array([ox, oy, oz]).T
-        self.ndipoles = premade_dipole_grid.shape[0]
+        pm_grid.ndipoles = premade_dipole_grid.shape[0]
 
         # Not normalized to 1 like quadpoints_phi!
-        self.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
-        uniq_phi, counts_phi = np.unique(self.pm_phi.round(decimals=6), return_counts=True)
-        self.pm_nphi = len(uniq_phi)
-        self.pm_uniq_phi = uniq_phi
-        self.inds = counts_phi
-        for i in reversed(range(1, self.pm_nphi)):
+        pm_grid.pm_phi = np.arctan2(premade_dipole_grid[:, 1], premade_dipole_grid[:, 0])
+        uniq_phi, counts_phi = np.unique(pm_grid.pm_phi.round(decimals=6), return_counts=True)
+        pm_grid.pm_nphi = len(uniq_phi)
+        pm_grid.pm_uniq_phi = uniq_phi
+        pm_grid.inds = counts_phi
+        for i in reversed(range(1, pm_grid.pm_nphi)):
             for j in range(0, i):
-                self.inds[i] += self.inds[j]
-        self.dipole_grid_xyz = premade_dipole_grid
+                pm_grid.inds[i] += pm_grid.inds[j]
+        pm_grid.dipole_grid_xyz = premade_dipole_grid
 
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
             cell_vol = M0s * mu0 / B_max
-            self.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
+            pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
             if isinstance(m_maxima, float):
-                self.m_maxima = m_maxima * np.ones(self.ndipoles)
+                pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
             else:
-                self.m_maxima = m_maxima
-            if len(self.m_maxima) != self.ndipoles:
+                pm_grid.m_maxima = m_maxima
+            if len(pm_grid.m_maxima) != pm_grid.ndipoles:
                 raise ValueError(
                     'm_maxima passed to geo_setup_from_famus but with '
                     'the wrong shape, i.e. != number of dipoles.'
@@ -278,14 +260,15 @@ class PermanentMagnetGrid:
             elif pol_vectors.shape[2] != 3:
                 raise ValueError('Third dimension of `pol_vectors` array '
                                  'must be 3')
-            elif self.coordinate_flag != 'cartesian':
+            elif pm_grid.coordinate_flag != 'cartesian':
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
-            elif pol_vectors.shape[0] != self.ndipoles:
+            elif pol_vectors.shape[0] != pm_grid.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
 
-        self.pol_vectors = pol_vectors
-        self._optimization_setup()
+        pm_grid.pol_vectors = pol_vectors
+        pm_grid._optimization_setup()
+        return pm_grid
 
     def _setup_uniform_rz_grid(self):
         """
@@ -322,12 +305,14 @@ class PermanentMagnetGrid:
         RPhiZ_grid = RPhiZ_grid.reshape(RPhiZ_grid.shape[0] * RPhiZ_grid.shape[1], RPhiZ_grid.shape[2], 3)
         return RPhiZ_grid
 
+    @classmethod
     def geo_setup_between_toroidal_surfaces(
-        self, 
+        cls, 
+        plasma_boundary,
+        Bn,
         inner_toroidal_surface: Surface, 
         outer_toroidal_surface: Surface,
-        m_maxima=None, 
-        pol_vectors=None,
+        **kwargs,
     ):
         """
         Function to initialize a SIMSOPT PermanentMagnetGrid from a 
@@ -347,94 +332,145 @@ class PermanentMagnetGrid:
             surface for a functional grid setup. 
             Gets converted into SurfaceRZFourier object for 
             ease of use.
-        m_maxima: float or 1D numpy array, shape (Ndipoles)
-            Optional array of maximal dipole magnitudes for the permanent
-            magnets. If not provided, defaults to the common magnets
-            used in the MUSE design, with strengths ~ 1 Tesla.
-        pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
-            Optional set of local coordinate systems for each dipole, 
-            which specifies which directions should be considered grid-aligned.
-            Ncoords can be > 3, as in the PM4Stell design.
-
+        kwargs: The following are valid keyword arguments.
+            m_maxima: float or 1D numpy array, shape (Ndipoles)
+                Optional array of maximal dipole magnitudes for the permanent
+                magnets. If not provided, defaults to the common magnets
+                used in the MUSE design, with strengths ~ 1 Tesla.
+            pol_vectors: 3D numpy array, shape (Ndipoles, Ncoords, 3)
+                Optional set of local coordinate systems for each dipole, 
+                which specifies which directions should be considered grid-aligned.
+                Ncoords can be > 3, as in the PM4Stell design.
+            dr: double
+                Radial grid spacing in the permanent magnet manifold. Used only if 
+                coordinate_flag = cylindrical, then dr is the radial size of the
+                cylindrical bricks in the grid.
+            dz: double
+                Axial grid spacing in the permanent magnet manifold. Used only if
+                coordinate_flag = cylindrical, then dz is the axial size of the
+                cylindrical bricks in the grid.
+            Nx: int
+                Number of points in x to use in a cartesian grid, taken between the 
+                inner and outer toroidal surfaces. Used only if the
+                coordinate_flag = cartesian, then Nx is the x-size of the
+                rectangular cubes in the grid.
+            Ny: int
+                Number of points in y to use in a cartesian grid, taken between the 
+                inner and outer toroidal surfaces. Used only if the
+                coordinate_flag = cartesian, then Ny is the y-size of the
+                rectangular cubes in the grid.
+            Nz: int
+                Number of points in z to use in a cartesian grid, taken between the 
+                inner and outer toroidal surfaces. Used only if the
+                coordinate_flag = cartesian, then Nz is the z-size of the
+                rectangular cubes in the grid.
+            coordinate_flag: string
+                Flag to specify the coordinate system used for the grid and optimization.
+                This is primarily used to tell the optimizer which coordinate directions
+                should be considered, "grid-aligned". Therefore, you can do weird stuff
+                like cartesian grid-alignment on a simple toroidal grid, which might
+                be self-defeating. However, if coordinate_flag='cartesian' a rectangular
+                Cartesian grid is initialized using the Nx, Ny, and Nz parameters. If
+                the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
+                using the dr and dz parameters.
         Returns
         -------
-        None.
+        pm_grid: An initialized PermanentMagnetGrid class object.
 
         """
-        self.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
-        self.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
+        coordinate_flag = kwargs.pop("coordinate_flag", "cartesian")
+        pol_vectors = kwargs.pop("pol_vectors", None)
+        m_maxima = kwargs.pop("m_maxima", None)
+        pm_grid = cls(plasma_boundary, Bn, coordinate_flag) 
+        Nx = kwargs.pop("Nx", 10)
+        Ny = kwargs.pop("Ny", 10)
+        Nz = kwargs.pop("Nz", 10)
+        dr = kwargs.pop("dr", 0.1)
+        dz = kwargs.pop("dz", 0.1)
+        if Nx <= 0 or Ny <= 0 or Nz <= 0:
+            raise ValueError('Nx, Ny, and Nz should be positive integers')
+        if dr <= 0 or dz <= 0:
+            raise ValueError('dr and dz should be positive floats')
+        pm_grid.dr = dr
+        pm_grid.dz = dz
+        pm_grid.Nx = Nx
+        pm_grid.Ny = Ny
+        pm_grid.Nz = Nz
+        pm_grid.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
+        pm_grid.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
 
         # Have the uniform grid, now need to loop through and eliminate cells.
         contig = np.ascontiguousarray
 
-        # Sometimes use self.plasma_boundary.unitnormal().reshape(-1, 3)
-        normal_inner = self.inner_toroidal_surface.unitnormal().reshape(-1, 3)   
-        normal_outer = self.outer_toroidal_surface.unitnormal().reshape(-1, 3)   
+        # Sometimes use pm_grid.plasma_boundary.unitnormal().reshape(-1, 3)
+        normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
+        normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
 
         # Make a uniform cylindrical grid, usually with dr=dz, i.e. "cylindrical bricks"
-        if self.coordinate_flag == 'cylindrical':
-            RPhiZ_grid = self._setup_uniform_rz_grid()
-            self.final_grid, self.inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-                contig(2 * np.pi * self.phi), 
+        if coordinate_flag == 'cylindrical':
+            RPhiZ_grid = pm_grid._setup_uniform_rz_grid()
+            temp_grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
+                contig(2 * np.pi * pm_grid.phi), 
                 contig(normal_inner), 
                 contig(normal_outer),
                 contig(RPhiZ_grid), 
-                contig(self.r_inner), 
-                contig(self.r_outer), 
-                contig(self.z_inner), 
-                contig(self.z_outer)
+                contig(pm_grid.r_inner), 
+                contig(pm_grid.r_outer), 
+                contig(pm_grid.z_inner), 
+                contig(pm_grid.z_outer)
             )
             # define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces only returns the inds to chop at
             # so need to loop through and chop the grid now
-            self.inds = np.array(self.inds, dtype=int)
-            for i in reversed(range(1, len(self.inds))):
+            inds = np.array(inds, dtype=int)
+            for i in reversed(range(1, len(inds))):
                 for j in range(0, i):
-                    self.inds[i] += self.inds[j]
-            self.ndipoles = self.inds[-1]
+                    inds[i] += inds[j]
+            pm_grid.inds = inds
+            pm_grid.ndipoles = inds[-1]
             final_grid = []
-            for i in range(self.final_grid.shape[0]):
-                if not np.allclose(self.final_grid[i, :], 0.0):
-                    final_grid.append(self.final_grid[i, :])
-            self.final_grid = np.array(final_grid)
-            cell_vol = self.final_grid[:, 0] * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
+            for i in range(temp_grid.shape[0]):
+                if not np.allclose(temp_grid[i, :], 0.0):
+                    final_grid.append(temp_grid[i, :])
+            pm_grid.final_grid = np.array(final_grid)
+            cell_vol = pm_grid.final_grid[:, 0] * pm_grid.dr * pm_grid.dz * 2 * np.pi / (pm_grid.nphi * pm_grid.plasma_boundary.nfp * 2)
             # alternatively, weight things roughly by the minor radius
             # cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-            self.dipole_grid_xyz = np.zeros(self.final_grid.shape)
-            self.dipole_grid_xyz[:, 0] = self.final_grid[:, 0] * np.cos(self.final_grid[:, 1])
-            self.dipole_grid_xyz[:, 1] = self.final_grid[:, 0] * np.sin(self.final_grid[:, 1])
-            self.dipole_grid_xyz[:, 2] = self.final_grid[:, 2]
-            self.pm_phi = self.final_grid[:, 1]
+            pm_grid.dipole_grid_xyz = np.zeros(pm_grid.final_grid.shape)
+            pm_grid.dipole_grid_xyz[:, 0] = pm_grid.final_grid[:, 0] * np.cos(pm_grid.final_grid[:, 1])
+            pm_grid.dipole_grid_xyz[:, 1] = pm_grid.final_grid[:, 0] * np.sin(pm_grid.final_grid[:, 1])
+            pm_grid.dipole_grid_xyz[:, 2] = pm_grid.final_grid[:, 2]
+            pm_grid.pm_phi = pm_grid.final_grid[:, 1]
         else:
             # If some other coordinate_flag, use a retangular Cartesian grid
-            self._setup_uniform_grid()
-            self.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+            pm_grid._setup_uniform_grid()
+            pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
                 contig(normal_inner), 
                 contig(normal_outer), 
-                contig(self.xyz_uniform), 
-                contig(self.xyz_inner), 
-                contig(self.xyz_outer)
+                contig(pm_grid.xyz_uniform), 
+                contig(pm_grid.xyz_inner), 
+                contig(pm_grid.xyz_outer)
             )
-            inds = np.ravel(np.logical_not(np.all(self.dipole_grid_xyz == 0.0, axis=-1)))
-            self.dipole_grid_xyz = self.dipole_grid_xyz[inds, :]
-            self.ndipoles = self.dipole_grid_xyz.shape[0]
-            self.pm_phi = np.arctan2(self.dipole_grid_xyz[:, 1], self.dipole_grid_xyz[:, 0])
-            cell_vol = self.dx * self.dy * self.dz * np.ones(self.ndipoles) 
+            inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
+            pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
+            pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
+            pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
+            cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles) 
             pointsToVTK(
                 'dipole_grid',
-                contig(self.dipole_grid_xyz[:, 0]),
-                contig(self.dipole_grid_xyz[:, 1]),
-                contig(self.dipole_grid_xyz[:, 2])
+                contig(pm_grid.dipole_grid_xyz[:, 0]),
+                contig(pm_grid.dipole_grid_xyz[:, 1]),
+                contig(pm_grid.dipole_grid_xyz[:, 2])
             )
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
-            self.m_maxima = B_max * cell_vol / mu0
+            pm_grid.m_maxima = B_max * cell_vol / mu0
         else:
             if isinstance(m_maxima, float):
-                self.m_maxima = m_maxima * np.ones(self.ndipoles)
+                pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
             else:
-                self.m_maxima = m_maxima
-            if len(self.m_maxima) != self.ndipoles:
+                pm_grid.m_maxima = m_maxima
+            if len(pm_grid.m_maxima) != pm_grid.ndipoles:
                 raise ValueError(
                     'm_maxima passed to geo_setup_from_famus but with '
                     'the wrong shape, i.e. != number of dipoles.'
@@ -446,14 +482,15 @@ class PermanentMagnetGrid:
             elif pol_vectors.shape[2] != 3:
                 raise ValueError('Third dimension of `pol_vectors` array '
                                  'must be 3')
-            elif self.coordinate_flag != 'cartesian':
+            elif pm_grid.coordinate_flag != 'cartesian':
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
-            elif pol_vectors.shape[0] != self.ndipoles:
+            elif pol_vectors.shape[0] != pm_grid.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
 
-        self.pol_vectors = pol_vectors
-        self._optimization_setup()
+        pm_grid.pol_vectors = pol_vectors
+        pm_grid._optimization_setup()
+        return pm_grid
 
     def _optimization_setup(self):
 
