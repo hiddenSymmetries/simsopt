@@ -23,7 +23,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split, ras_minres, relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI

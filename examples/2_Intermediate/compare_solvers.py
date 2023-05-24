@@ -37,7 +37,7 @@ tol = 1e-16
 maxiter = 2000 
 sigma = 1
 nu = 1e15 / (scale ** 2)     # Scale so that 1/nu is somewhat comparable to norm(A.'*A);
-CT = C.T
+CT = C.transpose()
 AT = A.T
 A1T = A1.T
 AI_T = A_I.T
@@ -81,7 +81,8 @@ AAdiag_inv = spdiags(1 / AAdiagT, 0, n, n)
 
 # Schur complement is -C*Ainv*C' -- let's use the inverse diagonal of A:
 S = C.dot(AAdiag_inv.dot(CT))   # should be a sparse matrix
-S_chol = cholesky((S + spdiags(np.ones(k), 0, k, k)).todense())
+perturbation = np.max(S) * 0.1
+S_chol = cholesky((S + perturbation * spdiags(np.ones(k), 0, k, k)).todense())
 S_chol[np.abs(S_chol) < 1e-10] = 0.0
 S_chol = csc_matrix(S_chol)
 
@@ -89,7 +90,7 @@ S_chol = csc_matrix(S_chol)
 P1 = hstack((spdiags(np.sqrt(AAdiagT), 0, n, n), csc_matrix((n, k))))
 P2 = hstack((csc_matrix((k, n)), S_chol))
 P = vstack((P1, P2))
-M = P @ P.T
+M = P.dot(P.transpose())
 
 # minres with preconditioner:
 sys.stdout = open('output1.txt', 'w')

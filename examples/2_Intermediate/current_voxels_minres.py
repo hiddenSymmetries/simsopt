@@ -36,7 +36,7 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 poff = 0.5
 coff = 0.4
@@ -60,8 +60,8 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Make the output directory
-OUT_DIR = 'wv_test/'
-os.makedirs(OUT_DIR, exist_ok=True)
+out_dir = 'wv_test/'
+os.makedirs(out_dir, exist_ok=True)
 
 # No external coils
 Bnormal = np.zeros((nphi, ntheta))
@@ -96,7 +96,7 @@ for n in range(s.ntor + 1):
 
 curve.x = curve.get_dofs()
 curve.x = curve.x  # need to do this to transfer data to C++
-curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
+curves_to_vtk([curve], out_dir + f"Itarget_curve")
 Itarget = 0.45e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
@@ -109,14 +109,14 @@ s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half 
 s_out.set_rc(0, 0, s.get_rc(0, 0) * fac1)
 s_out.set_rc(1, 0, s.get_rc(1, 0) * fac3)
 s_out.set_zs(1, 0, s.get_rc(1, 0) * fac3)
-s_out.to_vtk(OUT_DIR + "surf_out")
+s_out.to_vtk(out_dir + "surf_out")
 
 #create the inside boundary for the PMs
 s_in = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period', nfp=2, stellsym=True)
 s_in.set_rc(0, 0, s.get_rc(0, 0) * fac1)
 s_in.set_rc(1, 0, s.get_rc(1, 0) * fac2)
 s_in.set_zs(1, 0, s.get_rc(1, 0) * fac2)
-s_in.to_vtk(OUT_DIR + "surf_in")
+s_in.to_vtk(out_dir + "surf_in")
 
 nx = 10
 Nx = 24
@@ -135,26 +135,27 @@ wv_grid = CurrentVoxelsGrid(
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
     filename=surface_filename,
-    OUT_DIR=OUT_DIR,
+    OUT_DIR=out_dir,
     nx=nx, ny=nx, nz=nx,
     sparse_constraint_matrix=True,
 )
-wv_grid.rz_inner_surface.to_vtk(OUT_DIR + 'inner')
-wv_grid.rz_outer_surface.to_vtk(OUT_DIR + 'outer')
-wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
+wv_grid.rz_inner_surface.to_vtk(out_dir + 'inner')
+wv_grid.rz_outer_surface.to_vtk(out_dir + 'outer')
+wv_grid.to_vtk_before_solve(out_dir + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
-max_iter = 100000
-rs_max_iter = 1  # 50
-l0_threshold = 0.0  # 60 below line
-l0_thresholds = [l0_threshold] 
+max_iter = 20
+rs_max_iter = 100
+nu = 1e1
+l0_threshold = 1e4  # 60 below line
+l0_thresholds = np.linspace(l0_threshold, 300 * l0_threshold, 50, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
-    wv_grid, lam=lam, nu=1e100, max_iter=max_iter,
+    wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
     print_iter=100,
-    OUT_DIR=OUT_DIR
+    OUT_DIR=out_dir
 )
 print('solution shape = ', alpha_opt.shape)
 
@@ -164,7 +165,7 @@ print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')
 #print('||P * w_opt - w_opt|| / ||w_opt|| = ', np.linalg.norm(wv_grid.P.dot(wv_grid.w) - wv_grid.w) / np.linalg.norm(wv_grid.w))
 
 t1 = time.time()
-wv_grid.to_vtk_after_solve(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
+wv_grid.to_vtk_after_solve(out_dir + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
 t2 = time.time()
 print('Time to plot the optimized grid = ', t2 - t1, ' s')
 print('fB after optimization = ', fB[-1]) 
@@ -197,8 +198,8 @@ print('Itarget_check = ', Itarget_check)
 print('Itarget second check = ', wv_grid.Itarget_matrix @ alpha_opt / mu0) 
 
 t1 = time.time()
-make_Bnormal_plots(bs_wv, s_plot, OUT_DIR, "biot_savart_current_voxels_Nx" + str(Nx))
-make_Bnormal_plots(bs_wv_sparse, s_plot, OUT_DIR, "biot_savart_current_voxels_sparse_Nx" + str(Nx))
+make_Bnormal_plots(bs_wv, s_plot, out_dir, "biot_savart_current_voxels_Nx" + str(Nx))
+make_Bnormal_plots(bs_wv_sparse, s_plot, out_dir, "biot_savart_current_voxels_sparse_Nx" + str(Nx))
 t2 = time.time()
 
 print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
@@ -221,16 +222,21 @@ plt.semilogy(fB + fI + lam * fK, 'g', label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
 
-# plt.savefig(OUT_DIR + 'optimization_progress.jpg')
+# plt.savefig(out_dir + 'optimization_progress.jpg')
 t1 = time.time()
 wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
-if True: 
+bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+make_Bnormal_plots(bs_wv, s_plot, out_dir, "biot_savart_current_voxels")
+B = bs_wv.B()
+calculate_on_axis_B(bs_wv, s)
+print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
+
+if False: 
     t1 = time.time()
-    # biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
-    bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+    # biotsavart_json_str = bs_wv.save(filename=out_dir + 'BiotSavart.json')
     print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
     n = 20
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
@@ -244,7 +250,7 @@ if True:
 
     ####### s -> s_plot here is critical!!!
     sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
-    sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+    sc_fieldline.to_vtk(out_dir + 'levelset', h=0.02)
 
     def skip(rs, phis, zs):
         # The RegularGrindInterpolant3D class allows us to specify a function that
@@ -263,29 +269,21 @@ if True:
         return skip
 
     # Load in the optimized coils from stage_two_optimization.py:
-    coils_filename = Path(__file__).parent / "../1_Simple/inputs" / "biot_savart_opt.json"
-    bs = simsopt.load(coils_filename)
-    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_precomputed")
     bsh = InterpolatedField(
         # bs, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
         bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
     )
     # bsh.set_points(s_plot.gamma().reshape((-1, 3)))
     bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-    make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
     Bh = bsh.B()
-    B = bs_wv.B()
-    calculate_on_axis_B(bs_wv, s)
-    print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
     print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
-    # trace_fieldlines(bs_wv, 'poincare_torus', s_plot, comm, OUT_DIR)
+    make_Bnormal_plots(bsh, s_plot, out_dir, "biot_savart_interpolated")
+    # trace_fieldlines(bs_wv, 'poincare_torus', s_plot, comm, out_dir)
     nfieldlines = 30
     R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-    trace_fieldlines(bsh, 'poincare_torus', s_plot, None, OUT_DIR, R0)
+    trace_fieldlines(bsh, 'poincare_torus', s_plot, None, out_dir, R0)
     t2 = time.time()
-    print(OUT_DIR)
+    print(out_dir)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

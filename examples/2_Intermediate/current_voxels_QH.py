@@ -22,7 +22,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split, relax_and_split_increasingl0, ras_minres
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
@@ -36,10 +36,10 @@ t_start = time.time()
 t1 = time.time()
 # Set some parameters
 nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-ntheta = 32
-poff = 4
-coff = 4
-input_name = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
+ntheta = nphi
+poff = 0.5
+coff = 0.5
+input_name = 'wout_LandremanPaul_QH_variant.nc'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -132,7 +132,7 @@ lam = 1e-30
 nu = 1e100  # 1e11
 l0_threshold = 0.0  # 2e4
 l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 80 * l0_threshold, 50, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
+alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
@@ -189,20 +189,13 @@ t2 = time.time()
 
 print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
 
-w_range = np.linspace(0, len(fB), len(fBw), endpoint=True)
 plt.figure()
 plt.semilogy(fB, 'r', label=r'$f_B$')
-plt.semilogy(lam * fK, 'b', label=r'$\lambda \|\alpha\|^2$')
 plt.semilogy(fI, 'm', label=r'$f_I$')
-#plt.semilogy(fRS, 'k', label=r'$f_{RS}$')
-#plt.semilogy(w_range, fBw, 'r--', label=r'$f_Bw$')
-#plt.semilogy(w_range, lam * fKw, 'b--', label=r'$\lambda \|w\|^2$')
-#plt.semilogy(w_range, fIw, 'm--', label=r'$f_Iw$')
+plt.semilogy(fC, 'k', label=r'$f_C$')
 if l0_thresholds[-1] > 0:
     plt.semilogy(fRS / nu, label=r'$\nu^{-1} \|\alpha - w\|^2$')
-    # plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
-plt.semilogy(fB + fI + lam * fK + fRS, 'g', label='Total objective (not incl. l0)')
-#plt.semilogy(w_range, fBw + fIw + lam * fKw, 'g--', label='Total w objective (not incl. l0)')
+plt.semilogy(fB + fI + lam * fK, 'g', label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
 
@@ -212,48 +205,40 @@ wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
-# t1 = time.time()
-# biotsavart_json_str = bs_wv.save(filename=OUT_DIR + 'BiotSavart.json')
-# bs_wv.set_points(s.gamma().reshape((-1, 3)))
-# trace_fieldlines(bs_wv, 'poincare_qa', 'qa', s_plot, comm, OUT_DIR)
-# t2 = time.time()
-print(OUT_DIR)
+if False:
+    bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+    print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
+    n = 20
+    rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
+    zs = s_plot.gamma()[:, :, 2]
+    rrange = (np.min(rs), np.max(rs), n)
+    phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
+    zrange = (0, np.max(zs), n // 2)
+    degree = 2  # 4
+    sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
+    sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
-bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
-n = 20
-rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
-zs = s_plot.gamma()[:, :, 2]
-rrange = (np.min(rs), np.max(rs), n)
-phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
-zrange = (0, np.max(zs), n // 2)
-degree = 2  # 4
-sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
-sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
+    def skip(rs, phis, zs):
+        rphiz = np.asarray([rs, phis, zs]).T.copy()
+        dists = sc_fieldline.evaluate_rphiz(rphiz)
+        skip = list((dists < -0.05).flatten())
+        print("Skip", sum(skip), "cells out of", len(skip), flush=True)
+        return skip
 
-
-def skip(rs, phis, zs):
-    rphiz = np.asarray([rs, phis, zs]).T.copy()
-    dists = sc_fieldline.evaluate_rphiz(rphiz)
-    skip = list((dists < -0.05).flatten())
-    print("Skip", sum(skip), "cells out of", len(skip), flush=True)
-    return skip
-
-
-# Load in the optimized coils from stage_two_optimization.py:
-bsh = InterpolatedField(
-    bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
-)
-bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
-Bh = bsh.B()
-B = bs_wv.B()
-print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
-print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
-nfieldlines = 2
-R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 20.0, nfieldlines)
-trace_fieldlines(bsh, 'poincare_QH', s_plot, comm, OUT_DIR, R0)
+    # Load in the optimized coils from stage_two_optimization.py:
+    bsh = InterpolatedField(
+        bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
+    )
+    bsh.set_points(s_plot.gamma().reshape((-1, 3)))
+    bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
+    make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
+    Bh = bsh.B()
+    B = bs_wv.B()
+    print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
+    print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
+    nfieldlines = 2
+    R0 = np.linspace(s.get_rc(0, 0), s.get_rc(0, 0) + s.get_rc(1, 0) / 20.0, nfieldlines)
+    trace_fieldlines(bsh, 'poincare_QH', s_plot, comm, OUT_DIR, R0)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

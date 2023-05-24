@@ -137,12 +137,12 @@ t1 = time.time()
 # best: max_iter = 20, rs_max_iter = 100, nu=1e13, l0 = 5e4, 20, 40
 #l0_thresholds = np.linspace(l0_threshold, 25 * l0_threshold, 100, endpoint=True)
 max_iter = 20
-rs_max_iter = 100
+rs_max_iter = 200
 nu = 1e2
 lam = 1e-40
 sigma = 1  # 1e-2
 l0_threshold = 1e5
-l0_thresholds = np.linspace(l0_threshold, 4 * l0_threshold, 20, endpoint=True)
+l0_thresholds = np.linspace(l0_threshold, 5 * l0_threshold, 30, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
     #alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,

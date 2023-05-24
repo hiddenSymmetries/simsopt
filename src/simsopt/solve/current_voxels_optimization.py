@@ -500,7 +500,7 @@ def ras_minres(
     for j, threshold in enumerate(l0_thresholds):
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
         if j > (2.0 * len(l0_thresholds) / 3.0) and set_point:
-            rs_max_iter = 3 * rs_max_iter
+            rs_max_iter = 2 * rs_max_iter
             set_point = False
         for k in range(rs_max_iter):
             if (j == 0) and (k == 0) and (len(l0_thresholds) > 1):

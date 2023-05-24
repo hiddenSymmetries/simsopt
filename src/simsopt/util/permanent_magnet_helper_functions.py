@@ -512,7 +512,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, R0, out_di
     from simsopt.objectives import SquaredFlux
 
     out_dir = Path(out_dir)
-    
+
     n = 20
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
