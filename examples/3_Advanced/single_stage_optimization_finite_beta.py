@@ -250,7 +250,7 @@ pprint(f'  Performing single stage optimization with ~{MAXITER_single_stage} ite
 dofs[:-number_vmec_dofs] = res.x
 JF.x = dofs[:-number_vmec_dofs]
 mpi.comm_world.Bcast(dofs, root=0)
-dof_indicators=np.concatenate((["dof"]*len(dofs[-number_vmec_dofs:]), ["non-dof"]*len(dofs[:-number_vmec_dofs])))
+dof_indicators = np.concatenate((["dof"]*len(dofs[-number_vmec_dofs:]), ["non-dof"]*len(dofs[:-number_vmec_dofs])))
 all_dofs = np.concatenate((dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs]))
 opt = make_optimizable(fun_J, all_dofs, dof_indicators=dof_indicators)
 with MPIFiniteDifference(opt.J, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:

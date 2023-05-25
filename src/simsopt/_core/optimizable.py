@@ -1639,7 +1639,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
         def __init__(self, func, *args, dof_indicators=None, **kwargs):
 
             self.func = func
-            args = np.ravel(args) # The user may pass a tuple or list
+            args = np.ravel(args)  # The user may pass a tuple or list
             self.arg_len = len(args)
             self.kwarg_len = len(kwargs)
             self.kwarg_keys = []
