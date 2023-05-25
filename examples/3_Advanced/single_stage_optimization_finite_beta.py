@@ -163,7 +163,12 @@ def fun_coils(dofss, info):
 ## from the function fun below.
 
 
-def fun_J(dofs_vmec, dofs_coils):
+def fun_J(*all_dofs):
+    if len(all_dofs) == 1:
+        all_dofs = all_dofs[0]
+    number_vmec_dofs = len(prob.x)
+    dofs_vmec = all_dofs[:number_vmec_dofs]
+    dofs_coils = all_dofs[number_vmec_dofs:]
     run_vcasing = False
     if np.sum(prob.x != dofs_vmec) > 0:
         prob.x = dofs_vmec
@@ -193,7 +198,8 @@ def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}):
     os.chdir(vmec_results_path)
     dofs_vmec = dofss[-number_vmec_dofs:]
     dofs_coils = dofss[:-number_vmec_dofs]
-    J = fun_J(dofs_vmec, dofs_coils)
+    all_dofs = np.concatenate((dofs_vmec, dofs_coils))
+    J = fun_J(all_dofs)
     if J > JACOBIAN_THRESHOLD or isnan(J):
         pprint(f"fun#{info['Nfeval']}: Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
         J = JACOBIAN_THRESHOLD
@@ -204,7 +210,7 @@ def fun(dofss, prob_jacobian=None, info={'Nfeval': 0}):
         coils_dJ = JF.dJ()
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
         grad_with_respect_to_surface = prob_jacobian.jac(dofs_vmec, dofs_coils)[0]
-        fun_J(dofs_vmec, dofs_coils)
+        fun_J(all_dofs)
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
     return J, grad
@@ -244,7 +250,9 @@ pprint(f'  Performing single stage optimization with ~{MAXITER_single_stage} ite
 dofs[:-number_vmec_dofs] = res.x
 JF.x = dofs[:-number_vmec_dofs]
 mpi.comm_world.Bcast(dofs, root=0)
-opt = make_optimizable(fun_J, dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs], dof_indicators=["dof", "non-dof"])
+dof_indicators=np.concatenate((["dof"]*len(dofs[-number_vmec_dofs:]), ["non-dof"]*len(dofs[:-number_vmec_dofs])))
+all_dofs = np.concatenate((dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs]))
+opt = make_optimizable(fun_J, all_dofs, dof_indicators=dof_indicators)
 with MPIFiniteDifference(opt.J, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
     if mpi.proc0_world:
         res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-9)
