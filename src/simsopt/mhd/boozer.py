@@ -172,8 +172,8 @@ class Boozer(Optimizable):
             self.bx.mnmax = wout.mnmax
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
-            print('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
-            print('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            logger.info('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
+            logger.info('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
             assert len(wout.xm) == wout.mnmax
             assert len(wout.xn) == wout.mnmax
             assert len(self.bx.xm) == self.bx.mnmax
