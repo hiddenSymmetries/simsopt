@@ -1639,6 +1639,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
         def __init__(self, func, *args, dof_indicators=None, **kwargs):
 
             self.func = func
+            args = np.ravel(args) # The user may pass a tuple or list
             self.arg_len = len(args)
             self.kwarg_len = len(kwargs)
             self.kwarg_keys = []
@@ -1684,8 +1685,6 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                     else:
                         non_dofs.append(v)
                         dof_indicators.append("non-dof")
-            # Make sure that dofs is a flat array
-            dofs = np.asarray(dofs).flatten()
 
             # Create args map and kwargs map
             super().__init__(x0=dofs, depends_on=opts)
@@ -1693,7 +1692,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
             self.dof_indicators = dof_indicators
 
         def J(self):
-            dofs = np.atleast_2d(self.local_full_x)
+            dofs = self.local_full_x
             # Re-Assemble dofs, non_dofs and opts to args, kwargs
             args = []
             kwargs = {}
