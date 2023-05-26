@@ -29,9 +29,12 @@ class SquaredFlux(Optimizable):
           in ``phi`` and ``theta`` direction.
     """
 
-    def __init__(self, surface, field, target=None):
+    def __init__(self, surface, field, Btarget=None):
         self.surface = surface
-        self.target = target
+        if Btarget is not None:
+            self.Btarget = np.ascontiguousarray(Btarget)
+        else:
+            self.Btarget = np.zeros(self.surface.normal().shape[:2])
         self.field = field
         xyz = self.surface.gamma()
         self.field.set_points(xyz.reshape((-1, 3)))
@@ -40,8 +43,7 @@ class SquaredFlux(Optimizable):
     def J(self):
         n = self.surface.normal()
         Bcoil = self.field.B().reshape(n.shape)
-        Btarget = self.target if self.target is not None else []
-        return sopp.integral_BdotN(Bcoil, Btarget, n)
+        return sopp.integral_BdotN(Bcoil, self.Btarget, n)
 
     @derivative_dec
     def dJ(self):
@@ -50,10 +52,7 @@ class SquaredFlux(Optimizable):
         unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        if self.target is not None:
-            B_n = (Bcoil_n - self.target)
-        else:
-            B_n = Bcoil_n
+        B_n = (Bcoil_n - self.Btarget)
         dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
