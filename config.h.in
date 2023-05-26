@@ -1,0 +1,2 @@
+#cmakedefine NO_XSIMD
+#cmakedefine _HAS_AUTO_PTR_ETC 0

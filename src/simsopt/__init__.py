@@ -18,3 +18,6 @@ from ._core import make_optimizable, load, save
 
 # VERSION info
 from ._version import version as __version__
+
+# Expose XSIMD depedency in simsoptpp
+from simsoptpp import using_xsimd as __built_with_xsimd__
