@@ -124,6 +124,19 @@ class MPIFiniteDifference:
     finite difference scheme.
     Supplies a method named jac to be used with optimizers. Use
     the initialization to customize the finite difference scheme
+
+    Args:
+        func: Function to differentiate. Must be a method of an Optimizable object.
+        mpi: Instance of :obj:`~simsopt.util.mpi.MpiPartition`.
+        x0: Initial point at which to evaluate the Jacobian.
+        abs_step: Absolute step size for finite differences.
+        rel_step: Relative step size for finite differences.
+        diff_method: Either ``"forward"`` or ``"centered"``.
+        log_file: Name of file in which to log the function evaluations.
+        data: Optional numpy 1D array to broadcast from process 0 to group leaders
+            before each Jacobian evaluation. This is useful for updating the
+            groups with information other than the dofs to which the Jacobian is
+            evaluated.
     """
 
     def __init__(self, func: Callable,
@@ -132,7 +145,9 @@ class MPIFiniteDifference:
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
                  diff_method: str = "forward",
-                 log_file: Union[str, typing.IO] = "jac_log") -> None:
+                 log_file: Union[str, typing.IO] = "jac_log",
+                 data: RealArray = np.array([])
+                 ) -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
@@ -156,6 +171,7 @@ class MPIFiniteDifference:
         self.log_file = log_file
         self.new_log_file = False
         self.log_header_written = False
+        self.data_to_broadcast = data
 
         x0 = np.asarray(x0) if x0 is not None else x0
         self.x0 = x0 if x0 else self.opt.x
@@ -310,6 +326,8 @@ class MPIFiniteDifference:
         # root=0)
         x = self.mpi.comm_leaders.bcast(x, root=0)
         logger.debug(f'mpi leaders loop x={x}')
+        self.mpi.comm_leaders.Bcast(self.data_to_broadcast)
+        logger.debug(f'mpi leaders loop data_to_broadcast={self.data_to_broadcast}')
         self.opt.x = x
         self._jac()
 
@@ -364,6 +382,7 @@ class MPIFiniteDifference:
 
         self.mpi.mobilize_leaders(ARB_VAL)  # Any value not equal to STOP
         self.mpi.comm_leaders.bcast(x, root=0)
+        self.mpi.comm_leaders.Bcast(self.data_to_broadcast)
 
         jac, xs, evals = self._jac(x, args)
         logger.debug(f'jac is {jac}')

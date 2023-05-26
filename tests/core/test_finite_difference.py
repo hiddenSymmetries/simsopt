@@ -13,8 +13,10 @@ if MPI is not None:
     from simsopt.util.mpi import MpiPartition
     from simsopt._core.finite_difference import MPIFiniteDifference
 
-logger = logging.getLogger(__name__)
+#from simsopt.util.mpi import log
+#log()
 
+logger = logging.getLogger(__name__)
 
 class TestFunction1(Optimizable):
     def __init__(self):
@@ -253,3 +255,28 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             mpi.together()
             if mpi.proc0_world:
                 fd.log_file.close()
+
+    def test_bcast(self):
+        """Test MPI broadcasting using the MPIFiniteDifference object."""
+
+        for ngroups in range(1, 4):
+            mpi = MpiPartition(ngroups=ngroups)
+            logger.info(f"nprocs={mpi.nprocs_world} ngroups={ngroups}")
+            optimizable = TestFunction1()
+            arr = np.zeros(5)
+            arr_to_bcast = np.arange(5) * 0.25 + ngroups + 7  # Arbitrary values
+            if mpi.proc0_world:
+                # Only proc0_world has the data:
+                arr[:] = arr_to_bcast
+
+            with MPIFiniteDifference(optimizable.J, mpi, data=arr) as fd:
+                # bcast the array within the MPIFiniteDifference context:
+                if mpi.proc0_world:
+                    fd.jac()
+
+            # The data should now reside with all group leaders:
+            logger.info(f"arr={arr}")
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(arr, arr_to_bcast)
+            else:
+                np.testing.assert_allclose(arr, np.zeros(5))
