@@ -139,6 +139,45 @@ void Surface<Array>::extend_via_normal(double scale) {
 }
 
 template<class Array>
+void Surface<Array>::extend_via_projected_normal(double scale) {
+    Array target_values_xyz = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    auto gamma = this->gamma();
+    auto n = this->normal();
+    auto phi = this->quadpoints_phi;
+    // Loop over toroidal angle, calculate rotation matrix
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+	double phi_i = 2 * M_PI * phi[i];
+	double rotation[3][3] = {cos(phi_i), sin(phi_i), 0, -sin(phi_i), cos(phi_i), 0, 0, 0, 1};
+	double rotation_inv[3][3] = {cos(phi_i), -sin(phi_i), 0, sin(phi_i), cos(phi_i), 0, 0, 0, 1};
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+	    double nij[3] = {0.0, 0.0, 0.0};
+	    double gammaij[3] = {0.0, 0.0, 0.0};
+	    // convert nij and gammij from cartesian to cylindrical
+            for (int k = 0; k < 3; ++k) {
+                for (int kk = 0; kk < 3; ++kk) {
+                    nij[k] += rotation[k][kk] * n(i, j, kk);
+                    gammaij[k] += rotation[k][kk] * gamma(i, j, kk);
+		}
+	    }
+            // keep toroidal direction constant
+	    nij[1] = 0.0;
+	    gammaij[1] = 0.0;
+	    auto nij_norm = sqrt(nij[0]*nij[0] + nij[2]*nij[2]);
+            target_values(i, j, 0) = gammaij[0] + scale * nij[0] / nij_norm;
+            target_values(i, j, 2) = gammaij[2] + scale * nij[2] / nij_norm;
+	    // now need to take target_values in (R, Z) and transform back to (X, Y, Z)
+            for (int k = 0; k < 3; ++k) {
+                for (int kk = 0; kk < 3; ++kk) {
+                    target_values_xyz(i, j, k) += rotation_inv[k][kk] * target_values(i, j, kk);
+		}
+	    }
+        }
+    }
+    this->least_squares_fit(target_values_xyz);
+}
+
+template<class Array>
 void Surface<Array>::first_fund_form_impl(Array& data) {
   auto drd1 = this->gammadash1();
   auto drd2 = this->gammadash2();
