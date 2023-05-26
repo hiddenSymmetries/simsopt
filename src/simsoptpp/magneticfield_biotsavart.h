@@ -7,8 +7,6 @@
 #include "magneticfield.h"
 #include "coil.h"
 
-typedef AlignedPaddedVec AlignedPaddedVector;
-
 template<template<class, std::size_t, xt::layout_type> class T, class Array>
 class BiotSavart : public MagneticField<T> {
      //This class describes a Magnetic field induced by a list of coils. It
@@ -22,26 +20,54 @@ class BiotSavart : public MagneticField<T> {
     private:
         Cache<Array> field_cache;
 
+        #if defined(USE_XSIMD)
         // this vectors are aligned in memory for fast simd usage.
-        AlignedPaddedVector pointsx = AlignedPaddedVector(xsimd::simd_type<double>::size, 0.);
-        AlignedPaddedVector pointsy = AlignedPaddedVector(xsimd::simd_type<double>::size, 0.);
-        AlignedPaddedVector pointsz = AlignedPaddedVector(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVec pointsx = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVec pointsy = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVec pointsz = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
 
         inline void fill_points(const Tensor2& points) {
             // allocating these aligned vectors is not super cheap, so reuse
             // whenever possible.
             if(pointsx.size() != npoints)
-                pointsx = AlignedPaddedVector(npoints, 0.);
+                pointsx = AlignedPaddedVec(npoints, 0.);
             if(pointsy.size() != npoints)
-                pointsy = AlignedPaddedVector(npoints, 0.);
+                pointsy = AlignedPaddedVec(npoints, 0.);
             if(pointsz.size() != npoints)
-                pointsz = AlignedPaddedVector(npoints, 0.);
+                pointsz = AlignedPaddedVec(npoints, 0.);
             for (int i = 0; i < npoints; ++i) {
                 pointsx[i] = points(i, 0);
                 pointsy[i] = points(i, 1);
                 pointsz[i] = points(i, 2);
             }
         }
+        #else
+        AlignedPaddedVec pointsx;
+        AlignedPaddedVec pointsy;
+        AlignedPaddedVec pointsz;
+
+        inline void fill_points(const Tensor2& points) {
+            // allocating these aligned vectors is not super cheap, so reuse
+            // whenever possible.
+            if(pointsx.size() != npoints){
+                pointsx.clear();
+                pointsx.resize(npoints, 0.0);
+            }
+            if(pointsy.size() != npoints){
+                pointsy.clear();
+                pointsy.resize(npoints, 0.0);
+            }
+            if(pointsz.size() != npoints){
+                pointsz.clear();
+                pointsz.resize(npoints, 0.0);
+            }
+            for (int i = 0; i < npoints; ++i) {
+                pointsx[i] = points(i, 0);
+                pointsy[i] = points(i, 1);
+                pointsz[i] = points(i, 2);
+            }
+        }
+        #endif
 
     protected:
 
