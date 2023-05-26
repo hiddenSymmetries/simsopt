@@ -16,7 +16,7 @@ from pathlib import Path
 from scipy.optimize import minimize
 from simsopt.util import MpiPartition
 from simsopt._core.util import ObjectiveFailure
-from simsopt._core.optimizable import make_optimizable
+from simsopt import make_optimizable
 from simsopt._core.finite_difference import MPIFiniteDifference
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual, VirtualCasing
@@ -137,6 +137,7 @@ pprint(f'  Starting optimization')
 ## and then optimize the coils and the surface together. This makes the overall optimization
 ## more efficient as the number of iterations needed to achieve a good solution is reduced.
 
+
 def fun_coils(dofss, info):
     info['Nfeval'] += 1
     JF.x = dofss
@@ -165,35 +166,20 @@ def fun_coils(dofss, info):
 ## is used also to calculate the derivatives using finite difference, it was separated
 ## from the function fun below.
 
-n_virtual_casing_runs = 0
-def fun_J():
-    global n_virtual_casing_runs
-    """
-    if len(all_dofs) == 1:
-        all_dofs = all_dofs[0]
-    number_vmec_dofs = len(prob.x)
-    dofs_vmec = all_dofs[:number_vmec_dofs]
-    dofs_coils = all_dofs[number_vmec_dofs:]
-    run_vcasing = False
-    if np.sum(prob.x != dofs_vmec) > 0:
-        prob.x = dofs_vmec
-        run_vcasing = True
-    """
-    run_vcasing = True
+
+def fun_J(prob):
+    global previous_surf_dofs
     J_stage_1 = prob.objective()
-    #dofs_coils = np.ravel(dofs_coils)
     if np.sum(JF.x != coil_dofs_buffer) > 0:
         JF.x = coil_dofs_buffer
-    if run_vcasing:
+    if np.any(previous_surf_dofs != prob.x):  # Only run virtual casing if surface dofs have changed
+        previous_surf_dofs = prob.x
         try:
-            n_virtual_casing_runs += 1
-            print(f"[{mpi.comm_world.rank}] Running virtual casing #{n_virtual_casing_runs}")
             vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
             Jf.target = vc.B_external_normal
-            # Next line seemed unnecessary
-            #if np.sum(Jf.x != coil_dofs_buffer) > 0: Jf.x = coil_dofs_buffer
         except ObjectiveFailure as e:
             pass
+
     bs.set_points(surf.gamma().reshape((-1, 3)))
     J_stage_2 = coils_objective_weight * JF.J()
     J = J_stage_1 + J_stage_2
@@ -207,13 +193,9 @@ def fun_J():
 def fun(dofss, prob_jacobian, info={'Nfeval': 0}):
     info['Nfeval'] += 1
     os.chdir(vmec_results_path)
-    dofs_vmec = dofss[-number_vmec_dofs:]
-    #dofs_coils = dofss[:-number_vmec_dofs]
+    prob.x = dofss[-number_vmec_dofs:]
     coil_dofs_buffer[:] = dofss[:-number_vmec_dofs]
-    #all_dofs = np.concatenate((dofs_vmec, dofs_coils))
-    #J = fun_J(all_dofs)
-    prob.x = dofs_vmec
-    J = fun_J()
+    J = fun_J(prob)
     if J > JACOBIAN_THRESHOLD or isnan(J):
         pprint(f"fun#{info['Nfeval']}: Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
         J = JACOBIAN_THRESHOLD
@@ -223,9 +205,8 @@ def fun(dofss, prob_jacobian, info={'Nfeval': 0}):
         pprint(f"fun#{info['Nfeval']}: Objective function = {J:.4f}")
         coils_dJ = JF.dJ()
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
-        grad_with_respect_to_surface = prob_jacobian.jac(dofs_vmec)[0]
-        # I'm not sure what this next line was for
-        #fun_J(dofs_vmec)
+        grad_with_respect_to_surface = prob_jacobian.jac(prob.x)[0]
+
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
 
     return J, grad
@@ -243,6 +224,7 @@ number_vmec_dofs = int(len(surf.x))
 qs = QuasisymmetryRatioResidual(vmec, quasisymmetry_target_surfaces, helicity_m=1, helicity_n=-1)
 objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight), (qs.residuals, 0, 1)]
 prob = LeastSquaresProblem.from_tuples(objective_tuple)
+previous_surf_dofs = prob.x
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
 vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
@@ -265,12 +247,8 @@ pprint(f'  Performing single stage optimization with ~{MAXITER_single_stage} ite
 dofs[:-number_vmec_dofs] = res.x
 JF.x = dofs[:-number_vmec_dofs]
 mpi.comm_world.Bcast(dofs, root=0)
-#dof_indicators = np.concatenate((["dof"]*len(dofs[-number_vmec_dofs:]), ["non-dof"]*len(dofs[:-number_vmec_dofs])))
-#all_dofs = np.concatenate((dofs[-number_vmec_dofs:], dofs[:-number_vmec_dofs]))
-#opt = make_optimizable(fun_J, all_dofs, dof_indicators=dof_indicators)
-opt = make_optimizable(fun_J)
-opt.append_parent(prob)
-np.testing.assert_allclose(opt.x, prob.x)
+opt = make_optimizable(fun_J, prob)
+
 with MPIFiniteDifference(
     opt.J, 
     mpi, 
@@ -278,7 +256,7 @@ with MPIFiniteDifference(
     abs_step=finite_difference_abs_step, 
     rel_step=finite_difference_rel_step,
     data=coil_dofs_buffer,
-    ) as prob_jacobian:
+) as prob_jacobian:
     if mpi.proc0_world:
         res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-9)
         dofs = res.x

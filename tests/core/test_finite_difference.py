@@ -18,6 +18,7 @@ if MPI is not None:
 
 logger = logging.getLogger(__name__)
 
+
 class TestFunction1(Optimizable):
     def __init__(self):
         x = np.array([1.2, 0.9, -0.4])
