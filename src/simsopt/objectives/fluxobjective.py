@@ -27,9 +27,15 @@ class SquaredFlux(Optimizable):
         target: A ``nphi x ntheta`` numpy array containing target values for the flux. Here 
           ``nphi`` and ``ntheta`` correspond to the number of quadrature points on `surface` 
           in ``phi`` and ``theta`` direction.
+        local: If ``True``, the objective is computed as half the mean of the normal field divided
+            by the magnitude of the magnetic field, squared. If ``False``, the objective is 
+            computed as the mean of the squared normal field divided by the mean of the squared
+            magnetic field.
     """
 
+
     def __init__(self, surface, field, Btarget=None):
+
         self.surface = surface
         if Btarget is not None:
             self.Btarget = np.ascontiguousarray(Btarget)
@@ -38,12 +44,15 @@ class SquaredFlux(Optimizable):
         self.field = field
         xyz = self.surface.gamma()
         self.field.set_points(xyz.reshape((-1, 3)))
+        self.local = local
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
         n = self.surface.normal()
         Bcoil = self.field.B().reshape(n.shape)
+
         return sopp.integral_BdotN(Bcoil, self.Btarget, n)
+
 
     @derivative_dec
     def dJ(self):
@@ -52,6 +61,7 @@ class SquaredFlux(Optimizable):
         unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
+
         B_n = (Bcoil_n - self.Btarget)
         dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
