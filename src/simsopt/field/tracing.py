@@ -49,7 +49,7 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
         q3 = p3 - np.sum(q1*p3)*q1 - np.sum(q2*p3)*q2
         q3 = q3/np.sum(q3**2)**0.5
         speed_perp = np.sqrt(speed_total**2 - speed_pars[i]**2)
-        rgs[i] = compute_gc_radius(m, speed_perp, q, AbsBs[i, 0])
+        rgs[i] = np.sign(q) * compute_gc_radius(m, speed_perp, q, AbsBs[i, 0])
 
         xyz_inits_full[i, :] = xyz_inits[i, :] + rgs[i] * np.sin(eta) * q2 + rgs[i] * np.cos(eta) * q3
         vperp = -speed_perp * np.cos(eta) * q2 + speed_perp * np.sin(eta) * q3
