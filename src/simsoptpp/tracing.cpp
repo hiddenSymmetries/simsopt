@@ -678,7 +678,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        bool vacuum, bool noK, bool solve_sympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -694,13 +694,28 @@ particle_guiding_center_boozer_tracing(
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        if (solve_sympl) {
+            return solve_sympl(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        }
+        else {
+            return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        }
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        if (solve_sympl) {
+            return solve_sympl(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        }
+        else {
+            return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        }
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
-      return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        if (solve_sympl) {
+            return solve_sympl(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        }
+        else {
+            return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
+        }
     }
 }
 
