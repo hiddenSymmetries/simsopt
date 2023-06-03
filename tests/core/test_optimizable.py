@@ -626,6 +626,15 @@ class OptimizableTests(unittest.TestCase):
         full_x = test_obj1.full_x
         self.assertTrue(np.allclose(full_x, np.array([4, 5, 6, 10, 25])))
 
+        new_vals = np.arange(5) - 10
+        with self.assertRaises(ValueError):
+            test_obj1.full_x = np.arange(6)
+        with self.assertRaises(ValueError):
+            test_obj1.full_x = np.arange(4)
+        test_obj1.full_x = new_vals
+        full_x = test_obj1.full_x
+        self.assertTrue(np.allclose(full_x, new_vals))
+
     def test_local_full_x(self):
         # Check with leaf type Optimizable objects
         # Check with Optimizable objects containing parents
@@ -1357,6 +1366,14 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         adder_shared_dofs.x = [0, 1]
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
         adder_orig.set("x", 20)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        with self.assertRaises(ValueError):
+            adder_orig.full_x = np.arange(6)
+        adder_orig.full_x = np.arange(3) - 10
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        with self.assertRaises(ValueError):
+            adder_shared_dofs.full_x = np.arange(6)
+        adder_shared_dofs.full_x = np.arange(3) - 100
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
 
     def test_adder_dofs_shared_fix_unfix(self):
