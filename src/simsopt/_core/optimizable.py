@@ -1055,6 +1055,16 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return np.concatenate([opt._dofs.full_x for
                                opt in self._unique_dof_opts])
 
+    @full_x.setter
+    def full_x(self, x: RealArray) -> None:
+        lengths = [len(opt._dofs.full_x) for opt in self._unique_dof_opts]
+        if sum(lengths) != len(x):
+            raise ValueError
+        index = 0
+        for length, opt in zip(lengths, self._unique_dof_opts):
+            opt._dofs.full_x = x[index:index + length]
+            index += length
+
     @property
     def local_x(self) -> RealArray:
         """
