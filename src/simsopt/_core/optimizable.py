@@ -978,7 +978,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
 
         self._full_dof_size = full_dof_size
         self._full_dof_indices = dict(zip(self._unique_dof_opts,
-                                    zip(dof_indices[:-1], dof_indices[1:])))
+                                          zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the full dof length of children
         for weakref_child in self._children:
