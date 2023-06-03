@@ -626,6 +626,10 @@ class OptimizableTests(unittest.TestCase):
         full_x = test_obj1.full_x
         self.assertTrue(np.allclose(full_x, np.array([4, 5, 6, 10, 25])))
 
+        full_x[0] = 8
+        test_obj1.full_x = full_x
+        self.assertTrue(np.allclose(test_obj1.full_x, np.array([8, 5, 6, 10, 25])))
+
     def test_local_full_x(self):
         # Check with leaf type Optimizable objects
         # Check with Optimizable objects containing parents

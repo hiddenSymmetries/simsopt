@@ -936,9 +936,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: node after fixing/unfixing any DOF
         dof_indices = [0]
         free_dof_size = 0
-        dof_objs = set()
         for opt in self._unique_dof_opts:
-            dof_objs.add(opt.dofs)
             size = opt.local_dof_size
             free_dof_size += size
             dof_indices.append(free_dof_size)
@@ -966,6 +964,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: Develop a faster scheme.
         # TODO: Alternatively ask the user to call this manually from the end
         # TODO: node after fixing/unfixing any DOF
+        dof_indices = [0]
         full_dof_size = 0
         dof_objs = set()
         self.ancestors = self._get_ancestors()
@@ -974,8 +973,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             if opt.dofs not in dof_objs:
                 dof_objs.add(opt.dofs)
                 full_dof_size += opt.local_full_dof_size
+                dof_indices.append(full_dof_size)
                 self._unique_dof_opts.append(opt)
+
         self._full_dof_size = full_dof_size
+        self._full_dof_indices = dict(zip(self._unique_dof_opts,
+                                    zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the full dof length of children
         for weakref_child in self._children:
@@ -1054,6 +1057,14 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return np.concatenate([opt._dofs.full_x for
                                opt in self._unique_dof_opts])
+
+    @full_x.setter
+    def full_x(self, x: RealArray) -> None:
+        """
+        Setter used to set all the global DOF values
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt.local_full_x = x[indices[0]:indices[1]]
 
     @property
     def local_x(self) -> RealArray:
