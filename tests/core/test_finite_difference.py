@@ -253,3 +253,7 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             mpi.together()
             if mpi.proc0_world:
                 fd.log_file.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

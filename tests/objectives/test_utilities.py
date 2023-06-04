@@ -8,6 +8,7 @@ from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTo
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
 from simsopt.geo import parameters
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
+
 parameters['jit'] = False
 try:
     from mpi4py import MPI
@@ -84,3 +85,7 @@ class UtilityObjectiveTesting(unittest.TestCase):
             Jmpi1 = MPIObjective(Js1subset, comm, needs_splitting=False)
             assert abs(Jmpi1.J() - sum(J.J() for J in Js)/n) < 1e-14
             assert np.sum(np.abs(Jmpi1.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -17,10 +17,12 @@ import numpy as np
 from scipy.optimize import least_squares, minimize
 from scipy.optimize import NonlinearConstraint, LinearConstraint
 
+from .._core.types import RealArray
 from ..objectives.least_squares import LeastSquaresProblem
 from ..objectives.constrained import ConstrainedProblem
 from .._core.optimizable import Optimizable
 from .._core.finite_difference import FiniteDifference
+from .._core.finite_difference import finite_difference_jac_decorator
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                                abs_step: float = 1.0e-7,
                                rel_step: float = 0.0,
                                diff_method: str = "forward",
+                               jac_verbose: str = "legacy", 
                                **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -61,7 +64,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
     """
 
     datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    objective_file = open(f"simsopt_{datestr}.dat", 'w')
+    objective_file = open(f"objective_{datestr}.dat", 'w')
     residuals_file = open(f"residuals_{datestr}.dat", 'w')
 
     nevals = 0
@@ -147,7 +150,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         fd = FiniteDifference(prob.residuals, abs_step=abs_step,
                               rel_step=rel_step, diff_method=diff_method)
         logger.info("Using derivatives")
-        result = least_squares(objective, x0, verbose=2, jac=fd.jac, **kwargs)
+        jac = finite_difference_jac_decorator(fd, verbose=jac_verbose, comment="serial")
+        result = least_squares(objective, x0, verbose=2, jac=jac, **kwargs)
     else:
         logger.info("Using derivative-free method")
         result = least_squares(objective, x0, verbose=2, **kwargs)
@@ -165,6 +169,7 @@ def serial_solve(prob: Union[Optimizable, Callable],
                  abs_step: float = 1.0e-7,
                  rel_step: float = 0.0,
                  diff_method: str = "centered",
+                 jac_verbose: str = "legacy",
                  **kwargs):
     """
     Solve a general minimization problem (i.e. one that need not be of
@@ -188,14 +193,12 @@ def serial_solve(prob: Union[Optimizable, Callable],
              be used. If ``"forward"``, one-sided finite differences will
              be used. Else, error is raised.
         kwargs: Any arguments to pass to
-                `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
-                For instance, you can supply ``max_nfev=100`` to set
-                the maximum number of function evaluations (not counting
-                finite-difference gradient evaluations) to 100. Or, you
-                can supply ``method`` to choose the optimization algorithm.
+                `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html>`_.
+                For instance, you can supply ``method``
+                to choose the optimization algorithm.
     """
 
-    filename = "simsopt_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") \
+    filename = "objective_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") \
                + ".dat"
     with open(filename, 'w') as objective_file:
         datalogging_started = False
@@ -204,11 +207,12 @@ def serial_solve(prob: Union[Optimizable, Callable],
 
         def objective(x):
             nonlocal datalogging_started, objective_file, nevals
+            prob.x = x
             try:
-                result = prob(x)
+                result = prob.J()
             except:
-                result = 1e+12
-
+                logger.info("Exception caught during function evaluation")
+                result = 1.0e12
             # Since the number of terms is not known until the first
             # evaluation of the objective function, we cannot write the
             # header of the output file until this first evaluation is
@@ -217,7 +221,7 @@ def serial_solve(prob: Union[Optimizable, Callable],
                 # Initialize log file
                 datalogging_started = True
                 objective_file.write(
-                    f"Problem type:\ngeneral\nnparams:\n{prob.dof_size}\n")
+                    f"Problem type:\nminimize\nnparams:\n{prob.dof_size}\n")
                 objective_file.write("function_evaluation,seconds")
                 for j in range(prob.dof_size):
                     objective_file.write(f",x({j})")
@@ -245,13 +249,12 @@ def serial_solve(prob: Union[Optimizable, Callable],
         logger.info("Beginning solve.")
         x0 = np.copy(prob.x)
         if grad:
-            raise RuntimeError("Need to convert least-squares Jacobian to "
-                               "gradient of the scalar objective function")
             logger.info("Using derivatives")
-            fd = FiniteDifference(prob, abs_step=abs_step,
-                                  rel_step=rel_step, diff_method=diff_method)
-            result = least_squares(objective, x0, verbose=2, jac=fd.jac,
-                                   **kwargs)
+            fd = FiniteDifference(prob.J, abs_step=abs_step,
+                                  rel_step=rel_step, diff_method=diff_method, flatten_out=True)
+            jac = finite_difference_jac_decorator(fd, problem_type='minimize', verbose=jac_verbose, comment="serial")
+            result = minimize(objective, x0, options={'disp': True}, jac=jac,
+                              **kwargs)
         else:
             logger.info("Using derivative-free method")
             result = minimize(objective, x0, options={'disp': True}, **kwargs)
