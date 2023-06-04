@@ -262,13 +262,14 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             logger.info(f"nprocs={mpi.nprocs_world} ngroups={ngroups}")
             optimizable = TestFunction1()
             initial_x = optimizable.x
-            print(optimizable.dof_names)
             optimizable.fix_all()
             optimizable.unfix('x0')
             arr_to_bcast = np.arange(3) * 0.25 + ngroups + 7  # Arbitrary values
             if mpi.proc0_world:
                 # Only proc0_world has the data:
                 optimizable.full_x = arr_to_bcast
+            if not mpi.proc0_world:
+                self.assertGreater(np.sum(np.abs(optimizable.full_x - arr_to_bcast)), 20)
 
             with MPIFiniteDifference(optimizable.J, mpi) as fd:
                 # bcast the array within the MPIFiniteDifference context:
