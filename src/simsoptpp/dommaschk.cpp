@@ -527,9 +527,9 @@ Array DommaschkdB(Array& mArray, Array& nArray, Array& coeffs, Array& points){
             dB(j,i,2,0) = dZBR(m,n,R,z,phi,coeff1,coeff2)*cosphi-dZBphi(m,n,R,z,phi,coeff1,coeff2)*sinphi;
             dB(j,i,2,1) = dZBR(m,n,R,z,phi,coeff1,coeff2)*sinphi+dZBphi(m,n,R,z,phi,coeff1,coeff2)*cosphi;
             dB(j,i,2,2) = dZBZ(m,n,R,z,phi,coeff1,coeff2);
-			printf("magnetic field Rder:%f,%f,%f \n",dRBR(m,n,R,z,phi,coeff1,coeff2),dRBphi(m,n,R,z,phi,coeff1,coeff2),dRBZ(m,n,R,z,phi,coeff1,coeff2));
-			printf("magnetic field Phider:%f,%f,%f \n",dphiBR(m,n,R,z,phi,coeff1,coeff2),dphiBphi(m,n,R,z,phi,coeff1,coeff2),dphiBZ(m,n,R,z,phi,coeff1,coeff2));
-			printf("magnetic field Zder:%f,%f,%f \n",dZBR(m,n,R,z,phi,coeff1,coeff2),dZBphi(m,n,R,z,phi,coeff1,coeff2),dZBZ(m,n,R,z,phi,coeff1,coeff2));
+		//	printf("magnetic field Rder:%f,%f,%f \n",dRBR(m,n,R,z,phi,coeff1,coeff2),dRBphi(m,n,R,z,phi,coeff1,coeff2),dRBZ(m,n,R,z,phi,coeff1,coeff2));
+		//	printf("magnetic field Phider:%f,%f,%f \n",dphiBR(m,n,R,z,phi,coeff1,coeff2),dphiBphi(m,n,R,z,phi,coeff1,coeff2),dphiBZ(m,n,R,z,phi,coeff1,coeff2));
+		//	printf("magnetic field Zder:%f,%f,%f \n",dZBR(m,n,R,z,phi,coeff1,coeff2),dZBphi(m,n,R,z,phi,coeff1,coeff2),dZBZ(m,n,R,z,phi,coeff1,coeff2));
 
 
         }
