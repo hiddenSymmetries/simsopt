@@ -34,10 +34,10 @@ b = np.vstack((b1, b_I))
 # some tests with (A'*A + 1/nu)*x = A'*b
 kappa = 1e-100
 tol = 1e-16
-maxiter = 2000 
+maxiter = 200 
 sigma = 1
-nu = 1e15 / (scale ** 2)     # Scale so that 1/nu is somewhat comparable to norm(A.'*A);
-CT = C.transpose()
+nu = 1e12 / (scale ** 2)     # Scale so that 1/nu is somewhat comparable to norm(A.'*A);
+CT = C.T
 AT = A.T
 A1T = A1.T
 AI_T = A_I.T
@@ -47,7 +47,7 @@ kappa_nu = kappa + 1 / nu
 
 def A_fun(x):
     alpha = x[:n]
-    Ax = np.squeeze(np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[n:])[:, np.newaxis], (C @ alpha)[:, np.newaxis])), axis=-1)
+    Ax = np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[n:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
     return Ax
 
 
@@ -58,7 +58,7 @@ def callback(xk):
     fK = kappa * np.linalg.norm(xk[:n, :]) ** 2  # / scale ** 2,
     f = fB + fI + fK
     print(f, fB, fI, fK,
-          np.linalg.norm(C @ xk[:n, :]))
+          np.linalg.norm(np.ravel(C @ xk[:n, :])))
 
 
 # solve unpreconditioned saddle point problem with MINRES
@@ -80,7 +80,7 @@ AAdiagT = AAdiag.T
 AAdiag_inv = spdiags(1 / AAdiagT, 0, n, n)
 
 # Schur complement is -C*Ainv*C' -- let's use the inverse diagonal of A:
-S = C.dot(AAdiag_inv.dot(CT))   # should be a sparse matrix
+S = C @ AAdiag_inv @ CT   # should be a sparse matrix
 perturbation = np.max(S) * 0.1
 S_chol = cholesky((S + perturbation * spdiags(np.ones(k), 0, k, k)).todense())
 S_chol[np.abs(S_chol) < 1e-10] = 0.0
@@ -90,7 +90,7 @@ S_chol = csc_matrix(S_chol)
 P1 = hstack((spdiags(np.sqrt(AAdiagT), 0, n, n), csc_matrix((n, k))))
 P2 = hstack((csc_matrix((k, n)), S_chol))
 P = vstack((P1, P2))
-M = P.dot(P.transpose())
+M = P @ P.T
 
 # minres with preconditioner:
 sys.stdout = open('output1.txt', 'w')
@@ -106,15 +106,15 @@ f1, fB1, fI1, fK1, fC1 = np.loadtxt('output1.txt', skiprows=1, unpack=True)
 
 t1 = time.time()
 # Compute the projection operator onto the constraints (expensive!)
-CCTinv = np.linalg.pinv((C @ C.T).todense(), rcond=1e-8, hermitian=True)
+CCTinv = np.linalg.pinv((C @ CT).todense(), rcond=1e-8, hermitian=True)
 print('Done computing CCTinv operator')
-Proj = eye(n, format="csc", dtype="double") - C.T @ CCTinv @ C
+Proj = eye(n, format="csc", dtype="double") - CT @ CCTinv @ C
 print('Done computing proj operator')
 
 # Expensive calculation of the step size for PGD, can be approximated faster though
-# L = np.sqrt(n) * np.max(np.linalg.norm(A1T @ A1 + sigma * AI_T @ A_I + np.eye(n) * kappa_nu, axis=0), axis=-1)
-L = np.linalg.svd(A1T @ A1 + sigma * AI_T @ A_I + np.eye(n) * kappa_nu, compute_uv=False, hermitian=True)[0]
-step_i = 1 / L
+L = np.sqrt(n) * np.max(np.linalg.norm(A1T @ A1 + sigma * AI_T @ A_I + np.eye(n) * kappa_nu, axis=0), axis=-1)
+#L = np.linalg.svd(A1T @ A1 + sigma * AI_T @ A_I + np.eye(n) * kappa_nu, compute_uv=False, hermitian=True)[0]
+step_i = 1 / (2 * L)
 t2 = time.time()
 print('Done with SVD, setup took = ', t2 - t1, ' s')
 
@@ -124,7 +124,7 @@ xi1 = np.zeros((n, 1))
 AI_T = A_I.T
 A1T = A1.T
 shift = A1T @ b1 + AI_T @ b_I.reshape(1, 1)
-max_iter = 500
+max_iter = 100
 f = np.zeros((max_iter, 2))
 fB = np.zeros((max_iter, 2))
 fI = np.zeros((max_iter, 2))
@@ -139,8 +139,8 @@ for i in range(max_iter):
     fI[i, 0] = sigma * np.linalg.norm(A_I @ xi - b_I) ** 2 / scale ** 2
     fK[i, 0] = kappa * np.linalg.norm(xi) ** 2
     f[i, 0] = fB[i, 0] + fI[i, 0] + fK[i, 0] 
-    fC[i, 0] = np.linalg.norm(C.dot(xi))
-    xi = Proj.dot(xi + step_i * (shift - (A1T @ (A1 @ xi)) - sigma * (AI_T @ (A_I @ xi)) - kappa_nu * xi))
+    fC[i, 0] = np.linalg.norm(C @ xi)
+    xi = Proj @ (xi + step_i * (shift - (A1T @ (A1 @ xi)) - sigma * (AI_T @ (A_I @ xi)) - kappa_nu * xi))
     if (np.linalg.norm(A @ xi - b) / bnorm) < tol:
         f[:, 0] = f[f[:, 0] != 0.0, 0]
         fB[:, 0] = fB[fB[:, 0] != 0.0, 0]
@@ -161,12 +161,12 @@ for i in range(max_iter):
     fI[i, 1] = sigma * np.linalg.norm(A_I @ xi - b_I) ** 2 / scale ** 2
     fK[i, 1] = kappa * np.linalg.norm(xi) ** 2
     f[i, 1] = fB[i, 1] + fI[i, 1] + fK[i, 1] 
-    fC[i, 1] = np.linalg.norm(C.dot(xi))
+    fC[i, 1] = np.linalg.norm(C @ xi)
 
     # Do the Nesterov updates
     vi = xi + i / (i + 3) * (xi - xi1)
     xi1 = xi
-    xi = Proj.dot(vi + step_i * (shift - (A1T @ (A1 @ vi)) - sigma * (AI_T @ (A_I @ vi)) - kappa_nu * vi))
+    xi = Proj @ (vi + step_i * (shift - (A1T @ (A1 @ vi)) - sigma * (AI_T @ (A_I @ vi)) - kappa_nu * vi))
     step_i = (1 + np.sqrt(1 + 4 * step_i ** 2)) / 2.0
     if (np.linalg.norm(A @ xi - b) / bnorm) < tol:
         f[:, 1] = f[f[:, 1] != 0.0, 1]
@@ -284,4 +284,9 @@ plt.loglog(t3, f[:, 0] + fC[:, 0], 'r')
 plt.loglog(t4, f[:, 1] + fC[:, 1], 'm') 
 plt.legend(['MINRES', 'MINRES_precon', 'PGD', 'PGD_accel'])
 plt.grid(True)
+print('fB minres, PGD_accel: ', fB0[-1], fB[-1, 0])
+print('fK minres, PGD_accel: ', fK0[-1], fK[-1, 0])
+print('fI minres, PGD_accel: ', fI0[-1], fI[-1, 0])
+print('fC minres, PGD_accel: ', fC0[-1], fC[-1, 0])
+print('f0 minres, PGD_accel: ', f0[-1], f[-1, 0])
 plt.show()

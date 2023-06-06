@@ -22,7 +22,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split, relax_and_split_increasingl0, ras_minres
+from simsopt.solve import relax_and_split, relax_and_split_increasingl0, ras_preconditioned_minres, ras_minres
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 from mpi4py import MPI
@@ -35,10 +35,10 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
-poff = 0.5
-coff = 0.5
+poff = 0.3
+coff = 0.3
 input_name = 'wout_LandremanPaul_QH_variant.nc'
 
 # Read in the plasma equilibrium file
@@ -55,7 +55,7 @@ s_plot = SurfaceRZFourier.from_wout(
 )
 
 # Make the output directory
-OUT_DIR = 'wv_QH/'
+OUT_DIR = 'current_voxels_QH/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -63,55 +63,50 @@ Bnormal = np.zeros((nphi, ntheta))
 t2 = time.time()
 print('First setup took time = ', t2 - t1, ' s')
 
-fB_all = []
-fI_all = []
-fK_all = []
-t_algorithm = []
-
 # Define a curve to define a Itarget loss term
 # As the boundary of the stellarator at theta = 0
 t1 = time.time()
 numquadpoints = nphi * s.nfp * 2
 order = s.ntor + 1
 quadpoints = np.linspace(0, 1, numquadpoints, endpoint=True)
-curve = CurveRZFourier(quadpoints, order, s.nfp, stellsym=True)
-r_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
-z_mn = np.zeros((s.mpol + 1, 2 * s.ntor + 1))
-for m in range(s.mpol + 1):
-    if m == 0:
-        nmin = 0
-    else: 
-        nmin = -s.ntor
-    for n in range(nmin, s.ntor + 1):
-        r_mn[m, n + s.ntor] = s.get_rc(m, n)
-        z_mn[m, n + s.ntor] = s.get_zs(m, n)
-r_n = np.sum(r_mn, axis=0)
-z_n = np.sum(z_mn, axis=0)
-for n in range(s.ntor + 1):
-    if n == 0:
-        curve.rc[n] = r_n[n + s.ntor]
-    else:
-        curve.rc[n] = r_n[n + s.ntor] + r_n[-n + s.ntor]
-        curve.zs[n - 1] = -z_n[n + s.ntor] + z_n[-n + s.ntor]
-
-curve.x = curve.get_dofs()
-curve.x = curve.x  # need to do this to transfer data to C++
+curve = make_curve_at_theta0(s, numquadpoints)
 curves_to_vtk([curve], OUT_DIR + f"Itarget_curve")
-Itarget = 5e4  # 50e6
+Itarget = 0.5e6  # 50e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
+fac1 = 1.2
+fac2 = 6
+fac3 = 8
+
+coil_range = 'half period'
+#create the outside boundary for the PMs
+s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=coil_range, nfp=s.nfp, stellsym=s.stellsym)
+s_out.set_rc(0, 0, s.get_rc(0, 0) * fac1)
+s_out.set_rc(1, 0, s.get_rc(1, 0) * fac3)
+s_out.set_zs(1, 0, s.get_rc(1, 0) * fac3)
+s_out.to_vtk(OUT_DIR + "surf_out")
+
+#create the inside boundary for the PMs
+s_in = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=coil_range, nfp=s.nfp, stellsym=s.stellsym)
+s_in.set_rc(0, 0, s.get_rc(0, 0) * fac1)
+s_in.set_rc(1, 0, s.get_rc(1, 0) * fac2)
+s_in.set_zs(1, 0, s.get_rc(1, 0) * fac2)
+s_in.to_vtk(OUT_DIR + "surf_in")
+
 nx = 10
-Nx = 18
+Nx = 20
 Ny = Nx
 Nz = Nx 
 # Finally, initialize the winding volume 
 t1 = time.time()
 wv_grid = CurrentVoxelsGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
-    coil_offset=coff, 
-    Nx=Nx, Ny=Ny, Nz=Nz, 
     plasma_offset=poff,
+    coil_offset=coff, 
+    #rz_inner_surface=s_in,
+    #rz_outer_surface=s_out,
+    Nx=Nx, Ny=Ny, Nz=Nz, 
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
     filename=surface_filename,
@@ -126,27 +121,25 @@ t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 
-max_iter = 5000  # 10
-rs_max_iter = 1  # 30
-lam = 1e-30
-nu = 1e100  # 1e11
-l0_threshold = 0.0  # 2e4
-l0_thresholds = [l0_threshold]  # np.linspace(l0_threshold, 80 * l0_threshold, 50, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
-    wv_grid, lam=lam, nu=nu, max_iter=max_iter,
-    l0_thresholds=l0_thresholds, 
+max_iter = 200
+rs_max_iter = 200
+kappa = 1e-6
+sigma = 1
+nu = 1e2
+l0_threshold = 5e4
+l0_thresholds = np.linspace(l0_threshold, 100 * l0_threshold, 8, endpoint=True)
+#alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_minres( 
+alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_preconditioned_minres( 
+    wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
+    l0_thresholds=l0_thresholds,
+    sigma=sigma,
     rs_max_iter=rs_max_iter,
-    print_iter=10,
+    print_iter=20,
+    OUT_DIR=OUT_DIR
 )
 
-if wv_grid.P is not None:
-    print('P * alpha_opt - alpha_opt = ', wv_grid.P.dot(alpha_opt) - alpha_opt)
-    print('P * w_opt - w_opt = ', wv_grid.P.dot(wv_grid.w) - wv_grid.w)
-    print('||P * alpha_opt - alpha_opt|| / ||alpha_opt|| = ', np.linalg.norm(wv_grid.P.dot(alpha_opt) - alpha_opt) / np.linalg.norm(alpha_opt))
-    print('||P * w_opt - w_opt|| / ||w_opt|| = ', np.linalg.norm(wv_grid.P.dot(wv_grid.w) - wv_grid.w) / np.linalg.norm(wv_grid.w))
 t2 = time.time()
-print('Gradient Descent Tikhonov solve time = ', t2 - t1, ' s')    
-t_algorithm.append(t2 - t1)
+print('MINRES solve time = ', t2 - t1, ' s')    
 
 t1 = time.time()
 wv_grid.to_vtk_after_solve(OUT_DIR + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
@@ -191,23 +184,25 @@ print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
 
 plt.figure()
 plt.semilogy(fB, 'r', label=r'$f_B$')
+plt.semilogy(fK, 'b', label=r'$\lambda \|\alpha\|^2$')
+plt.semilogy(fC, 'c', label=r'$f_C$')
 plt.semilogy(fI, 'm', label=r'$f_I$')
-plt.semilogy(fC, 'k', label=r'$f_C$')
+plt.semilogy(fminres, 'k--', label=r'MINRES residual')
 if l0_thresholds[-1] > 0:
-    plt.semilogy(fRS / nu, label=r'$\nu^{-1} \|\alpha - w\|^2$')
-plt.semilogy(fB + fI + lam * fK, 'g', label='Total objective (not incl. l0)')
+    fRS[np.abs(fRS) < 1e-20] = 0.0
+    plt.semilogy(fRS, 'g', label=r'$\nu^{-1} \|\alpha - w\|^2$')
 plt.grid(True)
 plt.legend()
 
 # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
 t1 = time.time()
-wv_grid.check_fluxes()
+#wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
+print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
 
 if False:
     bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-    print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
     n = 20
     rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
     zs = s_plot.gamma()[:, :, 2]
@@ -242,4 +237,6 @@ if False:
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
+print('f fB fI fK fC')
+print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
 plt.show()

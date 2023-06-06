@@ -396,8 +396,8 @@ class CurrentVoxelsGrid:
             coil surface, not just 1 / 2 nfp of the surface.
         """
         range_surf = self.coil_range
-        nphi = self.nphi
-        ntheta = self.ntheta
+        nphi = self.nphi * 16
+        ntheta = self.ntheta * 16
         f = self.filename
         if self.surface_flag == 'focus':
             rz_inner_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -418,8 +418,8 @@ class CurrentVoxelsGrid:
             theta value.
         """
         range_surf = self.coil_range
-        nphi = self.nphi
-        ntheta = self.ntheta
+        nphi = self.nphi * 16
+        ntheta = self.ntheta * 16
         f = self.filename
         if self.surface_flag == 'focus':
             rz_outer_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)

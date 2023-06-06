@@ -6,7 +6,7 @@ __all__ = ['read_focus_coils', 'coil_optimization',
            'trace_fieldlines', 'make_qfm', 
            'initialize_coils', 'calculate_on_axis_B',
            'make_optimization_plots', 'run_Poincare_plots',
-           'make_curve_at_theta0',
+           'make_curve_at_theta0', 'make_filament_from_voxels',
            'make_Bnormal_plots', 'initialize_default_kwargs'
            ]
 
@@ -240,7 +240,7 @@ def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
 
     # make the poincare plots
     if comm is None or comm.rank == 0:
-        plot_poincare_data(fieldlines_phi_hits, phis, out_dir / f'poincare_fieldline_{label}.png', dpi=100, surf=s)
+        plot_poincare_data(fieldlines_phi_hits, phis, out_dir / f'poincare_fieldline_{label}.png', dpi=100, surf=s, ylims=(-0.375, 0.375), xlims=(0.575, 1.35))
 
 
 def make_qfm(s, Bfield):
@@ -629,3 +629,53 @@ def make_curve_at_theta0(s, numquadpoints):
     curve.x = curve.get_dofs()
     curve.x = curve.x  # need to do this to transfer data to C++
     return curve
+
+
+def make_filament_from_voxels(wv_grid, final_threshold):
+    """
+    Take an optimized CurrentVoxelGrid class object and the largest
+    threshold used to optimize it, and produce a filamentary curve from
+    the solution. This function assumes that the current voxel solution
+    is curve-like, i.e. that it makes sense to try and fit this solution
+    with a Fourier series.
+    """
+    from simsopt.geo import CurveXYZFourier
+    # Find where voxels are nonzero
+    alphas = wv_grid.alphas.reshape(wv_grid.N_grid, wv_grid.n_functions)
+    nonzero_inds = (np.linalg.norm(alphas, axis=-1) > final_threshold)
+    xyz_curve = wv_grid.XYZ_flat[nonzero_inds, :]
+
+    # number of fourier modes to use for the fourier expansion in each coordinate
+    num_fourier = 10  
+    ax = plt.figure().add_subplot(projection='3d')
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+    plt.show()
+
+    # Let's assume curve is unique w/ respect to theta or phi
+    # in the 1 / 2 * nfp part of the surface
+    phi = np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0])
+
+    nt = 100
+    t = phi 
+    dphi = np.diff(phi, prepend=np.array(phi[0]))
+    print(phi.shape, dphi.shape, xyz_curve.shape)
+    #t = np.linspace(0, 2 * np.pi, nt)
+    order = 2 * num_fourier + 1
+    dofs = np.zeros((order, 3))
+    quadpoints = len(phi)
+    coil = CurveXYZFourier(quadpoints, order)
+    dofs = coil.dofs_matrix
+    for i in range(3):
+        dofs[i][0] = np.sum(xyz_curve[:, i] * dphi) / np.pi / 2
+    for f in range(num_fourier):
+        for i in range(3):
+            dofs[i][f * 2 + 1] = np.sum(xyz_curve[:, i] * np.sin(f * t) * dphi) / np.pi
+            dofs[i][f * 2 + 2] = np.sum(xyz_curve[:, i] * np.cos(f * t) * dphi) / np.pi
+    coil.local_x = np.concatenate(dofs)
+
+    #quadpoints = len(phi)
+    #order = num_fourier + 1
+    # dofs order = [x_{c,0}, x_{s,1}, x_{c,1},\cdots x_{s,\text{order}}, x_{c,\text{order}},y_{c,0},y_{s,1},y_{c,1},\cdots] 
+    #dofs = np.vstack((x_cm, x_sm))
+    #curve = CurveXYZFourier(quadpoints, order, dofs=dofs)
+    return coil

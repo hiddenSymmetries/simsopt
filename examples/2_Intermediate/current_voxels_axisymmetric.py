@@ -23,11 +23,9 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split, ras_minres, relax_and_split_increasingl0
+from simsopt.solve import relax_and_split, ras_preconditioned_minres, ras_minres, relax_and_split_increasingl0
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
-#from mpi4py import MPI
-#comm = MPI.COMM_WORLD
 logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
@@ -36,12 +34,11 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 # coil_range = 'full torus'
 coil_range = 'half period'
 input_name = 'input.circular_tokamak' 
-# input_name = 'input.LandremanPaul2021_QA'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -53,7 +50,6 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, range="full torus",
-    # nphi=qphi, ntheta=ntheta 
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
 if coil_range == 'half period':
@@ -65,7 +61,7 @@ else:
     s.stellsym = False
 
 # Make the output directory
-OUT_DIR = 'current_voxels_axisymmetric/'
+OUT_DIR = 'current_voxels_axisymmetric_convex/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -84,8 +80,8 @@ t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
 fac1 = 1.2
-fac2 = 2.5
-fac3 = 4
+fac2 = 2
+fac3 = 3
 
 #create the outside boundary for the PMs
 s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=coil_range, nfp=s.nfp, stellsym=s.stellsym)
@@ -136,20 +132,21 @@ t1 = time.time()
 #l0_threshold = 5e4  # 1e4
 # best: max_iter = 20, rs_max_iter = 100, nu=1e13, l0 = 5e4, 20, 40
 #l0_thresholds = np.linspace(l0_threshold, 25 * l0_threshold, 100, endpoint=True)
-max_iter = 20
+max_iter = 200
 rs_max_iter = 200
-nu = 1e2
-lam = 1e-40
+nu = 1e1
+kappa = 1e-14
 sigma = 1  # 1e-2
-l0_threshold = 1e5
-l0_thresholds = np.linspace(l0_threshold, 5 * l0_threshold, 30, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
+l0_threshold = 5e4
+l0_thresholds = np.linspace(l0_threshold, 30 * l0_threshold, 30, endpoint=True)
+alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_minres( 
+    #alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_preconditioned_minres( 
     #alpha_opt, fB, fK, fI, fRS, f0, fBw, fKw, fIw = relax_and_split_increasingl0(
-    wv_grid, lam=lam, nu=nu, max_iter=max_iter,
+    wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds,
     sigma=sigma,
     rs_max_iter=rs_max_iter,
-    print_iter=100,
+    print_iter=40,
     OUT_DIR=OUT_DIR
 )
 t2 = time.time()
@@ -192,27 +189,30 @@ t2 = time.time()
 
 print('Time to plot Bnormal_wv = ', t2 - t1, ' s')
 
-w_range = np.linspace(0, len(fB), len(fBw), endpoint=True)
 plt.figure()
 plt.semilogy(fB, 'r', label=r'$f_B$')
-#plt.semilogy(lam * fK, 'b', label=r'$\lambda \|\alpha\|^2$')
-plt.semilogy(fC, 'k', label=r'$f_C$')
-#plt.semilogy(fI, 'm', label=r'$f_I$')
-plt.semilogy(fRS, 'b', label=r'$f_{RS}$')
-#plt.semilogy(w_range, fBw, 'r--', label=r'$f_Bw$')
-#plt.semilogy(w_range, lam * fKw, 'b--', label=r'$\lambda \|w\|^2$')
-#plt.semilogy(w_range, fIw, 'm--', label=r'$f_Iw$')
-#if l0_thresholds[-1] > 0:
-#    plt.semilogy(fRS, label=r'$\nu^{-1} \|\alpha - w\|^2$')
-# plt.semilogy(f0, label=r'$\|\alpha\|_0^G$')
-#plt.semilogy(fB + fI + lam * fK + fRS, 'g', label='Total objective (not incl. l0)')
-#plt.semilogy(w_range, fBw + fIw + lam * fKw, 'g--', label='Total w objective (not incl. l0)')
+plt.semilogy(fK, 'b', label=r'$\lambda \|\alpha\|^2$')
+plt.semilogy(fC, 'c', label=r'$f_C$')
+plt.semilogy(fI, 'm', label=r'$f_I$')
+plt.semilogy(fminres, 'k--', label=r'MINRES residual')
+if l0_thresholds[-1] > 0:
+    fRS[np.abs(fRS) < 1e-20] = 0.0
+    plt.semilogy(fRS, 'g', label=r'$\nu^{-1} \|\alpha - w\|^2$')
+plt.grid(True)
+plt.legend()
+plt.figure()
+plt.semilogy(fBw, 'r', label=r'$f_Bw$')
+plt.semilogy(fKw, 'b', label=r'$\lambda \|w\|^2$')
+plt.semilogy(fCw, 'c', label=r'$f_Cw$')
+plt.semilogy(fIw, 'm', label=r'$f_Iw$')
+plt.semilogy(fRSw, 'g', label=r'$f_RSw$')
+plt.semilogy(fBw + fIw + fKw + fRSw, 'k', label='Total objective (not incl. l0)')
 plt.grid(True)
 plt.legend()
 
 # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
 t1 = time.time()
-wv_grid.check_fluxes()
+#wv_grid.check_fluxes()
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
@@ -252,12 +252,14 @@ if trace_field:
     B = bs_wv.B()
     print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
     print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
-    nfieldlines = 20
+    nfieldlines = 10
     R0 = np.linspace(6, 7.9, nfieldlines)
-    trace_fieldlines(bsh, 'current_voxels_axisymmetric_poincare', s_plot, comm, OUT_DIR, R0)
+    trace_fieldlines(bsh, 'current_voxels_axisymmetric_poincare', s_plot, None, OUT_DIR, R0)
     t2 = time.time()
 print(OUT_DIR)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
+print('f fB fI fK fC')
+print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
 plt.show()

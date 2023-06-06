@@ -36,7 +36,7 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 poff = 0.5
 coff = 0.4
@@ -102,8 +102,8 @@ t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
 fac1 = 1.2
-fac2 = 4
-fac3 = 7.5
+fac2 = 5
+fac3 = 7
 #create the outside boundary for the PMs
 s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range='half period', nfp=2, stellsym=True)
 s_out.set_rc(0, 0, s.get_rc(0, 0) * fac1)
@@ -126,12 +126,11 @@ Nz = Nx
 t1 = time.time()
 wv_grid = CurrentVoxelsGrid(
     s, Itarget_curve=curve, Itarget=Itarget, 
-    plasma_offset=poff, 
-    coil_offset=coff, 
-    #rz_inner_surface=s_in,
-    #rz_outer_surface=s_out,
+    #plasma_offset=poff, 
+    #coil_offset=coff, 
+    rz_inner_surface=s_in,
+    rz_outer_surface=s_out,
     Nx=Nx, Ny=Ny, Nz=Nz, 
-    # plasma_offset=poff,
     Bn=Bnormal,
     Bn_Itarget=np.zeros(curve.gammadash().reshape(-1, 3).shape[0]),
     filename=surface_filename,
@@ -146,10 +145,10 @@ t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
 max_iter = 20
-rs_max_iter = 100
-nu = 1e1
-l0_threshold = 1e4  # 60 below line
-l0_thresholds = np.linspace(l0_threshold, 300 * l0_threshold, 50, endpoint=True)
+rs_max_iter = 200
+nu = 1e2  # 1e1
+l0_threshold = 5e4  # 60 below line
+l0_thresholds = np.linspace(l0_threshold, 150 * l0_threshold, 40, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fC, fBw, fKw, fIw = ras_minres( 
     wv_grid, lam=lam, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 

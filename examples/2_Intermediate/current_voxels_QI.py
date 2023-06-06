@@ -36,10 +36,10 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 coil_range = 'half period'
-input_name = 'input.LandremanPaul2021_QA'
+input_name = 'input.QI_nfp2'
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -63,7 +63,7 @@ else:
     s.stellsym = False
 
 # Make the output directory
-OUT_DIR = 'current_voxels_QA/'
+OUT_DIR = 'current_voxels_QI/'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # No external coils
@@ -81,8 +81,8 @@ Itarget = 0.5e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
-poff = 0.3
-coff = 0.3
+poff = 0.55
+coff = 0.4
 
 nx = 10
 Nx = 20
@@ -108,17 +108,18 @@ wv_grid.to_vtk_before_solve(OUT_DIR + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
-max_iter = 100  # 10000
-rs_max_iter = 100  # 1
+max_iter = 400
+rs_max_iter = 200  # 1
 nu = 1e2
-kappa = 1e-6
-l0_threshold = 1e4
-l0_thresholds = np.linspace(l0_threshold, 40 * l0_threshold, 2, endpoint=True)
+kappa = 1e-7
+l0_threshold = 2e4
+l0_thresholds = np.linspace(l0_threshold, 50 * l0_threshold, 20, endpoint=True)
 alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_preconditioned_minres( 
+    #alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_minres( 
     wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
-    print_iter=20,
+    print_iter=10,
     OUT_DIR=OUT_DIR,
 )
 t2 = time.time()
@@ -175,7 +176,10 @@ plt.legend()
 
 # plt.savefig(OUT_DIR + 'optimization_progress.jpg')
 t1 = time.time()
-#wv_grid.check_fluxes()
+try:
+    wv_grid.check_fluxes()
+except AssertionError:
+    print('check fluxes failed')
 t2 = time.time()
 print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
@@ -216,15 +220,12 @@ if trace_field:
     print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
     nfieldlines = 10
     R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-    trace_fieldlines(bsh, 'current_voxels_QA_poincare', s_plot, comm, OUT_DIR, R0)
+    trace_fieldlines(bsh, 'current_voxels_QI_poincare', s_plot, comm, OUT_DIR, R0)
     t2 = time.time()
 print(OUT_DIR)
-
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
 print('f fB fI fK fC')
 print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
 plt.show()
-filament_curve = make_filament_from_voxels(wv_grid, l0_thresholds[-1])
-curves_to_vtk([filament_curve], OUT_DIR + f"filament_curve")
