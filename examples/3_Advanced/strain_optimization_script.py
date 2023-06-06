@@ -11,9 +11,8 @@ from simsopt.geo import SurfaceRZFourier
 from simsopt.geo import ArclengthVariation
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import QuadraticPenalty
-from strain_optimization_classes import create_multifilament_grid_frenet, strain_opt
-from exportcoils import export_coils, import_coils, import_coils_fb, export_coils_fb
-import timeit
+from simsopt.geo.strain_optimization_classes import create_multifilament_grid_frenet, strain_opt
+#from exportcoils import export_coils, import_coils, import_coils_fb, export_coils_fb
 
 """
 This script performs a stage two coil optimization
@@ -29,13 +28,13 @@ ncoils = 4
 R0 = 1.00
 
 # Minor radius for the initial circular coils:
-R1 = 0.70
+R1 = 0.40
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 10
+order = 5
 
 # Weight on the curve length penalty in the objective function:
-LENGTH_PEN = 1e-3
+LENGTH_PEN = 1e-2
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -46,7 +45,7 @@ CS_THRESHOLD = 0.1
 CS_WEIGHT =0#2e-2
 
 # weight for penalty on winding pack strain
-STRAIN_WEIGHT = 1e-6#3e-7
+STRAIN_WEIGHT = 1e-13#3e-7
 # weight for arclength error.
 # Arclength parametrization is crucial otherwise the formulas for torsion and curvature are wrong 
 ARCLENGTH_WEIGHT = 1
@@ -56,23 +55,25 @@ numfilaments_n = 1  # number of filaments in normal direction
 numfilaments_b = 1  # number of filaments in bi-normal direction
 gapsize_n = 0.02  # gap between filaments in normal direction
 gapsize_b = 0.03  # gap between filaments in bi-normal direction
-rot_order = 10  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
+rot_order = 5  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
 
-scale = 0.05
-width = 3
-nquad = 50
+scale = 1
+width = 12
+#nquad = 50
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 50
+MAXITER = 500 if ci else 500
 
 #######################################################
 # End of input parameters.
 #######################################################
 
-TEST_DIR = (Path(__file__).parent / "/PATH_TO_VMEC_FILE").resolve()
-filename = "input.QSErrorVmecFile" #TEST_DIR / 'WOUT_FILE'
+# File for the desired boundary magnetic surface:
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
+
 # Directory for output
-OUT_DIR = "./paul_WIP/output/SN3/"
+OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 config_str = f"{ncoils}_coils_rot_order_{rot_order}_nfn_{numfilaments_n}_nfb_{numfilaments_b}_strain_weight_{STRAIN_WEIGHT}"
@@ -83,7 +84,7 @@ ntheta = 64
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 nfil = numfilaments_n * numfilaments_b
-base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=nquad)
+base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
 base_currents = []
 for i in range(ncoils):
     curr = Current(1.)
@@ -157,8 +158,7 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
-export_coils_fb(coils=coils_exp, name=f'coils_opt_{config_str}', path=OUT_DIR, nquad = nquad, nfp=s.nfp, stellsym=True, order=order, numfilaments_n=numfilaments_n, numfilaments_b=numfilaments_b, gapsize_n=gapsize_n, gapsize_b=gapsize_b, rot_order=rot_order)
 curves_to_vtk(curves_fb, OUT_DIR + f"curves_opt_fb_{config_str}")
-curves_to_vtk(base_curves_finite_build, OUT_DIR + f"curves_opt_fb_hfp_{config_str}")
+curves_to_vtk(base_curves_finite_build, OUT_DIR + f"curves_opt_fb_hfp_{config_str}"+"whereisthecoil")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + f"surf_opt_fb_{config_str}", extra_data=pointData)
