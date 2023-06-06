@@ -33,20 +33,21 @@ class SquaredFlux(Optimizable):
             magnetic field.
     """
 
-    def __init__(self, surface, field, target=None, local=True):
+    def __init__(self, surface, field, Btarget=None):
         self.surface = surface
-        self.target = target
+        if Btarget is not None:
+            self.Btarget = np.ascontiguousarray(Btarget)
+        else:
+            self.Btarget = np.zeros(self.surface.normal().shape[:2])
         self.field = field
         xyz = self.surface.gamma()
         self.field.set_points(xyz.reshape((-1, 3)))
-        self.local = local
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
         n = self.surface.normal()
         Bcoil = self.field.B().reshape(n.shape)
-        Btarget = self.target if self.target is not None else []
-        return sopp.integral_BdotN(Bcoil, Btarget, n, self.local)
+        return sopp.integral_BdotN(Bcoil, self.Btarget, n)
 
     @derivative_dec
     def dJ(self):
@@ -55,23 +56,8 @@ class SquaredFlux(Optimizable):
         unitn = n * (1./absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        if self.target is not None:
-            B_n = (Bcoil_n - self.target)
-        else:
-            B_n = Bcoil_n
-        mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
-        if self.local:
-            dJdB = ((
-                (B_n/mod_Bcoil)[..., None] * (
-                    unitn/mod_Bcoil[..., None] - (B_n/mod_Bcoil**3)[..., None] * Bcoil
-                )) * absn[..., None])/absn.size
-        else:
-            num = np.mean(B_n**2 * absn)
-            denom = np.mean(mod_Bcoil**2 * absn)
-
-            dnum = 2*(B_n[..., None] * unitn * absn[..., None])/absn.size
-            ddenom = 2*(Bcoil * absn[..., None])/absn.size
-            dJdB = dnum/denom - num * ddenom/denom**2
+        B_n = (Bcoil_n - self.Btarget)
+        dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
