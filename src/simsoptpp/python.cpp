@@ -4,18 +4,21 @@
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
+
 typedef xt::pyarray<double> PyArray;
+#include "xtensor-python/pytensor.hpp"     // Numpy bindings
+typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include <math.h>
 #include <chrono>
-
-
 
 
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 #include "boozerradialinterpolant.h"
+#include "dipole_field.h"
 #include "dommaschk.h"
 #include "integral_BdotN.h"
+#include "permanent_magnet_optimization.h"
 #include "reiman.h"
 #include "simdhelpers.h"
 
@@ -55,6 +58,23 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
 
+    // Functions below are implemented for permanent magnet optimization
+    m.def("dipole_field_B" , &dipole_field_B);
+    m.def("dipole_field_A" , &dipole_field_A);
+    m.def("dipole_field_dB", &dipole_field_dB);
+    m.def("dipole_field_dA" , &dipole_field_dA);
+    m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
+    m.def("define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces" , &define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces);
+    m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
+
+    // Permanent magnet optimization algorithms have many default arguments
+    m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
+    // variants of GPMO algorithm
+    m.def("GPMO_backtracking", &GPMO_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7, py::arg("max_nMagnets"));
+    m.def("GPMO_multi", &GPMO_multi, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
+    m.def("GPMO_ArbVec", &GPMO_ArbVec, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100);
+    m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"));
+    m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);

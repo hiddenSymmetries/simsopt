@@ -299,7 +299,7 @@ class Surface(Optimizable):
         if extra_data is not None:
             pointData = {**pointData, **extra_data}
 
-        gridToVTK(filename, x, y, z, pointData=pointData)
+        gridToVTK(str(filename), x, y, z, pointData=pointData)
 
     @abc.abstractmethod
     def to_RZFourier(self):

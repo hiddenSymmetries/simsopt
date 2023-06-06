@@ -51,7 +51,10 @@ class SquaredFlux(Optimizable):
 
     def __init__(self, surface, field, target=None, definition="quadratic flux"):
         self.surface = surface
-        self.target = target
+        if target is not None:
+            self.target = np.ascontiguousarray(target)
+        else:
+            self.target = np.zeros(self.surface.normal().shape[:2])
         self.field = field
         xyz = self.surface.gamma()
         self.field.set_points(xyz.reshape((-1, 3)))
@@ -63,8 +66,7 @@ class SquaredFlux(Optimizable):
     def J(self):
         n = self.surface.normal()
         Bcoil = self.field.B().reshape(n.shape)
-        Btarget = self.target if self.target is not None else []
-        return sopp.integral_BdotN(Bcoil, Btarget, n, self.definition)
+        return sopp.integral_BdotN(Bcoil, self.target, n, self.definition)
 
     @derivative_dec
     def dJ(self):
