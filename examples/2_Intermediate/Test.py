@@ -54,7 +54,9 @@ epsilon = 1e-8
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-FLUX_WEIGHT = Weight(1e-6)
+FLUX_WEIGHT = Weight(1)
+LENGTH_WEIGHT = Weight(0.0)
+ENERGY_WEIGHT = Weight(1e-12)
 
 # Number of iterations to perform:
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
@@ -98,15 +100,15 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 JE = VacuumEnergy(coils, bst, epsilon, ncoils)
-
+Jls = [CurveLength(c) for c in base_curves]
 
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-# JF = FLUX_WEIGHT * Jf \
-#     +  JE 
-JF = JE
+JF = FLUX_WEIGHT * Jf \
+     +  ENERGY_WEIGHT * JE \
+     + LENGTH_WEIGHT * sum(Jls) \
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -121,8 +123,10 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, "
     outstr += f"E={JE.J():.2e}"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad

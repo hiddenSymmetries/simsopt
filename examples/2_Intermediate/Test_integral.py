@@ -104,15 +104,18 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
-JE = VacuumEnergy(coils, bs, epsilon)
+JE = VacuumEnergy(coils, bs, epsilon, ncoils)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-JF = FLUX_WEIGHT * Jf \
+""" JF = FLUX_WEIGHT * Jf \
     +  JE \
-  
+   """
 
+JF = JE
+
+print(JF.x)
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize

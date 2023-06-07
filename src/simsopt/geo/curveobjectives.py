@@ -82,7 +82,7 @@ class VacuumEnergy(Optimizable):
 
         return np.mean(np.multiply(integrand,dl))
     
-    #@derivative_dec  # Bug with this derivative decorator
+    @derivative_dec  # Bug with this derivative decorator
     def dJ(self):
         """
         This returns an array of derivatives of the energy with respect to the 
@@ -141,7 +141,7 @@ class VacuumEnergy(Optimizable):
                 dEdI.append(VacuumEnergy.derivative_current(coils[i], epsilon, bst))
     
 
-        return np.concatenate((dEdI,dEdOmega[0:int((ncurves/4)*33)]))
+        return Derivative({self: np.concatenate((dEdI,dEdOmega[0:int((ncurves/4)*33)]))})
     
     #return_fn_map = {'J': J, 'dJ': dJ}
         
