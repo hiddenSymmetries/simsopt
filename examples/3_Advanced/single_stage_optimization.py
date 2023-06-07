@@ -7,8 +7,6 @@ To accelerate convergence, a stage 2 optimization is done before the single stag
 Rogerio Jorge, April 2023
 """
 import os
-import glob
-import time
 import numpy as np
 from mpi4py import MPI
 from pathlib import Path
@@ -32,13 +30,12 @@ def pprint(*args, **kwargs):
 mpi = MpiPartition()
 parent_path = str(Path(__file__).parent.resolve())
 os.chdir(parent_path)
-start = time.time()
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
+MAXITER_stage_2 = 10
+MAXITER_single_stage = 10
 max_mode = 1
-MAXITER_stage_2 = 50
-MAXITER_single_stage = 15
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp4_QH_warm_start')
 ncoils = 3
 aspect_ratio_target = 7.0
@@ -104,7 +101,7 @@ if comm.rank == 0:
     surf.to_vtk(os.path.join(coils_results_path, "surf_init"), extra_data=pointData)
 ##########################################################################################
 ##########################################################################################
-Jf = SquaredFlux(surf, bs, local=True)
+Jf = SquaredFlux(surf, bs, definition="local")
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=len(curves))
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for i, c in enumerate(base_curves)]
@@ -122,6 +119,9 @@ pprint(f'  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
+## The function fun_coils defined below is used to only optimize the coils at the beginning
+## and then optimize the coils and the surface together. This makes the overall optimization
+## more efficient as the number of iterations needed to achieve a good solution is reduced.
 
 
 def fun_coils(dofss, info):
@@ -145,6 +145,7 @@ def fun_coils(dofss, info):
     return J, grad
 ##########################################################################################
 ##########################################################################################
+## The function fun defined below is used to optimize the coils and the surface together.
 
 
 def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
@@ -178,7 +179,7 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
         B_n = Bcoil_n
         B_diff = Bcoil
         B_N = np.sum(Bcoil * n, axis=2)
-        assert Jf.local
+        assert Jf.definition == "local"
         dJdx = (B_n/mod_Bcoil**2)[:, :, None] * (np.sum(dB_by_dX*(n-B*(B_N/mod_Bcoil**2)[:, :, None])[:, :, None, :], axis=3))
         dJdN = (B_n/mod_Bcoil**2)[:, :, None] * B_diff - 0.5 * (B_N**2/absn**3/mod_Bcoil**2)[:, :, None] * n
         deriv = surf.dnormal_by_dcoeff_vjp(dJdN/(nphi_VMEC*ntheta_VMEC)) + surf.dgamma_by_dcoeff_vjp(dJdx/(nphi_VMEC*ntheta_VMEC))
@@ -187,13 +188,6 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
         grad_with_respect_to_coils = coils_objective_weight * coils_dJ
         grad_with_respect_to_surface = np.ravel(prob_dJ) + coils_objective_weight * mixed_dJ
     grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
-
-    # Remove spurious files
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-    os.chdir(parent_path)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
-    os.chdir(this_path)
-    for jac_file in glob.glob("jac_log_*"): os.remove(jac_file)
 
     return J, grad
 
@@ -212,7 +206,7 @@ objective_tuple = [(vmec.aspect, aspect_ratio_target, aspect_ratio_weight), (qs.
 prob = LeastSquaresProblem.from_tuples(objective_tuple)
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
-Jf = SquaredFlux(surf, bs, local=True)
+Jf = SquaredFlux(surf, bs, definition="local")
 pprint(f"Aspect ratio before optimization: {vmec.aspect()}")
 pprint(f"Mean iota before optimization: {vmec.mean_iota()}")
 pprint(f"Quasisymmetry objective before optimization: {qs.total()}")
