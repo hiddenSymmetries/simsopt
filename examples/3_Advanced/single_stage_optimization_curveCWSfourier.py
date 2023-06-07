@@ -160,7 +160,7 @@ if comm.rank == 0:
 bs.set_points(surf.gamma().reshape((-1, 3)))
 ##########################################################################################
 ##########################################################################################
-Jf = SquaredFlux(surf, bs, local=True)
+Jf = SquaredFlux(surf, bs, definition="local")
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=len(curves))
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for i, c in enumerate(base_curves)]
