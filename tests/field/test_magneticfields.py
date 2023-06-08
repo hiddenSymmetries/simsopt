@@ -467,10 +467,10 @@ class Testing(unittest.TestCase):
         self.assertTrue(np.allclose(B, Bfield_regen.B()))
         
         #Field configuration from Dommaschk paper equation number (40)
-        mn = [[5, 2], [5, 4],[5,10]]
-        coeffs = [[1.4,1.4], [19.25,0],[5.10e10,5.10e10]]
+        mn = [[5, 2], [5, 4], [5, 10]]
+        coeffs = [[1.4, 1.4], [19.25, 0], [5.10e10, 5.10e10]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
-        point = np.asarray([[0.71879008,0.76265643,0.0745]])
+        point = np.asarray([[0.71879008, 0.76265643, 0.0745]])
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
@@ -478,35 +478,35 @@ class Testing(unittest.TestCase):
         print(point)
         print(B)
         print(gradB)        
-        assert np.allclose(B, [[-0.7094243  , 0.65632967 ,-0.125321  ]])
+        assert np.allclose(B, [[-0.7094243, 0.65632967, -0.125321]])
         assert np.allclose(gradB, transpGradB)
-        assert np.allclose(gradB, np.array([[ 0.90663628,  0.5078183,  -0.55436901],
-                                            [ 0.5078183,   0.27261978, -0.66073972],
+        assert np.allclose(gradB, np.array([[0.90663628, 0.5078183, -0.55436901],
+                                            [0.5078183, 0.27261978, -0.66073972],
                                             [-0.55436901, -0.66073972, -1.17925605]]))
         #Test field 
-        mn = [[3, 2], [6, 4],[2,11]]
-        coeffs = [[1.4,1.4], [19.25,0],[5.10e10,5.10e10]]
+        mn = [[3, 2], [6, 4], [2, 11]]
+        coeffs = [[1.4, 1.4], [19.25, 0],[5.10e10, 5.10e10]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
-        point = np.asarray([[ 0.77066908, -0.61182119,  0.1057    ]])
+        point = np.asarray([[0.77066908, -0.61182119, 0.1057]])
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         B = Bfield.B()      
-        assert np.allclose(B, [[ 0.55674279 , 0.83401312, -0.121491  ]])
+        assert np.allclose(B, [[0.55674279, 0.83401312, -0.121491]])
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[0.11538721234011184, -0.7518405857812525, -0.6107605261251816], 
                                             [-0.7518410735861303, 1.0695191900989125, 0.14110885184619465],
                                             [-0.6107606676662055, 0.1411086735566982, -1.18491]]))
         #Test field 2
-        mn = [[5, 0], [10, 10],[15,19]]
-        coeffs = [[1.4,1.4],[5.10e10,5.10e10], [9e20,0]]
+        mn = [[5, 0], [10, 10], [15, 19]]
+        coeffs = [[1.4, 1.4], [5.10e10, 5.10e10], [9e20, 0]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
-        point = np.asarray([[ 0.06660615 ,-0.93924128 , 0.16      ]])
+        point = np.asarray([[0.06660615, -0.93924128, 0.16]])
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         B = Bfield.B()       
-        assert np.allclose(B, [[ 3.90161959 ,-1.87151853 , 0.0119783 ]])
+        assert np.allclose(B, [[3.90161959, -1.87151853, 0.0119783]])
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[39.394312086253024, 14.061725133810995, 0.1684479703125076],
                                             [14.061729381899355, -40.23304445668633, -0.40810476986895994],
