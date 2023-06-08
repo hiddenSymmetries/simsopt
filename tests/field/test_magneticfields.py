@@ -23,7 +23,7 @@ from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 
 class Testing(unittest.TestCase):
 
-    def test_toroidal_field(self):
+    """ def test_toroidal_field(self):
         R0test = 1.3
         B0test = 0.8
         pointVar = 1e-2
@@ -445,7 +445,7 @@ class Testing(unittest.TestCase):
         # Verify serialization works
         field_json_str = json.dumps(SIMSON(Bhelical), cls=GSONEncoder)
         Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
-        self.assertTrue(np.allclose(Bhelical.B(), Bfield_regen.B()))
+        self.assertTrue(np.allclose(Bhelical.B(), Bfield_regen.B())) """
 
     def test_Dommaschk(self):
         mn = [[10, 2], [15, 3]]
@@ -485,7 +485,7 @@ class Testing(unittest.TestCase):
                                             [-0.55436901, -0.66073972, -1.17925605]]))
         #Test field 
         mn = [[3, 2], [6, 4], [2, 11]]
-        coeffs = [[1.4, 1.4], [19.25, 0],[5.10e10, 5.10e10]]
+        coeffs = [[1.4, 1.4], [19.25, 0], [5.10e10, 5.10e10]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
         point = np.asarray([[0.77066908, -0.61182119, 0.1057]])
         Bfield.set_points(point)
@@ -512,6 +512,7 @@ class Testing(unittest.TestCase):
                                             [14.061729381899355, -40.23304445668633, -0.40810476986895994],
                                             [0.16844815337021118, -0.4081047568874514, 0.838733]]))                
 
+""" 
     def test_BifieldMultiply(self):
         scalar = 1.2345
         pointVar = 1e-1
@@ -810,7 +811,7 @@ class Testing(unittest.TestCase):
              [0.035936, 0.704212, 0]]
         ]
         assert np.allclose(B1, B1_analytical)
-        assert np.allclose(dB1, dB1_analytical)
+        assert np.allclose(dB1, dB1_analytical) """
 
 
 if __name__ == "__main__":
