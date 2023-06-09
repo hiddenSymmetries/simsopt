@@ -15,6 +15,7 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.types import RealArray
+from .._core.util import ObjectiveFailure
 
 
 class Identity(Optimizable):
@@ -335,6 +336,7 @@ class Failer(Optimizable):
         self.nvals = nvals
         self.fail_index = fail_index
         self.nevals = 0
+        super().__init__(np.zeros(nparams))
         self.x = np.zeros(self.nparams)
 
     def J(self):
@@ -342,7 +344,12 @@ class Failer(Optimizable):
         if self.nevals == self.fail_index:
             raise ObjectiveFailure("nevals == fail_index")
         else:
-            return np.full(self.nvals, 1.0)
+            if self.nvals == 0: 
+                # return scalar
+                return 1.0
+            else:
+                # return vector
+                return np.full(self.nvals, 1.0)
 
     def get_dofs(self):
         return self.x

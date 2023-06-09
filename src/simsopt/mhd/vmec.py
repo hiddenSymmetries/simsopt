@@ -265,7 +265,8 @@ class Vmec(Optimizable):
                  keep_all_files: bool = False,
                  verbose: bool = True,
                  ntheta=50,
-                 nphi=50):
+                 nphi=50,
+                 range_surface='full torus'):
 
         if filename is None:
             # Read default input file, which should be in the same
@@ -344,14 +345,13 @@ class Vmec(Optimizable):
             # object, but the mpol/ntor values of either the vmec object
             # or the boundary surface object can be changed independently
             # by the user.
-            quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
-            quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
-            self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                              stellsym=not vi.lasym,
-                                              mpol=vi.mpol,
-                                              ntor=vi.ntor,
-                                              quadpoints_theta=quadpoints_theta,
-                                              quadpoints_phi=quadpoints_phi)
+            self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=vi.nfp,
+                                                               stellsym=not vi.lasym,
+                                                               mpol=vi.mpol,
+                                                               ntor=vi.ntor,
+                                                               ntheta=ntheta,
+                                                               nphi=nphi,
+                                                               range=range_surface)
             self.free_boundary = bool(vi.lfreeb)
 
             # Transfer boundary shape data from fortran to the ParameterArray:
@@ -367,7 +367,7 @@ class Vmec(Optimizable):
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
+            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta, range=range_surface)
             self.output_file = filename
             self.load_wout()
 
