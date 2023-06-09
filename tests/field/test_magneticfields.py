@@ -474,10 +474,7 @@ class Testing(unittest.TestCase):
         Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
-        B = Bfield.B()
-        print(point)
-        print(B)
-        print(gradB)        
+        B = Bfield.B()     
         assert np.allclose(B, [[-0.7094243, 0.65632967, -0.125321]])
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[0.90663628, 0.5078183, -0.55436901],
