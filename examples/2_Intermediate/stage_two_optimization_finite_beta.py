@@ -69,8 +69,8 @@ vc_src_nphi = 80
 #######################################################
 
 # Directory for output
-OUT_DIR = "./output/"
-os.makedirs(OUT_DIR, exist_ok=True)
+out_dir = Path("output")
+out_dir.mkdir(parents=True, exist_ok=True)
 
 # Once the virtual casing calculation has been run once, the results
 # can be used for many coil optimizations. Therefore here we check to
@@ -107,11 +107,12 @@ base_currents += [total_current - sum(base_currents)]
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
+
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, OUT_DIR + "curves_init")
+curves_to_vtk(curves, out_dir / "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
+s.to_vtk(out_dir / "surf_init", extra_data=pointData)
 
 # Define the objective function:
 Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
@@ -121,7 +122,7 @@ Jls = [CurveLength(c) for c in base_curves]
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J()) for i in range(len(base_curves)))
+    + LENGTH_PENALTY * sum(QuadraticPenalty(Jls[i], Jls[i].J(), "identity") for i in range(len(base_curves)))
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -168,8 +169,8 @@ print("""
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
 dofs = res.x
-curves_to_vtk(curves, OUT_DIR + "curves_opt")
+curves_to_vtk(curves, out_dir / "curves_opt")
 Bbs = bs.B().reshape((nphi, ntheta, 3))
 BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2) - vc.B_external_normal) / np.linalg.norm(Bbs, axis=2)
 pointData = {"B_N": BdotN[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+s.to_vtk(out_dir / "surf_opt", extra_data=pointData)

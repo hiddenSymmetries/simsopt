@@ -371,10 +371,6 @@ class DOFs(GSONable, Hashable):
         """
         return self._lower_bounds[self._free]
 
-    @property
-    def full_lower_bounds(self) -> RealArray:
-        return self._lower_bounds
-
     @free_lower_bounds.setter
     def free_lower_bounds(self, lower_bounds: RealArray) -> None:
         """
@@ -389,6 +385,22 @@ class DOFs(GSONable, Hashable):
         self._lower_bounds[self._free] = np.asarray(lower_bounds, dtype=np.double)
 
     @property
+    def full_lower_bounds(self) -> RealArray:
+        return self._lower_bounds
+
+    @full_lower_bounds.setter
+    def full_lower_bounds(self, lower_bounds: RealArray) -> None:
+        """
+        Set the full lower bounds
+
+        Args:
+            lower_bounds: Lower bounds of the DOFs
+        """
+        if len(self.lower_bounds) != len(lower_bounds):
+            raise DofLengthMismatchError(len(lower_bounds), len(self.lower_bounds))
+        self._lower_bounds = np.asarray(lower_bounds, dtype=np.double)
+
+    @property
     def free_upper_bounds(self) -> RealArray:
         """
 
@@ -396,10 +408,6 @@ class DOFs(GSONable, Hashable):
             Upper bounds of the DOFs
         """
         return self._upper_bounds[self._free]
-
-    @property
-    def full_upper_bounds(self) -> RealArray:
-        return self._upper_bounds
 
     @free_upper_bounds.setter
     def free_upper_bounds(self, upper_bounds: RealArray) -> None:
@@ -413,6 +421,22 @@ class DOFs(GSONable, Hashable):
         if self.reduced_len != len(upper_bounds):
             raise DofLengthMismatchError(len(upper_bounds), self.reduced_len)
         self._upper_bounds[self._free] = np.asarray(upper_bounds, dtype=np.double)
+
+    @property
+    def full_upper_bounds(self) -> RealArray:
+        return self._upper_bounds
+
+    @full_upper_bounds.setter
+    def full_upper_bounds(self, upper_bounds: RealArray) -> None:
+        """
+        Set the full upper bounds
+
+        Args:
+            upper_bounds: Upper bounds of the DOFs
+        """
+        if len(self.upper_bounds) != len(upper_bounds):
+            raise DofLengthMismatchError(len(upper_bounds), len(self.upper_bounds))
+        self._upper_bounds = np.asarray(upper_bounds, dtype=np.double)
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
@@ -942,6 +966,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: Develop a faster scheme.
         # TODO: Alternatively ask the user to call this manually from the end
         # TODO: node after fixing/unfixing any DOF
+        dof_indices = [0]
         full_dof_size = 0
         dof_objs = set()
         self.ancestors = self._get_ancestors()
@@ -950,8 +975,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             if opt.dofs not in dof_objs:
                 dof_objs.add(opt.dofs)
                 full_dof_size += opt.local_full_dof_size
+                dof_indices.append(full_dof_size)
                 self._unique_dof_opts.append(opt)
+
         self._full_dof_size = full_dof_size
+        self._full_dof_indices = dict(zip(self._unique_dof_opts,
+                                          zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the full dof length of children
         for weakref_child in self._children:
@@ -1030,6 +1059,14 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return np.concatenate([opt._dofs.full_x for
                                opt in self._unique_dof_opts])
+
+    @full_x.setter
+    def full_x(self, x: RealArray) -> None:
+        """
+        Setter used to set all the global DOF values
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt.local_full_x = x[indices[0]:indices[1]]
 
     @property
     def local_x(self) -> RealArray:
@@ -1131,12 +1168,39 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         return (self.lower_bounds, self.upper_bounds)
 
     @property
+    def full_bounds(self) -> Tuple[RealArray, RealArray]:
+        """
+        Lower and upper bounds of the fixed and free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
+        return (self.full_lower_bounds, self.full_upper_bounds)
+
+    @property
     def local_bounds(self) -> Tuple[RealArray, RealArray]:
         """
         Lower and upper bounds of the free DOFs associated with
         this Optimizable object
         """
         return self._dofs.bounds
+
+    @property
+    def full_lower_bounds(self) -> RealArray:
+        """
+        Lower bounds of the fixed and free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
+        return np.concatenate([opt._dofs.full_lower_bounds for opt in self.unique_dof_lineage])
+
+    @full_lower_bounds.setter
+    def full_lower_bounds(self, lb) -> None:
+        """
+        Set the lower bounds of the fixed and free DOFS associated with the
+        current Optimizable object and its ancestors.
+        """
+        if list(self.dof_indices.values())[-1][-1] != len(lb):
+            raise ValueError
+        for opt, indices in self.dof_indices.items():
+            opt._dofs.full_lower_bounds = lb[indices[0]:indices[1]]
 
     @property
     def lower_bounds(self) -> RealArray:
@@ -1146,6 +1210,28 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return np.concatenate([opt._dofs.free_lower_bounds for opt in self.unique_dof_lineage])
 
+    @lower_bounds.setter
+    def lower_bounds(self, lb) -> None:
+        """
+        Set the lower bounds of the free DOFS associated with the
+        current Optimizable object and its ancestors.
+        """
+        if list(self.dof_indices.values())[-1][-1] != len(lb):
+            raise ValueError
+        for opt, indices in self.dof_indices.items():
+            opt._dofs.free_lower_bounds = lb[indices[0]:indices[1]]
+
+    def set_lower_bound(self, key: Key, new_val: Real) -> None:
+        """
+        Update the value of the lower bound of a specified DOF.
+        Even lower bounds of fixed dofs can be set this way
+
+        Args:
+            key: DOF identifier
+            new_val: New value of the lower bound
+        """
+        self._dofs.update_lower_bound(key, new_val)
+
     @property
     def local_lower_bounds(self) -> RealArray:
         """
@@ -1154,9 +1240,48 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return self._dofs.free_lower_bounds
 
+    @local_lower_bounds.setter
+    def local_lower_bounds(self, llb: RealArray) -> None:
+        """
+        Set the lower bounds of the free dofs of this
+        Optimizable object.
+        """
+        self._dofs.free_lower_bounds = llb
+
     @property
     def local_full_lower_bounds(self) -> RealArray:
+        """
+        Get the lower bounds of the free and fixed dofs of this
+        Optimizable object.
+        """
         return self._dofs.full_lower_bounds
+
+    @local_full_lower_bounds.setter
+    def local_full_lower_bounds(self, llb: RealArray) -> None:
+        """
+        Set the lower bounds of the free and fixed dofs of this
+        Optimizable object.
+        """
+        self._dofs.full_lower_bounds = llb
+
+    @property
+    def full_upper_bounds(self) -> RealArray:
+        """
+        Upper bounds of the fixed and free DOFs associated with the current
+        Optimizable object and those of its ancestors
+        """
+        return np.concatenate([opt._dofs.full_upper_bounds for opt in self.unique_dof_lineage])
+
+    @full_upper_bounds.setter
+    def full_upper_bounds(self, ub) -> None:
+        """
+        Set the upper bounds of the fixed and free DOFS associated with the
+        current Optimizable object and its ancestors.
+        """
+        if list(self.dof_indices.values())[-1][-1] != len(ub):
+            raise ValueError
+        for opt, indices in self.dof_indices.items():
+            opt._dofs.full_upper_bounds = ub[indices[0]:indices[1]]
 
     @property
     def upper_bounds(self) -> RealArray:
@@ -1167,6 +1292,28 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
+    @upper_bounds.setter
+    def upper_bounds(self, ub) -> None:
+        """
+        Set the upper bounds of the free DOFS associated with the
+        current Optimizable object and its ancestors.
+        """
+        if list(self.dof_indices.values())[-1][-1] != len(ub):
+            raise ValueError
+        for opt, indices in self.dof_indices.items():
+            opt._dofs.free_upper_bounds = ub[indices[0]:indices[1]]
+
+    def set_upper_bound(self, key: Key, new_val: Real) -> None:
+        """
+        Update the value of the upper bound of a specified DOF.
+        Even upper bounds of fixed dofs can be set this way
+
+        Args:
+            key: DOF identifier
+            new_val: New value of the upper bound
+        """
+        self._dofs.update_upper_bound(key, new_val)
+
     @property
     def local_upper_bounds(self) -> RealArray:
         """
@@ -1175,13 +1322,29 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return self._dofs.free_upper_bounds
 
-    @property
-    def local_full_upper_bounds(self) -> RealArray:
-        return self._dofs.full_upper_bounds
-
     @local_upper_bounds.setter
     def local_upper_bounds(self, lub: RealArray) -> None:
+        """
+        Set the upper bounds of the free dofs of this
+        Optimizable object.
+        """
         self._dofs.free_upper_bounds = lub
+
+    @property
+    def local_full_upper_bounds(self) -> RealArray:
+        """
+        Get the upper bounds of the free and fixed dofs of this
+        Optimizable object.
+        """
+        return self._dofs.full_upper_bounds
+
+    @local_full_upper_bounds.setter
+    def local_full_upper_bounds(self, lub: RealArray) -> None:
+        """
+        Set the upper bounds of the free and fixed dofs of this
+        Optimizable object.
+        """
+        self._dofs.full_upper_bounds = lub
 
     @property
     def dof_names(self) -> StrArray:
@@ -1277,6 +1440,34 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         self._dofs.unfix(key)
         self.update_free_dof_size_indices()
+
+    def full_fix(self, arr: Key) -> None:
+        """
+        Set the fixed/free attribute for all dofs on which this Optimizable object
+        depends. 
+
+        Args:
+            arr: List or array of the same length as ``full_x``, containing
+                booleans. For each array entry that is ``True``, the corresponding dof will be set
+                to fixed.
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt._dofs._free[:] = np.logical_not(arr[indices[0]:indices[1]])
+            opt._dofs._update_opt_indices()
+
+    def full_unfix(self, arr: Key) -> None:
+        """
+        Set the fixed/free attribute for all dofs on which this Optimizable object
+        depends. 
+
+        Args:
+            arr: List or array of the same length as ``full_x``, containing
+                booleans. For each array entry that is ``True``, the corresponding dof will be set
+                to free.
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt._dofs._free[:] = arr[indices[0]:indices[1]]
+            opt._dofs._update_opt_indices()
 
     def local_fix_all(self) -> None:
         """
