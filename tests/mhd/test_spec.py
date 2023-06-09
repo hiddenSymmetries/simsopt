@@ -1,38 +1,40 @@
-import unittest
-import numpy as np
-import os
+from cmath import isnan
 import logging
+import os
 import shutil
+import unittest
 
-#from simsopt.mhd.spec import spec_found
-#if spec_found:
-#    from simsopt.mhd.spec import Spec, Residue, pyoculus_found
+import numpy as np
+
 try:
     import spec
     spec_found = True
-except:
+except ImportError:
     spec_found = False
 
 try:
     import pyoculus
     pyoculus_found = True
-except:
+except ImportError:
     pyoculus_found = False
 
 try:
     from mpi4py import MPI
-except:
+except ImportError:
     MPI = None
 
+from simsopt.geo import SurfaceGarabedian
+from simsopt.mhd import ProfileSpec
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
+
 if (MPI is not None) and spec_found:
-    from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.solve.serial import least_squares_serial_solve
+    from simsopt.mhd import Spec, Residue
+
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 @unittest.skipIf(not spec_found, "SPEC python module not found")
@@ -73,6 +75,24 @@ class SpecTests(unittest.TestCase):
         self.assertAlmostEqual(s.boundary.get_rc(0, 1), 0.1, places=places)
         self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
 
+    def test_init_freeboundary(self):
+        """
+        Try creating a Spec instance from a freeboundary file. Check value
+        of normal field
+        """
+
+        filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
+
+        s = Spec(filename)
+
+        places = 5
+        self.assertAlmostEqual(
+            s.normal_field.get_vns(
+                0, 1), -1.116910580000000E-04, places)
+        self.assertAlmostEqual(
+            s.normal_field.get_vns(
+                3, -1), 1.714666510000000E-03, places)
+
     def test_run(self):
         """
         Try running SPEC and reading in the output.
@@ -87,11 +107,77 @@ class SpecTests(unittest.TestCase):
                 s.inputlist.ntor = new_ntor
                 s.run()
 
-                self.assertAlmostEqual(s.volume(), 0.001973920880217874, places=4)
+                self.assertAlmostEqual(
+                    s.volume(), 0.001973920880217874, places=4)
 
-                self.assertAlmostEqual(s.results.output.helicity, 0.435225, places=3)
+                self.assertAlmostEqual(
+                    s.results.output.helicity, 0.435225, places=3)
 
                 self.assertAlmostEqual(s.iota(), 0.544176, places=3)
+
+    def test_set_profile_non_cumulative(self):
+        """
+        Set a SPEC profile of a non-cumulative quantity (surface current in this example)
+        and try to modify it.
+        """
+
+        filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
+
+        s = Spec(filename)
+        nvol = s.inputlist.nvol
+        mvol = nvol + s.inputlist.lfreebound
+
+        cumulative = False  # Surfaces currents are non-cumulative quantities in SPEC
+        surface_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
+
+        s.interface_current_profile = surface_current
+
+        # Check that all currents are actually zero
+        for lvol in range(1, mvol):
+            self.assertEqual(s.get_profile('interface_current', lvol), 0)
+
+        # Modify one interface current
+        s.set_profile('interface_current', lvol=3, value=1)
+
+        # Check values
+        for lvol in range(1, mvol):
+            if lvol != 3:
+                self.assertEqual(s.get_profile('interface_current', lvol), 0)
+            else:
+                self.assertEqual(s.get_profile('interface_current', lvol), 1)
+
+    def test_set_profile_cumulative(self):
+        """
+        Set a SPEC profile of a cumulative quantity (volume current in this example)
+        and tries to modify it.
+        """
+
+        filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
+
+        s = Spec(filename)
+        nvol = s.inputlist.nvol
+        mvol = nvol + s.inputlist.lfreebound
+
+        cumulative = True  # Surfaces currents are non-cumulative quantities in SPEC
+        volume_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
+
+        s.volume_current_profile = volume_current
+
+        # Check that all currents are actually zero
+        for lvol in range(1, mvol):
+            self.assertEqual(s.get_profile('volume_current', lvol), 0)
+
+        # Modify one interface current
+        s.set_profile('volume_current', lvol=3, value=1)
+
+        print(s.volume_current_profile)
+
+        # Check values
+        for lvol in range(1, mvol):
+            if lvol < 3:
+                self.assertEqual(s.get_profile('volume_current', lvol), 0)
+            else:
+                self.assertEqual(s.get_profile('volume_current', lvol), 1)
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """
@@ -139,6 +225,9 @@ class SpecTests(unittest.TestCase):
             equil.inputlist.nptrj[0] = 0
             equil.inputlist.lrad[0] = 2
 
+            # remove GMRES solver
+            equil.inputlist.lmatsolver = 1
+
             # Each Target is then equipped with a shift and weight, to become a
             # term in a least-squares objective function
             desired_volume = 0.15
@@ -154,10 +243,61 @@ class SpecTests(unittest.TestCase):
             # Solve the minimization problem:
             least_squares_serial_solve(prob, grad=grad)
 
-            self.assertAlmostEqual(surf.get_rc(0, 0), 0.7599088773175, places=5)
+            self.assertAlmostEqual(
+                surf.get_rc(
+                    0,
+                    0),
+                0.7599088773175,
+                places=5)
             self.assertAlmostEqual(equil.volume(), 0.15, places=6)
             self.assertAlmostEqual(surf.volume(), 0.15, places=6)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
+
+    def test_optimize_net_toroidal_current(self):
+        """
+        This script demonstrate how a ProfileSpec can be used to optimize SPEC input
+        profiles to reach a given target.
+
+        The initial equilibrium is a free-boundary rotating ellipse with a single plasma
+        volume, in vacuum.
+
+        The degree of freedom is the net toroidal current flowing in the plasma volume.
+
+        We target a rotational transform on axis of 0.55, and the target function is
+        defined as (iota - iota_target)^2
+        """
+
+        # Create Spec object
+        os.chdir(TEST_DIR)
+        filename = 'RotatingEllipse_Nvol2.sp'
+        s = Spec(filename=filename)
+
+        # Define volume current profile
+        mvol = s.inputlist.nvol
+        ivolume = ProfileSpec(np.zeros((mvol,)), cumulative=True)
+        s.volume_current_profile = ivolume
+
+        # Define dofs
+        s.fix_all()
+        s.volume_current_profile.unfix(0)  # unfix in first volume
+
+        # Now define target function
+        target_iota = 0.55
+        prob = LeastSquaresProblem.from_tuples([(s.iota, target_iota, 1)])
+
+        # Solve
+        least_squares_serial_solve(prob, grad=False)
+
+        # Check result
+        self.assertAlmostEqual(s.iota(), 0.55, places=5)
+        self.assertAlmostEqual(
+            s.get_profile('volume_current', lvol=0)[0],
+            0.01659580617394017,
+            places=4)
+        self.assertAlmostEqual(
+            s.get_profile('volume_current', lvol=1)[0],
+            0.01659580617394017,
+            places=4)
 
     def test_integrated_stellopt_scenarios_1dof_Garabedian(self):
         """
@@ -242,7 +382,8 @@ class SpecTests(unittest.TestCase):
         surf = equil.boundary
 
         # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
-        # You can choose which parameters are optimized by setting their 'fixed' attributes.
+        # You can choose which parameters are optimized by setting their
+        # 'fixed' attributes.
         surf.local_fix_all()
         surf.unfix('rc(1,1)')
         surf.unfix('zs(1,1)')
@@ -265,7 +406,8 @@ class SpecTests(unittest.TestCase):
 
         # The tests here are based on values from the VMEC version in
         # https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
-        # Due to this and the fact that we don't yet have iota on axis from SPEC, the tolerances are wide.
+        # Due to this and the fact that we don't yet have iota on axis from
+        # SPEC, the tolerances are wide.
         """
         assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 0.001
         assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 0.001
@@ -292,6 +434,7 @@ class SpecTests(unittest.TestCase):
 
         # Initialize SPEC from an input file
         spec = Spec(filename)
+
         # The main resonant surface is iota = p / q:
         p = -8
         q = 7

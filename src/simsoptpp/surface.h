@@ -84,6 +84,7 @@ class Surface {
         void fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta);
         void scale(double scale);
         void extend_via_normal(double scale);
+        void extend_via_projected_normal(double scale);
 
         void invalidate_cache() {
 

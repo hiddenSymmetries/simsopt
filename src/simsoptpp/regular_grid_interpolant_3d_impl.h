@@ -123,6 +123,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
     }
 
     double* vals_local = got->second.data();
+    #if defined(USE_XSIMD)
     if(xsimd::simd_type<double>::size >= 3){
         simd_t xyz;
         xyz[0] = x;
@@ -169,6 +170,34 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
             res[l+ll] = sumi[ll];
         }
     }
+    #else
+    for (int k = 0; k < degree+1; ++k) {
+        pkxs[k] = this->rule.basis_fun(k, x);
+        pkys[k] = this->rule.basis_fun(k, y);
+        pkzs[k] = this->rule.basis_fun(k, z);
+    }
+    for(int l=0; l<padded_value_size; l += simdcount) {
+        double sumi(0.);
+        int offset_local = l;
+        double* val_ptr = &(vals_local[offset_local]);
+        for (int i = 0; i < degree+1; ++i) {
+            double sumj(0.);
+            for (int j = 0; j < degree+1; ++j) {
+                double sumk(0.);
+                for (int k = 0; k < degree+1; ++k) {
+                    double pkz = pkzs[k];
+                    sumk += (*val_ptr) * pkz;
+                    val_ptr += padded_value_size;
+                }
+                double pjy = pkys[j];
+                sumj += sumk * pjy;
+            }
+            double pix = pkxs[i];
+            sumi += sumj * pix;
+        }
+        res[l] = sumi;
+    }
+    #endif
 }
 
 template<class Array>
