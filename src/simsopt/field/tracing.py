@@ -849,7 +849,8 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
         axs[col].tick_params(axis='both', which='major', labelsize=fs-2)
         plt.rc('axes', axisbelow=True)
         axs[col].grid(True, linewidth=0.5)
-        #axs[col].set_aspect(aspect)
+        axs[col].set_aspect(aspect, adjustable='box')
+        #plt.gca().set_aspect('equal',adjustable='box')
 
         # if passed a surface, plot the plasma surface outline
         if surf is not None:
