@@ -966,6 +966,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: Develop a faster scheme.
         # TODO: Alternatively ask the user to call this manually from the end
         # TODO: node after fixing/unfixing any DOF
+        dof_indices = [0]
         full_dof_size = 0
         dof_objs = set()
         self.ancestors = self._get_ancestors()
@@ -974,8 +975,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             if opt.dofs not in dof_objs:
                 dof_objs.add(opt.dofs)
                 full_dof_size += opt.local_full_dof_size
+                dof_indices.append(full_dof_size)
                 self._unique_dof_opts.append(opt)
+
         self._full_dof_size = full_dof_size
+        self._full_dof_indices = dict(zip(self._unique_dof_opts,
+                                          zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the full dof length of children
         for weakref_child in self._children:
@@ -1054,6 +1059,14 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return np.concatenate([opt._dofs.full_x for
                                opt in self._unique_dof_opts])
+
+    @full_x.setter
+    def full_x(self, x: RealArray) -> None:
+        """
+        Setter used to set all the global DOF values
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt.local_full_x = x[indices[0]:indices[1]]
 
     @property
     def local_x(self) -> RealArray:
@@ -1427,6 +1440,34 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         self._dofs.unfix(key)
         self.update_free_dof_size_indices()
+
+    def full_fix(self, arr: Key) -> None:
+        """
+        Set the fixed/free attribute for all dofs on which this Optimizable object
+        depends. 
+
+        Args:
+            arr: List or array of the same length as ``full_x``, containing
+                booleans. For each array entry that is ``True``, the corresponding dof will be set
+                to fixed.
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt._dofs._free[:] = np.logical_not(arr[indices[0]:indices[1]])
+            opt._dofs._update_opt_indices()
+
+    def full_unfix(self, arr: Key) -> None:
+        """
+        Set the fixed/free attribute for all dofs on which this Optimizable object
+        depends. 
+
+        Args:
+            arr: List or array of the same length as ``full_x``, containing
+                booleans. For each array entry that is ``True``, the corresponding dof will be set
+                to free.
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt._dofs._free[:] = arr[indices[0]:indices[1]]
+            opt._dofs._update_opt_indices()
 
     def local_fix_all(self) -> None:
         """

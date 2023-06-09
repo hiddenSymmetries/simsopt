@@ -18,13 +18,14 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
-#include "dommaschk.h"
+#include "boozerradialinterpolant.h"
 #include "dipole_field.h"
 #include "current_voxels.h"
 #include "current_voxels_field.h"
+#include "dommaschk.h"
+#include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
 #include "reiman.h"
-#include "boozerradialinterpolant.h"
 #include "simdhelpers.h"
 
 namespace py = pybind11;
@@ -91,6 +92,8 @@ PYBIND11_MODULE(simsoptpp, m) {
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("integral_BdotN", &integral_BdotN);
 
     m.def("ReimanB" , &ReimanB);
     m.def("ReimandB", &ReimandB);
@@ -174,55 +177,6 @@ PYBIND11_MODULE(simsoptpp, m) {
             eigC = eigv.transpose()*eigB;
             return C;
         });
-
-    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n) {
-        int nphi = Bcoil.shape(0);
-        int ntheta = Bcoil.shape(1);
-        double *Bcoil_ptr = Bcoil.data();
-        double *Btarget_ptr = NULL;
-        double *n_ptr = n.data();
-        if(Bcoil.layout() != xt::layout_type::row_major)
-              throw std::runtime_error("Bcoil needs to be in row-major storage order");
-        if(Bcoil.shape(2) != 3)
-            throw std::runtime_error("Bcoil has wrong shape.");
-        if(Bcoil.size() != 3*nphi*ntheta)
-            throw std::runtime_error("Bcoil has wrong size.");
-        if(n.layout() != xt::layout_type::row_major)
-              throw std::runtime_error("n needs to be in row-major storage order");
-        if(n.shape(0) != nphi)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.shape(1) != ntheta)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.shape(2) != 3)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.size() != 3*nphi*ntheta)
-            throw std::runtime_error("n has wrong size.");
-        if(Btarget.size() > 0){
-            if(Btarget.layout() != xt::layout_type::row_major)
-                throw std::runtime_error("Btarget needs to be in row-major storage order");
-            if(Btarget.shape(0) != nphi)
-                throw std::runtime_error("Btarget has wrong shape.");
-            if(Btarget.shape(1) != ntheta)
-                throw std::runtime_error("Btarget has wrong shape.");
-            if(Btarget.size() != nphi*ntheta)
-                throw std::runtime_error("Btarget has wrong size.");
-
-            Btarget_ptr = Btarget.data();
-        }
-        double res = 0;
-#pragma omp parallel for reduction(+:res)
-        for(int i=0; i<nphi*ntheta; i++){
-            double normN = std::sqrt(n_ptr[3*i+0]*n_ptr[3*i+0] + n_ptr[3*i+1]*n_ptr[3*i+1] + n_ptr[3*i+2]*n_ptr[3*i+2]);
-            double Nx = n_ptr[3*i+0]/normN;
-            double Ny = n_ptr[3*i+1]/normN;
-            double Nz = n_ptr[3*i+2]/normN;
-            double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
-            if(Btarget_ptr != NULL)
-                BcoildotN -= Btarget_ptr[i];
-            res += (BcoildotN * BcoildotN) * normN;
-        }
-        return 0.5 * res / (nphi*ntheta);
-    });
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
