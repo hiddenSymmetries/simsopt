@@ -12,11 +12,13 @@ import logging
 import numpy as np
 import numpy.polynomial.polynomial as poly
 from scipy.interpolate import InterpolatedUnivariateSpline
+import numbers
 
 from .._core.optimizable import Optimizable
+from .._core.types import RealArray
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
-           'ProfilePressure']
+           'ProfilePressure', 'ProfileSpec']
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,88 @@ class Profile(Optimizable):
         plt.xlabel('Normalized toroidal flux $s$')
         if show:
             plt.show()
+
+
+class ProfileSpec(Profile):
+    """
+    A profile described by an array of size Nvol
+
+    Args:
+        data: 1D numpy array containing the profile value in each volume
+        cumulative: Set to True if the profile is cumulative, i.e. if the value 
+            in volume lvol is the integrated quantity from the axis to volume lvol.
+            Only the toroidal flux, poloidal flux and the volume currents are 
+            cumulative quantities in SPEC input file. False by default.
+    """
+
+    def __init__(self, data, cumulative: bool = False, psi_edge: float = None):
+        super().__init__(x0=np.array(data))
+        self.local_fix_all()
+        self.cumulative = cumulative
+        self.psi_edge = psi_edge
+
+    def f(self, lvol: int):
+        """
+        Return the value of the profile in volume lvol
+
+        Args:
+            lvol: int, list or np.array of int, between 0 and Mvol
+        """
+
+        # If input is a integer, make an np.array
+        if isinstance(lvol, numbers.Number):
+            lvol = np.array([lvol])
+
+        # If input are floats, make integer out of them
+        lvol = np.array([int(l) for l in lvol])
+
+        # Check that volume index is within bounds
+        if (lvol < 0).any():
+            raise ValueError('lvol should be larger or equal than zero')
+        if (lvol >= self.local_full_x.size).any():
+            raise ValueError('lvol should be smaller than Mvol')
+
+        # Return value
+        return self.local_full_x[lvol]
+
+    def dfds(self, lvol):
+        """
+        Returns the derivative of the profile w.r.t s accross interface. 
+        The derivative is returned at the interface lvol, with
+        the innermost interface being lvol=1. (Volume lvol is bounded
+        by interface lvol and lvol+1, with innermost volume being lvol=0)
+
+        Here :math:`s` is defined as :math:`s = \psi_t/\psi_{edge}`. Thus,
+
+        .. math::
+
+            dp/ds = \sum_l [[p]]_l \psi_{edge} \delta(\psi_t-\psi_{t,l})
+
+        with p the profile, and the sum is on the interfaces.
+
+        Args:
+            lvol: int, list or np.array of int, between 1 and Mvol-1. 
+        """
+        # If input is a integer, make an np.array
+        if isinstance(lvol, numbers.Number):
+            lvol = np.array([lvol])
+
+        # If input are floats, make integer out of them
+        lvol = np.array([int(l) for l in lvol])
+
+        # Check that volume index is within bounds
+        if (lvol < 0).any():
+            raise ValueError('lvol should be larger or equal than zero')
+        if (lvol >= self.local_full_x.size-1).any():
+            raise ValueError('lvol should be smaller than Mvol-1')
+        if self.psi_edge is None:
+            raise ValueError('Need to provide psi_edge to perform derivatives')
+
+        lvolin = [l-1 for l in lvol]
+        x_out = self.local_full_x[lvol]
+        x_in = self.local_full_x[lvolin]
+
+        return (x_out-x_in) * self.psi_edge
 
 
 class ProfilePolynomial(Profile):
@@ -92,7 +176,11 @@ class ProfileScaled(Profile):
 
     def __init__(self, base, scalefac):
         self.base = base
-        super().__init__(x0=np.array([scalefac]), names=['scalefac'], depends_on=[base])
+        super().__init__(
+            x0=np.array(
+                [scalefac]),
+            names=['scalefac'],
+            depends_on=[base])
         self.local_fix_all()
 
     def f(self, s):
@@ -126,11 +214,13 @@ class ProfileSpline(Profile):
 
     def f(self, s):
         """ Return the value of the profile at specified points in s. """
-        return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree)(s)
+        return InterpolatedUnivariateSpline(
+            self.s, self.full_x, k=self.degree)(s)
 
     def dfds(self, s):
         """ Return the d/ds derivative of the profile at specified points in s. """
-        return InterpolatedUnivariateSpline(self.s, self.full_x, k=self.degree).derivative()(s)
+        return InterpolatedUnivariateSpline(
+            self.s, self.full_x, k=self.degree).derivative()(s)
 
     def resample(self, new_s, degree=None):
         """
@@ -177,9 +267,11 @@ class ProfilePressure(Profile):
 
     def __init__(self, *args):
         if len(args) == 0:
-            raise ValueError('At least one density and temperature profile must be provided.')
+            raise ValueError(
+                'At least one density and temperature profile must be provided.')
         if len(args) % 2 == 1:
-            raise ValueError('The number of input profiles for a ProfilePressure object must be even')
+            raise ValueError(
+                'The number of input profiles for a ProfilePressure object must be even')
         super().__init__(depends_on=args)
 
     def f(self, s):
@@ -193,6 +285,6 @@ class ProfilePressure(Profile):
         """ Return the d/ds derivative of the profile at specified points in s. """
         total = 0
         for j in range(int(len(self.parents) / 2)):
-            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(s) \
+            total += self.parents[2 * j].f(s) * self.parents[2 * j + 1].dfds(s)\
                 + self.parents[2 * j].dfds(s) * self.parents[2 * j + 1](s)
         return total

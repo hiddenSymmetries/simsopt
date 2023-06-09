@@ -2,6 +2,8 @@ import unittest
 from pathlib import Path
 import json
 
+from qsc import Qsc
+
 import numpy as np
 from simsopt import save, load
 
@@ -379,6 +381,56 @@ class SurfaceRZFourierTests(unittest.TestCase):
         #    true_volume, ", difference:", volume - true_volume)
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
+
+    def test_from_pyQSC(self):
+        """
+        Try reading in a near-axis pyQSC equilibrium.
+        """
+        stel = Qsc.from_paper(1)
+        filename = TEST_DIR / 'input.near_axis_test'
+
+        ntheta = 20
+        mpol = 10
+        ntor = 10
+        r = 0.1
+
+        stel.to_vmec(filename, r=r, ntheta=ntheta, ntorMax=ntor, params={'mpol': mpol, 'ntor': ntor})
+
+        s1 = SurfaceRZFourier.from_pyQSC(stel, r=r, ntheta=ntheta, ntor=ntor, mpol=mpol)
+        s2 = SurfaceRZFourier.from_vmec_input(filename)
+
+        np.testing.assert_allclose(s1.rc, s2.rc)
+        np.testing.assert_allclose(s1.zs, s2.zs)
+        np.testing.assert_allclose(s1.nfp, s2.nfp)
+        np.testing.assert_allclose(s1.stellsym, s2.stellsym)
+        np.testing.assert_allclose(s1.area(), s2.area())
+        np.testing.assert_allclose(s1.volume(), s2.volume())
+
+        # test possible bug due to memory leak
+        # stell sym
+        from simsopt.configs import get_ncsx_data
+        _, _, ma = get_ncsx_data()
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=3, etabar=-0.408)
+        phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_period.x = full_torus.x
+
+        np.testing.assert_allclose(full_torus.rc, full_period.rc)
+        np.testing.assert_allclose(full_torus.zs, full_period.zs)
+
+        np.random.seed(1)
+        # non stell sym for code coverage
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)
+        phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_period.x = full_torus.x
+
+        np.testing.assert_allclose(full_torus.rc, full_period.rc)
+        np.testing.assert_allclose(full_torus.zs, full_period.zs)
 
     def test_change_resolution(self):
         """

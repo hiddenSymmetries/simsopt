@@ -96,7 +96,7 @@ Jls = [CurveLength(c) for c in base_curves]
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-JF = Jf + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET)
+JF = Jf + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 
 B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('Initial max|B dot n|:', np.max(np.abs(B_dot_n)))
@@ -141,6 +141,10 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
 B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('Final max|B dot n|:', np.max(np.abs(B_dot_n)))
+
+total_curve_length = sum(func.J() for func in Jls)
+print("Sum of lengths of base curves:", total_curve_length)
+assert total_curve_length < 1.1 * LENGTH_TARGET
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")

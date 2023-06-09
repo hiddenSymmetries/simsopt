@@ -50,7 +50,7 @@ class InterpolationRule {
             }
             return res;
         }
-
+        #if defined(USE_XSIMD)
         simd_t basis_fun(int idx, simd_t x) const {
             // evaluate the basisfunction p_idx at multiple locations stored in x
             simd_t res(scalings[idx]);
@@ -60,6 +60,7 @@ class InterpolationRule {
             }
             return res;
         }
+        #endif
 };
 
 template<class Array>
@@ -113,7 +114,11 @@ class RegularGridInterpolant3D {
         int local_vals_size;
         Vec pkxs, pkys, pkzs;
 
+        #if defined(USE_XSIMD)
         static const int simdcount = xsimd::simd_type<double>::size; // vector width for simd instructions
+        #else
+        static const int simdcount = 1; // vector width is set to 1 for non-xsimd code
+        #endif
         int padded_value_size; // smallest multiple of simdcount that is larger than value_size
 
         inline int idx_dof(int i, int j, int k){
