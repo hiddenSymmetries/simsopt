@@ -28,8 +28,8 @@ class Testing(unittest.TestCase):
 
     def test_bad_params(self):
         """
-            Test that the permanent magnet optimizer initialization
-            correctly catches bad instances of the function arguments.
+        Test that the permanent magnet optimizer initialization
+        correctly catches bad instances of the function arguments.
         """
         nphi = 4
         ntheta = nphi
@@ -112,8 +112,8 @@ class Testing(unittest.TestCase):
 
     def test_optimize_bad_parameters(self):
         """
-            Test that the permanent magnet optimize
-            correctly catches bad instances of the function arguments.
+        Test that the permanent magnet optimize
+        correctly catches bad instances of the function arguments.
         """
         nphi = 4
         ntheta = nphi
@@ -165,10 +165,9 @@ class Testing(unittest.TestCase):
 
     def test_projected_normal(self):
         """
-            Make two RZFourier surfaces, extend one of them with
-            the projected normal vector in the RZ plane, and check
-            that both surfaces still have the same values of the
-            toroidal angle. 
+        Make two RZFourier surfaces, extend one of them with the projected
+        normal vector in the RZ plane, and check that both surfaces still
+        have the same values of the toroidal angle.
         """
         nphi = 8
         ntheta = nphi
@@ -186,9 +185,9 @@ class Testing(unittest.TestCase):
 
     def test_Bn(self):
         """
-            Creates a realistic QA configuration, some permanent magnets, and optimizes it
-            with the default parameters. Checks the the pm_opt object agrees with Bn and
-            f_B with the DipoleField + SquaredFlux way of calculating Bn and f_B.
+        Creates a realistic QA configuration, some permanent magnets, and optimizes it
+        with the default parameters. Checks the the pm_opt object agrees with Bn and
+        f_B with the DipoleField + SquaredFlux way of calculating Bn and f_B.
         """
         nphi = 8
         ntheta = nphi 
@@ -210,13 +209,11 @@ class Testing(unittest.TestCase):
         kwargs = {"dr": 0.15}
         pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs) 
         _, _, _, = relax_and_split(pm_opt)
-        b_dipole = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            pm_opt.m_proxy,
-            nfp=s.nfp,
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
-        )
+        b_dipole = DipoleField(pm_opt.dipole_grid_xyz,
+                               pm_opt.m_proxy,
+                               nfp=s.nfp,
+                               coordinate_flag=pm_opt.coordinate_flag,
+                               m_maxima=pm_opt.m_maxima)
         b_dipole.set_points(s.gamma().reshape(-1, 3))
 
         # check Bn
@@ -249,10 +246,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(pm_opt.m_maxima, mmax_new)
         pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2)
         _, _, _, = relax_and_split(pm_opt)
-        b_dipole = DipoleField(
-            pm_opt.dipole_grid_xyz, pm_opt.m_proxy, nfp=s.nfp,
-            coordinate_flag=pm_opt.coordinate_flag, m_maxima=pm_opt.m_maxima,
-        )
+        b_dipole = DipoleField(pm_opt.dipole_grid_xyz, pm_opt.m_proxy, nfp=s.nfp,
+                               coordinate_flag=pm_opt.coordinate_flag, m_maxima=pm_opt.m_maxima)
         b_dipole.set_points(s.gamma().reshape(-1, 3))
 
         # check Bn
@@ -273,9 +268,9 @@ class Testing(unittest.TestCase):
 
     def test_grid_chopping(self):
         """
-            Makes a tokamak, extends two toroidal surfaces from this surface, and checks
-            that the grid chopping function correctly removes magnets that are not between
-            the inner and outer surfaces.
+        Makes a tokamak, extends two toroidal surfaces from this surface, and checks
+        that the grid chopping function correctly removes magnets that are not between
+        the inner and outer surfaces.
         """
         filename = TEST_DIR / 'input.circular_tokamak'
         nphi = 16
@@ -310,15 +305,8 @@ class Testing(unittest.TestCase):
 
         # Try with cylindrical functionality 
         grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-            phi, 
-            normal_inner, 
-            normal_outer,
-            RphiZ, 
-            r_inner, 
-            r_outer, 
-            z_inner, 
-            z_outer
-        )
+                phi, normal_inner, normal_outer, RphiZ,
+                r_inner, r_outer, z_inner, z_outer)
         inds = np.array(inds, dtype=int)
         for i in reversed(range(1, len(inds))):
             for j in range(0, i):
@@ -335,12 +323,8 @@ class Testing(unittest.TestCase):
 
         # Repeat with cartesian functionality
         final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            normal_inner, 
-            normal_outer, 
-            XYZ, 
-            xyz_inner, 
-            xyz_outer
-        )
+                normal_inner, normal_outer,
+                XYZ, xyz_inner, xyz_outer)
         inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
         final_grid = final_grid[inds, :]
         final_rz_grid = np.zeros(final_grid.shape)
@@ -353,8 +337,8 @@ class Testing(unittest.TestCase):
 
     def test_famus_functionality(self):
         """
-            Tests the FocusData and FocusPlasmaBnormal classes 
-            and class functions. 
+        Tests the FocusData and FocusPlasmaBnormal classes
+        and class functions.
         """
         fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
         bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
@@ -430,8 +414,8 @@ class Testing(unittest.TestCase):
 
     def test_polarizations(self):
         """
-            Tests the polarizations and related functions from the
-            polarization_project file. 
+        Tests the polarizations and related functions from the
+        polarization_project file.
         """
         theta = 0.0 
         vecs = faceedge_vectors(theta)
@@ -449,11 +433,11 @@ class Testing(unittest.TestCase):
         theta = 39.0 * np.pi / 180.0
         assert np.allclose(pol_fc39, facecorner_vectors(theta))
         assert np.allclose(np.concatenate((pol_f, faceedge_vectors(theta),
-                           facecorner_vectors(theta)), axis=0
-                                          ), face_triplet(theta, theta))
+                                           facecorner_vectors(theta)), axis=0),
+                           face_triplet(theta, theta))
         assert np.allclose(np.concatenate((pol_e, faceedge_vectors(theta),
-                           facecorner_vectors(theta)), axis=0
-                                          ), edge_triplet(theta, theta))
+                                           facecorner_vectors(theta)), axis=0),
+                           edge_triplet(theta, theta))
         pol_axes, _ = polarization_axes('face')
         assert np.allclose(pol_f, pol_axes)
         pol_axes, _ = polarization_axes('edge')
@@ -543,13 +527,15 @@ class Testing(unittest.TestCase):
         assert np.allclose(B0avg, 0.15)
 
         # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
-        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc', range="half period", nphi=nphi, ntheta=ntheta)
+        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc',
+                                       range="half period", nphi=nphi, ntheta=ntheta)
         base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
         assert np.allclose(B0avg, 0.15)
 
-        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc', range="half period", nphi=nphi, ntheta=ntheta)
+        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
+                                       range="half period", nphi=nphi, ntheta=ntheta)
         base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
         bs = BiotSavart(coils)
         B0avg = calculate_on_axis_B(bs, s)
@@ -655,28 +641,22 @@ class Testing(unittest.TestCase):
         # drastically downsample the grid for speed here
         kwargs = {"downsample": 100}
         pm_opt = PermanentMagnetGrid.geo_setup_from_famus(
-            s, Bn=np.zeros(s.normal().shape[:2]), 
-            famus_filename=(TEST_DIR / 'zot80.focus'), **kwargs,
-        ) 
+            s, Bn=np.zeros(s.normal().shape[:2]),
+            famus_filename=(TEST_DIR / 'zot80.focus'), **kwargs)
         kwargs = initialize_default_kwargs(algorithm='GPMO')
         kwargs['verbose'] = False
         kwargs['K'] = 500
         R2_history, Bn_history, m_history = GPMO(pm_opt, 'baseline', **kwargs)
-        b_dipole = DipoleField(
-            pm_opt.dipole_grid_xyz,
-            pm_opt.m, 
-            nfp=s.nfp,
-            coordinate_flag=pm_opt.coordinate_flag,
-            m_maxima=pm_opt.m_maxima,
-        )
+        b_dipole = DipoleField(pm_opt.dipole_grid_xyz, pm_opt.m, nfp=s.nfp,
+                               coordinate_flag=pm_opt.coordinate_flag,
+                               m_maxima=pm_opt.m_maxima)
         # Make higher resolution surface for qfm
         qphi = 2 * nphi
         quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
         quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-        s_plot = SurfaceRZFourier.from_focus(
-            surface_filename, range="full torus",
-            quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
-        )
+        s_plot = SurfaceRZFourier.from_focus(surface_filename, range="full torus",
+                                             quadpoints_phi=quadpoints_phi,
+                                             quadpoints_theta=quadpoints_theta)
 
         # Make QFM surfaces
         Bfield = bs + b_dipole

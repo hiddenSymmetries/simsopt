@@ -340,10 +340,8 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
 
     """
     if not hasattr(pm_opt, "A_obj"):
-        raise ValueError(
-            "The PermanentMagnetClass needs to use geo_setup() or "
-            "geo_setup_from_famus() before calling optimization routines."
-        )
+        raise ValueError("The PermanentMagnetClass needs to use geo_setup() or "
+                         "geo_setup_from_famus() before calling optimization routines.")
 
     # Begin the various algorithms
     errors = []
@@ -367,8 +365,7 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         if kwargs["K"] > pm_opt.ndipoles:
             warnings.warn(
                 'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
-                ' so the algorithm will set K = the total number and proceed.'
-            )
+                ' so the algorithm will set K = the total number and proceed.')
             kwargs["K"] = pm_opt.ndipoles
         print('Number of binary dipoles to use in GPMO algorithm = ', kwargs["K"])
 
@@ -427,16 +424,12 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             **kwargs
         )
     else:
-        raise NotImplementedError(
-            'Requested algorithm variant is incorrect or not yet implemented'
-        )
+        raise NotImplementedError('Requested algorithm variant is incorrect or not yet implemented')
 
     # rescale m and m_history
     m = m * (mmax_vec.reshape(pm_opt.ndipoles, 3))
-    print(
-        'Number of binary dipoles returned by GPMO algorithm = ',
-        np.count_nonzero(np.sum(m, axis=-1))
-    )
+    print('Number of binary dipoles returned by GPMO algorithm = ',
+          np.count_nonzero(np.sum(m, axis=-1)))
 
     # rescale the m that have been saved every Nhistory iterations
     for i in range(m_history.shape[-1]):
