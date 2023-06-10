@@ -474,7 +474,7 @@ class Testing(unittest.TestCase):
         field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
         Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(B, Bfield_regen.B()))
-        
+
         #Field configuration from Dommaschk paper equation number (40)
         mn = [[5, 2], [5, 4], [5, 10]]
         coeffs = [[1.4, 1.4], [19.25, 0], [5.10e10, 5.10e10]]

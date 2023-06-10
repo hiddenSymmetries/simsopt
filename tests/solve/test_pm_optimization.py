@@ -43,7 +43,7 @@ class Testing(unittest.TestCase):
         ATb = np.tensordot(A, b, axes=([0, 0]))
         MwPGP_hist, RS_hist, m_hist, dipoles = sopp.MwPGP_algorithm(
             A_obj=A, b_obj=b, ATb=ATb, m_proxy=m0, m0=m0, m_maxima=m_maxima,
-            alpha=alpha, nu=1e100, epsilon=1e-4, max_iter=max_iter, # verbose=True,
+            alpha=alpha, nu=1e100, epsilon=1e-4, max_iter=max_iter,  # verbose=True,
             reg_l0=0.0, reg_l1=0.0, reg_l2=0.0)
         m_hist = np.array(m_hist)
         assert dipoles.shape == (ndipoles, 3)
