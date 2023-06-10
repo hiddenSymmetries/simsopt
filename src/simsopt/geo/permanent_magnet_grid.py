@@ -44,38 +44,27 @@ class PermanentMagnetGrid:
             using the dr and dz parameters.
     """
 
-    def __init__(
-        self, plasma_boundary: Surface,
-        Bn,
-        coordinate_flag='cartesian',
-    ):
+    def __init__(self, plasma_boundary: Surface, Bn, coordinate_flag='cartesian'):
         Bn = np.array(Bn)
         if len(Bn.shape) != 2: 
-            raise ValueError(
-                'Normal magnetic field surface data is incorrect shape.'
-            )
+            raise ValueError('Normal magnetic field surface data is incorrect shape.')
         self.Bn = Bn
 
         if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
             raise NotImplementedError(
                 'Only cartesian, cylindrical, and toroidal (simple toroidal)'
-                ' coordinate systems have been implemented so far.'
-            )
+                ' coordinate systems have been implemented so far.')
         elif coordinate_flag == 'cartesian':
-            warnings.warn(
-                'Cartesian grid of rectangular cubes will be built, since '
-                'coordinate_flag = "cartesian". However, such a grid can be '
-                'appropriately reflected only for nfp = 2 and nfp = 4, '
-                'unlike the uniform cylindrical grid, which has continuous '
-                'rotational symmetry.'
-            )
+            warnings.warn('Cartesian grid of rectangular cubes will be built, since '
+                          'coordinate_flag = "cartesian". However, such a grid can be '
+                          'appropriately reflected only for nfp = 2 and nfp = 4, '
+                          'unlike the uniform cylindrical grid, which has continuous '
+                          'rotational symmetry.')
         self.coordinate_flag = coordinate_flag
         self.plasma_boundary = plasma_boundary.to_RZFourier()
         self.R0 = self.plasma_boundary.get_rc(0, 0)
-        self.phi = self.plasma_boundary.quadpoints_phi
-        self.nphi = len(self.phi)
-        self.theta = self.plasma_boundary.quadpoints_theta
-        self.ntheta = len(self.theta)
+        self.nphi = len(self.plasma_boundary.quadpoints_phi)
+        self.ntheta = len(self.plasma_boundary.quadpoints_theta)
 
     def _setup_uniform_grid(self):
         """
@@ -148,21 +137,11 @@ class PermanentMagnetGrid:
 
         # Save uniform grid before we start chopping off parts.
         contig = np.ascontiguousarray
-        pointsToVTK(
-            'uniform_grid',
-            contig(self.xyz_uniform[:, 0]),
-            contig(self.xyz_uniform[:, 1]),
-            contig(self.xyz_uniform[:, 2])
-        )
+        pointsToVTK('uniform_grid', contig(self.xyz_uniform[:, 0]),
+                    contig(self.xyz_uniform[:, 1]), contig(self.xyz_uniform[:, 2]))
 
     @classmethod
-    def geo_setup_from_famus(
-        cls,
-        plasma_boundary,
-        Bn,
-        famus_filename,
-        **kwargs,
-    ):
+    def geo_setup_from_famus(cls, plasma_boundary, Bn, famus_filename, **kwargs):
         """
         Function to initialize a SIMSOPT PermanentMagnetGrid from a 
         pre-existing FAMUS file defining a grid of magnets. For
@@ -209,10 +188,8 @@ class PermanentMagnetGrid:
 
         pm_grid = cls(plasma_boundary, Bn, coordinate_flag)
         pm_grid.famus_filename = famus_filename
-        ox, oy, oz, Ic, M0s = np.loadtxt(
-            famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7], 
-            delimiter=',', unpack=True
-        )
+        ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
+                                         delimiter=',', unpack=True)
 
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))
@@ -249,10 +226,8 @@ class PermanentMagnetGrid:
             else:
                 pm_grid.m_maxima = m_maxima
             if len(pm_grid.m_maxima) != pm_grid.ndipoles:
-                raise ValueError(
-                    'm_maxima passed to geo_setup_from_famus but with '
-                    'the wrong shape, i.e. != number of dipoles.'
-                )
+                raise ValueError('m_maxima passed to geo_setup_from_famus but with '
+                                 'the wrong shape, i.e. != number of dipoles.')
 
         if pol_vectors is not None:
             pol_vectors = np.array(pol_vectors)
@@ -411,15 +386,14 @@ class PermanentMagnetGrid:
         if coordinate_flag == 'cylindrical':
             RPhiZ_grid = pm_grid._setup_uniform_rz_grid()
             temp_grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-                contig(2 * np.pi * pm_grid.phi), 
+                contig(2 * np.pi * plasma_boundary.quadpoints_phi),
                 contig(normal_inner), 
                 contig(normal_outer),
                 contig(RPhiZ_grid), 
                 contig(pm_grid.r_inner), 
                 contig(pm_grid.r_outer), 
                 contig(pm_grid.z_inner), 
-                contig(pm_grid.z_outer)
-            )
+                contig(pm_grid.z_outer))
             # define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces only returns the inds to chop at
             # so need to loop through and chop the grid now
             inds = np.array(inds, dtype=int)
@@ -449,19 +423,16 @@ class PermanentMagnetGrid:
                 contig(normal_outer), 
                 contig(pm_grid.xyz_uniform), 
                 contig(pm_grid.xyz_inner), 
-                contig(pm_grid.xyz_outer)
-            )
+                contig(pm_grid.xyz_outer))
             inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
             pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
             pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
             pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
             cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles) 
-            pointsToVTK(
-                'dipole_grid',
-                contig(pm_grid.dipole_grid_xyz[:, 0]),
-                contig(pm_grid.dipole_grid_xyz[:, 1]),
-                contig(pm_grid.dipole_grid_xyz[:, 2])
-            )
+            pointsToVTK('dipole_grid',
+                        contig(pm_grid.dipole_grid_xyz[:, 0]),
+                        contig(pm_grid.dipole_grid_xyz[:, 1]),
+                        contig(pm_grid.dipole_grid_xyz[:, 2]))
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -474,15 +445,13 @@ class PermanentMagnetGrid:
             if len(pm_grid.m_maxima) != pm_grid.ndipoles:
                 raise ValueError(
                     'm_maxima passed to geo_setup_from_famus but with '
-                    'the wrong shape, i.e. != number of dipoles.'
-                )
+                    'the wrong shape, i.e. != number of dipoles.')
         if pol_vectors is not None:
             pol_vectors = np.array(pol_vectors)
             if len(pol_vectors.shape) != 3:
                 raise ValueError('pol vectors must be a 3D array.')
             elif pol_vectors.shape[2] != 3:
-                raise ValueError('Third dimension of `pol_vectors` array '
-                                 'must be 3')
+                raise ValueError('Third dimension of `pol_vectors` array must be 3')
             elif pm_grid.coordinate_flag != 'cartesian':
                 raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
             elif pol_vectors.shape[0] != pm_grid.ndipoles:
@@ -496,9 +465,7 @@ class PermanentMagnetGrid:
     def _optimization_setup(self):
 
         if self.Bn.shape != (self.nphi, self.ntheta):
-            raise ValueError(
-                'Normal magnetic field surface data is incorrect shape.'
-            )
+            raise ValueError('Normal magnetic field surface data is incorrect shape.')
 
         # minus sign below because ||Ax - b||^2 term but original
         # term is integral(B_P + B_C + B_M)^2
@@ -512,8 +479,7 @@ class PermanentMagnetGrid:
             self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym),
             np.ascontiguousarray(self.b_obj),
             self.coordinate_flag,  # cartesian, cylindrical, or simple toroidal
-            self.R0
-        )
+            self.R0)
 
         # Rescale the A matrix so that 0.5 * ||Am - b||^2 = f_b,
         # where f_b is the metric for Bnormal on the plasma surface
@@ -560,7 +526,7 @@ class PermanentMagnetGrid:
         print('Shape of b vector = ', self.b_obj.shape)
         print('Initial error on plasma surface = {0:.4e}'.format(total_error))
 
-    def write_to_famus(self, out_dir=Path('')):
+    def write_to_famus(self, out_dir=''):
         """
         Takes a PermanentMagnetGrid object and saves the geometry
         and optimization solution into a FAMUS input file.
@@ -611,35 +577,16 @@ class PermanentMagnetGrid:
         Ic = 1
         # symmetry = 2 for stellarator symmetry
         symmetry = int(self.plasma_boundary.stellsym) + 1
-        filename = out_dir / 'SIMSOPT_dipole_solution.focus'
+        filename = Path(out_dir) / 'SIMSOPT_dipole_solution.focus'
 
         with open(filename, "w") as wfile:
             wfile.write(" # Total number of dipoles,  momentq \n")
-            wfile.write(
-                "{:6d}  {:4d}\n".format(
-                    ndipoles, 1
-                )
-            )
-            wfile.write(
-                "#coiltype, symmetry,  coilname,  ox,  oy,  oz,  Ic,  M_0,  pho,  Lc,  mp,  mt \n"
-            )
+            wfile.write(f"{ndipoles:6d}  {1:4d}\n")     # .format(ndipoles, 1))
+            wfile.write("#coiltype, symmetry,  coilname,  ox,  oy,  oz,  Ic,  M_0,  pho,  Lc,  mp,  mt \n")
             for i in range(ndipoles):
-                wfile.write(
-                    " 2, {:1d}, {:}, {:15.8E}, {:15.8E}, {:15.8E}, {:2d}, {:15.8E},"
-                    "{:15.8E}, {:2d}, {:15.8E}, {:15.8E} \n".format(
-                        symmetry,
-                        coilname[i],
-                        ox[i],
-                        oy[i],
-                        oz[i],
-                        Ic,
-                        m0[i],
-                        pho[i],
-                        Lc,
-                        mp[i],
-                        mt[i],
-                    )
-                )
+                wfile.write(f" 2, {symmetry:1d}, {coilname[i]}, {ox[i]:15.8E}, {oy[i]:15.8E}, "
+                            f"{oz[i]:15.8E}, {Ic:2d}, {m0[i]:15.8E}, {pho[i]:15.8E}, {Lc:2d}, "
+                            f"{mp[i]:15.8E}, {mt[i]:15.8E} \n")
 
     def rescale_for_opt(self, reg_l0, reg_l1, reg_l2, nu):
         """
@@ -672,8 +619,7 @@ class PermanentMagnetGrid:
                 'L0 regularization must be between 0 and 1. This '
                 'value is automatically scaled to the largest of the '
                 'dipole maximum values, so reg_l0 = 1 should basically '
-                'truncate all the dipoles to zero. '
-            )
+                'truncate all the dipoles to zero. ')
 
         # Rescale L0 and L1 so that the values used for thresholding
         # are only parametrized by the values of reg_l0 and reg_l1
