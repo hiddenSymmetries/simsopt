@@ -305,8 +305,8 @@ class Testing(unittest.TestCase):
 
         # Try with cylindrical functionality 
         grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-                phi, normal_inner, normal_outer, RphiZ,
-                r_inner, r_outer, z_inner, z_outer)
+            phi, normal_inner, normal_outer, RphiZ,
+            r_inner, r_outer, z_inner, z_outer)
         inds = np.array(inds, dtype=int)
         for i in reversed(range(1, len(inds))):
             for j in range(0, i):
@@ -323,8 +323,8 @@ class Testing(unittest.TestCase):
 
         # Repeat with cartesian functionality
         final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-                normal_inner, normal_outer,
-                XYZ, xyz_inner, xyz_outer)
+            normal_inner, normal_outer,
+            XYZ, xyz_inner, xyz_outer)
         inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
         final_grid = final_grid[inds, :]
         final_rz_grid = np.zeros(final_grid.shape)
