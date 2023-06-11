@@ -675,7 +675,7 @@ class Testing(unittest.TestCase):
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
             with ScratchDir("."):
                 pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                    s, Bn, s_inner, s_outer )
+                    s, Bn, s_inner, s_outer)
             dipoles = np.random.rand(pm_opt.ndipoles * 3)
             pm_opt.m = dipoles
             b_dipole = DipoleField(pm_opt.dipole_grid_xyz,
