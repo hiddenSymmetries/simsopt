@@ -2,6 +2,7 @@ import unittest
 import logging
 
 import numpy as np
+from monty.tempfile import ScratchDir
 try:
     from mpi4py import MPI
 except ImportError:
@@ -46,56 +47,56 @@ class IntegratedTests(unittest.TestCase):
         # logging.basicConfig(level=logging.DEBUG)
         # logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
         logger = logging.getLogger(__name__)
+        with ScratchDir("."):
+            for ngroups in range(1, 1 + MPI.COMM_WORLD.Get_size()):
+                for grad in [False, True]:
+                    # In the next line, we can adjust how many groups the pool of MPI
+                    # processes is split into.
+                    mpi = MpiPartition(ngroups=ngroups)
+                    mpi.write()
 
-        for ngroups in range(1, 1 + MPI.COMM_WORLD.Get_size()):
-            for grad in [False, True]:
-                # In the next line, we can adjust how many groups the pool of MPI
-                # processes is split into.
-                mpi = MpiPartition(ngroups=ngroups)
-                mpi.write()
+                    # Start with a default surface, which is axisymmetric with major
+                    # radius 1 and minor radius 0.1.
+                    equil = Vmec(mpi=mpi)
+                    surf = equil.boundary
 
-                # Start with a default surface, which is axisymmetric with major
-                # radius 1 and minor radius 0.1.
-                equil = Vmec(mpi=mpi)
-                surf = equil.boundary
+                    # Set the initial boundary shape. Here is one syntax:
+                    surf.set('rc(0,0)', 1.0)
+                    # Here is another syntax:
+                    surf.set_rc(0, 1, 0.1)
+                    surf.set_zs(0, 1, 0.1)
 
-                # Set the initial boundary shape. Here is one syntax:
-                surf.set('rc(0,0)', 1.0)
-                # Here is another syntax:
-                surf.set_rc(0, 1, 0.1)
-                surf.set_zs(0, 1, 0.1)
+                    surf.set_rc(1, 0, 0.1)
+                    surf.set_zs(1, 0, 0.1)
 
-                surf.set_rc(1, 0, 0.1)
-                surf.set_zs(1, 0, 0.1)
+                    # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
+                    # You can choose which parameters are optimized by setting their 'fixed' attributes.
+                    surf.local_fix_all()
+                    surf.unfix('rc(0,0)')
 
-                # VMEC parameters are all fixed by default, while surface parameters are all non-fixed by default.
-                # You can choose which parameters are optimized by setting their 'fixed' attributes.
-                surf.local_fix_all()
-                surf.unfix('rc(0,0)')
+                    # Each Target is then equipped with a shift and weight, to become a
+                    # term in a least-squares objective function
+                    desired_volume = 0.15
+                    prob = LeastSquaresProblem.from_tuples(
+                        [(equil.volume, desired_volume, 1)])
 
-                # Each Target is then equipped with a shift and weight, to become a
-                # term in a least-squares objective function
-                desired_volume = 0.15
-                prob = LeastSquaresProblem.from_tuples(
-                    [(equil.volume, desired_volume, 1)])
+                    # Solve the minimization problem. We can choose whether to use a
+                    # derivative-free or derivative-based algorithm.
+                    least_squares_mpi_solve(prob, mpi=mpi, grad=grad)
 
-                # Solve the minimization problem. We can choose whether to use a
-                # derivative-free or derivative-based algorithm.
-                least_squares_mpi_solve(prob, mpi=mpi, grad=grad)
+                    # Make sure all procs call VMEC:
+                    objective = prob.objective()
+                    if mpi.proc0_world:
+                        print("At the optimum,")
+                        print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
+                        print(" volume, according to VMEC    = ", equil.volume())
+                        print(" volume, according to Surface = ", surf.volume())
+                        print(" objective function = ", objective)
 
-                # Make sure all procs call VMEC:
-                objective = prob.objective()
-                if mpi.proc0_world:
-                    print("At the optimum,")
-                    print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
-                    print(" volume, according to VMEC    = ", equil.volume())
-                    print(" volume, according to Surface = ", surf.volume())
-                    print(" objective function = ", objective)
-
-                assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
-                assert np.abs(equil.volume() - 0.15) < 1.0e-6
-                assert np.abs(surf.volume() - 0.15) < 1.0e-6
-                assert prob.objective() < 1.0e-15
+                    assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
+                    assert np.abs(equil.volume() - 0.15) < 1.0e-6
+                    assert np.abs(surf.volume() - 0.15) < 1.0e-6
+                    assert prob.objective() < 1.0e-15
 
 
 if __name__ == "__main__":
