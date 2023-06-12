@@ -85,6 +85,7 @@ optimization.  Others include `STELLOPT
    example_quasisymmetry
    example_islands
    example_coils
+   example_single_stage
 
 .. toctree::
    :maxdepth: 3
