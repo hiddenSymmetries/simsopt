@@ -730,7 +730,7 @@ class CurrentVoxelsGrid:
         at a given set of points. For now,
         the basis is hard-coded as a set of linear polynomials.
 
-        returns:
+        Returns:
             poly_basis, shape (num_basis_functions, N_grid, nx * ny * nz, 3)
                 where N_grid is the number of cells in the current voxels,
                 nx, ny, and nz, are the number of points to evaluate the 
@@ -745,6 +745,10 @@ class CurrentVoxelsGrid:
         ny = self.ny
         nz = self.nz
         n = self.N_grid
+
+        # Define a uniform grid, with xrange, yrange, zrange
+        # defined as the local coordinates in each grid (i.e.
+        # the coordinates - the cell midpoint)
         x_leftpoints = self.XYZ_flat[:, 0]
         y_leftpoints = self.XYZ_flat[:, 1]
         z_leftpoints = self.XYZ_flat[:, 2]
@@ -793,6 +797,7 @@ class CurrentVoxelsGrid:
                         Phi[3, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, -yrange[:, j] + y_leftpoints, zeros]).T / np.cbrt(dx * dy * dz)
                         Phi[4, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, zeros, -zrange[:, k] + z_leftpoints]).T / np.cbrt(dx * dy * dz)
 
+        # Check that the Phis are divergence free
         for i in range(self.n_functions):
             dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / dx
             dJy_dy = -(Phi[i, :, :, 1:, :, 1] - Phi[i, :, :, :-1, :, 1]) / dy
@@ -800,6 +805,8 @@ class CurrentVoxelsGrid:
             divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
             divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
             assert np.allclose(divJ, 0.0)
+
+        # Flatten the indices corresponding to the integration points in each voxel
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
 
         # build up array of the integration points

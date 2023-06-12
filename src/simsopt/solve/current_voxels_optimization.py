@@ -901,7 +901,7 @@ def ras_preconditioned_minres(
 
     # Now prepare to record optimization progress
     lam_opt = np.zeros((K, 1))
-    tol = 1e-22
+    tol = 1e-20
     f_Bw = []
     f_Iw = []
     f_Kw = []
@@ -975,6 +975,7 @@ def ras_preconditioned_minres(
             w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
 
     t2 = time.time()
+    algo_time = t2 - t1
     print('Time to run algo = ', t2 - t1, ' s')
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
@@ -1001,5 +1002,6 @@ def ras_preconditioned_minres(
             0.5 * np.array(f_Kw), 
             0.5 * np.array(f_Iw),
             0.5 * np.array(f_RSw),
-            0.5 * np.array(f_Cw)
+            0.5 * np.array(f_Cw),
+            algo_time
             )
