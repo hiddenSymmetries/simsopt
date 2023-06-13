@@ -411,11 +411,8 @@ def compute_J(current_voxels, alphas, ws):
     """
     num_basis = current_voxels.n_functions
     n_interp = current_voxels.Phi.shape[2]
-    for i in range(3):
-        for j in range(n_interp):
-            for k in range(num_basis):
-                current_voxels.J[:, j, i] += alphas[:, k] * current_voxels.Phi[k, :, j, i]
-                current_voxels.J_sparse[:, j, i] += ws[:, k] * current_voxels.Phi[k, :, j, i]
+    current_voxels.J = np.sum(np.multiply(alphas.T[:, :, np.newaxis, np.newaxis], current_voxels.Phi), axis=0)
+    current_voxels.J_sparse = np.sum(np.multiply(ws.T[:, :, np.newaxis, np.newaxis], current_voxels.Phi), axis=0)
 
 
 def prox_group_l0(alpha, threshold, n, num_basis):

@@ -1,6 +1,7 @@
 import numpy as np
 from simsopt.geo import Surface, SurfaceRZFourier
 from simsopt.geo import create_equally_spaced_curves, curves_to_vtk
+from simsopt.solve.current_voxels_optimization import compute_J
 from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
 from pyevtk.vtk import VtkVoxel
 
@@ -11,10 +12,8 @@ from scipy.sparse import lil_matrix
 from scipy.sparse import csc_matrix
 from scipy.sparse import vstack, hstack
 from scipy.sparse import eye as sparse_eye
-from scipy.sparse.linalg import inv as sparse_inv
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
-from .._core.json import GSONDecoder, GSONable
 
 __all__ = ['CurrentVoxelsGrid']
 
@@ -193,9 +192,7 @@ class CurrentVoxelsGrid:
             print(
                 "Inner toroidal surface not specified, defaulting to "
                 "extending the plasma boundary shape using the normal "
-                " vectors at the quadrature locations. The normal vectors "
-                " are projected onto the RZ plane so that the new surface "
-                " lies entirely on the original phi = constant cross-section. "
+                " vectors at the quadrature locations."
             )
             if self.filename is None:
                 raise ValueError(
@@ -213,9 +210,7 @@ class CurrentVoxelsGrid:
             print(
                 "Outer toroidal surface not specified, defaulting to "
                 "extending the inner toroidal surface shape using the normal "
-                " vectors at the quadrature locations. The normal vectors "
-                " are projected onto the RZ plane so that the new surface "
-                " lies entirely on the original phi = constant cross-section. "
+                " vectors at the quadrature locations."
             )
             if self.filename is None:
                 raise ValueError(
@@ -264,7 +259,6 @@ class CurrentVoxelsGrid:
             t1 = time.time()
 
             contig = np.ascontiguousarray
-            print(np.shape(self.XYZ_uniform))
             if self.surface_flag == 'focus' or self.surface_flag == 'wout':
                 final_grid = sopp.make_current_voxels_grid(
                     #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
@@ -280,7 +274,6 @@ class CurrentVoxelsGrid:
             # remove all the grid elements that were omitted
             inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
             self.XYZ_flat = final_grid[inds, :]
-            print(self.XYZ_flat.shape)
             t2 = time.time()
             print("Took t = ", t2 - t1, " s to perform the total grid cell elimination process.")
         else:
@@ -370,7 +363,6 @@ class CurrentVoxelsGrid:
             X = np.linspace(x_min, x_max, Nx, endpoint=True)
             Y = np.linspace(y_min, y_max, Ny, endpoint=True)
         Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
-        print(Nx, Ny, Nz, X, Y, Z, self.dx, self.dy, self.dz)
 
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
@@ -396,8 +388,8 @@ class CurrentVoxelsGrid:
             coil surface, not just 1 / 2 nfp of the surface.
         """
         range_surf = self.coil_range
-        nphi = self.nphi * 16
-        ntheta = self.ntheta * 16
+        nphi = self.nphi
+        ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
             rz_inner_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -418,8 +410,8 @@ class CurrentVoxelsGrid:
             theta value.
         """
         range_surf = self.coil_range
-        nphi = self.nphi * 16
-        ntheta = self.ntheta * 16
+        nphi = self.nphi
+        ntheta = self.ntheta
         f = self.filename
         if self.surface_flag == 'focus':
             rz_outer_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -429,10 +421,7 @@ class CurrentVoxelsGrid:
             rz_outer_surface = SurfaceRZFourier.from_vmec_input(f, range=range_surf, nphi=nphi, ntheta=ntheta)
 
         # extend via the normal vector
-        t1 = time.time()
         rz_outer_surface.extend_via_normal(self.plasma_offset + self.coil_offset)
-        t2 = time.time()
-        print("Outer surface extension took t = ", t2 - t1)
         self.rz_outer_surface = rz_outer_surface
 
     def to_vtk_before_solve(self, vtkname, plot_quadrature_points=False):
@@ -775,8 +764,10 @@ class CurrentVoxelsGrid:
                 endpoint=True
             ) - dz / 2.0
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
-        zeros = np.zeros(n)
-        ones = np.ones(n)
+        zeros = np.zeros((n, nx, ny, nz))
+        #zeros = np.zeros(n)
+        #ones = np.ones(n)
+        ones = np.ones((n, nx, ny, nz))
         if not shift:
             for i in range(nx):
                 for j in range(ny):
@@ -788,23 +779,14 @@ class CurrentVoxelsGrid:
                         Phi[4, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
         # Shift all the basis functions by their midpoints in every cell, to sort of normalize them
         else:
-            for i in range(nx):
-                for j in range(ny):
-                    for k in range(nz):
-                        Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
-                        Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
-                        Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
-                        Phi[3, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, -yrange[:, j] + y_leftpoints, zeros]).T / np.cbrt(dx * dy * dz)
-                        Phi[4, :, i, j, k, :] = np.array([xrange[:, i] - x_leftpoints, zeros, -zrange[:, k] + z_leftpoints]).T / np.cbrt(dx * dy * dz)
-
-        # Check that the Phis are divergence free
-        for i in range(self.n_functions):
-            dJx_dx = -(Phi[i, :, 1:, :, :, 0] - Phi[i, :, :-1, :, :, 0]) / dx
-            dJy_dy = -(Phi[i, :, :, 1:, :, 1] - Phi[i, :, :, :-1, :, 1]) / dy
-            dJz_dz = -(Phi[i, :, :, :, 1:, 2] - Phi[i, :, :, :, :-1, 2]) / dz
-            divJ = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
-            divJ = np.sum(np.sum(np.sum(divJ, axis=1), axis=1), axis=1)
-            assert np.allclose(divJ, 0.0)
+            Phi[0, :, :, :, :, :] = np.transpose(np.array([ones, zeros, zeros]), axes=[1, 2, 3, 4, 0])
+            Phi[1, :, :, :, :, :] = np.transpose(np.array([zeros, ones, zeros]), axes=[1, 2, 3, 4, 0])
+            Phi[2, :, :, :, :, :] = np.transpose(np.array([zeros, zeros, ones]), axes=[1, 2, 3, 4, 0])
+            xrange_extend = (xrange - x_leftpoints[:, np.newaxis])[:, :, np.newaxis, np.newaxis] * ones
+            yrange_extend = (yrange - y_leftpoints[:, np.newaxis])[:, np.newaxis, :, np.newaxis] * ones
+            zrange_extend = (zrange - z_leftpoints[:, np.newaxis])[:, np.newaxis, np.newaxis, :] * ones
+            Phi[3, :, :, :, :, :] = np.transpose(np.array([xrange_extend, -yrange_extend, zeros]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
+            Phi[4, :, :, :, :, :] = np.transpose(np.array([xrange_extend, zeros, -zrange_extend]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
 
         # Flatten the indices corresponding to the integration points in each voxel
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
@@ -872,8 +854,6 @@ class CurrentVoxelsGrid:
         t1 = time.time()
         num_points = points.shape[0]
         num_points_curve = points_curve.shape[0]
-        geo_factor = np.zeros((num_points, n, num_basis))
-        Itarget_matrix = np.zeros((num_points_curve, n, num_basis))
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
@@ -887,45 +867,37 @@ class CurrentVoxelsGrid:
                 Phivec_full[:, index:index + n, :, 0] = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[:, :, :, 1] * np.sin(phi0)
                 Phivec_full[:, index:index + n, :, 1] = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[:, :, :, 1] * np.cos(phi0)
                 Phivec_full[:, index:index + n, :, 2] = Phi[:, :, :, 2]
-                #Phivec_full[:, index:index + n, :, 0] = Phi[:, :, :, 0] * np.cos(phi0) - Phi[:, :, :, 1] * np.sin(phi0) * stell
-                #Phivec_full[:, index:index + n, :, 1] = Phi[:, :, :, 0] * np.sin(phi0) + Phi[:, :, :, 1] * np.cos(phi0) * stell
-                #Phivec_full[:, index:index + n, :, 2] = Phi[:, :, :, 2] * stell
-
-                Phivec_transpose = np.transpose(Phivec_full[:, index:index + n, :, :], [1, 2, 0, 3])
-                int_points = np.transpose(np.array([ox_full[index:index + n, :], oy_full[index:index + n, :], oz_full[index:index + n, :]]), [1, 2, 0])
-                geo_factor += sopp.current_voxels_field_Bext(
-                    points, 
-                    contig(int_points), 
-                    contig(Phivec_transpose),
-                    plasma_unitnormal
-                )
-                Itarget_matrix += sopp.current_voxels_field_Bext(
-                    points_curve, 
-                    contig(int_points), 
-                    contig(Phivec_transpose),
-                    contig(curve_dl)
-                )
-
                 index += n
 
-        self.geo_factor = geo_factor
+        int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
+        Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
+        geo_factor = sopp.current_voxels_field_Bext(
+            points, 
+            contig(int_points), 
+            contig(Phivec_transpose),
+            plasma_unitnormal
+        )
+        Itarget_matrix = sopp.current_voxels_field_Bext(
+            points_curve, 
+            contig(int_points), 
+            contig(Phivec_transpose),
+            contig(curve_dl)
+        )
+        index = 0
+        for stell in stell_list:
+            for fp in range(nfp):
+                if stell != 1 or fp != 0:
+                    geo_factor[:, :n, :] += geo_factor[:, index:index + n, :]
+                    Itarget_matrix[:, :n, :] += Itarget_matrix[:, index:index + n, :]
+                index += n
+        self.geo_factor = geo_factor[:, :n, :]
+        self.Itarget_matrix = Itarget_matrix[:, :n, :]
         t2 = time.time()
         print('Computing full coil surface grid took t = ', t2 - t1, ' s')
-        t1 = time.time()
-        Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
-        int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
-        t2 = time.time()
-        print('Computing B factor and I factor took t = ', t2 - t1, ' s')
 
         t1 = time.time()
-        self.Phi_full = contig(Phivec_full)
         alphas = self.alphas.reshape(n, self.n_functions)
-        self.J = np.zeros((n, n_interp, 3))
-        for i in range(3):
-            for j in range(n_interp):
-                for k in range(self.n_functions):
-                    self.J[:, j, i] += alphas[:, k] * Phi[k, :, j, i]
-        self.integration_points_full = int_points  # contig(np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0]))
+        compute_J(self, alphas, alphas)
         t2 = time.time()
         print('Computing J took t = ', t2 - t1, ' s')
         t1 = time.time()
@@ -946,9 +918,6 @@ class CurrentVoxelsGrid:
         self.B_matrix = B_matrix
         self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
 
-        # Phi0 = self.Phi.reshape(self.n_functions * self.N_grid, self.n * self.ny * self.nz, 3)  
-        # Itarget_matrix = np.sum(Phi0[:, :, 2], axis=-1)
-        self.Itarget_matrix = Itarget_matrix
         self.Itarget_matrix = nphi_loop_inv * coil_integration_factor * self.Itarget_matrix.reshape(
             points_curve.shape[0], n * num_basis
         )
@@ -979,21 +948,19 @@ class CurrentVoxelsGrid:
         elif nfp == 4:
             minus_x_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 1] < 0, axis=-1)))
             plus_y_indices = np.ravel(np.where(np.all(self.connection_list[:, :, 2] < 0, axis=-1)))
-            #x0_indices = np.ravel(np.where(np.isclose(coil_points[:, 0], 0.0, atol=self.dx)))
             minus_x_indices = np.intersect1d(minus_x_indices, plus_y_indices)
+
         z_flipped_inds_x = []
         x_inds = []
         # The points to stitch on the "left" are rotated then flipped
         for x_ind in minus_x_indices:
-            # phi0 = (2 * np.pi / nfp)
             stell = -1
-            ox = coil_points[x_ind, 0]  # * np.cos(phi0) - coil_points[x_ind, 1] * np.sin(phi0) * stell
-            oy = coil_points[x_ind, 1]  # * np.sin(phi0) + coil_points[x_ind, 1] * np.cos(phi0) * stell
+            ox = coil_points[x_ind, 0]
+            oy = coil_points[x_ind, 1]
             oz = coil_points[x_ind, 2] * stell
             z_flipped_point = np.array([ox, oy, oz]).T
             z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
-            if len(z_flipped) > 0:  # and x_ind not in z_flipped_inds_x:
-                # print(x_ind, z_flipped, coil_points[x_ind, :], coil_points[z_flipped, :])
+            if len(z_flipped) > 0:
                 z_flipped_inds_x.append(z_flipped[0])
                 x_inds.append(x_ind)
         self.x_inds = x_inds
@@ -1013,10 +980,9 @@ class CurrentVoxelsGrid:
             oz = coil_points[y_ind, 2]
             z_flipped_point = np.array([ox, oy, -oz]).T
             z_flipped = np.ravel(np.where(np.all(np.isclose(coil_points, z_flipped_point), axis=-1)))
-            if len(z_flipped) > 0:  # and y_ind not in z_flipped_inds_y:
+            if len(z_flipped) > 0:
                 z_flipped_inds_y.append(z_flipped[0])
                 y_inds.append(y_ind)
-                # print(y_ind, z_flipped, coil_points[y_ind, :], coil_points[z_flipped, :])
         self.y_inds = y_inds 
         self.z_flip_x = z_flipped_inds_x
         self.z_flip_y = z_flipped_inds_y
@@ -1027,16 +993,13 @@ class CurrentVoxelsGrid:
             # Loop through every cell and check the cell in + nx, + ny, or + nz direction
             if np.any(self.connection_list[i, :, 0] >= 0):
                 n_constraints += 1
-        # print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
             if np.any(self.connection_list[i, :, 2] >= 0):
                 n_constraints += 1
-        # print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
             if np.any(self.connection_list[i, :, 4] >= 0):
                 n_constraints += 1
 
-        # print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
             # Loop through cells and check if does not have a neighboring cell in the - nx, - ny, or - nz direction 
             if np.all(self.connection_list[i, :, 1] < 0):
                 n_constraints += 1
@@ -1044,7 +1007,6 @@ class CurrentVoxelsGrid:
                 n_constraints += 1
             if np.all(self.connection_list[i, :, 5] < 0):
                 n_constraints += 1
-        # print('Number of constraints = ', n_constraints, ', 6N = ', 6 * self.N_grid)
 
             # Loop through cells and check if does not have a neighboring cell in the +x, +y, or +z direction 
             if np.all(self.connection_list[i, :, 0] < 0):
@@ -1197,33 +1159,12 @@ class CurrentVoxelsGrid:
 
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
-        t1 = time.time()
 
         if self.sparse_constraint_matrix:
             C = flux_constraint_matrix.tocsc()
-            #CT = C.transpose()
-            #CCT_inv = np.linalg.pinv((C @ CT).todense(), rcond=1e-8, hermitian=True)
-            #projection_onto_constraints = sparse_eye(N, format="csc", dtype="double") - CT @ CCT_inv @ C 
         else:
             C = flux_constraint_matrix
-            #CT = C.transpose()
-            #CCT_inv = np.linalg.pinv(C @ CT, rcond=1e-8, hermitian=True)
-            #projection_onto_constraints = np.eye(N) - CT @ CCT_inv @ C
-            #sparse_eye(N, format="csc", dtype="double") - csc_matrix(CT @ CCT_inv @ C)
-
-        ##### TEMPORARY
-        # C = csc_matrix(C.shape)
-        # projection_onto_constraints = sparse_eye(N, format="csc", dtype="double")
-
-        t2 = time.time()
-        print('Time to make CCT_inv = ', t2 - t1, ' s')
-
-        # S = np.linalg.svd(C.todense(), compute_uv=False)
-        # plt.semilogy(S, 'ro')
-        # S2 = np.linalg.svd(projection_onto_constraints.todense(), compute_uv=False)
-        # plt.semilogy(S2, 'bo')
         self.C = C    
-        #self.P = projection_onto_constraints
 
     def check_fluxes(self):
         """

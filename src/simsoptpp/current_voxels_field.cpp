@@ -109,13 +109,9 @@ Array current_voxels_field_Bext(Array& points, Array& integration_points, Array&
                 simd_t rmag_inv_3 = rmag_inv * (rmag_inv * rmag_inv);
     	        for (int kk = 0; kk < num_basis_functions; kk++) {
 		    int ind = jj * num_basis_functions * num_integration_points * 3 + j * num_basis_functions * 3 + kk * 3;  
-                    Vec3dSimd Phi = Vec3dSimd(Phi_ptr[ind + 0], Phi_ptr[ind + 1], Phi_ptr[ind + 2]);
-                    Vec3dSimd Phicrossr = cross(Phi, r);
+                    Vec3dSimd Phi_3d = Vec3dSimd(Phi_ptr[ind + 0], Phi_ptr[ind + 1], Phi_ptr[ind + 2]);
+                    Vec3dSimd Phicrossr = cross(Phi_3d, r);
                     auto B_i = (Phicrossr.x * n_i.x + Phicrossr.y * n_i.y + Phicrossr.z * n_i.z) * rmag_inv_3;
-                    //B_i.x += Phicrossr.x * rmag_inv_3;
-                    //B_i.y += Phicrossr.y * rmag_inv_3;
-                    //B_i.z += Phicrossr.z * rmag_inv_3;
-
 		    for(int k = 0; k < klimit; k++){
 		        B(i + k, jj, kk) += B_i[k];
 	 	    }
