@@ -190,7 +190,7 @@ At the end of the optimization, the results can be saved as follows::
 This saves the PermanentMagnetClass solution and geometry into a FAMUS-style 
 text file. It can be loaded again for post-processing or additional optimization with:: 
 
-  pm_opt = PermanentMagnetGrid.geo_setup_from_famus(SIMSOPT_dipole_solution.focus)
+  pm_opt = PermanentMagnetGrid.geo_setup_from_famus("SIMSOPT_dipole_solution.focus")
 
 Further options for improved optimization 
 -------------------------------------------
@@ -297,7 +297,7 @@ for that magnet. An advanced usage, using the Subset 5 orientations from the PM4
   )
 
 If the PermanentMagnetGrid is initialized with `pol_vectors`, the optimization should
-be performed with the `ArbVec` algorithm variant::
+be performed with the `ArbVec` (or, described in a moment, the `ArbVec_backtracking`) algorithm variant::
 
   algorithm = 'ArbVec'
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -305,7 +305,7 @@ be performed with the `ArbVec` algorithm variant::
 For best performance, GPMO should be used with backtracking AND orientations for 
 each magnet. Even better, the backtracking can be improved by specifying `thresh_angle`,
 which determines the minimum angle between two nearby magnets to consider removing them
-during backtracking (the default backtracking algorithm assumes that thresh_angle = 180,
+during backtracking (the default backtracking algorithm assumes that thresh_angle = :math:`\pi`,
 i.e. fully oppositely oriented, but when there are many orientations available to the magnets,
 often the magnets are not fully opposite). Putting this altogether, the most effective
 use of the GPMO algorithm and its variants looks something like::
@@ -319,7 +319,7 @@ use of the GPMO algorithm and its variants looks something like::
       kwargs['Nadjacent'] = 10  
       kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.dipole_grid_xyz)  # make sure C++ compatible
       if algorithm == 'ArbVec_backtracking':
-          kwargs['thresh_angle'] = 120
+          kwargs['thresh_angle'] = np.pi * 120 / 180
           kwargs['max_nMagnets'] = 10000 
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
