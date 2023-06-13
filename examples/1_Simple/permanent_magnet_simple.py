@@ -11,7 +11,7 @@ algorithm is described in the following paper:
 The script should be run as:
     mpirun -n 1 python permanent_magnet_simple.py
 on a cluster machine but 
-    python permanent_magnet_NCSX.py
+    python permanent_magnet_simple.py
 is sufficient on other machines. Note that the code is 
 parallelized via OpenMP and XSIMD, so will run substantially
 faster on multi-core machines (make sure that all the cores
