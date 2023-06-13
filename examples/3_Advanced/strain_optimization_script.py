@@ -173,7 +173,7 @@ res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
 curves_to_vtk(curves_fb, OUT_DIR + f"curves_opt_fb_{config_str}")
 curves_to_vtk(base_curves_finite_build, OUT_DIR +
-              f"curves_opt_fb_hfp_{config_str}"+"whereisthecoil")
+              f"curves_opt_fb_hfp_{config_str}")
 pointData = {"B_N": np.sum(bs.B().reshape(
     (nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + f"surf_opt_fb_{config_str}", extra_data=pointData)
