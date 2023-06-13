@@ -1,3 +1,9 @@
+.. role:: bash(code)
+   :language: bash
+
+.. role:: python(code)
+   :language: python
+
 Single stage optimization
 ============================
 
@@ -35,7 +41,9 @@ Vacuum optimization
 
 This example is available as `single_stage_optimization.py`` in the
 ``examples/3_Advanced`` directory.  As usual, a driver script begins with
-imports of the classes and functions we will need::
+imports of the classes and functions we will need
+
+.. code-block::
 
     import os
     import numpy as np
@@ -64,39 +72,25 @@ the code is ran in parallel
         if comm.rank == 0:
             print(*args, **kwargs)
 
-The input parameters are given by
+The input parameters are given by 
 
-    MAXITER_stage_2 = 10
+1. :python:`MAXITER_stage_2 = 10`, which selects the maximum number of 
+   iterations for the initial stage 2 optimization.
 
-this selects the maximum number of iterations for the initial stage 2
-optimization
+2. :python:`MAXITER_single_stage = 10`, which selects the maximum number 
+   of iterations for the single stage optimization.
 
-    MAXITER_single_stage = 10
+3. :python:`max_mode = 1`, which selects the maximum poloidal and 
+   toroidal modes on the surface being optimized with VMEC.
 
-this selects the maximum number of iterations for the single stage
-optimization
+4. :python:`vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp4_QH_warm_start')`, which represents the initial VMEC input file.
 
-    max_mode = 1
+5. :python:`ncoils = 3`:  the number of coils per field period.
 
-this selects the maximum poloidal and toroidal modes on the surface
-being optimized with VMEC
+6. :python:`aspect_ratio_target = 7.0`:  target aspect ratio for the VMEC surface.
 
-    vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.nfp4_QH_warm_start')
-
-initial VMEC input file
-
-    ncoils = 3
-
-number of coils per field period
-
-    aspect_ratio_target = 7.0
-
-target aspect ratio for the VMEC surface.
-
-    coils_objective_weight = 1e+3
-
-the weight given to the coils objective function with respect to the
-stage 1 optimization.
+7. :python:`coils_objective_weight = 1e+3`: the weight given to the coils 
+   objective function with respect to the stage 1 optimization.
 The remaining input parameters follow the convention of the
 stage 2 optimization script.
 
@@ -138,7 +132,8 @@ derivatives
         J_stage_2 = coils_objective_weight * JF.J()
         J = J_stage_1 + J_stage_2
         if J > JACOBIAN_THRESHOLD or np.isnan(J):
-            pprint(f"Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
+            pprint(f"Exception caught during function evaluation with J={J}."
+                   f" Returning J={JACOBIAN_THRESHOLD}")
             J = JACOBIAN_THRESHOLD
             grad_with_respect_to_surface = [0] * number_vmec_dofs
             grad_with_respect_to_coils = [0] * len(JF.x)
@@ -173,15 +168,27 @@ derivatives
 
 The initial stage 2 optimization is then performed at the line
 
-    res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-12)
+.. code-block::
+
+    res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True,
+                   args=({'Nfeval': 0}), method='L-BFGS-B',
+                   options={'maxiter': MAXITER_stage_2, 'maxcor': 300},
+                   tol=1e-12)
 
 while the single stage optimization is performed at
 
 .. code-block::
 
-    with MPIFiniteDifference(prob.objective, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
+    with MPIFiniteDifference(prob.objective, mpi,
+                             diff_method=diff_method,
+                             abs_step=finite_difference_abs_step,
+                             rel_step=finite_difference_rel_step) as prob_jacobian:
         if mpi.proc0_world:
-            res = minimize(fun, dofs, args=(prob_jacobian, {'Nfeval': 0}), jac=True, method='BFGS', options={'maxiter': MAXITER_single_stage}, tol=1e-15)
+            res = minimize(fun, dofs,
+                           args=(prob_jacobian, {'Nfeval': 0}),
+                           jac=True, method='BFGS',
+                           options={'maxiter': MAXITER_single_stage},
+                           tol=1e-15)
 
 The results are then printed and stored in files.
 
@@ -200,15 +207,15 @@ The VirtualCasing module is imported in
 
     from simsopt.mhd import Vmec, QuasisymmetryRatioResidual, VirtualCasing
 
-and its resolution is set in
-
-    vc_src_nphi = ntheta_VMEC
+and its resolution is set in :python:`vc_src_nphi = ntheta_VMEC`.
 
 The initialization of the VirtualCasing is performed at the line
 
 .. code-block::
 
-    vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
+    vc = VirtualCasing.from_vmec(
+        vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC,
+        trgt_ntheta=ntheta_VMEC)
     total_current_vmec = vmec.external_current() / (2 * surf.nfp)
 
 Now the gradients of the objective function are computed using
@@ -223,7 +230,9 @@ derivatives. The objective function is then wrapped in the ``fun_J`` function
         if np.any(previous_surf_dofs != prob.x):  # Only run virtual casing if surface dofs have changed
             previous_surf_dofs = prob.x
             try:
-                vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
+                vc = VirtualCasing.from_vmec(
+                    vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC,
+                    trgt_ntheta=ntheta_VMEC)
                 Jf.target = vc.B_external_normal
             except ObjectiveFailure as e:
                 pass
@@ -261,7 +270,8 @@ the ``fun`` function
             grad_with_respect_to_surface = prob_jacobian.jac(prob.x)[0]
 
         JF.fix_all()
-        grad = np.concatenate((grad_with_respect_to_coils, grad_with_respect_to_surface))
+        grad = np.concatenate((grad_with_respect_to_coils,
+                               grad_with_respect_to_surface))
 
         return J, grad
 
