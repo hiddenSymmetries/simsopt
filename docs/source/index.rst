@@ -86,6 +86,7 @@ optimization.  Others include `STELLOPT
    example_islands
    example_coils
    example_single_stage
+   example_permanent_magnets
 
 .. toctree::
    :maxdepth: 3
