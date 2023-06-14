@@ -1,9 +1,12 @@
-import numpy as np
-from simsopt.geo import Surface, SurfaceRZFourier
-import simsoptpp as sopp
 from pathlib import Path
 import warnings
+
+import numpy as np
 from pyevtk.hl import pointsToVTK
+
+from .._core.descriptor import OneofStrings
+from . import Surface, SurfaceRZFourier
+import simsoptpp as sopp
 
 __all__ = ['PermanentMagnetGrid']
 
@@ -43,7 +46,7 @@ class PermanentMagnetGrid:
             the coordinate_flag='cylindrical', a uniform cylindrical grid is initialized
             using the dr and dz parameters.
     """
-
+    coordinate_flag = OneofStrings("cartesian", "cylindrical", "toroidal")
     def __init__(
         self, plasma_boundary: Surface,
         Bn,
@@ -56,12 +59,12 @@ class PermanentMagnetGrid:
             )
         self.Bn = Bn
 
-        if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
-            raise NotImplementedError(
-                'Only cartesian, cylindrical, and toroidal (simple toroidal)'
-                ' coordinate systems have been implemented so far.'
-            )
-        elif coordinate_flag == 'cartesian':
+        # if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
+        #     raise NotImplementedError(
+        #         'Only cartesian, cylindrical, and toroidal (simple toroidal)'
+        #         ' coordinate systems have been implemented so far.'
+        #     )
+        if coordinate_flag == 'cartesian':
             warnings.warn(
                 'Cartesian grid of rectangular cubes will be built, since '
                 'coordinate_flag = "cartesian". However, such a grid can be '

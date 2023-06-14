@@ -10,7 +10,7 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
-from .._core.json import GSONDecoder
+from .._core.descriptor import OneofIntegers, Integer
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+    nfp = Integer()
+    alpha_fac = OneofIntegers(-1, 0, 1)
+    mmax = Integer()
+    nmax = Integer()
 
     def __init__(self,
                  nfp: int = 1,
