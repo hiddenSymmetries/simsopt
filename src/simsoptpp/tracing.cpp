@@ -680,7 +680,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, bool solve_sympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -696,7 +696,7 @@ particle_guiding_center_boozer_tracing(
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
-        if (solve_sympl) {
+        if (solveSympl) {
             return solve_sympl(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
         else {
@@ -704,7 +704,7 @@ particle_guiding_center_boozer_tracing(
         }
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
-        if (solve_sympl) {
+        if (solveSympl) {
             return solve_sympl(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
         else {
@@ -712,7 +712,7 @@ particle_guiding_center_boozer_tracing(
         }
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
-        if (solve_sympl) {
+        if (solveSympl) {
             return solve_sympl(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
         else {
@@ -725,7 +725,7 @@ template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, bool solve_sympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
