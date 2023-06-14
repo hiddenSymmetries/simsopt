@@ -3,7 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
-from .._core.json import GSONDecoder
+from .._core.descriptor import Integer
 
 __all__ = ['SurfaceXYZFourier']
 
@@ -55,6 +55,10 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+
+    nfp = Integer()
+    mpol = Integer()
+    ntor = Integer()
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
                  quadpoints_phi=None, quadpoints_theta=None,
