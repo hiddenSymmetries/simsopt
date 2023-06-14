@@ -459,13 +459,13 @@ class SymplField
     double dAtheta[3], dAzeta[3];
     double dhtheta[3], dhzeta[3];
     double dmodB[3];
-    double dptheta[3];
+ 
 
     // H = vpar^2/2 + mu B
     // vpar = (pzeta - q Azeta)/(m hzeta)
     // pzeta = m vpar * hzeta + q Azeta
     double H, pth, vpar;
-    double dvpar[4], dH[4], dpth[4];
+    double dvpar[4], dH[4], dptheta[4];
 
     // mu = vperp^2/(2 B)
     // q = charge, m = mass
@@ -725,7 +725,7 @@ template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, bool solve_sympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
