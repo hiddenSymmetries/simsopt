@@ -453,11 +453,13 @@ class SymplField
     // htheta = G/B, hzeta = I/B
     double  htheta, hzeta;
     double  modB;
+    double ptheta;
 
     // Derivatives of above quantities wrt (s, theta, phi)
     double dAtheta[3], dAzeta[3];
     double dhtheta[3], dhzeta[3];
     double dmodB[3];
+    double dptheta[3];
 
     // H = vpar^2/2 + mu B
     // vpar = (pzeta - q Azeta)/(m hzeta)
