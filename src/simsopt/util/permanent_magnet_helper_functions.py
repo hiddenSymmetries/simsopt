@@ -14,6 +14,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from scipy.optimize import minimize
+from scipy.interpolate import CubicSpline
 from pathlib import Path
 
 
@@ -640,42 +641,78 @@ def make_filament_from_voxels(wv_grid, final_threshold):
     with a Fourier series.
     """
     from simsopt.geo import CurveXYZFourier
+
     # Find where voxels are nonzero
     alphas = wv_grid.alphas.reshape(wv_grid.N_grid, wv_grid.n_functions)
     nonzero_inds = (np.linalg.norm(alphas, axis=-1) > final_threshold)
     xyz_curve = wv_grid.XYZ_flat[nonzero_inds, :]
+    nfp = wv_grid.plasma_boundary.nfp
+    stellsym = wv_grid.plasma_boundary.stellsym
+    n = xyz_curve.shape[0]
+    
+    # complete the curve via the symmetries 
+    xyz_total = np.zeros((n * nfp * (stellsym + 1), 3)) 
+    if stellsym:
+        stell_list = [1, -1]
+    else:
+        stell_list = [1]
+    index = 0
+    for stell in stell_list:
+        for fp in range(nfp):
+            phi0 = (2 * np.pi / nfp) * fp
+            xyz_total[index:index + n, 0] = xyz_curve[:, 0] * np.cos(phi0) - xyz_curve[:, 1] * np.sin(phi0) * stell 
+            xyz_total[index:index + n, 1] = xyz_curve[:, 0] * np.sin(phi0) + xyz_curve[:, 1] * np.cos(phi0) * stell 
+            xyz_total[index:index + n, 2] = xyz_curve[:, 2] * stell 
+            index += n
 
     # number of fourier modes to use for the fourier expansion in each coordinate
-    num_fourier = 10  
+    num_fourier = 10 
     ax = plt.figure().add_subplot(projection='3d')
-    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
-    plt.show()
+    xyz_curve = xyz_total
 
     # Let's assume curve is unique w/ respect to theta or phi
     # in the 1 / 2 * nfp part of the surface
-    phi = np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0])
+    phi, unique_inds = np.unique(np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0]), return_index=True)
+    xyz_curve = xyz_curve[unique_inds, :]
+    
+    def moving_average(x, w):
+        return np.convolve(x, np.ones(w), 'valid') / w
+    
+    x_curve = moving_average(xyz_curve[:, 0], 10)
+    y_curve = moving_average(xyz_curve[:, 1], 10)
+    z_curve = moving_average(xyz_curve[:, 2], 10)
+    
+    # Stitch together missing points lost during the moving average
+    xn = len(x_curve)
+    extra_x = -x_curve[xn // 2:xn // 2 + 6]
+    extra_y = -y_curve[xn // 2:xn // 2 + 6]
+    extra_z = z_curve[xn // 2:xn // 2 + 6]
+    x_curve = np.concatenate((extra_x, x_curve))
+    y_curve = np.concatenate((extra_y, y_curve))
+    z_curve = np.concatenate((extra_z, z_curve))
+    x_curve = np.append(x_curve, np.flip(extra_x))
+    y_curve = np.append(y_curve, -np.flip(extra_y))
+    z_curve = np.append(z_curve, -np.flip(extra_z))
 
-    nt = 100
-    t = phi 
-    dphi = np.diff(phi, prepend=np.array(phi[0]))
-    print(phi.shape, dphi.shape, xyz_curve.shape)
-    #t = np.linspace(0, 2 * np.pi, nt)
-    order = 2 * num_fourier + 1
-    dofs = np.zeros((order, 3))
-    quadpoints = len(phi)
-    coil = CurveXYZFourier(quadpoints, order)
+    xyz_curve = np.transpose([x_curve, y_curve, z_curve])
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+    
+    # get phi and reorder it from -pi to pi (sometimes arctan returns different quadrant)
+    phi = np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0])
+    phi_inds = np.argsort(phi)
+    phi = phi[phi_inds] + np.pi
+    xyz_curve = xyz_curve[phi_inds, :]
+    
+    # Initialize CurveXYZFourier object
+    quadpoints = np.linspace(0, 2 * np.pi, 1000, endpoint=False) # len(phi)
+    coil = CurveXYZFourier(quadpoints, num_fourier)
     dofs = coil.dofs_matrix
-    for i in range(3):
-        dofs[i][0] = np.sum(xyz_curve[:, i] * dphi) / np.pi / 2
+    
+    # Curve is periodic so m = 0 cosine term integrates to zero
+    # so below we only set the m = 1, 2, ... terms
     for f in range(num_fourier):
         for i in range(3):
-            dofs[i][f * 2 + 1] = np.sum(xyz_curve[:, i] * np.sin(f * t) * dphi) / np.pi
-            dofs[i][f * 2 + 2] = np.sum(xyz_curve[:, i] * np.cos(f * t) * dphi) / np.pi
+            dofs[i][f * 2 + 1] = np.trapz(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
+            dofs[i][f * 2 + 2] = np.trapz(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
     coil.local_x = np.concatenate(dofs)
-
-    #quadpoints = len(phi)
-    #order = num_fourier + 1
-    # dofs order = [x_{c,0}, x_{s,1}, x_{c,1},\cdots x_{s,\text{order}}, x_{c,\text{order}},y_{c,0},y_{s,1},y_{c,1},\cdots] 
-    #dofs = np.vstack((x_cm, x_sm))
-    #curve = CurveXYZFourier(quadpoints, order, dofs=dofs)
     return coil

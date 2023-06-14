@@ -388,8 +388,8 @@ class CurrentVoxelsGrid:
             coil surface, not just 1 / 2 nfp of the surface.
         """
         range_surf = self.coil_range
-        nphi = self.nphi
-        ntheta = self.ntheta
+        nphi = self.nphi * 16
+        ntheta = self.ntheta * 16
         f = self.filename
         if self.surface_flag == 'focus':
             rz_inner_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -410,8 +410,8 @@ class CurrentVoxelsGrid:
             theta value.
         """
         range_surf = self.coil_range
-        nphi = self.nphi
-        ntheta = self.ntheta
+        nphi = self.nphi * 16
+        ntheta = self.ntheta * 16
         f = self.filename
         if self.surface_flag == 'focus':
             rz_outer_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -839,59 +839,70 @@ class CurrentVoxelsGrid:
         nphi_loop_inv = 1.0 / len(self.Itarget_curve.quadpoints)
         curve_dl = self.Itarget_curve.gammadash().reshape(-1, 3)
 
-        # Initialize new grid and current vectors for all the dipoles
-        # after we account for the symmetries below.
-        ox_full = np.zeros((n * nsym, n_interp))
-        oy_full = np.zeros((n * nsym, n_interp))
-        oz_full = np.zeros((n * nsym, n_interp))
-        Phivec_full = np.zeros((num_basis, n * nsym, n_interp, 3))
-
-        # loop through the dipoles and repeat for fp and stellarator symmetries
-        index = 0
-        contig = np.ascontiguousarray    
-
         # Loop over stellarator and field-period symmetry contributions
         t1 = time.time()
         num_points = points.shape[0]
         num_points_curve = points_curve.shape[0]
+        geo_factor = np.zeros((num_points, n, num_basis))
+        Itarget_matrix = np.zeros((num_points_curve, n, num_basis))
+        ox_full = ox
+        oy_full = oy
+        oz_full = oz
+        Phivec_transpose = Phi
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
 
                 # get new dipoles locations by flipping the y and z components, then rotating by phi0
-                ox_full[index:index + n, :] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
-                oy_full[index:index + n, :] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
-                oz_full[index:index + n, :] = oz * stell
+                ox_full = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                oy_full = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                oz_full = oz * stell
 
                 # get new dipole vectors by flipping the x component, then rotating by phi0
-                Phivec_full[:, index:index + n, :, 0] = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[:, :, :, 1] * np.sin(phi0)
-                Phivec_full[:, index:index + n, :, 1] = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[:, :, :, 1] * np.cos(phi0)
-                Phivec_full[:, index:index + n, :, 2] = Phi[:, :, :, 2]
-                index += n
+                Phivec_x = Phi[:, :, :, 0] * np.cos(phi0) * stell - Phi[:, :, :, 1] * np.sin(phi0)
+                Phivec_y = Phi[:, :, :, 0] * np.sin(phi0) * stell + Phi[:, :, :, 1] * np.cos(phi0)
+                Phivec_z = Phi[:, :, :, 2]
 
-        int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
-        Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
-        geo_factor = sopp.current_voxels_field_Bext(
-            points, 
-            contig(int_points), 
-            contig(Phivec_transpose),
-            plasma_unitnormal
-        )
-        Itarget_matrix = sopp.current_voxels_field_Bext(
-            points_curve, 
-            contig(int_points), 
-            contig(Phivec_transpose),
-            contig(curve_dl)
-        )
-        index = 0
-        for stell in stell_list:
-            for fp in range(nfp):
-                if stell != 1 or fp != 0:
-                    geo_factor[:, :n, :] += geo_factor[:, index:index + n, :]
-                    Itarget_matrix[:, :n, :] += Itarget_matrix[:, index:index + n, :]
-                index += n
-        self.geo_factor = geo_factor[:, :n, :]
-        self.Itarget_matrix = Itarget_matrix[:, :n, :]
+                int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
+                Phivec_transpose = np.transpose(np.array([Phivec_x, Phivec_y, Phivec_z]), [1, 2, 3, 0])
+                print(Phivec_transpose.shape, int_points.shape, points.shape, plasma_unitnormal.shape)
+
+                #geo_factor += sopp.current_voxels_field_Bext(
+                #    points, 
+                #    contig(int_points), 
+                #    contig(Phivec_transpose),
+                #    plasma_unitnormal
+                #)
+                Itarget_matrix += sopp.current_voxels_field_Bext(
+                    points_curve, 
+                    contig(int_points), 
+                    contig(Phivec_transpose),
+                    contig(curve_dl)
+                )
+                exit()
+        #int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
+        #Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
+        #geo_factor = sopp.current_voxels_field_Bext(
+        #    points, 
+        #    contig(int_points), 
+        #    contig(Phivec_transpose),
+        #    plasma_unitnormal
+        #)
+        #Itarget_matrix = sopp.current_voxels_field_Bext(
+        #    points_curve, 
+        #    contig(int_points), 
+        #    contig(Phivec_transpose),
+        #    contig(curve_dl)
+        #)
+        #index = 0
+        #for stell in stell_list:
+        #    for fp in range(nfp):
+        #        if stell != 1 or fp != 0:
+        #            geo_factor[:, :n, :] += geo_factor[:, index:index + n, :]
+        #            Itarget_matrix[:, :n, :] += Itarget_matrix[:, index:index + n, :]
+        #        index += n
+        #self.geo_factor = geo_factor[:, :n, :]
+        #self.Itarget_matrix = Itarget_matrix[:, :n, :]
         t2 = time.time()
         print('Computing full coil surface grid took t = ', t2 - t1, ' s')
 
@@ -906,19 +917,18 @@ class CurrentVoxelsGrid:
         # by self.nx (number of points within a cell)
         coil_integration_factor = self.dx * self.dy * self.dz / (self.nx * self.ny * self.nz)
         self.grid_scaling = coil_integration_factor
-        B_matrix = (self.geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
-            self.geo_factor.shape[0], self.N_grid * self.n_functions
+        self.B_matrix = (geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
+            geo_factor.shape[0], self.N_grid * self.n_functions
         )
         # print(B_matrix.shape, self.geo_factor.shape)
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
-        for i in range(B_matrix.shape[0]):
-            B_matrix[i, :] *= np.sqrt(normN[i])
+        for i in range(self.B_matrix.shape[0]):
+            self.B_matrix[i, :] *= np.sqrt(normN[i])
             b_rhs[i] *= np.sqrt(normN[i])
 
-        self.B_matrix = B_matrix
         self.b_rhs = -b_rhs  # minus sign because ||B_{coil,N} + B_{0,N}||_2^2 -> ||A * alpha - b||_2^2
 
-        self.Itarget_matrix = nphi_loop_inv * coil_integration_factor * self.Itarget_matrix.reshape(
+        self.Itarget_matrix = nphi_loop_inv * coil_integration_factor * Itarget_matrix.reshape(
             points_curve.shape[0], n * num_basis
         )
         self.Itarget_matrix = np.sum(self.Itarget_matrix, axis=0)

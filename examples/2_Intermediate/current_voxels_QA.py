@@ -18,25 +18,32 @@ from matplotlib import pyplot as plt
 import simsoptpp as sopp
 import simsopt
 from simsopt.geo import SurfaceRZFourier, Curve, curves_to_vtk
+from scipy.optimize import minimize
 from simsopt.objectives import SquaredFlux
+from simsopt.objectives import Weight
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field import InterpolatedField, SurfaceClassifier
+from simsopt.field import InterpolatedField, SurfaceClassifier, Coil
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split, ras_minres, relax_and_split_increasingl0, ras_preconditioned_minres
 from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt.objectives import QuadraticPenalty
+from simsopt.geo import create_equally_spaced_curves
+from simsopt.field import Current
+from simsopt.geo import CurveLength, CurveCurveDistance, \
+    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
 import time
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-logging.basicConfig()
-logger = logging.getLogger('simsopt.field.tracing')
-logger.setLevel(1)
+#from mpi4py import MPI
+#comm = MPI.COMM_WORLD
+#logging.basicConfig()
+#logger = logging.getLogger('simsopt.field.tracing')
+#logger.setLevel(1)
 
 t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 coil_range = 'half period'
 input_name = 'input.LandremanPaul2021_QA'
@@ -81,7 +88,7 @@ Itarget = 0.5e6
 t2 = time.time()
 print('Curve initialization took time = ', t2 - t1, ' s')
 
-poff = 0.3
+poff = 0.5
 coff = 0.3
 
 nx = 10
@@ -113,8 +120,8 @@ rs_max_iter = 100  # 1
 nu = 1e2
 kappa = 1e-6
 l0_threshold = 1e4
-l0_thresholds = np.linspace(l0_threshold, 40 * l0_threshold, 2, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw = ras_preconditioned_minres( 
+l0_thresholds = np.linspace(l0_threshold, 100 * l0_threshold, 5, endpoint=True)
+alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw, _ = ras_preconditioned_minres( 
     wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
@@ -225,6 +232,106 @@ t_end = time.time()
 print('Total time = ', t_end - t_start)
 print('f fB fI fK fC')
 print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
-plt.show()
 filament_curve = make_filament_from_voxels(wv_grid, l0_thresholds[-1])
 curves_to_vtk([filament_curve], OUT_DIR + f"filament_curve")
+current = Current(Itarget)
+current.fix_all()
+coil = [Coil(filament_curve, current)]
+bs = BiotSavart(coil)
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+
+# Weight on the curve lengths in the objective function. We use the `Weight`
+# class here to later easily adjust the scalar value and rerun the optimization
+# without having to rebuild the objective.
+LENGTH_WEIGHT = Weight(1e-5)
+
+# Threshold and weight for the coil-to-surface distance penalty in the objective function:
+CS_THRESHOLD = 0
+CS_WEIGHT = 1e-12
+
+# Threshold and weight for the curvature penalty in the objective function:
+CURVATURE_THRESHOLD = 0.
+CURVATURE_WEIGHT = 1e-12
+
+# Threshold and weight for the mean squared curvature penalty in the objective function:
+MSC_THRESHOLD = 0
+MSC_WEIGHT = 1e-12
+
+# Define the individual terms objective function:
+Jf = SquaredFlux(s_plot, bs)
+Jls = [CurveLength(filament_curve)]
+Jcsdist = CurveSurfaceDistance([filament_curve], s_plot, CS_THRESHOLD)
+Jcs = [LpCurveCurvature(filament_curve, 2, CURVATURE_THRESHOLD)]
+Jmscs = [MeanSquaredCurvature(filament_curve)]
+
+# Form the total objective function. To do this, we can exploit the
+# fact that Optimizable objects with J() and dJ() functions can be
+# multiplied by scalars and added:
+JF = Jf \
+    + LENGTH_WEIGHT * sum(Jls) \
+    + CS_WEIGHT * Jcsdist \
+    + CURVATURE_WEIGHT * sum(Jcs) \
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
+
+# We don't have a general interface in SIMSOPT for optimisation problems that
+# are not in least-squares form, so we write a little wrapper function that we
+# pass directly to scipy.optimize.minimize
+
+
+def fun(dofs):
+    JF.x = dofs
+    J = JF.J()
+    grad = JF.dJ()
+    jf = Jf.J()
+    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)))
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in [filament_curve])
+    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    print(outstr)
+    return J, grad
+
+
+print("""
+################################################################################
+### Perform a Taylor test ######################################################
+################################################################################
+""")
+f = fun
+dofs = JF.x
+np.random.seed(1)
+h = np.random.uniform(size=dofs.shape)
+J0, dJ0 = f(dofs)
+dJh = sum(dJ0 * h)
+for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+    J1, _ = f(dofs + eps*h)
+    J2, _ = f(dofs - eps*h)
+    print("err", (J1-J2)/(2*eps) - dJh)
+
+print("""
+################################################################################
+### Run the optimisation #######################################################
+################################################################################
+""")
+MAXITER = 100
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk([filament_curve], OUT_DIR + f"curves_opt_short")
+pointData = {"B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
+
+
+# We now use the result from the optimization as the initial guess for a
+# subsequent optimization with reduced penalty for the coil length. This will
+# result in slightly longer coils but smaller `B·n` on the surface.
+dofs = res.x
+LENGTH_WEIGHT *= 0.1
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk([filament_curve], OUT_DIR + f"curves_opt_long")
+pointData = {"B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
+
+# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
+bs.save(OUT_DIR + "biot_savart_opt.json")
+plt.show()
