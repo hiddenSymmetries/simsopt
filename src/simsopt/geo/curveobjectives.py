@@ -1,4 +1,6 @@
 from deprecated import deprecated
+from dataclasses import dataclass
+from typing import Sequence
 
 import numpy as np
 from jax import grad
@@ -8,6 +10,8 @@ import jax.numpy as jnp
 from .jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
+from .curve import Curve
+from .surface import Surface
 import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
@@ -23,6 +27,7 @@ def curve_length_pure(l):
     return jnp.mean(l)
 
 
+@dataclass
 class CurveLength(Optimizable):
     r"""
     CurveLength is a class that computes the length of a curve, i.e.
@@ -31,11 +36,12 @@ class CurveLength(Optimizable):
         J = \int_{\text{curve}}~dl.
 
     """
+    curve : Curve
 
-    def __init__(self, curve):
-        self.curve = curve
+    def __post_init__(self):
+        # self.curve = curve
         self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
-        super().__init__(depends_on=[curve])
+        super().__init__(depends_on=[self.curve])
 
     def J(self):
         """
@@ -64,6 +70,7 @@ def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
     return (1./p)*jnp.mean(jnp.maximum(kappa-desired_kappa, 0)**p * arc_length)
 
 
+@dataclass
 class LpCurveCurvature(Optimizable):
     r"""
     This class computes a penalty term based on the :math:`L_p` norm
@@ -75,12 +82,16 @@ class LpCurveCurvature(Optimizable):
     where :math:`\kappa_0` is a threshold curvature, given by the argument ``threshold``.
     """
 
-    def __init__(self, curve, p, threshold=0.):
-        self.curve = curve
-        self.p = p
-        self.threshold = threshold
-        super().__init__(depends_on=[curve])
-        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
+    curve: Curve
+    p: float
+    thresold: float = 0.0
+
+    def __post_init__(self):
+        # self.curve = curve
+        # self.p = p
+        # self.threshold = threshold
+        super().__init__(depends_on=[self.curve])
+        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, self.p, self.threshold))
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
         self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
 
@@ -111,6 +122,7 @@ def Lp_torsion_pure(torsion, gammadash, p, threshold):
     return (1./p)*jnp.mean(jnp.maximum(jnp.abs(torsion)-threshold, 0)**p * arc_length)
 
 
+@dataclass
 class LpCurveTorsion(Optimizable):
     r"""
     LpCurveTorsion is a class that computes a penalty term based on the :math:`L_p` norm
@@ -121,14 +133,17 @@ class LpCurveTorsion(Optimizable):
 
     """
 
-    def __init__(self, curve, p, threshold=0.):
-        self.curve = curve
-        self.p = p
-        self.threshold = threshold
-        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
+    curve: Curve
+    p: float
+    threshold: float = 0.0
+    def __post_init__(self):
+        # self.curve = curve
+        # self.p = p
+        # self.threshold = threshold
+        super().__init__(depends_on=[self.curve])
+        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, self.p, self.threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
-        super().__init__(depends_on=[curve])
 
     def J(self):
         """
@@ -264,7 +279,7 @@ def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
         * jnp.linalg.norm(ns, axis=1)[None, :]
     return jnp.mean(integralweight * jnp.maximum(minimum_distance-dists, 0)**2)
 
-
+@dataclass
 class CurveSurfaceDistance(Optimizable):
     r"""
     CurveSurfaceDistance is a class that computes
@@ -284,17 +299,20 @@ class CurveSurfaceDistance(Optimizable):
     :math:`d_\min` away from one another.
 
     """
+    curves: Sequence[Curve]
+    surface: Surface
+    minimum_distance: float
 
-    def __init__(self, curves, surface, minimum_distance):
-        self.curves = curves
-        self.surface = surface
-        self.minimum_distance = minimum_distance
+    def __post_init__(self):
+        # self.curves = curves
+        # self.surface = surface
+        # self.minimum_distance = minimum_distance
 
-        self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, minimum_distance))
+        self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, self.minimum_distance))
         self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
         self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.candidates = None
-        super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
+        super().__init__(depends_on=self.curves)  # Bharat's comment: Shouldn't we add surface here
 
     def recompute_bell(self, parent=None):
         self.candidates = None
