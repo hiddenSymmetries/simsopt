@@ -56,10 +56,6 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
 
-    nfp = Integer()
-    mpol = Integer()
-    ntor = Integer()
-
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
                  quadpoints_phi=None, quadpoints_theta=None,
                  dofs=None):
