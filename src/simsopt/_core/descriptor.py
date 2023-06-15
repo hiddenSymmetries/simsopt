@@ -26,13 +26,14 @@ class Validator(ABC):
 
 
 class OneOf(Validator):
-    def __init__(self, *options):
-        self.options = options
+    def __init__(self, *args):
+        self.options = set(args)
 
     def validate(self, value):
         if value not in self.options:
             raise ValueError(f'{value!r} is not a valid option for {self.public_name!r}.\n'
                              f'Valid options are one of {self.options!r}')
+        super().validate(value)
 
 
 @dataclass
@@ -53,6 +54,7 @@ class String(Validator):
         if self.predicate is not None and not self.predicate(value):
             raise ValueError(
                 f'Expected {self.predicate} to be true for {value!r}')
+        super().validate(value)
 
 
 class Real(Validator):
@@ -60,6 +62,7 @@ class Real(Validator):
         if not isinstance(value, numbers.Real):
             raise TypeError(
                 f'Expected {value!r} should be of Real type')
+        super().validate(value)
 
 
 class Integral(Validator):
@@ -67,6 +70,7 @@ class Integral(Validator):
         if not isinstance(value, numbers.Integral):
             raise TypeError(
                 f'Expected {value!r} should be of Integer type')
+        super().validate(value)
 
 
 @dataclass
@@ -81,6 +85,7 @@ class RangeChecker(Validator):
         if self.max_value is not None and value > self.max_value:
             raise ValueError(
                 f'Expected {value!r} to be no more than {self.max_value!r}')
+        super().validate(value)
 
 
 class PositiveChecker(RangeChecker):
@@ -115,13 +120,15 @@ class PositiveFloat(Real, PositiveChecker):
 
 
 class OneofStrings(String, OneOf):
+    def __init__(self, *args):
+        OneOf.__init__(self, *args)
     def validate(self, value):
         super().validate(value)
 
 
-class OneofIntegers(Integer, OneOf):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class OneofIntegers(Integral, OneOf):
+    def __init__(self, *args):
+        OneOf().__init__(self, *args)
 
     def validate(self, value):
         super().validate(value)
