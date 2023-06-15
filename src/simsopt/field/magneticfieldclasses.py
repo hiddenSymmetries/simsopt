@@ -865,14 +865,14 @@ class MirrorModel(MagneticField):
     .. math::
 
         B_R = -{\partial\psi}/{\partial Z}/R, B_Z = {\partial\psi}/{\partial R}/R
-    
+
     In this model, the magnetic flux function psi is written as a double
     Lorentzian distribution
 
     .. math::
 
         \psi = \frac{R^2 B}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right)
-    
+
     The input parameters are B, gamma and Z_m with the standard values the
     ones used in https://arxiv.org/abs/2305.06372, that is, B0=6.51292,
     gamma = 0.124904 and Z_m = 0.98.
@@ -883,12 +883,12 @@ class MirrorModel(MagneticField):
         Z_m:  parameter Z_m of the flux surface function
     """
 
-    def __init__(self, B0=6.51292, gamma = 0.124904, Z_m = 0.98):
+    def __init__(self, B0=6.51292, gamma=0.124904, Z_m=0.98):
         MagneticField.__init__(self)
         self.B0 = B0
         self.gamma = gamma
         self.Z_m = Z_m
-    
+
     def _psi(self, R, Z):
         factor1 = 1+((Z-self.Z_m)/(self.gamma))**2
         factor2 = 1+((Z+self.Z_m)/(self.gamma))**2
@@ -904,7 +904,7 @@ class MirrorModel(MagneticField):
         factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
         factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
         Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
-        Bz = self._psi(r,z)*2/r/r
+        Bz = self._psi(r, z)*2/r/r
         B[:, 0] = Br * np.cos(phi)
         B[:, 1] = Br * np.sin(phi)
         B[:, 2] = Bz
@@ -914,7 +914,7 @@ class MirrorModel(MagneticField):
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         z = points[:, 2]
         phi = np.arctan2(points[:, 1], points[:, 0])
-        
+
         factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
         factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
         Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
@@ -922,7 +922,7 @@ class MirrorModel(MagneticField):
         dBrdr = (self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
         dBzdz = -2*dBrdr
         dBrdz = (self.B0*r/(np.pi*self.gamma**3))*(1/factor1+1/factor2
-                                                   -4*self.gamma**4*((z-self.Z_m)**2/((z-self.Z_m)**2+self.gamma**2)**3+(z+self.Z_m)**2/((z+self.Z_m)**2+self.gamma**2)**3))
+                                                   - 4*self.gamma**4*((z-self.Z_m)**2/((z-self.Z_m)**2+self.gamma**2)**3+(z+self.Z_m)**2/((z+self.Z_m)**2+self.gamma**2)**3))
         cosphi = np.cos(phi)
         sinphi = np.sin(phi)
         dcosphidx = -points[:, 0]**2/r**3 + 1/r
@@ -937,7 +937,7 @@ class MirrorModel(MagneticField):
         dBydx = dBrdr*drdx*sinphi + Br*dsinphidx
         dBydy = dBrdr*drdy*sinphi + Br*dsinphidy
         dBydz = dBrdz*sinphi
-        
+
         dB[:, 0, 0] = dBxdx
         dB[:, 1, 0] = dBxdy
         dB[:, 2, 0] = dBxdz
