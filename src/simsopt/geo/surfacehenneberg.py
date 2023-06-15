@@ -105,9 +105,6 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  dofs=None
                  ):
 
-        if alpha_fac > 1 or alpha_fac < -1:
-            raise ValueError('alpha_fac must be 1, 0, or -1')
-
         self.nfp = nfp
         self.alpha_fac = alpha_fac
         self.mmax = mmax
