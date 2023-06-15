@@ -2,6 +2,7 @@ from pathlib import Path
 import unittest
 
 import numpy as np
+from monty.tempfile import ScratchDir
 import simsoptpp as sopp
 
 from simsopt.field import (BiotSavart, Current, DipoleField, InterpolatedField,
@@ -34,81 +35,80 @@ class Testing(unittest.TestCase):
         nphi = 4
         ntheta = nphi
         Bn = np.zeros((nphi, ntheta))
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s3 = SurfaceXYZFourier(nfp=2, stellsym=True)
-        s1.extend_via_projected_normal(0.1)
-        s2.extend_via_projected_normal(0.2)
-        PermanentMagnetGrid(
-            s3, Bn, 
-        )
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s3 = SurfaceXYZFourier(nfp=2, stellsym=True)
+            s1.extend_via_projected_normal(0.1)
+            s2.extend_via_projected_normal(0.2)
+            PermanentMagnetGrid(s3, Bn)
 
-        with self.assertRaises(TypeError):
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn)
-        with self.assertRaises(TypeError):
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1)
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(Bn, s1, s2, s)
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s1, s, s2, Bn)
-        with self.assertRaises(TypeError):
-            PermanentMagnetGrid(s)
-        with self.assertRaises(ValueError):
-            kwargs = {"dr": -0.05}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            kwargs = {"dz": -0.05}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            kwargs = {"Nx": -2}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            kwargs = {"Ny": -2}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            kwargs = {"Nz": -2}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": [10]}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            kwargs = {"coordinate_flag": "toroidal", "pol_vectors": [10]}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, 0, s1, s2)
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, np.zeros((nphi, ntheta // 2)), s1, s2)
-        with self.assertRaises(ValueError):
-            kwargs = {"m_maxima": np.ones(4)}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
-        with self.assertRaises(ValueError):
-            PermanentMagnetGrid.geo_setup_from_famus(s, np.zeros((nphi, ntheta)), TEST_DIR / 'zot80.log')
-        with self.assertRaises(ValueError):
-            kwargs = {"m_maxima": np.ones(4)}
-            PermanentMagnetGrid.geo_setup_from_famus(
-                s, np.zeros((nphi, ntheta)), TEST_DIR / 'zot80.focus', **kwargs
-            )
-        with self.assertRaises(ValueError):
-            kwargs = {"pol_vectors": np.ones((5, 3, 2))}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
-            )
-        with self.assertRaises(ValueError):
-            kwargs = {"pol_vectors": np.ones((5, 3))}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
-            )
-        with self.assertRaises(ValueError):
-            kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": np.ones((5, 3, 3))}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
-            )
-        with self.assertRaises(NotImplementedError):
-            kwargs = {"coordinate_flag": "random"}
-            PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
-            )
+            with self.assertRaises(TypeError):
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn)
+            with self.assertRaises(TypeError):
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1)
+            with self.assertRaises(ValueError):
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(Bn, s1, s2, s)
+            with self.assertRaises(ValueError):
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s1, s, s2, Bn)
+            with self.assertRaises(TypeError):
+                PermanentMagnetGrid(s)
+            with self.assertRaises(ValueError):
+                kwargs = {"dr": -0.05}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                kwargs = {"dz": -0.05}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                kwargs = {"Nx": -2}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                kwargs = {"Ny": -2}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                kwargs = {"Nz": -2}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": [10]}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                kwargs = {"coordinate_flag": "toroidal", "pol_vectors": [10]}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, 0, s1, s2)
+            with self.assertRaises(ValueError):
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, np.zeros((nphi, ntheta // 2)), s1, s2)
+            with self.assertRaises(ValueError):
+                kwargs = {"m_maxima": np.ones(4)}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
+            with self.assertRaises(ValueError):
+                PermanentMagnetGrid.geo_setup_from_famus(s, np.zeros((nphi, ntheta)), TEST_DIR / 'zot80.log')
+            with self.assertRaises(ValueError):
+                kwargs = {"m_maxima": np.ones(4)}
+                PermanentMagnetGrid.geo_setup_from_famus(
+                    s, np.zeros((nphi, ntheta)), TEST_DIR / 'zot80.focus', **kwargs
+                )
+            with self.assertRaises(ValueError):
+                kwargs = {"pol_vectors": np.ones((5, 3, 2))}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                    s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
+                )
+            with self.assertRaises(ValueError):
+                kwargs = {"pol_vectors": np.ones((5, 3))}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                    s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
+                )
+            with self.assertRaises(ValueError):
+                kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": np.ones((5, 3, 3))}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                    s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
+                )
+            with self.assertRaises(ValueError):
+                kwargs = {"coordinate_flag": "random"}
+                PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                    s, np.zeros((nphi, ntheta)), s1, s2, **kwargs
+                )
 
     def test_optimize_bad_parameters(self):
         """
