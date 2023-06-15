@@ -35,6 +35,7 @@ class CurveLength(Optimizable):
         J = \int_{\text{curve}}~dl.
 
     """
+
     def __init__(self, curve):
         self.curve = curve
         self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
@@ -77,6 +78,7 @@ class LpCurveCurvature(Optimizable):
 
     where :math:`\kappa_0` is a threshold curvature, given by the argument ``threshold``.
     """
+
     def __init__(self, curve, p, threshold=0.0):
         self.curve = curve
         self.p = p
@@ -122,6 +124,7 @@ class LpCurveTorsion(Optimizable):
         J = \frac{1}{p} \int_{\text{curve}} \max(|\tau|-\tau_0, 0)^p ~dl.
 
     """
+
     def __init__(self, curve, p, threshold=0.0):
         self.curve = curve
         self.p = p
@@ -265,6 +268,7 @@ def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
         * jnp.linalg.norm(ns, axis=1)[None, :]
     return jnp.mean(integralweight * jnp.maximum(minimum_distance-dists, 0)**2)
 
+
 class CurveSurfaceDistance(Optimizable):
     r"""
     CurveSurfaceDistance is a class that computes
@@ -284,6 +288,7 @@ class CurveSurfaceDistance(Optimizable):
     :math:`d_\min` away from one another.
 
     """
+
     def __init__(self, curves, surface, minimum_distance):
         self.curves = curves
         self.surface = surface
