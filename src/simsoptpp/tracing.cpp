@@ -449,6 +449,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 template<template<class, std::size_t, xt::layout_type> class T>
 class SymplField
 {
+    public:
     // Covaraint components of vector potential
     double  Atheta, Azeta;
     // htheta = G/B, hzeta = I/B
@@ -475,7 +476,7 @@ class SymplField
     shared_ptr<BoozerMagneticField<T>> field;
     typename BoozerMagneticField<T>::Tensor2 stz = xt::zeros<double>({1, 3});
 
-    SymplField(shared_ptr<MagneticField<T>> field, double mu, double q, double m) :
+    SymplField(shared_ptr<BoozerMagneticField<T>> field, double mu, double q, double m) :
         field(field), mu(mu), q(q), m(m) {
     }
 
@@ -491,10 +492,10 @@ class SymplField
         field->set_points(stz);
 
         // A = psi \nabla \theta - psip \nabla \zeta
-        Atheta = field->psi()(0);
-        Azeta = -field->psip()(0);
-        dAtheta[0] = field->psi0()(0); // dAthetads
-        dAzeta[0] = -field->iota()(0)*field->psi0()(0); // dAphids
+        Atheta = s*field->psi0;
+        Azeta =  -field->psip()(0);
+        dAtheta[0] = field->psi0; // dAthetads
+        dAzeta[0] = -field->iota()(0)*field->psi0; // dAphids
         for (int i=1; i<3; i++)
         {
             dAtheta[i] = 0.0;
@@ -581,7 +582,7 @@ void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
@@ -598,7 +599,6 @@ solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<share
     double z[4]; // s, theta, zeta, pzeta
     // y = [s, theta, zeta, vpar]
 
-    SymplField<T> f;
     // Translate y to z
     // y = [s, theta, zeta, vpar]
     // z = [s, theta, zeta, pzeta]
@@ -700,30 +700,33 @@ particle_guiding_center_boozer_tracing(
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
 
     if (vacuum) {
-      auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+	    auto f = SymplField<T>(field, m, q, mu);
+            return solve_sympl(f, y, tmax, dt, tol, stopping_criteria);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
+	    auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
     } else if (noK) {
-      auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+	    auto f = SymplField<T>(field, m, q, mu);
+            return solve_sympl(f, y, tmax, dt, tol, stopping_criteria);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
+	    auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
     } else {
-      auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+	    auto f = SymplField<T>(field, m, q, mu);
+            return solve_sympl(f, y, tmax, dt, tol, stopping_criteria);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
+      	    auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
     }
