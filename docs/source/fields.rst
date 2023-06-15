@@ -170,6 +170,32 @@ Physics Communications 43 (1986) 157—167
 It is an analytical magnetic field representation that allows the
 explicit calculation of the width of the magnetic field islands.
 
+MirrorModel
+~~~~~~~~~~~
+
+The :obj:`simsopt.field.MirrorModel` provides the
+vacuum magnetic field employed in https://arxiv.org/abs/2305.06372 to study
+the magnetic mirror experiment WHAM. It is composed of an analytical flux
+function whose gradients yield the magnetic field vector. Namely, the
+magnetic field is given by B=B_R e_R + B_Z e_Z, where e_R and e_Z are
+the cylindrical radial and vertical unit vectors, respectively, and
+B_R and B_Z are given by
+
+.. math::
+
+    B_R = -{\partial\psi}/{\partial Z}/R, B_Z = {\partial\psi}/{\partial R}/R
+
+In this model, the magnetic flux function psi is written as a double
+Lorentzian distribution
+
+.. math::
+
+    \psi = \frac{R^2 B}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right)
+
+The input parameters are B, gamma and Z_m with the standard values the
+ones used in https://arxiv.org/abs/2305.06372, that is, B0=6.51292,
+gamma = 0.124904 and Z_m = 0.98.
+
 InterpolatedField
 ~~~~~~~~~~~~~~~~~
 
