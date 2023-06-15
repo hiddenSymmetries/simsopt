@@ -60,6 +60,7 @@ class OneofStringTest(TestCase):
         with self.assertRaises(ValueError):
             OneOfStringsTstComposite('two', "boozer")
 
+
 @dataclass
 class IntComposite:
     i: int = Integer()
@@ -68,6 +69,7 @@ class IntComposite:
     l: int = Integer(min_value=20)
     m: int = Integer(max_value=200)
     n: int = Integer(max_value=200, min_value=20)
+
 
 class IntegerTests(TestCase):
     def test_valid_args(self):
@@ -91,6 +93,7 @@ class IntegerTests(TestCase):
         with self.assertRaises(ValueError):
             IntComposite(-10, 11, 100, 20, 200, -10)
 
+
 @dataclass
 class RealComposite:
     a: float = Float()
@@ -99,6 +102,7 @@ class RealComposite:
     d: float = Float(min_value=1.5)
     e: float = Float(max_value=1.5)
     f: float = Float(max_value=1.5, min_value=0.5)
+
 
 class FloatTests(TestCase):
     def test_valid_args(self):
