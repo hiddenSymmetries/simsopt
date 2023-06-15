@@ -129,7 +129,7 @@ class OneofStrings(String, OneOf):
 
 class OneofIntegers(Integral, OneOf):
     def __init__(self, *args):
-        OneOf().__init__(self, *args)
+        OneOf.__init__(self, *args)
 
     def validate(self, value):
         super().validate(value)
