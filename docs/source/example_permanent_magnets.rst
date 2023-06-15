@@ -1,4 +1,4 @@
-Permanent Magnet optimization
+Permanent magnet optimization
 ==================================
 
 In this tutorial it is shown how to perform stage-2 stellarator
