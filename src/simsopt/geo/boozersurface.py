@@ -62,18 +62,18 @@ class BoozerSurface(Optimizable):
             return
 
         if boozer_type == 'exact':
-            res = self.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G, verbose=verbose)
+            res = self.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=40, iota=iota, G=G, verbose=verbose)
             return res
 
         elif boozer_type == 'ls':
             # first try BFGS
             #res = self.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=self.constraint_weight, iota=iota, G=G, method='manual')
-            res = self.compute_boozerls_BFGS(tol=1e-10, maxiter=1e3, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
+            res = self.compute_boozerls_BFGS(tol=1e-10, maxiter=1500, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
             iota, G = res['iota'], res['G']
             
             ## polish off using Newton's method
             self.need_to_run_code = True
-            res = self.compute_boozerls_newton(tol=1e-11, maxiter=20, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
+            res = self.compute_boozerls_newton(tol=1e-11, maxiter=40, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
             return res
         else:
             raise Exception(f"boozer_type not supported: {boozer_type}")
@@ -609,7 +609,7 @@ class BoozerSurface(Optimizable):
 
         P, L, U = lu(J)
         res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "PLU": (P, L, U),
+            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "iota": iota, "PLU": (P, L, U),
             "mask": mask, 'type': 'exact', "vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp
         }
         
@@ -794,7 +794,7 @@ class BoozerSurface(Optimizable):
                 x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval, ord=np.inf)
             
-            if norm > 1e2:
+            if norm > 1e1:
                 break
     
             i = i+1
