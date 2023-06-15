@@ -17,7 +17,8 @@ from .._core.json import GSONable, GSONDecoder
 logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
-           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField']
+           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField',
+           'MirrorModel']
 
 
 class ToroidalField(MagneticField):
