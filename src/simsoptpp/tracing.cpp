@@ -705,7 +705,8 @@ particle_guiding_center_boozer_tracing(
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            #return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
@@ -713,7 +714,8 @@ particle_guiding_center_boozer_tracing(
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            #return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
@@ -721,7 +723,8 @@ particle_guiding_center_boozer_tracing(
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            #return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
