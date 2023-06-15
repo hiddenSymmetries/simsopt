@@ -445,8 +445,8 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     return std::make_tuple(res, res_phi_hits);
 }
 
-//template<template<class, std::size_t, xt::layout_type> class T>
-template<class RHS>
+//template<class RHS>
+template<template<class, std::size_t, xt::layout_type> class T>
 class SymplField
 {
     // Covaraint components of vector potential
@@ -579,18 +579,15 @@ void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
 
 // see https://github.com/itpplasma/SIMPLE/blob/master/SRC/
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
-//template<template<class, std::size_t, xt::layout_type> class T>
-//tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-//solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
-template<class RHS>
-tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve_sympl(RHS rhs, typename RHS::State y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+solve_sympl(array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
-    //vector<array<double, 5>> res = {};
-    //vector<array<double, 6>> res_phi_hits = {};
-    vector<array<double, RHS::Size+1>> res = {};
-    vector<array<double, RHS::Size+2>> res_phi_hits = {};
-    typedef typename RHS::State State;
+    vector<array<double, 5>> res = {};
+    vector<array<double, 6>> res_phi_hits = {};
+    //vector<array<double, RHS::Size+1>> res = {};
+    //vector<array<double, RHS::Size+2>> res_phi_hits = {};
+    //typedef typename RHS::State State;
     
     double t = 0.0;
     double ptheta_old = 0.0;
@@ -705,8 +702,8 @@ particle_guiding_center_boozer_tracing(
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            //return solve_sympl(y, tmax, dt, tol, stopping_criteria);
-            return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
@@ -714,8 +711,8 @@ particle_guiding_center_boozer_tracing(
     } else if (noK) {
       auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            //return solve_sympl(y, tmax, dt, tol, stopping_criteria);
-            return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
@@ -723,8 +720,8 @@ particle_guiding_center_boozer_tracing(
     } else {
       auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
         if (solveSympl) {
-            //return solve_sympl(y, tmax, dt, tol, stopping_criteria);
-            return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(y, tmax, dt, tol, stopping_criteria);
+            //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
