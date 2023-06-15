@@ -47,6 +47,7 @@ class PermanentMagnetGrid:
             using the dr and dz parameters.
     """
     coordinate_flag = OneofStrings("cartesian", "cylindrical", "toroidal")
+
     def __init__(
         self, plasma_boundary: Surface,
         Bn,

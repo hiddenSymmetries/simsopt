@@ -75,8 +75,8 @@ class Integral(Validator):
 
 @dataclass
 class RangeChecker(Validator):
-    min_value : numbers.Real = None
-    max_value : numbers.Real = None
+    min_value: numbers.Real = None
+    max_value: numbers.Real = None
 
     def validate(self, value):
         if self.min_value is not None and value < self.min_value:
@@ -90,13 +90,13 @@ class RangeChecker(Validator):
 
 class PositiveChecker(RangeChecker):
     def __init__(self):
-        super().__init__(min_value = 0)
+        super().__init__(min_value=0)
 
 
 class Integer(Integral, RangeChecker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
     def validate(self, value):
         super().validate(value)
 
@@ -122,6 +122,7 @@ class PositiveFloat(Real, PositiveChecker):
 class OneofStrings(String, OneOf):
     def __init__(self, *args):
         OneOf.__init__(self, *args)
+
     def validate(self, value):
         super().validate(value)
 
