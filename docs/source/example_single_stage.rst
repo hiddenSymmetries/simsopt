@@ -22,7 +22,7 @@ they are both summed together to optimize a single objective function
 .. math::
   
   J = \text{Quasisymmetry} + \text{coils_objective_weight}*\frac{1}{2} \int |\vec{B} \cdot \vec{n}|^2 ds
-      \\+ \text{coils_objective_weight}*\text{coil regularization terms}.
+      \\+ \text{coil regularization terms}.
 
 where the coil regularization terms are a sum of :obj:`simsopt.geo.CurveLength` for
 the length of the coils, :obj:`simsopt.geo.CurveCurveDistance` for the distance
@@ -39,7 +39,7 @@ from `the hiddenSymmetries repository <https://github.com/hiddenSymmetries/virtu
 Vacuum optimization
 -------------------
 
-This example is available as `single_stage_optimization.py`` in the
+This example is available as ``single_stage_optimization.py`` in the
 ``examples/3_Advanced`` directory.  As usual, a driver script begins with
 imports of the classes and functions we will need
 
@@ -63,8 +63,8 @@ imports of the classes and functions we will need
 For a description of each class and function imported, please see the stage 1
 script ``QH_fixed_resolution.py`` in the ``examples/2_Intermediate`` directory
 and the stage 2 script ``stage_two_optimization_minimal.py`` in the ``examples/1_Simple``
-directory. After defining a ``print`` function that only prints once even when
-the code is ran in parallel
+directory. For convenience, a ``print`` function is defined that only prints once even when
+the code is ran in parallel:
 
 .. code-block::
 
@@ -99,7 +99,7 @@ and the coils
 
 .. code-block::
 
-    directory = f'optimization_QH'
+    directory = 'optimization_QH'
     vmec_verbose = False
     # Create output directories
     this_path = os.path.join(parent_path, directory)
@@ -197,7 +197,7 @@ Finite beta optimization
 -------------------------
 
 The finite beta generalization example is available as
-`single_stage_optimization_finite_beta.py`` in the
+``single_stage_optimization_finite_beta.py`` in the
 ``examples/3_Advanced`` directory. In addition to the parameters in the
 previous example, the finite beta script uses the Virtual Casing principle
 to decouple the plasma magnetic field from the coil magnetic field.
