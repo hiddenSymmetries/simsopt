@@ -851,3 +851,112 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             rmin=self.r_range[0], rmax=self.r_range[1],
             zmin=self.z_range[0], zmax=self.z_range[1]
         )
+
+
+class MirrorModel(MagneticField):
+    """
+    Vacuum magnetic field employed in https://arxiv.org/abs/2305.06372 to study
+    the magnetic mirror experiment WHAM. It is composed of an analytical flux
+    function whose gradients yield the magnetic field vector. Namely, the
+    magnetic field is given by B=B_R e_R + B_Z e_Z, where e_R and e_Z are
+    the cylindrical radial and vertical unit vectors, respectively, and
+    B_R and B_Z are given by
+
+    .. math::
+
+        B_R = -{\partial\psi}/{\partial Z}/R, B_Z = {\partial\psi}/{\partial R}/R
+    
+    In this model, the magnetic flux function psi is written as a double
+    Lorentzian distribution
+
+    .. math::
+
+        \psi = \frac{R^2 B}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right)
+    
+    The input parameters are B, gamma and Z_m with the standard values the
+    ones used in https://arxiv.org/abs/2305.06372, that is, B0=6.51292,
+    gamma = 0.124904 and Z_m = 0.98.
+
+    Args:
+        B0:  parameter \mathcal{B} of the flux surface function
+        gamma:  parameter \gamma of the flux surface function
+        Z_m:  parameter Z_m of the flux surface function
+    """
+
+    def __init__(self, B0=6.51292, gamma = 0.124904, Z_m = 0.98):
+        MagneticField.__init__(self)
+        self.B0 = B0
+        self.gamma = gamma
+        self.Z_m = Z_m
+    
+    def _psi(self, R, Z):
+        factor1 = 1+((Z-self.Z_m)/(self.gamma))**2
+        factor2 = 1+((Z+self.Z_m)/(self.gamma))**2
+        psi = (R*R*self.B0/(2*np.pi*self.gamma))*(1/factor1+1/factor2)
+        return psi
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        # BR = -(1/R)dpsi/dZ, BZ=(1/R)dpsi/dR
+        factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
+        factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
+        Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        Bz = self._psi(r,z)*2/r/r
+        B[:, 0] = Br * np.cos(phi)
+        B[:, 1] = Br * np.sin(phi)
+        B[:, 2] = Bz
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        
+        factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
+        factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
+        Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        # Bz = self._psi(r,z)*2/r/r
+        dBrdr = (self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        dBzdz = -2*dBrdr
+        dBrdz = (self.B0*r/(np.pi*self.gamma**3))*(1/factor1+1/factor2
+                                                   -4*self.gamma**4*((z-self.Z_m)**2/((z-self.Z_m)**2+self.gamma**2)**3+(z+self.Z_m)**2/((z+self.Z_m)**2+self.gamma**2)**3))
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        dcosphidx = -points[:, 0]**2/r**3 + 1/r
+        dsinphidx = -points[:, 0]*points[:, 1]/r**3
+        dcosphidy = -points[:, 0]*points[:, 1]/r**3
+        dsinphidy = -points[:, 1]**2/r**3 + 1/r
+        drdx = points[:, 0]/r
+        drdy = points[:, 1]/r
+        dBxdx = dBrdr*drdx*cosphi + Br*dcosphidx
+        dBxdy = dBrdr*drdy*cosphi + Br*dcosphidy
+        dBxdz = dBrdz*cosphi
+        dBydx = dBrdr*drdx*sinphi + Br*dsinphidx
+        dBydy = dBrdr*drdy*sinphi + Br*dsinphidy
+        dBydz = dBrdz*sinphi
+        
+        dB[:, 0, 0] = dBxdx
+        dB[:, 1, 0] = dBxdy
+        dB[:, 2, 0] = dBxdz
+        dB[:, 0, 1] = dBydx
+        dB[:, 1, 1] = dBydy
+        dB[:, 2, 1] = dBydz
+        dB[:, 0, 2] = 0
+        dB[:, 1, 2] = 0
+        dB[:, 2, 2] = dBzdz
+
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        field = cls(d["B0"], d["gamma"], d["Z_m"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
+        field.set_points_cart(xyz)
+        return field
