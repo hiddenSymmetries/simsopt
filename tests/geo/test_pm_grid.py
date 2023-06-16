@@ -35,13 +35,14 @@ class Testing(unittest.TestCase):
         nphi = 4
         ntheta = nphi
         Bn = np.zeros((nphi, ntheta))
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s3 = SurfaceXYZFourier(nfp=2, stellsym=True)
-        s1.extend_via_projected_normal(0.1)
-        s2.extend_via_projected_normal(0.2)
         with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s3 = SurfaceXYZFourier(nfp=2, stellsym=True)
+            s1.extend_via_projected_normal(0.1)
+            s2.extend_via_projected_normal(0.2)
+
             PermanentMagnetGrid(s3, Bn)
 
             with self.assertRaises(TypeError):
@@ -112,21 +113,21 @@ class Testing(unittest.TestCase):
         """
         nphi = 4
         ntheta = nphi
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s1.extend_via_projected_normal(0.1)
-        s2.extend_via_projected_normal(0.2)
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s1.extend_via_projected_normal(0.1)
+            s2.extend_via_projected_normal(0.2)
 
-        # Create some initial coils:
-        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=False, R0=1.0, R1=0.5, order=5)
-        base_currents = [Current(1e5) for i in range(2)]
-        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
+            # Create some initial coils:
+            base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=False, R0=1.0, R1=0.5, order=5)
+            base_currents = [Current(1e5) for i in range(2)]
+            coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+            bs = BiotSavart(coils)
+            bs.set_points(s.gamma().reshape((-1, 3)))
 
         # Create PM class
-        with ScratchDir("."):
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
             kwargs = {"dr": 0.15}
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
@@ -167,17 +168,18 @@ class Testing(unittest.TestCase):
         """
         nphi = 8
         ntheta = nphi
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        p = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s.extend_via_projected_normal(0.1)
-        pgamma = p.gamma().reshape(-1, 3)
-        pphi = np.arctan2(pgamma[:, 1], pgamma[:, 0])
-        sgamma = s.gamma().reshape(-1, 3)
-        sphi = np.arctan2(sgamma[:, 1], sgamma[:, 0])
-        assert np.allclose(pphi, sphi)
-        assert not np.allclose(pgamma[:, 0], sgamma[:, 0])
-        assert not np.allclose(pgamma[:, 1], sgamma[:, 1])
-        assert not np.allclose(pgamma[:, 2], sgamma[:, 2])
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            p = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s.extend_via_projected_normal(0.1)
+            pgamma = p.gamma().reshape(-1, 3)
+            pphi = np.arctan2(pgamma[:, 1], pgamma[:, 0])
+            sgamma = s.gamma().reshape(-1, 3)
+            sphi = np.arctan2(sgamma[:, 1], sgamma[:, 0])
+            assert np.allclose(pphi, sphi)
+            assert not np.allclose(pgamma[:, 0], sgamma[:, 0])
+            assert not np.allclose(pgamma[:, 1], sgamma[:, 1])
+            assert not np.allclose(pgamma[:, 2], sgamma[:, 2])
 
     def test_Bn(self):
         """
@@ -186,22 +188,22 @@ class Testing(unittest.TestCase):
         f_B with the DipoleField + SquaredFlux way of calculating Bn and f_B.
         """
         nphi = 8
-        ntheta = nphi 
-        s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s1.extend_via_projected_normal(0.1)
-        s2.extend_via_projected_normal(0.2)
-
-        # Create some initial coils:
-        base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=False, R0=1.0, R1=0.5, order=5)
-        base_currents = [Current(1e5) for i in range(2)]
-        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        bs = BiotSavart(coils)
-        bs.set_points(s.gamma().reshape((-1, 3)))
-
-        # Create PM class
+        ntheta = nphi
         with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s1.extend_via_projected_normal(0.1)
+            s2.extend_via_projected_normal(0.2)
+
+            # Create some initial coils:
+            base_curves = create_equally_spaced_curves(2, s.nfp, stellsym=False, R0=1.0, R1=0.5, order=5)
+            base_currents = [Current(1e5) for i in range(2)]
+            coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+            bs = BiotSavart(coils)
+            bs.set_points(s.gamma().reshape((-1, 3)))
+
+            # Create PM class
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
             kwargs = {"dr": 0.15}
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs)
@@ -272,141 +274,143 @@ class Testing(unittest.TestCase):
         filename = TEST_DIR / 'input.circular_tokamak'
         nphi = 16
         ntheta = nphi
-        s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-        s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-        s2 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-        s1.extend_via_projected_normal(1)
-        s2.extend_via_projected_normal(2)
+        with ScratchDir("."):
+            s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+            s1.extend_via_projected_normal(1)
+            s2.extend_via_projected_normal(2)
 
-        # Generate uniform grid
-        R0 = s.get_rc(0, 0)  # major radius
-        r0 = s.get_rc(1, 0)  # minor radius
-        r = np.linspace(0, 5, 10)
-        theta = np.linspace(0, 2 * np.pi, 10)
-        phi = np.linspace(0, 2 * np.pi, 10)
-        r, phi, theta = np.meshgrid(r, phi, theta, indexing='ij')
-        R = R0 + r * np.cos(theta)
-        Z = r * np.sin(theta)
-        X = R * np.cos(phi)
-        Y = R * np.sin(phi)
-        RphiZ = np.array([R, phi, Z]).T.reshape(-1, 3)
-        XYZ = np.array([X, Y, Z]).T.reshape(-1, 3)
-        normal_inner = s1.unitnormal().reshape(-1, 3)   
-        normal_outer = s2.unitnormal().reshape(-1, 3)
-        xyz_inner = s1.gamma().reshape(-1, 3)
-        xyz_outer = s2.gamma().reshape(-1, 3)
-        r_inner = np.sqrt(xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2)
-        z_inner = xyz_inner[:, 2]
-        r_outer = np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2)
-        z_outer = xyz_outer[:, 2]
+            # Generate uniform grid
+            R0 = s.get_rc(0, 0)  # major radius
+            r0 = s.get_rc(1, 0)  # minor radius
+            r = np.linspace(0, 5, 10)
+            theta = np.linspace(0, 2 * np.pi, 10)
+            phi = np.linspace(0, 2 * np.pi, 10)
+            r, phi, theta = np.meshgrid(r, phi, theta, indexing='ij')
+            R = R0 + r * np.cos(theta)
+            Z = r * np.sin(theta)
+            X = R * np.cos(phi)
+            Y = R * np.sin(phi)
+            RphiZ = np.array([R, phi, Z]).T.reshape(-1, 3)
+            XYZ = np.array([X, Y, Z]).T.reshape(-1, 3)
+            normal_inner = s1.unitnormal().reshape(-1, 3)
+            normal_outer = s2.unitnormal().reshape(-1, 3)
+            xyz_inner = s1.gamma().reshape(-1, 3)
+            xyz_outer = s2.gamma().reshape(-1, 3)
+            r_inner = np.sqrt(xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2)
+            z_inner = xyz_inner[:, 2]
+            r_outer = np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2)
+            z_outer = xyz_outer[:, 2]
 
-        # Try with cylindrical functionality 
-        grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-            phi, normal_inner, normal_outer, RphiZ,
-            r_inner, r_outer, z_inner, z_outer)
-        inds = np.array(inds, dtype=int)
-        for i in reversed(range(1, len(inds))):
-            for j in range(0, i):
-                inds[i] += inds[j]
-        final_grid = []
-        for i in range(grid.shape[0]):
-            if not np.allclose(grid[i, :], 0.0):
-                final_grid.append(grid[i, :])
-        final_grid = np.array(final_grid)
-        r_fit = np.sqrt((final_grid[:, 0] - R0) ** 2 + final_grid[:, 2] ** 2)
-        # print('r_fit = ', r_fit)
-        assert (np.min(r_fit) > (r0 + 1.0))
-        assert (np.max(r_fit) < (r0 + 2.0))
+            # Try with cylindrical functionality
+            grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
+                phi, normal_inner, normal_outer, RphiZ,
+                r_inner, r_outer, z_inner, z_outer)
+            inds = np.array(inds, dtype=int)
+            for i in reversed(range(1, len(inds))):
+                for j in range(0, i):
+                    inds[i] += inds[j]
+            final_grid = []
+            for i in range(grid.shape[0]):
+                if not np.allclose(grid[i, :], 0.0):
+                    final_grid.append(grid[i, :])
+            final_grid = np.array(final_grid)
+            r_fit = np.sqrt((final_grid[:, 0] - R0) ** 2 + final_grid[:, 2] ** 2)
+            # print('r_fit = ', r_fit)
+            assert (np.min(r_fit) > (r0 + 1.0))
+            assert (np.max(r_fit) < (r0 + 2.0))
 
-        # Repeat with cartesian functionality
-        final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            normal_inner, normal_outer, XYZ, xyz_inner, xyz_outer)
-        inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
-        final_grid = final_grid[inds, :]
-        final_rz_grid = np.zeros(final_grid.shape)
-        final_rz_grid[:, 0] = np.sqrt(final_grid[:, 0] ** 2 + final_grid[:, 1] ** 2)
-        final_rz_grid[:, 1] = np.arctan2(final_grid[:, 1], final_grid[:, 0])
-        final_rz_grid[:, 2] = final_grid[:, 2] 
-        r_fit = np.sqrt((final_rz_grid[:, 0] - R0) ** 2 + final_rz_grid[:, 2] ** 2)
-        assert (np.min(r_fit) > (r0 + 1.0))
-        assert (np.max(r_fit) < (r0 + 2.0))
+            # Repeat with cartesian functionality
+            final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+                normal_inner, normal_outer, XYZ, xyz_inner, xyz_outer)
+            inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
+            final_grid = final_grid[inds, :]
+            final_rz_grid = np.zeros(final_grid.shape)
+            final_rz_grid[:, 0] = np.sqrt(final_grid[:, 0] ** 2 + final_grid[:, 1] ** 2)
+            final_rz_grid[:, 1] = np.arctan2(final_grid[:, 1], final_grid[:, 0])
+            final_rz_grid[:, 2] = final_grid[:, 2]
+            r_fit = np.sqrt((final_rz_grid[:, 0] - R0) ** 2 + final_rz_grid[:, 2] ** 2)
+            assert (np.min(r_fit) > (r0 + 1.0))
+            assert (np.max(r_fit) < (r0 + 2.0))
 
     def test_famus_functionality(self):
         """
         Tests the FocusData and FocusPlasmaBnormal classes
         and class functions.
         """
-        fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
-        bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
-        bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'half period')
-        assert bn_plasma.shape == (8, 8)
-        assert np.allclose(bnormal_obj_ncsx.bnc, 0.0)
-        bnormal_obj_ncsx.stellsym = False
-        bnormal_obj_ncsx.bnc = bnormal_obj_ncsx.bns
-        bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'field period')
-        assert bn_plasma.shape == (8, 8)
+        with ScratchDir("."):
+            fname_plasma = TEST_DIR / 'c09r00_B_axis_half_tesla_PM4Stell.plasma'
+            bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
+            bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'half period')
+            assert bn_plasma.shape == (8, 8)
+            assert np.allclose(bnormal_obj_ncsx.bnc, 0.0)
+            bnormal_obj_ncsx.stellsym = False
+            bnormal_obj_ncsx.bnc = bnormal_obj_ncsx.bns
+            bn_plasma = bnormal_obj_ncsx.bnormal_grid(8, 8, 'field period')
+            assert bn_plasma.shape == (8, 8)
 
-        mag_data = FocusData(TEST_DIR / 'zot80.focus', downsample=100)
-        for i in range(mag_data.nMagnets):
-            assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
+            mag_data = FocusData(TEST_DIR / 'zot80.focus', downsample=100)
+            for i in range(mag_data.nMagnets):
+                assert np.isclose(np.dot(np.array(mag_data.perp_vector([i])).T, np.array(mag_data.unit_vector([i]))), 0.0)
 
-        with self.assertRaises(Exception):
-            mag_data.perp_vector([mag_data.nMagnets])
-        with self.assertRaises(Exception):
-            mag_data.unit_vector([mag_data.nMagnets])
+            with self.assertRaises(Exception):
+                mag_data.perp_vector([mag_data.nMagnets])
+            with self.assertRaises(Exception):
+                mag_data.unit_vector([mag_data.nMagnets])
 
-        assert (np.sum(mag_data.pho < 0) > 0)
-        with self.assertRaises(RuntimeError):
+            assert (np.sum(mag_data.pho < 0) > 0)
+            with self.assertRaises(RuntimeError):
+                mag_data.adjust_rho(4.0)
+            mag_data.flip_negative_magnets()
+            mag_data.flip_negative_magnets()
+            assert (np.sum(mag_data.pho < 0) == 0)
             mag_data.adjust_rho(4.0)
-        mag_data.flip_negative_magnets()
-        mag_data.flip_negative_magnets()
-        assert (np.sum(mag_data.pho < 0) == 0)
-        mag_data.adjust_rho(4.0)
-        assert mag_data.momentq == 4.0
-        mag_data.has_momentq = False
-        mag_data.adjust_rho(3.0)
-        assert mag_data.momentq == 3.0
-        mag_data.print_to_file('test')
-        mag_data.has_momentq = False
-        mag_data.has_op = True
-        mag_data.op = mag_data.oz
-        mag_data.print_to_file('test')
-        nMag = mag_data.nMagnets
-        mag_data.nMagnets = 0
-        with self.assertRaises(RuntimeError):
+            assert mag_data.momentq == 4.0
+            mag_data.has_momentq = False
+            mag_data.adjust_rho(3.0)
+            assert mag_data.momentq == 3.0
             mag_data.print_to_file('test')
-        mag_data.nMagnets = nMag
-        mag_data.init_pol_vecs(3)
-        assert mag_data.pol_x.shape == (mag_data.nMagnets, 3)
-        assert mag_data.pol_y.shape == (mag_data.nMagnets, 3)
-        assert mag_data.pol_z.shape == (mag_data.nMagnets, 3)
-        nMagnets = mag_data.nMagnets
-        mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
-        assert mag_data.nMagnets == nMagnets * 2
-        assert np.allclose(mag_data.oz[:mag_data.nMagnets // 2], -mag_data.oz[mag_data.nMagnets // 2:])
-        with self.assertRaises(ValueError):
-            mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=10)
-        mag_data.symm = 1 * np.ones(len(mag_data.symm))
-        with self.assertRaises(ValueError):
+            mag_data.has_momentq = False
+            mag_data.has_op = True
+            mag_data.op = mag_data.oz
+            mag_data.print_to_file('test')
+            nMag = mag_data.nMagnets
+            mag_data.nMagnets = 0
+            with self.assertRaises(RuntimeError):
+                mag_data.print_to_file('test')
+            mag_data.nMagnets = nMag
+            mag_data.init_pol_vecs(3)
+            assert mag_data.pol_x.shape == (mag_data.nMagnets, 3)
+            assert mag_data.pol_y.shape == (mag_data.nMagnets, 3)
+            assert mag_data.pol_z.shape == (mag_data.nMagnets, 3)
+            nMagnets = mag_data.nMagnets
             mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
-        mag_data.symm = 2 * np.ones(len(mag_data.symm))
-        phi0 = np.pi / 2
-        ox2, oy2, oz2 = stell_point_transform('reflect', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
-        assert np.allclose(mag_data.oz, -oz2)
-        ox2, oy2, oz2 = stell_point_transform('translate', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
-        assert np.allclose(mag_data.oz, oz2)
-        symm_inds = np.where(mag_data.symm == 2)[0]
-        nx, ny, nz = mag_data.unit_vector(symm_inds)
-        nx2, ny2, nz2 = stell_vector_transform('reflect', phi0, nx, ny, nz)
-        assert np.allclose(nz, nz2)
-        assert np.allclose(nx ** 2 + ny ** 2 + nz ** 2, nx2 ** 2 + ny2 ** 2 + nz2 ** 2)
-        nx2, ny2, nz2 = stell_vector_transform('translate', phi0, nx, ny, nz)
-        assert np.allclose(nz, nz2)
-        assert np.allclose(nx ** 2 + ny ** 2 + nz ** 2, nx2 ** 2 + ny2 ** 2 + nz2 ** 2)
-        with self.assertRaises(ValueError):
-            nx2, ny2, nz2 = stell_vector_transform('random', phi0, nx, ny, nz)
-        with self.assertRaises(ValueError):
-            nx2, ny2, nz2 = stell_point_transform('random', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
+            assert mag_data.nMagnets == nMagnets * 2
+            assert np.allclose(mag_data.oz[:mag_data.nMagnets // 2], -mag_data.oz[mag_data.nMagnets // 2:])
+            with self.assertRaises(ValueError):
+                mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=10)
+            mag_data.symm = 1 * np.ones(len(mag_data.symm))
+            with self.assertRaises(ValueError):
+                mag_data.repeat_hp_to_fp(nfp=2, magnet_sector=1)
+            mag_data.symm = 2 * np.ones(len(mag_data.symm))
+            phi0 = np.pi / 2
+            ox2, oy2, oz2 = stell_point_transform('reflect', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
+            assert np.allclose(mag_data.oz, -oz2)
+            ox2, oy2, oz2 = stell_point_transform('translate', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
+            assert np.allclose(mag_data.oz, oz2)
+            symm_inds = np.where(mag_data.symm == 2)[0]
+            nx, ny, nz = mag_data.unit_vector(symm_inds)
+            nx2, ny2, nz2 = stell_vector_transform('reflect', phi0, nx, ny, nz)
+            assert np.allclose(nz, nz2)
+            assert np.allclose(nx ** 2 + ny ** 2 + nz ** 2, nx2 ** 2 + ny2 ** 2 + nz2 ** 2)
+            nx2, ny2, nz2 = stell_vector_transform('translate', phi0, nx, ny, nz)
+            assert np.allclose(nz, nz2)
+            assert np.allclose(nx ** 2 + ny ** 2 + nz ** 2, nx2 ** 2 + ny2 ** 2 + nz2 ** 2)
+            with self.assertRaises(ValueError):
+                nx2, ny2, nz2 = stell_vector_transform('random', phi0, nx, ny, nz)
+            with self.assertRaises(ValueError):
+                nx2, ny2, nz2 = stell_point_transform('random', phi0, mag_data.ox, mag_data.oy, mag_data.oz)
 
     def test_polarizations(self):
         """
@@ -498,51 +502,52 @@ class Testing(unittest.TestCase):
         """
 
         # Test build of the MUSE coils
-        input_name = 'input.muse'
-        nphi = 8
-        ntheta = nphi
-        surface_filename = TEST_DIR / input_name
-        s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        s_inner.extend_via_projected_normal(0.1)
-        s_outer.extend_via_projected_normal(0.2)
-        base_curves, base_currents, ncoils = read_focus_coils(TEST_DIR / 'muse_tf_coils.focus')
-        coils = []
-        for i in range(ncoils):
-            coils.append(Coil(base_curves[i], base_currents[i]))
-        base_currents[0].fix_all()
+        with ScratchDir("."):
+            input_name = 'input.muse'
+            nphi = 8
+            ntheta = nphi
+            surface_filename = TEST_DIR / input_name
+            s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_inner = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            s_inner.extend_via_projected_normal(0.1)
+            s_outer.extend_via_projected_normal(0.2)
+            base_curves, base_currents, ncoils = read_focus_coils(TEST_DIR / 'muse_tf_coils.focus')
+            coils = []
+            for i in range(ncoils):
+                coils.append(Coil(base_curves[i], base_currents[i]))
+            base_currents[0].fix_all()
 
-        # fix all the coil shapes
-        for i in range(ncoils):
-            base_curves[i].fix_all()
-        bs = BiotSavart(coils)
+            # fix all the coil shapes
+            for i in range(ncoils):
+                base_curves[i].fix_all()
+            bs = BiotSavart(coils)
 
-        # Calculate average, approximate on-axis B field strength
-        B0avg = calculate_on_axis_B(bs, s)
-        assert np.allclose(B0avg, 0.15)
+            # Calculate average, approximate on-axis B field strength
+            B0avg = calculate_on_axis_B(bs, s)
+            assert np.allclose(B0avg, 0.15)
 
-        # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
-        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc',
-                                       range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
-        bs = BiotSavart(coils)
-        B0avg = calculate_on_axis_B(bs, s)
-        assert np.allclose(B0avg, 0.15)
+            # Check coil initialization for some common stellarators wout_LandremanPaul2021_QA_lowres
+            s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QA_lowres.nc',
+                                           range="half period", nphi=nphi, ntheta=ntheta)
+            base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s)
+            bs = BiotSavart(coils)
+            B0avg = calculate_on_axis_B(bs, s)
+            assert np.allclose(B0avg, 0.15)
 
-        s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
-                                       range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
-        bs = BiotSavart(coils)
-        B0avg = calculate_on_axis_B(bs, s)
-        assert np.allclose(B0avg, 0.15)
+            s = SurfaceRZFourier.from_wout(TEST_DIR / 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc',
+                                           range="half period", nphi=nphi, ntheta=ntheta)
+            base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
+            bs = BiotSavart(coils)
+            B0avg = calculate_on_axis_B(bs, s)
+            assert np.allclose(B0avg, 0.15)
 
-        # Repeat with wrapper function
-        s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-        base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
-        bs = BiotSavart(coils)
-        B0avg = calculate_on_axis_B(bs, s)
-        assert np.allclose(B0avg, 0.15)
+            # Repeat with wrapper function
+            s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+            base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s)
+            bs = BiotSavart(coils)
+            B0avg = calculate_on_axis_B(bs, s)
+            assert np.allclose(B0avg, 0.15)
 
         # Test rescaling
         Bn = np.zeros((nphi, ntheta))
