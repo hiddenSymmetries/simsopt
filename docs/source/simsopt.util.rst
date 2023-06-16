@@ -12,6 +12,14 @@ simsopt.util.constants module
    :undoc-members:
    :show-inheritance:
 
+simsopt.util.famus\_helpers module
+----------------------------------
+
+.. automodule:: simsopt.util.famus_helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.util.fourier\_interpolation module
 ------------------------------------------
 
@@ -40,6 +48,22 @@ simsopt.util.mpi\_logger module
 -------------------------------
 
 .. automodule:: simsopt.util.mpi_logger
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.util.permanent\_magnet\_helper\_functions module
+--------------------------------------------------------
+
+.. automodule:: simsopt.util.permanent_magnet_helper_functions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.util.polarization\_project module
+-----------------------------------------
+
+.. automodule:: simsopt.util.polarization_project
    :members:
    :undoc-members:
    :show-inheritance:
