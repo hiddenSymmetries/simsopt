@@ -3,7 +3,6 @@ Examples script for the force metric in a stage-two coil optiimiization
 """
 import os
 from pathlib import Path
-from scipy import constants
 from scipy.optimize import minimize
 import numpy as np
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
@@ -27,7 +26,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 ncoils = 4
 R0 = 1
-R1 = 0.8
+R1 = 1
 order = 5
 
 LENGTH_WEIGHT = 1e-3
@@ -36,9 +35,9 @@ CC_THRESHOLD = 0.1
 CC_WEIGHT = 1e-1
 
 CS_THRESHOLD = 0.3
-CS_WEIGHT = 1e-3
+CS_WEIGHT = 10
 
-FORCE_WEIGHT = 1e-16
+FORCE_WEIGHT = 0  # 1e-12
 
 config_str = f"{ncoils}_coils_force_weight_{FORCE_WEIGHT}"
 #######################################################
@@ -86,7 +85,7 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + Jforce * FORCE_WEIGHT
 
-MAXITER = 100
+MAXITER = 1000
 dofs = JF.x
 
 
@@ -97,6 +96,13 @@ def fun(dofs):
     print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={Jforce.J():.3e}")
     return J, grad
 
+
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
+               options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_{config_str}")
+print("Coil force optimization")
+FORCE_WEIGHT = 1e-9
+dofs = JF.x
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
