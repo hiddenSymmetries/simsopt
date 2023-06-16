@@ -320,10 +320,6 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
               since the 'ArbVec...' algorithms have local coordinate systems
               and therefore can specify the same constraint and much more
               via the 'pol_vectors' argument.
-            pol_vector: 3D numpy array, shape (ndipoles, nPolarizationDirections, 3)
-              List of allowed polarization (orientation) directions for every
-              dipole in the grid. Only a keyword argument for 'ArbVec' and
-              'ArbVec_backtracking' algorithms. 
             reg_l2: float.
               L2 regularization value, applied through the mmax argument in
               the GPMO algorithm. See the paper for how this works. 
