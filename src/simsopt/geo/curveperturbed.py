@@ -50,12 +50,8 @@ class GaussianSampler(GSONable):
     n_derivs: int = 1
 
     def __post_init__(self):
-        # self.points = points
-        # self.sigma = sigma
-        # self.length_scale = length_scale
         xs = self.points
         n = len(xs)
-        # self.n_derivs = n_derivs
         cov_mat = np.zeros((n*(self.n_derivs+1), n*(self.n_derivs+1)))
 
         def kernel(x, y):
