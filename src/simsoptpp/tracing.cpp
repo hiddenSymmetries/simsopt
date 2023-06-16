@@ -582,7 +582,7 @@ void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, double tol_root=1e-9, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
@@ -693,6 +693,7 @@ particle_guiding_center_boozer_tracing(
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*modB);
 
+    double tol_root = 1e-9;	
     array<double, 4> y = {stz_init[0], stz_init[1], stz_init[2], vtang};
     double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
@@ -702,7 +703,7 @@ particle_guiding_center_boozer_tracing(
     if (vacuum) {
         if (solveSympl) {
 	    auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
@@ -712,7 +713,7 @@ particle_guiding_center_boozer_tracing(
     } else if (noK) {
         if (solveSympl) {
 	    auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
@@ -722,7 +723,7 @@ particle_guiding_center_boozer_tracing(
     } else {
         if (solveSympl) {
 	    auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, stopping_criteria);
+            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
