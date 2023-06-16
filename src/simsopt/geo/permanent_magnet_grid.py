@@ -60,11 +60,6 @@ class PermanentMagnetGrid:
             )
         self.Bn = Bn
 
-        # if coordinate_flag not in ['cartesian', 'cylindrical', 'toroidal']:
-        #     raise NotImplementedError(
-        #         'Only cartesian, cylindrical, and toroidal (simple toroidal)'
-        #         ' coordinate systems have been implemented so far.'
-        #     )
         if coordinate_flag == 'cartesian':
             warnings.warn(
                 'Cartesian grid of rectangular cubes will be built, since '
