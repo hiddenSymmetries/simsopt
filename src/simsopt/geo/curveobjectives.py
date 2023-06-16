@@ -1,17 +1,12 @@
 from deprecated import deprecated
-from dataclasses import dataclass
-from typing import Sequence
 
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
-# from monty.json import MontyDecoder, MSONable
 
 from .jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
-from .curve import Curve
-from .surface import Surface
 import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
@@ -39,7 +34,7 @@ class CurveLength(Optimizable):
     def __init__(self, curve):
         self.curve = curve
         self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
-        super().__init__(depends_on=[self.curve])
+        super().__init__(depends_on=[curve])
 
     def J(self):
         """
@@ -83,8 +78,8 @@ class LpCurveCurvature(Optimizable):
         self.curve = curve
         self.p = p
         self.threshold = threshold
-        super().__init__(depends_on=[self.curve])
-        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, self.p, self.threshold))
+        super().__init__(depends_on=[curve])
+        self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
         self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
 
@@ -129,8 +124,8 @@ class LpCurveTorsion(Optimizable):
         self.curve = curve
         self.p = p
         self.threshold = threshold
-        super().__init__(depends_on=[self.curve])
-        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, self.p, self.threshold))
+        super().__init__(depends_on=[curve])
+        self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
 
@@ -294,11 +289,11 @@ class CurveSurfaceDistance(Optimizable):
         self.surface = surface
         self.minimum_distance = minimum_distance
 
-        self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, self.minimum_distance))
+        self.J_jax = jit(lambda gammac, lc, gammas, ns: cs_distance_pure(gammac, lc, gammas, ns, minimum_distance))
         self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
         self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.candidates = None
-        super().__init__(depends_on=self.curves)  # Bharat's comment: Shouldn't we add surface here
+        super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
 
     def recompute_bell(self, parent=None):
         self.candidates = None
