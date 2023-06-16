@@ -32,36 +32,6 @@ class OneOfTest(TestCase):
 
 
 @dataclass
-class OneOfStringsTstComposite:
-    flag: str = OneofStrings("one", "two", "three")
-    coords: str = OneofStrings("cartesian", "spherical", "cylindrical")
-
-
-class OneofStringTest(TestCase):
-    def test_valid_args(self):
-        OneOfStringsTstComposite("one", "spherical")
-        OneOfStringsTstComposite(flag="two", coords="cartesian")
-        OneOfStringsTstComposite(coords="cylindrical", flag="three")
-
-    def test_invalid_args(self):
-        with self.assertRaises(TypeError):
-            OneOfStringsTstComposite(1, "cartesian")
-        with self.assertRaises(TypeError):
-            OneOfStringsTstComposite(coords="spherical", flag=2)
-
-        with self.assertRaises(ValueError):
-            OneOfStringsTstComposite("four", "boozer")  # Invalid args
-        with self.assertRaises(ValueError):
-            OneOfStringsTstComposite(flag="cylindrical", coords="one")  # Opposite type args
-        with self.assertRaises(ValueError):
-            OneOfStringsTstComposite(coords="two", flag="spherical")  # Opposite order
-        with self.assertRaises(ValueError):
-            OneOfStringsTstComposite("1", "cartesian")  # Wrong option for one arg
-        with self.assertRaises(ValueError):
-            OneOfStringsTstComposite('two', "boozer")
-
-
-@dataclass
 class IntComposite:
     i: int = Integer()
     j: int = Integer(10)
@@ -129,6 +99,57 @@ class FloatTests(TestCase):
 
 
 @dataclass
+class PositiveComposite:
+    i: int = PositiveInteger()
+    a: int = PositiveFloat()
+
+
+class PositiveTests(TestCase):
+    def test_valid_args(self):
+        PositiveComposite(0, 0.0)
+        PositiveComposite(5, 0.5)
+
+    def test_invalid_args(self):
+        with self.assertRaises(TypeError):
+            PositiveComposite(1.0, 0.5)
+
+        with self.assertRaises(ValueError):
+            PositiveComposite(-2, 0.4)
+        with self.assertRaises(ValueError):
+            PositiveComposite(2, -0.4)
+
+
+@dataclass
+class OneOfIntsComposite:
+    flag: int = OneofIntegers(0, 1)
+    degree: int = OneofIntegers(1, 2, 3)
+
+
+class OneofIntTest(TestCase):
+    def test_valid_args(self):
+        OneOfIntsComposite(0, 1)
+        OneOfIntsComposite(flag=1, degree=3)
+        OneOfIntsComposite(degree=2, flag=0)
+
+    def test_invalid_args(self):
+        with self.assertRaises(TypeError):
+            OneOfIntsComposite(1, "one")
+        with self.assertRaises(TypeError):
+            OneOfIntsComposite(degree=2, flag="False")  # Note boolean gets converted to int
+
+        with self.assertRaises(ValueError):
+            OneOfIntsComposite(2, 4)  # Invalid args
+        with self.assertRaises(ValueError):
+            OneOfIntsComposite(flag=2, degree=0)  # Opposite type args
+        with self.assertRaises(ValueError):
+            OneOfIntsComposite(degree=0, flag=3)  # Opposite order
+        with self.assertRaises(ValueError):
+            OneOfIntsComposite(2, 3)  # Wrong option for one arg
+        with self.assertRaises(ValueError):
+            OneOfIntsComposite(0, 4)
+
+
+@dataclass
 class StrComposite:
     a: str = String()
     b: str = String(5)
@@ -158,3 +179,32 @@ class StrTests(TestCase):
         with self.assertRaises(ValueError):
             StrComposite("My", "arg", "size", "greater", "than", "FIVE")
 
+
+@dataclass
+class OneOfStringsTstComposite:
+    flag: str = OneofStrings("one", "two", "three")
+    coords: str = OneofStrings("cartesian", "spherical", "cylindrical")
+
+
+class OneofStringTest(TestCase):
+    def test_valid_args(self):
+        OneOfStringsTstComposite("one", "spherical")
+        OneOfStringsTstComposite(flag="two", coords="cartesian")
+        OneOfStringsTstComposite(coords="cylindrical", flag="three")
+
+    def test_invalid_args(self):
+        with self.assertRaises(TypeError):
+            OneOfStringsTstComposite(1, "cartesian")
+        with self.assertRaises(TypeError):
+            OneOfStringsTstComposite(coords="spherical", flag=2)
+
+        with self.assertRaises(ValueError):
+            OneOfStringsTstComposite("four", "boozer")  # Invalid args
+        with self.assertRaises(ValueError):
+            OneOfStringsTstComposite(flag="cylindrical", coords="one")  # Opposite type args
+        with self.assertRaises(ValueError):
+            OneOfStringsTstComposite(coords="two", flag="spherical")  # Opposite order
+        with self.assertRaises(ValueError):
+            OneOfStringsTstComposite("1", "cartesian")  # Wrong option for one arg
+        with self.assertRaises(ValueError):
+            OneOfStringsTstComposite('two', "boozer")

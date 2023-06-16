@@ -15,6 +15,7 @@ class Validator(ABC):
     ``__set_name__`` method of the descriptor protocol. The implementation
     follows the strategy outlined in the official python documentation.
     """
+
     def __set_name__(self, owner, name):
         self.public_name = name
         self.private_name = f"_{name}"
@@ -42,6 +43,7 @@ class OneOf(Validator):
     Args:
         args: All the specific values that the descriptor can accept
     """
+
     def __init__(self, *args):
         self.options = set(args)
 
@@ -87,6 +89,7 @@ class _Real(Validator):
     """
     Validates that the input is a real number.
     """
+
     def validate(self, value):
         if not isinstance(value, numbers.Real):
             raise TypeError(
@@ -98,6 +101,7 @@ class _Integral(Validator):
     """
     Validates that the input is an integer.
     """
+
     def validate(self, value):
         if not isinstance(value, numbers.Integral):
             raise TypeError(
@@ -131,6 +135,7 @@ class PositiveChecker(RangeChecker):
     """
     Validates that the input number is a positive number.
     """
+
     def __init__(self):
         super().__init__(min_value=0)
 
@@ -140,6 +145,7 @@ class Integer(_Integral, RangeChecker):
     Validates that the input number is an integer. Optionally the user can specify
     the bounds for the number.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -151,6 +157,7 @@ class PositiveInteger(Integer, PositiveChecker):
     """
     Validates that the input number is a positive integer number.
     """
+
     def validate(self, value):
         super().validate(value)
 
@@ -160,6 +167,7 @@ class Float(_Real, RangeChecker):
     Validates that the input number is a real number. Optionally the user can specify
     the bounds for the number
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -171,6 +179,7 @@ class PositiveFloat(_Real, PositiveChecker):
     """
     Validates that the input number is a positive real number.
     """
+
     def validate(self, value):
         super().validate(value)
 
@@ -182,6 +191,7 @@ class OneofStrings(String, OneOf):
     Args:
         *args: All the acceptable values for the string
     """
+
     def __init__(self, *args):
         OneOf.__init__(self, *args)
 
@@ -196,6 +206,7 @@ class OneofIntegers(_Integral, OneOf):
     Args:
         *args: All the acceptable values for the integer
     """
+
     def __init__(self, *args):
         OneOf.__init__(self, *args)
 
