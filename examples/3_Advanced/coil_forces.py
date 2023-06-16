@@ -11,7 +11,7 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.self_field_forces import force_opt
+from simsopt.field.selffieldforces import force_opt
 
 
 # File for the desired boundary magnetic surface:
@@ -29,15 +29,15 @@ R0 = 1
 R1 = 1
 order = 5
 
-LENGTH_WEIGHT = 1e-3
+LENGTH_WEIGHT = 1e-5
 
 CC_THRESHOLD = 0.1
 CC_WEIGHT = 1e-1
 
-CS_THRESHOLD = 0.3
+CS_THRESHOLD = 0.4
 CS_WEIGHT = 10
 
-FORCE_WEIGHT = 0  # 1e-12
+FORCE_WEIGHT = 1e-20
 
 config_str = f"{ncoils}_coils_force_weight_{FORCE_WEIGHT}"
 #######################################################
@@ -85,7 +85,7 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + Jforce * FORCE_WEIGHT
 
-MAXITER = 1000
+MAXITER = 10
 dofs = JF.x
 
 
@@ -93,7 +93,7 @@ def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={Jforce.J():.3e}")
+    print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={Jforce.J():.3e}, Jflux={Jf.J():.3e}")
     return J, grad
 
 
@@ -101,14 +101,16 @@ res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt_{config_str}")
 print("Coil force optimization")
-FORCE_WEIGHT = 1e-9
-dofs = JF.x
+
+MAXITER = 100
+dofs = res.x
+FORCE_WEIGHT *= 1e6
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 
 
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_{config_str}")
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_{config_str}")
 curves_to_vtk(base_curves, OUT_DIR +
               f"curves_opt_hfp_{config_str}")
 pointData = {"B_N": np.sum(bs.B().reshape(
