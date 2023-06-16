@@ -12,6 +12,14 @@ simsopt.solve.mpi module
    :undoc-members:
    :show-inheritance:
 
+simsopt.solve.permanent\_magnet\_optimization module
+----------------------------------------------------
+
+.. automodule:: simsopt.solve.permanent_magnet_optimization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.solve.serial module
 ---------------------------
 
