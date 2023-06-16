@@ -3,7 +3,6 @@ import numpy as np
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
-from .._core.descriptor import Integer
 
 __all__ = ['SurfaceXYZFourier']
 
