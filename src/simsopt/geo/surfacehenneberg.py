@@ -156,18 +156,18 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     def _make_names(self):
         names = []
         for n in range(self.nmax + 1):
-            names.append('R0nH(' + str(n) + ')')
+            names.append(f'R0nH({n})')
         for n in range(1, self.nmax + 1):
-            names.append('Z0nH(' + str(n) + ')')
+            names.append(f'Z0nH({n})')
         for n in range(self.nmax + 1):
-            names.append('bn(' + str(n) + ')')
+            names.append(f'bn({n})')
         # Handle m = 0 modes in rho_mn:
         for n in range(1, self.nmax + 1):
-            names.append('rhomn(0,' + str(n) + ')')
+            names.append(f'rhomn(0,{n})')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
-                names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+                names.append(f'rhomn({m},{n})')
         return names
 
     def _validate_mn(self, m, n):
