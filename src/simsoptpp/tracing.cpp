@@ -582,7 +582,7 @@ void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, double tol_root=1e-9, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, double tol_root, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
