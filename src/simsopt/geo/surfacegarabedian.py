@@ -61,10 +61,6 @@ class SurfaceGarabedian(sopp.Surface, Surface):
             raise ValueError("mmin must be >= mmax")
         if nmax < nmin:
             raise ValueError("nmin must be >= nmax")
-        # if mmax < 1:
-        #     raise ValueError("mmax must be >= 1")
-        # if mmin > 0:
-        #     raise ValueError("mmin must be <= 0")
         self.mmin = mmin
         self.mmax = mmax
         self.nmin = nmin

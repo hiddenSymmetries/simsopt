@@ -102,8 +102,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  nmax: int = 0,
                  quadpoints_phi: RealArray = None,
                  quadpoints_theta: RealArray = None,
-                 dofs=None
-                 ):
+                 dofs=None):
 
         self.nfp = nfp
         self.alpha_fac = alpha_fac
