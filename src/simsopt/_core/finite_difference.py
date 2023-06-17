@@ -13,7 +13,7 @@ import traceback
 import collections
 from time import time
 from datetime import datetime
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Union, IO
 from numbers import Real
 
 import numpy as np
@@ -132,7 +132,7 @@ class MPIFiniteDifference:
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
                  diff_method: str = "forward",
-                 log_file: Union[str, typing.IO] = "jac_log") -> None:
+                 log_file: Union[str, IO] = "jac_log") -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
