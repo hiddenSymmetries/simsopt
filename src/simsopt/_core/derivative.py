@@ -81,7 +81,7 @@ class Derivative():
             inB: dobj/dinter2 * dinter2/dinB
         }
 
-    respectively. Due to the overloaded ``__add__`` and ``__iadd__`` functions adding the ``Derivative`` objects than results in the desired
+    respectively. Due to the overloaded ``__add__`` and ``__iadd__`` functions adding the ``Derivative`` objects then results in the desired
 
     .. code-block::
 
