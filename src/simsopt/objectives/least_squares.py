@@ -10,7 +10,6 @@ optimization framework.
 from __future__ import annotations
 
 import logging
-import warnings
 from collections.abc import Sequence as ABC_Sequence
 from typing import Union, Callable, Tuple, Sequence
 from numbers import Real
