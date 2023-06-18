@@ -13,7 +13,7 @@ import traceback
 import collections
 from time import time
 from datetime import datetime
-from typing import Callable, Sequence, Union, IO
+from typing import Callable, Union, IO
 from numbers import Real
 
 import numpy as np
