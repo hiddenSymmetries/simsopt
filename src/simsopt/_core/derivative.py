@@ -28,7 +28,7 @@ def copy_numpy_dict(d):
     return res
 
 
-class Derivative():
+class Derivative:
 
     """
     This class stores the derivative of a scalar output wrt to the individual
