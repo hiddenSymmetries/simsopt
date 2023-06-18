@@ -10,7 +10,6 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
-from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 

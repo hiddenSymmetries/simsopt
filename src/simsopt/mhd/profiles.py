@@ -15,7 +15,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 import numbers
 
 from .._core.optimizable import Optimizable
-from .._core.types import RealArray
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
            'ProfilePressure', 'ProfileSpec']

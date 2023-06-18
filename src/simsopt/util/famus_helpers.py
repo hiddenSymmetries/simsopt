@@ -8,7 +8,6 @@ and work with the permanent magnet branch of SIMSOPT.
 """
 __all__ = ['FocusData', 'FocusPlasmaBnormal', 'stell_point_transform', 'stell_vector_transform']
 import numpy as np
-import sys
 from simsopt.geo import Surface
 
 FOCUS_PLASMAFILE_NHEADER_TOP = 1
