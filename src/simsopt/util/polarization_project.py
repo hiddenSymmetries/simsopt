@@ -10,12 +10,10 @@ and work with the permanent magnet branch of SIMSOPT.
 __all__ = ['orientation_phi', 'polarization_axes', 'discretize_polarizations',
            'face_triplet', 'edge_triplet',
            ]
-import sys
 
 import numpy as np
 import numpy.matlib as ml
 
-from . import famus_helpers as mag
 
 # Designated column indices from MAGPIE corners files
 ind_xib = 3
