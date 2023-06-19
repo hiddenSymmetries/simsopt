@@ -2,8 +2,7 @@ import numpy as np
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from .._core.derivative import Derivative
-from .._core.json import GSONDecoder, GSONable
+from .._core.json import GSONDecoder
 
 __all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
 

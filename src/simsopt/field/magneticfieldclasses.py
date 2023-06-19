@@ -12,7 +12,7 @@ except ImportError:
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
-from .._core.json import GSONable, GSONDecoder
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
