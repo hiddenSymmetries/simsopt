@@ -91,6 +91,7 @@ The input parameters are given by
 
 7. :python:`coils_objective_weight = 1e+3`: the weight given to the coils 
    objective function with respect to the stage 1 optimization.
+
 The remaining input parameters follow the convention of the
 stage 2 optimization script.
 

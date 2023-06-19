@@ -1,7 +1,6 @@
-from scipy.optimize import minimize, least_squares, NonlinearConstraint
-import numpy as np
+from scipy.optimize import minimize, NonlinearConstraint
 
-from .._core.json import GSONDecoder, GSONable
+from .._core.json import GSONable
 from .surfaceobjectives import QfmResidual
 
 __all__ = ['QfmSurface']

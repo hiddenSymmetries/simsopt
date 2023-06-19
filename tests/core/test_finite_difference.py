@@ -261,7 +261,6 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             mpi = MpiPartition(ngroups=ngroups)
             logger.info(f"nprocs={mpi.nprocs_world} ngroups={ngroups}")
             optimizable = TestFunction1()
-            initial_x = optimizable.x
             optimizable.fix_all()
             optimizable.unfix('x0')
             arr_to_bcast = np.arange(3) * 0.25 + ngroups + 7  # Arbitrary values
