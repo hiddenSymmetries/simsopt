@@ -19,7 +19,7 @@ from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
                            DipoleField, Dommaschk, InterpolatedField,
                            MagneticFieldSum, PoloidalField, Reiman,
                            ScalarPotentialRZMagneticField, ToroidalField,
-                           coils_via_symmetries)
+                           coils_via_symmetries, MirrorModel)
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
                          PermanentMagnetGrid, SurfaceRZFourier,
@@ -517,6 +517,29 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, np.array([[39.394312086253024, 14.061725133810995, 0.1684479703125076],
                                             [14.061729381899355, -40.23304445668633, -0.40810476986895994],
                                             [0.16844815337021118, -0.4081047568874514, 0.838733]]))                
+        # Verify serialization works
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
+
+    def test_MirrorModel(self):
+        """
+        For MirrorModel, compare to reference values from Rogerio Jorge's
+        Mathematica notebook.
+        """
+        Bfield = MirrorModel(B0=6.51292, gamma=0.124904, Z_m=0.98)
+        point = np.asarray([[0.9231, 0.8423, -0.1123]])
+        Bfield.set_points(point)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify B
+        B = Bfield.B()
+        assert np.allclose(B, [[0.172472, 0.157375, 0.551171]])
+        assert np.allclose(transpGradB, np.array([[0.18684, 0, -1.66368], [0, 0.18684, -1.51805], [0, 0, -0.373679]]))
+        # Verify serialization works
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
     def test_DipoleField_single_dipole(self):
         m = np.array([0.5, 0.5, 0.5])
