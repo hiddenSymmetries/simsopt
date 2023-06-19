@@ -523,6 +523,10 @@ class Testing(unittest.TestCase):
         self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
 
     def test_MirrorModel(self):
+        """
+        For MirrorModel, compare to reference values from Rogerio Jorge's
+        Mathematica notebook.
+        """
         Bfield = MirrorModel(B0=6.51292, gamma=0.124904, Z_m=0.98)
         point = np.asarray([[0.9231, 0.8423, -0.1123]])
         Bfield.set_points(point)
@@ -531,8 +535,6 @@ class Testing(unittest.TestCase):
         # Verify B
         B = Bfield.B()
         assert np.allclose(B, [[0.172472, 0.157375, 0.551171]])
-        # Verify gradB is symmetric and its value
-        # assert np.allclose(gradB, transpGradB)
         assert np.allclose(transpGradB, np.array([[0.18684, 0, -1.66368], [0, 0.18684, -1.51805], [0, 0, -0.373679]]))
         # Verify serialization works
         field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)

@@ -855,33 +855,35 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
 
 
 class MirrorModel(MagneticField):
-    """
-    Vacuum magnetic field employed in https://arxiv.org/abs/2305.06372 to study
-    the magnetic mirror experiment WHAM. It is composed of an analytical flux
-    function whose gradients yield the magnetic field vector. Namely, the
-    magnetic field is given by B=B_R e_R + B_Z e_Z, where e_R and e_Z are
-    the cylindrical radial and vertical unit vectors, respectively, and
-    B_R and B_Z are given by
+    r"""
+    Model magnetic field employed in https://arxiv.org/abs/2305.06372 to study
+    the magnetic mirror experiment WHAM. The
+    magnetic field is given by :math:`\vec{B}=B_R \vec{e}_R + B_Z \vec{e}_Z`, where 
+    :math:`\vec{e}_R` and :math:`\vec{e}_Z` are
+    the cylindrical radial and axial unit vectors, respectively, and
+    :math:`B_R` and :math:`B_Z` are given by
 
     .. math::
 
-        B_R = -{\partial\psi}/{\partial Z}/R, B_Z = {\partial\psi}/{\partial R}/R
+        B_R = -\frac{1}{R} \frac{\partial\psi}{\partial Z}, \; B_Z = \frac{1}{R}.
+        \frac{\partial\psi}{\partial R}
 
-    In this model, the magnetic flux function psi is written as a double
-    Lorentzian distribution
+    In this model, the magnetic flux function :math:`\psi` is written as a double
+    Lorentzian function
 
     .. math::
 
-        \psi = \frac{R^2 B}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right)
+        \psi = \frac{R^2 \mathcal{B}}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right).
 
-    The input parameters are B, gamma and Z_m with the standard values the
-    ones used in https://arxiv.org/abs/2305.06372, that is, B0=6.51292,
-    gamma = 0.124904 and Z_m = 0.98.
+    Note that this field is neither a vacuum field nor a solution of MHD force balance.
+    The input parameters are ``B0``, ``gamma`` and ``Z_m`` with the standard values the
+    ones used in https://arxiv.org/abs/2305.06372, that is, ``B0 = 6.51292``,
+    ``gamma = 0.124904``, and ``Z_m = 0.98``.
 
     Args:
-        B0:  parameter \mathcal{B} of the flux surface function
-        gamma:  parameter \gamma of the flux surface function
-        Z_m:  parameter Z_m of the flux surface function
+        B0:  parameter :math:`\mathcal{B}` of the flux surface function
+        gamma:  parameter :math:`\gamma` of the flux surface function
+        Z_m:  parameter :math:`Z_m` of the flux surface function
     """
 
     def __init__(self, B0=6.51292, gamma=0.124904, Z_m=0.98):
