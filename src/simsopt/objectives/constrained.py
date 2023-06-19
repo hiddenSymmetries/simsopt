@@ -10,8 +10,7 @@ optimization framework.
 from __future__ import annotations
 
 import logging
-import warnings
-from typing import Union, Callable, Tuple, Sequence
+from typing import Union, Callable, Tuple, Sequence, Optional
 from numbers import Real
 
 import numpy as np
@@ -69,7 +68,7 @@ class ConstrainedProblem(Optimizable):
                  f_obj: Callable,
                  tuples_nlc: Sequence[Tuple[Callable, Real, Real]] = None,
                  tuple_lc: Tuple[RealArray, Union[RealArray, Real], Union[RealArray, Real]] = None,
-                 fail: Union[None, float] = 1.0e12):
+                 fail: Optional[float] = 1.0e12):
 
         self.fail = fail
 
