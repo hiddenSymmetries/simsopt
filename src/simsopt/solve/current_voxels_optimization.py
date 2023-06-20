@@ -828,6 +828,7 @@ def ras_preconditioned_minres(
     b_I = b_I.reshape(1, 1)
     b_B = b.reshape(len(b), 1)
     alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
+    kappa = kappa / n
     kappa_nu = (kappa + 1.0 / nu)
     scale = 1e6
     C = current_voxels.C   # * scale ** 2
@@ -837,19 +838,13 @@ def ras_preconditioned_minres(
     b = scale * np.vstack((b_B, np.sqrt(sigma) * b_I))
     AT = A.T
     ATb = AT @ b
+    t1 = time.time()
 
     def A_fun(x):
         alpha = x[:N]
-        Ax = np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
-        return Ax
-
-    def A_fun_nu0(x):
-        alpha = x[:N]
-        Ax = np.vstack(((AT @ (A @ alpha) + kappa * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
-        return Ax
+        return np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
 
     A_operator = LinearOperator((N + K, N + K), matvec=A_fun)
-    A_operator_nu0 = LinearOperator((N + K, N + K), matvec=A_fun_nu0)
 
     # setup matrices for the preconditioner
     AAdiag = np.sum(A ** 2, axis=0) + kappa_nu  # diagonal of A'*A + 1/nu*I
@@ -871,20 +866,6 @@ def ras_preconditioned_minres(
 
     M_operator = LinearOperator((N + K, N + K), matvec=M_inv)
 
-    # repeat with nu -> infinity for first iteration 
-    AAdiag = np.sum(A ** 2, axis=0) + kappa
-    AAdiag_inv_diag = (1 / AAdiag).reshape(-1, 1)
-    AAdiag_inv = spdiags(1 / AAdiag.T, 0, N, N)
-    S = C @ AAdiag_inv @ CT
-    perturbation_factor = abs(S).max() * 1e-7
-    S = S + perturbation_factor * spdiags(np.ones(K), 0, K, K)  # regularized Schur complement
-    S_inv_op = splu(S)
-
-    def M_inv_nu0(x):
-        return np.vstack((x[:N, np.newaxis] * AAdiag_inv_diag, S_inv_op.solve(x[N:, np.newaxis])))
-
-    M_operator_nu0 = LinearOperator((N + K, N + K), matvec=M_inv_nu0)
-
     def callback(xk, w_opt, rhs, A_func, nu_algo):
         alpha = xk[:N, np.newaxis]
         fB = np.linalg.norm(B @ alpha - b_B) ** 2
@@ -905,45 +886,37 @@ def ras_preconditioned_minres(
     f_0w = []
     f_RSw = []
     f_Cw = []
+    t_MINRES = []
     current_voxels.alpha_history = []
     current_voxels.w_history = []
-    t1 = time.time()
     set_point = True
-    w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
+    w_opt = alpha_opt  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
     sys.stdout = open(OUT_DIR + 'minres_output.txt', 'w')
     print('Total ', 'fB ', 'sigma * fI ', 'kappa * fK ', 'fRS/nu ', 'C*alpha ', 'MINRES residual')
     sys.stdout.close()
     sys.stdout = open("/dev/stdout", "w")
+    t2 = time.time()
+    t_algo_setup = t2 - t1
+    print('Time to setup precond = ', t_algo_setup, ' s')
+    t0 = time.time()
     for j, threshold in enumerate(l0_thresholds):
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
         if j > (2.0 * len(l0_thresholds) / 3.0) and set_point:
             # rs_max_iter = 2 * rs_max_iter
             set_point = False
         for k in range(rs_max_iter):
-            if (j == 0) and (k == 0) and (len(l0_thresholds) > 1):
-                A_op = A_operator_nu0
-                A_func = A_fun_nu0 
-                M_op = M_operator_nu0
-                nu_algo = 1e100
-                max_it = 50000
-            else:
-                A_op = A_operator
-                A_func = A_fun 
-                M_op = M_operator
-                max_it = max_iter
-                nu_algo = nu
-            rhs = ATb + w_opt / nu_algo
+            rhs = ATb + w_opt / nu
             rhs = np.vstack((rhs.reshape(len(rhs), 1), np.zeros((K, 1))))
 
             # now MINRES
             t1 = time.time()
             x0 = np.vstack((alpha_opt, lam_opt))
             sys.stdout = open(OUT_DIR + 'minres_output.txt', 'a')
-            alpha_opt, _ = minres(A_op, rhs, x0=x0, tol=tol, maxiter=max_it, callback=partial(callback, w_opt=w_opt, rhs=rhs, A_func=A_func, nu_algo=nu_algo), M=M_op, print_iter=print_iter)
+            alpha_opt, _ = minres(A_operator, rhs, x0=x0, tol=tol, maxiter=max_iter, callback=partial(callback, w_opt=w_opt, rhs=rhs, A_func=A_fun, nu_algo=nu), M=M_operator, print_iter=print_iter)
             t2 = time.time()
             sys.stdout.close()
             sys.stdout = open("/dev/stdout", "w")
-            t3 = t2 - t1
+            t_MINRES.append(t2 - t1)
             #print('MINRES took = ', t3, ' s')
             alpha_opt = alpha_opt.reshape(-1, 1)
             lam_opt = alpha_opt[N:]
@@ -953,7 +926,7 @@ def ras_preconditioned_minres(
                 f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b_B), ord=2) ** 2)
                 f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2 * sigma)
                 f_Kw.append(kappa * np.linalg.norm(np.ravel(w_opt)) ** 2 / scale ** 2)
-                f_RSw.append(np.linalg.norm(alpha_opt - w_opt) ** 2 / nu_algo / scale ** 2)
+                f_RSw.append(np.linalg.norm(alpha_opt - w_opt) ** 2 / nu / scale ** 2)
                 f_Cw.append(np.linalg.norm(C.dot(w_opt)) / scale ** 2)
                 # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
                 f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
@@ -972,8 +945,10 @@ def ras_preconditioned_minres(
             w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
 
     t2 = time.time()
-    algo_time = t2 - t1
-    print('Time to run algo = ', t2 - t1, ' s')
+    algo_time = t2 - t0
+    print('Time to run relax-and-split algo = ', algo_time, ' s')
+    avg_t_MINRES = np.mean(np.array(t_MINRES))
+    print('Time on avg to complete a MINRES call = ', avg_t_MINRES, ' s')
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
     print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
@@ -1000,5 +975,7 @@ def ras_preconditioned_minres(
             0.5 * np.array(f_Iw),
             0.5 * np.array(f_RSw),
             0.5 * np.array(f_Cw),
-            algo_time
+            algo_time,
+            t_algo_setup,
+            avg_t_MINRES
             )

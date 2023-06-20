@@ -224,7 +224,7 @@ def trace_fieldlines(bfield, label, s, comm, R0, out_dir=''):
     phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 
     # compute the fieldlines from the initial locations specified above
-    sc_fieldline = SurfaceClassifier(s, h=0.05, p=2)
+    sc_fieldline = SurfaceClassifier(s, h=0.01, p=2)
     sc_fieldline.to_vtk(str(out_dir) + 'levelset', h=0.02)
 
     # See field tracing example in examples/1_Simple for description
@@ -632,7 +632,7 @@ def make_curve_at_theta0(s, numquadpoints):
     return curve
 
 
-def make_filament_from_voxels(wv_grid, final_threshold):
+def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_fourier=16):
     """
     Take an optimized CurrentVoxelGrid class object and the largest
     threshold used to optimize it, and produce a filamentary curve from
@@ -649,7 +649,7 @@ def make_filament_from_voxels(wv_grid, final_threshold):
     nfp = wv_grid.plasma_boundary.nfp
     stellsym = wv_grid.plasma_boundary.stellsym
     n = xyz_curve.shape[0]
-    
+
     # complete the curve via the symmetries 
     xyz_total = np.zeros((n * nfp * (stellsym + 1), 3)) 
     if stellsym:
@@ -666,22 +666,23 @@ def make_filament_from_voxels(wv_grid, final_threshold):
             index += n
 
     # number of fourier modes to use for the fourier expansion in each coordinate
-    num_fourier = 10 
     ax = plt.figure().add_subplot(projection='3d')
     xyz_curve = xyz_total
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
 
     # Let's assume curve is unique w/ respect to theta or phi
     # in the 1 / 2 * nfp part of the surface
     phi, unique_inds = np.unique(np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0]), return_index=True)
     xyz_curve = xyz_curve[unique_inds, :]
-    
+    plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
+
     def moving_average(x, w):
         return np.convolve(x, np.ones(w), 'valid') / w
-    
+
     x_curve = moving_average(xyz_curve[:, 0], 10)
     y_curve = moving_average(xyz_curve[:, 1], 10)
     z_curve = moving_average(xyz_curve[:, 2], 10)
-    
+
     # Stitch together missing points lost during the moving average
     xn = len(x_curve)
     extra_x = -x_curve[xn // 2:xn // 2 + 6]
@@ -693,26 +694,61 @@ def make_filament_from_voxels(wv_grid, final_threshold):
     x_curve = np.append(x_curve, np.flip(extra_x))
     y_curve = np.append(y_curve, -np.flip(extra_y))
     z_curve = np.append(z_curve, -np.flip(extra_z))
-
     xyz_curve = np.transpose([x_curve, y_curve, z_curve])
     plt.plot(xyz_curve[:, 0], xyz_curve[:, 1], xyz_curve[:, 2])
-    
+
     # get phi and reorder it from -pi to pi (sometimes arctan returns different quadrant)
     phi = np.arctan2(xyz_curve[:, 1], xyz_curve[:, 0])
     phi_inds = np.argsort(phi)
     phi = phi[phi_inds] + np.pi
     xyz_curve = xyz_curve[phi_inds, :]
-    
+    plt.figure()
+    plt.plot(phi, xyz_curve[:, 0])
+    plt.plot(phi, xyz_curve[:, 1])
+    plt.plot(phi, xyz_curve[:, 2])
+    #plt.show()
+
     # Initialize CurveXYZFourier object
-    quadpoints = np.linspace(0, 2 * np.pi, 1000, endpoint=False) # len(phi)
+    quadpoints = 2000
     coil = CurveXYZFourier(quadpoints, num_fourier)
     dofs = coil.dofs_matrix
-    
-    # Curve is periodic so m = 0 cosine term integrates to zero
-    # so below we only set the m = 1, 2, ... terms
+    dofs[0][0] = np.trapz(xyz_curve[:, 0], phi) / np.pi
+
+    if truncate and abs(dofs[0][0]) < 1e-2:
+        dofs[0][0] = 0.0
     for f in range(num_fourier):
         for i in range(3):
-            dofs[i][f * 2 + 1] = np.trapz(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
-            dofs[i][f * 2 + 2] = np.trapz(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
+            if i == 0:
+                dofs[i][f * 2 + 2] = np.trapz(xyz_curve[:, i] * np.cos((f + 1) * phi), phi) / np.pi
+                if truncate and abs(dofs[i][f * 2 + 2]) < 1e-2:
+                    dofs[i][f * 2 + 2] = 0.0
+            else:
+                dofs[i][f * 2 + 1] = np.trapz(xyz_curve[:, i] * np.sin((f + 1) * phi), phi) / np.pi
+                if truncate and abs(dofs[i][f * 2 + 1]) < 1e-2:
+                    dofs[i][f * 2 + 1] = 0.0
     coil.local_x = np.concatenate(dofs)
+    print(dofs)
+    # exit()
+
+    # now make the stellarator symmetry fixed in the optimization
+    for f in range(num_fourier):
+        coil.fix(f'xs({f + 1})')
+    for f in range(num_fourier + 1):
+        coil.fix(f'yc({f})')
+        coil.fix(f'zc({f})')
+
+    # attempt to fix all the non-nfp-symmetric coefficients to zero during optimiziation
+    for f in range(num_fourier * 2 + 1):
+        for i in range(3):
+            if i == 0:
+                if np.isclose(dofs[i][f], 0.0) and (f % 2) == 0 and (f // 2) % 2 == 0:
+                    coil.fix(f'xc({f // 2})')
+            elif i == 1: 
+                if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0 and (f // 2) % 2 != 0:
+                    coil.fix(f'ys({f // 2 + 1})')
+            if i == 2: 
+                if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0:
+                    coil.fix(f'zs({f // 2 + 1})')
+    print(coil.dof_names)
+    # exit()
     return coil

@@ -22,7 +22,7 @@ from scipy.optimize import minimize
 from simsopt.objectives import SquaredFlux
 from simsopt.objectives import Weight
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field import InterpolatedField, SurfaceClassifier, Coil
+from simsopt.field import InterpolatedField, SurfaceClassifier, Coil, coils_via_symmetries
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
 from simsopt.solve import relax_and_split, ras_minres, relax_and_split_increasingl0, ras_preconditioned_minres
@@ -31,7 +31,7 @@ from simsopt.objectives import QuadraticPenalty
 from simsopt.geo import create_equally_spaced_curves
 from simsopt.field import Current
 from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LpCurveTorsion
 import time
 #from mpi4py import MPI
 #comm = MPI.COMM_WORLD
@@ -43,7 +43,7 @@ t_start = time.time()
 
 t1 = time.time()
 # Set some parameters
-nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 coil_range = 'half period'
 input_name = 'input.LandremanPaul2021_QA'
@@ -57,17 +57,10 @@ qphi = s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range="full torus",
+    surface_filename,  # range="full torus",
     # nphi=qphi, ntheta=ntheta 
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
-if coil_range == 'half period':
-    s.nfp = 2
-    s.stellsym = True
-    s_plot.nfp = 2
-    s_plot.stellsym = True
-else:
-    s.stellsym = False
 
 # Make the output directory
 OUT_DIR = 'current_voxels_QA/'
@@ -116,17 +109,25 @@ t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
 max_iter = 100  # 10000
-rs_max_iter = 100  # 1
+rs_max_iter = 100  # 100 # 1
 nu = 1e2
-kappa = 1e-6
+kappa = 1e-3
 l0_threshold = 1e4
 l0_thresholds = np.linspace(l0_threshold, 100 * l0_threshold, 5, endpoint=True)
-alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw, _ = ras_preconditioned_minres( 
+alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw, _, _, _ = ras_preconditioned_minres( 
+    wv_grid, kappa=kappa, nu=1e100, max_iter=5000,
+    l0_thresholds=[0.0], 
+    rs_max_iter=1,
+    print_iter=20,
+    OUT_DIR=OUT_DIR,
+)
+alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, fBw, fKw, fIw, fRSw, fCw, _, _, _ = ras_preconditioned_minres( 
     wv_grid, kappa=kappa, nu=nu, max_iter=max_iter,
     l0_thresholds=l0_thresholds, 
     rs_max_iter=rs_max_iter,
-    print_iter=20,
+    print_iter=10,
     OUT_DIR=OUT_DIR,
+    alpha0=alpha_opt
 )
 t2 = time.time()
 print('(Preconditioned) MINRES solve time = ', t2 - t1, ' s')    
@@ -188,43 +189,6 @@ print('Time to check all the flux constraints = ', t2 - t1, ' s')
 
 calculate_on_axis_B(bs_wv, s)
 
-trace_field = False
-if trace_field:
-    t1 = time.time()
-    bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-    print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
-    n = 20
-    rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
-    zs = s_plot.gamma()[:, :, 2]
-    rrange = (np.min(rs), np.max(rs), n)
-    phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
-    zrange = (0, np.max(zs), n // 2)
-    degree = 4
-
-    # compute the fieldlines from the initial locations specified above
-    sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
-
-    def skip(rs, phis, zs):
-        rphiz = np.asarray([rs, phis, zs]).T.copy()
-        dists = sc_fieldline.evaluate_rphiz(rphiz)
-        skip = list((dists < -0.05).flatten())
-        print("Skip", sum(skip), "cells out of", len(skip), flush=True)
-        return skip
-
-    bsh = InterpolatedField(
-        bs_wv, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
-    )
-    bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    bs_wv.set_points(s_plot.gamma().reshape((-1, 3)))
-    make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
-    Bh = bsh.B()
-    B = bs_wv.B()
-    print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
-    print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
-    nfieldlines = 10
-    R0 = np.linspace(1.2125346, 1.295, nfieldlines)
-    trace_fieldlines(bsh, 'current_voxels_QA_poincare', s_plot, comm, OUT_DIR, R0)
-    t2 = time.time()
 print(OUT_DIR)
 
 
@@ -232,36 +196,51 @@ t_end = time.time()
 print('Total time = ', t_end - t_start)
 print('f fB fI fK fC')
 print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
-filament_curve = make_filament_from_voxels(wv_grid, l0_thresholds[-1])
+
+# Reinitialize this?
+s_plot = SurfaceRZFourier.from_vmec_input(
+    surface_filename,  # range="full torus",
+    # nphi=qphi, ntheta=ntheta 
+    quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
+)
+filament_curve = make_filament_from_voxels(wv_grid, l0_thresholds[-1], num_fourier=30)
 curves_to_vtk([filament_curve], OUT_DIR + f"filament_curve")
-current = Current(Itarget)
+current = Current(Itarget / 2.0)
+filament_coils = coils_via_symmetries([filament_curve], [current], s_plot.nfp, s_plot.stellsym)
+curves_to_vtk([coil._curve for coil in filament_coils], OUT_DIR + f"filament_curves_symmetrized")
 current.fix_all()
 coil = [Coil(filament_curve, current)]
+print('coil dofs = ', coil[0].dof_names)
 bs = BiotSavart(coil)
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_filament_initial", extra_data=pointData)
+make_Bnormal_plots(bs, s_plot, OUT_DIR, "surf_filament_initial2")
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-5)
+LENGTH_WEIGHT = Weight(5e-7)
 
 # Threshold and weight for the coil-to-surface distance penalty in the objective function:
 CS_THRESHOLD = 0
-CS_WEIGHT = 1e-12
+CS_WEIGHT = 1e-22
 
 # Threshold and weight for the curvature penalty in the objective function:
-CURVATURE_THRESHOLD = 0.
-CURVATURE_WEIGHT = 1e-12
+CURVATURE_THRESHOLD = 0.01
+CURVATURE_WEIGHT = 1e-22
+TORSION_WEIGHT = 1e-22
 
 # Threshold and weight for the mean squared curvature penalty in the objective function:
-MSC_THRESHOLD = 0
-MSC_WEIGHT = 1e-12
+MSC_THRESHOLD = 0.01
+MSC_WEIGHT = 1e-22
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s_plot, bs)
 Jls = [CurveLength(filament_curve)]
 Jcsdist = CurveSurfaceDistance([filament_curve], s_plot, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(filament_curve, 2, CURVATURE_THRESHOLD)]
+Jts = [LpCurveTorsion(filament_curve, 2, CURVATURE_THRESHOLD)]
 Jmscs = [MeanSquaredCurvature(filament_curve)]
 
 # Form the total objective function. To do this, we can exploit the
@@ -271,6 +250,7 @@ JF = Jf \
     + LENGTH_WEIGHT * sum(Jls) \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
+    + TORSION_WEIGHT * sum(Jts) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
@@ -315,23 +295,51 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-MAXITER = 100
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk([filament_curve], OUT_DIR + f"curves_opt_short")
-pointData = {"B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
-
-
-# We now use the result from the optimization as the initial guess for a
-# subsequent optimization with reduced penalty for the coil length. This will
-# result in slightly longer coils but smaller `B·n` on the surface.
-dofs = res.x
-LENGTH_WEIGHT *= 0.1
+MAXITER = 2000
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk([filament_curve], OUT_DIR + f"curves_opt_long")
 pointData = {"B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
-
-# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
+calculate_on_axis_B(bs, s_plot)
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
 bs.save(OUT_DIR + "biot_savart_opt.json")
+trace_field = True
+if trace_field:
+    t1 = time.time()
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    print('R0 = ', s.get_rc(0, 0), ', r0 = ', s.get_rc(1, 0))
+    n = 20
+    rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
+    zs = s_plot.gamma()[:, :, 2]
+    rrange = (np.min(rs), np.max(rs), n)
+    phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
+    zrange = (0, np.max(zs), n // 2)
+    degree = 2
+
+    # compute the fieldlines from the initial locations specified above
+    sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
+
+    def skip(rs, phis, zs):
+        rphiz = np.asarray([rs, phis, zs]).T.copy()
+        dists = sc_fieldline.evaluate_rphiz(rphiz)
+        skip = list((dists < -0.05).flatten())
+        print("Skip", sum(skip), "cells out of", len(skip), flush=True)
+        return skip
+
+    bsh = InterpolatedField(
+        bs, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym, skip=skip
+    )
+    bsh.set_points(s_plot.gamma().reshape((-1, 3)))
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    make_Bnormal_plots(bsh, s_plot, OUT_DIR, "biot_savart_interpolated")
+    make_Bnormal_plots(bs, s_plot, OUT_DIR, "biot_savart_filaments")
+    Bh = bsh.B()
+    B = bs.B()
+    print("Mean(|B|) on plasma surface =", np.mean(bs_wv.AbsB()))
+    print("|B-Bh| on surface:", np.sort(np.abs(B-Bh).flatten()))
+    nfieldlines = 30
+    R0 = np.linspace(1.2125346, 1.295, nfieldlines)
+    trace_fieldlines(bsh, 'current_voxels_QA_long', s_plot, None, R0, OUT_DIR)
+    t2 = time.time()
+
 plt.show()

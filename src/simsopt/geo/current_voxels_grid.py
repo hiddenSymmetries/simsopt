@@ -388,8 +388,8 @@ class CurrentVoxelsGrid:
             coil surface, not just 1 / 2 nfp of the surface.
         """
         range_surf = self.coil_range
-        nphi = self.nphi * 16
-        ntheta = self.ntheta * 16
+        nphi = 64  # hard-coded to make sure these surfaces always well-resolved
+        ntheta = nphi
         f = self.filename
         if self.surface_flag == 'focus':
             rz_inner_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -410,8 +410,8 @@ class CurrentVoxelsGrid:
             theta value.
         """
         range_surf = self.coil_range
-        nphi = self.nphi * 16
-        ntheta = self.ntheta * 16
+        nphi = 64  # hard-coded to make sure these surfaces always well-resolved
+        ntheta = nphi
         f = self.filename
         if self.surface_flag == 'focus':
             rz_outer_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
@@ -845,10 +845,6 @@ class CurrentVoxelsGrid:
         num_points_curve = points_curve.shape[0]
         geo_factor = np.zeros((num_points, n, num_basis))
         Itarget_matrix = np.zeros((num_points_curve, n, num_basis))
-        ox_full = ox
-        oy_full = oy
-        oz_full = oz
-        Phivec_transpose = Phi
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
@@ -864,22 +860,20 @@ class CurrentVoxelsGrid:
                 Phivec_z = Phi[:, :, :, 2]
 
                 int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
-                Phivec_transpose = np.transpose(np.array([Phivec_x, Phivec_y, Phivec_z]), [1, 2, 3, 0])
-                print(Phivec_transpose.shape, int_points.shape, points.shape, plasma_unitnormal.shape)
+                Phivec_transpose = np.transpose(np.array([Phivec_x, Phivec_y, Phivec_z]), [2, 3, 1, 0])
 
-                #geo_factor += sopp.current_voxels_field_Bext(
-                #    points, 
-                #    contig(int_points), 
-                #    contig(Phivec_transpose),
-                #    plasma_unitnormal
-                #)
+                geo_factor += sopp.current_voxels_field_Bext(
+                    points, 
+                    contig(int_points), 
+                    contig(Phivec_transpose),
+                    plasma_unitnormal
+                )
                 Itarget_matrix += sopp.current_voxels_field_Bext(
                     points_curve, 
                     contig(int_points), 
                     contig(Phivec_transpose),
                     contig(curve_dl)
                 )
-                exit()
         #int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
         #Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
         #geo_factor = sopp.current_voxels_field_Bext(
