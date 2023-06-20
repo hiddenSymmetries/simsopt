@@ -101,7 +101,7 @@ class Testing(unittest.TestCase):
                 kwargs = {"coordinate_flag": "cylindrical", "pol_vectors": np.ones((5, 3, 3))}
                 PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
                     s, np.zeros((nphi, ntheta)), s1, s2, **kwargs)
-            with self.assertRaises(NotImplementedError):
+            with self.assertRaises(ValueError):
                 kwargs = {"coordinate_flag": "random"}
                 PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
                     s, np.zeros((nphi, ntheta)), s1, s2, **kwargs)
