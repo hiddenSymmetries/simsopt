@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from pathlib import Path
 
+from monty.tempfile import ScratchDir
 try:
     import sympy
 except ImportError:
@@ -20,7 +21,7 @@ from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
                            DipoleField, Dommaschk, InterpolatedField,
                            MagneticFieldSum, PoloidalField, Reiman,
                            ScalarPotentialRZMagneticField, ToroidalField,
-                           coils_via_symmetries)
+                           coils_via_symmetries, MirrorModel)
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
                          PermanentMagnetGrid, SurfaceRZFourier,
@@ -518,17 +519,35 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, np.array([[39.394312086253024, 14.061725133810995, 0.1684479703125076],
                                             [14.061729381899355, -40.23304445668633, -0.40810476986895994],
                                             [0.16844815337021118, -0.4081047568874514, 0.838733]]))                
+        # Verify serialization works
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
+
+    def test_MirrorModel(self):
+        """
+        For MirrorModel, compare to reference values from Rogerio Jorge's
+        Mathematica notebook.
+        """
+        Bfield = MirrorModel(B0=6.51292, gamma=0.124904, Z_m=0.98)
+        point = np.asarray([[0.9231, 0.8423, -0.1123]])
+        Bfield.set_points(point)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify B
+        B = Bfield.B()
+        assert np.allclose(B, [[0.172472, 0.157375, 0.551171]])
+        assert np.allclose(transpGradB, np.array([[0.18684, 0, -1.66368], [0, 0.18684, -1.51805], [0, 0, -0.373679]]))
+        # Verify serialization works
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
     def test_DipoleField_single_dipole(self):
         m = np.array([0.5, 0.5, 0.5])
         m_loc = np.array([0.1, -0.1, 1]).reshape(1, 3)
         field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            stellsym=False,
-            coordinate_flag='cartesian'
-        )
+        Bfield = DipoleField(m_loc, m, stellsym=False, coordinate_flag='cartesian')
         Bfield.set_points(field_loc)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
@@ -548,12 +567,7 @@ class Testing(unittest.TestCase):
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            stellsym=False, 
-            coordinate_flag='cartesian',
-        )
+        Bfield = DipoleField(m_loc, m, stellsym=False, coordinate_flag='cartesian')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         B_correct = Ndipoles * 1e-7 * np.array([0.260891, -0.183328, -0.77562])
@@ -574,18 +588,15 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradA, Ndipoles * 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]), atol=1e-4)
 
         # Save to vtk
-        Bfield._toVTK('test')
+        with ScratchDir("."):
+            Bfield._toVTK('test')
 
     def test_DipoleField_multiple_points_multiple_dipoles(self):
         Ndipoles = 101
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            coordinate_flag='cartesian'
-        )
+        Bfield = DipoleField(m_loc, m, coordinate_flag='cartesian')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -608,11 +619,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
         # Repeat in cylindrical coords
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            coordinate_flag='cylindrical'
-        )
+        Bfield = DipoleField(m_loc, m, coordinate_flag='cylindrical')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -635,11 +642,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
         # Repeat with toroidal orientation
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            coordinate_flag='toroidal'
-        )
+        Bfield = DipoleField(m_loc, m, coordinate_flag='toroidal')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -663,18 +666,16 @@ class Testing(unittest.TestCase):
 
     def test_pmopt_dipoles(self):
         """
-            Test that A * m in the permanent magnet optimizer class
-            agrees with SquaredFlux function using Bn from the DipoleField
-            class, with range of different plasma surfaces with different
-            values of field-period symmetry. 
+        Test that A * m in the permanent magnet optimizer class
+        agrees with SquaredFlux function using Bn from the DipoleField
+        class, with range of different plasma surfaces with different
+        values of field-period symmetry.
         """
         nphi = 8
         ntheta = 8
-        file_tests = [
-            "input.LandremanPaul2021_QA", "input.W7-X_standard_configuration",
-            "input.LandremanPaul2021_QH_reactorScale_lowres",
-            "input.circular_tokamak", "input.rotating_ellipse"
-        ]
+        file_tests = ["input.LandremanPaul2021_QA", "input.W7-X_standard_configuration",
+                      "input.LandremanPaul2021_QH_reactorScale_lowres",
+                      "input.circular_tokamak", "input.rotating_ellipse"]
 
         for filename in file_tests: 
             sfilename = TEST_DIR / filename
@@ -696,19 +697,17 @@ class Testing(unittest.TestCase):
             bs = BiotSavart(coils)
             bs.set_points(s.gamma().reshape((-1, 3)))
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                s, Bn, s_inner, s_outer
-            )
+            with ScratchDir("."):
+                pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                    s, Bn, s_inner, s_outer)
             dipoles = np.random.rand(pm_opt.ndipoles * 3)
             pm_opt.m = dipoles
-            b_dipole = DipoleField(
-                pm_opt.dipole_grid_xyz,
-                pm_opt.m,
-                nfp=s.nfp,
-                stellsym=s.stellsym,
-                coordinate_flag=pm_opt.coordinate_flag,
-                m_maxima=pm_opt.m_maxima,
-            )
+            b_dipole = DipoleField(pm_opt.dipole_grid_xyz,
+                                   pm_opt.m,
+                                   nfp=s.nfp,
+                                   stellsym=s.stellsym,
+                                   coordinate_flag=pm_opt.coordinate_flag,
+                                   m_maxima=pm_opt.m_maxima)
             b_dipole.set_points(s.gamma().reshape((-1, 3)))
             # check Bn
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
@@ -720,15 +719,11 @@ class Testing(unittest.TestCase):
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
             Bn_dipole_only = np.sum(b_dipole.B().reshape(-1, 3) * s.unitnormal().reshape(-1, 3), axis=1)
             assert np.isclose(B_opt, B_dipole_field)
-            A_dipole = dipole_field_Bn(
-                s.gamma().reshape(-1, 3),
-                pm_opt.dipole_grid_xyz,
-                s.unitnormal().reshape(-1, 3),
-                s.nfp,
-                s.stellsym,
-                pm_opt.b_obj,
-                pm_opt.coordinate_flag
-            )
+            A_dipole = dipole_field_Bn(s.gamma().reshape(-1, 3),
+                                       pm_opt.dipole_grid_xyz,
+                                       s.unitnormal().reshape(-1, 3),
+                                       s.nfp, s.stellsym,
+                                       pm_opt.b_obj, pm_opt.coordinate_flag)
             # Rescale
             A_dipole = A_dipole.reshape(Ngrid, pm_opt.ndipoles * 3)
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
@@ -917,9 +912,8 @@ class Testing(unittest.TestCase):
         zmin = -0.1
         zmax = 0.1
         zsteps = n
-        bsh = InterpolatedField(
-            btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps],
-            True)
+        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps],
+                                [zmin, zmax, zsteps], True)
         N = 100
         points = np.random.uniform(size=(N, 3))
         points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
@@ -963,7 +957,8 @@ class Testing(unittest.TestCase):
             zmin = -0.1
             zmax = 0.1
             zsteps = n
-            bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
+            bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps],
+                                    [zmin, zmax, zsteps], True)
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
             assert err_1 < 0.6**3 * old_err_1
@@ -1016,27 +1011,21 @@ class Testing(unittest.TestCase):
         R0 = 1.2
         q = 1.3
         # point locations
-        points = np.asarray([
-            [-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
-            [0.1231, 2.4123, 0.002341],
-        ])
+        points = np.asarray([[-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
+                             [0.1231, 2.4123, 0.002341]])
         # Bfield from class
         Bfield = PoloidalField(R0=R0, B0=B0, q=q)
         Bfield.set_points(points)
         B1 = Bfield.B()
         dB1 = Bfield.dB_by_dX()
-        B1_analytical = [
-            [-3.48663e-7, 0.000221744, -0.211538],
-            [-0.0000841262, -0.00164856, 0.85704]
-        ]
-        dB1_analytical = [
-            [[0.000246381, 3.87403e-7, 0.00110872],
-             [3.87403e-7, 6.0914e-10, -0.705127],
-             [-0.00110872, 0.705127, 0]],
-            [[-0.000681623, 0.0000347833, -0.035936],
-             [0.0000347833, -1.775e-6, -0.704212],
-             [0.035936, 0.704212, 0]]
-        ]
+        B1_analytical = [[-3.48663e-7, 0.000221744, -0.211538],
+                         [-0.0000841262, -0.00164856, 0.85704]]
+        dB1_analytical = [[[0.000246381, 3.87403e-7, 0.00110872],
+                           [3.87403e-7, 6.0914e-10, -0.705127],
+                           [-0.00110872, 0.705127, 0]],
+                          [[-0.000681623, 0.0000347833, -0.035936],
+                           [0.0000347833, -1.775e-6, -0.704212],
+                           [0.035936, 0.704212, 0]]]
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
 

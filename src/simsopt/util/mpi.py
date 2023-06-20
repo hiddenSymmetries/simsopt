@@ -11,7 +11,6 @@ mpi4py and numpy, not on any other simsopt components.
 __all__ = ['log', 'MpiPartition']
 
 import logging
-from typing import Union
 import numpy as np
 
 from .._core.dev import SimsoptRequires
@@ -77,12 +76,8 @@ class MpiPartition:
     """
 
     def __init__(self,
-                 # ngroups: Union[None, int] = None,
-                 # comm_world: Union[MPI.Intracomm, None] = MPI.COMM_WORLD):
                  ngroups=None,
                  comm_world=None):
-        # if MPI is None:
-        #     raise RuntimeError("MpiPartition class requires the mpi4py package.")
 
         self.is_apart = False
         self.comm_world = comm_world if comm_world is not None else MPI.COMM_WORLD

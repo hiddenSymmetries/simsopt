@@ -3,7 +3,6 @@ import numpy as np
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
-from .._core.json import GSONable, GSONDecoder, GSONEncoder
 
 
 __all__ = ['SquaredFlux']
