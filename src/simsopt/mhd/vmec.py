@@ -8,7 +8,7 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Union
+from typing import Optional
 from datetime import datetime
 
 import numpy as np
@@ -260,8 +260,8 @@ class Vmec(Optimizable):
     """
 
     def __init__(self,
-                 filename: Union[str, None] = None,
-                 mpi: Union[MpiPartition, None] = None,
+                 filename: Optional[str] = None,
+                 mpi: Optional[MpiPartition] = None,
                  keep_all_files: bool = False,
                  verbose: bool = True,
                  ntheta=50,
