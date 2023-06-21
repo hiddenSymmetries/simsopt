@@ -67,8 +67,6 @@ PYBIND11_MODULE(simsoptpp, m) {
     // Functions below are implemented for current voxels method
     m.def("current_voxels_geo_factors", &current_voxels_geo_factors); 
     m.def("current_voxels_flux_jumps", &current_voxels_flux_jumps); 
-    m.def("make_current_voxels_grid" , &make_current_voxels_grid);
-    m.def("acc_prox_grad_descent" , &acc_prox_grad_descent);
     m.def("current_voxels_field_B" , &current_voxels_field_B);
     m.def("current_voxels_field_Bext" , &current_voxels_field_Bext);
 

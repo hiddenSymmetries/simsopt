@@ -1036,8 +1036,8 @@ class Testing(unittest.TestCase):
         nz = nx
         J = np.zeros((n, nx ** 3, 3))
         J[:, :, 0] = 1e6
-        voxel_location = np.zeros((1, 3))  # 10 * np.ones((1, 3))  # far away
-        voxel_location[0, 1] = 20
+        voxel_location = np.zeros((1, 3)) 
+        voxel_location[0, 1] = 20  # far away in y direction
         dx = 0.1
         dy = dx
         dz = dx
@@ -1075,9 +1075,8 @@ class Testing(unittest.TestCase):
                 indexing='ij'
             )
             XYZ_integration[i, :, :] = np.transpose(np.array([X_n, Y_n, Z_n]), [1, 2, 3, 0]).reshape(nx ** 3, 3) 
-        print(XYZ_integration, grid_scaling)
-        bs_wv = CurrentVoxelsField(J, XYZ_integration, grid_scaling, 'full torus', nfp=1, stellsym=False)
-        points = np.zeros((10, 3))  # np.random.rand(10, 3) - 0.5
+        bs_wv = CurrentVoxelsField(J, XYZ_integration, grid_scaling, nfp=1, stellsym=False)
+        points = np.zeros((10, 3))
         bs_wv.set_points(points)
 
         # now compute the equivalent dipole field
@@ -1092,7 +1091,6 @@ class Testing(unittest.TestCase):
             coordinate_flag='cartesian'
         )
         bs_dipole.set_points(points)
-        print(bs_wv.B(), bs_dipole.B())
 
         # Do it yourself in python
         for i in range(points.shape[0]):
@@ -1103,7 +1101,6 @@ class Testing(unittest.TestCase):
                 rmag3 = np.linalg.norm(r_minus_rprime, axis=-1) ** 3
                 Bi += Jcrossr / rmag3
             Bi *= grid_scaling * 1e-7
-            print(i, Bi)
         assert np.allclose(bs_wv.B(), bs_dipole.B())
 
 

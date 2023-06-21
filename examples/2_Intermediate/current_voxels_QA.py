@@ -87,17 +87,25 @@ kappa = 1e-3
 l0_threshold = 1e4
 l0_thresholds = np.linspace(l0_threshold, 100 * l0_threshold, 5, endpoint=True)
 kwargs = {"out_dir": out_dir, "kappa": kappa, "max_iter": 5000, "precondition": True}
-alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, _, _, _ = relax_and_split_minres( 
+minres_dict = relax_and_split_minres( 
     current_voxels_grid, **kwargs 
 )
-kwargs['alpha0'] = alpha_opt
+kwargs['alpha0'] = minres_dict['alpha_opt']
 kwargs['l0_thresholds'] = l0_thresholds
 kwargs['nu'] = nu
 kwargs['max_iter'] = max_iter
 kwargs['rs_max_iter'] = rs_max_iter
-alpha_opt, fB, fK, fI, fRS, f0, fC, fminres, _, _, _ = relax_and_split_minres( 
+minres_dict = relax_and_split_minres( 
     current_voxels_grid, **kwargs 
 )
+alpha_opt = minres_dict['alpha_opt']
+fB = minres_dict['fB']
+fI = minres_dict['fI']
+fK = minres_dict['fK']
+fRS = minres_dict['fRS']
+f0 = minres_dict['f0']
+fC = minres_dict['fC']
+fminres = minres_dict['fminres']
 t2 = time.time()
 print('(Preconditioned) MINRES solve time = ', t2 - t1, ' s')    
 

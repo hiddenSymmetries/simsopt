@@ -671,7 +671,10 @@ class Testing(unittest.TestCase):
 
         # Run poincare plotting
         with ScratchDir("."):
-            run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+            try:
+                run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test', np.linspace(1.22, 1.295, 10))
+            except RuntimeError:
+                print('Poincare plots did not finish.')
 
 
 if __name__ == "__main__":

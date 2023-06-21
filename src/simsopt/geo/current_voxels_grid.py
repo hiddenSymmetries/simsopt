@@ -162,16 +162,20 @@ class CurrentVoxelsGrid:
 
         Bn = kwargs.pop("Bn", np.zeros(self.plasma_boundary.gamma().shape[:2]))
         Bn = np.array(Bn)
-        if len(Bn.shape) != 2: 
+        if (len(Bn.shape) != 2) or (Bn.shape != self.plasma_boundary.gamma().shape[:2]): 
             raise ValueError('Normal magnetic field surface data is incorrect shape.')
         self.Bn = Bn
         self.Itarget = kwargs.pop("Itarget", 0.5e6)
         self.Itarget_curve = kwargs.pop("Itarget_curve", None)
         if self.Itarget_curve is None:
-            numquadpoints = len(self.plasma_boundary.quadpoints_phi) * plasma_boundary.nfp
+            numquadpoints = len(self.plasma_boundary.quadpoints_phi)  # * plasma_boundary.nfp
             self.Itarget_curve = make_curve_at_theta0(self.plasma_boundary, numquadpoints)
 
-        self.Bn_Itarget = kwargs.pop("Bn_Itarget", np.zeros(self.Itarget_curve.gamma().shape[0]))
+        Bn_Itarget = kwargs.pop("Bn_Itarget", np.zeros(self.Itarget_curve.gamma().shape[0]))
+        Bn_Itarget = np.array(Bn_Itarget)
+        if (len(Bn_Itarget.shape) != 1) or (Bn_Itarget.shape[0] != self.Itarget_curve.gamma().shape[0]): 
+            raise ValueError('Normal magnetic field curve data is incorrect shape.')
+        self.Bn_Itarget = Bn_Itarget
         self.nx = nx
         self.ny = ny
         self.nz = nz
@@ -199,7 +203,7 @@ class CurrentVoxelsGrid:
 
         # Have the uniform grid, now need to loop through and eliminate cells.
         t1 = time.time()
-        final_grid = sopp.make_current_voxels_grid(
+        final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
             contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
             contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
         )
