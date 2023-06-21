@@ -706,7 +706,7 @@ def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_four
     plt.plot(phi, xyz_curve[:, 0])
     plt.plot(phi, xyz_curve[:, 1])
     plt.plot(phi, xyz_curve[:, 2])
-    #plt.show()
+    # plt.show()
 
     # Initialize CurveXYZFourier object
     quadpoints = 2000
@@ -727,8 +727,6 @@ def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_four
                 if truncate and abs(dofs[i][f * 2 + 1]) < 1e-2:
                     dofs[i][f * 2 + 1] = 0.0
     coil.local_x = np.concatenate(dofs)
-    print(dofs)
-    # exit()
 
     # now make the stellarator symmetry fixed in the optimization
     for f in range(num_fourier):
@@ -749,6 +747,4 @@ def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_four
             if i == 2: 
                 if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0:
                     coil.fix(f'zs({f // 2 + 1})')
-    print(coil.dof_names)
-    # exit()
     return coil

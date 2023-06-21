@@ -11,7 +11,7 @@ from numpy.linalg import norm
 from math import sqrt
 from functools import partial
 
-__all__ = ['relax_and_split_increasingl0', 'ras_minres', 'ras_preconditioned_minres']
+__all__ = ['relax_and_split_increasingl0', 'relax_and_split_minres']
 
 
 def minres(A, b, x0=None, shift=0.0, tol=1e-5, maxiter=None,
@@ -619,195 +619,56 @@ def relax_and_split_increasingl0(
             )
 
 
-def ras_minres(
-        current_voxels, kappa=0.0, nu=1e20, max_iter=5000, sigma=1.0,
-        rs_max_iter=1, l0_thresholds=[0.0], print_iter=10,
-        alpha0=None, OUT_DIR=''):
+def relax_and_split_minres(
+        current_voxels, 
+        **kwargs,
+):
     """
-        This function performs a relax-and-split algorithm for solving the 
-        current voxel problem. The convex part of the solve is done with
-        accelerated projected gradient descent and the nonconvex part 
-        can be solved with the prox of the group l0 norm... hard 
-        thresholding on the whole set of alphas in a grid cell. 
+    This function performs a relax-and-split algorithm for solving the 
+    current voxel problem. The convex part of the solve is done with
+    (preconditioned) minres and the nonconvex part 
+    can be solved with the prox of the group l0 norm... hard 
+    thresholding on the whole set of alphas in a grid cell. 
+
+    Args:
+        current_voxels: CurrentVoxelGrid class object to be optimized.
+        kwargs:
+            Keyword arguments for this algorithm. 
+            The following variables can be passed:
+
+            kappa: float, defaults to 0.0
+                Strength of Tikhonov regularization to use.
+            nu: float, defaults to 1e100
+                Strength of the "relaxing" term in relax-and-split algorithm.
+            sigma: float, defaults to 0.0
+                Strength of the Itarget loss term used to avoid the trivial solution.
+            max_iter: int, defaults to 5000
+                Maximum number of MINRES iterations to use during a call to MINRES.
+            rs_max_iter: int, defaults to 1
+                Maximum number of full relax-and-split iterations to do.
+            l0_thresholds: list of floats, defaults to [0.0] 
+                An increasing sequence of thresholds to use, to solve multiple
+                relax-and-split problems in a row.
+            print_iter: int, defaults to 10
+                How frequently to print out MINRES and relax-and-split progress
+                and optimization loss terms.
+            alpha0: 1D numpy array, shape (N, 1)
+                Initial guess for the alphas that are trying to be optimized for.
+            out_dir: string 
+                Output directory to save MINRES progress to.
+            precondition: bool, default False
+                Whether to use the approximate Schur preconditioner for MINRES.
     """
-    n = current_voxels.N_grid
-    nfp = current_voxels.plasma_boundary.nfp
-    num_basis = current_voxels.n_functions
-    N = n * num_basis
-    if alpha0 is not None:
-        alpha_opt = alpha0
-    else:
-        alpha_opt = np.zeros((N, 1))  # (np.random.rand(N, 1) - 0.5) * 1e4  
-
-    B = current_voxels.B_matrix
-    #S = np.linalg.svd(B, compute_uv=False)
-    #plt.figure()
-    #plt.semilogy(S, 'ro')
-    #plt.show()
-    I = current_voxels.Itarget_matrix
-    BT = B.T
-    b = current_voxels.b_rhs
-    b_I = current_voxels.Itarget_rhs
-    BTb = (BT @ b).reshape(-1, 1)
-    IT = I.T
-    ITbI = (IT * b_I).reshape(-1, 1) 
-    contig = np.ascontiguousarray
-    I = I.reshape(1, len(current_voxels.Itarget_matrix))
-    IT = I.T
-    b_I = b_I.reshape(1, 1)
-    b_B = b.reshape(len(b), 1)
-    alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
-    C = current_voxels.C
-    K = C.shape[0]
-    CT = C.T
-    kappa_nu = (kappa + 1.0 / nu)
-    scale = 1e6
-    A = scale * np.vstack((B, np.sqrt(sigma) * I))
-    b = scale * np.vstack((b_B, np.sqrt(sigma) * b_I))
-    AT = A.T
-    ATb = AT @ b
-    #opt_dict = {"A": B, "b": b_B, "A_I": I, "b_I": b_I, "C": C}
-    #savemat('optimization_matrices_new.mat', opt_dict)
-    # C = csc_matrix(C.shape)
-    # exit()
-
-    def A_fun(x):
-        alpha = x[:N]
-        Ax = np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
-        return Ax
-
-    def A_fun_nu0(x):
-        alpha = x[:N]
-        Ax = np.vstack(((AT @ (A @ alpha) + kappa * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
-        return Ax
-
-    A_operator = LinearOperator((N + K, N + K), matvec=A_fun)
-    A_operator_nu0 = LinearOperator((N + K, N + K), matvec=A_fun_nu0)
-
-    def callback(xk, w_opt, rhs, A_func, nu_algo):
-        alpha = xk[:N, np.newaxis]
-        fB = np.linalg.norm(B @ alpha - b_B) ** 2
-        fI = sigma * np.linalg.norm(I @ alpha - b_I) ** 2
-        fK = kappa * np.linalg.norm(alpha) ** 2 / scale ** 2
-        fRS = np.linalg.norm(alpha - w_opt) ** 2 / nu_algo / scale ** 2
-        f = fB + fI + fK + fRS
-        print(f, fB, fI, fK, fRS,
-              np.linalg.norm(C.dot(alpha)),  # / scale ** 2,
-              np.linalg.norm(A_func(xk) - rhs))  # / scale ** 2)
-
-    lam_opt = np.zeros((K, 1))
-    tol = 1e-22
-    f_Bw = []
-    f_Iw = []
-    f_Kw = []
-    f_0w = []
-    f_RSw = []
-    f_Cw = []
-    current_voxels.alpha_history = []
-    current_voxels.w_history = []
-    t1 = time.time()
-    set_point = True
-    w_opt = np.zeros(alpha_opt.shape)  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
-    sys.stdout = open(OUT_DIR + 'minres_output.txt', 'w')
-    print('Total ', 'fB ', 'sigma * fI ', 'kappa * fK ', 'fRS/nu ', 'C*alpha ', 'MINRES residual')
-    sys.stdout.close()
-    sys.stdout = open("/dev/stdout", "w")
-    for j, threshold in enumerate(l0_thresholds):
-        print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
-        if j > (2.0 * len(l0_thresholds) / 3.0) and set_point:
-            rs_max_iter = 2 * rs_max_iter
-            set_point = False
-        for k in range(rs_max_iter):
-            if (j == 0) and (k == 0) and (len(l0_thresholds) > 1):
-                A_op = A_operator_nu0
-                A_func = A_fun_nu0 
-                nu_algo = 1e100
-                max_it = 50000
-            else:
-                A_op = A_operator
-                A_func = A_fun 
-                max_it = max_iter
-                nu_algo = nu
-            rhs = ATb + w_opt / nu_algo
-            rhs = np.vstack((rhs.reshape(len(rhs), 1), np.zeros((K, 1))))
-
-            # now MINRES
-            #t1 = time.time()
-            x0 = np.vstack((alpha_opt, lam_opt)) 
-            sys.stdout = open(OUT_DIR + 'minres_output.txt', 'a')
-            #alpha_opt, _ = minres(A_op, rhs, x0=x0, tol=tol, maxiter=max_it, callback=callback, print_iter=print_iter)
-            alpha_opt, _ = minres(A_op, rhs, x0=x0, tol=tol, maxiter=max_it, callback=partial(callback, w_opt=w_opt, rhs=rhs, A_func=A_func, nu_algo=nu_algo), print_iter=print_iter)
-            #t2 = time.time()
-            sys.stdout.close()
-            sys.stdout = open("/dev/stdout", "w")
-            alpha_opt = alpha_opt.reshape(-1, 1)
-            lam_opt = alpha_opt[N:]
-            alpha_opt = alpha_opt[:N]
-
-            if (threshold > 0) and (k % print_iter == 0):
-                f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b_B), ord=2) ** 2)
-                f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2 * sigma)
-                f_Kw.append(kappa * np.linalg.norm(np.ravel(w_opt)) ** 2 / scale ** 2)
-                f_RSw.append(np.linalg.norm(alpha_opt - w_opt) ** 2 / nu_algo / scale ** 2)
-                f_Cw.append(np.linalg.norm(C.dot(w_opt)) / scale ** 2)
-                # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
-                f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
-                current_voxels.w_history.append(w_opt)
-                current_voxels.alpha_history.append(alpha_opt)
-                print('w : ', j, k, 
-                      f_Bw[-1], 
-                      f_Iw[-1],
-                      f_Kw[-1], 
-                      f_RSw[-1],  # / nu,
-                      f_Cw[-1],
-                      f_0w[-1], ' / ', n, ', ',
-                      )
-
-            # now do the prox step
-            w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
-
-    t2 = time.time()
-    print('Time to run algo = ', t2 - t1, ' s')
-    f0, fB, fI, fK, fRS, fC, fminres = np.loadtxt(OUT_DIR + 'minres_output.txt', skiprows=1, unpack=True)
-    t1 = time.time()
-    alpha_opt = np.ravel(alpha_opt)
-    print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
-    current_voxels.alphas = alpha_opt
-    current_voxels.w = np.ravel(w_opt)
-    current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))
-    current_voxels.J_sparse = np.zeros((n, current_voxels.Phi.shape[2], 3))
-    alphas = current_voxels.alphas.reshape(n, num_basis)
-    ws = current_voxels.w.reshape(n, num_basis)
-    compute_J(current_voxels, alphas, ws)
-    t2 = time.time()
-    print('Time to compute J = ', t2 - t1, ' s')
-    return (alpha_opt, 
-            0.5 * 2 * np.array(fB) * nfp, 
-            0.5 * np.array(fK), 
-            0.5 * np.array(fI), 
-            0.5 * np.array(fRS),  # / nu,
-            f0,
-            fC,
-            fminres,
-            0.5 * 2 * np.array(f_Bw) * nfp, 
-            0.5 * np.array(f_Kw), 
-            0.5 * np.array(f_Iw),
-            0.5 * np.array(f_RSw),
-            0.5 * np.array(f_Cw)
-            )
-
-
-def ras_preconditioned_minres(
-        current_voxels, kappa=0.0, nu=1e20, max_iter=5000, sigma=1.0,
-        rs_max_iter=1, l0_thresholds=[0.0], print_iter=10,
-        alpha0=None, OUT_DIR=''):
-    """
-        This function performs a relax-and-split algorithm for solving the 
-        current voxel problem. The convex part of the solve is done with
-        accelerated projected gradient descent and the nonconvex part 
-        can be solved with the prox of the group l0 norm... hard 
-        thresholding on the whole set of alphas in a grid cell. 
-    """
+    kappa = kwargs.pop("kappa", 0.0)
+    sigma = kwargs.pop("sigma", 1.0)
+    nu = kwargs.pop("nu", 1e100)
+    max_iter = kwargs.pop("max_iter", 500)
+    rs_max_iter = kwargs.pop("rs_max_iter", 1)
+    l0_thresholds = kwargs.pop("l0_thresholds", [0.0])
+    print_iter = kwargs.pop("print_iter", 10)
+    alpha0 = kwargs.pop("alpha0", None)
+    out_dir = kwargs.pop("out_dir", '')
+    precondition = kwargs.pop("precondition", False)
     n = current_voxels.N_grid
     nfp = current_voxels.plasma_boundary.nfp
     num_basis = current_voxels.n_functions
@@ -838,33 +699,40 @@ def ras_preconditioned_minres(
     b = scale * np.vstack((b_B, np.sqrt(sigma) * b_I))
     AT = A.T
     ATb = AT @ b
-    t1 = time.time()
 
     def A_fun(x):
         alpha = x[:N]
         return np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
 
     A_operator = LinearOperator((N + K, N + K), matvec=A_fun)
+    tol = 1e-20
+    minres_kwargs = {"tol": tol, "maxiter": max_iter, "print_iter": print_iter}
 
-    # setup matrices for the preconditioner
-    AAdiag = np.sum(A ** 2, axis=0) + kappa_nu  # diagonal of A'*A + 1/nu*I
-    AAdiag_inv_diag = (1 / AAdiag).reshape(-1, 1)
-    AAdiag_inv = spdiags(1 / AAdiag.T, 0, N, N)
+    if precondition:
+        t1 = time.time()
+        # setup matrices for the preconditioner
+        AAdiag = np.sum(A ** 2, axis=0) + kappa_nu  # diagonal of A'*A + 1/nu*I
+        AAdiag_inv_diag = (1 / AAdiag).reshape(-1, 1)
+        AAdiag_inv = spdiags(1 / AAdiag.T, 0, N, N)
 
-    # Schur complement is C*inv(A.'*A + (1/mu)*I)*C.'. 
-    # Let's use the inverse diagonal of A:
-    S = C @ AAdiag_inv @ CT
-    perturbation_factor = abs(S).max() * 1e-7
-    S = S + perturbation_factor * spdiags(np.ones(K), 0, K, K)  # regularized Schur complement
-    S_inv_op = splu(S)
+        # Schur complement is C*inv(A.'*A + (1/mu)*I)*C.'. 
+        # Let's use the inverse diagonal of A:
+        S = C @ AAdiag_inv @ CT
+        perturbation_factor = abs(S).max() * 1e-7
+        S = S + perturbation_factor * spdiags(np.ones(K), 0, K, K)  # regularized Schur complement
+        S_inv_op = splu(S)
 
-    def M_inv(x):
-        # apply inverse of P given by
-        # P_minres = [spdiags((AAdiag'),0,n,n), 0;
-        #            sparse(k,n),      S ];
-        return np.vstack((x[:N, np.newaxis] * AAdiag_inv_diag, S_inv_op.solve(x[N:, np.newaxis])))
+        def M_inv(x):
+            # apply inverse of P given by
+            # P_minres = [spdiags((AAdiag'),0,n,n), 0;
+            #            sparse(k,n),      S ];
+            return np.vstack((x[:N, np.newaxis] * AAdiag_inv_diag, S_inv_op.solve(x[N:, np.newaxis])))
 
-    M_operator = LinearOperator((N + K, N + K), matvec=M_inv)
+        M_operator = LinearOperator((N + K, N + K), matvec=M_inv)
+        minres_kwargs["M"] = M_operator
+        t2 = time.time()
+        t_algo_setup = t2 - t1
+        print('Time to setup precond = ', t_algo_setup, ' s')
 
     def callback(xk, w_opt, rhs, A_func, nu_algo):
         alpha = xk[:N, np.newaxis]
@@ -879,7 +747,6 @@ def ras_preconditioned_minres(
 
     # Now prepare to record optimization progress
     lam_opt = np.zeros((K, 1))
-    tol = 1e-20
     f_Bw = []
     f_Iw = []
     f_Kw = []
@@ -891,13 +758,10 @@ def ras_preconditioned_minres(
     current_voxels.w_history = []
     set_point = True
     w_opt = alpha_opt  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
-    sys.stdout = open(OUT_DIR + 'minres_output.txt', 'w')
+    sys.stdout = open(out_dir + 'minres_output.txt', 'w')
     print('Total ', 'fB ', 'sigma * fI ', 'kappa * fK ', 'fRS/nu ', 'C*alpha ', 'MINRES residual')
     sys.stdout.close()
     sys.stdout = open("/dev/stdout", "w")
-    t2 = time.time()
-    t_algo_setup = t2 - t1
-    print('Time to setup precond = ', t_algo_setup, ' s')
     t0 = time.time()
     for j, threshold in enumerate(l0_thresholds):
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
@@ -911,8 +775,12 @@ def ras_preconditioned_minres(
             # now MINRES
             t1 = time.time()
             x0 = np.vstack((alpha_opt, lam_opt))
-            sys.stdout = open(OUT_DIR + 'minres_output.txt', 'a')
-            alpha_opt, _ = minres(A_operator, rhs, x0=x0, tol=tol, maxiter=max_iter, callback=partial(callback, w_opt=w_opt, rhs=rhs, A_func=A_fun, nu_algo=nu), M=M_operator, print_iter=print_iter)
+            sys.stdout = open(out_dir + 'minres_output.txt', 'a')
+            alpha_opt, _ = minres(
+                A_operator, rhs, x0=x0, 
+                callback=partial(callback, w_opt=w_opt, rhs=rhs, A_func=A_fun, nu_algo=nu), 
+                **minres_kwargs
+            )
             t2 = time.time()
             sys.stdout.close()
             sys.stdout = open("/dev/stdout", "w")
@@ -952,7 +820,7 @@ def ras_preconditioned_minres(
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
     print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
-    f0, fB, fI, fK, fRS, fC, fminres = np.loadtxt(OUT_DIR + 'minres_output.txt', skiprows=1, unpack=True)
+    f0, fB, fI, fK, fRS, fC, fminres = np.loadtxt(out_dir + 'minres_output.txt', skiprows=1, unpack=True)
     current_voxels.alphas = alpha_opt
     current_voxels.w = np.ravel(w_opt)
     current_voxels.J = np.zeros((n, current_voxels.Phi.shape[2], 3))

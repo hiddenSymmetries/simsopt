@@ -508,25 +508,38 @@ class CurrentVoxelsField(MagneticField):
     r"""
     Computes the MagneticField induced by N grid cells, each with spatially varying and
     locally divergence-free current, for the Current Voxels method. This is done by
-    calling the normal BiotSavart field for each of the cells, and summing the result.
+    calling the normal BiotSavart field for each of the cells, and summing the result,
+
+    .. math::
+
+        B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{k=1}^{D} \int dV \frac{J_k \times (r - r_k')}{\|r - r_k'\|^3}\cdot\hat{n}
+
+    where :math:`\mu_0=4\pi\times 10^{-7}\;N/A^2` is the permeability of free space
+    and :math:`r_k'` is the source vector within current voxel k. There are D voxels.
 
     Args:
-        current_voxels: CurrentVoxels grid class, containing the grid cell locations,
-                        integration points in each cell, etc.
+        J: 3D numpy array, shape (num_voxels, num_integration_points, 3)
+          The currents at each integration point in every voxel.
+        integration_points: 2D numpy array, shape (num_voxels, num_integration_points, 3)
+          The coordinates of each integration point in every voxel.
+        grid_scaling: float, overall scaling factor from integrating the Biot Savart law,
+          which is equal to dx * dy * dz / (nx * ny * nz).
+        nfp: integer, value of the field-period symmetry. Note that with rectangular cubes
+          only nfp = 2 and nfp = 4 can be correctly replicated with the grid. Other values
+          will need to define a full torus of voxels.
+        stellsym: bool, whether stellarator symmetry is present.
     """
 
-    def __init__(self, J, integration_points, grid_scaling, coil_range, nfp=1, stellsym=False):
+    def __init__(self, J, integration_points, grid_scaling, nfp=1, stellsym=False):
         MagneticField.__init__(self)
-        self.integration_points = integration_points
         self.N_grid = integration_points.shape[0]
         self.grid_scaling = grid_scaling
-        self.coil_range = coil_range
-        self.J = J
         Jx = J[:, :, 0]
         Jy = J[:, :, 1]
         Jz = J[:, :, 2]
         contig = np.ascontiguousarray
-        if coil_range == 'full torus':
+        # cannot use the symmetries unless nfp = 2 or nfp = 4
+        if nfp != 2 and nfp != 4:
             stell_list = [1]
             nfp = 1
             nsym = 1
@@ -546,17 +559,14 @@ class CurrentVoxelsField(MagneticField):
                 phi0 = (2 * np.pi / nfp) * fp
 
                 # get new dipoles locations by flipping the y and z components, then rotating by phi0
-                ox_temp = self.integration_points[:, :, 0] * np.cos(phi0) - self.integration_points[:, :, 1] * np.sin(phi0) * stell
-                oy_temp = self.integration_points[:, :, 0] * np.sin(phi0) + self.integration_points[:, :, 1] * np.cos(phi0) * stell
-                oz_temp = self.integration_points[:, :, 2] * stell
+                ox_temp = integration_points[:, :, 0] * np.cos(phi0) - integration_points[:, :, 1] * np.sin(phi0) * stell
+                oy_temp = integration_points[:, :, 0] * np.sin(phi0) + integration_points[:, :, 1] * np.cos(phi0) * stell
+                oz_temp = integration_points[:, :, 2] * stell
 
                 # get new dipole vectors by flipping the x component, then rotating by phi0
                 J_temp[:, :, 0] = Jx * np.cos(phi0) * stell - Jy * np.sin(phi0)
                 J_temp[:, :, 1] = Jx * np.sin(phi0) * stell + Jy * np.cos(phi0)
                 J_temp[:, :, 2] = Jz
-                #J_temp[:, :, 0] = Jx * np.cos(phi0) - Jy * np.sin(phi0) * stell
-                #J_temp[:, :, 1] = Jx * np.sin(phi0) + Jy * np.cos(phi0) * stell
-                #J_temp[:, :, 2] = Jz * stell
                 J_full[index:index + self.N_grid, :, :] = J_temp
 
                 int_points_full[index:index + self.N_grid, :, 0] = ox_temp
@@ -579,30 +589,26 @@ class CurrentVoxelsField(MagneticField):
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
         raise ValueError('dB_by_dX calculation not yet implemented')
-        dB[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
+        dB[:] = sopp.current_voxels_field_B(points, self.int_points_full, self.J_full)
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
         raise ValueError('Vector potential calculation not yet implemented')
-        A[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
+        A[:] = sopp.current_voxels_field_B(points, self.int_points_full, self.J_full)
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
         raise ValueError('dA_by_dX calculation not yet implemented')
-        dA[:] = sopp.current_voxels_field_B(points, self.integration_points, self.J)
+        dA[:] = sopp.current_voxels_field_B(points, self.int_points_full, self.J_full)
 
     def as_dict(self, serial_objs_dict) -> dict:
         d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
-        d["J"] = self.J
-        d["integration_points"] = self.integration_points
-        d["grid_scaling"] = self.grid_scaling
-        d["coil_range"] = self.coil_range
         return d
 
     @classmethod
     def from_dict(cls, d, serial_objs_dict, recon_objs):
-        field = cls(np.array(d["J"]['data']), np.array(d["integration_points"]['data']), d["grid_scaling"], d["coil_range"])
+        field = cls(np.array(d["J"]['data']), np.array(d["integration_points"]['data']), d["grid_scaling"])
         decoder = GSONDecoder()
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)

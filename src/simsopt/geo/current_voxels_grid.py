@@ -1,21 +1,20 @@
 import numpy as np
 from simsopt.geo import Surface, SurfaceRZFourier
-from simsopt.geo import create_equally_spaced_curves, curves_to_vtk
 from simsopt.solve.current_voxels_optimization import compute_J
+from simsopt.util.permanent_magnet_helper_functions import make_curve_at_theta0 
 from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
 from pyevtk.vtk import VtkVoxel
 
 import simsoptpp as sopp
 import time
-import warnings
 from scipy.sparse import lil_matrix
 from scipy.sparse import csc_matrix
-from scipy.sparse import vstack, hstack
-from scipy.sparse import eye as sparse_eye
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 
 __all__ = ['CurrentVoxelsGrid']
+
+contig = np.ascontiguousarray
 
 
 def _voxels_to_vtk(
@@ -26,21 +25,21 @@ def _voxels_to_vtk(
     fieldData=None,
 ):
     """
-    Write a VTK file showing the voxels.
+    Write a VTK file showing the individual voxel cubes.
 
     Args:
-        filename: Name of the file to write.
-        points: Array of size ``(nvoxels, nquadpoints, 3)``
-            Here, ``nvoxels`` is the number of voxels.
-            The last array dimension corresponds to Cartesian coordinates.
-            The max and min over the ``nquadpoints`` dimension will be used to
-            define the max and min coordinates of each voxel.
-        cellData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
-        pointData: Data for each voxel's vertices to pass to ``pyevtk.hl.unstructuredGridToVTK``.
-        fieldData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+    -------
+    filename: Name of the file to write.
+    points: Array of size ``(nvoxels, nquadpoints, 3)``
+        Here, ``nvoxels`` is the number of voxels.
+        The last array dimension corresponds to Cartesian coordinates.
+        The max and min over the ``nquadpoints`` dimension will be used to
+        define the max and min coordinates of each voxel.
+    cellData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+    pointData: Data for each voxel's vertices to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+    fieldData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
     """
-
-    # Some references I used while writing this function:
+    # Some references Matt L. used while writing this function:
     # https://vtk.org/doc/nightly/html/classvtkVoxel.html
     # https://raw.githubusercontent.com/Kitware/vtk-examples/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellDemo.png
     # https://github.com/pyscience-projects/pyevtk/blob/v1.2.0/pyevtk/hl.py
@@ -92,213 +91,130 @@ def _voxels_to_vtk(
 
 class CurrentVoxelsGrid:
     r"""
-        ``CurrentVoxelsGrid`` is a class for setting up the grid,
-        needed to perform finite-build coil optimization for stellarators
-        using the method outlined in Kaptanoglu & Landreman 2023. This 
-        class reuses some of the functionality used for the PermanentMagnetGrid
-        class. It takes as input two toroidal surfaces specified as SurfaceRZFourier
-        objects, and initializes a set of points 
-        between these surfaces. If an existing FAMUS grid file called
-        from FAMUS is desired, set the value of famus_filename,
-        instead of passing the surfaces.
+    ``CurrentVoxelsGrid`` is a class for setting up the grid,
+    needed to perform finite-build coil optimization for stellarators
+    using the method outlined in Kaptanoglu & Langlois & Landreman 2023. This 
+    class reuses some of the functionality used for the PermanentMagnetGrid
+    class. It takes as input two toroidal surfaces specified as SurfaceRZFourier
+    objects, and initializes a set of points 
+    between these surfaces.
 
-        Args:
-            plasma_boundary:  SurfaceRZFourier object representing
-                              the plasma boundary surface.
-            famus_filename: Filename of a FAMUS grid file (a pre-made dipole grid).
-                              If this flag is specified, rz_inner_surface,
-                              rz_outer_surface, dx, dy, dz, plasma_offset, and
-                              coil_offset are all ignored.
-            rz_inner_surface: SurfaceRZFourier object representing
-                              the inner toroidal surface of the volume.
-                              Defaults to the plasma boundary, extended
-                              by the boundary normal vector
-            rz_outer_surface: SurfaceRZFourier object representing
-                              the outer toroidal surface of the volume.
-                              Defaults to the inner surface, extended
-                              by the boundary normal vector
-            plasma_offset:    Offset to use for generating the inner toroidal surface.
-            coil_offset:      Offset to use for generating the outer toroidal surface.
-            Bn:               Magnetic field (coils and plasma) at the plasma
-                              boundary. Typically this will be the optimized plasma
-                              magnetic field from a stage-1 optimization, and the
-                              optimized coils from a basic stage-2 optimization.
-            Nx:               Number of X points in current voxels grid. 
-            Ny:               Number of Y points in current voxels grid. 
-            Ny:               Number of Z points in current voxels grid. 
-            filename:         Filename for the file containing the plasma boundary surface.
-            surface_flag:     Flag to specify the format of the surface file. Defaults to VMEC.
-            OUT_DIR:          Directory to save files in.
+    Args:
+    -----------
+    plasma_boundary: Surface class object 
+        Representing the plasma boundary surface. Gets converted
+        into SurfaceRZFourier object for ease of use.
+    inner_toroidal_surface: Surface class object 
+        Representing the inner toroidal surface of the volume.
+        Gets converted into SurfaceRZFourier object for 
+        ease of use.
+    outer_toroidal_surface: Surface object representing
+        the outer toroidal surface of the volume. Typically 
+        want this to have same quadrature points as the inner
+        surface for a functional grid setup. 
+        Gets converted into SurfaceRZFourier object for 
+        ease of use.
+    kwargs: The following are valid keyword arguments.
+        Bn: 2D numpy array, shape (ntheta_quadpoints, nphi_quadpoints)
+            Magnetic field (coils and plasma) at the plasma
+            boundary. Typically this will be the optimized plasma
+            magnetic field from a stage-1 optimization, and the
+            optimized coils from a basic stage-2 optimization.
+            Defaults to all zeros.
+        Bn_Itarget: 1D numpy array, shape (ngamma_quadpoints)
+            Magnetic field (coils and plasma) along the toroidal
+            curve (gamma) used for avoiding the trivial solution.
+            Defaults to all zeros.
+        Itarget: float 
+            Target current I in mega-amperes to flow through the toroidal
+            curve (gamma) used for avoiding the trivial solution. Defaults
+            to 0.5 MA, which is approximately suitable for a 1-meter device
+            with average B = 0.1 Tesla on axis. 
+        Itarget_curve: Curve class object
+            Initialized Curve object representing the toroidal
+            curve (gamma) used for avoiding the trivial solution. Defaults
+            to using the plasma boundary at theta = 0.
+        Nx: Number of X points in current voxels grid. Defaults to 10. 
+        Ny: Number of Y points in current voxels grid. Defaults to 10.
+        Ny: Number of Z points in current voxels grid. Defaults to 10.
+        nx: Number of X points in each individual voxel (for integrating Biot Savart). Defaults to 6.
+        ny: Number of Y points in each individual voxel (for integrating Biot Savart). Defaults to 6. 
+        nz: Number of Z points in each individual voxel (for integrating Biot Savart). Defaults to 6. 
     """
 
     def __init__(
-        self, plasma_boundary, Itarget_curve, Bn_Itarget, Itarget=1e6,
-        rz_inner_surface=None,
-        rz_outer_surface=None, plasma_offset=0.1,
-        coil_offset=0.2, Bn=None,
-        Nx=11, Ny=11, Nz=11,
-        filename=None, surface_flag='vmec',
-        famus_filename=None, 
-        coil_range='half period',
-        OUT_DIR='', nx=2, ny=2, nz=2,
-        sparse_constraint_matrix=True,
+        self, plasma_boundary: Surface,
+        inner_toroidal_surface: Surface, 
+        outer_toroidal_surface: Surface,
+        **kwargs,
     ):
-        if plasma_offset <= 0 or coil_offset <= 0:
-            raise ValueError('permanent magnets must be offset from the plasma')
+        self.plasma_boundary = plasma_boundary.to_RZFourier()
+        self.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
+        self.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
+        Nx = kwargs.pop("Nx", 10)
+        Ny = kwargs.pop("Ny", 10)
+        Nz = kwargs.pop("Nz", 10)
+        nx = kwargs.pop("nx", 6)
+        ny = kwargs.pop("ny", 6)
+        nz = kwargs.pop("nz", 6)
+        if Nx <= 0 or Ny <= 0 or Nz <= 0 or nx <= 0 or ny <= 0 or nz <= 0:
+            raise ValueError('Nx, Ny, Nz, nx, ny, nz should be positive integers')
 
-        if famus_filename is not None:
-            warnings.warn(
-                'famus_filename variable is set, so a pre-defined grid will be used. '
-                ' so that the following parameters are ignored: '
-                'rz_inner_surface, rz_outer_surface, Nx, Ny, Nz, plasma_offset, '
-                'and coil_offset.'
-            )
-        self.famus_filename = famus_filename
-        self.filename = filename
-        self.surface_flag = surface_flag
-        self.plasma_offset = plasma_offset
-        self.coil_offset = coil_offset
+        Bn = kwargs.pop("Bn", np.zeros(self.plasma_boundary.gamma().shape[:2]))
+        Bn = np.array(Bn)
+        if len(Bn.shape) != 2: 
+            raise ValueError('Normal magnetic field surface data is incorrect shape.')
         self.Bn = Bn
-        self.Bn_Itarget = Bn_Itarget
-        self.Itarget = Itarget
-        self.Itarget_curve = Itarget_curve
-        self.Nx = Nx
-        self.Ny = Ny
-        self.Nz = Nz
-        self.OUT_DIR = OUT_DIR
-        self.n_functions = 5  # hard-coded for linear basis
-        self.sparse_constraint_matrix = sparse_constraint_matrix
+        self.Itarget = kwargs.pop("Itarget", 0.5e6)
+        self.Itarget_curve = kwargs.pop("Itarget_curve", None)
+        if self.Itarget_curve is None:
+            numquadpoints = len(self.plasma_boundary.quadpoints_phi) * plasma_boundary.nfp
+            self.Itarget_curve = make_curve_at_theta0(self.plasma_boundary, numquadpoints)
 
-        if not isinstance(plasma_boundary, SurfaceRZFourier):
-            raise ValueError(
-                'Plasma boundary must be specified as SurfaceRZFourier class.'
-            )
-        else:
-            self.plasma_boundary = plasma_boundary
-            self.coil_range = coil_range
-            self.R0 = plasma_boundary.get_rc(0, 0)
-            # unlike plasma surface, use the whole phi and theta grids
-            self.phi = self.plasma_boundary.quadpoints_phi
-            self.nphi = len(self.phi)
-            self.theta = self.plasma_boundary.quadpoints_theta
-            self.ntheta = len(self.theta)
-
-        if Nx <= 0 or Ny <= 0 or Nz <= 0:
-            raise ValueError('grid spacing must be > 0')
-
-        t1 = time.time()
-        # If the inner surface is not specified, make default surface.
-        if (rz_inner_surface is None) and (famus_filename is None):
-            print(
-                "Inner toroidal surface not specified, defaulting to "
-                "extending the plasma boundary shape using the normal "
-                " vectors at the quadrature locations."
-            )
-            if self.filename is None:
-                raise ValueError(
-                    "Must specify a filename for loading in a toroidal surface"
-                )
-            self._set_inner_rz_surface()
-        else:
-            self.rz_inner_surface = rz_inner_surface
-        if famus_filename is None:
-            if not isinstance(self.rz_inner_surface, SurfaceRZFourier):
-                raise ValueError("Inner surface is not SurfaceRZFourier object.")
-
-        # If the outer surface is not specified, make default surface.
-        if (rz_outer_surface is None) and (famus_filename is None):
-            print(
-                "Outer toroidal surface not specified, defaulting to "
-                "extending the inner toroidal surface shape using the normal "
-                " vectors at the quadrature locations."
-            )
-            if self.filename is None:
-                raise ValueError(
-                    "Must specify a filename for loading in a toroidal surface"
-                )
-            self._set_outer_rz_surface()
-        else:
-            self.rz_outer_surface = rz_outer_surface
-        if famus_filename is None:
-            if not isinstance(self.rz_outer_surface, SurfaceRZFourier):
-                raise ValueError("Outer surface is not SurfaceRZFourier object.")
-
-        t2 = time.time()
-        print("Took t = ", t2 - t1, " s to get the SurfaceRZFourier objects done")
-
-        if famus_filename is None:
-            # check the inner and outer surface are same size
-            # and defined at the same (theta, phi) coordinate locations
-            if len(self.rz_inner_surface.quadpoints_theta) != len(self.rz_outer_surface.quadpoints_theta):
-                raise ValueError(
-                    "Inner and outer toroidal surfaces have different number of "
-                    "poloidal quadrature points."
-                )
-            if len(self.rz_inner_surface.quadpoints_phi) != len(self.rz_outer_surface.quadpoints_phi):
-                raise ValueError(
-                    "Inner and outer toroidal surfaces have different number of "
-                    "toroidal quadrature points."
-                )
-            if np.any(self.rz_inner_surface.quadpoints_theta != self.rz_outer_surface.quadpoints_theta):
-                raise ValueError(
-                    "Inner and outer toroidal surfaces must be defined at the "
-                    "same poloidal quadrature points."
-                )
-            if np.any(self.rz_inner_surface.quadpoints_phi != self.rz_outer_surface.quadpoints_phi):
-                raise ValueError(
-                    "Inner and outer toroidal surfaces must be defined at the "
-                    "same toroidal quadrature points."
-                )
-
-            t1 = time.time()
-            self._setup_uniform_grid()
-            t2 = time.time()
-            print("Took t = ", t2 - t1, " s to setup the uniform grid.")
-
-            # Have the uniform grid, now need to loop through and eliminate cells.
-            t1 = time.time()
-
-            contig = np.ascontiguousarray
-            if self.surface_flag == 'focus' or self.surface_flag == 'wout':
-                final_grid = sopp.make_current_voxels_grid(
-                    #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
-                    contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
-                    contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
-                )
-            else:
-                final_grid = sopp.make_current_voxels_grid(
-                    #self.plasma_boundary.unitnormal().reshape(-1, 3), self.plasma_boundary.unitnormal().reshape(-1, 3),
-                    contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
-                    contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
-                )
-            # remove all the grid elements that were omitted
-            inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
-            self.XYZ_flat = final_grid[inds, :]
-            t2 = time.time()
-            print("Took t = ", t2 - t1, " s to perform the total grid cell elimination process.")
-        else:
-            ox, oy, oz, Ic = np.loadtxt(
-                '../../tests/test_files/' + self.famus_filename,
-                skiprows=3, usecols=[3, 4, 5, 6], delimiter=',', unpack=True
-            )
-
-            # remove any dipoles where the diagnostic ports should be
-            nonzero_inds = (Ic == 1.0)
-            ox = ox[nonzero_inds]
-            oy = oy[nonzero_inds]
-            oz = oz[nonzero_inds]
-            self.Ic_inds = nonzero_inds
-            self.XYZ_flat = np.array([ox, oy, oz]).T
-            self.N_grid = self.XYZ_flat.shape[0]
-        self.N_grid = self.XYZ_flat.shape[0]
-        self.alphas = np.random.rand(self.n_functions * self.N_grid)
+        self.Bn_Itarget = kwargs.pop("Bn_Itarget", np.zeros(self.Itarget_curve.gamma().shape[0]))
         self.nx = nx
         self.ny = ny
         self.nz = nz
+        self.Nx = Nx
+        self.Ny = Ny
+        self.Nz = Nz
+        self.n_functions = 5  # hard-coded for linear basis
+
+        if self.plasma_boundary.nfp == 2 or self.plasma_boundary.nfp == 4:
+            if self.plasma_boundary.stellsym:
+                self.coil_range = 'half period'
+            else:
+                self.coil_range = 'full period'
+        else:
+            self.coil_range = 'full torus'
+        self.phi = self.plasma_boundary.quadpoints_phi
+        self.nphi = len(self.phi)
+        self.theta = self.plasma_boundary.quadpoints_theta
+        self.ntheta = len(self.theta)
+
+        t1 = time.time()
+        self._setup_uniform_grid()
+        t2 = time.time()
+        print("Took t = ", t2 - t1, " s to setup the uniform grid.")
+
+        # Have the uniform grid, now need to loop through and eliminate cells.
+        t1 = time.time()
+        final_grid = sopp.make_current_voxels_grid(
+            contig(self.normal_inner.reshape(-1, 3)), contig(self.normal_outer.reshape(-1, 3)),
+            contig(self.XYZ_uniform), contig(self.xyz_inner), contig(self.xyz_outer),
+        )
+        # remove all the grid elements that were omitted
+        inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
+        self.XYZ_flat = final_grid[inds, :]
+        t2 = time.time()
+        print("Took t = ", t2 - t1, " s to perform the total grid cell elimination process.")
+
+        self.N_grid = self.XYZ_flat.shape[0]
+        self.alphas = np.random.rand(self.n_functions * self.N_grid)
 
         # Initialize Phi
         t1 = time.time()
-        self._setup_polynomial_basis(True)
+        self._setup_polynomial_basis()
         t2 = time.time()
         print("Took t = ", t2 - t1, " s to setup Phi.")
 
@@ -310,24 +226,24 @@ class CurrentVoxelsGrid:
 
     def _setup_uniform_grid(self):
         """
-            Initializes a uniform grid in cartesian coordinates and sets
-            some important grid variables for later.
+        Initializes a uniform grid in cartesian coordinates and sets
+        some important grid variables for later.
         """
-        # Get (X, Y, Z) coordinates of the three boundaries
-        xyz_inner = self.rz_inner_surface.gamma()
+        # Get (X, Y, Z) coordinates of the inner and outer toroidal boundaries
+        xyz_inner = self.inner_toroidal_surface.gamma()
         self.xyz_inner = xyz_inner.reshape(-1, 3)
         self.x_inner = xyz_inner[:, :, 0]
         self.y_inner = xyz_inner[:, :, 1]
         self.z_inner = xyz_inner[:, :, 2]
-        xyz_outer = self.rz_outer_surface.gamma()
+        xyz_outer = self.outer_toroidal_surface.gamma()
         self.xyz_outer = xyz_outer.reshape(-1, 3)
         self.x_outer = xyz_outer[:, :, 0]
         self.y_outer = xyz_outer[:, :, 1]
         self.z_outer = xyz_outer[:, :, 2]
 
         # get normal vectors of inner and outer PM surfaces
-        self.normal_inner = np.copy(self.rz_inner_surface.unitnormal())
-        self.normal_outer = np.copy(self.rz_outer_surface.unitnormal())
+        self.normal_inner = np.copy(self.inner_toroidal_surface.unitnormal())
+        self.normal_outer = np.copy(self.outer_toroidal_surface.unitnormal())
 
         x_max = np.max(self.x_outer)
         x_min = np.min(self.x_outer)
@@ -355,7 +271,7 @@ class CurrentVoxelsGrid:
 
         # Extra work below so that the stitching with the symmetries is done in
         # such a way that the reflected cells are still dx and dy away from 
-        # the old cells.
+        # the old cells. 
         if self.coil_range != 'full torus':
             X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
             Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
@@ -379,58 +295,16 @@ class CurrentVoxelsGrid:
             good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds) 
             self.XYZ_uniform = self.XYZ_uniform[good_inds, :]
 
-    def _set_inner_rz_surface(self):
-        """
-            If the inner toroidal surface was not specified, this function
-            is called and simply takes each (r, z) quadrature point on the
-            plasma boundary and shifts it by self.plasma_offset at constant
-            theta value. Note that, for now, this makes the entire
-            coil surface, not just 1 / 2 nfp of the surface.
-        """
-        range_surf = self.coil_range
-        nphi = 64  # hard-coded to make sure these surfaces always well-resolved
-        ntheta = nphi
-        f = self.filename
-        if self.surface_flag == 'focus':
-            rz_inner_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
-        elif self.surface_flag == 'wout':
-            rz_inner_surface = SurfaceRZFourier.from_wout(f, range=range_surf, nphi=nphi, ntheta=ntheta)
-        else:
-            rz_inner_surface = SurfaceRZFourier.from_vmec_input(f, range=range_surf, nphi=nphi, ntheta=ntheta)
-
-        # extend via the normal vector
-        rz_inner_surface.extend_via_normal(self.plasma_offset)
-        self.rz_inner_surface = rz_inner_surface
-
-    def _set_outer_rz_surface(self):
-        """
-            If the outer toroidal surface was not specified, this function
-            is called and simply takes each (r, z) quadrature point on the
-            inner toroidal surface and shifts it by self.coil_offset at constant
-            theta value.
-        """
-        range_surf = self.coil_range
-        nphi = 64  # hard-coded to make sure these surfaces always well-resolved
-        ntheta = nphi
-        f = self.filename
-        if self.surface_flag == 'focus':
-            rz_outer_surface = SurfaceRZFourier.from_focus(f, range=range_surf, nphi=nphi, ntheta=ntheta)
-        elif self.surface_flag == 'wout':
-            rz_outer_surface = SurfaceRZFourier.from_wout(f, range=range_surf, nphi=nphi, ntheta=ntheta)
-        else:
-            rz_outer_surface = SurfaceRZFourier.from_vmec_input(f, range=range_surf, nphi=nphi, ntheta=ntheta)
-
-        # extend via the normal vector
-        rz_outer_surface.extend_via_normal(self.plasma_offset + self.coil_offset)
-        self.rz_outer_surface = rz_outer_surface
-
     def to_vtk_before_solve(self, vtkname, plot_quadrature_points=False):
         """
-            Write voxel geometry data into a VTK file.
+        Write voxel geometry data into a VTK file.
 
         Args:
-            vtkname (str): VTK filename, will be appended with .vts or .vtu.
-            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
+        -------
+        vtkname (str): VTK filename, will be appended with .vts or .vtu.
+        dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
+        plot_quadrature_points (bool, optional): Boolean flag to plot the full quadrature grid. 
+          Defaults to False because this can make enormous vtk files. 
         """
 
         nfp = self.plasma_boundary.nfp
@@ -474,7 +348,6 @@ class CurrentVoxelsGrid:
                 index += n
 
         self.XYZ_integration_full = XYZ_integration_full
-        contig = np.ascontiguousarray
         pointsToVTK(
             vtkname, contig(ox_full), contig(oy_full), contig(oz_full)
         )
@@ -515,11 +388,14 @@ class CurrentVoxelsGrid:
 
     def to_vtk_after_solve(self, vtkname, plot_quadrature_points=False):
         """
-            Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
+        Write dipole data into a VTK file (stolen from Caoxiang's CoilPy code).
 
         Args:
-            vtkname (str): VTK filename, will be appended with .vts or .vtu.
-            dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
+        -------
+        vtkname (str): VTK filename, will be appended with .vts or .vtu.
+        dim (tuple, optional): Dimension information if saved as structured grids. Defaults to (1).
+        plot_quadrature_points (bool, optional): Boolean flag to plot the full quadrature grid. 
+          Defaults to False because this can make enormous vtk files.
         """
 
         nfp = self.plasma_boundary.nfp
@@ -585,16 +461,6 @@ class CurrentVoxelsGrid:
                 oz_full[index:index + n] = oz * stell
 
                 # get new dipole vectors by flipping the x component, then rotating by phi0
-                #Jvec_full_internal[index:index + n, :, :, :, 0] = Jvec[:, :, :, :, 0] * np.cos(phi0) - Jvec[:, :, :, :, 1] * np.sin(phi0) * stell
-                #Jvec_full_internal[index:index + n, :, :, :, 1] = Jvec[:, :, :, :, 0] * np.sin(phi0) + Jvec[:, :, :, :, 1] * np.cos(phi0) * stell 
-                #Jvec_full_internal[index:index + n, :, :, :, 2] = Jvec[:, :, :, :, 2] * stell 
-                #Jvec_full[index:index + n, 0] = Jx * np.cos(phi0) - Jy * np.sin(phi0) * stell 
-                #Jvec_full[index:index + n, 1] = Jx * np.sin(phi0) + Jy * np.cos(phi0) * stell 
-                #Jvec_full[index:index + n, 2] = Jz * stell
-                #Jvec_full_sp[index:index + n, 0] = Jx_sp * np.cos(phi0) - Jy_sp * np.sin(phi0) * stell
-                #Jvec_full_sp[index:index + n, 1] = Jx_sp * np.sin(phi0) + Jy_sp * np.cos(phi0) * stell
-                #Jvec_full_sp[index:index + n, 2] = Jz_sp * stell
-
                 Jvec_full_internal[index:index + n, :, :, :, 0] = Jvec[:, :, :, :, 0] * np.cos(phi0) * stell - Jvec[:, :, :, :, 1] * np.sin(phi0)
                 Jvec_full_internal[index:index + n, :, :, :, 1] = Jvec[:, :, :, :, 0] * np.sin(phi0) * stell + Jvec[:, :, :, :, 1] * np.cos(phi0)
                 Jvec_full_internal[index:index + n, :, :, :, 2] = Jvec[:, :, :, :, 2]
@@ -635,25 +501,12 @@ class CurrentVoxelsGrid:
         divJ_total = dJx_dx[:, :, :-1, :-1] + dJy_dy[:, :-1, :, :-1] + dJz_dz[:, :-1, :-1, :]
         divJ_total = np.sum(np.sum(np.sum(divJ_total, axis=1), axis=1), axis=1)
 
-        #dJx_dx_edge = -(Jvec[:, 0, :, :, 0]) / self.dx
-        #dJy_dy_edge = -(Jvec[:, :, 0, :, 1]) / self.dy
-        #dJz_dz_edge = -(Jvec[:, :, :, 0, 2]) / self.dz
-        #print('divJ total = ', np.max(np.abs(divJ_total)), divJ_total.shape)
-        #bad_inds = np.ravel(np.where(np.abs(divJ_total) > 1e-3))
-        #print(bad_inds, len(bad_inds))
-        #print('divJ edges = ', dJx_dx_edge, dJy_dy_edge, dJz_dz_edge) 
-
-        contig = np.ascontiguousarray
         data = {"J": (contig(Jx), contig(Jy), contig(Jz)), 
                 "J_normalized": 
                 (contig(Jx / Jvec_normalization), 
                  contig(Jy / Jvec_normalization), 
                  contig(Jz / Jvec_normalization)),
                 "J_sparse": (contig(Jx_sp), contig(Jy_sp), contig(Jz_sp)), 
-                #"J_sparse_normalized": 
-                #(contig(Jx_sp / Jvec_normalization_sp), 
-                # contig(Jy_sp / Jvec_normalization_sp), 
-                # contig(Jz_sp / Jvec_normalization_sp)),
                 "Jvec_xmin": (contig(Jvec_xmin[:, 0]), contig(Jvec_xmin[:, 1]), contig(Jvec_xmin[:, 2])), 
                 "Jvec_xmax": (contig(Jvec_xmax[:, 0]), contig(Jvec_xmax[:, 1]), contig(Jvec_xmax[:, 2])), 
                 "Jvec_ymin": (contig(Jvec_ymin[:, 0]), contig(Jvec_ymin[:, 1]), contig(Jvec_ymin[:, 2])), 
@@ -697,36 +550,31 @@ class CurrentVoxelsGrid:
                 data=data
             )
 
+        # Make a rough quiver plot for immediate user viewing of the solution
         fig = plt.figure(700, figsize=(12, 12))
         ax = fig.add_subplot(projection='3d')
-
-        # Make the grid
         colors = np.linalg.norm(Jvec_full_sp, axis=-1)
         inds = (colors > 1)
-        # colors = colors / np.max(colors)
-        #colors = plt.cm.jet(colors)
         colors = np.concatenate((colors, np.repeat(colors, 2))) 
-
-        q = ax.quiver(ox_full[inds], oy_full[inds], oz_full[inds], Jvec_full_sp[inds, 0], Jvec_full_sp[inds, 1], Jvec_full_sp[inds, 2], length=0.4, normalize=True, cmap='Reds', norm=LogNorm(vmin=1, vmax=np.max(colors)))  # colors=colors[inds])
+        q = ax.quiver(ox_full[inds], oy_full[inds], oz_full[inds], 
+                      Jvec_full_sp[inds, 0], Jvec_full_sp[inds, 1], Jvec_full_sp[inds, 2], 
+                      length=0.4, normalize=True, cmap='Reds', norm=LogNorm(vmin=1, vmax=np.max(colors)))
         inds = (colors > 1)
         q.set_array(colors[inds])
         fig.colorbar(q)
-        plt.savefig(self.OUT_DIR + 'quiver_plot_sparse_solution.jpg')
 
-    def _setup_polynomial_basis(self, shift=True):
+    def _setup_polynomial_basis(self):
         """
         Evaluate the basis of divergence-free polynomials
         at a given set of points. For now,
         the basis is hard-coded as a set of linear polynomials.
-
-        Returns:
-            poly_basis, shape (num_basis_functions, N_grid, nx * ny * nz, 3)
-                where N_grid is the number of cells in the current voxels,
-                nx, ny, and nz, are the number of points to evaluate the 
-                function WITHIN a cell, and num_basis_functions is hard-coded
-                to 11 for now while we use a linear basis of polynomials. 
+        The basis, Phi, is shape (num_basis_functions, N_grid, nx * ny * nz, 3)
+        where N_grid is the number of cells in the current voxels,
+        nx, ny, and nz, are the number of points to evaluate the 
+        function WITHIN a cell, and num_basis_functions is hard-coded
+        to 5 for now while we use a linear basis of polynomials that conserve
+        local flux jumps across cell interfaces. 
         """
-        self.polynomial_shift = shift
         dx = self.dx
         dy = self.dy
         dz = self.dz
@@ -765,28 +613,16 @@ class CurrentVoxelsGrid:
             ) - dz / 2.0
         Phi = np.zeros((self.n_functions, n, nx, ny, nz, 3)) 
         zeros = np.zeros((n, nx, ny, nz))
-        #zeros = np.zeros(n)
-        #ones = np.ones(n)
         ones = np.ones((n, nx, ny, nz))
-        if not shift:
-            for i in range(nx):
-                for j in range(ny):
-                    for k in range(nz):
-                        Phi[0, :, i, j, k, :] = np.array([ones, zeros, zeros]).T
-                        Phi[1, :, i, j, k, :] = np.array([zeros, ones, zeros]).T
-                        Phi[2, :, i, j, k, :] = np.array([zeros, zeros, ones]).T
-                        Phi[3, :, i, j, k, :] = np.array([xrange[:, i], -yrange[:, j], zeros]).T
-                        Phi[4, :, i, j, k, :] = np.array([xrange[:, i], zeros, -zrange[:, k]]).T
-        # Shift all the basis functions by their midpoints in every cell, to sort of normalize them
-        else:
-            Phi[0, :, :, :, :, :] = np.transpose(np.array([ones, zeros, zeros]), axes=[1, 2, 3, 4, 0])
-            Phi[1, :, :, :, :, :] = np.transpose(np.array([zeros, ones, zeros]), axes=[1, 2, 3, 4, 0])
-            Phi[2, :, :, :, :, :] = np.transpose(np.array([zeros, zeros, ones]), axes=[1, 2, 3, 4, 0])
-            xrange_extend = (xrange - x_leftpoints[:, np.newaxis])[:, :, np.newaxis, np.newaxis] * ones
-            yrange_extend = (yrange - y_leftpoints[:, np.newaxis])[:, np.newaxis, :, np.newaxis] * ones
-            zrange_extend = (zrange - z_leftpoints[:, np.newaxis])[:, np.newaxis, np.newaxis, :] * ones
-            Phi[3, :, :, :, :, :] = np.transpose(np.array([xrange_extend, -yrange_extend, zeros]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
-            Phi[4, :, :, :, :, :] = np.transpose(np.array([xrange_extend, zeros, -zrange_extend]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
+        # Shift all the basis functions by their midpoints in every cell
+        Phi[0, :, :, :, :, :] = np.transpose(np.array([ones, zeros, zeros]), axes=[1, 2, 3, 4, 0])
+        Phi[1, :, :, :, :, :] = np.transpose(np.array([zeros, ones, zeros]), axes=[1, 2, 3, 4, 0])
+        Phi[2, :, :, :, :, :] = np.transpose(np.array([zeros, zeros, ones]), axes=[1, 2, 3, 4, 0])
+        xrange_extend = (xrange - x_leftpoints[:, np.newaxis])[:, :, np.newaxis, np.newaxis] * ones
+        yrange_extend = (yrange - y_leftpoints[:, np.newaxis])[:, np.newaxis, :, np.newaxis] * ones
+        zrange_extend = (zrange - z_leftpoints[:, np.newaxis])[:, np.newaxis, np.newaxis, :] * ones
+        Phi[3, :, :, :, :, :] = np.transpose(np.array([xrange_extend, -yrange_extend, zeros]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
+        Phi[4, :, :, :, :, :] = np.transpose(np.array([xrange_extend, zeros, -zrange_extend]), axes=[1, 2, 3, 4, 0]) / np.cbrt(dx * dy * dz)
 
         # Flatten the indices corresponding to the integration points in each voxel
         self.Phi = Phi.reshape(self.n_functions, n, nx * ny * nz, 3)
@@ -802,7 +638,12 @@ class CurrentVoxelsGrid:
         self.XYZ_integration = XYZ_integration
 
     def _construct_geo_factor(self):
-        contig = np.ascontiguousarray
+        """
+        Main geometrical setup function. The grid of voxels is now defined so this 
+        function goes through and calculations the various inductance and optimization
+        related matrices we need. Calculates the hardest part of this problem -- 
+        getting the constraint matrix correct with the symmetries.
+        """
 
         # Compute Bnormal factor of the optimization problem
         points = contig(self.plasma_boundary.gamma().reshape(-1, 3))
@@ -874,29 +715,6 @@ class CurrentVoxelsGrid:
                     contig(Phivec_transpose),
                     contig(curve_dl)
                 )
-        #int_points = np.transpose(np.array([ox_full, oy_full, oz_full]), [1, 2, 0])
-        #Phivec_transpose = np.transpose(Phivec_full, [1, 2, 0, 3])
-        #geo_factor = sopp.current_voxels_field_Bext(
-        #    points, 
-        #    contig(int_points), 
-        #    contig(Phivec_transpose),
-        #    plasma_unitnormal
-        #)
-        #Itarget_matrix = sopp.current_voxels_field_Bext(
-        #    points_curve, 
-        #    contig(int_points), 
-        #    contig(Phivec_transpose),
-        #    contig(curve_dl)
-        #)
-        #index = 0
-        #for stell in stell_list:
-        #    for fp in range(nfp):
-        #        if stell != 1 or fp != 0:
-        #            geo_factor[:, :n, :] += geo_factor[:, index:index + n, :]
-        #            Itarget_matrix[:, :n, :] += Itarget_matrix[:, index:index + n, :]
-        #        index += n
-        #self.geo_factor = geo_factor[:, :n, :]
-        #self.Itarget_matrix = Itarget_matrix[:, :n, :]
         t2 = time.time()
         print('Computing full coil surface grid took t = ', t2 - t1, ' s')
 
@@ -914,7 +732,6 @@ class CurrentVoxelsGrid:
         self.B_matrix = (geo_factor * np.sqrt(N_quadrature_inv) * coil_integration_factor).reshape(
             geo_factor.shape[0], self.N_grid * self.n_functions
         )
-        # print(B_matrix.shape, self.geo_factor.shape)
         b_rhs = np.ravel(self.Bn * np.sqrt(N_quadrature_inv))
         for i in range(self.B_matrix.shape[0]):
             self.B_matrix[i, :] *= np.sqrt(normN[i])
@@ -938,7 +755,7 @@ class CurrentVoxelsGrid:
         t2 = time.time()
         print('Computing the flux factors took t = ', t2 - t1, ' s')
 
-        # need to normalize flux_factor by 1/nx ** 2 (assuming uniform grid)
+        # need to normalize flux_factor by 1/nx ** 2 (assuming uniform grid!)
         flux_factor *= 1 / (self.nx ** 2)
         t1 = time.time()
 
@@ -1025,11 +842,7 @@ class CurrentVoxelsGrid:
         num_basis = self.n_functions
         N = self.N_grid * num_basis
 
-        if self.sparse_constraint_matrix:
-            flux_constraint_matrix = lil_matrix((n_constraints, N), dtype="double")
-        else:
-            flux_constraint_matrix = np.zeros((n_constraints, N))
-
+        flux_constraint_matrix = lil_matrix((n_constraints, N), dtype="double")
         i_constraint = 0
         q = 0
         qq = 0
@@ -1160,23 +973,18 @@ class CurrentVoxelsGrid:
         connect_list_zeros[self.connection_list == -1] = 0
         self.num_constraints_per_cell = np.sum(np.sum(connect_list_zeros, axis=-1), axis=-1)
         self.flux_factor = flux_factor
+        self.C = flux_constraint_matrix.tocsc()
 
         t2 = time.time()
         print('Time to make the flux jump constraint matrix = ', t2 - t1, ' s')
 
-        if self.sparse_constraint_matrix:
-            C = flux_constraint_matrix.tocsc()
-        else:
-            C = flux_constraint_matrix
-        self.C = C    
-
     def check_fluxes(self):
         """
-            Post-optimization test function to check that the fluxes between
-            adjacent cells match to a reasonable tolerance (i.e. there is 
-            some flux mismatch in the Amps level, while the overall fluxes
-            are in the MA level). If the constraints were applied correctly
-            in the optimization, this function should run no problem.
+        Post-optimization test function to check that the fluxes between
+        adjacent cells match to a reasonable tolerance (i.e. there is 
+        some flux mismatch in the Amps level, while the overall fluxes
+        are in the MA level). If the constraints were applied correctly
+        in the optimization, this function should run no problem.
         """
         Phi = self.Phi
         n = Phi.shape[1]
@@ -1227,12 +1035,11 @@ class CurrentVoxelsGrid:
                             flux[i, j] += nx * Jvec[i, l, m, z_ind, 0] + ny * Jvec[i, l, m, z_ind, 1] + nz * Jvec[i, l, m, z_ind, 2]
 
         # Compare fluxes across adjacent cells
-        flux_max = 5000  # np.max(abs(flux)) / 1e4
+        flux_max = 5000  # flag any disagreements in the few kilo-Amperes range
         q = 0
         qq = 0
         for i in range(n):
             for j in range(6):
-                # print(i, j, flux[i, j])
                 if (i in self.x_inds) and (j == 1) and (self.coil_range != 'full torus'):
                     k_ind = self.z_flip_x[q]
                     assert np.isclose(flux[i, 1], flux[k_ind, 1], atol=flux_max, rtol=1e-3)
