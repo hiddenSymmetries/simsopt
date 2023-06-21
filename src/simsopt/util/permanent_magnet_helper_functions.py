@@ -7,7 +7,8 @@ __all__ = ['read_focus_coils', 'coil_optimization',
            'initialize_coils', 'calculate_on_axis_B',
            'make_optimization_plots', 'run_Poincare_plots',
            'make_curve_at_theta0', 'make_filament_from_voxels',
-           'make_Bnormal_plots', 'initialize_default_kwargs'
+           'make_Bnormal_plots', 'initialize_default_kwargs',
+           'perform_filament_optimization'
            ]
 
 import numpy as np
@@ -15,6 +16,10 @@ from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from scipy.optimize import minimize
 from scipy.interpolate import CubicSpline
+from simsopt.geo import CurveLength, CurveCurveDistance, \
+    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LpCurveTorsion
+from simsopt.objectives import Weight, QuadraticPenalty
+from simsopt.objectives import SquaredFlux
 from pathlib import Path
 
 
@@ -135,7 +140,6 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     # Define the objective function:
     Jf = SquaredFlux(s, bs)
     Jls = [CurveLength(c) for c in base_curves]
-    Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
     Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
     Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
@@ -632,7 +636,7 @@ def make_curve_at_theta0(s, numquadpoints):
     return curve
 
 
-def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_fourier=16):
+def make_filament_from_voxels(current_voxels_grid, final_threshold, truncate=False, num_fourier=16):
     """
     Take an optimized CurrentVoxelGrid class object and the largest
     threshold used to optimize it, and produce a filamentary curve from
@@ -643,11 +647,11 @@ def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_four
     from simsopt.geo import CurveXYZFourier
 
     # Find where voxels are nonzero
-    alphas = wv_grid.alphas.reshape(wv_grid.N_grid, wv_grid.n_functions)
+    alphas = current_voxels_grid.alphas.reshape(current_voxels_grid.N_grid, current_voxels_grid.n_functions)
     nonzero_inds = (np.linalg.norm(alphas, axis=-1) > final_threshold)
-    xyz_curve = wv_grid.XYZ_flat[nonzero_inds, :]
-    nfp = wv_grid.plasma_boundary.nfp
-    stellsym = wv_grid.plasma_boundary.stellsym
+    xyz_curve = current_voxels_grid.XYZ_flat[nonzero_inds, :]
+    nfp = current_voxels_grid.plasma_boundary.nfp
+    stellsym = current_voxels_grid.plasma_boundary.stellsym
     n = xyz_curve.shape[0]
 
     # complete the curve via the symmetries 
@@ -748,3 +752,103 @@ def make_filament_from_voxels(wv_grid, final_threshold, truncate=False, num_four
                 if np.isclose(dofs[i][f], 0.0) and (f % 2) != 0:
                     coil.fix(f'zs({f // 2 + 1})')
     return coil
+
+
+def perform_filament_optimization(s, bs, curves, **kwargs):
+    """
+    Wrapper function for performing filament optimization with a given BiotSavart
+    object, a plasma boundary, and a set of curves. 
+    Follows closely the syntax and functionality
+    in the stage_two_optimization.py script in examples/2_Intermediate.
+
+    Args:
+        s: SurfaceRZFourier object representing the plasma boundary
+        bs: BiotSavart class object representing the fields from the filaments.
+        curves: List of Curve class objects representing the filaments to be optimized.
+    """
+    # Weight on the curve lengths in the objective function
+    LENGTH_WEIGHT = Weight(kwargs.pop("length_weight", 1e-7))
+
+    # Threshold and weight for the coil-to-surface distance penalty in the objective function:
+    CS_THRESHOLD = kwargs.pop("cs_threshold", 0.1)
+    CS_WEIGHT = kwargs.pop("cs_weight", 1e-12)
+
+    # Threshold and weight for the coil-to-coil distance penalty in the objective function:
+    CC_THRESHOLD = kwargs.pop("cc_threshold", 0.1)
+    CC_WEIGHT = kwargs.pop("cc_weight", 1e-12)
+
+    # Threshold and weight for the curvature penalty in the objective function:
+    CURVATURE_THRESHOLD = kwargs.pop("curvature_threshold", 0.1)
+    CURVATURE_WEIGHT = kwargs.pop("curvature_weight", 1e-12)
+    TORSION_WEIGHT = kwargs.pop("torsion_weight", 1e-12)
+
+    # Threshold and weight for the mean squared curvature penalty in the objective function:
+    MSC_THRESHOLD = kwargs.pop("msc_threshold", 0.1)
+    MSC_WEIGHT = kwargs.pop("msc_weight", 1e-14)
+
+    # Define the individual terms objective function:
+    Jf = SquaredFlux(s, bs)
+    Jls = [CurveLength(curve) for curve in curves]
+    if len(curves) > 1:
+        Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=len(curves))
+    Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+    Jcs = [LpCurveCurvature(curve, 2, CURVATURE_THRESHOLD) for curve in curves]
+    Jts = [LpCurveTorsion(curve, 2, CURVATURE_THRESHOLD) for curve in curves]
+    Jmscs = [MeanSquaredCurvature(curve) for curve in curves]
+
+    # Form the total objective function
+    JF = Jf \
+        + LENGTH_WEIGHT * sum(Jls) \
+        + CS_WEIGHT * Jcsdist \
+        + CURVATURE_WEIGHT * sum(Jcs) \
+        + TORSION_WEIGHT * sum(Jts) \
+        + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
+
+    if len(curves) > 1:
+        JF += CC_WEIGHT * Jccdist
+
+    def fun(dofs):
+        JF.x = dofs
+        J = JF.J()
+        grad = JF.dJ()
+        jf = Jf.J()
+        BdotN = np.mean(np.abs(np.sum(bs.B().reshape(s.gamma().shape) * s.unitnormal(), axis=2)))
+        outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+        cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+        kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in curves) 
+        msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+        outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+        if len(curves) > 1:
+            outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+        outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+        print(outstr)
+        return J, grad
+
+    print("""
+    ################################################################################
+    ### Perform a Taylor test ######################################################
+    ################################################################################
+    """)
+    f = fun
+    dofs = JF.x
+    np.random.seed(1)
+    h = np.random.uniform(size=dofs.shape)
+    J0, dJ0 = f(dofs)
+    dJh = sum(dJ0 * h)
+    for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+        J1, _ = f(dofs + eps*h)
+        J2, _ = f(dofs - eps*h)
+        print("err", (J1-J2)/(2*eps) - dJh)
+
+    print("""
+    ################################################################################
+    ### Run the optimisation #######################################################
+    ################################################################################
+    """)
+    MAXITER = 2000
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
+    curves_to_vtk(curves, OUT_DIR + f"curves_opt_super_long")
+    pointData = {"B_N": np.sum(bs.B().reshape(s.gamma().shape) * s.unitnormal(), axis=2)[:, :, None]}
+    s.to_vtk(OUT_DIR + "surf_opt_super_long", extra_data=pointData)
+    calculate_on_axis_B(bs, s)
+    bs.save(OUT_DIR + "biot_savart_opt.json")

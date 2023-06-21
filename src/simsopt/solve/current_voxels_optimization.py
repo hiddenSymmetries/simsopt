@@ -516,11 +516,7 @@ def relax_and_split_increasingl0(
     f_I = []
     f_K = []
     f_RS = []
-    f_Bw = []
-    f_Iw = []
-    f_Kw = []
     f_0 = []
-    f_0w = []
     current_voxels.alpha_history = []
     current_voxels.w_history = []
     t1 = time.time()
@@ -669,6 +665,7 @@ def relax_and_split_minres(
     alpha0 = kwargs.pop("alpha0", None)
     out_dir = kwargs.pop("out_dir", '')
     precondition = kwargs.pop("precondition", False)
+
     n = current_voxels.N_grid
     nfp = current_voxels.plasma_boundary.nfp
     num_basis = current_voxels.n_functions
@@ -679,30 +676,31 @@ def relax_and_split_minres(
         alpha_opt = np.zeros((N, 1))  # (np.random.rand(N, 1) - 0.5) * 1e4  
 
     B = current_voxels.B_matrix
-    I = current_voxels.Itarget_matrix
     BT = B.T
-    b = current_voxels.b_rhs
-    b_I = current_voxels.Itarget_rhs
+    b_B = current_voxels.b_rhs.reshape(-1, 1)
+    b_I = current_voxels.Itarget_rhs.reshape(-1, 1)
+    I = current_voxels.Itarget_matrix.reshape(1, -1)
     IT = I.T
-    I = I.reshape(1, len(current_voxels.Itarget_matrix))
-    IT = I.T
-    b_I = b_I.reshape(1, 1)
-    b_B = b.reshape(len(b), 1)
     alpha_opt = alpha_opt.reshape(len(alpha_opt), 1)
-    kappa = kappa / n
+    kappa = kappa / n  # normalize kappa by the number of voxels
     kappa_nu = (kappa + 1.0 / nu)
     scale = 1e6
-    C = current_voxels.C   # * scale ** 2
+    C = current_voxels.C
     CT = C.T
-    K = C.shape[0]
+    K = C.shape[0]  # K is the number of constraints
+
+    # Rescale the fB and fI loss terms since they are small relative to
+    # the magnitude of the constraints
     A = scale * np.vstack((B, np.sqrt(sigma) * I))
     b = scale * np.vstack((b_B, np.sqrt(sigma) * b_I))
     AT = A.T
     ATb = AT @ b
 
     def A_fun(x):
+        """ The 2x2 KKT matrix used in minres with constraints """
         alpha = x[:N]
-        return np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[N:])[:, np.newaxis], (C @ alpha)[:, np.newaxis]))
+        return np.vstack(((AT @ (A @ alpha) + kappa_nu * alpha + CT @ x[N:])[:, np.newaxis], 
+                          (C @ alpha)[:, np.newaxis]))
 
     A_operator = LinearOperator((N + K, N + K), matvec=A_fun)
     tol = 1e-20
@@ -723,50 +721,64 @@ def relax_and_split_minres(
         S_inv_op = splu(S)
 
         def M_inv(x):
-            # apply inverse of P given by
-            # P_minres = [spdiags((AAdiag'),0,n,n), 0;
-            #            sparse(k,n),      S ];
+            """ 
+            An approximate Schur complement preconditioner, where we 
+            apply the inverse of M given by
+            M_minres = [[spdiags((AAdiag'), 0, n, n), 0]
+                        [sparse(k,n),                 S ]]
+            to the vector [alpha, lam], or equivalently [x[:N], x[N:]].
+            """
             return np.vstack((x[:N, np.newaxis] * AAdiag_inv_diag, S_inv_op.solve(x[N:, np.newaxis])))
 
         M_operator = LinearOperator((N + K, N + K), matvec=M_inv)
         minres_kwargs["M"] = M_operator
         t2 = time.time()
-        t_algo_setup = t2 - t1
-        print('Time to setup precond = ', t_algo_setup, ' s')
+        t_preconditioner_setup = t2 - t1
+        print('Time to setup precond = ', t_preconditioner_setup, ' s')
 
-    def callback(xk, w_opt, rhs, A_func, nu_algo):
+    def callback(xk, w_opt, rhs):
+        """ 
+        Callback function for minres. Computes and then prints out all the 
+        loss terms we are interested in, every print_iter iterations of MINRES.
+        The output is written to a text file, rather than printed to stdout. 
+
+        Args:
+            xk: The solution vector in the current algorithm iteration.
+            w_opt: The sparse proxy solution vector in the current algorithm iteration.
+            rhs: The right-hand-side of the Ax=b problem that MINRES is solving.
+        """
         alpha = xk[:N, np.newaxis]
         fB = np.linalg.norm(B @ alpha - b_B) ** 2
         fI = sigma * np.linalg.norm(I @ alpha - b_I) ** 2
         fK = kappa * np.linalg.norm(alpha) ** 2 / scale ** 2
-        fRS = np.linalg.norm(alpha - w_opt) ** 2 / nu_algo / scale ** 2
+        fRS = np.linalg.norm(alpha - w_opt) ** 2 / nu / scale ** 2
         f = fB + fI + fK + fRS
         print(f, fB, fI, fK, fRS,
-              np.linalg.norm(C.dot(alpha)),  # / scale ** 2,
-              np.linalg.norm(A_func(xk) - rhs))  # / scale ** 2)
+              np.linalg.norm(C.dot(alpha)),
+              np.linalg.norm(A_fun(xk) - rhs))
 
     # Now prepare to record optimization progress
     lam_opt = np.zeros((K, 1))
-    f_Bw = []
-    f_Iw = []
-    f_Kw = []
-    f_0w = []
-    f_RSw = []
-    f_Cw = []
-    t_MINRES = []
+    t_minres = []
     current_voxels.alpha_history = []
     current_voxels.w_history = []
     set_point = True
     w_opt = alpha_opt  # prox_group_l0(alpha_opt, l0_thresholds[0], n, num_basis)
+
+    # We will write minres output to a text file so initialize the file now
     sys.stdout = open(out_dir + 'minres_output.txt', 'w')
     print('Total ', 'fB ', 'sigma * fI ', 'kappa * fK ', 'fRS/nu ', 'C*alpha ', 'MINRES residual')
     sys.stdout.close()
     sys.stdout = open("/dev/stdout", "w")
+
     t0 = time.time()
     for j, threshold in enumerate(l0_thresholds):
         print('threshold iteration = ', j + 1, ' / ', len(l0_thresholds), ', threshold = ', threshold)
+
+        # Line here to run extra iterations when nearing the end of the relax-and-split
+        # iterations. Tends to polish up the solutiona bit.
         if j > (2.0 * len(l0_thresholds) / 3.0) and set_point:
-            # rs_max_iter = 2 * rs_max_iter
+            rs_max_iter = 2 * rs_max_iter
             set_point = False
         for k in range(rs_max_iter):
             rhs = ATb + w_opt / nu
@@ -778,45 +790,38 @@ def relax_and_split_minres(
             sys.stdout = open(out_dir + 'minres_output.txt', 'a')
             alpha_opt, _ = minres(
                 A_operator, rhs, x0=x0, 
-                callback=partial(callback, w_opt=w_opt, rhs=rhs, A_func=A_fun, nu_algo=nu), 
+                callback=partial(callback, w_opt=w_opt, rhs=rhs), 
                 **minres_kwargs
             )
             t2 = time.time()
             sys.stdout.close()
             sys.stdout = open("/dev/stdout", "w")
-            t_MINRES.append(t2 - t1)
-            #print('MINRES took = ', t3, ' s')
+            t_minres.append(t2 - t1)
             alpha_opt = alpha_opt.reshape(-1, 1)
             lam_opt = alpha_opt[N:]
             alpha_opt = alpha_opt[:N]
 
             if (threshold > 0) and (k % print_iter == 0):
-                f_Bw.append(np.linalg.norm(np.ravel(B @ w_opt - b_B), ord=2) ** 2)
-                f_Iw.append(np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2 * sigma)
-                f_Kw.append(kappa * np.linalg.norm(np.ravel(w_opt)) ** 2 / scale ** 2)
-                f_RSw.append(np.linalg.norm(alpha_opt - w_opt) ** 2 / nu / scale ** 2)
-                f_Cw.append(np.linalg.norm(C.dot(w_opt)) / scale ** 2)
-                # f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1) > threshold))
-                f_0w.append(np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)))
-                current_voxels.w_history.append(w_opt)
-                current_voxels.alpha_history.append(alpha_opt)
-                print('w : ', j, k, 
-                      f_Bw[-1], 
-                      f_Iw[-1],
-                      f_Kw[-1], 
-                      f_RSw[-1],  # / nu,
-                      f_Cw[-1],
-                      f_0w[-1], ' / ', n, ', ',
+                # current_voxels.w_history.append(w_opt)
+                # current_voxels.alpha_history.append(alpha_opt)
+                print('w : ', j, k,
+                      np.linalg.norm(np.ravel(B @ w_opt - b_B), ord=2) ** 2,
+                      np.linalg.norm(np.ravel(I @ w_opt - b_I)) ** 2 * sigma,
+                      kappa * np.linalg.norm(np.ravel(w_opt)) ** 2 / scale ** 2,
+                      np.linalg.norm(alpha_opt - w_opt) ** 2 / nu / scale ** 2,
+                      np.linalg.norm(C.dot(w_opt)) / scale ** 2,
+                      np.count_nonzero(np.linalg.norm(w_opt.reshape(n, num_basis), axis=-1)), 
+                      ' / ', n, ', ',
                       )
 
             # now do the prox step
             w_opt = prox_group_l0(np.copy(alpha_opt), threshold, n, num_basis)
 
     t2 = time.time()
-    algo_time = t2 - t0
-    print('Time to run relax-and-split algo = ', algo_time, ' s')
-    avg_t_MINRES = np.mean(np.array(t_MINRES))
-    print('Time on avg to complete a MINRES call = ', avg_t_MINRES, ' s')
+    relax_and_split_time = t2 - t0
+    print('Time to run relax-and-split algo = ', relax_and_split_time, ' s')
+    average_minres_time = np.mean(np.array(t_minres))
+    print('Time on avg to complete a MINRES call = ', average_minres_time, ' s')
     t1 = time.time()
     alpha_opt = np.ravel(alpha_opt)
     print('Avg |alpha| in a cell = ', np.mean(np.linalg.norm(alpha_opt.reshape(n, num_basis), axis=-1)))
@@ -834,16 +839,11 @@ def relax_and_split_minres(
             0.5 * 2 * np.array(fB) * nfp, 
             0.5 * np.array(fK), 
             0.5 * np.array(fI), 
-            0.5 * np.array(fRS),  # / nu,
+            0.5 * np.array(fRS),
             f0,
             fC,
             fminres,
-            0.5 * 2 * np.array(f_Bw) * nfp, 
-            0.5 * np.array(f_Kw), 
-            0.5 * np.array(f_Iw),
-            0.5 * np.array(f_RSw),
-            0.5 * np.array(f_Cw),
-            algo_time,
-            t_algo_setup,
-            avg_t_MINRES
+            relax_and_split_time,
+            t_preconditioner_setup,
+            average_minres_time
             )
