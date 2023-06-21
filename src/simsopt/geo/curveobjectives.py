@@ -3,7 +3,6 @@ from deprecated import deprecated
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
-# from monty.json import MontyDecoder, MSONable
 
 from .jit import jit
 from .._core.optimizable import Optimizable
@@ -75,7 +74,7 @@ class LpCurveCurvature(Optimizable):
     where :math:`\kappa_0` is a threshold curvature, given by the argument ``threshold``.
     """
 
-    def __init__(self, curve, p, threshold=0.):
+    def __init__(self, curve, p, threshold=0.0):
         self.curve = curve
         self.p = p
         self.threshold = threshold
@@ -121,14 +120,14 @@ class LpCurveTorsion(Optimizable):
 
     """
 
-    def __init__(self, curve, p, threshold=0.):
+    def __init__(self, curve, p, threshold=0.0):
         self.curve = curve
         self.p = p
         self.threshold = threshold
+        super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
-        super().__init__(depends_on=[curve])
 
     def J(self):
         """

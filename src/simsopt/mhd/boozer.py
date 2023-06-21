@@ -29,6 +29,7 @@ except ImportError as e:
 from .vmec import Vmec
 from .._core.optimizable import Optimizable
 from .._core.types import RealArray
+from .._core.descriptor import Integer
 
 __all__ = ['Boozer', 'Quasisymmetry']
 
@@ -43,6 +44,9 @@ class Boozer(Optimizable):
     out on all these surfaces. The registry can be cleared at any time
     by setting the s attribute to {}.
     """
+
+    mpol = Integer()
+    ntor = Integer()
 
     def __init__(self,
                  equil: Vmec,
@@ -258,6 +262,9 @@ class Quasisymmetry(Optimizable):
            modes on the same surface. This is the normalization used in stellopt.
         weight: An option for a m- or n-dependent weight to be applied to the bmnc amplitudes.
     """
+
+    helicity_m = Integer()
+    helicity_n = Integer()
 
     def __init__(self,
                  boozer: Boozer,
