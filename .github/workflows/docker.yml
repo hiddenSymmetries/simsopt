@@ -31,11 +31,6 @@ jobs:
           username: medbha
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - run: 'echo "$SPEC_ACCESS" > ci/github_key'
-        shell: bash
-        env:
-          SSH_KEY: ${{ secrets.SPEC_ACCESS }}
-
       - name: Step to get tag name
         id: vars
         run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
