@@ -136,7 +136,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
 endif()
-target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUDE_DIRS}")
 # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
 
 if(OpenMP_CXX_FOUND)
