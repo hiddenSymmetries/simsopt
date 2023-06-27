@@ -1,4 +1,4 @@
-name: Linting
+name: Docs_test
 
 on: [push, pull_request]
 
@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8]
+        python-version: [3.9]
 
     steps:
     - uses: actions/checkout@v3
@@ -19,13 +19,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install python dependencies
+    - name: Install sphinx and its dependencies for building docs
       run: |
-        pip install flake8
+        pip install sphinx sphinx-rtd-theme sphinxcontrib-napoleon sphinx-autodoc-napoleon-typehints
 
-    - name: Run linting tests
+    - name: Build docs
       run: |
-        export EXCLUDE="E226,E265,E266,E4,E5,E7,W,F"
-        flake8  --ignore $EXCLUDE src/
-        flake8  --ignore $EXCLUDE tests/
-        flake8  --ignore $EXCLUDE examples/
+        cd docs
+        sphinx-build -b html source build
