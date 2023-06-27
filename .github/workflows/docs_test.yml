@@ -12,6 +12,11 @@ jobs:
         python-version: [3.9]
 
     steps:
+    - name: apt-get stuff needed for libstell and vmec
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev libopenblas-dev
+
     - uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
