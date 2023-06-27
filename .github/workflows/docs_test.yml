@@ -46,7 +46,7 @@ jobs:
     #   run: git fetch --all --tags --prune --unshallow
 
     - name: Install simsopt package
-      run: pip install -v .[MPI,SPEC]
+      run: pip install -v .
 
     - name: Build docs
       run: |
