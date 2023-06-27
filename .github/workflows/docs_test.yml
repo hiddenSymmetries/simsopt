@@ -12,11 +12,6 @@ jobs:
         python-version: [3.9]
 
     steps:
-    # - name: apt-get stuff needed for libstell and vmec
-    #   run: |
-    #     sudo apt-get update
-    #     sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libboost-all-dev libopenblas-dev
-
     - uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
@@ -29,21 +24,12 @@ jobs:
 
     - name: Install sphinx and its dependencies for building docs
       run: |
-        pip install -r docs/requirements.txt # sphinx sphinx-rtd-theme sphinxcontrib-napoleon sphinx-autodoc-napoleon-typehints
+        pip install -r docs/requirements.txt
 
-    - name: Install python dependencies for simsopt
-      run: |
-        sudo apt-get install graphviz graphviz-dev
-        pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
-
-    # - name: Install booz_xform
-    #   run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
-
-    # - name: Install virtual_casing
-    #   run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
-
-    # - name: Fetch all history for all tags
-    #   run: git fetch --all --tags --prune --unshallow
+    # - name: Install python dependencies for simsopt
+    #   run: |
+    #     sudo apt-get install graphviz graphviz-dev
+    #     pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install simsopt package
       run: pip install -v .
