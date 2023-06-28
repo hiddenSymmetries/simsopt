@@ -58,6 +58,8 @@ RUN /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
+RUN /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC
+RUN /venv/bin/pip install  git+https://github.com/landreman/pyQSC
 
 ENV CI=True
 RUN git clone --recurse-submodules https://github.com/hiddenSymmetries/simsopt.git /src/simsopt && \
