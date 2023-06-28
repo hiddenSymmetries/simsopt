@@ -298,28 +298,67 @@ class Testing(unittest.TestCase):
             normal_outer = s2.unitnormal().reshape(-1, 3)
             xyz_inner = s1.gamma().reshape(-1, 3)
             xyz_outer = s2.gamma().reshape(-1, 3)
-            r_inner = np.sqrt(xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2)
-            z_inner = xyz_inner[:, 2]
-            r_outer = np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2)
-            z_outer = xyz_outer[:, 2]
+            rphiz_inner = np.array(
+                [xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2, 
+                 np.arctan2(xyz_inner[:, 1], xyz_inner[:, 0]),
+                 xyz_inner[:, 2]]
+            )
+            rphiz_outer = np.array(
+                [np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2), 
+                 np.arctan2(xyz_outer[:, 1], xyz_outer[:, 0]),
+                 xyz_outer[:, 2]]
+            )
 
             # Try with cylindrical functionality
-            grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-                phi, normal_inner, normal_outer, RphiZ,
-                r_inner, r_outer, z_inner, z_outer)
-            inds = np.array(inds, dtype=int)
-            for i in reversed(range(1, len(inds))):
-                for j in range(0, i):
-                    inds[i] += inds[j]
-            final_grid = []
-            for i in range(grid.shape[0]):
-                if not np.allclose(grid[i, :], 0.0):
-                    final_grid.append(grid[i, :])
-            final_grid = np.array(final_grid)
-            r_fit = np.sqrt((final_grid[:, 0] - R0) ** 2 + final_grid[:, 2] ** 2)
-            # print('r_fit = ', r_fit)
+            final_grid = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
+                phi, normal_inner, normal_outer, RphiZ, rphiz_inner, rphiz_outer
+            )
+            inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
+            final_grid = final_grid[inds, :]
+            final_rz_grid = np.zeros(final_grid.shape)
+            final_rz_grid[:, 0] = np.sqrt(final_grid[:, 0] ** 2 + final_grid[:, 1] ** 2)
+            final_rz_grid[:, 1] = np.arctan2(final_grid[:, 1], final_grid[:, 0])
+            final_rz_grid[:, 2] = final_grid[:, 2]
+            r_fit = np.sqrt((final_rz_grid[:, 0] - R0) ** 2 + final_rz_grid[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1.0))
             assert (np.max(r_fit) < (r0 + 2.0))
+
+            # Check for incompatible toroidal angles between the plasma
+            # surface and the inner/outer toroidal surfaces
+            rphiz_inner = np.array(
+                [xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2, 
+                 np.arctan2(xyz_inner[:, 1], xyz_inner[:, 0]) + np.pi / 32.0,
+                 xyz_inner[:, 2]]
+            )
+            rphiz_outer = np.array(
+                [np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2), 
+                 np.arctan2(xyz_outer[:, 1], xyz_outer[:, 0]),
+                 xyz_outer[:, 2]]
+            )
+            with self.assertRaises(ValueError):
+                final_grid = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
+                    phi, normal_inner, normal_outer, RphiZ, rphiz_inner, rphiz_outer
+                )
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=2 * nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=2 * nphi, ntheta=ntheta)
+            normal_inner = s1.unitnormal().reshape(-1, 3)
+            normal_outer = s2.unitnormal().reshape(-1, 3)
+            xyz_inner = s1.gamma().reshape(-1, 3)
+            xyz_outer = s2.gamma().reshape(-1, 3)
+            rphiz_inner = np.array(
+                [xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2, 
+                 np.arctan2(xyz_inner[:, 1], xyz_inner[:, 0]),
+                 xyz_inner[:, 2]]
+            )
+            rphiz_outer = np.array(
+                [np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2), 
+                 np.arctan2(xyz_outer[:, 1], xyz_outer[:, 0]),
+                 xyz_outer[:, 2]]
+            )
+            with self.assertRaises(ValueError):
+                final_grid = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
+                    phi, normal_inner, normal_outer, RphiZ, rphiz_inner, rphiz_outer
+                )
 
             # Repeat with cartesian functionality
             final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
