@@ -11,7 +11,7 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.selffieldforces import force_opt
+from simsopt.field.selffieldforces import ForceOpt
 
 
 # File for the desired boundary magnetic surface:
@@ -74,10 +74,10 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jforce_list = [force_opt(coils[i], coils[:i]+coils[i+1:])
+Jforce_list = [ForceOpt(coils[i], coils[:i]+coils[i+1:])
                for i in range(0, len(coils))]
-Jforce = sum(QuadraticPenalty(
-    Jforce_list[i], Jforce_list[i].J()) for i in range(len(coils)))
+Jforce = sum(Jforce_list)
+
 
 JF = Jf \
     + LENGTH_WEIGHT * sum(Jls) \

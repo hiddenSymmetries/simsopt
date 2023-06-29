@@ -183,7 +183,7 @@ def coil_force_pure(B, I, t, a=0.05):
 @jit
 def force_opt_pure(gamma, gammadash, gammadashdash,
                    current, phi, phidash, b_ext):
-    """cost function for force optimization"""
+    """Cost function for force optimization. Optimize for peak self force on the coil (so far)"""
     t = gammadash / jnp.linalg.norm(gammadash)
     b_self = field_on_coils_pure(
         gamma, gammadash, gammadashdash, phi, phidash, current)
@@ -195,7 +195,7 @@ def force_opt_pure(gamma, gammadash, gammadashdash,
     return result
 
 
-class force_opt(Optimizable):
+class ForceOpt(Optimizable):
     def __init__(self, coil, coils, a=0.05):
         self.coil = coil
         self.curve = coil.curve
