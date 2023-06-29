@@ -574,7 +574,7 @@ class Vmec(Optimizable):
             nml += f"MGRID_FILE = '{vi.mgrid_file.decode('utf-8')}'\n"
             nml += 'EXTCUR = ' + array_to_namelist(vi.extcur)
             nml += '\n'
-        
+
         nml += '\n! ---- Resolution parameters ----\n'
         nml += f'MPOL = {vi.mpol}\n'
         nml += f'NTOR = {vi.ntor}\n'
