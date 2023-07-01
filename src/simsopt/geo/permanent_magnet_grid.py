@@ -72,65 +72,86 @@ class PermanentMagnetGrid:
         some important grid variables for later.
         """
         # Get (X, Y, Z) coordinates of the two boundaries
-        xyz_inner = self.inner_toroidal_surface.gamma()
-        self.xyz_inner = xyz_inner.reshape(-1, 3)
-        xyz_outer = self.outer_toroidal_surface.gamma()
-        self.xyz_outer = xyz_outer.reshape(-1, 3)
-        self.x_outer = xyz_outer[:, 0]
-        self.y_outer = xyz_outer[:, 1]
-        self.z_outer = xyz_outer[:, 2]
+        self.xyz_inner = self.inner_toroidal_surface.gamma().reshape(-1, 3)
+        self.xyz_outer = self.outer_toroidal_surface.gamma().reshape(-1, 3)
+        if self.coordinate_flag != 'cylindrical':
+            x_outer = self.xyz_outer[:, 0]
+            y_outer = self.xyz_outer[:, 1]
+            z_outer = self.xyz_outer[:, 2]
 
-        x_max = np.max(self.x_outer)
-        x_min = np.min(self.x_outer)
-        y_max = np.max(self.y_outer)
-        y_min = np.min(self.y_outer)
-        z_max = np.max(self.z_outer)
-        z_min = np.min(self.z_outer)
-        z_max = max(z_max, abs(z_min))
+            x_max = np.max(x_outer)
+            x_min = np.min(x_outer)
+            y_max = np.max(y_outer)
+            y_min = np.min(y_outer)
+            z_max = np.max(z_outer)
+            z_min = np.min(z_outer)
+            z_max = max(z_max, abs(z_min))
+            print(x_min, x_max, y_min, y_max, z_min, z_max)
 
-        # Make grid uniform in (X, Y)
-        min_xy = min(x_min, y_min)
-        max_xy = max(x_max, y_max)
-        x_min = min_xy
-        y_min = min_xy
-        x_max = max_xy
-        y_max = max_xy
+            # Initialize uniform grid
+            Nx = self.Nx
+            Ny = self.Ny
+            Nz = self.Nz
+            self.dx = (x_max - x_min) / (Nx - 1)
+            self.dy = (y_max - y_min) / (Ny - 1)
+            self.dz = 2 * z_max / (Nz - 1)
+            print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
 
-        # Initialize uniform grid
-        Nx = self.Nx
-        Ny = self.Ny
-        Nz = self.Nz
-        self.dx = (x_max - x_min) / (Nx - 1)
-        self.dy = (y_max - y_min) / (Ny - 1)
-        self.dz = 2 * z_max / (Nz - 1)
+            # Extra work below so that the stitching with the symmetries is done in
+            # such a way that the reflected cells are still dx and dy away from
+            # the old cells.
+            #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
+            #### and correctly be rotated to have the right symmetries
+            if (self.plasma_boundary.nfp % 2) == 0:
+                X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
+                Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+            else:
+                X = np.linspace(x_min, x_max, Nx, endpoint=True)
+                Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+            Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
 
-        # Extra work below so that the stitching with the symmetries is done in
-        # such a way that the reflected cells are still dx and dy away from
-        # the old cells.
-        #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
-        #### and correctly be rotated to have the right symmetries
-        if (self.plasma_boundary.nfp % 2) == 0:
-            X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
-            Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+            # Make 3D mesh
+            X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+            self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+
+            # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
+            if self.plasma_boundary.nfp == 4:
+                inds = []
+                for i in range(Nx):
+                    for j in range(Ny):
+                        for k in range(Nz):
+                            if X[i, j, k] < Y[i, j, k]:
+                                inds.append(int(i * Ny * Nz + j * Nz + k))
+                good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
+                self.xyz_uniform = self.xyz_uniform[good_inds, :]
         else:
-            X = np.linspace(x_min, x_max, Nx, endpoint=True)
-            Y = np.linspace(y_min, y_max, Ny, endpoint=True)
-        Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+            # Get (R, Z) coordinates of the outer boundary
+            rphiz_outer = np.array(
+                [np.sqrt(self.xyz_outer[:, 0] ** 2 + self.xyz_outer[:, 1] ** 2), 
+                 np.arctan2(self.xyz_outer[:, 1], self.xyz_outer[:, 0]),
+                 self.xyz_outer[:, 2]]
+            ).T
 
-        # Make 3D mesh
-        X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-        self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+            r_max = np.max(rphiz_outer[:, 0])
+            r_min = np.min(rphiz_outer[:, 0])
+            z_max = np.max(rphiz_outer[:, 2])
+            z_min = np.min(rphiz_outer[:, 2])
 
-        # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
-        if self.plasma_boundary.nfp == 4:
-            inds = []
-            for i in range(Nx):
-                for j in range(Ny):
-                    for k in range(Nz):
-                        if X[i, j, k] < Y[i, j, k]:
-                            inds.append(int(i * Ny * Nz + j * Nz + k))
-            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
-            self.xyz_uniform = self.xyz_uniform[good_inds, :]
+            # Initialize uniform grid of curved, square bricks
+            Nr = int((r_max - r_min) / self.dr)
+            self.Nr = Nr
+            self.dz = self.dr
+            Nz = int((z_max - z_min) / self.dz)
+            self.Nz = Nz
+            phi = 2 * np.pi * np.copy(self.plasma_boundary.quadpoints_phi)
+            R = np.linspace(r_min, r_max, Nr)
+            Z = np.linspace(z_min, z_max, Nz)
+
+            # Make 3D mesh
+            R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
+            X = R * np.cos(Phi)
+            Y = R * np.sin(Phi)
+            self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(-1, 3)
 
         # Save uniform grid before we start chopping off parts.
         contig = np.ascontiguousarray
@@ -243,49 +264,6 @@ class PermanentMagnetGrid:
         pm_grid._optimization_setup()
         return pm_grid
 
-    def _setup_uniform_rz_grid(self):
-        """
-        Initializes a uniform grid in cylindrical coordinates and sets
-        some important grid variables for later.
-        """
-        # Get (R, Z) coordinates of the three boundaries
-        xyz_inner = self.inner_toroidal_surface.gamma().reshape(-1, 3)
-        xyz_outer = self.outer_toroidal_surface.gamma().reshape(-1, 3)
-        self.rphiz_inner = np.array(
-            [np.sqrt(xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2), 
-             np.arctan2(xyz_inner[:, 1], xyz_inner[:, 0]),
-             xyz_inner[:, 2]]
-        ).T
-        self.rphiz_outer = np.array(
-            [np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2), 
-             np.arctan2(xyz_outer[:, 1], xyz_outer[:, 0]),
-             xyz_outer[:, 2]]
-        ).T
-
-        r_max = np.max(self.rphiz_outer[:, 0])
-        r_min = np.min(self.rphiz_outer[:, 0])
-        z_max = np.max(self.rphiz_outer[:, 2])
-        z_min = np.min(self.rphiz_outer[:, 2])
-
-        # Initialize uniform grid of curved, square bricks
-        Nr = int((r_max - r_min) / self.dr)
-        self.Nr = Nr
-        self.dz = self.dr
-        Nz = int((z_max - z_min) / self.dz)
-        self.Nz = Nz
-        phi = 2 * np.pi * np.copy(self.plasma_boundary.quadpoints_phi)
-        R = np.linspace(r_min, r_max, Nr)
-        Z = np.linspace(z_min, z_max, Nz)
-
-        # Make 3D mesh
-        R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
-        RPhiZ_grid = np.transpose(np.array([R, Phi, Z]), [1, 2, 3, 0])
-        RPhiZ_grid = RPhiZ_grid.reshape(RPhiZ_grid.shape[0] * RPhiZ_grid.shape[1] * RPhiZ_grid.shape[2], 3)
-        contig = np.ascontiguousarray
-        pointsToVTK('uniform_rz_grid', contig(RPhiZ_grid[:, 0] * np.cos(RPhiZ_grid[:, 1])),
-                    contig(RPhiZ_grid[:, 0] * np.sin(RPhiZ_grid[:, 1])), contig(RPhiZ_grid[:, 2]))
-        return RPhiZ_grid
-
     @classmethod
     def geo_setup_between_toroidal_surfaces(
         cls, 
@@ -378,85 +356,36 @@ class PermanentMagnetGrid:
         pm_grid.Ny = Ny
         pm_grid.Nz = Nz
         pm_grid.inner_toroidal_surface = inner_toroidal_surface.to_RZFourier()
-        pm_grid.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()
+        pm_grid.outer_toroidal_surface = outer_toroidal_surface.to_RZFourier()    
+        warnings.warn(
+            'Plasma boundary and inner and outer toroidal surfaces should '
+            'all have the same "range" parameter in order for a permanent'
+            ' magnet grid to be correctly initialized.'
+        )        
 
         # Have the uniform grid, now need to loop through and eliminate cells.
         contig = np.ascontiguousarray
-
-        # Sometimes use pm_grid.plasma_boundary.unitnormal().reshape(-1, 3)
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
-
-        # Make a uniform cylindrical grid, usually with dr=dz, i.e. "cylindrical bricks"
+        pm_grid._setup_uniform_grid()
+        pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+            contig(normal_inner), 
+            contig(normal_outer), 
+            contig(pm_grid.xyz_uniform), 
+            contig(pm_grid.xyz_inner), 
+            contig(pm_grid.xyz_outer))
+        inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
+        pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
+        pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
+        pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
         if coordinate_flag == 'cylindrical':
-            RPhiZ_grid = pm_grid._setup_uniform_rz_grid()
-            if (np.unique(RPhiZ_grid[:, 1]).shape != np.unique(np.round(pm_grid.rphiz_inner[:, 1], 8)).shape or
-                    not np.allclose(np.unique(RPhiZ_grid[:, 1]), np.unique(np.round(pm_grid.rphiz_inner[:, 1], 8)))):
-                raise ValueError(
-                    'For a set of cylindrical bricks in a cylindrical '
-                    'coordinate system, need the plasma surface and the '
-                    'inner/outer toroidal surfaces to have exactly the same '
-                    'values of the toroidal angle, phi.'
-                )
-            dipole_rphiz_grid = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-                contig(normal_inner), 
-                contig(normal_outer),
-                contig(RPhiZ_grid), 
-                contig(pm_grid.rphiz_inner), 
-                contig(pm_grid.rphiz_outer)
-            )
-            inds = np.ravel(np.logical_not(np.all(dipole_rphiz_grid == 0.0, axis=-1)))
-            dipole_rphiz_grid = dipole_rphiz_grid[inds, :]
-            pm_grid.ndipoles = dipole_rphiz_grid.shape[0]
-            pm_grid.pm_phi = dipole_rphiz_grid[:, 1]
-            cell_vol = dipole_rphiz_grid[:, 0] * pm_grid.dr * pm_grid.dz * 2 * np.pi / (pm_grid.nphi * pm_grid.plasma_boundary.nfp * 2)
-            pm_grid.dipole_grid_xyz = np.zeros(dipole_rphiz_grid.shape)
-            pm_grid.dipole_grid_xyz[:, 0] = dipole_rphiz_grid[:, 0] * np.cos(dipole_rphiz_grid[:, 1])
-            pm_grid.dipole_grid_xyz[:, 1] = dipole_rphiz_grid[:, 0] * np.sin(dipole_rphiz_grid[:, 1])
-            pm_grid.dipole_grid_xyz[:, 2] = dipole_rphiz_grid[:, 2]
-            pointsToVTK('dipole_grid',
-                        contig(pm_grid.dipole_grid_xyz[:, 0]),
-                        contig(pm_grid.dipole_grid_xyz[:, 1]),
-                        contig(pm_grid.dipole_grid_xyz[:, 2]))
-            # define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces only returns the inds to chop at
-            # so need to loop through and chop the grid now
-            # inds = np.array(inds, dtype=int)
-            # for i in reversed(range(1, len(inds))):
-            #     for j in range(0, i):
-            #         inds[i] += inds[j]
-            # pm_grid.inds = inds
-            # pm_grid.ndipoles = inds[-1]
-            # final_grid = []
-            # for i in range(temp_grid.shape[0]):
-            #     if not np.allclose(temp_grid[i, :], 0.0):
-            #         final_grid.append(temp_grid[i, :])
-            # pm_grid.final_grid = np.array(final_grid)
-            # cell_vol = pm_grid.final_grid[:, 0] * pm_grid.dr * pm_grid.dz * 2 * np.pi / (pm_grid.nphi * pm_grid.plasma_boundary.nfp * 2)
-            # # alternatively, weight things roughly by the minor radius
-            # # cell_vol = np.sqrt((dipole_grid_r - self.plasma_boundary.get_rc(0, 0)) ** 2 + dipole_grid_z ** 2) * self.dr * self.dz * 2 * np.pi / (self.nphi * self.plasma_boundary.nfp * 2)
-            # pm_grid.dipole_grid_xyz = np.zeros(pm_grid.final_grid.shape)
-            # pm_grid.dipole_grid_xyz[:, 0] = pm_grid.final_grid[:, 0] * np.cos(pm_grid.final_grid[:, 1])
-            # pm_grid.dipole_grid_xyz[:, 1] = pm_grid.final_grid[:, 0] * np.sin(pm_grid.final_grid[:, 1])
-            # pm_grid.dipole_grid_xyz[:, 2] = pm_grid.final_grid[:, 2]
-            # pm_grid.pm_phi = pm_grid.final_grid[:, 1]
+            cell_vol = np.sqrt(pm_grid.dipole_grid_xyz[:, 0] ** 2 + pm_grid.dipole_grid_xyz[:, 1] ** 2) * pm_grid.dr * pm_grid.dz * 2 * np.pi / (pm_grid.nphi * pm_grid.plasma_boundary.nfp * 2)
         else:
-            # If some other coordinate_flag, use a retangular Cartesian grid
-            pm_grid._setup_uniform_grid()
-            pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-                contig(normal_inner), 
-                contig(normal_outer), 
-                contig(pm_grid.xyz_uniform), 
-                contig(pm_grid.xyz_inner), 
-                contig(pm_grid.xyz_outer))
-            inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
-            pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
-            pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
-            pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
-            cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles) 
-            pointsToVTK('dipole_grid',
-                        contig(pm_grid.dipole_grid_xyz[:, 0]),
-                        contig(pm_grid.dipole_grid_xyz[:, 1]),
-                        contig(pm_grid.dipole_grid_xyz[:, 2]))
+            cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles)     
+        pointsToVTK('dipole_grid',
+                    contig(pm_grid.dipole_grid_xyz[:, 0]),
+                    contig(pm_grid.dipole_grid_xyz[:, 1]),
+                    contig(pm_grid.dipole_grid_xyz[:, 2]))
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -503,7 +432,8 @@ class PermanentMagnetGrid:
             self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym),
             np.ascontiguousarray(self.b_obj),
             self.coordinate_flag,  # cartesian, cylindrical, or simple toroidal
-            self.R0)
+            self.R0
+        )
 
         # Rescale the A matrix so that 0.5 * ||Am - b||^2 = f_b,
         # where f_b is the metric for Bnormal on the plasma surface

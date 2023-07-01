@@ -64,7 +64,6 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("dipole_field_dB", &dipole_field_dB);
     m.def("dipole_field_dA" , &dipole_field_dA);
     m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
-    m.def("define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces" , &define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces);
     m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
 
     // Permanent magnet optimization algorithms have many default arguments
