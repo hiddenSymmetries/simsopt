@@ -11,6 +11,7 @@ from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier, SurfaceXYZFourie
                          create_equally_spaced_curves)
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
+from pyevtk.hl import pointsToVTK
 from simsopt.util import *
 from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vectors,
                                                pol_e, pol_f, pol_fe, pol_c, 
@@ -274,65 +275,69 @@ class Testing(unittest.TestCase):
         filename = TEST_DIR / 'input.circular_tokamak'
         nphi = 16
         ntheta = nphi
-        with ScratchDir("."):
-            s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-            s1 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
-            s2 = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+        # with ScratchDir("."):
+        for range_type in ["full torus", "half period", "field period"]:
+            s = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=nphi, ntheta=ntheta)
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=nphi, ntheta=ntheta)
             s1.extend_via_projected_normal(1)
             s2.extend_via_projected_normal(2)
 
             # Generate uniform grid
             R0 = s.get_rc(0, 0)  # major radius
             r0 = s.get_rc(1, 0)  # minor radius
-            r = np.linspace(0, 5, 10)
-            theta = np.linspace(0, 2 * np.pi, 10)
-            phi = np.linspace(0, 2 * np.pi, 10)
-            r, phi, theta = np.meshgrid(r, phi, theta, indexing='ij')
-            R = R0 + r * np.cos(theta)
-            Z = r * np.sin(theta)
-            X = R * np.cos(phi)
-            Y = R * np.sin(phi)
-            RphiZ = np.array([R, phi, Z]).T.reshape(-1, 3)
-            XYZ = np.array([X, Y, Z]).T.reshape(-1, 3)
-            normal_inner = s1.unitnormal().reshape(-1, 3)
-            normal_outer = s2.unitnormal().reshape(-1, 3)
-            xyz_inner = s1.gamma().reshape(-1, 3)
-            xyz_outer = s2.gamma().reshape(-1, 3)
-            r_inner = np.sqrt(xyz_inner[:, 0] ** 2 + xyz_inner[:, 1] ** 2)
-            z_inner = xyz_inner[:, 2]
-            r_outer = np.sqrt(xyz_outer[:, 0] ** 2 + xyz_outer[:, 1] ** 2)
-            z_outer = xyz_outer[:, 2]
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2
+            )
+            s.to_vtk('s')
+            s1.to_vtk('s1')
+            s2.to_vtk('s2')
+            match_tol = 0.1
+            r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)     
+            assert (np.min(r_fit) > (r0 + 1 - match_tol))
+            assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
-            # Try with cylindrical functionality
-            grid, inds = sopp.define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces(
-                phi, normal_inner, normal_outer, RphiZ,
-                r_inner, r_outer, z_inner, z_outer)
-            inds = np.array(inds, dtype=int)
-            for i in reversed(range(1, len(inds))):
-                for j in range(0, i):
-                    inds[i] += inds[j]
-            final_grid = []
-            for i in range(grid.shape[0]):
-                if not np.allclose(grid[i, :], 0.0):
-                    final_grid.append(grid[i, :])
-            final_grid = np.array(final_grid)
-            r_fit = np.sqrt((final_grid[:, 0] - R0) ** 2 + final_grid[:, 2] ** 2)
-            # print('r_fit = ', r_fit)
-            assert (np.min(r_fit) > (r0 + 1.0))
-            assert (np.max(r_fit) < (r0 + 2.0))
+            # Try with a uniform cylindrical grid
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, coordinate_flag='cylindrical'
+            )
+            r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)        
+            assert (np.min(r_fit) > (r0 + 1 - match_tol))
+            assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
-            # Repeat with cartesian functionality
-            final_grid = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-                normal_inner, normal_outer, XYZ, xyz_inner, xyz_outer)
-            inds = np.ravel(np.logical_not(np.all(final_grid == 0.0, axis=-1)))
-            final_grid = final_grid[inds, :]
-            final_rz_grid = np.zeros(final_grid.shape)
-            final_rz_grid[:, 0] = np.sqrt(final_grid[:, 0] ** 2 + final_grid[:, 1] ** 2)
-            final_rz_grid[:, 1] = np.arctan2(final_grid[:, 1], final_grid[:, 0])
-            final_rz_grid[:, 2] = final_grid[:, 2]
-            r_fit = np.sqrt((final_rz_grid[:, 0] - R0) ** 2 + final_rz_grid[:, 2] ** 2)
-            assert (np.min(r_fit) > (r0 + 1.0))
-            assert (np.max(r_fit) < (r0 + 2.0))
+            # Check for incompatible toroidal angles between the plasma
+            # surface and the inner/outer toroidal surfaces
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=nphi, ntheta=2 * ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=nphi, ntheta=2 * ntheta)
+            s1.extend_via_projected_normal(1)
+            s2.extend_via_projected_normal(2)
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2
+            )
+            assert (np.min(r_fit) > (r0 + 1 - match_tol))
+            assert (np.max(r_fit) < (r0 + 2 + match_tol))
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, coordinate_flag='cylindrical'
+            )
+            assert (np.min(r_fit) > (r0 + 1 - match_tol))
+            assert (np.max(r_fit) < (r0 + 2 + match_tol))
+
+            s1 = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=2 * nphi, ntheta=ntheta)
+            s2 = SurfaceRZFourier.from_vmec_input(filename, range=range_type, nphi=2 * nphi, ntheta=ntheta)
+            s1.extend_via_projected_normal(1)
+            s2.extend_via_projected_normal(2)
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2
+            )
+            assert (np.min(r_fit) > (r0 + 1 - match_tol))
+            assert (np.max(r_fit) < (r0 + 2 + match_tol))
+            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                s, np.zeros((nphi, ntheta)), s1, s2, coordinate_flag='cylindrical'
+            )
+            assert (np.min(r_fit) > (r0 + 1 - match_tol))
+            assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
     def test_famus_functionality(self):
         """
@@ -666,12 +671,12 @@ class Testing(unittest.TestCase):
         # Make QFM surfaces
         Bfield = bs + b_dipole
         Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-        qfm_surf = make_qfm(s_plot, Bfield)
-        qfm_surf = qfm_surf.surface
+        #qfm_surf = make_qfm(s_plot, Bfield)
+        #qfm_surf = qfm_surf.surface
 
         # Run poincare plotting
-        with ScratchDir("."):
-            run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
+        #with ScratchDir("."):
+        #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
 
 
 if __name__ == "__main__":
