@@ -1,6 +1,7 @@
 #include "boozerradialinterpolant.h"
 #include <math.h>
 #include "xtensor-python/pyarray.hpp"
+#include <omp.h>
 typedef xt::pyarray<double> Array;
 #include <xtensor/xview.hpp>
 
@@ -215,4 +216,14 @@ void inverse_fourier_transform_even(Array& K, Array& kmns, Array& xm, Array& xn,
         }
       }
     }
+}
+
+int omp_num_threads() {
+   int num;
+   #pragma omp parallel
+  {
+	#pragma omp single
+	num = omp_get_num_threads();
+  }
+  return num;
 }

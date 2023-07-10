@@ -1,9 +1,11 @@
 import simsoptpp as sopp
+import concurrent.futures
 from scipy.interpolate import InterpolatedUnivariateSpline
 import numpy as np
 import logging
 from booz_xform import Booz_xform
 from .._core.util import parallel_loop_bounds
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -357,13 +359,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
          verbose: If True, additional output is written.
     """
 
-    def __init__(self, equil, order, mpol=32, ntor=32, N=None,
-                 enforce_vacuum=False, rescale=False, ns_delete=0, no_K=False,
-                 write_boozmn=True, boozmn_name="boozmn.nc", mpi=None,verbose=0,no_shear=False):
+    def __init__(self, equil, order, mpol=32, ntor=32, N=None, enforce_vacuum=False,
+                 rescale=False, ns_delete=0, no_K=False, write_boozmn=True, mpi=None,
+                 boozmn_name="boozmn.nc", verbose=0, no_shear=False, num_chunks=5):
         if (mpi is None and not isinstance(equil, Booz_xform)):
             self.mpi = equil.mpi
         else:
             self.mpi = mpi
+
+        self.threads = sopp.omp_num_threads()
+        self.executor = concurrent.futures.ThreadPoolExecutor(self.threads)
 
         if self.mpi is not None:
             self.proc0 = False
@@ -406,7 +411,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                         if self.proc0:
                             booz.bx.write_boozmn(boozmn_name)
                 self.bx = booz.bx
-        elif (isinstance(equil,Booz_xform)):
+        elif (isinstance(equil, Booz_xform)):
             if self.proc0:
                 self.bx = equil
         else:
@@ -417,6 +422,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         self.enforce_qs = False
         self.enforce_vacuum = enforce_vacuum
         self.no_K = no_K
+        self.num_chunks = num_chunks
         if (self.enforce_vacuum):
             self.no_K = True
         self.ns_delete = ns_delete
@@ -820,365 +826,452 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.kmnc_splines = self.mpi.comm_world.bcast(self.kmnc_splines, root=0)
 
     def _K_impl(self, K):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
         K[:, 0] = 0.
         if self.no_K:
             return
-        kmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            kmns[im, :] = self.kmns_splines[im](s)/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_odd(K[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            kmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                kmnc[im, :] = self.kmnc_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(K[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
+
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.kmns_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(K[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.kmnc_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(K[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dKdtheta_impl(self, dKdtheta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
         dKdtheta[:, 0] = 0.
         if self.no_K:
             return
-        kmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            kmns[im, :] = self.kmns_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdtheta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            kmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                kmnc[im, :] = -self.kmnc_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dKdtheta[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
+
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.kmns_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dKdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return -self.kmnc_splines[im](s) * self.xm_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dKdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dKdzeta_impl(self, dKdzeta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
         dKdzeta[:, 0] = 0.
-        if (self.no_K):
+        if self.no_K:
             return
-        kmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            kmns[im, :] = -self.kmns_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
-        sopp.inverse_fourier_transform_even(dKdzeta[:, 0], kmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            kmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                kmnc[im, :] = self.kmnc_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dKdzeta[:, 0], kmnc, self.xm_b, self.xn_b, thetas, zetas)
+
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return -self.kmns_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dKdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.kmnc_splines[im](s) * self.xn_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dKdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _nu_impl(self, nu):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            numns[im, :] = self.numns_splines[im](s)/self.mn_factor_splines[im](s)
         nu[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(nu[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            numnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                numnc[im, :] = self.numnc_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(nu[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.numns_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(nu[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.numnc_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(nu[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dnudtheta_impl(self, dnudtheta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            numns[im, :] = self.numns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dnudtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudtheta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            numnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                numnc[im, :] = -self.numnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dnudtheta[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.numns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dnudtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return -self.numnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dnudtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dnudzeta_impl(self, dnudzeta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            numns[im, :] = -self.numns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dnudzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dnudzeta[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            numnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                numnc[im, :] = self.numnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dnudzeta[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return -self.numns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dnudzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.numnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dnudzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dnuds_impl(self, dnuds):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        numns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
+        dnuds[:, 0] = 0.
+        @self.iterate_and_invert
+        def _harmonics(im, s):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             mn_factor = self.mn_factor_splines[im](s)
-            numns[im, :] = ((self.dnumnsds_splines[im](s) - self.numns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-        dnuds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dnuds[:, 0], numns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            numnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
+            return ((self.dnumnsds_splines[im](s) - self.numns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(dnuds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 mn_factor = self.mn_factor_splines[im](s)
-                numnc[im, :] = ((self.dnumncds_splines[im](s) - self.numnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_even(dnuds[:, 0], numnc, self.xm_b, self.xn_b, thetas, zetas)
+                return ((self.dnumncds_splines[im](s) - self.numnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(dnuds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dRdtheta_impl(self, dRdtheta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            rmnc[im, :] = -self.rmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dRdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdtheta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            rmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                rmns[im, :] = self.rmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dRdtheta[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return -self.rmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(dRdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.rmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(dRdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dRdzeta_impl(self, dRdzeta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            rmnc[im, :] = self.rmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dRdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dRdzeta[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            rmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                rmns[im, :] = -self.rmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dRdzeta[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.rmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(dRdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return -self.rmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(dRdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dRds_impl(self, dRds):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
+        dRds[:, 0] = 0.
+        @self.iterate_and_invert
+        def _harmonics(im, s):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             mn_factor = self.mn_factor_splines[im](s)
-            rmnc[im, :] = ((self.drmncds_splines[im](s) - self.rmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-        dRds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dRds[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            rmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
+            return ((self.drmncds_splines[im](s) - self.rmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dRds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 mn_factor = self.mn_factor_splines[im](s)
-                rmns[im, :] = ((self.drmnsds_splines[im](s) - self.rmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_odd(dRds[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+                return ((self.drmnsds_splines[im](s) - self.rmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dRds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _R_impl(self, R):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        rmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            rmnc[im, :] = self.rmnc_splines[im](s)/self.mn_factor_splines[im](s)
         R[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(R[:, 0], rmnc, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            rmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                rmns[im, :] = self.rmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(R[:, 0], rmns, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.rmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(R[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.rmns_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(R[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dZdtheta_impl(self, dZdtheta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            zmns[im, :] = self.zmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
         dZdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdtheta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            zmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                zmnc[im, :] = -self.zmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dZdtheta[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.zmns_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dZdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return -self.zmnc_splines[im](s)*self.xm_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dZdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dZdzeta_impl(self, dZdzeta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            zmns[im, :] = -self.zmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
         dZdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dZdzeta[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            zmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                zmnc[im, :] = self.zmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(dZdzeta[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return -self.zmns_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dZdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.zmnc_splines[im](s)*self.xn_b[im]/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dZdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dZds_impl(self, dZds):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
+        dZds[:, 0] = 0.
+        @self.iterate_and_invert
+        def _harmonics(im, s):
             d_mn_factor = self.d_mn_factor_splines[im](s)
             mn_factor = self.mn_factor_splines[im](s)
-            zmns[im, :] = ((self.dzmnsds_splines[im](s) - self.zmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-        dZds[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dZds[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            zmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
+            return ((self.dzmnsds_splines[im](s) - self.zmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(dZds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
                 d_mn_factor = self.d_mn_factor_splines[im](s)
                 mn_factor = self.mn_factor_splines[im](s)
-                zmnc[im, :] = ((self.dzmncds_splines[im](s) - self.zmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_even(dZds[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+                return ((self.dzmncds_splines[im](s) - self.zmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(dZds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _Z_impl(self, Z):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        zmns = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            zmns[im, :] = self.zmns_splines[im](s)/self.mn_factor_splines[im](s)
         Z[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(Z[:, 0], zmns, self.xm_b, self.xn_b, thetas, zetas)
-        if self.asym:
-            zmnc = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                zmnc[im, :] = self.zmnc_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(Z[:, 0], zmnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.zmns_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(Z[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.zmnc_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(Z[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _psip_impl(self, psip):
         points = self.get_points_ref()
         s = points[:, 0]
-        psip[:] = self.psip_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        psip[:] = self.psip_spline(us)[inv][:, None]
 
     def _G_impl(self, G):
         points = self.get_points_ref()
         s = points[:, 0]
-        G[:] = self.G_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        G[:] = self.G_spline(us)[inv][:, None]
 
     def _I_impl(self, I):
         points = self.get_points_ref()
         s = points[:, 0]
-        I[:] = self.I_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        I[:] = self.I_spline(us)[inv][:, None]
 
     def _iota_impl(self, iota):
         points = self.get_points_ref()
         s = points[:, 0]
-        iota[:] = self.iota_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        iota[:] = self.iota_spline(us)[inv][:, None]
 
     def _dGds_impl(self, dGds):
         points = self.get_points_ref()
         s = points[:, 0]
-        dGds[:] = self.dGds_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        dGds[:] = self.dGds_spline(us)[inv][:, None]
 
     def _dIds_impl(self, dIds):
         points = self.get_points_ref()
         s = points[:, 0]
-        dIds[:] = self.dIds_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        dIds[:] = self.dIds_spline(us)[inv][:, None]
 
     def _diotads_impl(self, diotads):
         points = self.get_points_ref()
         s = points[:, 0]
-        diotads[:] = self.diotads_spline(s)[:, None]
+        us, inv = np.unique(s, return_inverse=True)
+        diotads[:] = self.diotads_spline(us)[inv][:, None]
 
     def _modB_impl(self, modB):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            bmnc[im, :] = self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         modB[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(modB[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(modB[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
         if (self.asym):
-            bmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                bmns[im, :] = self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_odd(modB[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(modB[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dmodBdtheta_impl(self, dmodBdtheta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            bmnc[im, :] = -self.xm_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         dmodBdtheta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdtheta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return -self.xm_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(dmodBdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
         if (self.asym):
-            bmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                bmns[im, :] = self.xm_b[im]*self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dmodBdtheta[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return self.xm_b[im]*self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(dmodBdtheta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dmodBdzeta_impl(self, dmodBdzeta):
-        points = self.get_points_ref()
-        s = points[:, 0]
-        thetas = points[:, 1]
-        zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            bmnc[im, :] = self.xn_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
         dmodBdzeta[:, 0] = 0.
-        sopp.inverse_fourier_transform_odd(dmodBdzeta[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            return self.xn_b[im]*self.bmnc_splines[im](s)/self.mn_factor_splines[im](s)
+        inverse_fourier = sopp.inverse_fourier_transform_odd
+
+        self._compute_impl(dmodBdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
         if (self.asym):
-            bmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                bmns[im, :] = -self.xn_b[im]*self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
-            sopp.inverse_fourier_transform_even(dmodBdzeta[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                return -self.xn_b[im]*self.bmns_splines[im](s)/self.mn_factor_splines[im](s)
+            inverse_fourier = sopp.inverse_fourier_transform_even
+
+            self._compute_impl(dmodBdzeta[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
 
     def _dmodBds_impl(self, dmodBds):
+        dmodBds[:, 0] = 0.
+        @self.iterate_and_invert
+        def _harmonics(im, s):
+            mn_factor = self.mn_factor_splines[im](s)
+            d_mn_factor = self.d_mn_factor_splines[im](s)
+            return ((self.dbmncds_splines[im](s) - self.bmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+        inverse_fourier = sopp.inverse_fourier_transform_even
+
+        self._compute_impl(dmodBds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+        if (self.asym):
+            @self.iterate_and_invert
+            def _harmonics(im, s):
+                mn_factor = self.mn_factor_splines[im](s)
+                d_mn_factor = self.d_mn_factor_splines[im](s)
+                return ((self.dbmnsds_splines[im](s) - self.bmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
+            inverse_fourier = sopp.inverse_fourier_transform_odd
+
+            self._compute_impl(dmodBds[:, 0], _harmonics, inverse_fourier, num_chunks=self.num_chunks)
+
+    def _compute_impl(self, output, harmonics, inverse_fourier, num_chunks):
         points = self.get_points_ref()
         s = points[:, 0]
         thetas = points[:, 1]
         zetas = points[:, 2]
-        bmnc = np.zeros((len(self.xm_b), len(s)))
-        for im in range(len(self.xm_b)):
-            mn_factor = self.mn_factor_splines[im](s)
-            d_mn_factor = self.d_mn_factor_splines[im](s)
-            bmnc[im, :] = ((self.dbmncds_splines[im](s) - self.bmnc_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-        dmodBds[:, 0] = 0.
-        sopp.inverse_fourier_transform_even(dmodBds[:, 0], bmnc, self.xm_b, self.xn_b, thetas, zetas)
-        if (self.asym):
-            bmns = np.zeros((len(self.xm_b), len(s)))
-            for im in range(len(self.xm_b)):
-                mn_factor = self.mn_factor_splines[im](s)
-                d_mn_factor = self.d_mn_factor_splines[im](s)
-                bmns[im, :] = ((self.dbmnsds_splines[im](s) - self.bmns_splines[im](s)*d_mn_factor/mn_factor)/mn_factor)
-            sopp.inverse_fourier_transform_odd(dmodBds[:, 0], bmns, self.xm_b, self.xn_b, thetas, zetas)
+        us, inv = np.unique(s, return_inverse=True)
+
+        if (self.mpi is not None):
+            size = self.mpi.comm_world.size
+            rank = self.mpi.comm_world.rank
+
+            s_idxs = np.array([i * len(s) // size for i in range(size + 1)])
+            first_s, last_s = s_idxs[rank], s_idxs[rank + 1]
+
+            # mpi vector communication buffer arguments specified as [data, count, displ, datatype]
+            count_s = s_idxs[1:] - s_idxs[:-1]
+            displ_s = s_idxs[:-1]
+
+            inv = inv[first_s:last_s]
+            thetas = thetas[first_s:last_s]
+            zetas = zetas[first_s:last_s]
+            contiguous = output.flags['C_CONTIGUOUS']
+            if contiguous:
+                recv_buffer, output = output, output[first_s:last_s]
+            else:
+                output_buffer, recv_buffer = output, np.zeros(len(s))
+                output = recv_buffer[first_s:last_s]
+        else:
+            first_s, last_s = 0, len(s)
+
+        chunk_idxs = [i * len(self.xm_b) // num_chunks for i in range(num_chunks + 1)]
+        chunk_mn = np.empty((int(np.ceil(len(self.xm_b) / num_chunks)), last_s - first_s))
+        for i in range(num_chunks):
+            st, ed = chunk_idxs[i], chunk_idxs[i + 1]
+
+            xm_idxs = [i * (ed - st) // self.threads for i in range(self.threads + 1)]
+            futures = {
+                self.executor.submit(harmonics, us, chunk_mn, inv, xm_idxs[i], xm_idxs[i + 1], st): i
+                for i in range(self.threads)
+            }
+            concurrent.futures.wait(futures)
+
+            inverse_fourier(output, chunk_mn[:ed - st], self.xm_b[st:ed], self.xn_b[st:ed], thetas, zetas)
+
+        if (self.mpi is not None):
+            self.mpi.comm_world.Allgatherv(output, [recv_buffer, count_s, displ_s, MPI.DOUBLE])
+            if not contiguous:
+                output_buffer[:] = recv_buffer 
+
+    def iterate_and_invert(self, func):
+
+        def _f(us, output, inv, start, end, offset):
+            for im in range(start, end):
+                output[im, :] = func(im + offset, us)[inv]
+
+        return _f
+
 
 class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField):
     r"""
@@ -1187,7 +1280,7 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
     be evaluated very quickly. This is modeled after :class:`InterpolatedField`.
     """
 
-    def __init__(self, field, degree, srange, thetarange, zetarange, extrapolate=True, nfp=1, stellsym=True):
+    def __init__(self, field, degree, srange, thetarange, zetarange, extrapolate=True, nfp=1, stellsym=True, initialize=[]):
         r"""
         Args:
             field: the underlying :class:`simsopt.field.boozermagneticfield.BoozerMagneticField` to be interpolated.
@@ -1219,3 +1312,7 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             logger.warning(fr"Sure about zetarange=[{zetarange[0]},{zetarange[1]}]? When exploiting rotational symmetry, the interpolant is only evaluated for zeta in [0,2\pi/nfp].")
 
         sopp.InterpolatedBoozerField.__init__(self, field, degree, srange, thetarange, zetarange, extrapolate, nfp, stellsym)
+
+        if initialize:
+            for item in initialize:
+                getattr(self, item)()

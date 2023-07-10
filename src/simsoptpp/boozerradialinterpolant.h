@@ -13,3 +13,4 @@ Array compute_kmnc_kmns(Array& rmnc, Array& drmncds, Array& zmns, Array& dzmnsds
     Array& rmns, Array& drmnsds, Array& zmnc, Array& dzmncds,\
     Array& numnc, Array& dnumncds, Array& bmns,\
     double iota, double G, double I, Array& xm, Array& xn, Array& thetas, Array& zetas);
+int omp_num_threads();
