@@ -189,6 +189,7 @@ class Boozer(Optimizable):
             assert len(self.bx.xm_nyq) == self.bx.mnmax_nyq
             assert len(self.bx.xn_nyq) == self.bx.mnmax_nyq
 
+            self.bx.phi = wout.phi 
             if wout.lasym:
                 rmns = wout.rmns
                 zmnc = wout.zmnc
@@ -211,8 +212,6 @@ class Boozer(Optimizable):
             # interpolation and discarding the rows of zeros:
             self.bx.init_from_vmec(wout.ns,
                                    wout.iotas,
-                                   wout.phi,
-                                   wout.chi,
                                    wout.rmnc,
                                    rmns,
                                    zmnc,
@@ -224,7 +223,8 @@ class Boozer(Optimizable):
                                    wout.bsubumnc,
                                    bsubumns,
                                    wout.bsubvmnc,
-                                   bsubvmns)
+                                   bsubvmns,
+                                   wout.chi)
             self.bx.compute_surfs = compute_surfs
             self.bx.mboz = self.mpol
             self.bx.nboz = self.ntor

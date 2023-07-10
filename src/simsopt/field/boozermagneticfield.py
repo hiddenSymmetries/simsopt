@@ -376,7 +376,6 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.proc0 = True
         else:
             self.proc0 = True
-
         if isinstance(equil, Vmec):
             if self.proc0:
                 equil.run()
@@ -398,10 +397,10 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 if len(booz.bx.s_b) == 0:
                     booz.register(booz.equil.s_half_grid)
                 # Grid does not have correct size
-                elif (len(booz.bx.s_b) != len(booz.bx.s_b)):
+                elif (len(booz.bx.s_b) != len(booz.equil.s_half_grid)):
                     booz.register(booz.equil.s_half_grid)
                 # Grid does not match Vmec half grid
-                elif (np.any(booz.bx.s_b != booz.bx.s_b)):
+                elif (np.any(booz.bx.s_b != booz.equil.s_half_grid)):
                     booz.register(booz.equil.s_half_grid)
 
                 # Run booz_xform if needed
