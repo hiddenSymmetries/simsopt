@@ -1239,7 +1239,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             if contiguous:
                 recv_buffer, output = output, output[first_s:last_s]
             else:
-                output_buffer, recv_buffer = output, np.zeros(len(s))
+                output_buffer, recv_buffer = output, np.ascontiguousarray(output, dtype=np.float64)
                 output = recv_buffer[first_s:last_s]
         else:
             first_s, last_s = 0, len(s)
@@ -1261,7 +1261,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         if (self.mpi is not None):
             self.mpi.comm_world.Allgatherv(output, [recv_buffer, count_s, displ_s, MPI.DOUBLE])
             if not contiguous:
-                output_buffer[:] = recv_buffer 
+                output_buffer[:] = recv_buffer
 
     def iterate_and_invert(self, func):
 
