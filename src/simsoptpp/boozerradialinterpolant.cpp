@@ -64,9 +64,12 @@ Array compute_kmnc_kmns(Array& rmnc, Array& drmncds, Array& zmns, Array& dzmnsds
         for (int im=0; im < num_modes; ++im) {
           double angle = xm(im)*thetas(ip)-xn(im)*zetas(ip);
           if (im > 0) {
+	    #pragma omp atomic update
             kmnc_kmns(1,im) = kmnc_kmns(1,im) + K*sin(angle)/(2.*M_PI*M_PI);
+	    #pragma omp atomic update
             kmnc_kmns(0,im) = kmnc_kmns(0,im) + K*cos(angle)/(2.*M_PI*M_PI);
           } else {
+	    #pragma omp atomic update
             kmnc_kmns(0,im) = kmnc_kmns(0,im) + K*cos(angle)/(4.*M_PI*M_PI);
           }
         }
@@ -128,6 +131,7 @@ Array compute_kmns(Array& rmnc, Array& drmncds, Array& zmns, Array& dzmnsds,\
         double K = (gszeta + iota*gstheta)/sqrtg;
 
         for (int im=1; im < num_modes; ++im) {
+	    #pragma omp atomic update
             kmns(im) = kmns(im) + K*sin(xm(im)*thetas(ip)-xn(im)*zetas(ip))/(2.*M_PI*M_PI);
         }
     }
