@@ -28,7 +28,7 @@ def copy_numpy_dict(d):
     return res
 
 
-class Derivative():
+class Derivative:
 
     """
     This class stores the derivative of a scalar output wrt to the individual
@@ -81,7 +81,7 @@ class Derivative():
             inB: dobj/dinter2 * dinter2/dinB
         }
 
-    respectively. Due to the overloaded ``__add__`` and ``__iadd__`` functions adding the ``Derivative`` objects than results in the desired
+    respectively. Due to the overloaded ``__add__`` and ``__iadd__`` functions adding the ``Derivative`` objects then results in the desired
 
     .. code-block::
 
@@ -167,7 +167,7 @@ class Derivative():
             x[k] *= other
         return Derivative(x)
 
-    def __call__(self, optim):
+    def __call__(self, optim, as_derivative=False):
         """
         Get the derivative with respect to all DOFs that ``optim`` depends on.
 
@@ -176,12 +176,20 @@ class Derivative():
         """
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
-        deps = optim.ancestors + [optim]
         derivs = []
-        for k in deps:
+        keys = []
+        for k in optim.unique_dof_lineage:
             if np.any(k.dofs_free_status):
-                derivs.append(self.data[k][k.local_dofs_free_status])
-        return np.concatenate(derivs)
+                local_derivs = np.zeros(k.local_dof_size)
+                for opt in k.dofs.dep_opts():
+                    local_derivs += self.data[opt][opt.local_dofs_free_status]
+                    keys.append(opt)
+                derivs.append(local_derivs)
+
+        if as_derivative:
+            return Derivative({k: d for k, d in zip(keys, derivs)})
+        else:
+            return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
     def __radd__(self, other):

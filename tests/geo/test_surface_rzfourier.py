@@ -2,10 +2,13 @@ import unittest
 from pathlib import Path
 import json
 
+from qsc import Qsc
 import numpy as np
-from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
+from monty.tempfile import ScratchDir
 
+from simsopt import save, load
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
+from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
@@ -53,6 +56,24 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(s.zs.shape, (2, 7))
         self.assertEqual(s.rs.shape, (2, 7))
         self.assertEqual(s.zc.shape, (2, 7))
+
+    def test_shared_dof_init(self):
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        s.local_full_x = s.get_dofs()
+
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
+            ntheta=31, nphi=30, range='field period')
+        s2 = SurfaceRZFourier(quadpoints_phi=quadpoints_phi,
+                              quadpoints_theta=quadpoints_theta,
+                              dofs=s.dofs)
+        self.assertIs(s.dofs, s2.dofs)
+        true_area = 15.827322032265993
+        true_volume = 2.0528777154265874
+        self.assertAlmostEqual(s2.area(), true_area, places=4)
+        self.assertAlmostEqual(s2.volume(), true_volume, places=3)
 
     def test_area_volume(self):
         """
@@ -256,8 +277,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # be shifted by the hiddenSymmetries VMEC2000 module.  For any
         # input file and version of VMEC, we can compare
         # coordinate-independent properties like the volume and area.
-        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()),
-                               places=13)
+        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
         self.assertAlmostEqual(s1.area(), s2.area(), places=7)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
@@ -265,14 +285,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_get_and_write_nml(self):
         """
@@ -284,8 +300,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         new_filename = 'boundary.li383_low_res'
-        s1.write_nml(new_filename)
-        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        with ScratchDir("."):
+            s1.write_nml(new_filename)
+            s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
         places = 13
@@ -294,19 +311,18 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
 
         # Try a non-stellarator-symmetric case
         filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         nml_str = s1.get_nml()  # This time, cover the case in which a string is returned
-        new_filename = 'boundary'
-        with open(new_filename, 'w') as f:
-            f.write(nml_str)
-        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        with ScratchDir("."):
+            new_filename = 'boundary'
+            with open(new_filename, 'w') as f:
+                f.write(nml_str)
+            s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
         places = 13
@@ -315,14 +331,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_from_focus(self):
         """
@@ -360,6 +372,56 @@ class SurfaceRZFourierTests(unittest.TestCase):
         #    true_volume, ", difference:", volume - true_volume)
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
+
+    def test_from_pyQSC(self):
+        """
+        Try reading in a near-axis pyQSC equilibrium.
+        """
+        stel = Qsc.from_paper(1)
+        filename = TEST_DIR / 'input.near_axis_test'
+
+        ntheta = 20
+        mpol = 10
+        ntor = 10
+        r = 0.1
+
+        stel.to_vmec(filename, r=r, ntheta=ntheta, ntorMax=ntor, params={'mpol': mpol, 'ntor': ntor})
+
+        s1 = SurfaceRZFourier.from_pyQSC(stel, r=r, ntheta=ntheta, ntor=ntor, mpol=mpol)
+        s2 = SurfaceRZFourier.from_vmec_input(filename)
+
+        np.testing.assert_allclose(s1.rc, s2.rc)
+        np.testing.assert_allclose(s1.zs, s2.zs)
+        np.testing.assert_allclose(s1.nfp, s2.nfp)
+        np.testing.assert_allclose(s1.stellsym, s2.stellsym)
+        np.testing.assert_allclose(s1.area(), s2.area())
+        np.testing.assert_allclose(s1.volume(), s2.volume())
+
+        # test possible bug due to memory leak
+        # stell sym
+        from simsopt.configs import get_ncsx_data
+        _, _, ma = get_ncsx_data()
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), nfp=3, etabar=-0.408)
+        phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_period.x = full_torus.x
+
+        np.testing.assert_allclose(full_torus.rc, full_period.rc)
+        np.testing.assert_allclose(full_torus.zs, full_period.zs)
+
+        np.random.seed(1)
+        # non stell sym for code coverage
+        qsc = Qsc(ma.rc, np.insert(ma.zs, 0, 0), rs=np.random.rand(5)*1e-7, zc=np.random.rand(5)*1e-7, nfp=3, etabar=-0.408)
+        phis = np.linspace(0, 1/qsc.nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        full_torus = SurfaceRZFourier.from_pyQSC(qsc, r=0.1, ntheta=100, mpol=6, ntor=6)
+        full_period = SurfaceRZFourier(mpol=full_torus.mpol, ntor=full_torus.ntor, stellsym=full_torus.stellsym, nfp=full_torus.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        full_period.x = full_torus.x
+
+        np.testing.assert_allclose(full_torus.rc, full_period.rc)
+        np.testing.assert_allclose(full_torus.zs, full_period.zs)
 
     def test_change_resolution(self):
         """
@@ -582,6 +644,34 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
+
+    def test_shared_dof_serialization(self):
+        import tempfile
+        from pathlib import Path
+
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        s.local_full_x = s.get_dofs()
+        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
+            ntheta=31, nphi=30, range='field period')
+        s2 = SurfaceRZFourier(quadpoints_phi=quadpoints_phi,
+                              quadpoints_theta=quadpoints_theta,
+                              dofs=s.dofs)
+
+        self.assertAlmostEqual(s.volume(), s2.volume())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "surf.json"
+            save([s, s2], fpath)
+
+            surf_objs = load(fpath)
+            self.assertAlmostEqual(s.volume(), surf_objs[0].volume())
+            self.assertAlmostEqual(s.area(), surf_objs[0].area())
+            self.assertAlmostEqual(s2.volume(), surf_objs[1].volume())
+            self.assertAlmostEqual(s2.area(), surf_objs[1].area())
+            self.assertIs(surf_objs[0].dofs, surf_objs[1].dofs)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):

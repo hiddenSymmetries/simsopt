@@ -8,7 +8,7 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Union
+from typing import Optional
 from datetime import datetime
 
 import numpy as np
@@ -260,12 +260,13 @@ class Vmec(Optimizable):
     """
 
     def __init__(self,
-                 filename: Union[str, None] = None,
-                 mpi: Union[MpiPartition, None] = None,
+                 filename: Optional[str] = None,
+                 mpi: Optional[MpiPartition] = None,
                  keep_all_files: bool = False,
                  verbose: bool = True,
                  ntheta=50,
-                 nphi=50):
+                 nphi=50,
+                 range_surface='full torus'):
 
         if filename is None:
             # Read default input file, which should be in the same
@@ -344,14 +345,13 @@ class Vmec(Optimizable):
             # object, but the mpol/ntor values of either the vmec object
             # or the boundary surface object can be changed independently
             # by the user.
-            quadpoints_theta = np.linspace(0, 1., ntheta, endpoint=False)
-            quadpoints_phi = np.linspace(0, 1., nphi, endpoint=False)
-            self._boundary = SurfaceRZFourier(nfp=vi.nfp,
-                                              stellsym=not vi.lasym,
-                                              mpol=vi.mpol,
-                                              ntor=vi.ntor,
-                                              quadpoints_theta=quadpoints_theta,
-                                              quadpoints_phi=quadpoints_phi)
+            self._boundary = SurfaceRZFourier.from_nphi_ntheta(nfp=vi.nfp,
+                                                               stellsym=not vi.lasym,
+                                                               mpol=vi.mpol,
+                                                               ntor=vi.ntor,
+                                                               ntheta=ntheta,
+                                                               nphi=nphi,
+                                                               range=range_surface)
             self.free_boundary = bool(vi.lfreeb)
 
             # Transfer boundary shape data from fortran to the ParameterArray:
@@ -367,7 +367,7 @@ class Vmec(Optimizable):
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
+            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta, range=range_surface)
             self.output_file = filename
             self.load_wout()
 
@@ -568,9 +568,20 @@ class Vmec(Optimizable):
         nml += f'NFP = {vi.nfp}\n'
         nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
 
+        if vi.lfreeb:
+            nml += '\n! ---- Free-boundary parameters ----\n'
+            nml += 'LFREEB = T\n'
+            nml += f"MGRID_FILE = '{vi.mgrid_file.decode('utf-8')}'\n"
+            nml += 'EXTCUR = ' + array_to_namelist(vi.extcur)
+            nml += '\n'
+
         nml += '\n! ---- Resolution parameters ----\n'
         nml += f'MPOL = {vi.mpol}\n'
         nml += f'NTOR = {vi.ntor}\n'
+        if vi.ntheta != 0:
+            nml += f'NTHETA = {vi.ntheta}\n'
+        if vi.nzeta != 0:
+            nml += f'NZETA = {vi.nzeta}\n'
         index = np.max(np.nonzero(vi.ns_array))
         nml += f'NS_ARRAY    ='
         for j in range(index + 1):

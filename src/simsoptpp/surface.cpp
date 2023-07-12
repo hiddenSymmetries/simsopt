@@ -139,11 +139,12 @@ void Surface<Array>::extend_via_normal(double scale) {
 }
 
 template<class Array>
-void Surface<Array>::extend_via_projected_normal(const vector<double> phi, double scale) {
+void Surface<Array>::extend_via_projected_normal(double scale) {
     Array target_values_xyz = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     auto gamma = this->gamma();
     auto n = this->normal();
+    auto phi = this->quadpoints_phi;
     // Loop over toroidal angle, calculate rotation matrix
     for (int i = 0; i < numquadpoints_phi; ++i) {
 	double phi_i = 2 * M_PI * phi[i];

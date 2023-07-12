@@ -107,7 +107,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | A Kaptanoglu, R Conlin, and M Landreman,
      "Greedy permanent magnet optimization",
-     *Submitted* (2022).
+     *Nuclear Fusion*, **63**, 036016 (2023).
+     `[journal version] <http://dx.doi.org/10.1088/1741-4326/acb4a9>`__
      `[arXiv version] <https://arxiv.org/pdf/2208.10620>`__
    |
 
@@ -121,5 +122,35 @@ Here is a list of publications in which simsopt results appear:
      "Constructing precisely quasi-isodynamic magnetic fields",
      *Submitted* (2022).
      `[arXiv version] <https://arxiv.org/pdf/2211.09829>`__
+   |
+
+#. | G T Roberg-Clark, G G Plunk, P Xanthopoulos, C Nuhrenberg, S A Henneberg, and H M Smith,
+     "Critical gradient turbulence optimization toward a compact stellarator reactor concept",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2301.06773>`__
+   |
+
+#. | R Jorge, W Dorland, P Kim, M Landreman, N R Mandell, G Merlo, and T Qian,
+     "Direct Microstability Optimization of Stellarator Devices",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2301.09356>`__
+   |
+
+#. | R Gaur, S Buller, M E Ruth, M Landreman, I G Abel, and W D Dorland,
+     "An adjoint-based method for optimizing MHD equilibria against the infinite-n, ideal ballooning mode",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2302.07673>`__
+   |
+
+#. | D Bindel, M Landreman, and M Padidar,
+     "Direct Optimization of Fast-Ion Confinement in Stellarators",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2302.11369>`__
+   |
+
+#. | R Jorge, A Goodman, M Landreman, J Rodrigues, F Wechsung,
+     "Single-Stage Stellarator Optimization: Combining Coils with Fixed Boundary Equilibria",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2302.10622>`__
    |
 

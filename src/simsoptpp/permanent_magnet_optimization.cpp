@@ -323,124 +323,6 @@ std::tuple<Array, Array, Array, Array> MwPGP_algorithm(Array& A_obj, Array& b_ob
     return std::make_tuple(objective_history, R2_history, m_history, x_k1);
 }
 
-// run the binary matching pursuit algorithm for solving the convex part of
-// the permanent magnet optimization problem, using the mutual coherence
-// as the metric to maximize
-// See -- Binary sparse signal recovery with binary matching pursuit -- 
-// A should be rescaled by m_maxima since we are assuming all ones in m.
-// NOTE: we need a slight change to the algorithm! Once we pick an index to
-// set to one, we need to eliminate the other indices from consideration
-// to keep all the dipoles grid-aligned and obeying the maximum strength requirements
-std::tuple<Array, Array, Array, Array> GPMO_MC(Array& A_obj, Array& b_obj, Array& ATb, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory)
-{
-    int ngrid = A_obj.shape(1);
-    int N = int(A_obj.shape(0) / 3);
-    int N3 = 3 * N;
-    int print_iter = 0;
-    int skj_ind;
-
-    Array x = xt::zeros<double>({N, 3});
-
-    // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
-    Array objective_history = xt::zeros<double>({nhistory + 1});
-    Array Bn_history = xt::zeros<double>({nhistory + 1});
-
-    // print out the names of the error columns
-    if (verbose)
-        printf("Iteration ... |Am - b|^2\n");
-
-    // initialize Gamma_complement with all indices available
-    Array Gamma_complement = xt::ones<bool>({N, 3});
-	
-    // initialize least-square values to large numbers    
-    vector<int> skj(K);
-    vector<int> skjj(K);
-    vector<double> sign_fac(K);
-    
-    // initialize running matrix-vector product
-    Array Aij_mj_sum = -b_obj;
-
-    double* Aij_ptr = &(A_obj(0, 0));
-    double* Aij_mj_ptr = &(Aij_mj_sum(0));
-    double* Gamma_ptr = &(Gamma_complement(0, 0));
-    double* uk = &(ATb(0));
-    double* normal_norms_ptr = &(normal_norms(0));
-    double mmax_sum = 0.0;
-    double* mmax_ptr = &(mmax(0));
-    
-    // compute l2_norm(A(:, j)) for each column j 
-    vector<double> Aij_l2(N3);
-#pragma omp parallel for schedule(static) 
-    for(int j = 0; j < N3; ++j) {
-	for(int i = 0; i < ngrid; ++i) {
-	    Aij_l2[j] += sqrt(A_obj(j, i) * A_obj(j, i));
-	}
-    }
-
-    // Main loop over the optimization iterations
-    for (int k = 0; k < K; ++k) {
-
-        vector<double> abs_uk(N3);
-        // See which index increases the mutual coherence the most
-#pragma omp parallel for schedule(static)
-        for (int j = 0; j < N3; ++j) {
-            if (Gamma_ptr[j]) {
-	        abs_uk[j] = abs(uk[j]);
-            }
-	}
-
-        skj[k] = int(std::distance(abs_uk.begin(), std::max_element(abs_uk.begin(), abs_uk.end())));
-
-	// choose the +- sign of the dipole by choosing one that reduces MSE more
-        double R2 = 0.0;
-        double R2minus = 0.0;	
-	int nj = ngrid * skj[k];
-	for(int i = 0; i < ngrid; ++i) {
-	    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]); 
-	    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
-	}
-	skjj[k] = (skj[k] % 3); 
-	skj[k] = int(skj[k] / 3.0);
-	R2 = R2 + (mmax_ptr[skj[k]] * mmax_ptr[skj[k]]);
-        R2minus	= R2minus + (mmax_ptr[skj[k]] * mmax_ptr[skj[k]]);
-	if (R2minus < R2) {
-	    sign_fac[k] = -1.0;
-	}
-	else {
-            sign_fac[k] = 1.0;
-	}
-	x(skj[k], skjj[k]) = sign_fac[k];
-       
-	// Add binary magnet and get rid of the magnet (all three components)
-        // from the complement of Gamma
-	skj_ind = (3 * skj[k] + skjj[k]) * ngrid;
-#pragma omp parallel for schedule(static)
-	for(int i = 0; i < ngrid; ++i) {
-            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_ind];
-        }
-        for (int j = 0; j < 3; ++j) {
-            Gamma_complement(skj[k], j) = false;
-        }
-
-#pragma omp parallel for schedule(static)
-        for (int j = 0; j < N3; ++j) {
-            double ATAij = 0.0;
-	    int nj = ngrid * j;
-            if (Gamma_ptr[j]) {
-	        for (int i = 0; i < ngrid; ++i) {
-		    ATAij += Aij_ptr[i + nj] * Aij_ptr[i + skj_ind];
-		}
-            }
-	    uk[j] -= ATAij;
-	}
-        if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
-	}
-    }
-    return std::make_tuple(objective_history, Bn_history, m_history, x);
-}
-
 
 // fairly convoluted way to print every ~ K / nhistory iterations
 void print_GPMO(int k, int ngrid, int& print_iter, Array& x, double* Aij_mj_ptr, Array& objective_history, Array& Bn_history, Array& m_history, double mmax_sum, double* normal_norms_ptr) 
@@ -495,7 +377,7 @@ Array connectivity_matrix(Array& dipole_grid_xyz, int Nadjacent)
 
 // GPMO algorithm with backtracking to fix wyrms -- close cancellations between
 // two nearby, oppositely oriented magnets. 
-std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent)
+std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int backtracking, Array& dipole_grid_xyz, int single_direction, int Nadjacent, int max_nMagnets)
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -520,12 +402,10 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
     // initialize least-square values to large numbers
     vector<double> R2s(6 * N, 1e50);
 
-    // Size is 4 * K here because backtracking needs more iterations
-    // to put down a lot of magnets. 
-    vector<int> skj(4 * K);
-    vector<int> skjj(4 * K);
+    vector<int> skj(K);
+    vector<int> skjj(K);
     vector<int> skjj_ind(N);
-    vector<double> sign_fac(4 * K);
+    vector<double> sign_fac(K);
     vector<double> sk_sign_fac(N);
 
     double* R2s_ptr = &(R2s[0]);
@@ -549,9 +429,8 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
     int num_nonzero = 0;
     int k = 0;
 
-    // Main loop over the optimization iterations to continue
-    // until K dipoles are placed overall 
-    while ((k < 2 * K) && (num_nonzero < K)) {
+    // Main loop over the optimization iterations
+    for (int k = 0; k < K; ++k) {
 #pragma omp parallel for schedule(static)
 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
@@ -646,18 +525,32 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
-	if (verbose && ((k % int(2*K / nhistory)) == 0) || k == 0 || k == 2*K-1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
 
-	    // if get stuck at some number of dipoles, break out of the loop
-	    num_nonzeros(print_iter-1) = num_nonzero;
-	    if (print_iter > 10 && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) break;
+            // if stuck at some number of dipoles, break out of the loop
+            num_nonzeros(print_iter-1) = num_nonzero;
+            if (print_iter > 10 
+                && num_nonzeros(print_iter) == num_nonzeros(print_iter - 1) 
+                && num_nonzeros(print_iter) == num_nonzeros(print_iter - 2)) {
+
+                printf("Stopping iterations: number of nonzero dipoles "
+                       "unchanged over three backtracking cycles");
+                break;
+            }
+            else if (num_nonzero == N) {
+                printf("Stopping iterations: all dipoles in grid "
+                       "are populated");
+		break;
+            }
+            else if (num_nonzero >= max_nMagnets) {
+                printf("Stopping iterations: maximum number of nonzero "
+                       "magnets reached ");
+		break;
+            }
+	
 	}
-	//if (print_iter > nhistory) {
-	//    printf("Number of iterations has hit the iteration limit, increase the nhistory parameter to continue optimizing.\n");
-        //    return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
-        //}
 
 	// check range here
 	num_nonzero = 0;
@@ -670,7 +563,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 		} 
 	    }            
 	}
-	k += 1;
     }
     return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
 }
@@ -801,7 +693,7 @@ std::tuple<Array, Array, Array, Array> GPMO_multi(Array& A_obj, Array& b_obj, Ar
 	        R2s[N3 + 3 * cj + j] = 1e50;
 	    }
 	}
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
@@ -835,8 +727,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     int N3 = 3 * N;
     int NNp = nPolVecs * N;
     int print_iter = 0;
-
-    double cos_thresh_angle = cos(thresh_angle);
 
     Array x = xt::zeros<double>({N, 3});
     vector<int> x_vec(N);
@@ -891,9 +781,9 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
+        double cos_thresh_angle = cos(thresh_angle);
 
 #pragma omp parallel for schedule(static)
-
 	for (int j = 0; j < N; j += 1) {
 
 	    // Check all the allowed dipole positions
@@ -1038,12 +928,15 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                    backtracking);
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
                        Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", 
                    k, num_nonzero);
 
+	    // add small amount to the thresh_angle each time we print
+            //thresh_angle = thresh_angle + M_PI / 720.0;
+            
             // if stuck at some number of dipoles, break out of the loop
             num_nonzeros(print_iter-1) = num_nonzero;
             if (print_iter > 10 
@@ -1055,14 +948,14 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                 break;
             }
             else if (num_nonzero == N) {
-                printf("Stopping iterations: maximum number of nonzero "
-                       "magnets reached ");
-                break;
-            }
-            else if (num_nonzero == max_nMagnets) {
                 printf("Stopping iterations: all dipoles in grid "
                        "are populated");
-                break;
+		break;
+            }
+            else if (num_nonzero >= max_nMagnets) {
+                printf("Stopping iterations: maximum number of nonzero "
+                       "magnets reached ");
+		break;
             }
 	}
     }
@@ -1309,7 +1202,7 @@ std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, A
 	    R2s[NNp + skj[k]*nPolVecs + m] = 1e50;
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
@@ -1319,7 +1212,7 @@ std::tuple<Array, Array, Array, Array> GPMO_ArbVec(Array& A_obj, Array& b_obj, A
 // Run the GPMO algorithm for solving 
 // the permanent magnet optimization problem.
 // The A matrix should be rescaled by m_maxima since we are assuming all ones in m.
-std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction)
+std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, int K, bool verbose, int nhistory, int single_direction) 
 {
     int ngrid = A_obj.shape(1);
     int N = int(A_obj.shape(0) / 3);
@@ -1408,320 +1301,9 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 	    R2s[N3 + 3 * skj[k] + j] = 1e50;
         }
 
-	if (verbose && ((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1) {
+	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
     return std::make_tuple(objective_history, Bn_history, m_history, x);
-}
-
-// Projected quasi-newton (L-BFGS) method used for convex or nonnconvex problems
-// with simple convex constraints, such as in the permanent magnet case. Can
-// be used in place of MwPGP during the convex solve, although this should
-// produce identical results to the SPG algorithm that it uses for the convex
-// step of relax-and-split because the problem is QPQC anyways. PQN is
-// required only if the first step of the relax-and-split algorithm
-// is nonconvex or at least not a quadratic program. In this case,
-// SPG solves the second-order Taylor series expansion of the objective
-// function (a quadratic approximation) while PQN solves the real problem
-// and uses SPG in each iteration to make progress.
-std::tuple<Array, Array, Array, Array> PQN_algorithm(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double nu, double epsilon, double reg_l0, double reg_l1, double reg_l2, int max_iter, bool verbose)
-{
-    int ngrid = A_obj.shape(0);
-    int N = m_maxima.shape(0);
-    double convergence_sum, gkTdk, gknorm;
-    // print out the names of the error columns
-    if (verbose) {
-        printf("Iteration ... |Am - b|^2 ... |m-w|^2/v ...   a|m|^2 ...  b|m-1|^2 ...   c|m|_1 ...   d|m|_0 ... Total Error:\n");
-    }
-
-    // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, 21});
-    Array objective_history = xt::zeros<double>({21});
-    Array R2_history = xt::zeros<double>({21});
-    
-    int max_iter_SPG = max_iter * 10;
-    double fk = 0.0;
-    double fk1 = 0.0;
-    double alpha = 1.0;
-    double alpha_bb = 0.1;
-    double nu_SPG = 1.0e-4;
-    double epsilon_SPG = epsilon;
-    Array dk = xt::zeros<double>({ngrid});
-    Array sk = xt::zeros<double>({N, 3});
-    Array xk = xt::zeros<double>({N, 3});
-    Array xk1 = xt::zeros<double>({N, 3});
-    Array xkstar = xt::zeros<double>({N, 3});
-    Array gk = xt::zeros<double>({N, 3});
-    Array gk1 = xt::zeros<double>({N, 3});
-    Array proj_xk_minus_gk = xt::zeros<double>({N, 3});
-
-    // Add contribution from relax-and-split term
-    Array ATb_rs = ATb + m_proxy / nu;
-
-    // Main loop over the optimization iterations
-    for (int k = 0; k < max_iter; ++k) {
-
-        // Calculate objective function at xk
-        fk = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, nu);
-
-        // Calculate gradient of objective function at xk
-        gk = df_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, nu);
-        gknorm = 0.0;
-#pragma omp parallel for reduction(+: gknorm)
-        for (int i = 0; i < N; ++i) {
-            gknorm += gk(i, 0) * gk(i, 0) + gk(i, 1) * gk(i, 1) + gk(i, 2) * gk(i, 2);
-        }
-
-        // update dk with SPG
-        if (k == 0) {
-            dk = - gk / gknorm;
-        }
-        else {
-            // xkstar is the solution to the constrained, quadratic approximation of the objective function
-            // h value needs to be experimented with
-		std::tie(xkstar, alpha_bb) = SPG(A_obj, b_obj, ATb_rs, m_proxy, m0, m_maxima, 1e-10, 1e10, alpha_bb, 100, epsilon_SPG, reg_l2, nu, max_iter_SPG, nu_SPG, verbose);
-            dk = xkstar - xk;
-        }
-        // check for convergence
-        convergence_sum = 0.0;
-#pragma omp parallel for reduction(+: convergence_sum)
-        for (int i = 0; i < N; ++i) {
-            std::tie(proj_xk_minus_gk(i, 0), proj_xk_minus_gk(i, 1), proj_xk_minus_gk(i, 2)) = projection_L2_balls(xk(i, 0) - gk(i, 0), xk(i, 1) - gk(i, 1), xk(i, 2) - gk(i, 2), m_maxima(i));
-            convergence_sum += sqrt((proj_xk_minus_gk(i, 0) - xk(i, 0)) * (proj_xk_minus_gk(i, 0) - xk(i, 0)) + (proj_xk_minus_gk(i, 1) - xk(i, 1)) * (proj_xk_minus_gk(i, 1) - xk(i, 1)) + (proj_xk_minus_gk(i, 2) - xk(i, 2)) * (proj_xk_minus_gk(i, 2) - xk(i, 2)));
-        }
-        if (convergence_sum < epsilon) break;
-
-        // otherwise, optimize
-        gkTdk = 0.0;
-#pragma omp parallel for reduction(+: gkTdk)
-        for (int i = 0; i < N; ++i) {
-            gkTdk += gk(i, 0) * dk(i, 0) + gk(i, 1) * dk(i, 1) + gk(i, 2) * dk(i, 2);
-        }
-        alpha = 1.0;
-        xk1 = xk + dk;
-        fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, nu);
-
-        // find best descent direction
-        while (fk1 > fk + alpha * nu * gkTdk) {
-            alpha = cubic_interp(alpha);
-            xk1 = xk + alpha * dk;
-            fk1 = f_PQN(A_obj, b_obj, xk1, m_proxy, m_maxima, reg_l2, nu);
-        }
-
-        // update sk, dk, gk, xk with new step
-        gk1 = df_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, nu);
-        sk = xk1 - xk;
-        dk = gk1 - gk;
-        xk = xk1;
-        gk = gk1;
-    }
-    return std::make_tuple(objective_history, R2_history, m_history, xk);
-}
-
-// compute the smooth but otherwise entire objective function
-double f_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxima, double reg_l2, double nu)
-{
-    int ngrid = A_obj.shape(0);
-    int N = m_maxima.shape(0);
-    int print_iter = 0;
-
-    // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, 21});
-    Array objective_history = xt::zeros<double>({21});
-    Array R2_history = xt::zeros<double>({21});
-    
-    double R2 = 0.0;
-    double N2 = 0.0;
-    double L2 = 0.0;
-    Array R2_temp = xt::zeros<double>({ngrid});
-#pragma omp parallel for reduction(+: N2, L2)
-    for(int i = 0; i < N; ++i) {
-      	for(int ii = 0; ii < 3; ++ii) {
-    	      m_history(i, ii, print_iter) = xk(i, ii);
-    	      N2 += (xk(i, ii) - m_proxy(i, ii)) * (xk(i, ii) - m_proxy(i, ii));
-    	      L2 += xk(i, ii) * xk(i, ii);
-    	  }
-    }
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 3*N, 1);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(R2_temp.data()), ngrid, 1);
-    eigen_res = eigen_mat*eigen_v;
-#pragma omp parallel for reduction(+: R2)
-    for(int i = 0; i < ngrid; ++i) {
-        R2 += (R2_temp(i) - b_obj(i)) * (R2_temp(i) - b_obj(i));
-    }
-    R2 = 0.5 * R2;
-    N2 = 0.5 * N2 / nu;
-    L2 = reg_l2 * L2;
-    return R2 + N2 + L2;
-}
-
-// compute the gradient of the smooth, convex part of the objective function
-Array df_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double nu)
-{
-    int ngrid = A_obj.shape(0);
-    int N = int(xk.shape(0) / 3);
-    Array gk = xt::zeros<double>({N, 3});
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 1, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(gk.data()), 1, 3*N);
-    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
-#pragma omp parallel for
-    for (int i = 0; i < N; ++i) {
-        for (int jj = 0; jj < 3; ++jj) {
-            gk(i, jj) += - ATb_rs(i, jj);
-        }
-    }
-    return gk;
-}
-
-// Solves the constrained, quadratic approximation of an objective function
-// For QPQCs, this approximation is exact, so this can be used instead of MwPGP
-// in the convex step of relax-and-split without any approximation. However,
-// the full projected L-BFGS algorithm is required for problems where f is
-// no longer a quadratic program (QP).
-//std::tuple<Array, Array, Array, Array> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha_min, double alpha_max, double alpha_bb, int h, double reg_l2, double nu)
-std::tuple<Array, double> SPG(Array& A_obj, Array& b_obj, Array& ATb, Array& m_proxy, Array& m0, Array& m_maxima, double alpha_min, double alpha_max, double alpha_bb_prev, int h, double epsilon, double reg_l2, double nu, int max_iter, double nu_SPG, bool verbose)
-{
-    int N = m_maxima.shape(0);
-    double max_temp = 0.0;
-    double alphak_bar = 0.0;
-    double alpha_bb = 0.0;
-    double alpha = 1.0;
-    double fb = 0.0;
-    double qk = 0.0;
-    double yTy = 0.0;
-    double sTy = 0.0;
-    double dq_PQNTdk = 0.0;
-    Array projq = xt::zeros<double>({N, 3});
-    Array dqPQN = xt::zeros<double>({N, 3});
-    Array dk = xt::zeros<double>({N, 3});
-    Array sk = xt::zeros<double>({N, 3});
-    Array xk1 = xt::zeros<double>({N, 3});
-    Array xk_shift = xt::zeros<double>({N, 3});
-    Array yk = xt::zeros<double>({N, 3});
-    Array xk = m0;
-
-    // Add contribution from relax-and-split term
-    Array ATb_rs = ATb + m_proxy / nu;
-
-    // main iteration loop
-    for (int k = 0; k < max_iter; ++k) {
-        max_temp = std::max(alpha_min, alpha_bb_prev);
-        alphak_bar = std::min(alpha_max, max_temp);
-        dqPQN = dq_PQN(A_obj, b_obj, ATb_rs, xk, reg_l2, nu);
-
-        // update dk
-#pragma omp parallel for
-        for (int i = 0; i < N; ++i) {
-            std::tie(projq(i, 0), projq(i, 1), projq(i, 2)) = projection_L2_balls(xk(i, 0) - alphak_bar * dqPQN(i, 0), xk(i, 1) - alphak_bar * dqPQN(i, 1), xk(i, 2) - alphak_bar * dqPQN(i, 2), m_maxima(i));
-            dk = projq - xk;
-        }
-
-        // compute f(xk) value
-#pragma omp parallel for reduction(max: fb)
-        for (int i = std::max(0, k - h); i < k; ++i) {
-            fb = f_PQN(A_obj, b_obj, xk, m_proxy, m_maxima, reg_l2, nu);
-        }
-        alpha = 1.0;
-
-        // compute dq(xk) vector
-        dq_PQNTdk = 0.0;
-#pragma omp parallel for reduction(+: dq_PQNTdk)
-        for (int i = 0; i < N; ++i) {
-            dq_PQNTdk = dqPQN(i, 0) * dk(i, 0) + dqPQN(i, 1) * dk(i, 1) + dqPQN(i, 2) * dk(i, 2);
-        }
-
-        // figure out the best descent direction
-	xk_shift = xk + alpha * dk;
-        qk = q_PQN(A_obj, b_obj, xk_shift, m_proxy, m_maxima, reg_l2, nu);
-	while (qk > fb + nu_SPG * alpha * dq_PQNTdk) {
-            alpha = cubic_interp(alpha);
-	    xk_shift = xk + alpha * dk;
-            qk = q_PQN(A_obj, b_obj, xk_shift, m_proxy, m_maxima, reg_l2, nu);
-        }
-
-        // update xk and sk with the new descent direction
-        xk1 = xk + alpha * dk;
-        sk = xk1 - xk;
-
-        // compute gradient of the quadratic approximation of the objective function f(xk)
-        yk = dq_PQN(A_obj, b_obj, ATb_rs, xk1, reg_l2, nu) - dqPQN;
-        yTy = 0.0;
-        sTy = 0.0;
-#pragma omp parallel for reduction(+: yTy, sTy)
-        for (int i = 0; i < N; ++i) {
-            yTy += yk(i, 0) * yk(i, 0) + yk(i, 1) * yk(i, 1) + yk(i, 2) * yk(i, 2);
-            sTy += sk(i, 0) * yk(i, 0) + sk(i, 1) * yk(i, 1) + sk(i, 2) * yk(i, 2);
-        }
-
-        // update alpha_bb for next iteration
-        alpha_bb = yTy / sTy;
-        xk = xk1;
-    }
-    return std::make_tuple(xk, alpha_bb);
-}
-
-//compute the smooth, convex part of the objective function
-double q_PQN(Array& A_obj, Array& b_obj, Array& xk, Array& m_proxy, Array& m_maxima, double reg_l2, double nu)
-{
-    int ngrid = A_obj.shape(0);
-    int N = m_maxima.shape(0);
-    int print_iter = 0;
-
-    // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, 21});
-    Array objective_history = xt::zeros<double>({21});
-    Array R2_history = xt::zeros<double>({21});
-    
-    double R2 = 0.0;
-    double N2 = 0.0;
-    double L2 = 0.0;
-    Array R2_temp = xt::zeros<double>({ngrid});
-#pragma omp parallel for reduction(+: N2, L2)
-    for(int i = 0; i < N; ++i) {
-      	for(int ii = 0; ii < 3; ++ii) {
-    	      m_history(i, ii, print_iter) = xk(i, ii);
-    	      N2 += (xk(i, ii) - m_proxy(i, ii)) * (xk(i, ii) - m_proxy(i, ii));
-    	      L2 += xk(i, ii) * xk(i, ii);
-    	  }
-    }
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 3*N, 1);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(R2_temp.data()), ngrid, 1);
-    eigen_res = eigen_mat*eigen_v;
-#pragma omp parallel for reduction(+: R2)
-    for(int i = 0; i < ngrid; ++i) {
-        R2 += (R2_temp(i) - b_obj(i)) * (R2_temp(i) - b_obj(i));
-    }
-    R2 = 0.5 * R2;
-    N2 = 0.5 * N2 / nu;
-    L2 = reg_l2 * L2;
-    return R2 + N2 + L2;
-}
-
-// compute the gradient of the quadratic approximation of the objective function
-Array dq_PQN(Array& A_obj, Array& b_obj, Array& ATb_rs, Array& xk, double reg_l2, double nu)
-{
-    int ngrid = A_obj.shape(0);
-    int N = int(A_obj.shape(1) / 3);
-    // update g and p
-    Array gk = xt::zeros<double>({N, 3});
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(A_obj.data()), ngrid, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(xk.data()), 1, 3*N);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(gk.data()), 1, 3*N);
-    eigen_res = eigen_v*eigen_mat.transpose()*eigen_mat + 2 * eigen_v * (reg_l2 + 1.0 / (2.0 * nu));
-#pragma omp parallel for
-    for (int i = 0; i < N; ++i) {
-        for (int jj = 0; jj < 3; ++jj) {
-            gk(i, jj) += - ATb_rs(i, jj);
-        }
-    }
-    return gk;
-}
-
-// perform a line search
-double cubic_interp(double alpha) {
-    return alpha;
 }
