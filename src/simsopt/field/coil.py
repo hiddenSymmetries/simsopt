@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'Current', 'ScaledCurrent', 'coils_via_symmetries',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -24,7 +24,7 @@ class Coil(sopp.Coil, Optimizable):
         self._curve = curve
         self._current = current
         sopp.Coil.__init__(self, curve, current)
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve, current])
+        Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
@@ -82,10 +82,14 @@ class Current(sopp.Current, CurrentBase):
     of coils that are constrained to use the same current.
     """
 
-    def __init__(self, current, **kwargs):
+    def __init__(self, current, dofs=None, **kwargs):
         sopp.Current.__init__(self, current)
-        CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                             x0=self.get_dofs(), **kwargs)
+        if dofs is None:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 x0=self.get_dofs(), **kwargs)
+        else:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 dofs=dofs, **kwargs)
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
@@ -93,11 +97,6 @@ class Current(sopp.Current, CurrentBase):
     @property
     def current(self):
         return self.get_value()
-
-    def as_dict(self, serial_objs_dict) -> dict:
-        d = super().as_dict(serial_objs_dict=serial_objs_dict)
-        del d["x0"]
-        return d
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
@@ -110,8 +109,7 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
         self.current_to_scale = current_to_scale
         self.scale = scale
         sopp.CurrentBase.__init__(self)
-        CurrentBase.__init__(self, x0=np.asarray([]),
-                             depends_on=[current_to_scale], **kwargs)
+        CurrentBase.__init__(self, depends_on=[current_to_scale], **kwargs)
 
     def vjp(self, v_current):
         return self.scale * self.current_to_scale.vjp(v_current)
@@ -125,11 +123,11 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
     Take the sum of two :mod:`Current` objects.
     """
 
-    def __init__(self, current_a, current_b, **kwargs):
+    def __init__(self, current_a, current_b):
         self.current_a = current_a
         self.current_b = current_b
         sopp.CurrentBase.__init__(self)
-        CurrentBase.__init__(self, x0=np.asarray([]), depends_on=[current_a, current_b], **kwargs)
+        CurrentBase.__init__(self, depends_on=[current_a, current_b])
 
     def vjp(self, v_current):
         return self.current_a.vjp(v_current) + self.current_b.vjp(v_current)
@@ -185,6 +183,40 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
+    return coils
+
+
+def load_coils_from_makegrid_file(filename, order, ppp=20):
+    """
+    This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
+    and the currents for several coils and returns an array with the corresponding coils. 
+    The format is described at
+    https://princetonuniversity.github.io/STELLOPT/MAKEGRID
+
+    Args:
+        filename: file to load.
+        order: maximum mode number in the Fourier expansion.
+        ppp: points-per-period: number of quadrature points per period.
+
+    Returns:
+        A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
+    """
+    with open(filename, 'r') as f:
+        all_coils_values = f.read().splitlines()[3:] 
+
+    currents = []
+    flag = True
+    for j in range(len(all_coils_values)-1):
+        vals = all_coils_values[j].split()
+        if flag:
+            currents.append(float(vals[3]))
+            flag = False
+        if len(vals) > 4:
+            flag = True
+
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp)
+    coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
+
     return coils
 
 

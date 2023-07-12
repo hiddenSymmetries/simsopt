@@ -3,7 +3,6 @@ import numpy as np
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
-from .._core.json import GSONDecoder
 
 __all__ = ['SurfaceXYZTensorFourier']
 
@@ -58,7 +57,8 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=1,
                  clamped_dims=[False, False, False],
-                 quadpoints_phi=None, quadpoints_theta=None):
+                 quadpoints_phi=None, quadpoints_theta=None,
+                 dofs=None):
 
         if quadpoints_theta is None:
             quadpoints_theta = Surface.get_theta_quadpoints()
@@ -71,8 +71,12 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         self.xcs[0, 0] = 1.0
         self.xcs[1, 0] = 0.1
         self.zcs[mpol+1, 0] = 0.1
-        Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
+        if dofs is None:
+            Surface.__init__(self, x0=self.get_dofs(),
+                             external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
+        else:
+            Surface.__init__(self, dofs=dofs,
+                             external_dof_setter=SurfaceXYZTensorFourier.set_dofs_impl)
 
     def get_dofs(self):
         """
@@ -94,13 +98,20 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         Return a SurfaceRZFourier instance corresponding to the shape of this
         surface.
         """
-        surf = SurfaceRZFourier(self.mpol, self.ntor, self.nfp, self.stellsym,
-                                self.quadpoints_phi, self.quadpoints_theta)
+        ntor = self.ntor
+        mpol = self.mpol 
+        surf = SurfaceRZFourier(nfp=self.nfp, 
+                                stellsym=self.stellsym, 
+                                mpol=mpol, 
+                                ntor=ntor, 
+                                quadpoints_phi=self.quadpoints_phi, 
+                                quadpoints_theta=self.quadpoints_theta)
+
         gamma = np.zeros((surf.quadpoints_phi.size, surf.quadpoints_theta.size, 3))
         for idx in range(gamma.shape[0]):
-            gamma[idx, :, :] = self.cross_section(
-                surf.quadpoints_phi[idx]*2*np.pi)
-        surf.least_squares_fit(self.gamma())
+            gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
+
+        surf.least_squares_fit(gamma)
         return surf
 
     def get_stellsym_mask(self):
@@ -155,21 +166,3 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[0, mpol+1:] = False
         return mask
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        dec = GSONDecoder()
-        quadpoints_phi = dec.process_decoded(d["quadpoints_phi"],
-                                             serial_objs_dict=serial_objs_dict,
-                                             recon_objs=recon_objs)
-        quadpoints_theta = dec.process_decoded(d["quadpoints_theta"],
-                                               serial_objs_dict=serial_objs_dict,
-                                               recon_objs=recon_objs)
-        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
-                   mpol=d["mpol"], ntor=d["ntor"],
-                   clamped_dims=d["clamped_dims"],
-                   quadpoints_phi=quadpoints_phi,
-                   quadpoints_theta=quadpoints_theta)
-        surf.set_dofs(d["x0"])
-        return surf
-

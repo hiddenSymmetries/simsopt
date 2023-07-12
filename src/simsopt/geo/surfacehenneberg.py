@@ -10,7 +10,8 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
-from .._core.json import GSONDecoder
+from .._core.optimizable import DOFs
+from .._core.descriptor import OneofIntegers, Integer, PositiveInteger
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+    nfp = Integer(min_value=1)
+    alpha_fac = OneofIntegers(-1, 0, 1)
+    mmax = Integer(min_value=1)
+    nmax = PositiveInteger()
 
     def __init__(self,
                  nfp: int = 1,
@@ -97,11 +102,8 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  mmax: int = 1,
                  nmax: int = 0,
                  quadpoints_phi: RealArray = None,
-                 quadpoints_theta: RealArray = None
-                 ):
-
-        if alpha_fac > 1 or alpha_fac < -1:
-            raise ValueError('alpha_fac must be 1, 0, or -1')
+                 quadpoints_theta: RealArray = None,
+                 dofs: DOFs = None):
 
         self.nfp = nfp
         self.alpha_fac = alpha_fac
@@ -122,8 +124,12 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         self.bn[0] = 0.1
         self.set_rhomn(1, 0, 0.1)
 
-        Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
-                         external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+        if dofs is None:
+            Surface.__init__(self, x0=self.get_dofs(), names=self._make_names(),
+                             external_dof_setter=SurfaceHenneberg.set_dofs_impl)
+        else:
+            Surface.__init__(self, dofs=dofs,
+                             external_dof_setter=SurfaceHenneberg.set_dofs_impl)
 
     def __repr__(self):
         return f"{self.name} (nfp={self.nfp}, alpha_fac={self.alpha_fac}, " \
@@ -151,18 +157,18 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     def _make_names(self):
         names = []
         for n in range(self.nmax + 1):
-            names.append('R0nH(' + str(n) + ')')
+            names.append(f'R0nH({n})')
         for n in range(1, self.nmax + 1):
-            names.append('Z0nH(' + str(n) + ')')
+            names.append(f'Z0nH({n})')
         for n in range(self.nmax + 1):
-            names.append('bn(' + str(n) + ')')
+            names.append(f'bn({n})')
         # Handle m = 0 modes in rho_mn:
         for n in range(1, self.nmax + 1):
-            names.append('rhomn(0,' + str(n) + ')')
+            names.append(f'rhomn(0,{n})')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
-                names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+                names.append(f'rhomn({m},{n})')
         return names
 
     def _validate_mn(self, m, n):
@@ -264,12 +270,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         """
         if mmax < 0:
             raise ValueError('mmax must be >= 0')
-        if mmax > self.mmax:
-            mmax = self.mmax
+        mmax = min(self.mmax, mmax)
         if nmax < 0:
             raise ValueError('nmax must be >= 0')
-        if nmax > self.nmax:
-            nmax = self.nmax
+        nmax = min(self.nmax, nmax)
 
         fn = self.fix if fixed else self.unfix
 
@@ -733,20 +737,3 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         data[:, :, 0] = (2 * np.pi * d_R_d_theta * np.cos(phi)).T
         data[:, :, 1] = (2 * np.pi * d_R_d_theta * np.sin(phi)).T
         data[:, :, 2] = 2 * np.pi * d_Z_d_theta.T
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        decoder = GSONDecoder()
-        quadpoints_phi = decoder.process_decoded(d["quadpoints_phi"],
-                                                 serial_objs_dict=serial_objs_dict,
-                                                 recon_objs=recon_objs)
-        quadpoints_theta = decoder.process_decoded(d["quadpoints_theta"],
-                                                   serial_objs_dict=serial_objs_dict,
-                                                   recon_objs=recon_objs)
-        surf = cls(nfp=d["nfp"], alpha_fac=d["alpha_fac"],
-                   mmax=d["mmax"], nmax=d["nmax"],
-                   quadpoints_phi=quadpoints_phi,
-                   quadpoints_theta=quadpoints_theta)
-        surf.local_full_x = d["x0"]
-        return surf
-

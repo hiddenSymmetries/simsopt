@@ -626,6 +626,28 @@ class OptimizableTests(unittest.TestCase):
         full_x = test_obj1.full_x
         self.assertTrue(np.allclose(full_x, np.array([4, 5, 6, 10, 25])))
 
+        new_vals = np.arange(5) - 10
+        test_obj1.full_x = new_vals
+        full_x = test_obj1.full_x
+        self.assertTrue(np.allclose(full_x, new_vals))
+
+    def test_full_fix(self):
+        adder = Adder(n=3, x0=[1, 2, 3], names=['x', 'y', 'z'])
+        iden = Identity(x=10, dof_fixed=True)
+        test_obj = OptClassWithParents(20, depends_on=[iden, adder])
+        full_x = test_obj.full_x
+        # Loop over all possible True/False arrays:
+        for binary_arr in range(32):
+            free_arr = np.array([(binary_arr >> j) & 1 for j in range(5)], dtype=bool)
+            fixed_arr = np.logical_not(free_arr)
+            test_obj.full_fix(fixed_arr)
+            np.testing.assert_equal(test_obj.dofs_free_status, free_arr)
+            np.testing.assert_allclose(test_obj.x, full_x[free_arr])
+
+            test_obj.full_unfix(free_arr)
+            np.testing.assert_equal(test_obj.dofs_free_status, free_arr)
+            np.testing.assert_allclose(test_obj.x, full_x[free_arr])
+
     def test_local_full_x(self):
         # Check with leaf type Optimizable objects
         # Check with Optimizable objects containing parents
@@ -752,10 +774,61 @@ class OptimizableTests(unittest.TestCase):
         self.assertAlmostEqual(test_obj1(), 2.5)
 
     def test_bounds(self):
-        pass
+        """
+        Test the getting and setting of fixed and free variables from 
+        an Optimizable.
+        """
+        adder = Adder(n=3, x0=[1, 2, 3], names=['x', 'y', 'z'])
+        adder.fix('y')
+        adder.fix('z')
+
+        # set the bounds of all dofs
+        adder.lower_bounds = np.zeros(1)
+        adder.upper_bounds = np.array([17])
+        self.assertAlmostEqual(adder.lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.local_lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.upper_bounds, np.array([17]))
+        self.assertAlmostEqual(adder.local_upper_bounds, np.array([17]))
+
+        # set the local bounds
+        adder.local_lower_bounds = np.zeros(1)
+        adder.local_upper_bounds = np.array([18])
+        self.assertAlmostEqual(adder.lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.local_lower_bounds, np.zeros(1))
+        self.assertAlmostEqual(adder.upper_bounds, np.array([18]))
+        self.assertAlmostEqual(adder.local_upper_bounds, np.array([18]))
+
+        # set a bound one at a time
+        adder.set_lower_bound('x', 0)
+        adder.set_upper_bound('x', 1)
+        adder.set_lower_bound('z', 7)  # set a fixed variable
+        self.assertTrue(np.allclose(adder.full_lower_bounds, np.array([0, -np.inf, 7])))
+        self.assertTrue(np.allclose(adder.full_upper_bounds, np.array([1, np.inf, np.inf])))
 
     def test_local_bounds(self):
         pass
+
+    def test_full_bounds(self):
+        """
+        Test the getting and setting of fixed and free variables from 
+        an Optimizable with ancestors
+        """
+        iden = Identity(x=10, dof_fixed=False)
+        adder = Adder(n=3, x0=[1, 2, 3], names=['x', 'y', 'z'])
+        adder.fix('y')
+        adder.fix('z')
+        opt = iden + adder
+
+        # check free variables
+        adder.set_lower_bound('x', 0.0)
+        iden.upper_bounds = np.ones(1)
+        self.assertTrue(np.allclose(opt.lower_bounds, np.array([0, -np.inf])))
+        self.assertTrue(np.allclose(opt.upper_bounds, np.array([np.inf, 1])))
+
+        # check free and fixed variables
+        adder.set_lower_bound('z', 5)  # fixed
+        self.assertTrue(np.allclose(opt.full_lower_bounds, np.array([0, -np.inf, 5, -np.inf])))
+        self.assertTrue(np.allclose(opt.full_upper_bounds, np.array([np.inf, np.inf, np.inf, 1])))
 
     def test_lower_bounds(self):
         pass
@@ -1274,6 +1347,120 @@ class TestOptimizableSerialize(unittest.TestCase):
         adder_str1 = adder1.save(fmt='json', indent=2)
         adder1_str_regen1 = Optimizable.from_str(adder_str1)
         self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
+
+
+from simsopt._core.derivative import Derivative, derivative_dec
+
+
+class OptClassSharedDOFs(Optimizable):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def J(self):
+        return sum(self.x)
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative({self: self.local_full_x})
+
+
+class TestOptimizableSharedDOFs(unittest.TestCase):
+    """
+    Test the DOFs sharing for the Optimizable classes
+    """
+
+    def test_adder_dofs_shared_change_vals(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.x = [11, 12]
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_shared_dofs.x = [0, 1]
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.set("x", 20)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_orig.full_x = np.arange(3) - 10
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+        adder_shared_dofs.full_x = np.arange(3) - 100
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+
+    def test_adder_dofs_shared_fix_unfix(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
+
+        adder_orig.fix("x")
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11, 12]
+        adder_shared_dofs.x = [11]
+
+        adder_orig.unfix("z")
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11]
+        adder_shared_dofs.x = [11, 12]
+
+        adder_shared_dofs.unfix_all()
+        with self.assertRaises(ValueError) as context:
+            adder_shared_dofs.x = [11, 12]
+        adder_orig.x = [11, 12, 13]
+
+        adder_orig.fix_all()
+        self.assertTrue(len(adder_shared_dofs.x) == 0)
+
+    def test_derivative(self):
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        sum_obj = adder_orig + adder_shared_dofs
+
+        # test that the Derivative class is correctly combining the derivatives
+        self.assertTrue((adder_orig.dJ()*2 == sum_obj.dJ()).all())
+        self.assertTrue((sum_obj.dJ(partials=True)(adder_orig) == sum_obj.dJ()).all())
+        self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
+
+    def test_load_save(self):
+        import tempfile
+        from pathlib import Path
+
+        adder1 = OptClassSharedDOFs(n=3, x0=[1, 2, 3], names=["x", "y", "z"],
+                                    fixed=[False, False, True])
+        adder2 = OptClassSharedDOFs(dofs=adder1.dofs)
+        self.assertAlmostEqual(adder1.J(), adder2.J())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adders.json"
+            save([adder1, adder2], fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+            adders = load(fpath)
+            self.assertAlmostEqual(adder1.J(), adders[0].J())
+            self.assertAlmostEqual(adder2.J(), adders[1].J())
+        adders[0].x = [11, 12]
+        self.assertEqual(adders[0].J(), adders[1].J())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fpath = Path(tmpdir) / "adder.json"
+            adder_str = adder1.save(fpath, indent=2)
+            self.assertTrue(fpath.is_file())
+            adder1_str_regen = FAdder.from_str(adder_str)
+            self.assertAlmostEqual(adder1.J(), adder1_str_regen.J())
+            adder1_file_regen = FAdder.from_file(fpath)
+            self.assertAlmostEqual(adder1.J(), adder1_file_regen.J())
+
+        adder_str1 = adder1.save(fmt='json', indent=2)
+        adder1_str_regen1 = Optimizable.from_str(adder_str1)
+        self.assertAlmostEqual(adder1.J(), adder1_str_regen1.J())
+
+    def test_dof_lengths(self):
+
+        adder_orig = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        adder_shared_dofs = OptClassSharedDOFs(dofs=adder_orig.dofs)
+        sum_obj = adder_orig + adder_shared_dofs
+        self.assertEqual(sum_obj.dof_size, 2)
+        self.assertEqual(sum_obj.full_dof_size, 3)
+        self.assertEqual(len(sum_obj.x), 2)
 
 
 if __name__ == "__main__":

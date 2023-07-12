@@ -29,14 +29,18 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
        [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
     """
 
-    def __init__(self, quadpoints, order, nfp, stellsym):
+    def __init__(self, quadpoints, order, nfp, stellsym, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
-        Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
-                       x0=self.get_dofs())
+        if dofs is None:
+            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
+                           x0=self.get_dofs())
+        else:
+            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
+                           dofs=dofs)
 
     def get_dofs(self):
         """
@@ -50,13 +54,3 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
-
-    @classmethod
-    def from_dict(cls, d, serial_objs_dict, recon_objs):
-        quadpoints = GSONDecoder().process_decoded(d['quadpoints'], serial_objs_dict, recon_objs)
-        curve = cls(quadpoints,
-                    d["order"],
-                    d["nfp"],
-                    d["stellsym"])
-        curve.local_full_x = d["x0"]
-        return curve
