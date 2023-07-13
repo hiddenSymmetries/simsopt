@@ -39,6 +39,7 @@ void init_tracing(py::module_ &m){
         py::arg("noK"),
         py::arg("solveSympl"),
         py::arg("zetas")=vector<double>{},
+        py::arg("forget_exact_path"),
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
         );
 
