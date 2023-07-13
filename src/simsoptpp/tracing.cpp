@@ -22,6 +22,12 @@ typedef xt::pyarray<double> Array;
 using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
 
+#include <gsl/gsl_vector.h>
+#include <gsl/gsl_multiroots.h>
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
+#include <fmt/os.h>
 template<template<class, std::size_t, xt::layout_type> class T>
 class GuidingCenterVacuumRHS {
     /*
@@ -445,7 +451,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     return std::make_tuple(res, res_phi_hits);
 }
 
-//template<class RHS>
 template<template<class, std::size_t, xt::layout_type> class T>
 class SymplField
 {
@@ -562,8 +567,9 @@ class SymplField
     }
 };
 
+/*
 template<template<class, std::size_t, xt::layout_type> class T>
-void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
+double f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
     double dt, double ptheta_old)
 {
   // Unknowns in 2D nonlinear equation are x[0] = s and x[1] = pphi
@@ -576,29 +582,107 @@ void f_euler1_quasi(double x[2], double fvec[2], SymplField<T> f, double y[4],
       + dt*(f.dH[1]*f.dptheta[0] - f.dH[0]*f.dptheta[1]); // corresponds with (2.6) in JPP 2020
   fvec[1] = f.dptheta[0]*(x[1] - y[3])
       + dt*(f.dH[2]*f.dptheta[0] - f.dH[0]*f.dptheta[2]); // corresponds with (2.7) in JPP 2020
+    return fvec;
+}
+
+*/
+/*
+template<template<class, std::size_t, xt::layout_type> class T>
+void jac_sympl_euler1(double x[2], SymplField<T> f, double jac[2,2])
+{
+    jac(1,1) = f.d2ptheta[0]*(f.ptheta - ptheta_old) + f.dptheta[0]**2 + dt*(f.d)
+}
+
+*/
+
+template<template<class, std::size_t, xt::layout_type> class T>
+struct f_quasi_params{
+    //double dptheta;
+    double ptheta_old;
+    double dt;
+    double dH_0;
+    double dH_1;
+    double dH_2;
+    double dptheta_0;
+    double dptheta_1;
+    double dptheta_2;
+    double vpar;
+};
+
+template<template<class, std::size_t, xt::layout_type> class T>
+int f_quasi_func(const gsl_vector* x, void* p, gsl_vector* f)
+{
+    struct f_quasi_params<T> * params = (struct f_quasi_params<T> *)p;
+    //const double dptheta = (params->dptheta);
+    const double ptheta_old = (params->ptheta_old);
+    const double dt = (params->dt);
+    const double dH_0 = (params->dH_0);
+    const double dH_1 = (params->dH_1);
+    const double dH_2 = (params->dH_2);
+    const double dptheta_0 = (params->dptheta_0);
+    const double dptheta_1 = (params->dptheta_1);
+    const double dptheta_2 = (params->dptheta_2);
+    const double vpar = (params->vpar);
+    
+    const double x0 = gsl_vector_get(x,0);
+    const double x1 = gsl_vector_get(x,1);
+    
+    gsl_vector_set(f, 0, dptheta_0*(x0 - ptheta_old) + dt*(dH_1*dptheta_0 - dH_0*dptheta_1));
+    gsl_vector_set(f, 1, dptheta_0*(x1 - vpar) + dt*(dH_2*dptheta_0 - dH_0*dptheta_2));
+    
+    return GSL_SUCCESS;
 }
 
 // see https://github.com/itpplasma/SIMPLE/blob/master/SRC/
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, double tol_root, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, double tol_root, vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool forget_exact_path = false)
 {
+     ;
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
-    //vector<array<double, RHS::Size+1>> res = {};
-    //vector<array<double, RHS::Size+2>> res_phi_hits = {};
-    //typedef typename RHS::State State;
-    
+    array<double, 4> ykeep = {};
     double t = 0.0;
     double ptheta_old = 0.0;
     double pzeta;
     bool stop = false;
+    
 
     double x[2]; // unknowns (s, pzeta) for optimizer
     double z[4]; // s, theta, zeta, pzeta
     // y = [s, theta, zeta, vpar]
+    
+    auto out = fmt::output_file("residual.txt");
 
+    struct f_quasi_params<T> params;
+    //params = (f_quasi_params<T>){ _dptheta = dptheta, _ptheta_old = ptheta_old, _dt = dt, _dH_0 = dH[0], _dH_1 = dH[1], _dH_2 = dH[2], _dptheta_0 = dptheta[0], _dptheta_1 = dptheta[1], _dptheta_2 = dptheta[2], _vpar = y[3]};
+   // params = (f_quasi_params<T>){dptheta, ptheta_old, dt, dH[0], dH[1], dH[2], dptheta[0], dptheta[1], dptheta[2], y[3]};
+    params.ptheta_old = ptheta_old;
+    params.dt = dt;
+    params.dH_0 = f.dH[0];
+    params.dH_1 = f.dH[1];
+    params.dH_2 = f.dH[2];
+    params.dptheta_0 = f.dptheta[0];
+    params.dptheta_1 = f.dptheta[1];
+    params.dptheta_2 = f.dptheta[2];
+    params.vpar = y[3];
+    
+    
+    int gsl_multiroot_fsolver_iterate (gsl_multiroot_fsolver * s);
+    int iter = 0;
+    const gsl_multiroot_fsolver_type * Newt = gsl_multiroot_fsolver_dnewton;
+    gsl_multiroot_fsolver * s = gsl_multiroot_fsolver_alloc (Newt, 2);
+
+    gsl_multiroot_function F;
+    const gsl_vector* xvec;
+    F.f = &f_quasi_func<T>;
+    F.n = 2;
+    F.params = &params;
+    gsl_multiroot_fsolver_set(s, &F, xvec);
+    
+    int status;
+    
     // Translate y to z
     // y = [s, theta, zeta, vpar]
     // z = [s, theta, zeta, pzeta]
@@ -611,13 +695,43 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
     ptheta_old = f.ptheta;
 
     do {
-        res.push_back(join<1, 4>({t}, y));
+        //res.push_back(join<1, 4>({t}, y));
+        if (!forget_exact_path || t==0){
+            ykeep = y;
+            res.push_back(join<1,4>({t}, ykeep));
+        }
 
         x[0] = z[0];  // s
         x[1] = z[3];  // pzeta
         // TODO: Solve implicit part of time-step with some quasi-Newton
         // applied to f_euler1_quasi. This corresponds with (2.6)-(2.7) in JPP 2020,
         // which are solved for x = [s, pzeta].
+        
+        //int gsl_multiroot_fsolver_iterate (gsl_multiroot_fsolver * s)
+        //size_t i, iter = 0;
+        //int iter = 0;
+        do
+          {
+            
+            iter++;
+            //status ;
+            status = gsl_multiroot_fsolver_iterate(s);
+
+            if (status)   /* check if solver is stuck */
+              break;
+      
+            status = gsl_multiroot_test_residual(s->f, tol_root); //tolerance --> tol_roots
+            out.print("the residual is", status);
+          }
+        while (status == GSL_CONTINUE && iter < 1000);
+       
+
+       //cout<<status;	
+       // gsl_multiroot_fsolver_free(s);
+       // gsl_vector_free(xvec);
+        x[0] = gsl_vector_get(s->x, 0);
+        x[1] = gsl_vector_get(s->x, 1);
+        
         z[0] = x[0];  // s
         z[3] = x[1];  // pzeta
 
@@ -685,7 +799,7 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, bool forget_exact_path, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -693,7 +807,7 @@ particle_guiding_center_boozer_tracing(
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*modB);
 
-    double tol_root = 1e-9;	
+    double tol_root = 1e-9;
     array<double, 4> y = {stz_init[0], stz_init[1], stz_init[2], vtang};
     double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
@@ -702,32 +816,32 @@ particle_guiding_center_boozer_tracing(
 
     if (vacuum) {
         if (solveSympl) {
-	    auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria);
+        auto f = SymplField<T>(field, m, q, mu);
+            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria, forget_exact_path);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
-	    auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
+        auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
     } else if (noK) {
         if (solveSympl) {
-	    auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria);
+        auto f = SymplField<T>(field, m, q, mu);
+            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria, forget_exact_path);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
-	    auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
+        auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu);
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
     } else {
         if (solveSympl) {
-	    auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria);
+        auto f = SymplField<T>(field, m, q, mu);
+            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria, forget_exact_path);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
         else {
-      	    auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
+              auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu);
             return solve(rhs_class, y, tmax, dt, dtmax, tol, zetas, stopping_criteria, true);
         }
     }
@@ -737,7 +851,7 @@ template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, bool forget_exact_path, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(
