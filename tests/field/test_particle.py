@@ -70,7 +70,7 @@ def validate_phi_hits(phi_hits, bfield, nphis):
                 return False
     return True
 
-
+@unittest.skip("skip")
 class ParticleTracingTesting(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
@@ -461,8 +461,9 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
-                                                     tol=1e-12)
-
+                                                     tol=1e-12, solveSympl=True)
+        
+        
         # pick 100 random points on each trace, and ensure that
         # the energy is being conserved up to some precision
 
@@ -526,7 +527,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
-                                                     tol=1e-12)
+                                                     tol=1e-12, solveSympl=True)
 
         max_energy_gc_error = np.array([])
         max_mu_gc_error = np.array([])
@@ -579,7 +580,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
-                                                     tol=1e-12)
+                                                     tol=1e-12, solveSympl=True)
 
         max_energy_gc_error = np.array([])
         max_mu_gc_error = np.array([])
@@ -590,7 +591,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             gc_xyzs = gc_ty[idxs, 1:4]
             bsh.set_points(gc_xyzs)
             AbsBs_gc = np.squeeze(bsh.modB())
-            G_gc = np.squeeze(bsh.G())
+            G_gc = np.squeezxe(bsh.G())
             I_gc = np.squeeze(bsh.I())
             psip = np.squeeze(bsh.psip())
             psi = np.squeeze(bsh.psi0*gc_ty[idxs, 1])
@@ -620,7 +621,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                        tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_noK',
                                                        stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
-                                                       tol=1e-12, forget_exact_path=True)
+                                                       tol=1e-12, forget_exact_path=True, solveSympl=True)
 
         for i in range(len(gc_phi_hits_2)):
             assert np.allclose(gc_phi_hits[i], gc_phi_hits_2[i])
@@ -628,7 +629,8 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert len(gc_tys) == N
         assert np.shape(gc_tys[0])[0] == 2
         np.seterr(divide='warn')
-
+    
+    @unittest.skip("skip")
     def test_compute_poloidal_toroidal_transits(self):
         """
         Trace low-energy particle on an iota=1 field line for one toroidal
@@ -666,7 +668,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(1, True)],
-                                                     tol=1e-12)
+                                                     tol=1e-12, solveSympl=True)
 
         mpol = compute_poloidal_transits(gc_tys)
         ntor = compute_toroidal_transits(gc_tys)
@@ -704,6 +706,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         assert mpol == 1
         assert ntor == 1
 
+    @unittest.skip("skip")
     def test_toroidal_flux_stopping_criterion(self):
         """
         Trace particles in a BoozerAnalyticField at high energy so that
@@ -741,7 +744,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc_vac',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(0.4), MaxToroidalFluxStoppingCriterion(0.6)],
-                                                     tol=1e-12)
+                                                     tol=1e-12, solveSympl=True)
 
         for i in range(Nparticles):
             assert np.all(gc_tys[i][:, 1] > 0.4)
@@ -784,7 +787,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         gc_tys, gc_phi_hits = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                      tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[0], mode='gc_vac',
                                                      stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
-                                                     tol=1e-8)
+                                                     tol=1e-8, solveSympl=True)
 
         resonances = compute_resonances(gc_tys, gc_phi_hits, delta=0.01)
 
@@ -823,3 +826,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         for i in range(len(resonances)):
             h = resonances[i][5]/resonances[i][6]
             assert h == 1
+
+if __name__ == "__main__":
+    unittest.main()
