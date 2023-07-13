@@ -364,6 +364,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mpi = equil.mpi
         else:
             self.mpi = mpi
+<<<<<<< HEAD
 
         if self.mpi is not None:
             self.proc0 = False
@@ -371,7 +372,15 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 self.proc0 = True
         else:
             self.proc0 = True
+=======
+>>>>>>> 9aa056c33ef3cc01261d679212847c0bb1516c13
 
+        if self.mpi is not None:
+            self.proc0 = False
+            if self.mpi.comm_world.rank==0:
+                self.proc0 = True
+        else:
+            self.proc0 = True
         if isinstance(equil, Vmec):
             if self.proc0:
                 equil.run()
@@ -393,10 +402,17 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                 if len(booz.bx.s_b) == 0:
                     booz.register(booz.equil.s_half_grid)
                 # Grid does not have correct size
+<<<<<<< HEAD
                 elif (len(booz.bx.s_b) != len(booz.bx.s_b)):
                     booz.register(booz.equil.s_half_grid)
                 # Grid does not match Vmec half grid
                 elif (np.any(booz.bx.s_b != booz.bx.s_b)):
+=======
+                elif (len(booz.bx.s_b) != len(booz.equil.s_half_grid)):
+                    booz.register(booz.equil.s_half_grid)
+                # Grid does not match Vmec half grid
+                elif (np.any(booz.bx.s_b != booz.equil.s_half_grid)):
+>>>>>>> 9aa056c33ef3cc01261d679212847c0bb1516c13
                     booz.register(booz.equil.s_half_grid)
 
                 # Run booz_xform if needed
