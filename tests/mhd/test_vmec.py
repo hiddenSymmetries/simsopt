@@ -18,7 +18,8 @@ except ImportError:
 
 from simsopt._core.optimizable import make_optimizable
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves
+from simsopt.field import Current, BiotSavart, coils_via_symmetries
 from simsopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfileScaled, ProfilePressure
 from simsopt.solve.serial import least_squares_serial_solve
 from simsopt.util.constants import ELEMENTARY_CHARGE
@@ -109,6 +110,40 @@ class InitializedFromWout(unittest.TestCase):
         mu0 = 4 * np.pi * (1.0e-7)
         external_current = 2 * np.pi * bsubvmnc / mu0
         np.testing.assert_allclose(external_current, vmec.external_current())
+
+    def test_curve_orientation_sign_for_free_boundary(self):
+        """
+        For free-boundary equilibrium calculations to work following stage-2
+        optimization, the sign of the toroidal field created by the coils must
+        match the sign of the toroidal field in the original target equilibrium.
+        This is a particular issue for the finite-beta case, in which the
+        Btarget from virtual casing has a definite sign. Associated with this
+        issue, in the ``stage_two_optimization_finite_beta.py`` example, there is a sign
+        associated with ``vmec.external_current()`` that must be consistent with the
+        direction of the coils created by ``create_equally_spaced_curves()``.
+        """
+        # The code that follows is extracted from stage_two_optimization_finite_beta.py
+        ncoils = 5
+        R0 = 5.5
+        R1 = 1.25
+        order = 6
+        filename = 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'
+        vmec_file = TEST_DIR / filename
+        vmec = Vmec(vmec_file)
+        s = vmec.boundary
+        total_current = vmec.external_current() / (2 * s.nfp)
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+        base_currents = [Current(total_current / ncoils * 1e-5) * 1e5 for _ in range(ncoils-1)]
+        total_current = Current(total_current)
+        total_current.fix_all()
+        base_currents += [total_current - sum(base_currents)]
+
+        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+        bs = BiotSavart(coils)
+        bs.set_points(np.array([[vmec.wout.Rmajor_p, 0, 0]]))
+        B = bs.B()
+        print("B:", B)
+        self.assertGreater(B[0, 1], 0)
 
     def test_error_on_rerun(self):
         """
