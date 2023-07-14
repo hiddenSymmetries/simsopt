@@ -3,10 +3,10 @@
 import os
 import logging
 import numpy as np
-from simsopt.util import MpiPartition, log
 from simsopt.mhd import Spec, Residue
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, log
 
 """
 In this example, we show how the shape of a boundary magnetic

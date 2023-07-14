@@ -2,11 +2,10 @@
 
 import os
 import numpy as np
-from simsopt.util import MpiPartition
-from simsopt.mhd import Vmec
-from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition
 
 """
 This example shows how scripting can be used to increase the size

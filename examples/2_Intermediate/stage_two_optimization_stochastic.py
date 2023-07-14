@@ -26,17 +26,14 @@ the latter is independent for each coil.
 
 import os
 from pathlib import Path
-import numpy as np
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, Coil, coils_via_symmetries
-from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, ArclengthVariation
-from simsopt.geo.curveperturbed import GaussianSampler, CurvePerturbed, PerturbationSample
-from simsopt.objectives import QuadraticPenalty, MPIObjective
 from randomgen import PCG64
+import numpy as np
+from scipy.optimize import minimize
+from simsopt.field import BiotSavart, Current, Coil, coils_via_symmetries
+from simsopt.geo import (CurveLength, CurveCurveDistance, curves_to_vtk, create_equally_spaced_curves, SurfaceRZFourier,
+                         MeanSquaredCurvature, LpCurveCurvature, ArclengthVariation, GaussianSampler, CurvePerturbed, PerturbationSample)
+from simsopt.objectives import QuadraticPenalty, MPIObjective, SquaredFlux
+from simsopt.util import in_github_actions
 
 try:
     from mpi4py import MPI
@@ -93,8 +90,7 @@ N_SAMPLES = 16
 N_OOS = 256
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -212,7 +208,6 @@ pprint("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-from scipy.optimize import minimize
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
 alen_string = ", ".join([f"{np.max(c.incremental_arclength())/np.min(c.incremental_arclength())-1:.2e}" for c in base_curves])
 pprint(f"Final arclength variation max(|ℓ|)/min(|ℓ|) - 1=[{alen_string}]")

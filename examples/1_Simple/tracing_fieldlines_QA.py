@@ -23,10 +23,10 @@ except ImportError:
     comm = None
 
 import simsopt
-from simsopt.field import InterpolatedField
+from simsopt.field import (InterpolatedField, SurfaceClassifier, particles_to_vtk,
+                           compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
+from simsopt.util import in_github_actions
 
 print("Running 1_Simple/tracing_fieldlines_QA.py")
 print("=========================================")
@@ -35,11 +35,10 @@ logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
 
-# check whether we're in CI, in that case we make the run a bit cheaper
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-nfieldlines = 3 if ci else 10
-tmax_fl = 10000 if ci else 20000
-degree = 2 if ci else 4
+# If we're in the CI, make the run a bit cheaper:
+nfieldlines = 3 if in_github_actions else 10
+tmax_fl = 10000 if in_github_actions else 20000
+degree = 2 if in_github_actions else 4
 
 # Directory for output
 OUT_DIR = "./output/"

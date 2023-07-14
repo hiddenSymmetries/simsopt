@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
+import os
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
-import os
 
 """
 This script solve the problem in

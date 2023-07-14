@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 import os
-from simsopt.util import MpiPartition, log
+from simsopt.geo import SurfaceGarabedian
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
-from simsopt.geo import SurfaceGarabedian
+from simsopt.util import MpiPartition, log, in_github_actions
 
 """
 This script solve the problem in
@@ -51,13 +51,9 @@ if mpi.proc0_world:
     print("Initial iota on axis:", vmec.iota_axis())
 #exit(0)
 
-# check whether we're in CI, in that case we make the run a bit cheaper
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-#ci = True
-
 # Only do 1 iteration if we are running the tests in Gitub
 # Actions. Leave max_nfev as None for a real optimization.
-max_nfev = 5 if ci else None
+max_nfev = 5 if in_github_actions else None
 least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=max_nfev)
 
 objective = prob.objective()
