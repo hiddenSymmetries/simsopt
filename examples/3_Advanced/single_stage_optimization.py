@@ -11,7 +11,7 @@ import numpy as np
 from mpi4py import MPI
 from pathlib import Path
 from scipy.optimize import minimize
-from simsopt.util import MpiPartition
+from simsopt.util import MpiPartition, proc0_print, comm_world
 from simsopt._core.derivative import Derivative
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt._core.finite_difference import MPIFiniteDifference
@@ -19,12 +19,6 @@ from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty, LeastSquaresProblem
 from simsopt.geo import (CurveLength, CurveCurveDistance, MeanSquaredCurvature,
                          LpCurveCurvature, ArclengthVariation, curves_to_vtk, create_equally_spaced_curves)
-comm = MPI.COMM_WORLD
-
-
-def pprint(*args, **kwargs):
-    if comm.rank == 0:
-        print(*args, **kwargs)
 
 
 mpi = MpiPartition()
@@ -71,13 +65,13 @@ os.makedirs(this_path, exist_ok=True)
 os.chdir(this_path)
 vmec_results_path = os.path.join(this_path, "vmec")
 coils_results_path = os.path.join(this_path, "coils")
-if comm.rank == 0:
+if comm_world.rank == 0:
     os.makedirs(vmec_results_path, exist_ok=True)
     os.makedirs(coils_results_path, exist_ok=True)
 ##########################################################################################
 ##########################################################################################
 # Stage 1
-pprint(f' Using vmec input file {vmec_input_filename}')
+proc0_print(f' Using vmec input file {vmec_input_filename}')
 vmec = Vmec(vmec_input_filename, mpi=mpi, verbose=vmec_verbose, nphi=nphi_VMEC, ntheta=ntheta_VMEC, range_surface='half period')
 surf = vmec.boundary
 ##########################################################################################
@@ -95,7 +89,7 @@ bs = BiotSavart(coils)
 bs.set_points(surf.gamma().reshape((-1, 3)))
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
-if comm.rank == 0:
+if comm_world.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_init"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
     surf.to_vtk(os.path.join(coils_results_path, "surf_init"), extra_data=pointData)
@@ -115,7 +109,7 @@ J_ALS = ARCLENGTH_WEIGHT * sum(Jals)
 J_LENGTH_PENALTY = LENGTH_CON_WEIGHT * sum([QuadraticPenalty(Jls[i], LENGTH_THRESHOLD) for i in range(len(base_curves))])
 JF = Jf + J_CC + J_LENGTH + J_LENGTH_PENALTY + J_CURVATURE + J_MSC
 ##########################################################################################
-pprint(f'  Starting optimization')
+proc0_print(f'  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
@@ -158,12 +152,12 @@ def fun(dofs, prob_jacobian=None, info={'Nfeval': 0}):
     J_stage_2 = coils_objective_weight * JF.J()
     J = J_stage_1 + J_stage_2
     if J > JACOBIAN_THRESHOLD or np.isnan(J):
-        pprint(f"Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
+        proc0_print(f"Exception caught during function evaluation with J={J}. Returning J={JACOBIAN_THRESHOLD}")
         J = JACOBIAN_THRESHOLD
         grad_with_respect_to_surface = [0] * number_vmec_dofs
         grad_with_respect_to_coils = [0] * len(JF.x)
     else:
-        pprint(f"fun#{info['Nfeval']}: Objective function = {J:.4f}")
+        proc0_print(f"fun#{info['Nfeval']}: Objective function = {J:.4f}")
         prob_dJ = prob_jacobian.jac(prob.x)
         ## Finite differences for the second-stage objective function
         coils_dJ = JF.dJ()
@@ -207,21 +201,21 @@ prob = LeastSquaresProblem.from_tuples(objective_tuple)
 dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
 Jf = SquaredFlux(surf, bs, definition="local")
-pprint(f"Aspect ratio before optimization: {vmec.aspect()}")
-pprint(f"Mean iota before optimization: {vmec.mean_iota()}")
-pprint(f"Quasisymmetry objective before optimization: {qs.total()}")
-pprint(f"Magnetic well before optimization: {vmec.vacuum_well()}")
-pprint(f"Squared flux before optimization: {Jf.J()}")
-pprint(f'  Performing stage 2 optimization with ~{MAXITER_stage_2} iterations')
+proc0_print(f"Aspect ratio before optimization: {vmec.aspect()}")
+proc0_print(f"Mean iota before optimization: {vmec.mean_iota()}")
+proc0_print(f"Quasisymmetry objective before optimization: {qs.total()}")
+proc0_print(f"Magnetic well before optimization: {vmec.vacuum_well()}")
+proc0_print(f"Squared flux before optimization: {Jf.J()}")
+proc0_print(f'  Performing stage 2 optimization with ~{MAXITER_stage_2} iterations')
 res = minimize(fun_coils, dofs[:-number_vmec_dofs], jac=True, args=({'Nfeval': 0}), method='L-BFGS-B', options={'maxiter': MAXITER_stage_2, 'maxcor': 300}, tol=1e-12)
 bs.set_points(surf.gamma().reshape((-1, 3)))
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
-if comm.rank == 0:
+if comm_world.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_after_stage2"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
     surf.to_vtk(os.path.join(coils_results_path, "surf_after_stage2"), extra_data=pointData)
-pprint(f'  Performing single stage optimization with ~{MAXITER_single_stage} iterations')
+proc0_print(f'  Performing single stage optimization with ~{MAXITER_single_stage} iterations')
 x0 = np.copy(np.concatenate((JF.x, vmec.x)))
 dofs = np.concatenate((JF.x, vmec.x))
 with MPIFiniteDifference(prob.objective, mpi, diff_method=diff_method, abs_step=finite_difference_abs_step, rel_step=finite_difference_rel_step) as prob_jacobian:
@@ -230,17 +224,17 @@ with MPIFiniteDifference(prob.objective, mpi, diff_method=diff_method, abs_step=
 mpi.comm_world.Bcast(dofs, root=0)
 Bbs = bs.B().reshape((nphi_VMEC, ntheta_VMEC, 3))
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
-if comm.rank == 0:
+if comm_world.rank == 0:
     curves_to_vtk(curves, os.path.join(coils_results_path, "curves_opt"))
     pointData = {"B_N": BdotN_surf[:, :, None]}
     surf.to_vtk(os.path.join(coils_results_path, "surf_opt"), extra_data=pointData)
 bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
 vmec.write_input(os.path.join(this_path, f'input.final'))
-pprint(f"Aspect ratio after optimization: {vmec.aspect()}")
-pprint(f"Mean iota after optimization: {vmec.mean_iota()}")
-pprint(f"Quasisymmetry objective after optimization: {qs.total()}")
-pprint(f"Magnetic well after optimization: {vmec.vacuum_well()}")
-pprint(f"Squared flux after optimization: {Jf.J()}")
+proc0_print(f"Aspect ratio after optimization: {vmec.aspect()}")
+proc0_print(f"Mean iota after optimization: {vmec.mean_iota()}")
+proc0_print(f"Quasisymmetry objective after optimization: {qs.total()}")
+proc0_print(f"Magnetic well after optimization: {vmec.vacuum_well()}")
+proc0_print(f"Squared flux after optimization: {Jf.J()}")
 BdotN_surf = np.sum(Bbs * surf.unitnormal(), axis=2)
 BdotN = np.mean(np.abs(BdotN_surf))
 BdotNmax = np.max(np.abs(BdotN_surf))
@@ -250,4 +244,4 @@ cl_string = ", ".join([f"{j.J():.1f}" for j in Jls])
 kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
 msc_string = ", ".join(f"{j.J():.1f}" for j in Jmscs)
 outstr += f" lengths=sum([{cl_string}])={sum(j.J() for j in Jls):.1f}, curv=[{kap_string}], msc=[{msc_string}]"
-pprint(outstr)
+proc0_print(outstr)

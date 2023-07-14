@@ -5,15 +5,15 @@ from simsopt.geo import SurfaceGarabedian
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
-from simsopt.util import MpiPartition, log, in_github_actions
+from simsopt.util import MpiPartition, log, in_github_actions, proc0_print
 
 """
 This script solve the problem in
 https://github.com/landreman/stellopt_scenarios/tree/master/7DOF_varyAxisAndElongation_targetIotaAndQuasisymmetry
 See that website for a detailed description of the problem.
 """
-print("Running 7dof.py")
-print("===============")
+proc0_print("Running 7dof.py")
+proc0_print("===============")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 log()
@@ -43,12 +43,11 @@ qs = Quasisymmetry(boozer,
 prob = LeastSquaresProblem.from_tuples([(vmec.iota_axis, -0.41, 100),
                                         (qs.J, 0, 1)])
 objective = prob.objective()
-if mpi.proc0_world:
-    print("Initial objective function:", objective)
-    #print("Parameter space:")
-    #print(prob.dof_names)
-    print("Initial state vector:", prob.x)
-    print("Initial iota on axis:", vmec.iota_axis())
+proc0_print("Initial objective function:", objective)
+#proc0_print("Parameter space:")
+#proc0_print(prob.dof_names)
+proc0_print("Initial state vector:", prob.x)
+proc0_print("Initial iota on axis:", vmec.iota_axis())
 #exit(0)
 
 # Only do 1 iteration if we are running the tests in Gitub
@@ -57,10 +56,9 @@ max_nfev = 5 if in_github_actions else None
 least_squares_mpi_solve(prob, mpi, grad=True, max_nfev=max_nfev)
 
 objective = prob.objective()
-if mpi.proc0_world:
-    print("Final objective function:", objective)
-    print("Final state vector:", prob.x)
-    print("Final iota on axis:", vmec.iota_axis())
+proc0_print("Final objective function:", objective)
+proc0_print("Final state vector:", prob.x)
+proc0_print("Final iota on axis:", vmec.iota_axis())
 
-print("End of 7dof.py")
-print("===============")
+proc0_print("End of 7dof.py")
+proc0_print("===============")

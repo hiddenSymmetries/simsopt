@@ -33,18 +33,8 @@ from simsopt.field import BiotSavart, Current, Coil, coils_via_symmetries
 from simsopt.geo import (CurveLength, CurveCurveDistance, curves_to_vtk, create_equally_spaced_curves, SurfaceRZFourier,
                          MeanSquaredCurvature, LpCurveCurvature, ArclengthVariation, GaussianSampler, CurvePerturbed, PerturbationSample)
 from simsopt.objectives import QuadraticPenalty, MPIObjective, SquaredFlux
-from simsopt.util import in_github_actions
+from simsopt.util import in_github_actions, proc0_print, comm_world
 
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-
-    def pprint(*args, **kwargs):
-        if comm.rank == 0:  # only print on rank 0
-            print(*args, **kwargs)
-except ImportError:
-    comm = None
-    pprint = print
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -149,7 +139,7 @@ for i in range(N_SAMPLES):
     curves_pert.append([c.curve for c in coils_pert])
     bs_pert = BiotSavart(coils_pert)
     Jfs.append(SquaredFlux(s, bs_pert))
-Jmpi = MPIObjective(Jfs, comm, needs_splitting=True)
+Jmpi = MPIObjective(Jfs, comm_world, needs_splitting=True)
 
 for i in range(len(curves_pert)):
     curves_to_vtk(curves_pert[i], OUT_DIR + f"curves_init_{i}")
@@ -183,11 +173,11 @@ def fun(dofs):
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L>=[{msc_string}], C-C-Sep={Jdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    pprint(outstr, flush=True)
+    proc0_print(outstr, flush=True)
     return J, grad
 
 
-pprint("""
+proc0_print("""
 ################################################################################
 ### Perform a Taylor test ######################################################
 ################################################################################
@@ -201,18 +191,18 @@ dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    pprint("err", (J1-J2)/(2*eps) - dJh)
+    proc0_print("err", (J1-J2)/(2*eps) - dJh)
 
-pprint("""
+proc0_print("""
 ################################################################################
 ### Run the optimisation #######################################################
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
 alen_string = ", ".join([f"{np.max(c.incremental_arclength())/np.min(c.incremental_arclength())-1:.2e}" for c in base_curves])
-pprint(f"Final arclength variation max(|ℓ|)/min(|ℓ|) - 1=[{alen_string}]")
+proc0_print(f"Final arclength variation max(|ℓ|)/min(|ℓ|) - 1=[{alen_string}]")
 
-pprint("""
+proc0_print("""
 ################################################################################
 ### Evaluate the obtained coils ################################################
 ################################################################################
@@ -223,8 +213,8 @@ for i in range(len(curves_pert)):
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 Jf.x = res.x
-pprint(f"Mean Flux Objective across perturbed coils: {Jmpi.J():.3e}")
-pprint(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
+proc0_print(f"Mean Flux Objective across perturbed coils: {Jmpi.J():.3e}")
+proc0_print(f"Flux Objective for exact coils coils      : {Jf.J():.3e}")
 
 # now draw some fresh samples to evaluate the out-of-sample error
 rg = np.random.Generator(PCG64(seed+1, inc=0))
@@ -240,4 +230,4 @@ for i in range(N_OOS):
     val += SquaredFlux(s, bs_pert).J()
 
 val *= 1./N_OOS
-pprint(f"Out-of-sample flux value                  : {val:.3e}")
+proc0_print(f"Out-of-sample flux value                  : {val:.3e}")

@@ -12,7 +12,7 @@ The script should be run as:
     mpirun -n 1 python permanent_magnet_MUSE.py
 on a cluster machine but 
     python permanent_magnet_MUSE.py
-is sufficient on other machines. Note that the code is 
+is sufficient on other machines. Note that this code does not use MPI, but is 
 parallelized via OpenMP and XSIMD, so will run substantially
 faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
