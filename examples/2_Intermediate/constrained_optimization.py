@@ -4,10 +4,10 @@ import os
 
 import numpy as np
 
-from simsopt.util.mpi import MpiPartition
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import ConstrainedProblem
-from simsopt.solve.mpi import constrained_mpi_solve
+from simsopt.solve import constrained_mpi_solve
+from simsopt.util import MpiPartition
 
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=-1)

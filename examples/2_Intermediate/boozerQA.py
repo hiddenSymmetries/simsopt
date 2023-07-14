@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+
+import os
+import numpy as np
+from scipy.optimize import minimize
+
+from simsopt.configs import get_ncsx_data
+from simsopt.field import BiotSavart, coils_via_symmetries
 from simsopt.geo import SurfaceXYZTensorFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
     ToroidalFlux, Volume, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas
-from simsopt.field import BiotSavart, coils_via_symmetries
-from simsopt.configs import get_ncsx_data
 from simsopt.objectives import QuadraticPenalty
-from scipy.optimize import minimize
-import numpy as np
-import os
+from simsopt.util import in_github_actions
 
 """
 This example optimizes the NCSX coils and currents for QA on a single surface.  The objective is
@@ -138,8 +141,7 @@ print("""
 ################################################################################
 """)
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 1e3
+MAXITER = 50 if in_github_actions else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")

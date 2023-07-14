@@ -7,6 +7,7 @@ This module contains small utility functions and classes needed by *_core*
 subpackage.
 """
 
+import os
 import itertools
 from numbers import Integral, Real, Number
 from dataclasses import dataclass

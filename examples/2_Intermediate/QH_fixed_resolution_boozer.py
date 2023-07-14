@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import os
-from simsopt.util import MpiPartition
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition
 
 """
 Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.

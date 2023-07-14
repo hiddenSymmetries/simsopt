@@ -16,14 +16,11 @@ try:
 except ImportError:
     comm = None
 
-from simsopt.field import BiotSavart
-from simsopt.field import InterpolatedField
-from simsopt.geo import SurfaceRZFourier
-from simsopt.field import coils_via_symmetries
-from simsopt.field import trace_particles_starting_on_curve, SurfaceClassifier, \
-    LevelsetStoppingCriterion, plot_poincare_data
-from simsopt.geo import curves_to_vtk
 from simsopt.configs import get_ncsx_data
+from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, trace_particles_starting_on_curve,
+                           SurfaceClassifier, LevelsetStoppingCriterion, plot_poincare_data)
+from simsopt.geo import SurfaceRZFourier, curves_to_vtk
+from simsopt.util import in_github_actions
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 
 print("Running 1_Simple/tracing_particle.py")
@@ -34,10 +31,9 @@ logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
 
-# check whether we're in CI, in that case we make the run a bit cheaper
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-nparticles = 3 if ci else 100
-degree = 2 if ci else 3
+# If we're in the CI, make the run a bit cheaper:
+nparticles = 3 if in_github_actions else 100
+degree = 2 if in_github_actions else 3
 
 # Directory for output
 OUT_DIR = "./output/"

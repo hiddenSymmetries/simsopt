@@ -20,14 +20,11 @@ try:
 except ImportError:
     comm = None
 
-from simsopt.field import BiotSavart
-from simsopt.field import InterpolatedField
-from simsopt.geo import SurfaceRZFourier
-from simsopt.field import coils_via_symmetries
-from simsopt.field import SurfaceClassifier, \
-    particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data
-from simsopt.geo import curves_to_vtk
 from simsopt.configs import get_ncsx_data
+from simsopt.field import (BiotSavart, InterpolatedField, coils_via_symmetries, SurfaceClassifier,
+                           particles_to_vtk, compute_fieldlines, LevelsetStoppingCriterion, plot_poincare_data)
+from simsopt.geo import SurfaceRZFourier, curves_to_vtk
+from simsopt.util import in_github_actions
 
 print("Running 1_Simple/tracing_fieldlines_NCSX.py")
 print("===========================================")
@@ -37,11 +34,10 @@ logging.basicConfig()
 logger = logging.getLogger('simsopt.field.tracing')
 logger.setLevel(1)
 
-# check whether we're in CI, in that case we make the run a bit cheaper
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-nfieldlines = 3 if ci else 30
-tmax_fl = 10000 if ci else 40000
-degree = 2 if ci else 4
+# If we're in the CI, make the run a bit cheaper:
+nfieldlines = 3 if in_github_actions else 30
+tmax_fl = 10000 if in_github_actions else 40000
+degree = 2 if in_github_actions else 4
 
 # Directory for output
 OUT_DIR = "./output/"
