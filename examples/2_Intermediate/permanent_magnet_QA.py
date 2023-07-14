@@ -25,7 +25,7 @@ The script should be run as:
     mpirun -n 1 python permanent_magnet_QA.py
 on a cluster machine but 
     python permanent_magnet_QA.py
-is sufficient on other machines. Note that the code is 
+is sufficient on other machines. Note that this code does not use MPI, but is 
 parallelized via OpenMP and XSIMD, so will run substantially
 faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
@@ -42,13 +42,13 @@ from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import relax_and_split
+from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
 # Set some parameters -- if doing CI, lower the resolution
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-if ci:
+if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
