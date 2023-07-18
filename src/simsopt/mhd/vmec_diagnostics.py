@@ -1306,7 +1306,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         This function is used for computing an array of values of theta_vmec that
         give a desired theta_pest array.
         """
-        return theta_p_target - (theta_v + np.sum(lmns[js, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
+        return theta_p_target - (theta_v + np.sum(lmns[jradius, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
 
     theta_vmec = np.zeros((ns, nalpha, nl))
     for js in range(ns):
