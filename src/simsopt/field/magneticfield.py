@@ -93,8 +93,13 @@ class MagneticField(sopp.MagneticField, Optimizable):
         gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[..., 0]), contig(vals[..., 1]), contig(vals[..., 2]))})
 
     def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1):
-        """Export the field evaluated on a regular grid for free boundary
-        calculations.
+        """Export the field to the mgrid format for free boundary calculations.
+
+        The field data is represented as a single "current group". For
+        free-boundary vmec, the "extcur" array should have a single nonzero
+        element, set to 1.0.
+
+        In the future, we may want to implement multiple current groups.
 
         Args:
             filename: Name of the NetCDF file to save.
@@ -112,7 +117,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         phis = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
         zs = np.linspace(zmin, zmax, nz, endpoint=True)
 
-        Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')  # check the order here (!)
+        Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')
         X = R * np.cos(Phi)
         Y = R * np.sin(Phi)
         Z = Z
@@ -122,7 +127,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         RPhiZ[:, 1] = Phi.flatten()  
         RPhiZ[:, 2] = Z.flatten()
 
-        # get field from simsopt
+        # get field on the grid
         self.set_points_cyl(RPhiZ)
         B = self.B_cyl()
 
@@ -132,10 +137,8 @@ class MagneticField(sopp.MagneticField, Optimizable):
         bp_3 = bp.reshape((nphi, nz, nr))
         bz_3 = bz.reshape((nphi, nz, nr))
 
-        ## should implement multiple coil groups
-
-        mgrid = MGrid(nfp=nfp, \
-                      nr=nr, nz=nz, nphi=nphi, \
+        mgrid = MGrid(nfp=nfp,
+                      nr=nr, nz=nz, nphi=nphi,
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
         mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
 

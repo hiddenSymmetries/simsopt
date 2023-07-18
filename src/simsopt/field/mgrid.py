@@ -23,10 +23,11 @@ def _unpack(binary_array):
 class MGrid():
 
     '''
-    This class writes Mgrid files for use in free boundary VMEC and other codes.
+    This class reads and writes mgrid files for use in free boundary VMEC and other codes.
 
-    The B vector field is given in cylindricial coordinates for each coil.
-    It is written as a netCDF binary file.
+    The mgrid representation consists of the cylindrical components of B on a
+    tensor product grid in cylindrical coordinates. Mgrid files are saved in
+    NetCDF format.
 
     Args:
         nr: number of radial points
@@ -110,6 +111,10 @@ class MGrid():
         '''
         Export class data as a netCDF binary.
 
+        The field data is represented as a single "current group". For
+        free-boundary vmec, the "extcur" array should have a single nonzero
+        element, set to 1.0.
+
         Args:
             filename: output file name
         '''
@@ -170,13 +175,6 @@ class MGrid():
             var_bp_001[:, :, :] = self.bp_arr[j]
 
         ds.close()
-
-    def export_phi(self):
-        phi = np.linspace(0, 2*np.pi/self.nfp, self.nphi)
-        return phi
-
-    def export_grid_spacing(self):
-        return self.nr, self.nz, self.nphi
 
     @classmethod 
     def from_file(cls, filename):
