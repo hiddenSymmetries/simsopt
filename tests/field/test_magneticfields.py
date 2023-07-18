@@ -1,5 +1,6 @@
 import json
 import unittest
+import tempfile
 import numpy as np
 from pathlib import Path
 
@@ -1014,7 +1015,9 @@ class Testing(unittest.TestCase):
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
-        bs.to_mgrid('mgrid.bfield.nc')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = Path(tmpdir) / "mgrid.bfield.nc"
+            bs.to_mgrid(filename)
 
         # test against an existing low res file
         # OR, write to file, read to the same 

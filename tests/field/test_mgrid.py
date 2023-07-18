@@ -1,12 +1,20 @@
 #!/usr/bin/env python
 
 import unittest
+import os
 from pathlib import Path
+import tempfile
 import numpy as np
 from scipy.io import netcdf_file
 
-from simsopt.field import BiotSavart, Current, coils_via_symmetries, MGrid, ScaledCurrent
-from simsopt.geo import curves_to_vtk, CurveXYZFourier, SurfaceRZFourier
+try:
+    import vmec
+except ImportError:
+    vmec = None
+
+from simsopt.configs import get_w7x_data
+from simsopt.field import BiotSavart, coils_via_symmetries, MGrid
+from simsopt.mhd import Vmec
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 test_file = TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc'
@@ -20,11 +28,6 @@ class Testing(unittest.TestCase):
         assert mgrid.rmin == 0.5
         assert mgrid.nphi == 6
         assert mgrid.bvec.shape == (11, 11, 6, 3) 
-
-    def test_load_field(self):
-        f = netcdf_file(test_file, 'r', mmap=False)
-        mgrid = MGrid()
-        mgrid.load_field(f)
 
         names = mgrid.coil_names
         assert len(names) == 1
@@ -48,24 +51,75 @@ class Testing(unittest.TestCase):
 
     def test_write(self):
         mgrid = MGrid.from_file(test_file)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = Path(tmpdir) / 'mgrid.test.nc'
+            mgrid.write(filename)
 
-        filename = 'mgrid.test.nc'
-        mgrid.write(filename)
+            f = netcdf_file(filename, mmap=False)
+            zmin = f.variables['zmin'][:][0]
+            assert zmin == -0.5
 
-        f = netcdf_file(filename, mmap=False)
-        zmin = f.variables['zmin'][:][0]
-        assert zmin == -0.5
+            nextcur = f.variables['nextcur'][:][0]
+            assert nextcur == 1
 
-        nextcur = f.variables['nextcur'][:][0]
-        assert nextcur == 1
+            assert f.variables['br_001'][:].shape == (6, 11, 11)
+            assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
 
-        assert f.variables['br_001'][:].shape == (6, 11, 11)
-        assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
+            byte_string = f.variables['coil_group'][:][0]
+            message = "".join([x.decode('ascii') for x in byte_string])
+            assert message == '________simsopt_coils_________'
 
-        byte_string = f.variables['coil_group'][:][0]
-        message = "".join([x.decode('ascii') for x in byte_string])
-        assert message == '________simsopt_coils_________'
+    def test_plot(self):
+        mgrid = MGrid.from_file(test_file)
+        mgrid.plot(show=False)
 
 
+@unittest.skipIf(vmec is None, "Interface to VMEC not found")
+class VmecTests(unittest.TestCase):
+    def test_free_boundary_vmec(self):
+        """
+        Check that the files written by this MGrid class can be read by
+        free-boundary vmec.
+        """
+        input_file = str(TEST_DIR / "input.W7-X_standard_configuration")
 
+        curves, currents, magnetic_axis = get_w7x_data()
+        nfp = 5
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        eq = Vmec(input_file)
+        nphi = 24
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)  # Use temporary directory for vmec files
+            filename = Path(tmpdir) / "mgrid.bfield.nc"
+            bs.to_mgrid(
+                filename,
+                nphi=nphi,
+                rmin=4.5,
+                rmax=6.3,
+                zmin=-1.0,
+                zmax=1.0,
+                nr=64,
+                nz=65,
+                nfp=5,
+            )
+
+            eq.indata.lfreeb = True
+            eq.indata.mgrid_file = filename
+            eq.indata.extcur[0] = 1.0
+            eq.indata.nzeta = nphi
+            eq.mpol = 6
+            eq.ntor = 6
+            eq.indata.ns_array[2] = 0
+            ftol = 1e-10
+            eq.indata.ftol_array[1] = ftol
+            eq.run()
+
+            np.testing.assert_allclose(eq.wout.volume_p, 28.6017247168422, rtol=0.01)
+            np.testing.assert_allclose(eq.wout.rmnc[0, 0], 5.561878306096512, rtol=0.01)
+            np.testing.assert_allclose(eq.wout.bmnc[0, 1], 2.78074392223658, rtol=0.01)
+            assert eq.wout.fsql < ftol
+            assert eq.wout.fsqr < ftol
+            assert eq.wout.fsqz < ftol
+            assert eq.wout.ier_flag == 0
 
