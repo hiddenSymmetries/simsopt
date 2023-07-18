@@ -54,9 +54,10 @@ symmetries and fusion energy project
 
 ``simsopt`` is one of several available systems for stellarator
 optimization.  Others include `STELLOPT
-<https://github.com/PrincetonUniversity/STELLOPT>`_, `ROSE
-<https://doi.org/10.1088/1741-4326/aaed50>`_, and `LASSO
-<https://gitlab.com/wistell>`_.
+<https://github.com/PrincetonUniversity/STELLOPT>`_, `DESC
+<https://github.com/PlasmaControl/DESC>`_, `ROSE
+<https://doi.org/10.1088/1741-4326/aaed50>`_, and
+`StellaratorOptimization.jl <https://gitlab.com/wistell/StellaratorOptimization.jl>`_.
 
 .. toctree::
    :maxdepth: 2
@@ -84,6 +85,8 @@ optimization.  Others include `STELLOPT
    example_quasisymmetry
    example_islands
    example_coils
+   example_single_stage
+   example_permanent_magnets
 
 .. toctree::
    :maxdepth: 3

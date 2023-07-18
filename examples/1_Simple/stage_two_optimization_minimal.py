@@ -28,9 +28,10 @@ import numpy as np
 from scipy.optimize import minimize
 
 from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves, \
-    CurveLength, plot, curves_to_vtk
+    CurveLength, curves_to_vtk
 from simsopt.field import Current, coils_via_symmetries, BiotSavart
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -52,8 +53,7 @@ LENGTH_WEIGHT = 1.0
 LENGTH_TARGET = 18.0
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 300
+MAXITER = 50 if in_github_actions else 300
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -96,7 +96,7 @@ Jls = [CurveLength(c) for c in base_curves]
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
-JF = Jf + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET)
+JF = Jf + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 
 B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('Initial max|B dot n|:', np.max(np.abs(B_dot_n)))
@@ -141,6 +141,10 @@ s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
 B_dot_n = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('Final max|B dot n|:', np.max(np.abs(B_dot_n)))
+
+total_curve_length = sum(func.J() for func in Jls)
+print("Sum of lengths of base curves:", total_curve_length)
+assert total_curve_length < 1.1 * LENGTH_TARGET
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")

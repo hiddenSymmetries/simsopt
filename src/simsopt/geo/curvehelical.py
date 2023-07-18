@@ -38,7 +38,7 @@ class CurveHelical(JaxCurve):
         r0:  minor radius
     '''
 
-    def __init__(self, quadpoints, order, n0, l0, R0, r0):
+    def __init__(self, quadpoints, order, n0, l0, R0, r0, **kwargs):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxHelicalfouriercurve_pure(
@@ -49,7 +49,13 @@ class CurveHelical(JaxCurve):
         self.R0 = R0
         self.r0 = r0
         self.coefficients = [np.zeros((order,)), np.zeros((order,))]
-        super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients))
+        if "dofs" not in kwargs:
+            if "x0" not in kwargs:
+                kwargs["x0"] = np.concatenate(self.coefficients)
+            else:
+                self.set_dofs_impl(kwargs["x0"])
+
+        super().__init__(quadpoints, pure, **kwargs)
 
     def num_dofs(self):
         return 2*self.order
@@ -62,22 +68,3 @@ class CurveHelical(JaxCurve):
         for i in range(2):
             self.coefficients[i] = dofs[i*order:(i+1)*order]
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["quadpoints"] = list(self.quadpoints)
-        d["order"] = self.order
-        d["n0"] = self.n0
-        d["l0"] = self.l0
-        d["R0"] = self.R0
-        d["r0"] = self.r0
-        d["x0"] = list(self.local_full_x)
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = cls(d["quadpoints"], d["order"], d["n0"], d["l0"], d["R0"],
-                    d["r0"])
-        curve.local_full_x = d["x0"]
-        return curve

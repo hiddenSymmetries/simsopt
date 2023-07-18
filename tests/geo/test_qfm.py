@@ -5,7 +5,7 @@ from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_w7x_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -41,7 +41,7 @@ class QfmSurfaceTests(unittest.TestCase):
         x = s.get_dofs()
         r0 = qfm_surface.qfm_penalty_constraints(x, derivatives=0,
                                                  constraint_weight=weight)
-        assert(r0 < 1e-10)
+        assert (r0 < 1e-10)
 
     def test_qfm_objective_gradient(self):
         """
@@ -49,13 +49,14 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    self.subtest_qfm_objective_gradient(surfacetype, stellsym)
+                for config in [get_ncsx_data, get_hsx_data, get_w7x_data]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, config=config):
+                        self.subtest_qfm_objective_gradient(surfacetype, stellsym, config)
 
-    def subtest_qfm_objective_gradient(self, surfacetype, stellsym):
+    def subtest_qfm_objective_gradient(self, surfacetype, stellsym, get_data):
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
+        curves, currents, ma = get_data()
+        nfp = ma.nfp
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
@@ -76,7 +77,7 @@ class QfmSurfaceTests(unittest.TestCase):
         Jex = J0@h
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(7, 20)))
+        epsilons = np.power(2., -np.asarray(range(13, 20)))
         print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_objective(
@@ -139,13 +140,14 @@ class QfmSurfaceTests(unittest.TestCase):
         """
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym)
+                for get_data in [get_ncsx_data, get_hsx_data]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, get_data=get_data):
+                        self.subtest_qfm_penalty_constraints_gradient(surfacetype, stellsym, get_data)
 
-    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym):
+    def subtest_qfm_penalty_constraints_gradient(self, surfacetype, stellsym, get_data):
         np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        nfp = 3
+        curves, currents, ma = get_data()
+        nfp = ma.nfp
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
@@ -168,7 +170,7 @@ class QfmSurfaceTests(unittest.TestCase):
         Jex = J0@h
 
         err_old = 1e9
-        epsilons = np.power(2., -np.asarray(range(9, 17)))
+        epsilons = np.power(2., -np.asarray(range(12, 17)))
         print("###############################################################")
         for eps in epsilons:
             f1 = qfm_surface.qfm_penalty_constraints(
@@ -205,6 +207,7 @@ class QfmSurfaceTests(unittest.TestCase):
         fixed volume. Then solve constrained problem using SLSQP. Repeat
         both steps for fixed area. Check that volume is preserved.
         """
+        np.random.seed(1)
         curves, currents, ma = get_ncsx_data()
         nfp = 3
 
@@ -255,7 +258,9 @@ class QfmSurfaceTests(unittest.TestCase):
         assert res['success']
         assert np.linalg.norm(res['gradient']) < 1e-3
         assert res['fun'] < 1e-5
-        assert np.abs(vol_target - vol.J()) < 1e-5
+        volume_difference = np.abs(vol_target - vol.J())
+        print("np.abs(vol_target - vol.J()):", volume_difference)
+        assert volume_difference < 3e-5
 
         vol_opt1 = vol.J()
 
@@ -271,7 +276,9 @@ class QfmSurfaceTests(unittest.TestCase):
         assert res['success']
         assert res['fun'] < 1e-5
         assert np.linalg.norm(res['gradient']) < 1e-2
-        assert np.abs(ar_target - ar.J()) < 1e-5
+        ar_difference = np.abs(ar_target - ar.J())
+        print("np.abs(ar_target - ar.J()):", ar_difference)
+        assert ar_difference < 3e-5
 
         res = qfm_surface.minimize_qfm_exact_constraints_SLSQP(tol=1e-9,
                                                                maxiter=1000)

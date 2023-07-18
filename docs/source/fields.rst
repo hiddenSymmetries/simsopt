@@ -170,6 +170,14 @@ Physics Communications 43 (1986) 157—167
 It is an analytical magnetic field representation that allows the
 explicit calculation of the width of the magnetic field islands.
 
+MirrorModel
+~~~~~~~~~~~
+
+The class :obj:`simsopt.field.MirrorModel` provides an analytic model field for
+magnetic mirrors, used in https://arxiv.org/abs/2305.06372 to study
+the experiment WHAM. See the documentation of :obj:`~simsopt.field.MirrorModel`
+for more details.
+
 InterpolatedField
 ~~~~~~~~~~~~~~~~~
 

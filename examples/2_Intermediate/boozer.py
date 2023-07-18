@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-from simsopt.field import BiotSavart
-from simsopt.geo import SurfaceXYZTensorFourier
-from simsopt.geo import BoozerSurface
-from simsopt.geo import boozer_surface_residual, ToroidalFlux, Area
-from simsopt.field import coils_via_symmetries
-from simsopt.configs import get_ncsx_data
-import numpy as np
+
 import os
+import numpy as np
+from simsopt.configs import get_ncsx_data
+from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.geo import BoozerSurface, boozer_surface_residual, ToroidalFlux, Area, SurfaceXYZTensorFourier
 
 """
 This example demonstrate how to compute surfaces in Boozer coordinates for a

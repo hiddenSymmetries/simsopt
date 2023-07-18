@@ -4,6 +4,6 @@ source = simsopt
 
 [paths]
 sources = 
-    /opt/hostedtoolcache/Python/3.8.12/x64/lib/python3.8/site-packages
-    /opt/hostedtoolcache/Python/3.7.12/x64/lib/python3.7/site-packages
-    /opt/hostedtoolcache/Python/3.9.6/x64/lib/python3.9/site-packages
+    /opt/hostedtoolcache/Python/3.8.17/x64/lib/python3.8/site-packages
+    /opt/hostedtoolcache/Python/3.9.17/x64/lib/python3.9/site-packages
+    /opt/hostedtoolcache/Python/3.10.12/x64/lib/python3.10/site-packages

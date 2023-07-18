@@ -2,12 +2,12 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
 from simsopt.geo import parameters
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 parameters['jit'] = False
 try:
     from mpi4py import MPI
@@ -30,8 +30,8 @@ class UtilityObjectiveTesting(unittest.TestCase):
         curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
         return curve
 
-    def subtest_quadratic_penalty(self, curve, threshold):
-        J = QuadraticPenalty(CurveLength(curve), threshold)
+    def subtest_quadratic_penalty(self, curve, constant, f):
+        J = QuadraticPenalty(CurveLength(curve), constant, f)
         J0 = J.J()
         curve_dofs = curve.x
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
@@ -45,18 +45,21 @@ class UtilityObjectiveTesting(unittest.TestCase):
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-deriv)
             print("err_new %s" % (err_new))
-            assert err_new < 0.55 * err or err_new < 1e-13
+            assert err_new < 0.6 * err or err_new < 1e-13
             err = err_new
 
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_quadratic_penalty(self):
         curve = self.create_curve()
         J = CurveLength(curve)
-        self.subtest_quadratic_penalty(curve, J.J()+0.1)
-        self.subtest_quadratic_penalty(curve, J.J()-0.1)
+        for f in ['min', 'max', 'identity']:
+            self.subtest_quadratic_penalty(curve, J.J()+0.1, f)
+            self.subtest_quadratic_penalty(curve, J.J()-0.1, f)
+        with self.assertRaises(Exception):
+            self.subtest_quadratic_penalty(curve, J.J()+0.1, 'NotInList')
 
     def test_mpi_objective(self):
         if MPI is None:

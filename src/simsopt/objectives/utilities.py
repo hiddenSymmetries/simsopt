@@ -1,10 +1,36 @@
 import numpy as np
-from monty.json import MSONable, MontyDecoder
+import scipy
+# from monty.json import MSONable, MontyDecoder
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 
-__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight']
+__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
+
+
+def forward_backward(P, L, U, rhs, iterative_refinement=False):
+    """
+    Solve a linear system of the form (PLU)^T*adj = rhs for adj.
+
+
+    Args:
+        P: permutation matrix
+        L: lower triangular matrix
+        U: upper triangular matrix
+        iterative_refinement: when true, applies iterative refinement which can improve
+                              the accuracy of the computed solution when the matrix is
+                              particularly ill-conditioned.
+    """
+    y = scipy.linalg.solve_triangular(U.T, rhs, lower=True)
+    z = scipy.linalg.solve_triangular(L.T, y, lower=False)
+    adj = P@z
+
+    if iterative_refinement:
+        yp = scipy.linalg.solve_triangular(U.T, rhs-(P@L@U).T@adj, lower=True)
+        zp = scipy.linalg.solve_triangular(L.T, yp, lower=False)
+        adj += P@zp
+
+    return adj
 
 
 def sum_across_comm(derivative, comm):
@@ -66,41 +92,50 @@ class MPIObjective(Optimizable):
 
 class QuadraticPenalty(Optimizable):
 
-    def __init__(self, obj, threshold=0.):
+    def __init__(self, obj, cons=0., f="identity"):
         r"""
-        A penalty function of the form :math:`\max(J - \text{threshold}, 0)^2` for an underlying objective ``J``.
+        A quadratic penalty function of the form :math:`0.5f(\text{obj}.J() - \text{cons})^2` for an underlying objective ``obj``
+        and wrapping function ``f``. This can be used to implement a barrier penalty function for (in)equality
+        constrained optimization problem. The wrapping function defaults to ``"identity"``.
 
         Args:
             obj: the underlying objective. It should provide a ``.J()`` and ``.dJ()`` function.
-            threshold: the threshold past which values should be penalized.
+            cons: constant
+            f: the function that wraps the difference :math:`obj-\text{cons}`.  The options are ``"min"``, ``"max"``, or ``"identity"``.
+               which respectively return :math:`\min(\text{obj}-\text{cons}, 0)`, :math:`\max(\text{obj}-\text{cons}, 0)`, and :math:`\text{obj}-\text{cons}`.
         """
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj])
         self.obj = obj
-        self.threshold = threshold
+        self.cons = cons
+        self.f = f
 
     def J(self):
-        return 0.5*np.maximum(self.obj.J()-self.threshold, 0)**2
+        val = self.obj.J()
+        diff = float(val - self.cons)
+
+        if self.f == 'max':
+            return 0.5*np.maximum(diff, 0)**2
+        elif self.f == 'min':
+            return 0.5*np.minimum(diff, 0)**2
+        elif self.f == 'identity':
+            return 0.5*diff**2
+        else:
+            raise Exception('incorrect wrapping function f provided')
 
     @derivative_dec
     def dJ(self):
         val = self.obj.J()
         dval = self.obj.dJ(partials=True)
-        return np.maximum(val-self.threshold, 0)*dval
+        diff = float(val - self.cons)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@class"] = self.__class__.__name__
-        d["@module"] = self.__class__.__module__
-        d["obj"] = self.obj
-        d["threshold"] = np.array(self.threshold)
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        obj = decoder.process_decoded(d["obj"])
-        threshold = decoder.process_decoded(d["threshold"])
-        return cls(obj, threshold)
+        if self.f == 'max':
+            return np.maximum(diff, 0)*dval
+        elif self.f == 'min':
+            return np.minimum(diff, 0)*dval
+        elif self.f == 'identity':
+            return diff*dval
+        else:
+            raise Exception('incorrect wrapping function f provided')
 
     return_fn_map = {'J': J, 'dJ': dJ}
 

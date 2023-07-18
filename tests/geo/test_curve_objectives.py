@@ -2,18 +2,18 @@ import unittest
 import json
 
 import numpy as np
-from monty.json import MontyDecoder, MontyEncoder
 
 from simsopt.geo import parameters
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk
+from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, CurveCurveDistance, ArclengthVariation, \
-    MeanSquaredCurvature, CurveSurfaceDistance
+    MeanSquaredCurvature, CurveSurfaceDistance, LinkingNumber
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.configs.zoo import get_ncsx_data
+from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 import simsoptpp as sopp
 
 parameters['jit'] = False
@@ -72,8 +72,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_length_taylor_test(self):
@@ -101,8 +101,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_curvature_taylor_test(self):
@@ -130,8 +130,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.55 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_torsion_taylor_test(self):
@@ -170,8 +170,8 @@ class Testing(unittest.TestCase):
                 # print("err_new %s" % (err_new))
                 assert err_new < 0.55 * err
                 err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_minimum_distance_taylor_test(self):
@@ -204,8 +204,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.3 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_arclengthvariation_taylor_test(self):
@@ -243,8 +243,8 @@ class Testing(unittest.TestCase):
             # print("err_new %s" % (err_new))
             assert err_new < 0.3 * err
             err = err_new
-        J_str = json.dumps(J, cls=MontyEncoder)
-        J_regen = json.loads(J_str, cls=MontyDecoder)
+        J_str = json.dumps(SIMSON(J), cls=GSONEncoder)
+        J_regen = json.loads(J_str, cls=GSONDecoder)
         self.assertAlmostEqual(J.J(), J_regen.J())
 
     def test_curve_meansquaredcurvature_taylor_test(self):
@@ -319,7 +319,7 @@ class Testing(unittest.TestCase):
         base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
         ntor = 0
-        surface = SurfaceRZFourier(nfp=3, nphi=32, ntheta=32, ntor=ntor)
+        surface = SurfaceRZFourier.from_nphi_ntheta(nfp=3, nphi=32, ntheta=32, ntor=ntor)
         surface.set(f'rc(0,{ntor})', 1.6)
         surface.set(f'rc(1,{ntor})', 0.2)
         surface.set(f'zs(1,{ntor})', 0.2)
@@ -357,6 +357,38 @@ class Testing(unittest.TestCase):
             print(err_new/err)
             assert err_new < 0.3 * err
             err = err_new
+
+    def test_linking_number(self):
+
+        curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=128)
+        curve1 = CurveXYZFourier(200, 3)
+        coeffs = curve1.dofs_matrix
+        coeffs[1][0] = 1.
+        coeffs[1][1] = 0.5
+        coeffs[2][2] = 0.5
+        curve1.set_dofs(np.concatenate(coeffs))
+
+        curve2 = CurveXYZFourier(150, 3)
+        coeffs = curve2.dofs_matrix
+        coeffs[1][0] = 0.5
+        coeffs[1][1] = 0.5
+        coeffs[0][0] = 0.1
+        coeffs[0][1] = 0.5
+        coeffs[0][2] = 0.5
+        curve2.set_dofs(np.concatenate(coeffs))
+        curves2 = [curve1, curve2]
+        Object1 = LinkingNumber(curves1)
+        Object2 = LinkingNumber(curves2)
+
+        fullArray = Object1.J()
+        fullArray2 = Object2.J()
+        deriv1 = Object1.dJ()
+        deriv2 = Object2.dJ()
+        print("Link Number Testing (should be 0, 1)")
+        print(fullArray)
+        print(fullArray2)
+        self.assertAlmostEqual(fullArray, 0)
+        self.assertAlmostEqual(fullArray2, 1)
 
 
 if __name__ == "__main__":

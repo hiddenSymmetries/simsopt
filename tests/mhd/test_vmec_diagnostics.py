@@ -1,11 +1,13 @@
 import unittest
 import os
 import logging
+
 import numpy as np
+from monty.tempfile import ScratchDir
 
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
     B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
-    vmec_fieldlines
+    vmec_splines, vmec_compute_geometry, vmec_fieldlines
 from simsopt.objectives.least_squares import LeastSquaresProblem
 
 try:
@@ -100,106 +102,112 @@ class QuasisymmetryRatioResidualTests(unittest.TestCase):
         For an axisymmetric field, the QA error should be 0, while the QH
         and QP error should be significant.
         """
+        with ScratchDir("."):
+            vmec = Vmec(os.path.join(TEST_DIR, 'input.circular_tokamak'))
 
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.circular_tokamak'))
+            for surfaces in [[0.5], [0.3, 0.6]]:
+                qa = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=1, helicity_n=0)
+                residuals = qa.residuals()
+                logger.info(f'max QA error: {np.max(np.abs(residuals))}')
+                np.testing.assert_allclose(residuals, np.zeros_like(residuals), atol=2e-6)
 
-        for surfaces in [[0.5], [0.3, 0.6]]:
-            qa = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=1, helicity_n=0)
-            residuals = qa.residuals()
-            logger.info(f'max QA error: {np.max(np.abs(residuals))}')
-            np.testing.assert_allclose(residuals, np.zeros_like(residuals), atol=2e-6)
+                qh = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=1, helicity_n=1)
+                logger.info(f'QH error: {qh.total()}')
+                self.assertTrue(qh.total() > 0.01)
 
-            qh = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=1, helicity_n=1)
-            logger.info(f'QH error: {qh.total()}')
-            self.assertTrue(qh.total() > 0.01)
-
-            qp = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=0, helicity_n=1)
-            logger.info(f'QP error: {qp.total()}')
-            self.assertTrue(qp.total() > 0.01)
+                qp = QuasisymmetryRatioResidual(vmec, surfaces, helicity_m=0, helicity_n=1)
+                logger.info(f'QP error: {qp.total()}')
+                self.assertTrue(qp.total() > 0.01)
 
     def test_good_qa(self):
         """
         For a configuration that is known to have good quasi-axisymmetry,
         the QA error should have a low value. The QH and QP errors should be larger.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.simsopt_nfp2_QA_20210328-01-020_000_000251'))
-        qa = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=0)
-        total = qa.total()
-        logger.info(f"QA error for simsopt_nfp2_QA_20210328-01-020_000_000251: {total}")
-        self.assertTrue(total < 2e-5)
+        with ScratchDir("."):
+            vmec = Vmec(os.path.join(TEST_DIR, 'input.simsopt_nfp2_QA_20210328-01-020_000_000251'))
+            qa = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=0)
+            total = qa.total()
+            logger.info(f"QA error for simsopt_nfp2_QA_20210328-01-020_000_000251: {total}")
+            self.assertTrue(total < 2e-5)
 
-        qh = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=1)
-        logger.info(f'QH error: {qh.total()}')
-        self.assertTrue(qh.total() > 0.002)
+            qh = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=1)
+            logger.info(f'QH error: {qh.total()}')
+            self.assertTrue(qh.total() > 0.002)
 
-        qp = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=0, helicity_n=1)
-        logger.info(f'QP error: {qp.total()}')
-        self.assertTrue(qp.total() > 0.002)
+            qp = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=0, helicity_n=1)
+            logger.info(f'QP error: {qp.total()}')
+            self.assertTrue(qp.total() > 0.002)
 
     def test_good_qh(self):
         """
         For a configuration that is known to have good quasi-helical symmetry,
         the QH error should have a low value. The QA and QP errors should be larger.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.20210406-01-002-nfp4_QH_000_000240'))
+        with ScratchDir("."):
+            vmec = Vmec(os.path.join(TEST_DIR, 'input.20210406-01-002-nfp4_QH_000_000240'))
 
-        qh = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=-1)
-        logger.info(f'QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240: {qh.total()}')
-        self.assertTrue(qh.total() < 5e-5)
+            qh = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=-1)
+            logger.info(f'QH error (n=-1) for 20210406-01-002-nfp4_QH_000_000240: {qh.total()}')
+            self.assertTrue(qh.total() < 5e-5)
 
-        qh2 = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=1)
-        logger.info(f'QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240: {qh2.total()}')
-        self.assertTrue(qh2.total() > 0.01)
+            qh2 = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=1)
+            logger.info(f'QH error (n=+1) for 20210406-01-002-nfp4_QH_000_000240: {qh2.total()}')
+            self.assertTrue(qh2.total() > 0.01)
 
-        qa = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=0)
-        total = qa.total()
-        logger.info(f'QA error for 20210406-01-002-nfp4_QH_000_000240: {total}')
-        self.assertTrue(total > 0.05)
+            qa = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=1, helicity_n=0)
+            total = qa.total()
+            logger.info(f'QA error for 20210406-01-002-nfp4_QH_000_000240: {total}')
+            self.assertTrue(total > 0.05)
 
-        qp = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=0, helicity_n=1)
-        logger.info(f'QP error: {qp.total()}')
-        self.assertTrue(qp.total() > 0.005)
+            qp = QuasisymmetryRatioResidual(vmec, 0.5, helicity_m=0, helicity_n=1)
+            logger.info(f'QP error: {qp.total()}')
+            self.assertTrue(qp.total() > 0.005)
 
     def test_independent_of_scaling(self):
         """
         The quasisymmetry error should be unchanged under a scaling of the
         configuration in length and/or magnetic field strength.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
-        qs1 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], helicity_m=1, helicity_n=-1, weights=[0.8, 1.1, 0.9])
-        results1 = qs1.compute()
-        residuals1 = qs1.residuals()
+        with ScratchDir("."):
+            vmec = Vmec(os.path.join(TEST_DIR, 'input.li383_low_res'))
+            qs1 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], helicity_m=1,
+                                             helicity_n=-1, weights=[0.8, 1.1, 0.9])
+            results1 = qs1.compute()
+            residuals1 = qs1.residuals()
 
-        R_scale = 2.7
-        B_scale = 1.6
+            R_scale = 2.7
+            B_scale = 1.6
 
-        # Now scale the vmec configuration:
-        vmec.boundary.rc *= R_scale
-        vmec.boundary.zs *= R_scale
-        vmec.indata.phiedge *= B_scale * R_scale * R_scale
-        vmec.indata.pres_scale *= B_scale * B_scale
-        vmec.indata.curtor *= B_scale * R_scale
+            # Now scale the vmec configuration:
+            vmec.boundary.rc *= R_scale
+            vmec.boundary.zs *= R_scale
+            vmec.indata.phiedge *= B_scale * R_scale * R_scale
+            vmec.indata.pres_scale *= B_scale * B_scale
+            vmec.indata.curtor *= B_scale * R_scale
 
-        vmec.need_to_run_code = True
-        qs2 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], helicity_m=1, helicity_n=-1, weights=[0.8, 1.1, 0.9])
-        results2 = qs2.compute()
-        residuals2 = qs2.residuals()
+            vmec.need_to_run_code = True
+            qs2 = QuasisymmetryRatioResidual(vmec, [0, 0.7, 1], helicity_m=1,
+                                             helicity_n=-1, weights=[0.8, 1.1, 0.9])
+            results2 = qs2.compute()
+            residuals2 = qs2.residuals()
 
-        logger.info('Max difference in residuals after scaling vmec:' \
-                    + str(np.max(np.abs(residuals1 - residuals2))))
-        np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
-        np.testing.assert_allclose(results1.total, results2.total, rtol=1e-10, atol=1e-10)
-        np.testing.assert_allclose(results1.profile, results2.profile, rtol=1e-10, atol=1e-10)
+            logger.info('Max difference in residuals after scaling vmec:' \
+                        + str(np.max(np.abs(residuals1 - residuals2))))
+            np.testing.assert_allclose(residuals1, residuals2, rtol=1e-10, atol=1e-10)
+            np.testing.assert_allclose(results1.total, results2.total, rtol=1e-10, atol=1e-10)
+            np.testing.assert_allclose(results1.profile, results2.profile, rtol=1e-10, atol=1e-10)
 
     def test_iota_0(self):
         """
         Verify the metric works even when iota = 0, for a vacuum
         axisymmetric configuration with circular cross-section.
         """
-        vmec = Vmec()
-        qs = QuasisymmetryRatioResidual(vmec, 0.5)
-        logger.info(f'QuasisymmetryRatioResidual for a vacuum axisymmetric config with iota = 0: {qs.total()}')
-        self.assertTrue(qs.total() < 1e-12)
+        with ScratchDir("."):
+            vmec = Vmec()
+            qs = QuasisymmetryRatioResidual(vmec, 0.5)
+            logger.info(f'QuasisymmetryRatioResidual for a vacuum axisymmetric config with iota = 0: {qs.total()}')
+            self.assertTrue(qs.total() < 1e-12)
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
@@ -214,45 +222,46 @@ class BCartesianTests(unittest.TestCase):
         for filename_base in filenames:
             for grid_option in range(3):
                 filename = os.path.join(TEST_DIR, filename_base)
-                vmec = Vmec(filename, ntheta=50, nphi=53)
+                with ScratchDir("."):
+                    vmec = Vmec(filename, ntheta=50, nphi=53)
 
-                if grid_option == 0:
-                    # Use the (phi, theta) grid from vmec.boundary:
-                    Bx, By, Bz = B_cartesian(vmec)
-                    theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
-                    phi1D = vmec.boundary.quadpoints_phi * 2 * np.pi
-                elif grid_option == 1:
-                    # Specify nphi and ntheta:
-                    ntheta = 55
-                    nphi = 52
-                    Bx, By, Bz = B_cartesian(vmec, ntheta=ntheta, nphi=nphi, range="field period")
-                    # The previous line runs vmec so now vmec.wout.nfp is available.
-                    theta1D = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
-                    phi1D = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=False)
-                elif grid_option == 2:
-                    # Specify a custom (phi, theta) grid:
-                    quadpoints_theta = np.array([-0.1, 0.4, 0.9])
-                    quadpoints_phi = np.array([0.02, 0.3, 0.35, 2.3])
-                    Bx, By, Bz = B_cartesian(vmec,
-                                             quadpoints_phi=quadpoints_phi,
-                                             quadpoints_theta=quadpoints_theta)
-                    theta1D = quadpoints_theta * 2 * np.pi
-                    phi1D = quadpoints_phi * 2 * np.pi
+                    if grid_option == 0:
+                        # Use the (phi, theta) grid from vmec.boundary:
+                        Bx, By, Bz = B_cartesian(vmec)
+                        theta1D = vmec.boundary.quadpoints_theta * 2 * np.pi
+                        phi1D = vmec.boundary.quadpoints_phi * 2 * np.pi
+                    elif grid_option == 1:
+                        # Specify nphi and ntheta:
+                        ntheta = 55
+                        nphi = 52
+                        Bx, By, Bz = B_cartesian(vmec, ntheta=ntheta, nphi=nphi, range="field period")
+                        # The previous line runs vmec so now vmec.wout.nfp is available.
+                        theta1D = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+                        phi1D = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=False)
+                    elif grid_option == 2:
+                        # Specify a custom (phi, theta) grid:
+                        quadpoints_theta = np.array([-0.1, 0.4, 0.9])
+                        quadpoints_phi = np.array([0.02, 0.3, 0.35, 2.3])
+                        Bx, By, Bz = B_cartesian(vmec,
+                                                 quadpoints_phi=quadpoints_phi,
+                                                 quadpoints_theta=quadpoints_theta)
+                        theta1D = quadpoints_theta * 2 * np.pi
+                        phi1D = quadpoints_phi * 2 * np.pi
 
-                B2 = Bx*Bx + By*By + Bz*Bz
+                    B2 = Bx*Bx + By*By + Bz*Bz
 
-                nphi = len(phi1D)
-                ntheta = len(theta1D)
-                theta, phi = np.meshgrid(theta1D, phi1D)
+                    nphi = len(phi1D)
+                    ntheta = len(theta1D)
+                    theta, phi = np.meshgrid(theta1D, phi1D)
 
-                bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
-                xm = vmec.wout.xm_nyq
-                xn = vmec.wout.xn_nyq
-                angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
-                    - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
-                B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
-                logger.info(f'Max difference in B2: {np.max(np.abs(B**2 - B2))}')
-                np.testing.assert_allclose(B**2, B2, atol=1e-4, rtol=1e-4)
+                    bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
+                    xm = vmec.wout.xm_nyq
+                    xn = vmec.wout.xn_nyq
+                    angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
+                        - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
+                    B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
+                    logger.info(f'Max difference in B2: {np.max(np.abs(B**2 - B2))}')
+                    np.testing.assert_allclose(B**2, B2, atol=1e-4, rtol=1e-4)
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
@@ -263,16 +272,17 @@ class IotaTargetMetricTests(unittest.TestCase):
         yields approximately same result.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
+        with ScratchDir("."):
+            vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        target_function = lambda s: np.cos(s)
-        iota_target_metric = IotaTargetMetric(vmec, target_function)
+            target_function = lambda s: np.cos(s)
+            iota_target_metric = IotaTargetMetric(vmec, target_function)
 
-        metric1 = iota_target_metric.J()
-        stencil = np.ones_like(vmec.s_full_grid)
-        stencil[0] = 0.5
-        stencil[-1] = 0.5
-        metric2 = 0.5 * np.sum((vmec.wout.iotaf - target_function(vmec.s_full_grid))**2 * stencil) * vmec.ds
+            metric1 = iota_target_metric.J()
+            stencil = np.ones_like(vmec.s_full_grid)
+            stencil[0] = 0.5
+            stencil[-1] = 0.5
+            metric2 = 0.5 * np.sum((vmec.wout.iotaf - target_function(vmec.s_full_grid))**2 * stencil) * vmec.ds
 
         self.assertAlmostEqual(metric1, metric2, places=3)
 
@@ -282,34 +292,35 @@ class IotaTargetMetricTests(unittest.TestCase):
         random direction.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=100, nphi=100)
+        with ScratchDir("."):
+            vmec = Vmec(filename, ntheta=100, nphi=100)
 
-        target_function = lambda s: 0.68
-        epsilon = 1.e-4  # FD step size
-        adjoint_epsilon = 1.e-2  # perturbation amplitude for adjoint solve
+            target_function = lambda s: 0.68
+            epsilon = 1.e-4  # FD step size
+            adjoint_epsilon = 1.e-2  # perturbation amplitude for adjoint solve
 
-        obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
+            obj = IotaTargetMetric(vmec, target_function, adjoint_epsilon)
 
-        # Compute random direction for surface perturbation
-        dofs = np.copy(vmec.boundary.get_dofs())
-        np.random.seed(0)
-        vec = np.random.standard_normal(dofs.shape)
-        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+            # Compute random direction for surface perturbation
+            dofs = np.copy(vmec.boundary.get_dofs())
+            np.random.seed(0)
+            vec = np.random.standard_normal(dofs.shape)
+            unitvec = vec / np.sqrt(np.vdot(vec, vec))
 
-        def iota_fun(epsilon):
-            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
-            return obj.J()
+            def iota_fun(epsilon):
+                vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+                return obj.J()
 
-        d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
+            d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
 
-        vmec.boundary.set_dofs(dofs)
-        vmec.need_to_run_code = True
-        d_iota_adjoint = np.dot(obj.dJ(), unitvec)
+            vmec.boundary.set_dofs(dofs)
+            vmec.need_to_run_code = True
+            d_iota_adjoint = np.dot(obj.dJ(), unitvec)
 
-        relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
-        logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
-        logger.info(f"relative error: {relative_error}")
-        self.assertLessEqual(relative_error, 5.e-2)
+            relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
+            logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
+            logger.info(f"relative error: {relative_error}")
+            self.assertLessEqual(relative_error, 5.e-2)
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
@@ -320,15 +331,16 @@ class IotaWeightedTests(unittest.TestCase):
         approximately the value of iota at center of weight function.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        vmec.run()
-        iota_center = vmec.wout.iotas[50]
-        s_center = vmec.s_half_grid[50]
-        weight_function = lambda s: np.exp(-(s-s_center)**2/0.01**2)
-        iota_weighted = IotaWeighted(vmec, weight_function)
+        with ScratchDir("."):
+            vmec = Vmec(filename, ntheta=50, nphi=50)
+            vmec.run()
+            iota_center = vmec.wout.iotas[50]
+            s_center = vmec.s_half_grid[50]
+            weight_function = lambda s: np.exp(-(s-s_center)**2/0.01**2)
+            iota_weighted = IotaWeighted(vmec, weight_function)
 
-        self.assertAlmostEqual(iota_weighted.J(), iota_center, places=2)
+            self.assertAlmostEqual(iota_weighted.J(), iota_center, places=2)
 
     def test_IotaWeighted_dJ(self):
         """
@@ -336,34 +348,35 @@ class IotaWeightedTests(unittest.TestCase):
         random direction.
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=100, nphi=100)
 
         weight_function = lambda s: s**2
         epsilon = 1.e-4  # FD step size
         adjoint_epsilon = 5.e-2  # perturbation amplitude for adjoint solve
 
-        obj = IotaWeighted(vmec, weight_function, adjoint_epsilon)
+        with ScratchDir("."):
+            vmec = Vmec(filename, ntheta=100, nphi=100)
+            obj = IotaWeighted(vmec, weight_function, adjoint_epsilon)
 
-        # Compute random direction for surface perturbation
-        dofs = np.copy(vmec.boundary.x)
-        np.random.seed(0)
-        vec = np.random.standard_normal(dofs.shape)
-        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+            # Compute random direction for surface perturbation
+            dofs = np.copy(vmec.boundary.x)
+            np.random.seed(0)
+            vec = np.random.standard_normal(dofs.shape)
+            unitvec = vec / np.sqrt(np.vdot(vec, vec))
 
-        def iota_fun(epsilon):
-            vmec.boundary.x = dofs + epsilon*unitvec
-            return obj.J()
+            def iota_fun(epsilon):
+                vmec.boundary.x = dofs + epsilon*unitvec
+                return obj.J()
 
-        d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
+            d_iota_fd = (iota_fun(epsilon)-iota_fun(-epsilon))/(2*epsilon)
 
-        vmec.boundary.x = dofs
-        # vmec.need_to_run_code = True
-        d_iota_adjoint = np.dot(obj.dJ(), unitvec)
+            vmec.boundary.x = dofs
+            # vmec.need_to_run_code = True
+            d_iota_adjoint = np.dot(obj.dJ(), unitvec)
 
-        relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
-        logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
-        logger.info(f"relative error: {relative_error}")
-        self.assertLessEqual(relative_error, 5.e-2)
+            relative_error = np.abs(d_iota_fd-d_iota_adjoint)/np.abs(d_iota_fd)
+            logger.info(f"adjoint jac: {d_iota_adjoint},   fd jac: {d_iota_fd}")
+            logger.info(f"relative error: {relative_error}")
+            self.assertLessEqual(relative_error, 5.e-2)
 
 
 @unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
@@ -374,55 +387,112 @@ class WellWeightedTests(unittest.TestCase):
         and edge matches well metric computed with V'(0) and V'(1).
         """
         filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=50, nphi=50)
+        with ScratchDir("."):
+            vmec = Vmec(filename, ntheta=50, nphi=50)
 
-        vmec.run()
-        vp_l = 1.5*vmec.wout.vp[1]-0.5*vmec.wout.vp[2]
-        vp_r = 1.5*vmec.wout.vp[-1]-0.5*vmec.wout.vp[-2]
-        well1 = (vp_l-vp_r)/(vp_l+vp_r)
-        weight1 = lambda s: np.exp(-s**2/0.01**2)
-        weight2 = lambda s: np.exp(-(1-s)**2/0.01**2)
+            vmec.run()
+            vp_l = 1.5*vmec.wout.vp[1]-0.5*vmec.wout.vp[2]
+            vp_r = 1.5*vmec.wout.vp[-1]-0.5*vmec.wout.vp[-2]
+            well1 = (vp_l-vp_r)/(vp_l+vp_r)
+            weight1 = lambda s: np.exp(-s**2/0.01**2)
+            weight2 = lambda s: np.exp(-(1-s)**2/0.01**2)
 
-        well_weighted = WellWeighted(vmec, weight1, weight2)
-        well2 = well_weighted.J()
-        self.assertAlmostEqual(well1, well2, places=2)
+            well_weighted = WellWeighted(vmec, weight1, weight2)
+            well2 = well_weighted.J()
+            self.assertAlmostEqual(well1, well2, places=2)
 
     def test_WellWeighted_dJ(self):
         """
         Compare dJ() with finite differences for a surface perturbation in a
         random direction.
         """
-        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
-        vmec = Vmec(filename, ntheta=100, nphi=100)
-
         epsilon = 1.e-2  # FD step size
         adjoint_epsilon = 1.e0  # perturbation amplitude for adjoint solve
 
         weight1 = lambda s: np.exp(-s**2/0.5**2)
         weight2 = lambda s: np.exp(-(1-s)**2/0.5**2)
 
-        obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
+        filename = os.path.join(TEST_DIR, 'input.rotating_ellipse')
+        with ScratchDir("."):
+            vmec = Vmec(filename, ntheta=100, nphi=100)
+            obj = WellWeighted(vmec, weight1, weight2, adjoint_epsilon)
 
-        # Compute random direction for surface perturbation
-        dofs = np.copy(vmec.boundary.get_dofs())
-        np.random.seed(0)
-        vec = np.random.standard_normal(dofs.shape)
-        unitvec = vec / np.sqrt(np.vdot(vec, vec))
+            # Compute random direction for surface perturbation
+            dofs = np.copy(vmec.boundary.get_dofs())
+            np.random.seed(0)
+            vec = np.random.standard_normal(dofs.shape)
+            unitvec = vec / np.sqrt(np.vdot(vec, vec))
 
-        def well_fun(epsilon):
-            vmec.boundary.set_dofs(dofs + epsilon*unitvec)
-            return obj.J()
+            def well_fun(epsilon):
+                vmec.boundary.set_dofs(dofs + epsilon*unitvec)
+                return obj.J()
 
-        d_well_fd = (well_fun(epsilon)-well_fun(-epsilon))/(2*epsilon)
+            d_well_fd = (well_fun(epsilon)-well_fun(-epsilon))/(2*epsilon)
 
-        vmec.boundary.set_dofs(dofs)
-        vmec.need_to_run_code = True
-        d_well_adjoint = np.dot(obj.dJ(), unitvec)
+            vmec.boundary.set_dofs(dofs)
+            vmec.need_to_run_code = True
+            d_well_adjoint = np.dot(obj.dJ(), unitvec)
 
-        relative_error = np.abs(d_well_fd-d_well_adjoint)/np.abs(d_well_fd)
-        logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
-        logger.info(f"relative error: {relative_error}")
-        self.assertLessEqual(relative_error, 5.e-2)
+            relative_error = np.abs(d_well_fd-d_well_adjoint)/np.abs(d_well_fd)
+            logger.info(f"adjoint jac: {d_well_adjoint},   fd jac: {d_well_fd}")
+            logger.info(f"relative error: {relative_error}")
+            self.assertLessEqual(relative_error, 5.e-2)
+
+
+class VmecComputeGeometryTests(unittest.TestCase):
+    def test_1d_matches_3d(self):
+        """
+        If we call the function with 1d arrays for theta and phi,
+        we should get the same results as if we call the routine with
+        equivalent 3d arrays for theta and phi.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc'))
+        splines = vmec_splines(vmec)
+        s = 0.5
+        theta = [0.2, 0.7, -10.2]
+        phi = [-9.9, -4.4, 0, 3.3, 7.7]
+        ntheta = len(theta)
+        nphi = len(phi)
+
+        theta3d = np.zeros((1, ntheta, nphi))
+        phi3d = np.zeros_like(theta3d)
+        for jtheta in range(ntheta):
+            theta3d[:, jtheta, :] = theta[jtheta]
+        for jphi in range(nphi):
+            phi3d[:, :, jphi] = phi[jphi]
+
+        results1 = vmec_compute_geometry(splines, s, theta, phi)
+        results2 = vmec_compute_geometry(vmec, np.array([s]), theta3d, phi3d)
+
+        variables = ["theta_pest", "grad_psi_dot_grad_psi", "B_cross_kappa_dot_grad_psi"]
+        for v in variables:
+            np.testing.assert_allclose(eval("results1." + v), eval("results2." + v))
+
+    def test_compare_to_desc(self):
+        """
+        Compare some values to an independent calculation in desc.
+        """
+        vmec = Vmec(os.path.join(TEST_DIR, "wout_LandremanPaul2021_QA_lowres.nc"))
+
+        s = [0.25, 1.0]
+        ntheta = 4
+        nphi = 5
+        theta = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
+        phi = np.linspace(0, 2 * np.pi / vmec.wout.nfp, nphi, endpoint=False)
+
+        simsopt_data = vmec_compute_geometry(vmec, s, theta, phi)
+
+        desc_data = np.zeros((len(s), ntheta, nphi))
+        desc_data[0, :, :] = np.array([[0.0232505427, 0.0136928264, 0.0045250425, 0.0045250425, 0.0136928264],
+                                       [0.001595767, 0.006868957, 0.0126580432, 0.0124698027, 0.0069361438],
+                                       [0.0418344846, 0.0234485798, 0.0058187257, 0.0058187257, 0.0234485798],
+                                       [0.001595767, 0.0069361438, 0.0124698027, 0.0126580432, 0.006868957]])
+        desc_data[1, :, :] = np.array([[0.0682776505, 0.0419440941, 0.0159952307, 0.0159952307, 0.0419440941],
+                                       [0.006650641, 0.0301276863, 0.0552814479, 0.0525678846, 0.0244553647],
+                                       [0.2151059496, 0.1238328858, 0.0297237057, 0.0297237057, 0.1238328858],
+                                       [0.006650641, 0.0244553647, 0.0525678846, 0.0552814479, 0.0301276863]])
+
+        np.testing.assert_allclose(simsopt_data.grad_psi_dot_grad_psi, desc_data, rtol=0.005, atol=0.0005)
 
 
 class VmecFieldlinesTests(unittest.TestCase):
@@ -439,8 +509,9 @@ class VmecFieldlinesTests(unittest.TestCase):
         fl = vmec_fieldlines(vmec, s, alpha, theta1d=theta)
         for js in range(fl.ns):
             for jalpha in range(fl.nalpha):
-                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :], theta)
-                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :] - fl.iota[js] * fl.phi[js, jalpha, :], alpha[jalpha])
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :], theta, atol=1e-15)
+                np.testing.assert_allclose(fl.theta_pest[js, jalpha, :] - fl.iota[js] * fl.phi[js, jalpha, :], alpha[jalpha],
+                                           atol=1e-15)
 
         # Try a case in which phi is specified:
         s = 1
@@ -545,7 +616,7 @@ class VmecFieldlinesTests(unittest.TestCase):
                 np.testing.assert_allclose(fl.B_cross_grad_B_dot_grad_alpha, fl.B_cross_grad_B_dot_grad_alpha_alternate, atol=0.02)
 
                 # Check 2 ways of computing cvdrift:
-                cvdrift_alt = 2 * fl.B_reference * fl.L_reference * fl.L_reference \
+                cvdrift_alt = -1 * 2 * fl.B_reference * fl.L_reference * fl.L_reference \
                     * np.sqrt(fl.s)[:, None, None] * fl.B_cross_kappa_dot_grad_alpha \
                     / (fl.modB * fl.modB) * fl.toroidal_flux_sign
                 np.testing.assert_allclose(fl.cvdrift, cvdrift_alt)
@@ -601,9 +672,9 @@ class VmecFieldlinesTests(unittest.TestCase):
             np.testing.assert_allclose(fl.gds2[0, j, :], np.fromstring(lines[16 + j], sep=' '), rtol=2e-4)
             np.testing.assert_allclose(fl.gds21[0, j, :], np.fromstring(lines[20 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gds22[0, j, :], np.fromstring(lines[24 + j], sep=' '), atol=2e-4)
-            np.testing.assert_allclose(fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.gbdrift[0, j, :], np.fromstring(lines[28 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.gbdrift0[0, j, :], np.fromstring(lines[32 + j], sep=' '), atol=1e-4)
-            np.testing.assert_allclose(fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
+            np.testing.assert_allclose(-1 * fl.cvdrift[0, j, :], np.fromstring(lines[36 + j], sep=' '), atol=2e-4)
             np.testing.assert_allclose(fl.cvdrift0[0, j, :], np.fromstring(lines[40 + j], sep=' '), atol=1e-4)
 
     def test_axisymm(self):
