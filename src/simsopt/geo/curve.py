@@ -3,8 +3,6 @@ from math import sin, cos
 import numpy as np
 from jax import vjp, jacfwd, jvp
 import jax.numpy as jnp
-from monty.dev import requires
-from monty.json import MontyDecoder
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
@@ -814,19 +812,9 @@ class RotatedCurve(sopp.Curve, Curve):
         v = sopp.matmult(v, self.rotmatT)  # v = v @ self.rotmatT
         return self.curve.dgammadashdashdash_by_dcoeff_vjp(v)
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["curve"] = self.curve.as_dict()
-        d["phi"] = self._phi
-        d["flip"] = True if self.rotmat[2][2] == -1 else False
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["phi"], d["flip"])
+    @property
+    def flip(self):
+        return True if self.rotmat[2][2] == -1 else False
 
 
 def curves_to_vtk(curves, filename, close=False):
@@ -856,7 +844,7 @@ def curves_to_vtk(curves, filename, close=False):
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    polyLinesToVTK(filename, x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data})
 
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
@@ -887,7 +875,10 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curve.set("xc(1)", cos(angle)*R1)
         curve.set("yc(0)", sin(angle)*R0)
         curve.set("yc(1)", sin(angle)*R1)
-        curve.set("zs(1)", R1)
+        # The the next line, the minus sign is for consistency with
+        # Vmec.external_current(), so the coils create a toroidal field of the
+        # proper sign and free-boundary equilibrium works following stage-2 optimization.
+        curve.set("zs(1)", -R1)
         curve.x = curve.x  # need to do this to transfer data to C++
         curves.append(curve)
     return curves

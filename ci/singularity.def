@@ -1,5 +1,5 @@
 BootStrap: docker
-From: ubuntu:20.04 
+From: ubuntu:22.04
 Stage: devel
 
 %post
@@ -71,10 +71,12 @@ Stage: devel
     rm -rf VMEC2000
 
     /venv/bin/pip install h5py pyoculus py_spec
-    /venv/bin/pip install vtk==9.0.1 pyqt5 matplotlib pyevtk plotly
+    /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
+    /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC
+    /venv/bin/pip install  git+https://github.com/landreman/pyQSC
 
     CI=True
     git clone --recurse-submodules https://github.com/hiddenSymmetries/simsopt.git simsopt && \
@@ -86,7 +88,7 @@ Stage: devel
 
 
 BootStrap: docker
-From: ubuntu:20.04
+From: ubuntu:22.04
 Stage: final
 
 %post
@@ -111,7 +113,7 @@ Stage: final
     maintainer.email "mbkumar@gmail.com"
     developers "Hidden Symmetries Team"
     version "0.07"
-    description  "Singularity container for simsopt built on Ubuntu 20.04"
+    description  "Singularity container for simsopt built on Ubuntu 22.04"
 
 %help
     This is a simsopt singularity container. 

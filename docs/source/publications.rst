@@ -71,25 +71,86 @@ Here is a list of publications in which simsopt results appear:
    |
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
-     "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
-     *Submitted*, (2022).
+     "Stochastic and a-posteriori optimization to mitigate coil manufacturing errors in stellarator design",
+     *Plasma Physics and Controlled Fusion*, **64**, 105021 (2022).
+     `[journal version] <https://doi.org/10.1088/1361-6587/ac89ee>`__
      `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
    |
 
 #. | M Landreman, S Buller, and M Drevlak,
      "Optimization of quasisymmetric stellarators with self-consistent bootstrap current and energetic particle confinement",
-     *Submitted* (2022).
+     *Physics of Plasmas*, **29**, 082501 (2022).
+     `[journal version] <https://doi.org/10.1063/5.0098166>`__
      `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
    |
 
-#. | R Jorge, G G Plunk, M Drevlak, M Landreman, J-F Lobsien, K Camacho Mata, and P Helander
+#. | R Jorge, G G Plunk, M Drevlak, M Landreman, J-F Lobsien, K Camacho Mata, and P Helander,
      "A single-field-period quasi-isodynamic stellarator",
-     *Submitted* (2022).
+     *Journal of Plasma Physics* **88**, 175880504 (2022).
+     `[journal version] <https://doi.org/10.1017/S0022377822000873>`__
      `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
    |
 
-#. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman
+#. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman,
      "Permanent magnet optimization for stellarators as sparse regression",
-     *Submitted* (2022).
+     *Physical Review Applied*, **18**, 044006 (2022).
+     `[journal version] <http://dx.doi.org/10.1103/PhysRevApplied.18.044006>`__
      `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
    |
+
+#. | E J Paul, A Bhattacharjee, M Landreman, D Alex, J L Velasco, and R Nies,
+     "Energetic particle loss mechanisms in reactor-scale equilibria close to quasisymmetry",
+     *Nuclear Fusion*, **62**, 126054 (2022).
+     `[journal version] <http://dx.doi.org/10.1088/1741-4326/ac9b07>`__
+     `[arXiv version] <https://arxiv.org/pdf/2208.02351>`__
+   |
+
+#. | A Kaptanoglu, R Conlin, and M Landreman,
+     "Greedy permanent magnet optimization",
+     *Nuclear Fusion*, **63**, 036016 (2023).
+     `[journal version] <http://dx.doi.org/10.1088/1741-4326/acb4a9>`__
+     `[arXiv version] <https://arxiv.org/pdf/2208.10620>`__
+   |
+
+#. | G T Roberg-Clark, P Xanthopoulos, and G G Plunk,
+     "Reduction of electrostatic turbulence in a quasi-helically symmetric stellarator via critical gradient optimization",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2210.16030>`__
+   |
+
+#. | A Goodman, K Camacho Mata, S A Henneberg, R Jorge, M Landreman, G Plunk, H Smith, R Mackenbach, and P Helander,
+     "Constructing precisely quasi-isodynamic magnetic fields",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2211.09829>`__
+   |
+
+#. | G T Roberg-Clark, G G Plunk, P Xanthopoulos, C Nuhrenberg, S A Henneberg, and H M Smith,
+     "Critical gradient turbulence optimization toward a compact stellarator reactor concept",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2301.06773>`__
+   |
+
+#. | R Jorge, W Dorland, P Kim, M Landreman, N R Mandell, G Merlo, and T Qian,
+     "Direct Microstability Optimization of Stellarator Devices",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2301.09356>`__
+   |
+
+#. | R Gaur, S Buller, M E Ruth, M Landreman, I G Abel, and W D Dorland,
+     "An adjoint-based method for optimizing MHD equilibria against the infinite-n, ideal ballooning mode",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2302.07673>`__
+   |
+
+#. | D Bindel, M Landreman, and M Padidar,
+     "Direct Optimization of Fast-Ion Confinement in Stellarators",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2302.11369>`__
+   |
+
+#. | R Jorge, A Goodman, M Landreman, J Rodrigues, F Wechsung,
+     "Single-Stage Stellarator Optimization: Combining Coils with Fixed Boundary Equilibria",
+     *Submitted* (2023).
+     `[arXiv version] <https://arxiv.org/pdf/2302.10622>`__
+   |
+

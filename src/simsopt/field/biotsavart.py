@@ -1,9 +1,8 @@
-import json
 import numpy as np
-from monty.json import MSONable, MontyDecoder, MontyEncoder
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
+from .._core.json import GSONDecoder
 
 __all__ = ['BiotSavart']
 
@@ -210,16 +209,20 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        coils = decoder.process_decoded(d["coils"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"],
+                                      serial_objs_dict=serial_objs_dict,
+                                      recon_objs=recon_objs)
+        coils = decoder.process_decoded(d["coils"],
+                                        serial_objs_dict=serial_objs_dict,
+                                        recon_objs=recon_objs)
         bs = cls(coils)
-        xyz = decoder.process_decoded(d["points"])
         bs.set_points_cart(xyz)
         return bs

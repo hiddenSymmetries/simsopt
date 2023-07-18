@@ -11,7 +11,6 @@ from numbers import Integral, Real
 
 from nptyping import NDArray, Float, Int, Bool
 
-# Array = Union[Sequence, NDArray]
 RealArray = Union[Sequence[Real], NDArray[Any, Float]]
 IntArray = Union[Sequence[Integral], NDArray[Any, Int]]
 StrArray = Sequence[str]

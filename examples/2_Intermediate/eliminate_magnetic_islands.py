@@ -3,10 +3,10 @@
 import os
 import logging
 import numpy as np
-from simsopt.util import MpiPartition, log
 from simsopt.mhd import Spec, Residue
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, log, proc0_print
 
 """
 In this example, we show how the shape of a boundary magnetic
@@ -18,10 +18,12 @@ will eliminate the islands by minimizing an objective function
 involving Greene's residue for several O-points and X-points, similar
 to the approach of Hanson and Cary (1984).
 """
-print("Running 2_Intermediate/eliminate_magnetic_islands.py")
-print("====================================================")
+proc0_print("Running 2_Intermediate/eliminate_magnetic_islands.py")
+proc0_print("====================================================")
 
 log()
+logging.info("Running 2_Intermediate/eliminate_magnetic_islands.py")
+logging.info("====================================================")
 
 mpi = MpiPartition()
 mpi.write()
@@ -38,6 +40,8 @@ s.boundary.change_resolution(6, s.boundary.ntor)
 s.boundary.fix_all()
 s.boundary.unfix('zs(6,1)')
 s.boundary.unfix('zs(6,2)')
+logging.info(f"Initial zs(6,1):  {s.boundary.get('zs(6,1)')}")
+logging.info(f"Initial zs(6,2):  {s.boundary.get('zs(6,2)')}")
 
 # The main resonant surface is iota = p / q:
 p = -8
@@ -81,5 +85,5 @@ if mpi.proc0_world:
 
 np.testing.assert_allclose(prob.x, expected_solution, rtol=1e-2)
 
-print("End of 2_Intermediate/eliminate_magnetic_islands.py")
-print("===================================================")
+proc0_print("End of 2_Intermediate/eliminate_magnetic_islands.py")
+proc0_print("===================================================")

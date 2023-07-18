@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from monty.json import MSONable, MontyDecoder
+import warnings
 from scipy.special import ellipk, ellipe
 try:
     from sympy.parsing.sympy_parser import parse_expr
@@ -10,13 +10,15 @@ try:
 except ImportError:
     sympy_found = False
 
-from simsopt.field.magneticfield import MagneticField
 import simsoptpp as sopp
+from .magneticfield import MagneticField
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
-           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField']
+           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField',
+           'MirrorModel']
 
 
 class ToroidalField(MagneticField):
@@ -112,16 +114,16 @@ class ToroidalField(MagneticField):
                   (points[:, 0]**4-points[:, 1]**4)/(2*points[:, 2]), np.zeros((len(points)))]],
                 np.zeros((3, 3, len(points)))])).transpose((3, 0, 1, 2))
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["R0"], d["B0"])
-        decoder = MontyDecoder()
-        xyz = decoder.process_decoded(d["points"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -220,16 +222,16 @@ class PoloidalField(MagneticField):
 
         dB[:] = self.B0/self.R0/self.q*np.array([dB_by_dX1_term1+dB_by_dX1_term2, dB_by_dX2_term1+dB_by_dX2_term2, dB_by_dX3_term1+dB_by_dX3_term2]).T
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["R0"], d["B0"], d["q"])
-        decoder = MontyDecoder()
-        xyz = decoder.process_decoded(d["points"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -319,16 +321,16 @@ class ScalarPotentialRZMagneticField(MagneticField):
             + Bphi * dcosphidy
         dB[:, 2, 1] = dBrdz * np.sin(phi) + dBphidz * np.cos(phi)
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["phi_str"])
-        decoder = MontyDecoder()
-        xyz = decoder.process_decoded(d["points"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -380,6 +382,10 @@ class CircularCoil(MagneticField):
         ])
 
         self.rotMatrixInv = np.array(self.rotMatrix.T)
+
+    @property
+    def I(self):
+        return self.Inorm * 25e5
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -478,27 +484,207 @@ class CircularCoil(MagneticField):
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
 
-        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, np.array(
-            (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2)) /
-            ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31)) *
-            np.array([-points[:, 1], points[:, 0], 0])).T)
+        num = (2*self.r0+np.sqrt(points[:, 0]**2+points[:, 1]**2)*ellipek2+(self.r0**2+points[:, 0]**2+points[:, 1]**2+points[:, 2]**2)*(ellipe(k**2)-ellipkk2))
+        denom = ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31))
+        fak = num/denom
+        pts = fak[:, None]*np.concatenate((-points[:, 1][:, None], points[:, 0][:, None], np.zeros((points.shape[0], 1))), axis=-1)
+        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, pts.T).T
 
-    def as_dict(self):
-        d = {}
-        d["r0"] = self.r0
-        d["center"] = self.center
-        d["I"] = self.Inorm * 25e5
-        d["normal"] = self.normal
+    def as_dict(self, serial_objs_dict):
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["r0"], d["center"], d["I"], d["normal"])
-        decoder = MontyDecoder()
-        xyz = decoder.process_decoded(d["points"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
+
+
+class DipoleField(MagneticField):
+    r"""
+    Computes the MagneticField induced by N dipoles. The field is given by
+
+    .. math::
+
+        B(\mathbf{x}) = \frac{\mu_0}{4\pi} \sum_{i=1}^{N} \left(\frac{3\mathbf{r}_i\cdot \mathbf{m}_i}{|\mathbf{r}_i|^5}\mathbf{r}_i - \frac{\mathbf{m}_i}{|\mathbf{r}_i|^3}\right)
+
+    where :math:`\mu_0=4\pi\times 10^{-7}\;N/A^2` is the permeability of free space
+    and :math:`\mathbf{r_i} = \mathbf{x} - \mathbf{x}^{dipole}_i` is the
+    vector between the field evaluation point and the dipole :math:`i`
+    position.
+
+    Args:
+        dipole_grid: 2D numpy array, shape (ndipoles, 3).
+            A set of points corresponding to the locations of magnetic dipoles.
+        dipole_vectors: 2D numpy array, shape (ndipoles, 3).
+            The dipole vectors of each of the dipoles in the grid.
+        stellsym: bool (default True).
+            Whether or not the dipole grid is stellarator symmetric.
+        nfp: int (default 1).
+            The field-period symmetry of the dipole-grid.
+        coordinate_flag: string (default "cartesian").
+            The global coordinate system that should be considered grid-aligned in the calculation.
+            The options are "cartesian" (rectangular bricks), "cylindrical" (cylindrical bricks),
+            and "toroidal" (uniform grid in simple toroidal coordinates). Note that this ASSUMES
+            that the global coordinate system for the dipole locations is one of these three
+            choices, so be careful if your permanent magnets are shaped/arranged differently!
+        m_maxima: 1D numpy array, shape (ndipoles,).
+            The maximum dipole strengths of each magnet in the grid. If not specified, defaults
+            to using the largest dipole strength of the magnets in dipole_grid, and using this
+            value for all the dipoles. Needed for plotting normalized dipole magnitudes in the
+            vtk functionality.
+        R0: double.
+            The value of the major radius of the stellarator needed only for simple toroidal
+            coordinates.
+    """
+
+    def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
+        super().__init__()        
+        if coordinate_flag == 'toroidal':
+            warnings.warn('Note that if using simple toroidal coordinates, '
+                          'the major radius must be specified through R0 argument.')
+        self.R0 = R0
+        self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+        B[:] = sopp.dipole_field_B(points, self.dipole_grid, self.m_vec)
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+        dB[:] = sopp.dipole_field_dB(points, self.dipole_grid, self.m_vec)
+
+    def _A_impl(self, A):
+        points = self.get_points_cart_ref()
+        A[:] = sopp.dipole_field_A(points, self.dipole_grid, self.m_vec)
+
+    def _dA_by_dX_impl(self, dA):
+        points = self.get_points_cart_ref()
+        dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec)
+
+    def _dipole_fields_from_symmetries(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
+        """
+        Takes the dipoles and grid initialized in a PermanentMagnetOptimizer (for a half-period surface)
+        and generates the full dipole manifold so that the call to B() (the magnetic field from
+        the dipoles) correctly returns contributions from all the dipoles from symmetries.
+        """
+        self.dipole_grid = dipole_grid
+
+        # Read in the required fields from pm_opt object
+        ndipoles = dipole_grid.shape[0]
+        if m_maxima is None:
+            m_maxima = np.max(np.linalg.norm(dipole_vectors, axis=-1)) * np.ones(ndipoles)
+        if stellsym:
+            stell_list = [1, -1]
+            nsym = nfp * 2
+        else:
+            stell_list = [1]
+            nsym = nfp
+        m = dipole_vectors.reshape(ndipoles, 3)
+
+        # Initialize new grid and dipole vectors for all the dipoles
+        # after we account for the symmetries below.
+        dipole_grid_x = np.zeros(ndipoles * nsym)
+        dipole_grid_y = np.zeros(ndipoles * nsym)
+        dipole_grid_z = np.zeros(ndipoles * nsym)
+        m_vec = np.zeros((ndipoles * nsym, 3))
+        m_max = np.zeros(ndipoles * nsym)
+
+        # Load in the dipole locations for a half-period surface
+        ox = dipole_grid[:, 0]
+        oy = dipole_grid[:, 1]
+        oz = dipole_grid[:, 2]
+
+        # loop through the dipoles and repeat for fp and stellarator symmetries
+        index = 0
+        n = ndipoles
+
+        # get the components in Cartesian, converting if needed
+        mmx = m[:, 0]
+        mmy = m[:, 1]
+        mmz = m[:, 2]
+        if coordinate_flag == 'cylindrical':
+            phi_dipole = np.arctan2(oy, ox)
+            mmx_temp = mmx * np.cos(phi_dipole) - mmy * np.sin(phi_dipole)
+            mmy_temp = mmx * np.sin(phi_dipole) + mmy * np.cos(phi_dipole)
+            mmx = mmx_temp
+            mmy = mmy_temp
+        if coordinate_flag == 'toroidal':
+            phi_dipole = np.arctan2(oy, ox)
+            theta_dipole = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - R0)
+            mmx_temp = mmx * np.cos(phi_dipole) * np.cos(theta_dipole) - mmy * np.sin(phi_dipole) - mmz * np.cos(phi_dipole) * np.sin(theta_dipole)
+            mmy_temp = mmx * np.sin(phi_dipole) * np.cos(theta_dipole) + mmy * np.cos(phi_dipole) - mmz * np.sin(phi_dipole) * np.sin(theta_dipole)
+            mmz_temp = mmx * np.sin(theta_dipole) + mmz * np.cos(theta_dipole)
+            mmx = mmx_temp
+            mmy = mmy_temp
+            mmz = mmz_temp
+
+        # Loop over stellarator and field-period symmetry contributions
+        for stell in stell_list:
+            for fp in range(nfp):
+                phi0 = (2 * np.pi / nfp) * fp
+
+                # get new dipoles locations by flipping the y and z components, then rotating by phi0
+                dipole_grid_x[index:index + n] = ox * np.cos(phi0) - oy * np.sin(phi0) * stell
+                dipole_grid_y[index:index + n] = ox * np.sin(phi0) + oy * np.cos(phi0) * stell
+                dipole_grid_z[index:index + n] = oz * stell
+
+                # get new dipole vectors by flipping the x component, then rotating by phi0
+                m_vec[index:index + n, 0] = mmx * np.cos(phi0) * stell - mmy * np.sin(phi0)
+                m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
+                m_vec[index:index + n, 2] = mmz
+
+                m_max[index:index + n] = m_maxima
+                index += n
+
+        contig = np.ascontiguousarray
+        self.dipole_grid = contig(np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T)
+        self.m_vec = contig(m_vec)
+        self.m_maxima = contig(m_max)
+
+    def _toVTK(self, vtkname):
+        """
+            Write dipole data into a VTK file (acknowledgements to Caoxiang's CoilPy code).
+
+        Args:
+            vtkname (str): VTK filename, will be appended with .vts or .vtu.
+        """
+
+        # get the coordinates
+        ox = np.ascontiguousarray(self.dipole_grid[:, 0])
+        oy = np.ascontiguousarray(self.dipole_grid[:, 1])
+        oz = np.ascontiguousarray(self.dipole_grid[:, 2])
+        ophi = np.arctan2(oy, ox)
+        otheta = np.arctan2(oz, np.sqrt(ox ** 2 + oy ** 2) - self.R0)
+
+        # define the m vectors and the normalized m vectors
+        # in Cartesian, cylindrical, and simple toroidal coordinates.
+        mx = np.ascontiguousarray(self.m_vec[:, 0])
+        my = np.ascontiguousarray(self.m_vec[:, 1])
+        mz = np.ascontiguousarray(self.m_vec[:, 2])
+        mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
+        mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
+        my_normalized = np.ascontiguousarray(my / self.m_maxima)
+        mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
+        mr = np.ascontiguousarray(mx * np.cos(ophi) + my * np.sin(ophi))
+        mrminor = np.ascontiguousarray(mx * np.cos(ophi) * np.cos(otheta) + my * np.sin(ophi) * np.cos(otheta) + np.sin(otheta) * mz)
+        mphi = np.ascontiguousarray(-mx * np.sin(ophi) + my * np.cos(ophi))
+        mtheta = np.ascontiguousarray(-mx * np.cos(ophi) * np.sin(otheta) - my * np.sin(ophi) * np.sin(otheta) + np.cos(otheta) * mz)
+        mr_normalized = np.ascontiguousarray(mr / self.m_maxima)
+        mrminor_normalized = np.ascontiguousarray(mrminor / self.m_maxima)
+        mphi_normalized = np.ascontiguousarray(mphi / self.m_maxima)
+        mtheta_normalized = np.ascontiguousarray(mtheta / self.m_maxima)
+
+        # Save all the data to a vtk file which can be visualized nicely with ParaView
+        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
+        from pyevtk.hl import pointsToVTK
+        pointsToVTK(
+            str(vtkname), ox, oy, oz, data=data
+        )
 
 
 class Dommaschk(MagneticField):
@@ -532,19 +718,21 @@ class Dommaschk(MagneticField):
         points = self.get_points_cart_ref()
         dB[:] = np.add.reduce(sopp.DommaschkdB(self.m, self.n, self.coeffs, points))+self.Btor.dB_by_dX()
 
-    def as_dict(self) -> dict:
-        d = {}
-        d["mn"] = np.column_stack((self.m, self.n))
-        d["coeffs"] = self.coeffs
+    @property
+    def mn(self):
+        return np.column_stack((self.m, self.n))
+
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        mn = decoder .process_decoded(d["mn"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        mn = decoder.process_decoded(d["mn"], serial_objs_dict, recon_objs)
         field = cls(mn, d["coeffs"])
-        xyz = decoder.process_decoded(d["points"])
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -580,16 +768,16 @@ class Reiman(MagneticField):
         points = self.get_points_cart_ref()
         dB[:] = sopp.ReimandB(self.iota0, self.iota1, self.k, self.epsilonk, self.m0, points)
 
-    def as_dict(self):
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict):
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
         field = cls(d["iota0"], d["iota1"], d["k"], d["epsilonk"], d["m0"])
-        decoder = MontyDecoder()
-        xyz = decoder.process_decoded(d["points"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -664,3 +852,114 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             rmin=self.r_range[0], rmax=self.r_range[1],
             zmin=self.z_range[0], zmax=self.z_range[1]
         )
+
+
+class MirrorModel(MagneticField):
+    r"""
+    Model magnetic field employed in https://arxiv.org/abs/2305.06372 to study
+    the magnetic mirror experiment WHAM. The
+    magnetic field is given by :math:`\vec{B}=B_R \vec{e}_R + B_Z \vec{e}_Z`, where 
+    :math:`\vec{e}_R` and :math:`\vec{e}_Z` are
+    the cylindrical radial and axial unit vectors, respectively, and
+    :math:`B_R` and :math:`B_Z` are given by
+
+    .. math::
+
+        B_R = -\frac{1}{R} \frac{\partial\psi}{\partial Z}, \; B_Z = \frac{1}{R}.
+        \frac{\partial\psi}{\partial R}
+
+    In this model, the magnetic flux function :math:`\psi` is written as a double
+    Lorentzian function
+
+    .. math::
+
+        \psi = \frac{R^2 \mathcal{B}}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right).
+
+    Note that this field is neither a vacuum field nor a solution of MHD force balance.
+    The input parameters are ``B0``, ``gamma`` and ``Z_m`` with the standard values the
+    ones used in https://arxiv.org/abs/2305.06372, that is, ``B0 = 6.51292``,
+    ``gamma = 0.124904``, and ``Z_m = 0.98``.
+
+    Args:
+        B0:  parameter :math:`\mathcal{B}` of the flux surface function
+        gamma:  parameter :math:`\gamma` of the flux surface function
+        Z_m:  parameter :math:`Z_m` of the flux surface function
+    """
+
+    def __init__(self, B0=6.51292, gamma=0.124904, Z_m=0.98):
+        MagneticField.__init__(self)
+        self.B0 = B0
+        self.gamma = gamma
+        self.Z_m = Z_m
+
+    def _psi(self, R, Z):
+        factor1 = 1+((Z-self.Z_m)/(self.gamma))**2
+        factor2 = 1+((Z+self.Z_m)/(self.gamma))**2
+        psi = (R*R*self.B0/(2*np.pi*self.gamma))*(1/factor1+1/factor2)
+        return psi
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        # BR = -(1/R)dpsi/dZ, BZ=(1/R)dpsi/dR
+        factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
+        factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
+        Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        Bz = self._psi(r, z)*2/r/r
+        B[:, 0] = Br * np.cos(phi)
+        B[:, 1] = Br * np.sin(phi)
+        B[:, 2] = Bz
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+
+        factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
+        factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
+        Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        # Bz = self._psi(r,z)*2/r/r
+        dBrdr = (self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        dBzdz = -2*dBrdr
+        dBrdz = (self.B0*r/(np.pi*self.gamma**3))*(1/factor1+1/factor2
+                                                   - 4*self.gamma**4*((z-self.Z_m)**2/((z-self.Z_m)**2+self.gamma**2)**3+(z+self.Z_m)**2/((z+self.Z_m)**2+self.gamma**2)**3))
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        dcosphidx = -points[:, 0]**2/r**3 + 1/r
+        dsinphidx = -points[:, 0]*points[:, 1]/r**3
+        dcosphidy = -points[:, 0]*points[:, 1]/r**3
+        dsinphidy = -points[:, 1]**2/r**3 + 1/r
+        drdx = points[:, 0]/r
+        drdy = points[:, 1]/r
+        dBxdx = dBrdr*drdx*cosphi + Br*dcosphidx
+        dBxdy = dBrdr*drdy*cosphi + Br*dcosphidy
+        dBxdz = dBrdz*cosphi
+        dBydx = dBrdr*drdx*sinphi + Br*dsinphidx
+        dBydy = dBrdr*drdy*sinphi + Br*dsinphidy
+        dBydz = dBrdz*sinphi
+
+        dB[:, 0, 0] = dBxdx
+        dB[:, 1, 0] = dBxdy
+        dB[:, 2, 0] = dBxdz
+        dB[:, 0, 1] = dBydx
+        dB[:, 1, 1] = dBydy
+        dB[:, 2, 1] = dBydz
+        dB[:, 0, 2] = 0
+        dB[:, 1, 2] = 0
+        dB[:, 2, 2] = dBzdz
+
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        field = cls(d["B0"], d["gamma"], d["Z_m"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
+        field.set_points_cart(xyz)
+        return field

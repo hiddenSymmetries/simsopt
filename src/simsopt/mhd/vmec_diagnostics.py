@@ -11,7 +11,7 @@ from typing import Union
 
 import numpy as np
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
-from scipy.optimize import root_scalar
+from scipy.optimize import newton
 
 from .vmec import Vmec
 from .._core.util import Struct
@@ -24,7 +24,7 @@ from ..geo.surfacerzfourier import SurfaceRZFourier
 logger = logging.getLogger(__name__)
 
 __all__ = ['QuasisymmetryRatioResidual', 'IotaTargetMetric', 'IotaWeighted',
-           'WellWeighted']
+           'WellWeighted', 'vmec_splines', 'vmec_compute_geometry', 'vmec_fieldlines']
 
 
 class QuasisymmetryRatioResidual(Optimizable):
@@ -151,45 +151,46 @@ class QuasisymmetryRatioResidual(Optimizable):
         used. However, this function can be useful if users wish to
         inspect the quantities going into the calculation.
         """
-        self.vmec.run()
-        if self.vmec.wout.lasym:
+        vmec = self.vmec
+        vmec.run()
+        if vmec.wout.lasym:
             raise RuntimeError('Quasisymmetry class cannot yet handle non-stellarator-symmetric configs')
 
         logger.debug('Evaluating quasisymmetry residuals')
         ns = len(self.surfaces)
         ntheta = self.ntheta
         nphi = self.nphi
-        nfp = self.vmec.wout.nfp
+        nfp = vmec.wout.nfp
         d_psi_d_s = -self.vmec.wout.phi[-1] / (2 * np.pi)
 
         # First, interpolate in s to get the quantities we need on the surfaces we need.
         method = 'linear'
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.iotas[1:], fill_value="extrapolate")
         iota = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bvco[1:], fill_value="extrapolate")
         G = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.buco[1:], fill_value="extrapolate")
         I = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
         gmnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
         bmnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsubumnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsubumnc[:, 1:], fill_value="extrapolate")
         bsubumnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsubvmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsubvmnc[:, 1:], fill_value="extrapolate")
         bsubvmnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsupumnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsupumnc[:, 1:], fill_value="extrapolate")
         bsupumnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsupvmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsupvmnc[:, 1:], fill_value="extrapolate")
         bsupvmnc = interp(self.surfaces)
 
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
@@ -208,9 +209,9 @@ class QuasisymmetryRatioResidual(Optimizable):
         bsupu = np.zeros(myshape)
         bsupv = np.zeros(myshape)
         residuals3d = np.zeros(myshape)
-        for jmn in range(len(self.vmec.wout.xm_nyq)):
-            m = self.vmec.wout.xm_nyq[jmn]
-            n = self.vmec.wout.xn_nyq[jmn]
+        for jmn in range(len(vmec.wout.xm_nyq)):
+            m = vmec.wout.xm_nyq[jmn]
+            n = vmec.wout.xn_nyq[jmn]
             angle = m * theta3d - n * phi3d
             cosangle = np.cos(angle)
             sinangle = np.sin(angle)
@@ -326,18 +327,23 @@ def B_cartesian(vmec,
     if vmec.wout.lasym:
         raise RuntimeError('B_cartesian presently only works for stellarator symmetry')
 
-    if (nphi is None) and (quadpoints_phi is None) and (ntheta is None) and (quadpoints_theta is None):
-        theta1D_1 = vmec.boundary.quadpoints_theta
+    if nphi is None and quadpoints_phi is None:
         phi1D_1 = vmec.boundary.quadpoints_phi
+    elif quadpoints_phi is None:
+        phi1D_1 = Surface.get_phi_quadpoints(range=range, nphi=nphi, nfp=vmec.wout.nfp)
     else:
-        phi1D_1, theta1D_1 = Surface.get_quadpoints(quadpoints_phi, quadpoints_theta,
-                                                    range, nphi, ntheta, vmec.wout.nfp)
+        phi1D_1 = quadpoints_phi
+
+    if ntheta is None and quadpoints_theta is None:
+        theta1D_1 = vmec.boundary.quadpoints_theta
+    elif quadpoints_theta is None:
+        theta1D_1 = Surface.get_theta_quadpoints(ntheta=ntheta)
+    else:
+        theta1D_1 = quadpoints_theta
 
     theta1D = np.array(theta1D_1) * 2 * np.pi
     phi1D = np.array(phi1D_1) * 2 * np.pi
 
-    nphi = len(phi1D)
-    ntheta = len(theta1D)
     theta, phi = np.meshgrid(theta1D, phi1D)
 
     # Get the tangent vectors using the gammadash1/2 functions from SurfaceRZFourier:
@@ -432,43 +438,44 @@ class IotaTargetMetric(Optimizable):
         Returns:
             :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
-        self.vmec.run()
+        vmec = self.vmec
+        vmec.run()
 
-        Bx0, By0, Bz0 = B_cartesian(self.vmec)
+        Bx0, By0, Bz0 = B_cartesian(vmec)
 
         mu0 = 4*np.pi*1e-7
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
-        ac_aux_f_prev = np.copy(self.vmec.indata.ac_aux_f)
-        ac_aux_s_prev = np.copy(self.vmec.indata.ac_aux_s)
-        pcurr_type_prev = np.copy(self.vmec.indata.pcurr_type)
-        curtor_prev = np.copy(self.vmec.indata.curtor)
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
+        ac_aux_f_prev = np.copy(vmec.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(vmec.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(vmec.indata.pcurr_type)
+        curtor_prev = np.copy(vmec.indata.curtor)
 
-        perturbation = (self.vmec.wout.iotas[1::]-self.iota_target(self.vmec.s_half_grid)) \
-            / (self.vmec.wout.phi[-1]*self.vmec.wout.signgs/(2*np.pi))
+        perturbation = (vmec.wout.iotas[1::]-self.iota_target(vmec.s_half_grid)) \
+            / (vmec.wout.phi[-1]*vmec.wout.signgs/(2*np.pi))
 
         # Perturbed toroidal current profile
         It_new = It_half + self.adjoint_epsilon*perturbation
         curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
-        self.vmec.indata.ac_aux_f = -1.*np.ones_like(self.vmec.indata.ac_aux_f)
-        self.vmec.indata.ac_aux_s = -1.*np.ones_like(self.vmec.indata.ac_aux_s)
-        self.vmec.indata.ac_aux_f[0:self.vmec.wout.ns-1] = It_new
-        self.vmec.indata.ac_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
-        self.vmec.indata.curtor = curtor
-        self.vmec.indata.pcurr_type = b'line_segment_I'
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = -1.*np.ones_like(vmec.indata.ac_aux_f)
+        vmec.indata.ac_aux_s = -1.*np.ones_like(vmec.indata.ac_aux_s)
+        vmec.indata.ac_aux_f[0:vmec.wout.ns-1] = It_new
+        vmec.indata.ac_aux_s[0:vmec.wout.ns-1] = vmec.s_half_grid
+        vmec.indata.curtor = curtor
+        vmec.indata.pcurr_type = b'line_segment_I'
+        vmec.need_to_run_code = True
 
-        self.vmec.run()
+        vmec.run()
 
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
 
-        Bx, By, Bz = B_cartesian(self.vmec)
+        Bx, By, Bz = B_cartesian(vmec)
 
         # Reset input values
-        self.vmec.indata.ac_aux_f = ac_aux_f_prev
-        self.vmec.indata.ac_aux_s = ac_aux_s_prev
-        self.vmec.indata.pcurr_type = pcurr_type_prev
-        self.vmec.indata.curtor = curtor_prev
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = ac_aux_f_prev
+        vmec.indata.ac_aux_s = ac_aux_s_prev
+        vmec.indata.pcurr_type = pcurr_type_prev
+        vmec.indata.curtor = curtor_prev
+        vmec.need_to_run_code = True
 
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
@@ -501,16 +508,16 @@ class IotaWeighted(Optimizable):
         self.boundary = vmec.boundary
         self.weight_function = weight_function
         self.adjoint_epsilon = adjoint_epsilon
-        # self.depends_on = ["boundary"]
         super().__init__(depends_on=[vmec])
 
     def J(self):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.run()
-        return np.sum(self.weight_function(self.vmec.s_half_grid) * self.vmec.wout.iotas[1:]) \
-            / np.sum(self.weight_function(self.vmec.s_half_grid))
+        vmec = self.vmec
+        vmec.run()
+        return np.sum(self.weight_function(vmec.s_half_grid) * vmec.wout.iotas[1:]) \
+            / np.sum(self.weight_function(vmec.s_half_grid))
 
     def dJ(self):
         """
@@ -541,46 +548,47 @@ class IotaWeighted(Optimizable):
         Returns:
             :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
-        self.vmec.run()
+        vmec = self.vmec
+        vmec.run()
 
-        Bx0, By0, Bz0 = B_cartesian(self.vmec)
+        Bx0, By0, Bz0 = B_cartesian(vmec)
 
         mu0 = 4*np.pi*1e-7
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
-        ac_aux_f_prev = np.copy(self.vmec.indata.ac_aux_f)
-        ac_aux_s_prev = np.copy(self.vmec.indata.ac_aux_s)
-        pcurr_type_prev = np.copy(self.vmec.indata.pcurr_type)
-        curtor_prev = np.copy(self.vmec.indata.curtor)
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
+        ac_aux_f_prev = np.copy(vmec.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(vmec.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(vmec.indata.pcurr_type)
+        curtor_prev = np.copy(vmec.indata.curtor)
 
-        perturbation = self.weight_function(self.vmec.s_half_grid)
+        perturbation = self.weight_function(vmec.s_half_grid)
 
         # Perturbed toroidal current profile
         It_new = It_half + self.adjoint_epsilon*perturbation
         curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
-        self.vmec.indata.ac_aux_f = -1.*np.ones_like(self.vmec.indata.ac_aux_f)
-        self.vmec.indata.ac_aux_s = -1.*np.ones_like(self.vmec.indata.ac_aux_s)
-        self.vmec.indata.ac_aux_f[0:self.vmec.wout.ns-1] = It_new
-        self.vmec.indata.ac_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
-        self.vmec.indata.curtor = curtor
-        self.vmec.indata.pcurr_type = b'line_segment_I'
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = -1.*np.ones_like(vmec.indata.ac_aux_f)
+        vmec.indata.ac_aux_s = -1.*np.ones_like(vmec.indata.ac_aux_s)
+        vmec.indata.ac_aux_f[0:vmec.wout.ns-1] = It_new
+        vmec.indata.ac_aux_s[0:vmec.wout.ns-1] = vmec.s_half_grid
+        vmec.indata.curtor = curtor
+        vmec.indata.pcurr_type = b'line_segment_I'
+        vmec.need_to_run_code = True
 
-        self.vmec.run()
+        vmec.run()
 
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
 
-        Bx, By, Bz = B_cartesian(self.vmec)
+        Bx, By, Bz = B_cartesian(vmec)
 
         # Reset input values
-        self.vmec.indata.ac_aux_f = ac_aux_f_prev
-        self.vmec.indata.ac_aux_s = ac_aux_s_prev
-        self.vmec.indata.pcurr_type = pcurr_type_prev
-        self.vmec.indata.curtor = curtor_prev
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = ac_aux_f_prev
+        vmec.indata.ac_aux_s = ac_aux_s_prev
+        vmec.indata.pcurr_type = pcurr_type_prev
+        vmec.indata.curtor = curtor_prev
+        vmec.need_to_run_code = True
 
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
-        return deltaB_dot_B/(mu0*self.vmec.ds*self.vmec.wout.phi[-1]*self.vmec.wout.signgs*np.sum(self.weight_function(self.vmec.s_half_grid)))
+        return deltaB_dot_B/(mu0*vmec.ds*vmec.wout.phi[-1]*vmec.wout.signgs*np.sum(self.weight_function(vmec.s_half_grid)))
 
 
 class WellWeighted(Optimizable):
@@ -626,9 +634,10 @@ class WellWeighted(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.run()
-        return np.sum((self.weight_function1(self.vmec.s_half_grid)-self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:]) \
-            / np.sum((self.weight_function1(self.vmec.s_half_grid)+self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:])
+        vmec = self.vmec
+        vmec.run()
+        return np.sum((self.weight_function1(vmec.s_half_grid)-self.weight_function2(vmec.s_half_grid)) * vmec.wout.vp[1:]) \
+            / np.sum((self.weight_function1(vmec.s_half_grid)+self.weight_function2(vmec.s_half_grid)) * vmec.wout.vp[1:])
 
     def dJ(self):
         """
@@ -657,42 +666,43 @@ class WellWeighted(Optimizable):
         Returns:
             :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
-        self.vmec.run()
+        vmec = self.vmec
+        vmec.run()
 
         Bx0, By0, Bz0 = B_cartesian(self.vmec)
 
         mu0 = 4*np.pi*1e-7
-        am_aux_f_prev = np.copy(self.vmec.indata.am_aux_f)
-        am_aux_s_prev = np.copy(self.vmec.indata.am_aux_s)
-        pmass_type_prev = np.copy(self.vmec.indata.pmass_type)
+        am_aux_f_prev = np.copy(vmec.indata.am_aux_f)
+        am_aux_s_prev = np.copy(vmec.indata.am_aux_s)
+        pmass_type_prev = np.copy(vmec.indata.pmass_type)
 
-        pres = self.vmec.wout.pres[1::]
-        weight1 = self.weight_function1(self.vmec.s_half_grid) - self.weight_function2(self.vmec.s_half_grid)
-        weight2 = self.weight_function1(self.vmec.s_half_grid) + self.weight_function2(self.vmec.s_half_grid)
-        numerator = np.sum(weight1 * self.vmec.wout.vp[1::])
-        denominator = np.sum(weight2 * self.vmec.wout.vp[1::])
+        pres = vmec.wout.pres[1::]
+        weight1 = self.weight_function1(vmec.s_half_grid) - self.weight_function2(vmec.s_half_grid)
+        weight2 = self.weight_function1(vmec.s_half_grid) + self.weight_function2(vmec.s_half_grid)
+        numerator = np.sum(weight1 * vmec.wout.vp[1::])
+        denominator = np.sum(weight2 * vmec.wout.vp[1::])
         fW = numerator/denominator
-        perturbation = (weight1 - fW * weight2) / (denominator * self.vmec.ds * 4 * np.pi * np.pi)
+        perturbation = (weight1 - fW * weight2) / (denominator * vmec.ds * 4 * np.pi * np.pi)
 
         # Perturbed pressure profile
         pres_new = pres + self.adjoint_epsilon*perturbation
 
-        self.vmec.indata.am_aux_f = -1.*np.ones_like(self.vmec.indata.am_aux_f)
-        self.vmec.indata.am_aux_s = -1.*np.ones_like(self.vmec.indata.am_aux_s)
-        self.vmec.indata.am_aux_f[0:self.vmec.wout.ns-1] = pres_new
-        self.vmec.indata.am_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
-        self.vmec.indata.pmass_type = b'cubic_spline'
-        self.vmec.need_to_run_code = True
+        vmec.indata.am_aux_f = -1.*np.ones_like(vmec.indata.am_aux_f)
+        vmec.indata.am_aux_s = -1.*np.ones_like(vmec.indata.am_aux_s)
+        vmec.indata.am_aux_f[0:vmec.wout.ns-1] = pres_new
+        vmec.indata.am_aux_s[0:vmec.wout.ns-1] = vmec.s_half_grid
+        vmec.indata.pmass_type = b'cubic_spline'
+        vmec.need_to_run_code = True
 
-        self.vmec.run()
+        vmec.run()
 
         Bx, By, Bz = B_cartesian(self.vmec)
 
         # Reset input values
-        self.vmec.indata.am_aux_f = am_aux_f_prev
-        self.vmec.indata.am_aux_s = am_aux_s_prev
-        self.vmec.indata.pmass_type = pmass_type_prev
-        self.vmec.need_to_run_code = True
+        vmec.indata.am_aux_f = am_aux_f_prev
+        vmec.indata.am_aux_s = am_aux_s_prev
+        vmec.indata.pmass_type = pmass_type_prev
+        vmec.need_to_run_code = True
 
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
@@ -711,6 +721,8 @@ def vmec_splines(vmec):
     """
     vmec.run()
     results = Struct()
+    if vmec.wout.lasym:
+        raise ValueError("vmec_splines is not yet set up for non-stellarator-symmetric cases.")
 
     rmnc = []
     zmns = []
@@ -770,22 +782,12 @@ def vmec_splines(vmec):
     return results
 
 
-def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=False, show=True):
+def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     r"""
-    Compute field lines in a vmec configuration, and compute many
-    geometric quantities of interest along the field lines. In
-    particular, this routine computes the geometric quantities that
-    enter the gyrokinetic equation.
+    Compute many geometric quantities of interest from a vmec configuration.
 
-    One of the tasks performed by this function is to convert between
-    the poloidal angles :math:`\theta_{vmec}` and
-    :math:`\theta_{pest}`. The latter is the angle in which the field
-    lines are straight when used in combination with the standard
-    toroidal angle :math:`\phi`. Note that all angles in this function
-    have period :math:`2\pi`, not period 1.
-
-    For the inputs and outputs of this function, a field line label
-    coordinate is defined by
+    Some of the quantities computed by this function refer to
+    ``alpha``, a field line label coordinate defined by
 
     .. math::
 
@@ -802,18 +804,18 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
         \vec{B} = \nabla\psi\times\nabla\theta_{pest} + \iota\nabla\phi\times\nabla\psi = \nabla\psi\times\nabla\alpha.
 
-    To specify the parallel extent of the field lines, you can provide
-    either a grid of :math:`\theta_{pest}` values or a grid of
-    :math:`\phi` values. If you specify both or neither, ``ValueError``
-    will be raised.
+    Most of the arrays that are returned by this function have shape
+    ``(ns, ntheta, nphi)``, where ``ns`` is the number of flux
+    surfaces, ``ntheta`` is the number of grid points in VMEC's
+    poloidal angle, and ``nphi`` is the number of grid points in the
+    standard toroidal angle. For the arguments ``theta`` and ``phi``,
+    you can either provide 1D arrays, in which case a tensor product
+    grid is used, or you can provide 3D arrays of shape ``(ns, ntheta,
+    nphi)``. In this latter case, the grids are not necessarily
+    tensor-product grids.  Note that all angles in this function have
+    period :math:`2\pi`, not period 1.
 
-    Most of the arrays that are computed have shape ``(ns, nalpha,
-    nl)``, where ``ns`` is the number of flux surfaces, ``nalpha`` is the
-    number of field lines on each flux surface, and ``nl`` is the number
-    of grid points along each field line. In other words, ``ns`` is the
-    size of the input ``s`` array, ``nalpha`` is the size of the input
-    ``alpha`` array, and ``nl`` is the size of the input ``theta1d`` or
-    ``phi1d`` array. The output arrays are returned as attributes of the
+    The output arrays are returned as attributes of the
     returned object. Many intermediate quantities are included, such
     as the Cartesian components of the covariant and contravariant
     basis vectors. Some of the most useful of these output arrays are (all with SI units):
@@ -855,31 +857,26 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     Example usage::
 
         import numpy as np
-        from simsopt.mhd.vmec import Vmec
-        from simsopt.mhd.vmec_diagnostics import vmec_fieldlines
+        from simsopt.mhd import Vmec, vmec_compute_geometry
 
-        v = Vmec('wout_li383_1.4m.nc')
-        theta = np.linspace(-np.pi, np.pi, 50)
-        fl = vmec_fieldlines(v, 0.5, 0, theta1d=theta)
-        print(fl.B_cross_grad_B_dot_grad_alpha)
+        v = Vmec("wout_li383_1.4m.nc")
+        s = 1
+        theta = np.linspace(0, 2 * np.pi, 50)
+        phi = np.linspace(0, 2 * np.pi / 3, 60)
+        data = vmec_compute_geometry(v, s, theta, phi)
+        print(data.grad_s_dot_grad_s)
 
     Args:
         vs: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`
           or the structure returned by :func:`vmec_splines`.
         s: Values of normalized toroidal flux on which to construct the field lines.
           You can give a single number, or a list or numpy array.
-        alpha: Values of the field line label :math:`\alpha` on which to construct the field lines.
-          You can give a single number, or a list or numpy array.
-        theta1d: 1D array of :math:`\theta_{pest}` values, setting the grid points
-          along the field line and the parallel extent of the field line.
-        phi1d: 1D array of :math:`\phi` values, setting the grid points along the
-          field line and the parallel extent of the field line.
+        theta: Values of vmec's poloidal angle. You can provide a float, a 1d array of size
+          ``(ntheta,)``, or a 3d array of size ``(ns, ntheta, nphi)``.
+        phi: Values of the standard toroidal angle. You can provide a float, a 1d array of size
+          ``(nphi,)`` or a 3d array of size ``(ns, ntheta, nphi)``.
         phi_center: :math:`\phi_{center}`, an optional shift to the toroidal angle
           in the definition of :math:`\alpha`.
-        plot: Whether to create a plot of the main geometric quantities. Only one field line will
-          be plotted, corresponding to the leading elements of ``s`` and ``alpha``.
-        show: Only matters if ``plot==True``. Whether to call matplotlib's ``show()`` function
-          after creating the plot.
     """
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
@@ -893,22 +890,37 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     s = np.array(s)
     ns = len(s)
 
-    # Make sure alpha is an array
+    # Handle theta
     try:
-        nalpha = len(alpha)
+        ntheta = len(theta)
     except:
-        alpha = [alpha]
-    alpha = np.array(alpha)
-    nalpha = len(alpha)
-
-    if (theta1d is not None) and (phi1d is not None):
-        raise ValueError('You cannot specify both theta and phi')
-    if (theta1d is None) and (phi1d is None):
-        raise ValueError('You must specify either theta or phi')
-    if theta1d is None:
-        nl = len(phi1d)
+        theta = [theta]
+    theta_vmec = np.array(theta)
+    if theta_vmec.ndim == 1:
+        ntheta = len(theta_vmec)
+    elif theta_vmec.ndim == 3:
+        ntheta = theta_vmec.shape[1]
     else:
-        nl = len(theta1d)
+        raise ValueError("theta argument must be a float, 1d array, or 3d array.")
+
+    # Handle phi
+    try:
+        nphi = len(phi)
+    except:
+        phi = [phi]
+    phi = np.array(phi)
+    if phi.ndim == 1:
+        nphi = len(phi)
+    elif phi.ndim == 3:
+        nphi = phi.shape[2]
+    else:
+        raise ValueError("phi argument must be a float, 1d array, or 3d array.")
+
+    # If theta and phi are not already 3D, make them 3D:
+    if theta_vmec.ndim == 1:
+        theta_vmec = np.kron(np.ones((ns, 1, nphi)), theta_vmec.reshape(1, ntheta, 1))
+    if phi.ndim == 1:
+        phi = np.kron(np.ones((ns, ntheta, 1)), phi.reshape(1, 1, nphi))
 
     # Shorthand:
     mnmax = vs.mnmax
@@ -958,46 +970,6 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         bsubumnc[:, jmn] = vs.bsubumnc[jmn](s)
         bsubvmnc[:, jmn] = vs.bsubvmnc[jmn](s)
 
-    theta_pest = np.zeros((ns, nalpha, nl))
-    phi = np.zeros((ns, nalpha, nl))
-
-    if theta1d is None:
-        # We are given phi. Compute theta_pest:
-        for js in range(ns):
-            phi[js, :, :] = phi1d[None, :]
-            theta_pest[js, :, :] = alpha[:, None] + iota[js] * (phi1d[None, :] - phi_center)
-    else:
-        # We are given theta_pest. Compute phi:
-        for js in range(ns):
-            theta_pest[js, :, :] = theta1d[None, :]
-            phi[js, :, :] = phi_center + (theta1d[None, :] - alpha[:, None]) / iota[js]
-
-    def residual(theta_v, phi0, theta_p_target, jradius):
-        """
-        This function is used for computing the value of theta_vmec that
-        gives a desired theta_pest.
-        """
-
-        """
-        theta_p = theta_v
-        for jmn in range(len(xn)):
-            angle = xm[jmn] * theta_v - xn[jmn] * phi0
-            theta_p += lmns[jradius, jmn] * np.sin(angle)
-        return theta_p_target - theta_p
-        """
-        return theta_p_target - (theta_v + np.sum(lmns[jradius, :] * np.sin(xm * theta_v - xn * phi0)))
-
-    # Solve for theta_vmec corresponding to theta_pest:
-    theta_vmec = np.zeros((ns, nalpha, nl))
-    for js in range(ns):
-        for jalpha in range(nalpha):
-            for jl in range(nl):
-                theta_guess = theta_pest[js, jalpha, jl]
-                solution = root_scalar(residual,
-                                       args=(phi[js, jalpha, jl], theta_pest[js, jalpha, jl], js),
-                                       bracket=(theta_guess - 1.0, theta_guess + 1.0))
-                theta_vmec[js, jalpha, jl] = solution.root
-
     # Now that we know theta_vmec, compute all the geometric quantities
     angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
     cosangle = np.cos(angle)
@@ -1006,7 +978,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     ncosangle = xn[:, None, None, None] * cosangle
     msinangle = xm[:, None, None, None] * sinangle
     nsinangle = xn[:, None, None, None] * sinangle
-    # Order of indices in cosangle and sinangle: mn, s, alpha, l
+    # Order of indices in cosangle and sinangle: mn, s, theta, phi
     # Order of indices in rmnc, bmnc, etc: s, mn
     R = np.einsum('ij,jikl->ikl', rmnc, cosangle)
     d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle)
@@ -1018,9 +990,11 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
     d_Z_d_phi = -np.einsum('ij,jikl->ikl', zmns, ncosangle)
 
+    lambd = np.einsum('ij,jikl->ikl', lmns, sinangle)
     d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle)
     d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle)
     d_lambda_d_phi = -np.einsum('ij,jikl->ikl', lmns, ncosangle)
+    theta_pest = theta_vmec + lambd
 
     # Now handle the Nyquist quantities:
     angle = xm_nyq[:, None, None, None] * theta_vmec[None, :, :, :] - xn_nyq[:, None, None, None] * phi[None, :, :, :]
@@ -1055,11 +1029,11 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     # *********************************************************************
     sinphi = np.sin(phi)
     cosphi = np.cos(phi)
-    # X = R * cos(phi):   
+    X = R * cosphi
     d_X_d_theta_vmec = d_R_d_theta_vmec * cosphi
     d_X_d_phi = d_R_d_phi * cosphi - R * sinphi
     d_X_d_s = d_R_d_s * cosphi
-    # Y = R * sin(phi):
+    Y = R * sinphi
     d_Y_d_theta_vmec = d_R_d_theta_vmec * sinphi
     d_Y_d_phi = d_R_d_phi * sinphi + R * cosphi
     d_Y_d_s = d_R_d_s * sinphi
@@ -1143,6 +1117,8 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     grad_psi_dot_grad_psi = grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z
 
+    grad_s_dot_grad_s = grad_s_X * grad_s_X + grad_s_Y * grad_s_Y + grad_s_Z * grad_s_Z
+
     B_cross_grad_B_dot_grad_psi = (B_sub_theta_vmec * d_B_d_phi - B_sub_phi * d_B_d_theta_vmec) / sqrt_g_vmec * edge_toroidal_flux_over_2pi
 
     B_cross_kappa_dot_grad_psi = B_cross_grad_B_dot_grad_psi / modB
@@ -1169,35 +1145,188 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
 
     gds22 = grad_psi_dot_grad_psi * shat[:, None, None] * shat[:, None, None] / (L_reference * L_reference * B_reference * B_reference * s[:, None, None])
 
-    gbdrift = 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * B_cross_grad_B_dot_grad_alpha \
-        / (modB * modB * modB) * toroidal_flux_sign
+    # temporary fix. Please see issue #238 and the discussion therein
+    gbdrift = -1 * 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * B_cross_grad_B_dot_grad_alpha / (modB * modB * modB) * toroidal_flux_sign
 
     gbdrift0 = B_cross_grad_B_dot_grad_psi * 2 * shat[:, None, None] / (modB * modB * modB * sqrt_s[:, None, None]) * toroidal_flux_sign
 
-    cvdrift = gbdrift + 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] \
-        * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
+    # temporary fix. Please see issue #238 and the discussion therein
+    cvdrift = gbdrift - 2 * B_reference * L_reference * L_reference * sqrt_s[:, None, None] * mu_0 * d_pressure_d_s[:, None, None] * toroidal_flux_sign / (edge_toroidal_flux_over_2pi * modB * modB)
 
     cvdrift0 = gbdrift0
 
     # Package results into a structure to return:
     results = Struct()
-    variables = ['ns', 'nalpha', 'nl', 's', 'iota', 'd_iota_d_s', 'd_pressure_d_s', 'shat',
-                 'alpha', 'theta1d', 'phi1d', 'phi', 'theta_pest',
+    variables = ['ns', 'ntheta', 'nphi', 's', 'iota', 'd_iota_d_s', 'd_pressure_d_s', 'shat',
+                 'theta_vmec', 'phi', 'theta_pest',
                  'd_lambda_d_s', 'd_lambda_d_theta_vmec', 'd_lambda_d_phi', 'sqrt_g_vmec', 'sqrt_g_vmec_alt',
-                 'theta_vmec', 'modB', 'd_B_d_s', 'd_B_d_theta_vmec', 'd_B_d_phi', 'B_sup_theta_vmec', 'B_sup_theta_pest', 'B_sup_phi',
+                 'modB', 'd_B_d_s', 'd_B_d_theta_vmec', 'd_B_d_phi', 'B_sup_theta_vmec', 'B_sup_theta_pest', 'B_sup_phi',
                  'B_sub_s', 'B_sub_theta_vmec', 'B_sub_phi', 'edge_toroidal_flux_over_2pi', 'sinphi', 'cosphi',
-                 'R', 'd_R_d_s', 'd_R_d_theta_vmec', 'd_R_d_phi', 'Z', 'd_Z_d_s', 'd_Z_d_theta_vmec', 'd_Z_d_phi',
+                 'R', 'd_R_d_s', 'd_R_d_theta_vmec', 'd_R_d_phi', 'X', 'Y', 'Z', 'd_Z_d_s', 'd_Z_d_theta_vmec', 'd_Z_d_phi',
                  'd_X_d_theta_vmec', 'd_X_d_phi', 'd_X_d_s', 'd_Y_d_theta_vmec', 'd_Y_d_phi', 'd_Y_d_s',
                  'grad_s_X', 'grad_s_Y', 'grad_s_Z', 'grad_theta_vmec_X', 'grad_theta_vmec_Y', 'grad_theta_vmec_Z',
                  'grad_phi_X', 'grad_phi_Y', 'grad_phi_Z', 'grad_psi_X', 'grad_psi_Y', 'grad_psi_Z',
                  'grad_alpha_X', 'grad_alpha_Y', 'grad_alpha_Z', 'grad_B_X', 'grad_B_Y', 'grad_B_Z',
-                 'B_X', 'B_Y', 'B_Z',
+                 'B_X', 'B_Y', 'B_Z', "grad_s_dot_grad_s",
                  'B_cross_grad_s_dot_grad_alpha', 'B_cross_grad_s_dot_grad_alpha_alternate',
                  'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_alpha_alternate',
                  'B_cross_grad_B_dot_grad_psi', 'B_cross_kappa_dot_grad_psi', 'B_cross_kappa_dot_grad_alpha',
                  'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
                  'L_reference', 'B_reference', 'toroidal_flux_sign',
                  'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0']
+    for v in variables:
+        results.__setattr__(v, eval(v))
+
+    return results
+
+
+def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=False, show=True):
+    r"""
+    Compute field lines in a vmec configuration, and compute many
+    geometric quantities of interest along the field lines. In
+    particular, this routine computes the geometric quantities that
+    enter the gyrokinetic equation.
+
+    One task performed by this function is to convert between
+    the poloidal angles :math:`\theta_{vmec}` and
+    :math:`\theta_{pest}`. The latter is the angle in which the field
+    lines are straight when used in combination with the standard
+    toroidal angle :math:`\phi`. Note that all angles in this function
+    have period :math:`2\pi`, not period 1.
+
+    To specify the parallel extent of the field lines, you can provide
+    either a grid of :math:`\theta_{pest}` values or a grid of
+    :math:`\phi` values. If you specify both or neither, ``ValueError``
+    will be raised.
+
+    The geometric quanties computed by this function are the same as for
+    :func:`vmec_compute_geometry()`. See the documentation of that
+    function for details.
+
+    Most of the arrays that are returned by this function have shape
+    ``(ns, nalpha, nl)``, where ``ns`` is the number of flux surfaces,
+    ``nalpha`` is the number of field lines on each flux surface, and
+    ``nl`` is the number of grid points along each field line. In
+    other words, ``ns`` is the size of the input ``s`` array,
+    ``nalpha`` is the size of the input ``alpha`` array, and ``nl`` is
+    the size of the input ``theta1d`` or ``phi1d`` array. The output
+    arrays are returned as attributes of the returned object.
+
+    The value(s) of ``s`` provided as input need not coincide with the
+    full grid or half grid in VMEC, as spline interpolation will be
+    used radially.
+
+    Example usage::
+
+        import numpy as np
+        from simsopt.mhd import Vmec, vmec_fieldlines
+
+        v = Vmec('wout_li383_1.4m.nc')
+        theta = np.linspace(-np.pi, np.pi, 50)
+        fl = vmec_fieldlines(v, 0.5, 0, theta1d=theta)
+        print(fl.B_cross_grad_B_dot_grad_alpha)
+
+    Args:
+        vs: Either an instance of :obj:`simsopt.mhd.vmec.Vmec`
+          or the structure returned by :func:`vmec_splines`.
+        s: Values of normalized toroidal flux on which to construct the field lines.
+          You can give a single number, or a list or numpy array.
+        alpha: Values of the field line label :math:`\alpha` on which to construct the field lines.
+          You can give a single number, or a list or numpy array.
+        theta1d: 1D array of :math:`\theta_{pest}` values, setting the grid points
+          along the field line and the parallel extent of the field line.
+        phi1d: 1D array of :math:`\phi` values, setting the grid points along the
+          field line and the parallel extent of the field line.
+        phi_center: :math:`\phi_{center}`, an optional shift to the toroidal angle
+          in the definition of :math:`\alpha`.
+        plot: Whether to create a plot of the main geometric quantities. Only one field line will
+          be plotted, corresponding to the leading elements of ``s`` and ``alpha``.
+        show: Only matters if ``plot==True``. Whether to call matplotlib's ``show()`` function
+          after creating the plot.
+    """
+    # If given a Vmec object, convert it to vmec_splines:
+    if isinstance(vs, Vmec):
+        vs = vmec_splines(vs)
+
+    # Make sure s is an array:
+    try:
+        ns = len(s)
+    except:
+        s = [s]
+    s = np.array(s)
+    ns = len(s)
+
+    # Make sure alpha is an array
+    try:
+        nalpha = len(alpha)
+    except:
+        alpha = [alpha]
+    alpha = np.array(alpha)
+    nalpha = len(alpha)
+
+    if (theta1d is not None) and (phi1d is not None):
+        raise ValueError('You cannot specify both theta and phi')
+    if (theta1d is None) and (phi1d is None):
+        raise ValueError('You must specify either theta or phi')
+    if theta1d is None:
+        nl = len(phi1d)
+    else:
+        nl = len(theta1d)
+
+    # Shorthand:
+    mnmax = vs.mnmax
+    xm = vs.xm
+    xn = vs.xn
+    mnmax_nyq = vs.mnmax_nyq
+    xm_nyq = vs.xm_nyq
+    xn_nyq = vs.xn_nyq
+
+    # Now that we have an s grid, evaluate everything on that grid:
+    iota = vs.iota(s)
+    lmns = np.zeros((ns, mnmax))
+    for jmn in range(mnmax):
+        lmns[:, jmn] = vs.lmns[jmn](s)
+
+    theta_pest = np.zeros((ns, nalpha, nl))
+    phi = np.zeros((ns, nalpha, nl))
+
+    if theta1d is None:
+        # We are given phi. Compute theta_pest:
+        for js in range(ns):
+            phi[js, :, :] = phi1d[None, :]
+            theta_pest[js, :, :] = alpha[:, None] + iota[js] * (phi1d[None, :] - phi_center)
+    else:
+        # We are given theta_pest. Compute phi:
+        for js in range(ns):
+            theta_pest[js, :, :] = theta1d[None, :]
+            phi[js, :, :] = phi_center + (theta1d[None, :] - alpha[:, None]) / iota[js]
+
+    def residual(theta_v, phi0, theta_p_target, jradius):
+        """
+        This function is used for computing an array of values of theta_vmec that
+        give a desired theta_pest array.
+        """
+        return theta_p_target - (theta_v + np.sum(lmns[jradius, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
+
+    theta_vmec = np.zeros((ns, nalpha, nl))
+    for js in range(ns):
+        for jalpha in range(nalpha):
+            theta_guess = theta_pest[js, jalpha, :]
+            solution = newton(
+                residual,
+                x0=theta_guess,
+                x1=theta_guess + 0.1,
+                args=(phi[js, jalpha, :], theta_pest[js, jalpha, :], js),
+            )
+            theta_vmec[js, jalpha, :] = solution
+
+    # Now that we have theta_vmec, compute all the geometric quantities:
+    results = vmec_compute_geometry(vs, s, theta_vmec, phi, phi_center)
+
+    # Add a few more quantities to the results:
+    variables = ["nalpha", "nl", "alpha", "theta1d", "phi1d"]
+    for v in variables:
+        results.__setattr__(v, eval(v))
 
     if plot:
         import matplotlib.pyplot as plt
@@ -1210,7 +1339,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
                      'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
-            plt.plot(phi[0, 0, :], eval(variable + '[0, 0, :]'))
+            plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))
             plt.xlabel('Standard toroidal angle $\phi$')
             plt.title(variable)
 
@@ -1218,8 +1347,5 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         plt.tight_layout()
         if show:
             plt.show()
-
-    for v in variables:
-        results.__setattr__(v, eval(v))
 
     return results
