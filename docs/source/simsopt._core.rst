@@ -14,7 +14,7 @@ simsopt.\_core.derivative module
    :private-members:
 
 simsopt.\_core.descriptor module
---------------------------
+--------------------------------
 
 .. automodule:: simsopt._core.descriptor
    :members:
