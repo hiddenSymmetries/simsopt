@@ -3,6 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.json import GSONDecoder
+from .mgrid import MGrid
 
 __all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
 
@@ -91,21 +92,30 @@ class MagneticField(sopp.MagneticField, Optimizable):
         contig = np.ascontiguousarray
         gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[..., 0]), contig(vals[..., 1]), contig(vals[..., 2]))})
 
-    def to_mgrid(self, filename, nr=10, nphi=10, nz=10, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=2):
-        """Export the field evaluated on a regular grid for free boundary calculations."""
-        from simsopt.field.mgrid import MGrid          # Handles MGRID file I/O
+    def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1):
+        """Export the field evaluated on a regular grid for free boundary
+        calculations.
 
-        # make grid (this part is copied with VTK, could be exported to a common function)
+        Args:
+            filename: Name of the NetCDF file to save.
+            nr: Number of grid points in the major radius dimension.
+            nphi: Number of planes in the toroidal angle.
+            nz: Number of grid points in the z coordinate.
+            rmin: Minimum value of major radius for the grid.
+            rmax: Maximum value of major radius for the grid.
+            zmin: Minimum value of z for the grid.
+            zmax: Maximum value of z for the grid.
+            nfp: Number of field periods.
+        """
+
         rs = np.linspace(rmin, rmax, nr, endpoint=True)
-        phis = np.linspace(0, 2*np.pi/nfp, nphi, endpoint=False)
-        #phis = np.linspace(0, 2*np.pi, nphi, endpoint=True) # the MGRID ignores the last toroidal phi
+        phis = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
         zs = np.linspace(zmin, zmax, nz, endpoint=True)
 
         Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')  # check the order here (!)
         X = R * np.cos(Phi)
         Y = R * np.sin(Phi)
         Z = Z
-        #print(np.shape(R))
 
         RPhiZ = np.zeros((R.size, 3))
         RPhiZ[:, 0] = R.flatten()
@@ -113,7 +123,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         RPhiZ[:, 2] = Z.flatten()
 
         # get field from simsopt
-        self.set_points_cyl(RPhiZ)  # set_points_cyl() requires RPhiZ
+        self.set_points_cyl(RPhiZ)
         B = self.B_cyl()
 
         # shape the components
@@ -129,7 +139,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
         mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
 
-        mgrid.write(filename)  # perhaps mgrid.filename.nc
+        mgrid.write(filename)
 
 
 class MagneticFieldMultiply(MagneticField):
