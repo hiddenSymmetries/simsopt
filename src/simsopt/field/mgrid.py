@@ -262,7 +262,6 @@ class MGrid():
 
         self.bvec = np.transpose([br, bp, bz])
 
-
     def plot(self, jphi=0, bscale=0, show=True):
         '''
         Creates a plot of the mgrid data for debugging.
