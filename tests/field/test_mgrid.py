@@ -56,12 +56,8 @@ class Testing(unittest.TestCase):
             mgrid.write(filename)
 
             f = netcdf_file(filename, mmap=False)
-            zmin = f.variables['zmin'][:][0]
-            assert zmin == -0.5
-
-            nextcur = f.variables['nextcur'][:][0]
-            assert nextcur == 1
-
+            np.testing.assert_allclose(f.variables['zmin'][()], -0.5)
+            assert f.variables['nextcur'][()] == 1
             assert f.variables['br_001'][:].shape == (6, 11, 11)
             assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
 
@@ -108,8 +104,8 @@ class VmecTests(unittest.TestCase):
             eq.indata.mgrid_file = filename
             eq.indata.extcur[0] = 1.0
             eq.indata.nzeta = nphi
-            eq.mpol = 6
-            eq.ntor = 6
+            eq.indata.mpol = 6
+            eq.indata.ntor = 6
             eq.indata.ns_array[2] = 0
             ftol = 1e-10
             eq.indata.ftol_array[1] = ftol
