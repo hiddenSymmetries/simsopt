@@ -1,6 +1,8 @@
-import numpy as np
-from scipy.io import netcdf as nc
 import sys
+import numpy as np
+from scipy.io import netcdf_file
+
+__all__ = ["MGrid"]
 
 
 def _pad_string(string): 
@@ -67,8 +69,6 @@ class MGrid():
         self.bz_arr = [] 
         self.bp_arr = [] 
 
-        print(f"Initialized mgrid file: (nr,nphi,nz,nfp) = ({nr}, {nphi}, {nz}, {nfp})")
-
     def add_field_cylindrical(self, br, bp, bz, name='default'):
         '''
         This function saves the vector field B.
@@ -113,8 +113,7 @@ class MGrid():
             filename: output file name
         '''
 
-        print('Writing mgrid file')
-        ds = nc.netcdf_file(filename, 'w')
+        ds = netcdf_file(filename, 'w', mmap=False)
 
         # set netcdf dimensions
         ds.createDimension('stringsize', 30)
@@ -171,8 +170,6 @@ class MGrid():
 
         ds.close()
 
-        print('  Wrote to file:', filename)
-
     def export_phi(self):
         phi = np.linspace(0, 2*np.pi/self.nfp, self.nphi)
         return phi
@@ -189,12 +186,7 @@ class MGrid():
             filename: mgrid netCDF input file name
         '''
 
-        f = nc.netcdf_file(filename, 'r') 
-
-        # parse file name
-        filename = "".join(filename.split('/')[-1].split('.')[1:-1])
-        if (filename == ""):
-            filename = "".join(filename.split('_')[1:])
+        f = netcdf_file(filename, 'r', mmap=False)
 
         # load grid
         nr = f.variables['ir'].getValue()
@@ -293,7 +285,6 @@ class MGrid():
         subplot_slice(np.s_[1], self.bp[jphi], rax, zax, tag='bp', bscale=bscale)
         subplot_slice(np.s_[2], self.bz[jphi], rax, zax, tag='bz', bscale=bscale)
 
-        axs[0].set_title(self.filename)
         axs[1].set_title(f"nextcur = {self.n_ext_cur}, mode {self.mode}", fontsize=10)
         axs[2].set_title(f"nr,np,nz = ({self.nr},{self.nphi},{self.nz})", fontsize=10)
 

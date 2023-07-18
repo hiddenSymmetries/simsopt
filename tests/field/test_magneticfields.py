@@ -1014,7 +1014,7 @@ class Testing(unittest.TestCase):
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
-        bs.to_mgrid('/tmp/mgrid.bfield')
+        bs.to_mgrid('mgrid.bfield.nc')
 
         # test against an existing low res file
         # OR, write to file, read to the same 
