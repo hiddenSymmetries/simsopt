@@ -55,15 +55,15 @@ class Testing(unittest.TestCase):
             filename = Path(tmpdir) / 'mgrid.test.nc'
             mgrid.write(filename)
 
-            f = netcdf_file(filename, mmap=False)
-            np.testing.assert_allclose(f.variables['zmin'][()], -0.5)
-            assert f.variables['nextcur'][()] == 1
-            assert f.variables['br_001'][:].shape == (6, 11, 11)
-            assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
+            with netcdf_file(filename, mmap=False) as f:
+                np.testing.assert_allclose(f.variables['zmin'][()], -0.5)
+                assert f.variables['nextcur'][()] == 1
+                assert f.variables['br_001'][:].shape == (6, 11, 11)
+                assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
 
-            byte_string = f.variables['coil_group'][:]
-            message = "".join([x.decode('ascii') for x in byte_string])
-            assert message == '________simsopt_coils_________'
+                byte_string = f.variables['coil_group'][:]
+                message = "".join([x.decode('ascii') for x in byte_string])
+                assert message == '________simsopt_coils_________'
 
     def test_plot(self):
         mgrid = MGrid.from_file(test_file)
