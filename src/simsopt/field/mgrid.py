@@ -119,66 +119,64 @@ class MGrid():
             filename: output file name
         '''
 
-        ds = netcdf_file(filename, 'w', mmap=False)
+        with netcdf_file(filename, 'w', mmap=False) as ds:
 
-        # set netcdf dimensions
-        ds.createDimension('stringsize', 30)
-        ds.createDimension('dim_00001', 1)
-        ds.createDimension('external_coil_groups', self.n_ext_cur)
-        ds.createDimension('external_coils', self.n_ext_cur)
-        ds.createDimension('rad', self.nr)
-        ds.createDimension('zee', self.nz)
-        ds.createDimension('phi', self.nphi)
+            # set netcdf dimensions
+            ds.createDimension('stringsize', 30)
+            ds.createDimension('dim_00001', 1)
+            ds.createDimension('external_coil_groups', self.n_ext_cur)
+            ds.createDimension('external_coils', self.n_ext_cur)
+            ds.createDimension('rad', self.nr)
+            ds.createDimension('zee', self.nz)
+            ds.createDimension('phi', self.nphi)
 
-        # declare netcdf variables
-        var_ir = ds.createVariable('ir', 'i4', tuple())
-        var_jz = ds.createVariable('jz', 'i4', tuple())
-        var_kp = ds.createVariable('kp', 'i4', tuple())
-        var_nfp = ds.createVariable('nfp', 'i4', tuple())
-        var_nextcur = ds.createVariable('nextcur', 'i4', tuple())
+            # declare netcdf variables
+            var_ir = ds.createVariable('ir', 'i4', tuple())
+            var_jz = ds.createVariable('jz', 'i4', tuple())
+            var_kp = ds.createVariable('kp', 'i4', tuple())
+            var_nfp = ds.createVariable('nfp', 'i4', tuple())
+            var_nextcur = ds.createVariable('nextcur', 'i4', tuple())
 
-        var_rmin = ds.createVariable('rmin', 'f8', tuple())
-        var_zmin = ds.createVariable('zmin', 'f8', tuple())
-        var_rmax = ds.createVariable('rmax', 'f8', tuple())
-        var_zmax = ds.createVariable('zmax', 'f8', tuple())
+            var_rmin = ds.createVariable('rmin', 'f8', tuple())
+            var_zmin = ds.createVariable('zmin', 'f8', tuple())
+            var_rmax = ds.createVariable('rmax', 'f8', tuple())
+            var_zmax = ds.createVariable('zmax', 'f8', tuple())
 
-        if self.n_ext_cur == 1:
-            var_coil_group = ds.createVariable('coil_group', 'c', ('stringsize',))
-            var_coil_group[:] = self.coil_names[0]
-        else:
-            var_coil_group = ds.createVariable('coil_group', 'c', ('external_coil_groups', 'stringsize',))
-            var_coil_group[:] = self.coil_names
-        var_mgrid_mode = ds.createVariable('mgrid_mode', 'c', ('dim_00001',))
-        var_raw_coil_cur = ds.createVariable('raw_coil_cur', 'f8', ('external_coils',))
+            if self.n_ext_cur == 1:
+                var_coil_group = ds.createVariable('coil_group', 'c', ('stringsize',))
+                var_coil_group[:] = self.coil_names[0]
+            else:
+                var_coil_group = ds.createVariable('coil_group', 'c', ('external_coil_groups', 'stringsize',))
+                var_coil_group[:] = self.coil_names
+            var_mgrid_mode = ds.createVariable('mgrid_mode', 'c', ('dim_00001',))
+            var_raw_coil_cur = ds.createVariable('raw_coil_cur', 'f8', ('external_coils',))
 
-        # assign values
-        var_ir.assignValue(self.nr)
-        var_jz.assignValue(self.nz)
-        var_kp.assignValue(self.nphi)
-        var_nfp.assignValue(self.nfp)
-        var_nextcur.assignValue(self.n_ext_cur)
+            # assign values
+            var_ir.assignValue(self.nr)
+            var_jz.assignValue(self.nz)
+            var_kp.assignValue(self.nphi)
+            var_nfp.assignValue(self.nfp)
+            var_nextcur.assignValue(self.n_ext_cur)
 
-        var_rmin.assignValue(self.rmin)
-        var_zmin.assignValue(self.zmin)
-        var_rmax.assignValue(self.rmax)
-        var_zmax.assignValue(self.zmax)
+            var_rmin.assignValue(self.rmin)
+            var_zmin.assignValue(self.zmin)
+            var_rmax.assignValue(self.rmax)
+            var_zmax.assignValue(self.zmax)
 
-        var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
-        var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
+            var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
+            var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
 
-        # add fields
-        for j in np.arange(self.n_ext_cur):
+            # add fields
+            for j in np.arange(self.n_ext_cur):
 
-            tag = '_%.3i' % (j+1)
-            var_br_001 = ds.createVariable('br'+tag, 'f8', ('phi', 'zee', 'rad'))
-            var_bp_001 = ds.createVariable('bp'+tag, 'f8', ('phi', 'zee', 'rad'))
-            var_bz_001 = ds.createVariable('bz'+tag, 'f8', ('phi', 'zee', 'rad'))
+                tag = '_%.3i' % (j+1)
+                var_br_001 = ds.createVariable('br'+tag, 'f8', ('phi', 'zee', 'rad'))
+                var_bp_001 = ds.createVariable('bp'+tag, 'f8', ('phi', 'zee', 'rad'))
+                var_bz_001 = ds.createVariable('bz'+tag, 'f8', ('phi', 'zee', 'rad'))
 
-            var_br_001[:, :, :] = self.br_arr[j]
-            var_bz_001[:, :, :] = self.bz_arr[j]
-            var_bp_001[:, :, :] = self.bp_arr[j]
-
-        ds.close()
+                var_br_001[:, :, :] = self.br_arr[j]
+                var_bz_001[:, :, :] = self.bz_arr[j]
+                var_bp_001[:, :, :] = self.bp_arr[j]
 
     @classmethod 
     def from_file(cls, filename):
@@ -189,67 +187,67 @@ class MGrid():
             filename: mgrid netCDF input file name
         '''
 
-        f = netcdf_file(filename, 'r', mmap=False)
+        with netcdf_file(filename, 'r', mmap=False) as f:
 
-        # load grid
-        nr = f.variables['ir'].getValue()
-        nphi = f.variables['kp'].getValue()
-        nz = f.variables['jz'].getValue()
-        rmin = f.variables['rmin'].getValue()
-        rmax = f.variables['rmax'].getValue()
-        zmin = f.variables['zmin'].getValue()
-        zmax = f.variables['zmax'].getValue()
-        kwargs = {"nr": nr, "nphi": nphi, "nz": nz, 
-                  "rmin": rmin, "rmax": rmax, "zmin": zmin, "zmax": zmax}
+            # load grid
+            nr = f.variables['ir'].getValue()
+            nphi = f.variables['kp'].getValue()
+            nz = f.variables['jz'].getValue()
+            rmin = f.variables['rmin'].getValue()
+            rmax = f.variables['rmax'].getValue()
+            zmin = f.variables['zmin'].getValue()
+            zmax = f.variables['zmax'].getValue()
+            kwargs = {"nr": nr, "nphi": nphi, "nz": nz, 
+                      "rmin": rmin, "rmax": rmax, "zmin": zmin, "zmax": zmax}
 
-        mgrid = cls(**kwargs)
-        mgrid.filename = filename
-        mgrid.n_ext_cur = int(f.variables['nextcur'].getValue())
-        coil_data = f.variables['coil_group'][:]
-        mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)] 
+            mgrid = cls(**kwargs)
+            mgrid.filename = filename
+            mgrid.n_ext_cur = int(f.variables['nextcur'].getValue())
+            coil_data = f.variables['coil_group'][:]
+            mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)] 
 
-        mgrid.mode = f.variables['mgrid_mode'][:][0].decode()
-        mgrid.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
+            mgrid.mode = f.variables['mgrid_mode'][:][0].decode()
+            mgrid.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
 
-        br_arr = []
-        bp_arr = []
-        bz_arr = []
+            br_arr = []
+            bp_arr = []
+            bz_arr = []
 
-        nextcur = mgrid.n_ext_cur
-        for j in range(nextcur):
-            idx = '{:03d}'.format(j+1)
-            br = f.variables['br_'+idx][:]  # phi z r
-            bp = f.variables['bp_'+idx][:]
-            bz = f.variables['bz_'+idx][:]
+            nextcur = mgrid.n_ext_cur
+            for j in range(nextcur):
+                idx = '{:03d}'.format(j+1)
+                br = f.variables['br_'+idx][:]  # phi z r
+                bp = f.variables['bp_'+idx][:]
+                bz = f.variables['bz_'+idx][:]
 
-            if (mgrid.mode == 'S'):
-                br_arr.append(br * mgrid.raw_coil_current[j])
-                bp_arr.append(bp * mgrid.raw_coil_current[j])
-                bz_arr.append(bz * mgrid.raw_coil_current[j])
+                if (mgrid.mode == 'S'):
+                    br_arr.append(br * mgrid.raw_coil_current[j])
+                    bp_arr.append(bp * mgrid.raw_coil_current[j])
+                    bz_arr.append(bz * mgrid.raw_coil_current[j])
+                else:
+                    br_arr.append(br)
+                    bp_arr.append(bp)
+                    bz_arr.append(bz)
+
+            mgrid.br_arr = np.array(br_arr)
+            mgrid.bp_arr = np.array(bp_arr)
+            mgrid.bz_arr = np.array(bz_arr)
+
+            # sum over coil groups
+            if nextcur > 1:
+                br = np.sum(br_arr, axis=0)
+                bp = np.sum(bp_arr, axis=0)
+                bz = np.sum(bz_arr, axis=0)
             else:
-                br_arr.append(br)
-                bp_arr.append(bp)
-                bz_arr.append(bz)
+                br = br_arr[0]
+                bp = bp_arr[0]
+                bz = bz_arr[0]
 
-        mgrid.br_arr = np.array(br_arr)
-        mgrid.bp_arr = np.array(bp_arr)
-        mgrid.bz_arr = np.array(bz_arr)
+            mgrid.br = br
+            mgrid.bp = bp
+            mgrid.bz = bz
 
-        # sum over coil groups
-        if nextcur > 1:
-            br = np.sum(br_arr, axis=0)
-            bp = np.sum(bp_arr, axis=0)
-            bz = np.sum(bz_arr, axis=0)
-        else:
-            br = br_arr[0]
-            bp = bp_arr[0]
-            bz = bz_arr[0]
-
-        mgrid.br = br
-        mgrid.bp = bp
-        mgrid.bz = bz
-
-        mgrid.bvec = np.transpose([br, bp, bz])
+            mgrid.bvec = np.transpose([br, bp, bz])
 
         return mgrid
 
@@ -262,8 +260,11 @@ class MGrid():
             jphi: integer index for a toroidal slice.
             bscale: sets saturation scale for colorbar. (This is useful, because
                 the mgrid domain often includes coil currents, and arbitrarily
-                close to the current source the Bfield values become singular.)            
+                close to the current source the Bfield values become singular.)
             show: Whether to call matplotlib's ``show()`` function.
+
+        Returns:
+            2-element tuple ``(fig, axs)`` with the Matplotlib figure and axes handles.
         '''
 
         import matplotlib.pyplot as plt
@@ -291,4 +292,4 @@ class MGrid():
 
         if (show): plt.show()
 
-
+        return fig, axs
