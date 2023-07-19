@@ -4,6 +4,8 @@
 This example shows how to take coils in simsopt, write an mgrid file, and then
 run free-boundary vmec. No optimization of the plasma or coil shapes is
 performed in this example.
+
+You can run this example with one or multiple MPI processes.
 """
 
 from pathlib import Path
