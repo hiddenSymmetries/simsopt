@@ -61,7 +61,7 @@ class Testing(unittest.TestCase):
             assert f.variables['br_001'][:].shape == (6, 11, 11)
             assert f.variables['mgrid_mode'][:][0].decode('ascii') == 'N'
 
-            byte_string = f.variables['coil_group'][:][0]
+            byte_string = f.variables['coil_group'][:]
             message = "".join([x.decode('ascii') for x in byte_string])
             assert message == '________simsopt_coils_________'
 

@@ -142,7 +142,12 @@ class MGrid():
         var_rmax = ds.createVariable('rmax', 'f8', tuple())
         var_zmax = ds.createVariable('zmax', 'f8', tuple())
 
-        var_coil_group = ds.createVariable('coil_group', 'c', ('external_coil_groups', 'stringsize',))
+        if self.n_ext_cur == 1:
+            var_coil_group = ds.createVariable('coil_group', 'c', ('stringsize',))
+            var_coil_group[:] = self.coil_names[0]
+        else:
+            var_coil_group = ds.createVariable('coil_group', 'c', ('external_coil_groups', 'stringsize',))
+            var_coil_group[:] = self.coil_names
         var_mgrid_mode = ds.createVariable('mgrid_mode', 'c', ('dim_00001',))
         var_raw_coil_cur = ds.createVariable('raw_coil_cur', 'f8', ('external_coils',))
 
@@ -158,7 +163,6 @@ class MGrid():
         var_rmax.assignValue(self.rmax)
         var_zmax.assignValue(self.zmax)
 
-        var_coil_group[:] = self.coil_names
         var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
         var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
 
