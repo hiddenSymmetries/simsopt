@@ -1,9 +1,11 @@
 import json
 import unittest
+import tempfile
 import numpy as np
 from pathlib import Path
 
 from monty.tempfile import ScratchDir
+from scipy.io import netcdf_file
 try:
     import sympy
 except ImportError:
@@ -1004,6 +1006,44 @@ class Testing(unittest.TestCase):
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
+
+    def test_to_mgrid(self):
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = Path(tmpdir) / "mgrid.bfield.nc"
+            bs.to_mgrid(filename, nfp=nfp)
+
+            # Compare the B data in the file to a separate evaluation here
+            with netcdf_file(filename, mmap=False) as f:
+                rmin = f.variables["rmin"][()]
+                rmax = f.variables["rmax"][()]
+                zmin = f.variables["zmin"][()]
+                zmax = f.variables["zmax"][()]
+                nr = f.variables["ir"][()]
+                nphi = f.variables["kp"][()]
+                nz = f.variables["jz"][()]
+                Br = f.variables["br_001"][()]
+                Bphi = f.variables["bp_001"][()]
+                Bz = f.variables["bz_001"][()]
+                assert nr == f.dimensions["rad"]
+                assert nphi == f.dimensions["phi"]
+                assert nz == f.dimensions["zee"]
+                assert Br.shape == (nphi, nz, nr)
+                assert Bphi.shape == (nphi, nz, nr)
+                assert Bz.shape == (nphi, nz, nr)
+                r = np.linspace(rmin, rmax, nr)
+                phi = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+                z = np.linspace(zmin, zmax, nz)
+                for jr in range(nr):
+                    for jphi in range(nphi):
+                        for jz in range(nz):
+                            bs.set_points_cyl(np.array([[r[jr], phi[jphi], z[jz]]]))
+                            np.testing.assert_allclose(Br[jphi, jz, jr], bs.B_cyl()[0, 0])
+                            np.testing.assert_allclose(Bphi[jphi, jz, jr], bs.B_cyl()[0, 1])
+                            np.testing.assert_allclose(Bz[jphi, jz, jr], bs.B_cyl()[0, 2])
 
     def test_poloidal_field(self):
         B0 = 1.1
