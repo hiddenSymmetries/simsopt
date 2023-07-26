@@ -28,6 +28,8 @@ void init_tracing(py::module_ &m){
         .def(py::init<int>());
     py::class_<LevelsetStoppingCriterion<PyTensor>, shared_ptr<LevelsetStoppingCriterion<PyTensor>>, StoppingCriterion>(m, "LevelsetStoppingCriterion")
         .def(py::init<shared_ptr<RegularGridInterpolant3D<PyTensor>>>());
+    py::class_<StepSizeStoppingCriterion, shared_ptr<StepSizeStoppingCriterion>, StoppingCriterion>(m, "StepSizeStoppingCriterion")
+        .def(py::init<double>());
 
     m.def("particle_guiding_center_boozer_tracing", &particle_guiding_center_boozer_tracing<xt::pytensor>,
         py::arg("field"),

@@ -680,7 +680,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         iter++;
         t = dense.current_time();
         y = dense.current_state();
-         if (flux) {
+        if (flux) {
           t_current = t;
           phi_current = y[2];
           vpar_current = y[3];
@@ -689,6 +689,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
       }
         double tlast = std::get<0>(step);
         double tcurrent = std::get<1>(step);
+        dt = tcurrent - tlast;
         // Now check whether we have hit any of the vpar planes
         for (int i = 0; i < vpars.size(); ++i) {
             double vpar = vpars[i];
@@ -768,7 +769,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
                 ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
                 ykeep[1] = atan2(y[1],y[0]);
             }
-            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, t, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
+            if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
                 stop = true;
                 res.push_back(join<1, RHS::Size>({t}, ykeep));
                 res_phi_hits.push_back(join<2, RHS::Size>({t, -1-double(i)}, ykeep));

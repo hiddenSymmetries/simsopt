@@ -16,7 +16,7 @@ double get_phi(double x, double y, double phi_near);
 class StoppingCriterion {
     public:
         // Should return true if the Criterion is satisfied.
-        virtual bool operator()(int iter, double t, double x, double y, double z, double vpar=0) = 0;
+        virtual bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) = 0;
         // virtual bool operator()(int iter, double t, double x, double y, double z) = 0;
         virtual ~StoppingCriterion() {}
 };
@@ -27,7 +27,7 @@ class ZetaStoppingCriterion : public StoppingCriterion {
     public:
         ZetaStoppingCriterion(int nfp) : nfp(nfp) {
         };
-        bool operator()(int iter, double t, double s, double theta, double zeta, double vpar=0) override {
+        bool operator()(int iter, double dt, double t, double s, double theta, double zeta, double vpar=0) override {
             // return std::abs(std::fmod(zeta,2*M_PI/nfp))<=zeta_crit;
             return std::abs(zeta)>=2*M_PI/nfp;
         };
@@ -41,7 +41,7 @@ class VparStoppingCriterion : public StoppingCriterion {
         VparStoppingCriterion(double vpar_crit) : vpar_crit(vpar_crit) {
         };
         // bool operator()(int iter, double t, Array& ) override {
-        bool operator()(int iter, double t, double x, double y, double z, double vpar) override {
+        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar) override {
             return std::abs(vpar)<=vpar_crit;
         };
 };
@@ -57,7 +57,7 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
         ToroidalTransitStoppingCriterion(int max_transits, bool flux) : max_transits(max_transits), flux(flux) {
         };
         // bool operator()(int iter, double t, Array& y) override {
-        bool operator()(int iter, double t, double x, double y, double z, double vpar=0) override {
+        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
             if (iter == 1) {
               phi_last = M_PI;
             }
@@ -83,7 +83,7 @@ class MaxToroidalFluxStoppingCriterion : public StoppingCriterion {
     public:
         MaxToroidalFluxStoppingCriterion(double max_s) : max_s(max_s) {};
         // bool operator()(int iter, double t, Array& y) override {
-        bool operator()(int iter, double t, double s, double theta, double zeta, double vpar=0) override {
+        bool operator()(int iter, double dt, double t, double s, double theta, double zeta, double vpar=0) override {
             return s>=max_s;
             // return y[0]>=max_s;
         };
@@ -96,7 +96,7 @@ class MinToroidalFluxStoppingCriterion : public StoppingCriterion {
     public:
         MinToroidalFluxStoppingCriterion(double min_s) : min_s(min_s) {};
         // bool operator()(int iter, double t, Array& y) override {
-        bool operator()(int iter, double t, double s, double theta, double zeta, double vpar=0) override {
+        bool operator()(int iter, double dt, double t, double s, double theta, double zeta, double vpar=0) override {
             return s<=min_s;
             // return y[0]<=min_s;
         };
@@ -108,9 +108,20 @@ class IterationStoppingCriterion : public StoppingCriterion {
         int max_iter;
     public:
         IterationStoppingCriterion(int max_iter) : max_iter(max_iter) {};
-        bool operator()(int iter, double t, double x, double y, double z, double vpar=0) override {
+        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
         // bool operator()(int iter, double t, Array& y) override {
             return iter>max_iter;
+        };
+};
+
+class StepSizeStoppingCriterion : public StoppingCriterion {
+    private:
+        int min_dt;
+    public:
+        StepSizeStoppingCriterion(int min_dt) : min_dt(min_dt) {};
+        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
+        // bool operator()(int iter, double t, Array& y) override {
+            return dt<min_dt;
         };
 };
 
@@ -121,7 +132,7 @@ class LevelsetStoppingCriterion : public StoppingCriterion {
     public:
         LevelsetStoppingCriterion(shared_ptr<RegularGridInterpolant3D<Array>> levelset) : levelset(levelset) { };
         // bool operator()(int iter, double t, Array2& y) override {
-        bool operator()(int iter, double t, double x, double y, double z, double vpar=0) override {
+        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
             double r = std::sqrt(x*x + y*y);
             // double r = std::sqrt(y[0]*y[0] + y[1]*y[1]);
             double phi = std::atan2(y, x);

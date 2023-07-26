@@ -950,6 +950,12 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
+class StepSizeStoppingCriterion(sopp.StepSizeStoppingCriterion):
+    """
+    Stop the iteration once the step size is too small.
+    """
+    pass
+
 class VparStoppingCriterion(sopp.VparStoppingCriterion):
     """
     Stop the iteration once the maximum number of iterations is reached.
