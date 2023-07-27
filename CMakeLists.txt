@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(simsoptpp)
+project(simsoptpp LANGUAGES CXX)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/thirdparty/eigen/cmake")
 
@@ -138,7 +138,7 @@ if(OpenMP_CXX_FOUND)
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIR})
-
+target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling

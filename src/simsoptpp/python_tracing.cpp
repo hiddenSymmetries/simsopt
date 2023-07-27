@@ -40,11 +40,7 @@ void init_tracing(py::module_ &m){
         py::arg("solveSympl"),
         py::arg("zetas")=vector<double>{},
         py::arg("forget_exact_path"),
-<<<<<<< HEAD
-	py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
-=======
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
->>>>>>> 9aa056c33ef3cc01261d679212847c0bb1516c13
         );
 
     m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,
