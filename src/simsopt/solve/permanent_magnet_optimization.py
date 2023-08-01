@@ -382,9 +382,9 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     # Set the L2 regularization if it is included in the kwargs 
     reg_l2 = kwargs.pop("reg_l2", 0.0)
 
-    # check that algorithm can generate K binary dipoles
+    # check that algorithm can generate K binary dipoles if no backtracking done
     if "K" in kwargs:
-        if kwargs["K"] > pm_opt.ndipoles:
+        if (algorithm not in ['backtracking', 'ArbVec_backtracking']) and kwargs["K"] > pm_opt.ndipoles:
             warnings.warn(
                 'Parameter K to GPMO algorithm is greater than the total number of dipole locations '
                 ' so the algorithm will set K = the total number and proceed.')
@@ -430,19 +430,18 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
         nGridPoints = int(A_obj.shape[1]/3)
-        if "m_init" in algorithm_kwargs.keys():
-            if algorithm_kwargs["m_init"].shape[0] != nGridPoints:
+        if "m_init" in kwargs.keys():
+            if kwargs["m_init"].shape[0] != nGridPoints:
                 raise ValueError('Initialization vector `m_init` must have ' \
                         'as many rows as there are dipoles in the grid');
-            elif algorithm_kwargs["m_init"].shape[1] != 3:
+            elif kwargs["m_init"].shape[1] != 3:
                 raise ValueError('Initialization vector `m_init` must have '\
                         'three columns')
-            algorithm_kwargs["x_init"] = algorithm_kwargs["m_init"] \
-                / (mmax_vec.reshape(pm_opt.ndipoles, 3))
-            algorithm_kwargs.pop("m_init")
+            kwargs["x_init"] = contig(kwargs["m_init"] \
+                / (mmax_vec.reshape(pm_opt.ndipoles, 3)))
+            kwargs.pop("m_init")
         else:
-            algorithm_kwargs["x_init"] = \
-                np.ascontiguousarray(np.zeros((nGridPoints,3)))
+            kwargs["x_init"] = contig(np.zeros((nGridPoints,3)))
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_ArbVec_backtracking(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
