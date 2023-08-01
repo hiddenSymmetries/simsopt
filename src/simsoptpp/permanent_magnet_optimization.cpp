@@ -539,16 +539,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
                        "unchanged over three backtracking cycles");
                 break;
             }
-            else if (num_nonzero == N) {
-                printf("Stopping iterations: all dipoles in grid "
-                       "are populated");
-		break;
-            }
-            else if (num_nonzero >= max_nMagnets) {
-                printf("Stopping iterations: maximum number of nonzero "
-                       "magnets reached ");
-		break;
-            }
 	
 	}
 
@@ -563,7 +553,28 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 		} 
 	    }            
 	}
+
+	// Terminate iterations if a magnet limit is reached
+        if ((num_nonzero >= N) || (num_nonzero >= max_nMagnets)) {
+
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
+                Bn_history, m_history, mmax_sum, normal_norms_ptr);
+	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, 
+	        num_nonzero);
+	    
+            if (num_nonzero >= N) {
+                printf("Stopping iterations: all dipoles in grid "
+                       "are populated");
+            }
+            else if (num_nonzero >= max_nMagnets) {
+                printf("Stopping iterations: maximum number of nonzero "
+                       "magnets reached ");
+            }
+
+            break;
+        }
     }
+
     return std::make_tuple(objective_history, Bn_history, m_history, num_nonzeros, x);
 }
 
@@ -947,17 +958,29 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
                        "unchanged over three backtracking cycles");
                 break;
             }
-            else if (num_nonzero == N) {
+
+	}
+
+	// Terminate iterations if a magnet limit is reached
+        if ((num_nonzero >= N) || (num_nonzero >= max_nMagnets)) {
+
+            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, 
+                       Bn_history, m_history, mmax_sum, normal_norms_ptr);
+	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", 
+                   k, num_nonzero);
+
+            if (num_nonzero >= N) {
                 printf("Stopping iterations: all dipoles in grid "
                        "are populated");
-		break;
             }
-            else if (num_nonzero >= max_nMagnets) {
+	    else if (num_nonzero >= max_nMagnets) {
                 printf("Stopping iterations: maximum number of nonzero "
                        "magnets reached ");
-		break;
             }
+
+            break;
 	}
+
     }
 
     return std::make_tuple(objective_history, Bn_history, m_history, 
