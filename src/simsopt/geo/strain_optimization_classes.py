@@ -10,447 +10,99 @@ from simsopt.geo.jit import jit
 from simsopt.geo import ZeroRotation, FilamentRotation, Curve
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
+from simsopt.geo.curveobjectives import Lp_curvature_pure
 
+# class TorsionalStrainPenalty(Optimizable):
 
-def inner(a, b):
-    """Inner product for arrays of shape (N, 3)"""
-    return np.sum(a*b, axis=1)
+#     def __init__(self, curvefilament, width=3, max_strain):
+#         self.curvefilament = curvefilament
+#         self.width = width
+#         self.max_strain = max_strain
+#         super().__init__(depends_on=[curvefilament])
 
+#     def J(self):
+#         return Lp_curvature_pure(self.curvefilament.torsional_strain,
+#             self.curvefilament.curve.gammadash, p, self.max_strain)
 
-def normal_curvature_pure(n, tdash):
-    """Implements normal curvature for optimization 
-    (not used in original cost funciton)"""
-    normal_curvature = inner(tdash, n)
-    return normal_curvature
-
-
-def torsion_pure(ndash, b):
-    """Implements torsion for optimization"""
-    torsion = inner(ndash, b)
-    return torsion
-
-
-torsion2vjp0 = jit(lambda ndash, b, v: vjp(
-    lambda nd: torsion_pure(nd, b), ndash)[1](v)[0])
-torsion2vjp1 = jit(lambda ndash, b, v: vjp(
-    lambda bi: torsion_pure(ndash, bi), b)[1](v)[0])
-
-
-def binormal_curvature_pure(tdash, b):
-    """Implements binormal currvature for optimization"""
-    binormal_curvature = inner(tdash, b)
-    return binormal_curvature
-
-
-def anti_twist_pure(n, ndash):
-    """Function for further penalty on twisted coils"""
-    # func = lambda a: np.arccos(inner(a, np.roll(a, 1, axis=0)))
-    return inner(n, ndash) * jnp.heaviside(inner(n, ndash), 1)
-
-
-def torsion_export_pure(gamma, gammadash, gammadashdash, gammadashdashdash,
-                        alpha, alphadash,  width=12, scale=1):
-    """Torsion function for export/evaulate coil sets.
-    Output normalized to 0.2% strain"""
-
-    gamma = jnp.multiply(gamma, scale)
-    # gammadash =  jnp.multiply(gammadash, scale)
-    gammadashdash = jnp.multiply(gammadashdash, 1/scale)
-    gammadashdashdash = jnp.multiply(gammadashdashdash, 1/scale**2)
-
-    _, _, b = rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha)
-    _, ndash, _ = rotated_frenet_frame_dash(
-        gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash)
-
-    torsion = torsion_pure(ndash, b)
-
-    # 12mm tape limits
-    t_lim = 12.9
-    t_lim *= 12 / width
-
-    result = torsion/t_lim
-    return result
-
-
-def binormal_curvature_export_pure(gamma, gammadash, gammadashdash, gammadashdashdash,
-                                   alpha, alphadash,  width=12, scale=1):
-    """Binormal curvature function for export/evaulate coil sets.
-    Output normalized to 0.2% strain"""
-
-    gamma = jnp.multiply(gamma, scale)
-    # gammadash =  jnp.multiply(gammadash, scale)
-    gammadashdash = jnp.multiply(gammadashdash, 1/scale)
-    gammadashdashdash = jnp.multiply(gammadashdashdash, 1/scale**2)
-
-    _, _, b = rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha)
-    tdash, _, _ = rotated_frenet_frame_dash(
-        gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash)
-
-    binormal_curvature = binormal_curvature_pure(tdash, b)
-    # 12mm tape limits
-    b_lim = 0.66
-    b_lim *= 12 / width
-
-    result = binormal_curvature/b_lim
-    return result
-
-# Optimization function, limits based on 0.2% strain
-# @Partial(jit, static_argnums=(6,))
-
-
-@jit
-def strain_opt_pure(gamma, gammadash, gammadashdash, gammadashdashdash,
-                    alpha, alphadash,  width=3, scale=1):
-    """Cost function for strain along a HTS coil"""
-
-    gamma = jnp.multiply(gamma, scale)
-    # gammadash =  jnp.multiply(gammadash, scale)
-    gammadashdash = jnp.multiply(gammadashdash, 1/scale)
-    gammadashdashdash = jnp.multiply(gammadashdashdash, 1/scale**2)
-    _, n, b = rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha)
-    tdash, ndash, _ = rotated_frenet_frame_dash(
-        gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash)
-
-    torsion = torsion_pure(ndash, b)
-    binormal_curvature = binormal_curvature_pure(tdash, b)
-
-    anti_twist = anti_twist_pure(n, ndash)
-    w = 0
-    # 12mm tape limits
-    t_lim = 12.9
-    b_lim = 0.66
-    t_lim *= 12 / width
-    b_lim *= 12 / width
-
-    result = jnp.sum(jnp.power(torsion/t_lim, 4)) + \
-        jnp.sum(jnp.power(binormal_curvature/b_lim, 4)) + \
-        w * jnp.sum(anti_twist)
-    return result
+#     @derivative_dec
+#     def dJ(self):
 
 
 class StrainOpt(Optimizable):
     """Class for strain optimization"""
 
-    def __init__(self, curve, width=3, scale=1):
-        self.curve = curve
+    def __init__(self, curvefilament, width=3):
+        self.curvefilament = curvefilament
         self.width = width
-        self.scale = scale
-        # self.J_jax = jit(lambda torsion, binormal_curvature: strain_opt_pure(torsion, binormal_curvature, width))
-        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: strain_opt_pure(
-            gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: grad(
-            self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: grad(
-            self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: grad(
-            self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: grad(
-            self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.thisgrad4 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: grad(
-            self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.thisgrad5 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: grad(
-            self.J_jax, argnums=5)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.torsion = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: torsion_export_pure(
-            gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        self.binormal_curvature = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale: binormal_curvature_export_pure(
-            gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width, scale))
-        super().__init__(depends_on=[curve])
+        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: strain_opt_pure(
+            gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
+            self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
+            self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
+            self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
+            self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        self.thisgrad4 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
+            self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        self.thisgrad5 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
+            self.J_jax, argnums=5)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
+        super().__init__(depends_on=[curvefilament])
 
-    def torsion_export(self):
+    def torsional_strain(self):
         """Exports torsion along a coil for a StrainOpt object"""
-        gamma = self.curve.curve.gamma()
-        d1gamma = self.curve.curve.gammadash()
-        d2gamma = self.curve.curve.gammadashdash()
-        d3gamma = self.curve.curve.gammadashdashdash()
-        alpha = self.curve.rotation.alpha(self.curve.quadpoints)
-        alphadash = self.curve.rotation.alphadash(self.curve.quadpoints)
-        scale = self.scale
-        width = self.width
-        return self.torsion(gamma, d1gamma, d2gamma, d3gamma, alpha, alphadash, width, scale)
+        torsion = self.curvefilament.frame_torsion()
+        return torsion**2 * self.width**2 / 12 # From 2020 Paz-Soldan
 
-    def binormal_curvature_export(self):
-        """Exports binormal curvature along a coil for a StrainOpt object"""
-        width = self.width
-        scale = self.scale
-        gamma = self.curve.curve.gamma()
-        d1gamma = self.curve.curve.gammadash()
-        d2gamma = self.curve.curve.gammadashdash()
-        d3gamma = self.curve.curve.gammadashdashdash()
-        alpha = self.curve.rotation.alpha(self.curve.quadpoints)
-        alphadash = self.curve.rotation.alphadash(self.curve.quadpoints)
+    def binormal_curvature_strain(self):
+        binormal_curvature = self.curvefilament.frame_binormal_curvature()
+        return (self.width/2)*binormal_curvature # From 2020 Paz-Soldan
 
-        return self.binormal_curvature(gamma, d1gamma, d2gamma, d3gamma, alpha, alphadash, width, scale)
+    # def J(self):
+    #     """
+    #     This returns the value of the quantity.
+    #     """
+    #     gamma = self.curve.curve.gamma()
+    #     d1gamma = self.curve.curve.gammadash()
+    #     d2gamma = self.curve.curve.gammadashdash()
+    #     d3gamma = self.curve.curve.gammadashdashdash()
+    #     alpha = self.curve.rotation.alpha(self.curve.quadpoints)
+    #     alphadash = self.curve.rotation.alphadash(self.curve.quadpoints)
+    #     width = self.width
 
-    def J(self):
-        """
-        This returns the value of the quantity.
-        """
-        gamma = self.curve.curve.gamma()
-        d1gamma = self.curve.curve.gammadash()
-        d2gamma = self.curve.curve.gammadashdash()
-        d3gamma = self.curve.curve.gammadashdashdash()
-        alpha = self.curve.rotation.alpha(self.curve.quadpoints)
-        alphadash = self.curve.rotation.alphadash(self.curve.quadpoints)
-        width = self.width
-        scale = self.scale
+    #     return self.J_jax(gamma, d1gamma, d2gamma, d3gamma, alpha, alphadash, width)
 
-        return self.J_jax(gamma, d1gamma, d2gamma, d3gamma, alpha, alphadash, width, scale)
+    # @derivative_dec
+    # def dJ(self):
+    #     """
+    #     This returns the derivative of the quantity with respect to the curve dofs.
+    #     """
+    #     gamma = self.curve.curve.gamma()
+    #     d1gamma = self.curve.curve.gammadash()
+    #     d2gamma = self.curve.curve.gammadashdash()
+    #     d3gamma = self.curve.curve.gammadashdashdash()
+    #     alpha = self.curve.rotation.alpha(self.curve.quadpoints)
+    #     alphadash = self.curve.rotation.alphadash(self.curve.quadpoints)
+    #     width = self.width
 
-    @derivative_dec
-    def dJ(self):
-        """
-        This returns the derivative of the quantity with respect to the curve dofs.
-        """
-        gamma = self.curve.curve.gamma()
-        d1gamma = self.curve.curve.gammadash()
-        d2gamma = self.curve.curve.gammadashdash()
-        d3gamma = self.curve.curve.gammadashdashdash()
-        alpha = self.curve.rotation.alpha(self.curve.quadpoints)
-        alphadash = self.curve.rotation.alphadash(self.curve.quadpoints)
-        width = self.width
-        scale = self.scale
+    #     grad0 = self.thisgrad0(gamma, d1gamma, d2gamma,
+    #                            d3gamma, alpha, alphadash, width)
+    #     grad1 = self.thisgrad1(gamma, d1gamma, d2gamma,
+    #                            d3gamma, alpha, alphadash, width)
+    #     grad2 = self.thisgrad2(gamma, d1gamma, d2gamma,
+    #                            d3gamma, alpha, alphadash, width)
+    #     grad3 = self.thisgrad3(gamma, d1gamma, d2gamma,
+    #                            d3gamma, alpha, alphadash, width)
+    #     grad4 = self.thisgrad4(gamma, d1gamma, d2gamma,
+    #                            d3gamma, alpha, alphadash, width)
+    #     grad5 = self.thisgrad5(gamma, d1gamma, d2gamma,
+    #                            d3gamma, alpha, alphadash, width)
 
-        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma,
-                               d3gamma, alpha, alphadash, width, scale)
-        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma,
-                               d3gamma, alpha, alphadash, width, scale)
-        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma,
-                               d3gamma, alpha, alphadash, width, scale)
-        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma,
-                               d3gamma, alpha, alphadash, width, scale)
-        grad4 = self.thisgrad4(gamma, d1gamma, d2gamma,
-                               d3gamma, alpha, alphadash, width, scale)
-        grad5 = self.thisgrad5(gamma, d1gamma, d2gamma,
-                               d3gamma, alpha, alphadash, width, scale)
+    #     return self.curve.curve.dgamma_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+    #         + self.curve.curve.dgammadashdash_by_dcoeff_vjp(grad2) + self.curve.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
+    #         + self.curve.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) + \
+    #         self.curve.rotation.dalphadash_by_dcoeff_vjp(
+    #             self.curve.quadpoints, grad5)
 
-        return self.curve.curve.dgamma_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
-            + self.curve.curve.dgammadashdash_by_dcoeff_vjp(grad2) + self.curve.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
-            + self.curve.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) + \
-            self.curve.rotation.dalphadash_by_dcoeff_vjp(
-                self.curve.quadpoints, grad5)
-
-    return_fn_map = {'J': J, 'dJ': dJ}
-
-
-@jit
-def rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha):
-    """Frenet frame of a curve rotated by a angle that varies along the coil path"""
-
-    N = gamma.shape[0]
-    t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
-    t = gammadash  # (1./l[:, None]) * gammadash
-    t *= 1./jnp.linalg.norm(gammadash, axis=1)[:, None]
-
-    tdash = (1./jnp.linalg.norm(gammadash, axis=1)[:, None])**2 * (jnp.linalg.norm(gammadash, axis=1)[:, None] * gammadashdash
-                                                                   - (inner(gammadash, gammadashdash)/jnp.linalg.norm(gammadash, axis=1))[:, None] * gammadash)
-
-    n = tdash  # (1./norm(tdash))[:, None] * tdash
-    n *= 1/jnp.linalg.norm(tdash, axis=1)[:, None]
-    b = jnp.cross(t, n, axis=1)
-    # now rotate the frame by alpha
-    nn = jnp.cos(alpha)[:, None] * n - jnp.sin(alpha)[:, None] * b
-    bb = jnp.sin(alpha)[:, None] * n + jnp.cos(alpha)[:, None] * b
-
-    return t, nn, bb
-
-
-rotated_frenet_frame_dash = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash: jvp(rotated_frenet_frame,
-                                                                                     (gamma, gammadash,
-                                                                                      gammadashdash, alpha),
-                                                                                     (gammadash, gammadashdash, gammadashdashdash, alphadash))[1])
-
-rotated_frenet_frame_dcoeff_vjp0 = jit(
-    lambda gamma, gammadash, gammadashdash, alpha, v: vjp(
-        lambda g: rotated_frenet_frame(g, gammadash, gammadashdash, alpha), gamma)[1](v)[0])
-
-rotated_frenet_frame_dcoeff_vjp1 = jit(
-    lambda gamma, gammadash, gammadashdash, alpha, v: vjp(
-        lambda gd: rotated_frenet_frame(gamma, gd, gammadashdash, alpha), gammadash)[1](v)[0])
-
-rotated_frenet_frame_dcoeff_vjp2 = jit(
-    lambda gamma, gammadash, gammadashdash, alpha, v: vjp(
-        lambda gdd: rotated_frenet_frame(gamma, gammadash, gdd, alpha), gammadashdash)[1](v)[0])
-
-rotated_frenet_frame_dcoeff_vjp3 = jit(
-    lambda gamma, gammadash, gammadashdash, alpha, v: vjp(
-        lambda a: rotated_frenet_frame(gamma, gammadash, gammadashdash, a), alpha)[1](v)[0])
-
-rotated_frenet_frame_dash_dcoeff_vjp0 = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
-        lambda g: rotated_frenet_frame_dash(g, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash), gamma)[1](v)[0])
-
-rotated_frenet_frame_dash_dcoeff_vjp1 = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
-        lambda gd: rotated_frenet_frame_dash(gamma, gd, gammadashdash, gammadashdashdash, alpha, alphadash), gammadash)[1](v)[0])
-
-rotated_frenet_frame_dash_dcoeff_vjp2 = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
-        lambda gdd: rotated_frenet_frame_dash(gamma, gammadash, gdd, gammadashdashdash, alpha, alphadash), gammadashdash)[1](v)[0])
-
-rotated_frenet_frame_dash_dcoeff_vjp3 = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
-        lambda gddd: rotated_frenet_frame_dash(gamma, gammadash, gammadashdash, gddd, alpha, alphadash), gammadashdashdash)[1](v)[0])
-
-rotated_frenet_frame_dash_dcoeff_vjp4 = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
-        lambda a: rotated_frenet_frame_dash(gamma, gammadash, gammadashdash, gammadashdashdash, a, alphadash), alpha)[1](v)[0])
-
-rotated_frenet_frame_dash_dcoeff_vjp5 = jit(
-    lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
-        lambda ad: rotated_frenet_frame_dash(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, ad), alphadash)[1](v)[0])
-
-
-def create_multifilament_grid_frenet(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, rotation_order=None, rotation_scaling=None):
-    """
-    Create a regular grid of ``numfilaments_n * numfilaments_b`` many
-    filaments to approximate a finite-build coil.
-
-    Note that "normal" and "binormal" in the function arguments here
-    refer not to the Frenet frame but rather to the "coil centroid
-    frame" defined by Singh et al., before rotation.
-
-    Args:
-        curve: The underlying curve.
-        numfilaments_n: number of filaments in normal direction.
-        numfilaments_b: number of filaments in bi-normal direction.
-        gapsize_n: gap between filaments in normal direction.
-        gapsize_b: gap between filaments in bi-normal direction.
-        rotation_order: Fourier order (maximum mode number) to use in the expression for the rotation
-                        of the filament pack. ``None`` means that the rotation is not optimized.
-        rotation_scaling: scaling for the rotation degrees of freedom. good
-                           scaling improves the convergence of first order optimization
-                           algorithms. If ``None``, then the default of ``1 / max(gapsize_n, gapsize_b)``
-                           is used.
-    """
-    if numfilaments_n % 2 == 1:
-        shifts_n = np.arange(numfilaments_n) - numfilaments_n//2
-    else:
-        shifts_n = np.arange(numfilaments_n) - numfilaments_n/2 + 0.5
-    shifts_n = shifts_n * gapsize_n
-    if numfilaments_b % 2 == 1:
-        shifts_b = np.arange(numfilaments_b) - numfilaments_b//2
-    else:
-        shifts_b = np.arange(numfilaments_b) - numfilaments_b/2 + 0.5
-    shifts_b = shifts_b * gapsize_b
-
-    if rotation_scaling is None:
-        rotation_scaling = 1/max(gapsize_n, gapsize_b)
-    if rotation_order is None:
-        rotation = ZeroRotation(curve.quadpoints)
-    else:
-        rotation = FilamentRotation(
-            curve.quadpoints, rotation_order, scale=rotation_scaling)
-    filaments = []
-    for i in range(numfilaments_n):
-        for j in range(numfilaments_b):
-            filaments.append(CurveFilamentFrenet(
-                curve, shifts_n[i], shifts_b[j], rotation))
-    return filaments
-
-
-class CurveFilamentFrenet(sopp.Curve, Curve):
-    """Similar to "the conventional finite build class but based on teh Frenet-Frame """
-
-    def __init__(self, curve, dn, db, rotation=None):
-        """
-        Implementation as the frenet frame. Given a curve, one defines a normal and
-        binormal vector and then creates a grid of curves by shifting along the
-        normal and binormal vector. In addition, we specify an angle along the
-        curve that allows us to optimise for the rotation of the winding pack.
-
-
-        Args:
-            curve: the underlying curve
-            dn: how far to move in normal direction
-            db: how far to move in binormal direction
-            rotation: angle along the curve to rotate the frame.
-        """
-        self.curve = curve
-        sopp.Curve.__init__(self, curve.quadpoints)
-        deps = [curve]
-        if rotation is not None:
-            deps.append(rotation)
-        Curve.__init__(self, depends_on=deps)
-        self.curve = curve
-        self.dn = dn
-        self.db = db
-        if rotation is None:
-            rotation = ZeroRotation(curve.quadpoints)
-        self.rotation = rotation
-
-        # My own stuff
-        self.t, self.n, self.b = rotated_frenet_frame(curve.gamma(), curve.gammadash(
-        ), curve.gammadashdash(), rotation.alpha(curve.quadpoints))
-        self.tdash, self.ndash, self.bdash = rotated_frenet_frame_dash(curve.gamma(), curve.gammadash(), curve.gammadashdash(
-        ), curve.gammadashdashdash(), rotation.alpha(curve.quadpoints), rotation.alphadash(curve.quadpoints))
-
-#        self.dnormal_curvature_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.ndash, self.b), x)[1](v)[0])
-#        self.dbinormal_curvature_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.ndash, self.b), x)[1](v)[0])
-#        self.dtorsion2_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.ndash, self.b), x)[1](v)[0])
-    def recompute_bell(self, parent=None):
-        self.invalidate_cache()
-
-    def gamma_impl(self, gamma, quadpoints):
-        assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
-        assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
-        c = self.curve
-        _, n, b = rotated_frenet_frame(c.gamma(), c.gammadash(
-        ), c.gammadashdash(), self.rotation.alpha(c.quadpoints))
-        gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
-
-    def gammadash_impl(self, gammadash):
-        c = self.curve
-        _, nd, bd = rotated_frenet_frame_dash(
-            c.gamma(), c.gammadash(), c.gammadashdash(), c.gammadashdashdash(),
-            self.rotation.alpha(
-                c.quadpoints), self.rotation.alphadash(c.quadpoints)
-        )
-        gammadash[:] = self.curve.gammadash() + self.dn * nd + self.db * bd
-
-    def dgamma_by_dcoeff_vjp(self, v):
-        g = self.curve.gamma()
-        gd = self.curve.gammadash()
-        gdd = self.curve.gammadashdash()
-        a = self.rotation.alpha(self.curve.quadpoints)
-        zero = np.zeros_like(v)
-        vg = rotated_frenet_frame_dcoeff_vjp0(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
-        vgd = rotated_frenet_frame_dcoeff_vjp1(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
-        vgdd = rotated_frenet_frame_dcoeff_vjp2(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
-        va = rotated_frenet_frame_dcoeff_vjp3(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
-        return self.curve.dgamma_by_dcoeff_vjp(v + vg) \
-            + self.curve.dgammadash_by_dcoeff_vjp(vgd) \
-            + self.curve.dgammadashdash_by_dcoeff_vjp(vgdd) \
-            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va)
-
-    def dgammadash_by_dcoeff_vjp(self, v):
-        g = self.curve.gamma()
-        gd = self.curve.gammadash()
-        gdd = self.curve.gammadashdash()
-        gddd = self.curve.gammadashdashdash()
-        a = self.rotation.alpha(self.curve.quadpoints)
-        ad = self.rotation.alphadash(self.curve.quadpoints)
-        zero = np.zeros_like(v)
-
-        vg = rotated_frenet_frame_dash_dcoeff_vjp0(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vgd = rotated_frenet_frame_dash_dcoeff_vjp1(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vgdd = rotated_frenet_frame_dash_dcoeff_vjp2(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vgddd = rotated_frenet_frame_dash_dcoeff_vjp3(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        va = rotated_frenet_frame_dash_dcoeff_vjp4(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vad = rotated_frenet_frame_dash_dcoeff_vjp5(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        return self.curve.dgamma_by_dcoeff_vjp(vg) \
-            + self.curve.dgammadash_by_dcoeff_vjp(v+vgd) \
-            + self.curve.dgammadashdash_by_dcoeff_vjp(vgdd) \
-            + self.curve.dgammadashdashdash_by_dcoeff_vjp(vgddd) \
-            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va) \
-            + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, vad)
+    # return_fn_map = {'J': J, 'dJ': dJ}
