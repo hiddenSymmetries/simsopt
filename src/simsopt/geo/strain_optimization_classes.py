@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from jax import vjp, jvp, grad
 import simsoptpp as sopp
 from simsopt.geo.jit import jit
-from simsopt.geo import ZeroRotation, FilamentRotation, Curve
+from simsopt.geo import ZeroRotation, Curve
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
 from simsopt.geo.curveobjectives import Lp_curvature_pure
@@ -31,8 +31,8 @@ from simsopt.geo.curveobjectives import Lp_curvature_pure
 class StrainOpt(Optimizable):
     """Class for strain optimization"""
 
-    def __init__(self, curvefilament, width=3):
-        self.curvefilament = curvefilament
+    def __init__(self, framedcurve, width=3):
+        self.framedcurve = framedcurve
         self.width = width
         self.J_jax = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: strain_opt_pure(
             gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
@@ -48,16 +48,16 @@ class StrainOpt(Optimizable):
             self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
         self.thisgrad5 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width: grad(
             self.J_jax, argnums=5)(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, width))
-        super().__init__(depends_on=[curvefilament])
+        super().__init__(depends_on=[framedcurve])
 
     def torsional_strain(self):
         """Exports torsion along a coil for a StrainOpt object"""
-        torsion = self.curvefilament.frame_torsion()
-        return torsion**2 * self.width**2 / 12 # From 2020 Paz-Soldan
+        torsion = self.framedcurve.frame_torsion()
+        return torsion**2 * self.width**2 / 12  # From 2020 Paz-Soldan
 
     def binormal_curvature_strain(self):
-        binormal_curvature = self.curvefilament.frame_binormal_curvature()
-        return (self.width/2)*binormal_curvature # From 2020 Paz-Soldan
+        binormal_curvature = self.framedcurve.frame_binormal_curvature()
+        return (self.width/2)*binormal_curvature  # From 2020 Paz-Soldan
 
     # def J(self):
     #     """

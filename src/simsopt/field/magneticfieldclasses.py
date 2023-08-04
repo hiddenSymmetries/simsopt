@@ -257,8 +257,8 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self.phi_str = phi_str
         self.phi_parsed = parse_expr(phi_str)
         R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z,\
-                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z,\
+        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z, \
+                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z, \
                                                    self.phi_parsed.diff(Z)+1e-30*Phi*R*Z])
         self.dBlambdify_by_dX = sp.lambdify(
             (R, Z, Phi),
