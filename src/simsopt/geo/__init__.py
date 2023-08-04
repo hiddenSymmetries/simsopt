@@ -8,7 +8,7 @@ from .curverzfourier import *
 from .curvexyzfourier import *
 from .curveperturbed import *
 from .curveobjectives import *
-
+from .framedcurve import *
 from .finitebuild import *
 from .plotting import *
 
