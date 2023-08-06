@@ -491,7 +491,7 @@ class SymplField
     //
     void eval_field(double s, double theta, double zeta)
     {
-        double Btheta, Bzeta, dBtheta, dBzeta, modB2, Atheta, Azeta;
+        double Btheta, Bzeta, dBtheta, dBzeta, modB2;
 
         stz[0, 0] = s; stz[0, 1] = theta; stz[0, 2] = zeta;
         field->set_points(stz);
@@ -597,10 +597,9 @@ void jac_sympl_euler1(double x[2], SymplField<T> f, double jac[2,2])
 
 template<template<class, std::size_t, xt::layout_type> class T>
 struct f_quasi_params{
-    //double dptheta;
     double ptheta_old;
     double dt;
-    array<double, 4> y;
+    array<double, 4> z;
     SymplField<T> f;
 };
 
@@ -610,30 +609,42 @@ int f_quasi_func(const gsl_vector* x, void* p, gsl_vector* f)
     struct f_quasi_params<T> * params = (struct f_quasi_params<T> *)p;
     const double ptheta_old = (params->ptheta_old);
     const double dt = (params->dt);
-    auto y = (params->y);
+    auto z = (params->z);
     SymplField<T> field = (params->f);
     
     const double x0 = gsl_vector_get(x,0);
     const double x1 = gsl_vector_get(x,1);
 
-    std::cout << fmt::format("x0 {}\n", x0) << std::flush;
-    std::cout << fmt::format("x1 {}\n", x1) << std::flush;
-
-    field.eval_field(x0, y[1], y[2]);
+    field.eval_field(x0, z[1], z[2]);
     field.get_derivatives(x1);
 
-    std::cout << fmt::format("y[1] {}\n", y[1]) << std::flush;
-    std::cout << fmt::format("y[2] {}\n", y[2]) << std::flush;
+    const double f0 = (field.dptheta[0]*(field.ptheta - ptheta_old)
+          + dt*(field.dH[1]*field.dptheta[0] - field.dH[0]*field.dptheta[1])); // corresponds with (2.6) in JPP 2020
+    const double f1  = (field.dptheta[0]*(x1 - z[3])
+          + dt*(field.dH[2]*field.dptheta[0] - field.dH[0]*field.dptheta[2])); // corresponds with (2.7) in JPP 2020
 
-    const double f0 = field.dptheta[0]*(field.ptheta - ptheta_old)
-          + dt*(field.dH[1]*field.dptheta[0] - field.dH[0]*field.dptheta[1]); // corresponds with (2.6) in JPP 2020
-    const double f1  = field.dptheta[0]*(x1 - y[3])
-          + dt*(field.dH[2]*field.dptheta[0] - field.dH[0]*field.dptheta[2]); // corresponds with (2.7) in JPP 2020
-
-    std::cout << fmt::format("f0 {}\n", f0) << std::flush;
-    std::cout << fmt::format("f1 {}\n", f1) << std::flush;
     gsl_vector_set(f, 0, f0);
     gsl_vector_set(f, 1, f1);
+
+    return GSL_SUCCESS;
+}
+
+template<template<class, std::size_t, xt::layout_type> class T>
+int f_quasi_exact(const gsl_vector* x, void* p, gsl_vector* f)
+{
+    struct f_quasi_params<T> * params = (struct f_quasi_params<T> *)p;
+    const double ptheta_old = (params->ptheta_old);
+    auto z = (params->z);
+    SymplField<T> field = (params->f);
+    
+    const double x0 = gsl_vector_get(x,0);
+
+    field.eval_field(x0, z[1], z[2]);
+    field.get_derivatives(z[3]);
+
+    const double f0 = field.ptheta - ptheta_old;
+
+    gsl_vector_set(f, 0, f0);
 
     return GSL_SUCCESS;
 }
@@ -651,7 +662,7 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
     bool stop = false;
 
     double x[2]; // unknowns (s, pzeta) for optimizer
-    double z[4]; // s, theta, zeta, pzeta
+    array<double, 4>  z = {}; // s, theta, zeta, pzeta
     // y = [s, theta, zeta, vpar]
         
     // Translate y to z
@@ -663,29 +674,26 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
     z[2] = y[2];
     f.eval_field(z[0], z[1], z[2]);
     z[3] = f.get_pzeta(y[3]);
-    double ptheta_old = f.ptheta;
     f.get_derivatives(z[3]);
+    double ptheta_old = f.ptheta;
 
-    struct f_quasi_params<T> params = {ptheta_old, dt, y, f};
+    struct f_quasi_params<T> params = {ptheta_old, dt, z, f};
 
-    const gsl_multiroot_fsolver_type * Newt = gsl_multiroot_fsolver_dnewton;
-    // const gsl_multiroot_fsolver_type * Newt = gsl_multiroot_fsolver_hybrids;
+    // const gsl_multiroot_fsolver_type * Newt = gsl_multiroot_fsolver_dnewton;
+    const gsl_multiroot_fsolver_type * Newt = gsl_multiroot_fsolver_hybrids;
+    // const gsl_multiroot_fsolver_type * Newt = gsl_multiroot_fsolver_hybrid;
     gsl_multiroot_fsolver *s;
     s = gsl_multiroot_fsolver_alloc(Newt, 2);
-
     gsl_multiroot_function F = {&f_quasi_func<T>, 2, &params};
+    gsl_vector* xvec = gsl_vector_alloc(2);
 
     int status;
-
-    gsl_vector* xvec = gsl_vector_alloc(2);
     do {
         params.ptheta_old = ptheta_old;
-        params.y = y;
+        params.z = z;
         gsl_vector_set(xvec, 0, z[0]);
         gsl_vector_set(xvec, 1, z[3]);
         gsl_multiroot_fsolver_set(s, &F, xvec);
-
-        sleep(100);
 
         int iter = 0;
 
@@ -701,49 +709,51 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
         // applied to f_euler1_quasi. This corresponds with (2.6)-(2.7) in JPP 2020,
         // which are solved for x = [s, pzeta].
         
-        //int gsl_multiroot_fsolver_iterate (gsl_multiroot_fsolver * s)
-        //size_t i, iter = 0;
-        //int iter = 0;
-        // std::cout<<"entered GSL loop\n"<<std::flush;
         do
           {
-            // std::cout<<fmt::format("iter {}\n", iter)<<std::flush;
             iter++;
 
             //status ;
             status = gsl_multiroot_fsolver_iterate(s);
 
-            printf("iter = %3u x = % .3e % .3e "
-                      "f(x) = % .3e % .3e\n",
-                      iter,
-                      gsl_vector_get (s->x, 0),
-                      gsl_vector_get (s->x, 1),
-                      gsl_vector_get (s->f, 0),
-                      gsl_vector_get (s->f, 1));
+            // printf("iter = %3u x = % .3e % .3e "
+            //           "f(x) = % .3e % .3e\n",
+            //           iter,
+            //           gsl_vector_get (s->x, 0),
+            //           gsl_vector_get (s->x, 1),
+            //           gsl_vector_get (s->f, 0),
+            //           gsl_vector_get (s->f, 1));
+
             if (status)   /* check if solver is stuck */
               break;
 
-            status = gsl_multiroot_test_residual(s->f, 1e-12); //tolerance --> tol_roots
+            // not gonna ever reach 0 tho, hybrids will auto stop
+            // if no progress is made.
+            // probably can be changed into test delta function
+            status = gsl_multiroot_test_residual(s->f, 0); //tolerance --> tol_roots
           }
-        while (status == GSL_CONTINUE && iter < 5000);
-        std::cout<<"root founded\n"<<std::flush;
+        while (status == GSL_CONTINUE && iter < 100);
+        // printf ("status = %s\n", gsl_strerror (status));
 
         x[0] = gsl_vector_get(s->x, 0);
         x[1] = gsl_vector_get(s->x, 1);
 
-        std::cout<<"passed x\n"<<std::flush;
+        if (x[0] > 1.) {
+            stop = true;
+        }
+
+        if (x[0] < 0.0) {
+            stop=true;
+        }
         
         z[0] = x[0];  // s
         z[3] = x[1];  // pzeta
-
-        std::cout<<"passed z\n"<<std::flush;
 
         // We now evaluate the explicit part of the time-step at [s, pzeta]
         // given by the Euler step.
         f.eval_field(z[0], z[1], z[2]);
         f.get_derivatives(z[3]);
-
-        std::cout<<"field ev\n"<<std::flush;
+        ptheta_old = f.ptheta;
 
         // z[1] = theta
         // z[2] = zeta
@@ -751,11 +761,8 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
         // dptheta[0] = dptheta/dr
         // htheta = G/B
         // hzeta = I/B
-        std::cout<<fmt::format("f.dptheta[0] {} \n", f.dptheta[0])<<std::flush;
-        // std::cout<<fmt::format("f.dptheta[0] {} \n", f.dptheta[0])<<std::flush;
         z[1] = z[1] + dt*f.dH[0]/f.dptheta[0]; // (2.9) in JPP 2020
         z[2] = z[2] + dt*(f.vpar - f.dH[0]/f.dptheta[0]*f.htheta)/f.hzeta; // (2.10) in JPP 2020
-        std::cout<<"update z\n"<<std::flush;
 
         // Translate z back to y
         // y = [s, theta, zeta, vpar]
@@ -768,16 +775,15 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
         y[1] = z[1];
         y[2] = z[2];
         y[3] = f.vpar;
-        ptheta_old = f.ptheta;
 
         t += dt;
-        std::cout<<fmt::format("t {}\n", t)<<std::flush;
     } while(t < tmax && !stop);
     if(!stop){
         res.push_back(join<1, 4>({tmax}, y));
     }
     return std::make_tuple(res, res_phi_hits);
 }
+
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
