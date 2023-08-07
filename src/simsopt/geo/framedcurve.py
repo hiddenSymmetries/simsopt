@@ -16,7 +16,8 @@ class FramedCurve(sopp.Curve, Curve):
 
     def __init__(self, curve, rotation=None):
         """
-        A framed curve defines an orthonormal frame around a Curve. 
+        A FramedCurve defines an orthonormal basis around a Curve, 
+        where one basis is taken to be the tangent along the Curve. 
         The frame is defined with respect to a reference frame,
         either centroid or frenet. A rotation angle defines the rotation 
         with respect to this reference frame. 
@@ -33,7 +34,6 @@ class FramedCurve(sopp.Curve, Curve):
 
 
 class FramedCurveFrenet(FramedCurve):
-
     """
     Given a curve, one defines a reference frame using the Frenet normal and
     binormal vectors:
@@ -45,7 +45,6 @@ class FramedCurveFrenet(FramedCurve):
     In addition, we specify an angle along the curve that 
     defines the rotation with respect to this reference frame. 
     """
-
     def __init__(self, curve, rotation=None):
         FramedCurve.__init__(self, curve, rotation)
 
@@ -176,7 +175,6 @@ class FramedCurveFrenet(FramedCurve):
 
 
 class FramedCurveCentroid(FramedCurve):
-
     """
     Implementation of the centroid frame introduced in
     Singh et al, "Optimization of finite-build stellarator coils",
@@ -189,7 +187,6 @@ class FramedCurveCentroid(FramedCurve):
 
     The idea is explained well in Figure 1 in the reference above.
     """
-
     def __init__(self, curve, rotation=None):
         FramedCurve.__init__(self, curve, rotation)
         self.rotated_frame = rotated_centroid_frame
