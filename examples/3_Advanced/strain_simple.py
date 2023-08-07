@@ -30,7 +30,7 @@ rot_order = 5  # order of the Fourier expression for the rotation of the filamen
 
 width = 12
 
-rotation = FrameRotation(curve.quadpoints,rot_order)
+rotation = FrameRotation(curve.quadpoints, rot_order)
 framedcurve = FramedCurveFrenet(curve, rotation)
 
 strain = StrainOpt(framedcurve, width=width)

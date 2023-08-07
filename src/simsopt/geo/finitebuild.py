@@ -14,7 +14,7 @@ The functions and classes in this model are used to deal with multifilament
 approximation of finite build coils.
 """
 
-__all__ = ['create_multifilament_grid','CurveFilament']
+__all__ = ['create_multifilament_grid', 'CurveFilament']
 
 
 class CurveFilament(FramedCurve):
@@ -108,6 +108,7 @@ class CurveFilament(FramedCurve):
                 g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
             out += self.curve.dgammadashdashdash_by_dcoeff_vjp(vgddd)
         return out 
+
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, 
                               rotation_order=None, rotation_scaling=None, frame='centroid'):

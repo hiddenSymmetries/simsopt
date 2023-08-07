@@ -8,6 +8,7 @@ from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
 from simsopt.geo.curveobjectives import Lp_torsion_pure
 
+
 class LPBinormalCurvatureStrainPenalty(Optimizable):
     r"""
     This class computes a penalty term based on the :math:`L_p` norm
@@ -18,9 +19,10 @@ class LPBinormalCurvatureStrainPenalty(Optimizable):
 
     where :math:`\epsilon_0` is a threshold strain, given by the argument ``threshold``.
     """
+
     def __init__(self, framedcurve, width=1e-3, p=2, threshold=0):
         self.framedcurve = framedcurve
-        self.strain = StrainOpt(framedcurve,width)
+        self.strain = StrainOpt(framedcurve, width)
         self.width = width
         self.p = p 
         self.threshold = threshold 
@@ -33,20 +35,21 @@ class LPBinormalCurvatureStrainPenalty(Optimizable):
         """
         This returns the value of the quantity.
         """
-        return self.J_jax(self.strain.binormal_curvature_strain(),self.framedcurve.curve.gammadash())
+        return self.J_jax(self.strain.binormal_curvature_strain(), self.framedcurve.curve.gammadash())
 
     @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve and rotation dofs.
         """
-        grad0 = self.grad0(self.strain.binormal_curvature_strain(),self.framedcurve.curve.gammadash())
-        grad1 = self.grad1(self.strain.binormal_curvature_strain(),self.framedcurve.curve.gammadash())
-        vjp0 = self.strain.binormstrain_vjp(self.framedcurve.frame_binormal_curvature(),self.width,grad0)
+        grad0 = self.grad0(self.strain.binormal_curvature_strain(), self.framedcurve.curve.gammadash())
+        grad1 = self.grad1(self.strain.binormal_curvature_strain(), self.framedcurve.curve.gammadash())
+        vjp0 = self.strain.binormstrain_vjp(self.framedcurve.frame_binormal_curvature(), self.width, grad0)
         return self.framedcurve.dframe_binormal_curvature_by_dcoeff_vjp(vjp0) \
-             + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
-    
+            + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
+
     return_fn_map = {'J': J, 'dJ': dJ}
+
 
 class LPTorsionalStrainPenalty(Optimizable):
     r"""
@@ -58,9 +61,10 @@ class LPTorsionalStrainPenalty(Optimizable):
 
     where :math:`\epsilon_0` is a threshold strain, given by the argument ``threshold``.
     """
+
     def __init__(self, framedcurve, width=1e-3, p=2, threshold=0):
         self.framedcurve = framedcurve
-        self.strain = StrainOpt(framedcurve,width)
+        self.strain = StrainOpt(framedcurve, width)
         self.width = width
         self.p = p 
         self.threshold = threshold 
@@ -75,20 +79,21 @@ class LPTorsionalStrainPenalty(Optimizable):
         """
         This returns the value of the quantity.
         """
-        return self.J_jax(self.strain.torsional_strain(),self.framedcurve.curve.gammadash())
+        return self.J_jax(self.strain.torsional_strain(), self.framedcurve.curve.gammadash())
 
     @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve and rotation dofs.
         """
-        grad0 = self.grad0(self.strain.torsional_strain(),self.framedcurve.curve.gammadash())
-        grad1 = self.grad1(self.strain.torsional_strain(),self.framedcurve.curve.gammadash())
-        vjp0 = self.strain.torstrain_vjp(self.framedcurve.frame_torsion(),self.width,grad0)
+        grad0 = self.grad0(self.strain.torsional_strain(), self.framedcurve.curve.gammadash())
+        grad1 = self.grad1(self.strain.torsional_strain(), self.framedcurve.curve.gammadash())
+        vjp0 = self.strain.torstrain_vjp(self.framedcurve.frame_torsion(), self.width, grad0)
         return self.framedcurve.dframe_torsion_by_dcoeff_vjp(vjp0) \
-             + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
-    
+            + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
+
     return_fn_map = {'J': J, 'dJ': dJ}
+
 
 class StrainOpt(Optimizable):
     r"""
@@ -112,6 +117,7 @@ class StrainOpt(Optimizable):
     filamentary coil. 
 
     """
+
     def __init__(self, framedcurve, width=1e-3):
         self.framedcurve = framedcurve
         self.width = width
@@ -131,14 +137,15 @@ class StrainOpt(Optimizable):
         Returns the value of the torsional strain, :math:`\epsilon_{\text{tor}}`, along 
         the quadpoints defining the filamentary coil. 
         """
-        return self.torstrain_jax(self.framedcurve.frame_torsion(),self.width)
+        return self.torstrain_jax(self.framedcurve.frame_torsion(), self.width)
 
     def binormal_curvature_strain(self):
         """
         Returns the value of the torsional strain, :math:`\epsilon_{\text{bend}}`, along 
         the quadpoints defining the filamentary coil. 
         """
-        return self.binormstrain_jax(self.framedcurve.frame_binormal_curvature(),self.width)
+        return self.binormstrain_jax(self.framedcurve.frame_binormal_curvature(), self.width)
+
 
 @jit
 def torstrain_pure(torsion, width):
@@ -146,6 +153,7 @@ def torstrain_pure(torsion, width):
     This function is used in a Python+Jax implementation of the LPTorsionalStrainPenalty objective. 
     """
     return torsion**2 * width**2 / 12
+
 
 @jit
 def binormstrain_pure(binorm, width):
