@@ -525,6 +525,18 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
 	    printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum, backtracking);
         }
 
+	// check range here
+	num_nonzero = 0;
+#pragma omp parallel for schedule(static) reduction(+: num_nonzero)
+	for (int j = 0; j < N; ++j) { 
+	    for (int jj = 0; jj < 3; ++jj) { 
+		if (not Gamma_complement(j, jj)) {
+                    num_nonzero += 1; 
+		    break; // avoid counting multiple components by breaking inner loop
+		} 
+	    }            
+	}
+
 	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
 	    printf("Iteration = %d, Number of nonzero dipoles = %d\n", k, num_nonzero);
@@ -540,18 +552,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_backtracking(Array& A_obj, Ar
                 break;
             }
 	
-	}
-
-	// check range here
-	num_nonzero = 0;
-#pragma omp parallel for schedule(static) reduction(+: num_nonzero)
-	for (int j = 0; j < N; ++j) { 
-	    for (int jj = 0; jj < 3; ++jj) { 
-		if (not Gamma_complement(j, jj)) {
-                    num_nonzero += 1; 
-		    break; // avoid counting multiple components by breaking inner loop
-		} 
-	    }            
 	}
 
 	// Terminate iterations if a magnet limit is reached

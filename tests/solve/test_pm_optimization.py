@@ -167,12 +167,16 @@ class Testing(unittest.TestCase):
             assert np.allclose(errors1, errors4)
             assert np.allclose(Bn_errors1, Bn_errors4)
             assert np.allclose(m_history1, m_history4)
+
+            # Note: ArbVec_backtracking history arrays contain one additional
+            # entry at the beginning for the initialized solution
+
             errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
             m5 = pm_opt.m
             assert np.allclose(m1, m5)
-            assert np.allclose(errors1, errors5)
-            assert np.allclose(Bn_errors1, Bn_errors5)
-            assert np.allclose(m_history1, m_history5)
+            assert np.allclose(errors1, errors5[1:])
+            assert np.allclose(Bn_errors1, Bn_errors5[1:])
+            assert np.allclose(m_history1, m_history5[:, :, 1:])
             with self.assertRaises(ValueError):
                 pm_opt.coordinate_flag = 'cylindrical'
                 errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)

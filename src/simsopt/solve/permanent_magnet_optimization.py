@@ -433,15 +433,16 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         if "m_init" in kwargs.keys():
             if kwargs["m_init"].shape[0] != nGridPoints:
                 raise ValueError('Initialization vector `m_init` must have ' \
-                        'as many rows as there are dipoles in the grid');
+                                 'as many rows as there are dipoles in the ' \
+                                 'grid');
             elif kwargs["m_init"].shape[1] != 3:
                 raise ValueError('Initialization vector `m_init` must have '\
-                        'three columns')
+                                 'three columns')
             kwargs["x_init"] = contig(kwargs["m_init"] \
-                / (mmax_vec.reshape(pm_opt.ndipoles, 3)))
+                                      / (mmax_vec.reshape(pm_opt.ndipoles, 3)))
             kwargs.pop("m_init")
         else:
-            kwargs["x_init"] = contig(np.zeros((nGridPoints,3)))
+            kwargs["x_init"] = contig(np.zeros((nGridPoints, 3)))
         algorithm_history, Bn_history, m_history, num_nonzeros, m = sopp.GPMO_ArbVec_backtracking(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
