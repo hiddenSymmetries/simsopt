@@ -7,7 +7,7 @@ from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
 from .curve import Curve
 from .jit import jit
-from .framedcurve import FramedCurve
+from .framedcurve import FramedCurve, FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
 
 """
 The functions and classes in this model are used to deal with multifilament
@@ -51,61 +51,39 @@ class CurveFilament(FramedCurve):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
         assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
         c = self.curve
-        t, n, b = self.rotated_frame(c.gamma(), c.gammadash(), self.rotation.alpha(c.quadpoints))
+        t, n, b = self.framedcurve.rotated_frame()
         gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
 
     def gammadash_impl(self, gammadash):
-        td, nd, bd = self.rotated_frame_dash()
+        td, nd, bd = self.framedcurve.rotated_frame_dash()
         gammadash[:] = self.curve.gammadash() + self.dn * nd + self.db * bd
 
     def dgamma_by_dcoeff_vjp(self, v):
-        g = self.curve.gamma()
-        gd = self.curve.gammadash()
-        gdd = self.curve.gammadashdash()
-        a = self.rotation.alpha(self.curve.quadpoints)
-        zero = np.zeros_like(v)
-        vg = self.framedcurve.rotated_frame_dcoeff_vjp0(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
-        vgd = self.framedcurve.rotated_frame_dcoeff_vjp1(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
-        va = self.framedcurve.rotated_frame_dcoeff_vjp3(
-            g, gd, gdd, a, (zero, self.dn*v, self.db*v))
+        vg = self.framedcurve.rotated_frame_dcoeff_vjp(v, self.dn, self.db, 0)
+        vgd = self.framedcurve.rotated_frame_dcoeff_vjp(v, self.dn, self.db, 1)
+        vgdd = self.framedcurve.rotated_frame_dcoeff_vjp(v, self.dn, self.db, 2)
+        va = self.framedcurve.rotated_frame_dcoeff_vjp(v, self.dn, self.db, 3)
         out = self.curve.dgamma_by_dcoeff_vjp(v + vg) \
             + self.curve.dgammadash_by_dcoeff_vjp(vgd) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va) 
-        if self.framedcurve.rotated_frame_dcoeff_vjp2 is not None:
-            vgdd = self.framedcurve.rotated_frame_dcoeff_vjp2(
-                g, gd, gdd, a, (zero, self.dn*v, self.db*v))
+        if vgdd is not None:
             out += self.curve.dgammadashdash_by_dcoeff_vjp(vgdd)
         return out 
 
     def dgammadash_by_dcoeff_vjp(self, v):
-        g = self.curve.gamma()
-        gd = self.curve.gammadash()
-        gdd = self.curve.gammadashdash()
-        gddd = self.curve.gammadashdashdash()
-        a = self.rotation.alpha(self.curve.quadpoints)
-        ad = self.rotation.alphadash(self.curve.quadpoints)
-        zero = np.zeros_like(v)
 
-        vg = self.framedcurve.rotated_frame_dash_dcoeff_vjp0(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vgd = self.framedcurve.rotated_frame_dash_dcoeff_vjp1(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vgdd = self.framedcurve.rotated_frame_dash_dcoeff_vjp2(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        va = self.framedcurve.rotated_frame_dash_dcoeff_vjp4(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
-        vad = self.framedcurve.rotated_frame_dash_dcoeff_vjp5(
-            g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
+        vg = self.framedcurve.rotated_frame_dash_dcoeff_vjp(v, self.dn, self.db, 0)
+        vgd = self.framedcurve.rotated_frame_dash_dcoeff_vjp(v, self.dn, self.db, 1)
+        vgdd = self.framedcurve.rotated_frame_dash_dcoeff_vjp(v, self.dn, self.db, 2)
+        vgddd = self.framedcurve.rotated_frame_dash_dcoeff_vjp(v, self.dn, self.db, 3)
+        va = self.framedcurve.rotated_frame_dash_dcoeff_vjp(v, self.dn, self.db, 4)
+        vad = self.framedcurve.rotated_frame_dash_dcoeff_vjp(v, self.dn, self.db, 5)
         out = self.curve.dgamma_by_dcoeff_vjp(vg) \
             + self.curve.dgammadash_by_dcoeff_vjp(v+vgd) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(vgdd) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, va) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, vad)
-        if self.framedcurve.rotated_frame_dash_dcoeff_vjp3 is not None:
-            vgddd = self.framedcurve.rotated_frame_dash_dcoeff_vjp3(
-                g, gd, gdd, gddd, a, ad, (zero, self.dn*v, self.db*v))
+        if vgddd is not None:
             out += self.curve.dgammadashdashdash_by_dcoeff_vjp(vgddd)
         return out 
 
