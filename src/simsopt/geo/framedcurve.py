@@ -9,7 +9,7 @@ from .curve import Curve
 from .jit import jit
 
 __all__ = ['FramedCurve', 'FramedCurveFrenet', 'FramedCurveCentroid',
-           'FrameRotation', 'ZeroRotation']
+           'FrameRotation', 'ZeroRotation', 'FramedCurve']
 
 
 class FramedCurve(sopp.Curve, Curve):
@@ -79,19 +79,11 @@ class FramedCurveFrenet(FramedCurve):
         self.torsiongrad_vjp5 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
             lambda g: self.torsion(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, g), alphadash)[1](v)[0])
 
-        self.rotated_frame = rotated_frenet_frame
         self.binormal_curvature = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash: binormal_curvature_pure_frenet(
             gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash))
-        self.rotated_frame_dcoeff_vjp0 = rotated_frenet_frame_dcoeff_vjp0
-        self.rotated_frame_dcoeff_vjp1 = rotated_frenet_frame_dcoeff_vjp1
-        self.rotated_frame_dcoeff_vjp2 = rotated_frenet_frame_dcoeff_vjp2
-        self.rotated_frame_dcoeff_vjp3 = rotated_frenet_frame_dcoeff_vjp3
-        self.rotated_frame_dash_dcoeff_vjp0 = rotated_frenet_frame_dash_dcoeff_vjp0
-        self.rotated_frame_dash_dcoeff_vjp1 = rotated_frenet_frame_dash_dcoeff_vjp1
-        self.rotated_frame_dash_dcoeff_vjp2 = rotated_frenet_frame_dash_dcoeff_vjp2
-        self.rotated_frame_dash_dcoeff_vjp3 = rotated_frenet_frame_dash_dcoeff_vjp3
-        self.rotated_frame_dash_dcoeff_vjp4 = rotated_frenet_frame_dash_dcoeff_vjp4
-        self.rotated_frame_dash_dcoeff_vjp5 = rotated_frenet_frame_dash_dcoeff_vjp5
+
+    def rotated_frame(self):
+        return rotated_frenet_frame(self.curve.gamma(), self.curve.gammadash(), self.curve.gammadashdash(), self.rotation.alpha(self.curve.quadpoints))
 
     def rotated_frame_dash(self):
         return rotated_frenet_frame_dash(
@@ -174,6 +166,54 @@ class FramedCurveFrenet(FramedCurve):
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
 
+    def rotated_frame_dcoeff_vjp(self, v, dn, db, arg=0):
+        assert arg in [0, 1, 2, 3]
+        g = self.curve.gamma()
+        gd = self.curve.gammadash()
+        gdd = self.curve.gammadashdash()
+        a = self.rotation.alpha(self.curve.quadpoints)
+        zero = np.zeros_like(v)
+        if arg == 0:
+            return rotated_frenet_frame_dcoeff_vjp0(
+                g, gd, gdd, a, (zero, dn*v, db*v))
+        elif arg == 1:
+            return rotated_frenet_frame_dcoeff_vjp1(
+                g, gd, gdd, a, (zero, dn*v, db*v))
+        elif arg == 2:
+            return rotated_frenet_frame_dcoeff_vjp2(
+                g, gd, gdd, a, (zero, dn*v, db*v))
+        elif arg == 3:
+            return rotated_frenet_frame_dcoeff_vjp3(
+                g, gd, gdd, a, (zero, dn*v, db*v))
+
+    def rotated_frame_dash_dcoeff_vjp(self, v, dn, db, arg=0):
+        assert arg in [0, 1, 2, 3, 4, 5]
+        g = self.curve.gamma()
+        gd = self.curve.gammadash()
+        gdd = self.curve.gammadashdash()
+        gddd = self.curve.gammadashdashdash()
+        a = self.rotation.alpha(self.curve.quadpoints)
+        ad = self.rotation.alphadash(self.curve.quadpoints)
+        zero = np.zeros_like(v)
+        if arg == 0:
+            return rotated_frenet_frame_dash_dcoeff_vjp0(
+                g, gd, gdd, gddd, a, ad, (zero, dn*v, db*v))
+        if arg == 1:
+            return rotated_frenet_frame_dash_dcoeff_vjp1(
+                g, gd, gdd, gddd, a, ad, (zero, dn*v, db*v))
+        if arg == 2:
+            return rotated_frenet_frame_dash_dcoeff_vjp2(
+                g, gd, gdd, gddd, a, ad, (zero, dn*v, db*v))
+        if arg == 3:
+            return rotated_frenet_frame_dash_dcoeff_vjp3(
+                g, gd, gdd, gddd, a, ad, (zero, dn*v, db*v))
+        if arg == 4:
+            return rotated_frenet_frame_dash_dcoeff_vjp4(
+                g, gd, gdd, gddd, a, ad, (zero, dn*v, db*v))
+        if arg == 5:
+            return rotated_frenet_frame_dash_dcoeff_vjp5(
+                g, gd, gdd, gddd, a, ad, (zero, dn*v, db*v))
+
 
 class FramedCurveCentroid(FramedCurve):
     """
@@ -191,7 +231,6 @@ class FramedCurveCentroid(FramedCurve):
 
     def __init__(self, curve, rotation=None):
         FramedCurve.__init__(self, curve, rotation)
-        self.rotated_frame = rotated_centroid_frame
         self.torsion = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: torsion_pure_centroid(
             gamma, gammadash, gammadashdash, alpha, alphadash))
 
@@ -208,16 +247,6 @@ class FramedCurveCentroid(FramedCurve):
 
         self.binormal_curvature = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: binormal_curvature_pure_centroid(
             gamma, gammadash, gammadashdash, alpha, alphadash))
-        self.rotated_frame_dcoeff_vjp0 = rotated_centroid_frame_dcoeff_vjp0
-        self.rotated_frame_dcoeff_vjp1 = rotated_centroid_frame_dcoeff_vjp1
-        self.rotated_frame_dcoeff_vjp2 = None
-        self.rotated_frame_dcoeff_vjp3 = rotated_centroid_frame_dcoeff_vjp2
-        self.rotated_frame_dash_dcoeff_vjp0 = rotated_centroid_frame_dash_dcoeff_vjp0
-        self.rotated_frame_dash_dcoeff_vjp1 = rotated_centroid_frame_dash_dcoeff_vjp1
-        self.rotated_frame_dash_dcoeff_vjp2 = rotated_centroid_frame_dash_dcoeff_vjp2
-        self.rotated_frame_dash_dcoeff_vjp3 = None
-        self.rotated_frame_dash_dcoeff_vjp4 = rotated_centroid_frame_dash_dcoeff_vjp3
-        self.rotated_frame_dash_dcoeff_vjp5 = rotated_centroid_frame_dash_dcoeff_vjp4
 
     def frame_torsion(self):
         """Exports frame torsion along a curve"""
@@ -237,6 +266,10 @@ class FramedCurveCentroid(FramedCurve):
         alpha = self.rotation.alpha(self.curve.quadpoints)
         alphadash = self.rotation.alphadash(self.curve.quadpoints)
         return self.binormal_curvature(gamma, d1gamma, d2gamma, alpha, alphadash)
+
+    def rotated_frame(self):
+        return rotated_centroid_frame(self.curve.gamma(), self.curve.gammadash(), 
+            self.rotation.alpha(self.curve.quadpoints))
 
     def rotated_frame_dash(self):
         return rotated_centroid_frame_dash(
@@ -268,6 +301,50 @@ class FramedCurveCentroid(FramedCurve):
             + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
+
+    def rotated_frame_dcoeff_vjp(self, v, dn, db, arg=0):
+        assert arg in [0, 1, 2, 3]
+        g = self.curve.gamma()
+        gd = self.curve.gammadash()
+        a = self.rotation.alpha(self.curve.quadpoints)
+        zero = np.zeros_like(v)
+        if arg == 0:
+            return rotated_centroid_frame_dcoeff_vjp0(
+                g, gd, a, (zero, dn*v, db*v))
+        if arg == 1:
+            return rotated_centroid_frame_dcoeff_vjp1(
+                g, gd, a, (zero, dn*v, db*v))
+        if arg == 2:
+            return None 
+        if arg == 3:
+            return rotated_centroid_frame_dcoeff_vjp3(
+                g, gd, a, (zero, dn*v, db*v))
+
+    def rotated_frame_dash_dcoeff_vjp(self, v, dn, db, arg=0):
+        assert arg in [0, 1, 2, 3, 4, 5]
+        g = self.curve.gamma()
+        gd = self.curve.gammadash()
+        gdd = self.curve.gammadashdash()
+        a = self.rotation.alpha(self.curve.quadpoints)
+        ad = self.rotation.alphadash(self.curve.quadpoints)
+        zero = np.zeros_like(v)
+        if arg == 0:
+            return rotated_centroid_frame_dash_dcoeff_vjp0(
+                g, gd, gdd, a, ad, (zero, dn*v, db*v))
+        if arg == 1:
+            return rotated_centroid_frame_dash_dcoeff_vjp1(
+                g, gd, gdd, a, ad, (zero, dn*v, db*v))
+        if arg == 2:
+            return rotated_centroid_frame_dash_dcoeff_vjp2(
+                g, gd, gdd, a, ad, (zero, dn*v, db*v))       
+        if arg == 3:     
+            return None
+        if arg == 4:
+            return rotated_centroid_frame_dash_dcoeff_vjp4(
+                g, gd, gdd, a, ad, (zero, dn*v, db*v))
+        if arg == 5:
+            return rotated_centroid_frame_dash_dcoeff_vjp5(
+                g, gd, gdd, a, ad, (zero, dn*v, db*v))
 
 
 class FrameRotation(Optimizable):
@@ -363,7 +440,7 @@ rotated_centroid_frame_dcoeff_vjp1 = jit(
     lambda gamma, gammadash, alpha, v: vjp(
         lambda gd: rotated_centroid_frame(gamma, gd, alpha), gammadash)[1](v)[0])
 
-rotated_centroid_frame_dcoeff_vjp2 = jit(
+rotated_centroid_frame_dcoeff_vjp3 = jit(
     lambda gamma, gammadash, alpha, v: vjp(
         lambda a: rotated_centroid_frame(gamma, gammadash, a), alpha)[1](v)[0])
 
@@ -379,11 +456,11 @@ rotated_centroid_frame_dash_dcoeff_vjp2 = jit(
     lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
         lambda gdd: rotated_centroid_frame_dash(gamma, gammadash, gdd, alpha, alphadash), gammadashdash)[1](v)[0])
 
-rotated_centroid_frame_dash_dcoeff_vjp3 = jit(
+rotated_centroid_frame_dash_dcoeff_vjp4 = jit(
     lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
         lambda a: rotated_centroid_frame_dash(gamma, gammadash, gammadashdash, a, alphadash), alpha)[1](v)[0])
 
-rotated_centroid_frame_dash_dcoeff_vjp4 = jit(
+rotated_centroid_frame_dash_dcoeff_vjp5 = jit(
     lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
         lambda ad: rotated_centroid_frame_dash(gamma, gammadash, gammadashdash, alpha, ad), alphadash)[1](v)[0])
 
