@@ -16,10 +16,10 @@ import numpy as np
 class MultifilamentTesting(unittest.TestCase):
 
     def test_multifilament_gammadash(self):
-        for centroid in [True,False]:
+        for centroid in [True, False]:
             for order in [None, 1]:
                 with self.subTest(order=order):
-                    self.subtest_multifilament_gammadash(order,centroid)
+                    self.subtest_multifilament_gammadash(order, centroid)
 
     def subtest_multifilament_gammadash(self, order, centroid):
         assert order in [1, None]
@@ -57,9 +57,9 @@ class MultifilamentTesting(unittest.TestCase):
 
     def test_multifilament_coefficient_derivative(self):
         for order in [None, 1]:
-            for centroid in [True,False]:
+            for centroid in [True, False]:
                 with self.subTest(order=order):
-                    self.subtest_multifilament_coefficient_derivative(order,centroid)
+                    self.subtest_multifilament_coefficient_derivative(order, centroid)
 
     def subtest_multifilament_coefficient_derivative(self, order, centroid):
         assert order in [1, None]
@@ -135,24 +135,24 @@ class MultifilamentTesting(unittest.TestCase):
             # check that the coil pack is centered around the underlying curve
             assert np.linalg.norm(np.mean([f.gamma() for f in fils], axis=0)-c.gamma()) < 1e-13
 
-        for frame in ['centroid','frenet']:
+        for frame in ['centroid', 'frenet']:
             numfilaments_n = 2
             numfilaments_b = 3
             fils = create_multifilament_grid(
                 c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
-                rotation_order=None, rotation_scaling=None,frame=frame)
+                rotation_order=None, rotation_scaling=None, frame=frame)
             check(fils, c, numfilaments_n, numfilaments_b)
 
             numfilaments_n = 3
             numfilaments_b = 2
             fils = create_multifilament_grid(
                 c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
-                rotation_order=None, rotation_scaling=None,frame=frame)
+                rotation_order=None, rotation_scaling=None, frame=frame)
             check(fils, c, numfilaments_n, numfilaments_b)
 
             fils = create_multifilament_grid(
                 c, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b,
-                rotation_order=3, rotation_scaling=None,frame=frame)
+                rotation_order=3, rotation_scaling=None, frame=frame)
             xr = fils[0].rotation.x
             fils[0].rotation.x = xr + 1e-2*np.random.standard_normal(size=xr.shape)
             check(fils, c, numfilaments_n, numfilaments_b)
@@ -166,10 +166,10 @@ class MultifilamentTesting(unittest.TestCase):
         np.random.seed(1)
         base_curves, base_currents, ma = get_ncsx_data(Nt_coils=5)
 
-        for frame in ['centroid','frenet']:
+        for frame in ['centroid', 'frenet']:
 
             base_curves_finite_build = sum(
-                [create_multifilament_grid(c, 2, 2, 0.01, 0.01, rotation_order=1,frame=frame) for c in base_curves], [])
+                [create_multifilament_grid(c, 2, 2, 0.01, 0.01, rotation_order=1, frame=frame) for c in base_curves], [])
             base_currents_finite_build = sum([[c]*4 for c in base_currents], [])
 
             nfp = 3
