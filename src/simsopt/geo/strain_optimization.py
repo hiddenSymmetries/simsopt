@@ -8,6 +8,8 @@ from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
 from simsopt.geo.curveobjectives import Lp_torsion_pure
 
+__all__ = ['LPBinormalCurvatureStrainPenalty', 'LPTorsionalStrainPenalty', 'StrainOpt']
+
 
 class LPBinormalCurvatureStrainPenalty(Optimizable):
     r"""
