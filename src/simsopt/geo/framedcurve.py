@@ -79,9 +79,6 @@ class FramedCurveFrenet(FramedCurve):
         self.torsiongrad_vjp5 = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash, v: vjp(
             lambda g: self.torsion(gamma, gammadash, gammadashdash, gammadashdashdash, alpha, g), alphadash)[1](v)[0])
 
-        self.binormal_curvature = jit(lambda gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash: binormal_curvature_pure_frenet(
-            gamma, gammadash, gammadashdash, gammadashdashdash, alpha, alphadash))
-
     def rotated_frame(self):
         return rotated_frenet_frame(self.curve.gamma(), self.curve.gammadash(), self.curve.gammadashdash(), self.rotation.alpha(self.curve.quadpoints))
 
@@ -108,7 +105,7 @@ class FramedCurveFrenet(FramedCurve):
         d3gamma = self.curve.gammadashdashdash()
         alpha = self.rotation.alpha(self.curve.quadpoints)
         alphadash = self.rotation.alphadash(self.curve.quadpoints)
-        return self.binormal_curvature(gamma, d1gamma, d2gamma, d3gamma, alpha, alphadash)
+        return self.binorm(gamma, d1gamma, d2gamma, d3gamma, alpha, alphadash)
 
     def dframe_torsion_by_dcoeff_vjp(self, v):
         gamma = self.curve.gamma()
@@ -231,9 +228,9 @@ class FramedCurveCentroid(FramedCurve):
 
     def __init__(self, curve, rotation=None):
         FramedCurve.__init__(self, curve, rotation)
+        
         self.torsion = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: torsion_pure_centroid(
             gamma, gammadash, gammadashdash, alpha, alphadash))
-
         self.torsiongrad_vjp0 = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
             lambda g: self.torsion(g, gammadash, gammadashdash, alpha, alphadash), gamma)[1](v)[0])
         self.torsiongrad_vjp1 = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
@@ -244,9 +241,6 @@ class FramedCurveCentroid(FramedCurve):
             lambda g: self.torsion(gamma, gammadash, gammadashdash, g, alphadash), alpha)[1](v)[0])
         self.torsiongrad_vjp5 = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
             lambda g: self.torsion(gamma, gammadash, gammadashdash, alpha, g), alphadash)[1](v)[0])
-
-        self.binormal_curvature = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: binormal_curvature_pure_centroid(
-            gamma, gammadash, gammadashdash, alpha, alphadash))
 
         self.binorm = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: binormal_curvature_pure_centroid(
             gamma, gammadash, gammadashdash, alpha, alphadash))
@@ -278,7 +272,7 @@ class FramedCurveCentroid(FramedCurve):
         d3gamma = self.curve.gammadashdashdash()
         alpha = self.rotation.alpha(self.curve.quadpoints)
         alphadash = self.rotation.alphadash(self.curve.quadpoints)
-        return self.binormal_curvature(gamma, d1gamma, d2gamma, alpha, alphadash)
+        return self.binorm(gamma, d1gamma, d2gamma, alpha, alphadash)
 
     def rotated_frame(self):
         return rotated_centroid_frame(self.curve.gamma(), self.curve.gammadash(), 
