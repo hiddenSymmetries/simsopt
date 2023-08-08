@@ -269,7 +269,7 @@ class FramedCurveCentroid(FramedCurve):
 
     def rotated_frame(self):
         return rotated_centroid_frame(self.curve.gamma(), self.curve.gammadash(), 
-            self.rotation.alpha(self.curve.quadpoints))
+                                      self.rotation.alpha(self.curve.quadpoints))
 
     def rotated_frame_dash(self):
         return rotated_centroid_frame_dash(
