@@ -1,7 +1,7 @@
 import unittest
 from simsopt.geo import FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
 from simsopt.configs.zoo import get_ncsx_data
-from simsopt.geo.strain_optimization_classes import LPBinormalCurvatureStrainPenalty, LPTorsionalStrainPenalty
+from simsopt.geo.strain_optimization import LPBinormalCurvatureStrainPenalty, LPTorsionalStrainPenalty
 import numpy as np
 
 
