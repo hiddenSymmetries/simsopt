@@ -183,7 +183,7 @@ class Testing(unittest.TestCase):
             with self.assertRaises(NotImplementedError):
                 errors5, Bn_errors5, m_history5 = GPMO(pm_opt, algorithm='random_name', **kwargs)
 
-            kwargs['m_init'] = pm_opt.m.reshape([-1,3])
+            kwargs['m_init'] = pm_opt.m.reshape([-1, 3])
             pm_opt.coordinate_flag = 'cartesian'
             errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
             # Note: when K = n_history, m_history[:,:,-1] will be zeros
@@ -191,7 +191,6 @@ class Testing(unittest.TestCase):
             with self.assertRaises(ValueError):
                 kwargs['m_init'] = m_history6[:-1, :, -1]
                 errors6, Bn_errors6, m_history6 = GPMO(pm_opt, algorithm='ArbVec_backtracking', **kwargs)
-
 
 
 if __name__ == "__main__":
