@@ -243,10 +243,10 @@ telling the backtracking that only oppositely-oriented magnet pairs that are wit
 10 nearest neighbors should be removed. Playing with this hyperparameter can improve performance
 for most stellarators. 
 
-Next, Ken Hammond has nicely incorporated an ability to define arbitrary coordinate systems
+Next, it is possible to define arbitrary coordinate systems
 for each of the permanent magnets. The result is that each of the permanent magnets is given a 
 set of orientation vectors that determine the discrete set of allowable dipole vector directions 
-for that magnet. An advanced usage, using the Subset 5 orientations from the PM4Stell paper `Design of an arrangement of cubic magnets for a quasi-axisymmetric stellarator experiment
+for that magnet. An advanced usage, using the Subset 5 orientations from the paper `Design of an arrangement of cubic magnets for a quasi-axisymmetric stellarator experiment
 <https://iopscience.iop.org/article/10.1088/1741-4326/ac906e/meta>`__ is as follows::
 
   # Obtain data on the magnet arrangement
@@ -326,3 +326,31 @@ use of the GPMO algorithm and its variants looks something like::
 This performs GPMO with backtracking and the orientations allowed in `pol_vectors`. The backtracking is performed
 only every 200 iterations, and, if a given magnet and one of its 10 nearest
 neighbors are oriented > 120 degrees with respect to each other, this pair is removed. 
+
+The `'ArbVec_backtracking'` algorithm also supports user-input initial
+guesses for solutions. In the previous examples, the GPMO algorithms were
+all initialized to empty grids. To initialize to an arbitrary solution,
+use the `'m_init'` keyword argument. `'m_init'` is a 2D array with one row for
+each grid position and three columns, with each column corresponding to a
+Cartesian x, y, or z component of the dipole moment for each grid position. 
+
+The optimizer will ensure that the initial guess solution complies with the 
+allowable polarizations specified by the `pol_vectors` field of the `pm_grid` 
+class instance. Thus, if any rows of the `'m_init'` keyword argument contain
+dipole moments that are not permitted for the respective grid position, 
+the optimizer will instead use the closest allowable dipole moment (possibly 
+zero).
+
+As an example, suppose a set of magnets contained within `pm_opt` from the
+previous examples has already been optimized, and you would like to refine
+the optimization with different GPMO parameters. The initialization and
+re-optimization can be performed as follows::
+
+  kwargs['m_init'] = pm_opt.m.reshape([-1, 3])
+  # Modify other kwargs as desired to adjust optimization parameters
+  R2_history2, Bn_history2, m_history2 = GPMO(pm_opt, algorithm, **kwargs)
+
+Note that initializations via the `'m_init'` keyword argument are currently 
+only supported for the `'ArbVec_backtracking'` algorithm.
+
+
