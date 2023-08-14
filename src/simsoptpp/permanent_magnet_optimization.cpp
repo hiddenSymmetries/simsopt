@@ -935,8 +935,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
                 }
             }
-            printf("%d wyrms removed out of %d possible dipoles\n", wyrm_sum,
-                   backtracking);
+            printf("Backtracking: %d wyrms removed\n", wyrm_sum);
         }
 
 	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
