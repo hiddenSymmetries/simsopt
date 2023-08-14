@@ -738,6 +738,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
     int N3 = 3 * N;
     int NNp = nPolVecs * N;
     int print_iter = 0;
+    double cos_thresh_angle = cos(thresh_angle);
 
     Array x = xt::zeros<double>({N, 3});
     vector<int> x_vec(N);
@@ -792,7 +793,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_ArbVec_backtracking(
 
     // Main loop over the optimization iterations
     for (int k = 0; k < K; ++k) {
-        double cos_thresh_angle = cos(thresh_angle);
 
 #pragma omp parallel for schedule(static)
 	for (int j = 0; j < N; j += 1) {
