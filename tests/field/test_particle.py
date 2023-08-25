@@ -70,7 +70,6 @@ def validate_phi_hits(phi_hits, bfield, nphis):
                 return False
     return True
 
-@unittest.skip("skip")
 class ParticleTracingTesting(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):

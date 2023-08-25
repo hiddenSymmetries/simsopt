@@ -151,7 +151,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
         int offset_local = l;
         double* val_ptr = &(vals_local[offset_local]);
         for (int i = 0; i < degree+1; ++i) {
-            simd_t sumj(0.); 
+            simd_t sumj(0.);
             for (int j = 0; j < degree+1; ++j) {
                 simd_t sumk(0.);
                 for (int k = 0; k < degree+1; ++k) {

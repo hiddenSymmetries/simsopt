@@ -187,6 +187,7 @@ class Boozer(Optimizable):
             assert len(self.bx.xm_nyq) == self.bx.mnmax_nyq
             assert len(self.bx.xn_nyq) == self.bx.mnmax_nyq
 
+            self.bx.phi = wout.phi 
             if wout.lasym:
                 rmns = wout.rmns
                 zmnc = wout.zmnc
@@ -220,7 +221,8 @@ class Boozer(Optimizable):
                                    wout.bsubumnc,
                                    bsubumns,
                                    wout.bsubvmnc,
-                                   bsubvmns)
+                                   bsubvmns,
+                                   wout.chi)
             self.bx.compute_surfs = compute_surfs
             self.bx.mboz = self.mpol
             self.bx.nboz = self.ntor

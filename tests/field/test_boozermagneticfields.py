@@ -8,20 +8,8 @@ filename_mhd = str((TEST_DIR / 'wout_n3are_R7.75B5.7.nc').resolve())
 filename_mhd_lowres = str((TEST_DIR / 'wout_n3are_R7.75B5.7_lowres.nc').resolve())
 filename_mhd_lasym = str((TEST_DIR / 'wout_10x10.nc').resolve())
 
-try:
-    import vmec
-except ImportError as e:
-    vmec = None
-
-try:
-    from mpi4py import MPI
-except ImportError as e:
-    MPI = None
-
-if (MPI is not None) and (vmec is not None):
-    from simsopt.mhd.vmec import Vmec
-    from simsopt.mhd.boozer import Boozer
-
+from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.boozer import Boozer
 
 class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
@@ -116,7 +104,6 @@ class TestingAnalytic(unittest.TestCase):
         assert (ba.K1 == 3.7)
 
 
-@unittest.skipIf(vmec is None, "vmec python package is not found")
 class TestingVmec(unittest.TestCase):
     def test_boozerradialinterpolant_finite_beta(self):
         """
@@ -139,7 +126,7 @@ class TestingVmec(unittest.TestCase):
         zetas_flat = zetas.flatten()
 
         # The following tests different initializations of BoozerRadialInterpolant
-        for asym in [True, False]:
+        for asym in [False,True]:
             if asym:
                 vmec = vmec_asym
             else:
@@ -319,7 +306,7 @@ class TestingVmec(unittest.TestCase):
                 G_full = (vmec.wout.bvco[1:-1]+vmec.wout.bvco[2::])/2.
                 iota_full = (vmec.wout.iotas[1:-1]+vmec.wout.iotas[2::])/2.
                 # magnitude of B at theta = 0, zeta = 0
-                modB00 = np.sum(bri.booz.bx.bmnc_b, axis=0)
+                modB00 = np.sum(bri.bx.bmnc_b, axis=0)
                 modB_full = (modB00[0:-1]+modB00[1::])/2
 
                 # Compare splines of derivatives with spline derivatives
@@ -328,8 +315,8 @@ class TestingVmec(unittest.TestCase):
                 iota_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.iotas[1::])
                 modB00_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, modB00)
 
-                rmnc_half = bri.booz.bx.rmnc_b
-                rmnc_full = 0.5*(bri.booz.bx.rmnc_b[:, 0:-1] + bri.booz.bx.rmnc_b[:, 1::])
+                rmnc_half = bri.bx.rmnc_b
+                rmnc_full = 0.5*(bri.bx.rmnc_b[:, 0:-1] + bri.bx.rmnc_b[:, 1::])
                 # major radius at theta = 0, zeta = 0
                 R00_half = np.sum(rmnc_half, axis=0)
                 R00_full = np.sum(rmnc_full, axis=0)

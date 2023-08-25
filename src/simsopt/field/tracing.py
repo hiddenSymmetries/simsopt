@@ -71,12 +71,12 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
     return xyz_inits_full, v_inits, rgs
 
 
-def trace_particles_boozer(field: BoozerMagneticField,
-                           stz_inits: RealArray,  # NDArray[Float],
-                           parallel_speeds: RealArray,  # NDArray[Float],
-                           tmax=1e-4,
+def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: RealArray,
+                           parallel_speeds: RealArray, mus: RealArray, tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, comm=None, zetas=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False, solveSympl=False):
+                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           forget_exact_path=False, zetas_stop=False, vpars_stop=False,
+                           Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=0):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. This is modeled after
     :func:`trace_particles`.
@@ -162,7 +162,142 @@ def trace_particles_boozer(field: BoozerMagneticField,
             or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
+    nparticles = stz_inits.shape[0]
+    assert stz_inits.shape[0] == len(parallel_speeds)
+    assert len(mus) == len(parallel_speeds)
+    speed_par = parallel_speeds
+    m = mass
+    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    mode = mode.lower()
+    assert mode in ['gc', 'gc_vac', 'gc_nok']
 
+    res_tys = []
+    res_zeta_hits = []
+    loss_ctr = 0
+    first, last = parallel_loop_bounds(comm, nparticles)
+    for i in range(first, last):
+        res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
+            field, stz_inits[i, :], m, charge, speed_total, speed_par[i], mus[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
+            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
+            phis_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
+            Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
+        if not forget_exact_path:
+            res_tys.append(np.asarray(res_ty))
+        else:
+            res_tys.append(np.asarray([res_ty[0], res_ty[-1]]))
+        res_zeta_hits.append(np.asarray(res_zeta_hit))
+        dtavg = res_ty[-1][0]/len(res_ty)
+        logger.debug(f"{i+1:3d}/{nparticles}, t_final={res_ty[-1][0]}, average timestep {1000*dtavg:.10f}ms")
+        if res_ty[-1][0] < tmax - 1e-15:
+            loss_ctr += 1
+    if comm is not None:
+        loss_ctr = comm.allreduce(loss_ctr)
+    if comm is not None:
+        res_tys = [i for o in comm.allgather(res_tys) for i in o]
+        res_zeta_hits = [i for o in comm.allgather(res_zeta_hits) for i in o]
+
+    logger.debug(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
+    return res_tys, res_zeta_hits
+
+
+def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
+                           parallel_speeds: RealArray, tmax=1e-4,
+                           mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           forget_exact_path=False, zetas_stop=False, vpars_stop=False, axis=0,  solveSympl=False):
+    r"""
+    Follow particles in a :class:`BoozerMagneticField`. This is modeled after
+    :func:`trace_particles`.
+
+
+    In the case of ``mod='gc_vac'`` we solve the guiding center equations under
+    the vacuum assumption, i.e :math:`G =` const. and :math:`I = 0`:
+
+    .. math::
+
+        \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+
+        \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+
+        \dot \zeta = v_{||}|B|/G
+
+        \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
+
+    where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp^2 = 2\mu|B|`.
+
+    In the case of ``mode='gc'`` we solve the general guiding center equations
+    for an MHD equilibrium:
+
+    .. math::
+
+        \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
+
+        \dot \theta = ((G |B|_{,\psi} - K |B|_{,\zeta}) m(v_{||}^2/|B| + \mu) - C v_{||} |B|)/(\iota D)
+
+        \dot \zeta = (F v_{||} |B| - (|B|_{,\psi} I - |B|_{,\theta} K) m(\rho_{||}^2 |B| + \mu) )/(\iota D)
+
+        \dot v_{||} = (C|B|_{,\theta} - F|B|_{,\zeta})\mu |B|/(\iota D)
+
+        C = - m v_{||} K_{,\zeta}/|B|  - q \iota + m v_{||}G'/|B|
+
+        F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
+
+        D = (F G - C I))/\iota
+
+    where primes indicate differentiation wrt :math:`\psi`. In the case ``mod='gc_noK'``,
+    the above equations are used with :math:`K=0`.
+
+    Args:
+        field: The :class:`BoozerMagneticField` instance
+        stz_inits: A ``(nparticles, 3)`` array with the initial positions of
+            the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
+        parallel_speeds: A ``(nparticles, )`` array containing the speed in
+                         direction of the B field for each particle.
+        tmax: integration time
+        mass: particle mass in kg, defaults to the mass of an alpha particle
+        charge: charge in Coulomb, defaults to the charge of an alpha particle
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV
+        tol: tolerance for the adaptive ode solver
+        comm: MPI communicator to parallelize over
+        zetas: list of angles in [0, 2pi] for which intersection with the plane
+              corresponding to that zeta should be computed
+        stopping_criteria: list of stopping criteria, mostly used in
+                           combination with the ``LevelsetStoppingCriterion``
+                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. options are
+            `gc`: general guiding center equations,
+            `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
+                           :math:`I = 0`, and :math:`K = 0`.
+            `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
+        forget_exact_path: return only the first and last position of each
+                           particle for the ``res_tys``. To be used when only res_zeta_hits is of
+                           interest or one wants to reduce memory usage.
+
+    Returns: 2 element tuple containing
+        - ``res_tys``:
+            A list of numpy arrays (one for each particle) describing the
+            solution over time. The numpy array is of shape (ntimesteps, M)
+            with M depending on the ``mode``.  Each row contains the time and
+            the state.  So for `mode='gc'` and `mode='gc_vac'` the state
+            consists of the :math:`(s,\theta,\zeta)` position and the parallel speed, hence
+            each row contains `[t, s, t, z, v_par]`.
+
+        - ``res_zeta_hits``:
+            A list of numpy arrays (one for each particle) containing
+            information on each time the particle hits one of the zeta planes or
+            one of the stopping criteria. Each row of the array contains
+            `[time] + [idx] + state`, where `idx` tells us which of the `zetas`
+            or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
+            was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+    """
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     nparticles = stz_inits.shape[0]
     assert stz_inits.shape[0] == len(parallel_speeds)
     speed_par = parallel_speeds
@@ -178,8 +313,9 @@ def trace_particles_boozer(field: BoozerMagneticField,
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
-            m, charge, speed_total, speed_par[i], tmax, tol, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), solveSympl=solveSympl, zetas=zetas, forget_exact_path = forget_exact_path, stopping_criteria=stopping_criteria)
+            m, charge, speed_total, speed_par[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
+            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
+            phis_stop=zetas_stop,vpars_stop=vpars_stop,forget_exact_path=forget_exact_path,axis=axis, solveSympl=solveSympl)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
@@ -194,6 +330,7 @@ def trace_particles_boozer(field: BoozerMagneticField,
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_zeta_hits = [i for o in comm.allgather(res_zeta_hits) for i in o]
+
     logger.debug(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_zeta_hits
 
@@ -203,7 +340,7 @@ def trace_particles(field: MagneticField,
                     parallel_speeds: RealArray,  # NDArray[Float],
                     tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                    tol=1e-9, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
+                    tol=1e-9, abstol=None, reltol=None, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                     phase_angle=0):
     r"""
     Follow particles in a magnetic field.
@@ -269,7 +406,10 @@ def trace_particles(field: MagneticField,
             or `stopping_criteria` was hit.  If `idx>=0`, then `phis[int(idx)]`
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
-
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     nparticles = xyz_inits.shape[0]
     assert xyz_inits.shape[0] == len(parallel_speeds)
     speed_par = parallel_speeds
@@ -288,12 +428,12 @@ def trace_particles(field: MagneticField,
         if 'gc' in mode:
             res_ty, res_phi_hit = sopp.particle_guiding_center_tracing(
                 field, xyz_inits[i, :],
-                m, charge, speed_total, speed_par[i], tmax, tol,
+                m, charge, speed_total, speed_par[i], tmax, abstol, reltol,
                 vacuum=(mode == 'gc_vac'), phis=phis, stopping_criteria=stopping_criteria)
         else:
             res_ty, res_phi_hit = sopp.particle_fullorbit_tracing(
                 field, xyz_inits[i, :], v_inits[i, :],
-                m, charge, tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+                m, charge, tmax, abstol, reltol, phis=phis, stopping_criteria=stopping_criteria)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
@@ -315,7 +455,7 @@ def trace_particles(field: MagneticField,
 def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
                                       mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                       Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                      tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                      tol=1e-9, abstol=None, reltol=None, comm=None, seed=1, umin=-1, umax=+1,
                                       phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                                       phase_angle=0):
     r"""
@@ -354,6 +494,10 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
@@ -362,7 +506,7 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
     xyz, _ = draw_uniform_on_curve(curve, nparticles, safetyfactor=10)
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
-        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        Ekin=Ekin, abstol=abstol, reltol=reltol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
         phase_angle=phase_angle)
 
@@ -370,7 +514,7 @@ def trace_particles_starting_on_curve(curve, field, nparticles, tmax=1e-4,
 def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
                                         mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE,
                                         Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                                        tol=1e-9, comm=None, seed=1, umin=-1, umax=+1,
+                                        tol=1e-9, abstol=None, reltol=None, comm=None, seed=1, umin=-1, umax=+1,
                                         phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                                         phase_angle=0):
     r"""
@@ -410,6 +554,10 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
 
     Returns: see :mod:`simsopt.field.tracing.trace_particles`
     """
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     m = mass
     speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     np.random.seed(seed)
@@ -418,7 +566,7 @@ def trace_particles_starting_on_surface(surface, field, nparticles, tmax=1e-4,
     xyz, _ = draw_uniform_on_surface(surface, nparticles, safetyfactor=10)
     return trace_particles(
         field, xyz, speed_par, tmax=tmax, mass=mass, charge=charge,
-        Ekin=Ekin, tol=tol, comm=comm, phis=phis,
+        Ekin=Ekin, abstol=abstol, reltol=reltol, comm=comm, phis=phis,
         stopping_criteria=stopping_criteria, mode=mode, forget_exact_path=forget_exact_path,
         phase_angle=phase_angle)
 
@@ -654,7 +802,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
     return ntransits
 
 
-def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_criteria=[], comm=None):
+def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, abstol=None, reltol=None, phis=[], stopping_criteria=[], comm=None):
     r"""
     Compute magnetic field lines by solving
 
@@ -689,6 +837,10 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
     assert len(R0) == len(Z0)
+    if reltol is None:
+        reltol = tol 
+    if abstol is None:
+        abstol = tol 
     nlines = len(R0)
     xyz_inits = np.zeros((nlines, 3))
     xyz_inits[:, 0] = np.asarray(R0)
@@ -699,7 +851,7 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, phis=[], stopping_crit
     for i in range(first, last):
         res_ty, res_phi_hit = sopp.fieldline_tracing(
             field, xyz_inits[i, :],
-            tmax, tol, phis=phis, stopping_criteria=stopping_criteria)
+            tmax, abstol, reltol, phis=phis, stopping_criteria=stopping_criteria)
         res_tys.append(np.asarray(res_ty))
         res_phi_hits.append(np.asarray(res_phi_hit))
         dtavg = res_ty[-1][0]/len(res_ty)
@@ -799,6 +951,23 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
+class StepSizeStoppingCriterion(sopp.StepSizeStoppingCriterion):
+    """
+    Stop the iteration once the step size is too small.
+    """
+    pass
+
+class VparStoppingCriterion(sopp.VparStoppingCriterion):
+    """
+    Stop the iteration once the maximum number of iterations is reached.
+    """
+    pass
+
+class ZetaStoppingCriterion(sopp.ZetaStoppingCriterion):
+    """
+    Stop the iteration once the maximum number of iterations is reached.
+    """
+    pass
 
 def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300):
     """
