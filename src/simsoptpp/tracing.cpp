@@ -1005,7 +1005,7 @@ int f_quasi_exact(const gsl_vector* x, void* p, gsl_vector* f)
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol, double tol_root, vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool forget_exact_path = false)
+solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double tol_root, vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool forget_exact_path = false)
 {
     vector<array<double, 5>> res = {};
     vector<array<double, 6>> res_phi_hits = {};
@@ -1082,7 +1082,7 @@ solve_sympl(SymplField<T> f, array<double, 4> y, double tmax, double dt, double 
             // not gonna ever reach 0 tho, hybrids will auto stop
             // if no progress is made.
             // probably can be changed into test delta function
-            status = gsl_multiroot_test_residual(s->f, 0); //tolerance --> tol_roots
+            status = gsl_multiroot_test_residual(s->f, tol_root); //tolerance --> tol_roots
           }
         while (status == GSL_CONTINUE && iter < 100);
         // printf ("status = %s\n", gsl_strerror (status));
@@ -1237,16 +1237,15 @@ particle_guiding_center_boozer_tracing(
         //TODO
         if (vacuum) {
             auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria, forget_exact_path);
+            return solve_sympl(f, y, tmax, dt, tol_root, stopping_criteria, forget_exact_path);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         } else if (noK) {
             auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria, forget_exact_path);
+            return solve_sympl(f, y, tmax, dt, tol_root, stopping_criteria, forget_exact_path);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         } else {
-        if (solveSympl) {
         auto f = SymplField<T>(field, m, q, mu);
-            return solve_sympl(f, y, tmax, dt, tol, tol_root, stopping_criteria, forget_exact_path);
+            return solve_sympl(f, y, tmax, dt, tol_root, stopping_criteria, forget_exact_path);
             //return solve_sympl(rhs, y, tmax, dt, tol, stopping_criteria);
         }
     } else {

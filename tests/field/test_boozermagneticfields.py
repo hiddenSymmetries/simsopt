@@ -329,7 +329,7 @@ class TestingVmec(unittest.TestCase):
 
                 # Only compare away from axis since inacurracies are introduced through
                 # spline due to r ~ sqrt(s) behavior
-                if not bri.stellsym:
+                if bri.asym:
                     mean_dGds = np.mean(np.abs(bri.dGds()[5::, 0]))
                 else:
                     # This is a vacuum case, so dGds is close to zero
@@ -360,7 +360,7 @@ class TestingVmec(unittest.TestCase):
                 zmns_half = 0.5*(vmec.wout.zmns[:, 0:-1] + vmec.wout.zmns[:, 1::])
                 lmns_full = 0.5*(vmec.wout.lmns[:, 1:-1] + vmec.wout.lmns[:, 2::])
                 lmns_half = vmec.wout.lmns[:, 1::]
-                if not bri.stellsym:
+                if bri.asym:
                     lmnc_full = 0.5*(vmec.wout.lmnc[:, 1:-1] + vmec.wout.lmnc[:, 2::])
                     lmnc_half = vmec.wout.lmnc[:, 1::]
                     zmnc_full = vmec.wout.zmnc[:, 1:-1]

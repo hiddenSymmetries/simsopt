@@ -1,10 +1,10 @@
 import simsoptpp as sopp
-import concurrent.futures
 from scipy.interpolate import InterpolatedUnivariateSpline
 import numpy as np
 import logging
 from booz_xform import Booz_xform
 from .._core.util import parallel_loop_bounds
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -365,6 +365,9 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mpi = equil.mpi
         else:
             self.mpi = mpi
+
+        self.threads = sopp.omp_num_threads()
+        self.executor = concurrent.futures.ThreadPoolExecutor(self.threads)
 
         if self.mpi is not None:
             self.proc0 = False
@@ -1255,19 +1258,16 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         else:
             first_s, last_s = 0, len(s)
 
-        chunk_idxs = [i * len(self.xm_b) // num_chunks for i in range(num_chunks + 1)]
-        chunk_mn = np.empty((int(np.ceil(len(self.xm_b) / num_chunks)), last_s-first_s))
-        for i in range(num_chunks):
-            st, ed = chunk_idxs[i], chunk_idxs[i + 1]
+        mn = np.empty((len(self.xm_b), last_s-first_s))
+        xm_idxs = [i * len(self.xm_b) // self.threads for i in range(self.threads + 1)]
 
-            xm_idxs = [i * (ed - st) // self.threads for i in range(self.threads + 1)]
-            futures = {
-                self.executor.submit(harmonics, us, chunk_mn, inv, xm_idxs[i], xm_idxs[i + 1], st): i
-                for i in range(self.threads)
-            }
-            concurrent.futures.wait(futures)
+        futures = {
+            self.executor.submit(harmonics, us, mn, inv, xm_idxs[i], xm_idxs[i + 1], 0): i
+            for i in range(self.threads)
+        }
+        concurrent.futures.wait(futures)
 
-            inverse_fourier(output, chunk_mn[:ed - st], self.xm_b[st:ed], self.xn_b[st:ed], thetas, zetas)
+        inverse_fourier(output, mn, self.xm_b, self.xn_b, thetas, zetas)
 
         if (self.mpi is not None):
             self.mpi.comm_world.Allgatherv(output, [recv_buffer, count_s, displ_s, MPI.DOUBLE])
