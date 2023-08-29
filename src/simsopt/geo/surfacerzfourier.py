@@ -215,6 +215,40 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
+    
+    
+    @classmethod
+    def from_other_surface(cls, other: "SurfaceRZFourier", **kwargs):
+        """
+        Initialize a new SurfaceRZFourier object from another surface, changing 
+        the parameters specified by **kwargs
+        """
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        grid_range = kwargs.pop("range", None)
+
+        otherntheta = other.quadpoints_theta.size 
+        othernphi = other.quadpoints_phi.size 
+
+        #recalculate the quadpoints if necessary (grid_range is not stored in the
+        # surface object, so assume that if it is given, the gridpoints should be
+        # recalculated to the specified size)
+        if ntheta is not otherntheta and nphi is not othernphi and grid_range is not None:
+            kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                ntheta=ntheta, nphi=nphi, nfp=other.nfp, range=grid_range)
+        else: 
+            kwargs["quadpoints_phi"] = other.quadpoints_phi
+            kwargs["quadpoints_theta"] = other.quadpoints_theta
+        
+        surf = cls(mpol=other.mpol, ntor=other.ntor, nfp=other.nfp, stellsym=other.stellsym,
+                     **kwargs)
+        surf.rc[:, :] = other.rc
+        surf.zs[:, :] = other.zs
+        if not other.stellsym:
+            surf.rs[:, :] = other.rs
+            surf.zc[:, :] = other.zc
+        surf.local_full_x = surf.get_dofs()
+        return surf
 
     @classmethod
     def from_vmec_input(cls, filename: str, **kwargs):
