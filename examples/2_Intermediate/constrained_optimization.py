@@ -4,10 +4,10 @@ import os
 
 import numpy as np
 
-from simsopt.util.mpi import MpiPartition
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import ConstrainedProblem
-from simsopt.solve.mpi import constrained_mpi_solve
+from simsopt.solve import constrained_mpi_solve
+from simsopt.util import MpiPartition, proc0_print
 
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=-1)
@@ -28,9 +28,8 @@ Run with e.g.
 mpi = MpiPartition()
 mpi.write()
 
-if mpi.proc0_world:
-    print("Running 2_Intermediate/constrained_optimization.py")
-    print("==================================================")
+proc0_print("Running 2_Intermediate/constrained_optimization.py")
+proc0_print("==================================================")
 
 
 vmec_input = os.path.join(os.path.dirname(__file__), 'inputs', 'input.nfp4_QH_warm_start')
@@ -48,10 +47,9 @@ tuples_nlc = [(vmec.aspect, -np.inf, 8), (vmec.mean_iota, -1.05, -1.0)]
 prob = ConstrainedProblem(qs.total, tuples_nlc=tuples_nlc)
 
 vmec.run()
-if mpi.proc0_world:
-    print("Initial Quasisymmetry:", qs.total())
-    print("Initial aspect ratio:", vmec.aspect())
-    print("Initial rotational transform:", vmec.mean_iota())
+proc0_print("Initial Quasisymmetry:", qs.total())
+proc0_print("Initial aspect ratio:", vmec.aspect())
+proc0_print("Initial rotational transform:", vmec.mean_iota())
 
 
 # Fourier modes of the boundary with m <= max_mode and |n| <= max_mode
@@ -64,10 +62,9 @@ for step in range(3):
     vmec.indata.mpol = 3 + step
     vmec.indata.ntor = vmec.indata.mpol
 
-    if mpi.proc0_world:
-        print("Beginning optimization with max_mode =", max_mode, \
-              ", vmec mpol=ntor=", vmec.indata.mpol, \
-              ". Previous vmec iteration = ", vmec.iter)
+    proc0_print("Beginning optimization with max_mode =", max_mode, \
+                ", vmec mpol=ntor=", vmec.indata.mpol, \
+                ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
     surf.fix_all()
@@ -94,17 +91,15 @@ for step in range(3):
     # evaluate the solution
     surf.x = xopt
     vmec.run()
-    if mpi.proc0_world:
-        print("")
-        print(f"Completed optimization with max_mode ={max_mode}. ")
-        print(f"Final vmec iteration = {vmec.iter}")
-        print("Quasisymmetry:", qs.total())
-        print("aspect ratio:", vmec.aspect())
-        print("rotational transform:", vmec.mean_iota())
+    proc0_print("")
+    proc0_print(f"Completed optimization with max_mode ={max_mode}. ")
+    proc0_print(f"Final vmec iteration = {vmec.iter}")
+    proc0_print("Quasisymmetry:", qs.total())
+    proc0_print("aspect ratio:", vmec.aspect())
+    proc0_print("rotational transform:", vmec.mean_iota())
 
 
-if mpi.proc0_world:
-    print("")
-    print("End of 2_Intermediate/constrained_optimization.py")
-    print("=================================================")
+proc0_print("")
+proc0_print("End of 2_Intermediate/constrained_optimization.py")
+proc0_print("=================================================")
 

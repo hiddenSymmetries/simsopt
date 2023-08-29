@@ -2,11 +2,10 @@
 
 import os
 import numpy as np
-from simsopt.util import MpiPartition
-from simsopt.mhd import Vmec
-from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, proc0_print
 
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=1)
@@ -16,8 +15,8 @@ throughout the volume.
 # This problem has 24 degrees of freedom, so we can use 24 + 1 = 25
 # concurrent function evaluations for 1-sided finite difference
 # gradients.
-print("Running 2_Intermediate/QH_fixed_resolution.py")
-print("=============================================")
+proc0_print("Running 2_Intermediate/QH_fixed_resolution.py")
+proc0_print("=============================================")
 
 mpi = MpiPartition(25)
 
@@ -33,7 +32,7 @@ surf.fixed_range(mmin=0, mmax=max_mode,
                  nmin=-max_mode, nmax=max_mode, fixed=False)
 surf.fix("rc(0,0)")  # Major radius
 
-print('Parameter space:', surf.dof_names)
+proc0_print('Parameter space:', surf.dof_names)
 
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(vmec,
@@ -44,17 +43,23 @@ qs = QuasisymmetryRatioResidual(vmec,
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
                                         (qs.residuals, 0, 1)])
 
-print("Quasisymmetry objective before optimization:", qs.total())
-print("Total objective before optimization:", prob.objective())
+# Make sure all procs participate in computing the objective:
+prob.objective()
+
+proc0_print("Quasisymmetry objective before optimization:", qs.total())
+proc0_print("Total objective before optimization:", prob.objective())
 
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
 least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=1)
 
-print("Final aspect ratio:", vmec.aspect())
-print("Quasisymmetry objective after optimization:", qs.total())
-print("Total objective after optimization:", prob.objective())
+# Make sure all procs participate in computing the objective:
+prob.objective()
 
-print("End of 2_Intermediate/QH_fixed_resolution.py")
-print("============================================")
+proc0_print("Final aspect ratio:", vmec.aspect())
+proc0_print("Quasisymmetry objective after optimization:", qs.total())
+proc0_print("Total objective after optimization:", prob.objective())
+
+proc0_print("End of 2_Intermediate/QH_fixed_resolution.py")
+proc0_print("============================================")

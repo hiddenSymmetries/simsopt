@@ -875,7 +875,10 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curve.set("xc(1)", cos(angle)*R1)
         curve.set("yc(0)", sin(angle)*R0)
         curve.set("yc(1)", sin(angle)*R1)
-        curve.set("zs(1)", R1)
+        # The the next line, the minus sign is for consistency with
+        # Vmec.external_current(), so the coils create a toroidal field of the
+        # proper sign and free-boundary equilibrium works following stage-2 optimization.
+        curve.set("zs(1)", -R1)
         curve.x = curve.x  # need to do this to transfer data to C++
         curves.append(curve)
     return curves

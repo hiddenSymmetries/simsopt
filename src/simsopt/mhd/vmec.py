@@ -8,7 +8,7 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Union
+from typing import Optional
 from datetime import datetime
 
 import numpy as np
@@ -260,8 +260,8 @@ class Vmec(Optimizable):
     """
 
     def __init__(self,
-                 filename: Union[str, None] = None,
-                 mpi: Union[MpiPartition, None] = None,
+                 filename: Optional[str] = None,
+                 mpi: Optional[MpiPartition] = None,
                  keep_all_files: bool = False,
                  verbose: bool = True,
                  ntheta=50,
@@ -568,9 +568,20 @@ class Vmec(Optimizable):
         nml += f'NFP = {vi.nfp}\n'
         nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
 
+        if vi.lfreeb:
+            nml += '\n! ---- Free-boundary parameters ----\n'
+            nml += 'LFREEB = T\n'
+            nml += f"MGRID_FILE = '{vi.mgrid_file.decode('utf-8')}'\n"
+            nml += 'EXTCUR = ' + array_to_namelist(vi.extcur)
+            nml += '\n'
+
         nml += '\n! ---- Resolution parameters ----\n'
         nml += f'MPOL = {vi.mpol}\n'
         nml += f'NTOR = {vi.ntor}\n'
+        if vi.ntheta != 0:
+            nml += f'NTHETA = {vi.ntheta}\n'
+        if vi.nzeta != 0:
+            nml += f'NZETA = {vi.nzeta}\n'
         index = np.max(np.nonzero(vi.ns_array))
         nml += f'NS_ARRAY    ='
         for j in range(index + 1):
