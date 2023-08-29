@@ -9,6 +9,7 @@ import numpy as np
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
@@ -46,7 +47,6 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
         fminuseps = f(x - eps * direction)
         dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
-        # print(err)
         assert err < 1e-9 or err < 0.3 * err_old
         if err < 1e-9:
             break
@@ -72,6 +72,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     elif curvetype == "CurveHelicalInitx0":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones((2*order,)))
+    elif curvetype == "CurvePlanarFourier":
+        curve = CurvePlanarFourier(x, order, 2, True)
     else:
         assert False
 
@@ -80,7 +82,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[1] = 1.
         dofs[2*order + 3] = 1.
         dofs[4*order + 3] = 1.
-    elif curvetype in ["CurveRZFourier"]:
+    elif curvetype in ["CurveRZFourier", "CurvePlanarFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -97,9 +99,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurveHelical",
-                  "CurveHelicalInitx0"]
-
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveHelicalInitx0"]
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
         curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
