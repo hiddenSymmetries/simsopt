@@ -58,26 +58,14 @@ class CurvePlanarFourier : public Curve<Array> {
 
         void set_dofs_impl(const vector<double>& dofs) override {
             int counter = 0;
-            double s = 0;
             for (int i = 0; i < order + 1; ++i)
                 rc.data()[i] = dofs[counter++];
             for (int i = 0; i < order; ++i)
                 rs.data()[i] = dofs[counter++];
-            for (int i = 0; i < 4; ++i){
+            for (int i = 0; i < 4; ++i)
                 q.data()[i] = dofs[counter++];
-                s += q[i] * q[i];
-            }
-            /* Converts to unit quaternion */
-            if(s != 0) {
-                for (int i = 0; i < 4; ++i)
-                    q.data()[i] = q[i] / std::sqrt(s); 
-            }
-            else {
-                q.data()[0] = 1;
-            }
-            for (int i = 0; i < 3; ++i){
+            for (int i = 0; i < 3; ++i)
                 center.data()[i] = dofs[counter++];
-            }
         }
 
         vector<double> get_dofs() override {

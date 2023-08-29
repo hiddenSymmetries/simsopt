@@ -5,6 +5,19 @@ template<class Array>
 void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
     int numquadpoints = quadpoints.size();
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
+
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -27,15 +40,27 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
         j = data(m, 1);
         k = data(m, 2);
 
-        data(m, 0) = (i - 2 * (q[2] * q[2] + q[3] * q[3]) * i + 2 * (q[1] * q[2] - q[3] * q[0]) * j + 2 * (q[1] * q[3] + q[2] * q[0]) * k) + center[0];
-        data(m, 1) = (2 * (q[1] * q[2] + q[3] * q[0]) * i + j - 2 * (q[1] * q[1] + q[3] * q[3]) * j + 2 * (q[2] * q[3] - q[1] * q[0]) * k) + center[1];
-        data(m, 2) = (2 * (q[1] * q[3] - q[2] * q[0]) * i + 2 * (q[2] * q[3] + q[1] * q[0]) * j + k - 2 * (q[1] * q[1] + q[2] * q[2]) * k) + center[2];
+        data(m, 0) = (i - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k) + center[0];
+        data(m, 1) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i + j - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k) + center[1];
+        data(m, 2) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j + k - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k) + center[2];
     }
 }
 
 template<class Array>
 void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -59,9 +84,9 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
         Array k = xt::zeros<double>({1});
         k[0] = data(m, 2);
 
-        data(m, 0) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-        data(m, 1) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-        data(m, 2) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+        data(m, 0) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+        data(m, 1) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+        data(m, 2) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
     }
     
 }
@@ -69,6 +94,18 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
 template<class Array>
 void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -94,9 +131,9 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
         Array k = xt::zeros<double>({1});
         k[0] = data(m, 2);
 
-        data(m, 0) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-        data(m, 1) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-        data(m, 2) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+        data(m, 0) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+        data(m, 1) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+        data(m, 2) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
     }
 }
@@ -104,6 +141,18 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
 template<class Array>
 void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         for (int i = 0; i < order+1; ++i) {
@@ -139,9 +188,9 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
         Array k = xt::zeros<double>({1});
         k[0] = data(m, 2);
 
-        data(m, 0) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-        data(m, 1) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-        data(m, 2) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+        data(m, 0) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+        data(m, 1) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+        data(m, 2) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
     }
 }
@@ -149,6 +198,18 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
 template<class Array>
 void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
     data *= 0;
+    
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         int counter = 0;
@@ -161,9 +222,9 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
             j[0] = cos(n*phi) * sin(phi);
             k[0] = 0;
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
             counter++;
         }
@@ -173,9 +234,9 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
             j[0] = sin(n*phi) * sin(phi);
             k[0] = 0;
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
             counter++;
         }
@@ -193,54 +254,54 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
             j[0] += rs[n-1] * sin(n*phi) * sin(phi);
         }
         
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[0]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[0]
-                            - 2 * j[0] * q[3];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[0]
-                            + 2 * i[0] * q[3]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[0];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[0]
-                            - 2 * i[0] * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[0]
-                            + 2 * j[0] * q[1];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1];
         counter++;
 
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[1]
-                            + 2 * j[0] * q[2];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[1]
-                            + 2 * i[0] * q[2]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * q[1];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[1]
-                            + 2 * i[0] * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[1]
-                            + 2 * j[0] * q[0];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[0] * q[0] + q[1] * q[1]) * q[2]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[2]
-                            + 2 * j[0] * q[1];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[2]
-                            + 2 * i[0] * q[1]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[2];
-        data(m, 2, counter) = - 2 * i[0] * q[0]
-                            - 4 * i[0] * (q[1] * q[3] - q[0] * q[2]) * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[2]
-                            + 2 * j[0] * q[3];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
+        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[1] * q[1] + q[0] * q[0]) * q[3]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[3]
-                            - 2 * j[0] * q[0];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[3]
-                            + 2 * i[0] * q[0]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[3]
-                            - 4 * j[0] * q[3];
-        data(m, 2, counter) = 2 * i[0] * q[1]
-                            + 4 * i[0] * (q[2] * q[0] - q[1] * q[3]) * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[3]
-                            + 2 * j[0] * q[2];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3];
+        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2];
         counter++;
 
 
@@ -258,6 +319,18 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
 template<class Array>
 void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         int counter = 0;
@@ -272,9 +345,9 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
             i[0] *= (2*M_PI);
             j[0] *= (2*M_PI);
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
             
 
             counter++;
@@ -288,9 +361,9 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
             i[0] *= (2*M_PI);
             j[0] *= (2*M_PI);
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
             counter++;
             
@@ -308,54 +381,54 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
                 j[0] += rs[n-1] * ( (n) * cos(n*phi) * sin(phi) + sin(n*phi) * cos(phi)) * 2 * M_PI;
         }
 
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[0]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[0]
-                            - 2 * j[0] * q[3];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[0]
-                            + 2 * i[0] * q[3]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[0];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[0]
-                            - 2 * i[0] * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[0]
-                            + 2 * j[0] * q[1];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1];
         counter++;
 
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[1]
-                            + 2 * j[0] * q[2];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[1]
-                            + 2 * i[0] * q[2]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * q[1];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[1]
-                            + 2 * i[0] * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[1]
-                            + 2 * j[0] * q[0];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[0] * q[0] + q[1] * q[1]) * q[2]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[2]
-                            + 2 * j[0] * q[1];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[2]
-                            + 2 * i[0] * q[1]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[2];
-        data(m, 2, counter) = - 2 * i[0] * q[0]
-                            - 4 * i[0] * (q[1] * q[3] - q[0] * q[2]) * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[2]
-                            + 2 * j[0] * q[3];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
+        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[1] * q[1] + q[0] * q[0]) * q[3]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[3]
-                            - 2 * j[0] * q[0];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[3]
-                            + 2 * i[0] * q[0]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[3]
-                            - 4 * j[0] * q[3];
-        data(m, 2, counter) = 2 * i[0] * q[1]
-                            + 4 * i[0] * (q[2] * q[0] - q[1] * q[3]) * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[3]
-                            + 2 * j[0] * q[2];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3];
+        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2];
         counter++;
 
         for (int i = 0; i < 2; ++i) {
@@ -372,6 +445,18 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
 template<class Array>
 void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         int counter = 0;
@@ -387,9 +472,9 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
             j[0] *= 2*M_PI*2*M_PI;
             k[0] *= 2*M_PI*2*M_PI;
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
             
             counter++;
         }
@@ -403,9 +488,9 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
             j[0] *= 2*M_PI*2*M_PI;
             k[0] *= 2*M_PI*2*M_PI;
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
             
             counter++;
         }
@@ -425,54 +510,54 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
         j[0] *= 2*M_PI*2*M_PI;
         k[0] *= 2*M_PI*2*M_PI;
         
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[0]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[0]
-                            - 2 * j[0] * q[3];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[0]
-                            + 2 * i[0] * q[3]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[0];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[0]
-                            - 2 * i[0] * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[0]
-                            + 2 * j[0] * q[1];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1];
         counter++;
 
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[1]
-                            + 2 * j[0] * q[2];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[1]
-                            + 2 * i[0] * q[2]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * q[1];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[1]
-                            + 2 * i[0] * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[1]
-                            + 2 * j[0] * q[0];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[0] * q[0] + q[1] * q[1]) * q[2]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[2]
-                            + 2 * j[0] * q[1];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[2]
-                            + 2 * i[0] * q[1]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[2];
-        data(m, 2, counter) = - 2 * i[0] * q[0]
-                            - 4 * i[0] * (q[1] * q[3] - q[0] * q[2]) * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[2]
-                            + 2 * j[0] * q[3];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
+        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[1] * q[1] + q[0] * q[0]) * q[3]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[3]
-                            - 2 * j[0] * q[0];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[3]
-                            + 2 * i[0] * q[0]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[3]
-                            - 4 * j[0] * q[3];
-        data(m, 2, counter) = 2 * i[0] * q[1]
-                            + 4 * i[0] * (q[2] * q[0] - q[1] * q[3]) * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[3]
-                            + 2 * j[0] * q[2];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3];
+        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2];
         counter++;
 
         for (int i = 0; i < 3; ++i) {
@@ -488,6 +573,18 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
 template<class Array>
 void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
     data *= 0;
+
+    /* Converts q dofs to unit quaternion */
+    Array q_norm = xt::zeros<double>({4});
+    double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+    if(s != 0) {
+        for (int i = 0; i < 4; ++i)
+            q_norm[i] = q[i] / std::sqrt(s); 
+    }
+    else {
+        q_norm[0] = 1;
+    }
+
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         int counter = 0;
@@ -509,9 +606,9 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
             j[0] *= 2*M_PI*2*M_PI*2*M_PI;
             k[0] *= 2*M_PI*2*M_PI*2*M_PI;
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
             counter++;
         }
@@ -531,9 +628,9 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
             j[0] *= 2*M_PI*2*M_PI*2*M_PI;
             k[0] *= 2*M_PI*2*M_PI*2*M_PI;
 
-            data(m, 0, counter) = (i[0] - 2 * (q[2] * q[2] + q[3] * q[3]) * i[0] + 2 * (q[1] * q[2] - q[3] * q[0]) * j[0] + 2 * (q[1] * q[3] + q[2] * q[0]) * k[0]);
-            data(m, 1, counter) = (2 * (q[1] * q[2] + q[3] * q[0]) * i[0] + j[0] - 2 * (q[1] * q[1] + q[3] * q[3]) * j[0] + 2 * (q[2] * q[3] - q[1] * q[0]) * k[0]);
-            data(m, 2, counter) = (2 * (q[1] * q[3] - q[2] * q[0]) * i[0] + 2 * (q[2] * q[3] + q[1] * q[0]) * j[0] + k[0] - 2 * (q[1] * q[1] + q[2] * q[2]) * k[0]);
+            data(m, 0, counter) = (i[0] - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i[0] + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j[0] + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k[0]);
+            data(m, 1, counter) = (2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * i[0] + j[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * j[0] + 2 * (q_norm[2] * q_norm[3] - q_norm[1] * q_norm[0]) * k[0]);
+            data(m, 2, counter) = (2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * i[0] + 2 * (q_norm[2] * q_norm[3] + q_norm[1] * q_norm[0]) * j[0] + k[0] - 2 * (q_norm[1] * q_norm[1] + q_norm[2] * q_norm[2]) * k[0]);
 
             counter++;
         }
@@ -565,54 +662,54 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
         j[0] *= 2*M_PI*2*M_PI*2*M_PI;
         k[0] *= 2*M_PI*2*M_PI*2*M_PI;
         
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[0]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[0]
-                            - 2 * j[0] * q[3];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[0]
-                            + 2 * i[0] * q[3]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[0];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[0]
-                            - 2 * i[0] * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[0]
-                            + 2 * j[0] * q[1];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1];
         counter++;
 
-        data(m, 0, counter) = 4 * i[0] * (q[2] * q[2] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[1]
-                            + 2 * j[0] * q[2];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[1]
-                            + 2 * i[0] * q[2]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[1]
-                            - 4 * j[0] * q[1];
-        data(m, 2, counter) = - 4 * i[0] * (q[1] * q[3] - q[2] * q[0]) * q[1]
-                            + 2 * i[0] * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[1]
-                            + 2 * j[0] * q[0];
+        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1];
+        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[0] * q[0] + q[1] * q[1]) * q[2]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[2]
-                            + 2 * j[0] * q[1];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[2]
-                            + 2 * i[0] * q[1]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[2];
-        data(m, 2, counter) = - 2 * i[0] * q[0]
-                            - 4 * i[0] * (q[1] * q[3] - q[0] * q[2]) * q[2]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[2]
-                            + 2 * j[0] * q[3];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
+        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3];
         counter++;
 
-        data(m, 0, counter) = - 4 * i[0] * (q[1] * q[1] + q[0] * q[0]) * q[3]
-                            - 4 * j[0] * (q[1] * q[2] - q[0] * q[3]) * q[3]
-                            - 2 * j[0] * q[0];
-        data(m, 1, counter) = - 4 * i[0] * (q[1] * q[2] + q[3] * q[0]) * q[3]
-                            + 2 * i[0] * q[0]
-                            + 4 * j[0] * (q[1] * q[1] + q[3] * q[3]) * q[3]
-                            - 4 * j[0] * q[3];
-        data(m, 2, counter) = 2 * i[0] * q[1]
-                            + 4 * i[0] * (q[2] * q[0] - q[1] * q[3]) * q[3]
-                            - 4 * j[0] * (q[1] * q[0] + q[2] * q[3]) * q[3]
-                            + 2 * j[0] * q[2];
+        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0];
+        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3];
+        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2];
         counter++;
 
         for (int i = 0; i < 3; ++i) {
