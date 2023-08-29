@@ -17,16 +17,11 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.mhd import Vmec
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, coils_via_symmetries
-from simsopt.geo import CurveLength
-from simsopt.mhd import VirtualCasing
-
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.geo import CurveLength, curves_to_vtk, create_equally_spaced_curves, SurfaceRZFourier
+from simsopt.mhd import VirtualCasing, Vmec
+from simsopt.objectives import QuadraticPenalty, SquaredFlux
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 5 and stellarator symmetry, multiply ncoils by 5 * 2 to get the total number of coils.)
@@ -45,8 +40,7 @@ order = 6
 LENGTH_PENALTY = 1e0
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 500
+MAXITER = 50 if in_github_actions else 500
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()

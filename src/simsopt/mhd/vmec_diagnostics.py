@@ -151,45 +151,46 @@ class QuasisymmetryRatioResidual(Optimizable):
         used. However, this function can be useful if users wish to
         inspect the quantities going into the calculation.
         """
-        self.vmec.run()
-        if self.vmec.wout.lasym:
+        vmec = self.vmec
+        vmec.run()
+        if vmec.wout.lasym:
             raise RuntimeError('Quasisymmetry class cannot yet handle non-stellarator-symmetric configs')
 
         logger.debug('Evaluating quasisymmetry residuals')
         ns = len(self.surfaces)
         ntheta = self.ntheta
         nphi = self.nphi
-        nfp = self.vmec.wout.nfp
+        nfp = vmec.wout.nfp
         d_psi_d_s = -self.vmec.wout.phi[-1] / (2 * np.pi)
 
         # First, interpolate in s to get the quantities we need on the surfaces we need.
         method = 'linear'
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.iotas[1:], fill_value="extrapolate")
         iota = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bvco[1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bvco[1:], fill_value="extrapolate")
         G = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.buco[1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.buco[1:], fill_value="extrapolate")
         I = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.gmnc[:, 1:], fill_value="extrapolate")
         gmnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bmnc[:, 1:], fill_value="extrapolate")
         bmnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsubumnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsubumnc[:, 1:], fill_value="extrapolate")
         bsubumnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsubvmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsubvmnc[:, 1:], fill_value="extrapolate")
         bsubvmnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsupumnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsupumnc[:, 1:], fill_value="extrapolate")
         bsupumnc = interp(self.surfaces)
 
-        interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.bsupvmnc[:, 1:], fill_value="extrapolate")
+        interp = interp1d(vmec.s_half_grid, vmec.wout.bsupvmnc[:, 1:], fill_value="extrapolate")
         bsupvmnc = interp(self.surfaces)
 
         theta1d = np.linspace(0, 2 * np.pi, ntheta, endpoint=False)
@@ -208,9 +209,9 @@ class QuasisymmetryRatioResidual(Optimizable):
         bsupu = np.zeros(myshape)
         bsupv = np.zeros(myshape)
         residuals3d = np.zeros(myshape)
-        for jmn in range(len(self.vmec.wout.xm_nyq)):
-            m = self.vmec.wout.xm_nyq[jmn]
-            n = self.vmec.wout.xn_nyq[jmn]
+        for jmn in range(len(vmec.wout.xm_nyq)):
+            m = vmec.wout.xm_nyq[jmn]
+            n = vmec.wout.xn_nyq[jmn]
             angle = m * theta3d - n * phi3d
             cosangle = np.cos(angle)
             sinangle = np.sin(angle)
@@ -437,43 +438,44 @@ class IotaTargetMetric(Optimizable):
         Returns:
             :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
-        self.vmec.run()
+        vmec = self.vmec
+        vmec.run()
 
-        Bx0, By0, Bz0 = B_cartesian(self.vmec)
+        Bx0, By0, Bz0 = B_cartesian(vmec)
 
         mu0 = 4*np.pi*1e-7
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
-        ac_aux_f_prev = np.copy(self.vmec.indata.ac_aux_f)
-        ac_aux_s_prev = np.copy(self.vmec.indata.ac_aux_s)
-        pcurr_type_prev = np.copy(self.vmec.indata.pcurr_type)
-        curtor_prev = np.copy(self.vmec.indata.curtor)
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
+        ac_aux_f_prev = np.copy(vmec.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(vmec.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(vmec.indata.pcurr_type)
+        curtor_prev = np.copy(vmec.indata.curtor)
 
-        perturbation = (self.vmec.wout.iotas[1::]-self.iota_target(self.vmec.s_half_grid)) \
-            / (self.vmec.wout.phi[-1]*self.vmec.wout.signgs/(2*np.pi))
+        perturbation = (vmec.wout.iotas[1::]-self.iota_target(vmec.s_half_grid)) \
+            / (vmec.wout.phi[-1]*vmec.wout.signgs/(2*np.pi))
 
         # Perturbed toroidal current profile
         It_new = It_half + self.adjoint_epsilon*perturbation
         curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
-        self.vmec.indata.ac_aux_f = -1.*np.ones_like(self.vmec.indata.ac_aux_f)
-        self.vmec.indata.ac_aux_s = -1.*np.ones_like(self.vmec.indata.ac_aux_s)
-        self.vmec.indata.ac_aux_f[0:self.vmec.wout.ns-1] = It_new
-        self.vmec.indata.ac_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
-        self.vmec.indata.curtor = curtor
-        self.vmec.indata.pcurr_type = b'line_segment_I'
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = -1.*np.ones_like(vmec.indata.ac_aux_f)
+        vmec.indata.ac_aux_s = -1.*np.ones_like(vmec.indata.ac_aux_s)
+        vmec.indata.ac_aux_f[0:vmec.wout.ns-1] = It_new
+        vmec.indata.ac_aux_s[0:vmec.wout.ns-1] = vmec.s_half_grid
+        vmec.indata.curtor = curtor
+        vmec.indata.pcurr_type = b'line_segment_I'
+        vmec.need_to_run_code = True
 
-        self.vmec.run()
+        vmec.run()
 
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
 
-        Bx, By, Bz = B_cartesian(self.vmec)
+        Bx, By, Bz = B_cartesian(vmec)
 
         # Reset input values
-        self.vmec.indata.ac_aux_f = ac_aux_f_prev
-        self.vmec.indata.ac_aux_s = ac_aux_s_prev
-        self.vmec.indata.pcurr_type = pcurr_type_prev
-        self.vmec.indata.curtor = curtor_prev
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = ac_aux_f_prev
+        vmec.indata.ac_aux_s = ac_aux_s_prev
+        vmec.indata.pcurr_type = pcurr_type_prev
+        vmec.indata.curtor = curtor_prev
+        vmec.need_to_run_code = True
 
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
@@ -506,16 +508,16 @@ class IotaWeighted(Optimizable):
         self.boundary = vmec.boundary
         self.weight_function = weight_function
         self.adjoint_epsilon = adjoint_epsilon
-        # self.depends_on = ["boundary"]
         super().__init__(depends_on=[vmec])
 
     def J(self):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.run()
-        return np.sum(self.weight_function(self.vmec.s_half_grid) * self.vmec.wout.iotas[1:]) \
-            / np.sum(self.weight_function(self.vmec.s_half_grid))
+        vmec = self.vmec
+        vmec.run()
+        return np.sum(self.weight_function(vmec.s_half_grid) * vmec.wout.iotas[1:]) \
+            / np.sum(self.weight_function(vmec.s_half_grid))
 
     def dJ(self):
         """
@@ -546,46 +548,47 @@ class IotaWeighted(Optimizable):
         Returns:
             :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
-        self.vmec.run()
+        vmec = self.vmec
+        vmec.run()
 
-        Bx0, By0, Bz0 = B_cartesian(self.vmec)
+        Bx0, By0, Bz0 = B_cartesian(vmec)
 
         mu0 = 4*np.pi*1e-7
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
-        ac_aux_f_prev = np.copy(self.vmec.indata.ac_aux_f)
-        ac_aux_s_prev = np.copy(self.vmec.indata.ac_aux_s)
-        pcurr_type_prev = np.copy(self.vmec.indata.pcurr_type)
-        curtor_prev = np.copy(self.vmec.indata.curtor)
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
+        ac_aux_f_prev = np.copy(vmec.indata.ac_aux_f)
+        ac_aux_s_prev = np.copy(vmec.indata.ac_aux_s)
+        pcurr_type_prev = np.copy(vmec.indata.pcurr_type)
+        curtor_prev = np.copy(vmec.indata.curtor)
 
-        perturbation = self.weight_function(self.vmec.s_half_grid)
+        perturbation = self.weight_function(vmec.s_half_grid)
 
         # Perturbed toroidal current profile
         It_new = It_half + self.adjoint_epsilon*perturbation
         curtor = 1.5*It_new[-1] - 0.5*It_new[-2]
-        self.vmec.indata.ac_aux_f = -1.*np.ones_like(self.vmec.indata.ac_aux_f)
-        self.vmec.indata.ac_aux_s = -1.*np.ones_like(self.vmec.indata.ac_aux_s)
-        self.vmec.indata.ac_aux_f[0:self.vmec.wout.ns-1] = It_new
-        self.vmec.indata.ac_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
-        self.vmec.indata.curtor = curtor
-        self.vmec.indata.pcurr_type = b'line_segment_I'
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = -1.*np.ones_like(vmec.indata.ac_aux_f)
+        vmec.indata.ac_aux_s = -1.*np.ones_like(vmec.indata.ac_aux_s)
+        vmec.indata.ac_aux_f[0:vmec.wout.ns-1] = It_new
+        vmec.indata.ac_aux_s[0:vmec.wout.ns-1] = vmec.s_half_grid
+        vmec.indata.curtor = curtor
+        vmec.indata.pcurr_type = b'line_segment_I'
+        vmec.need_to_run_code = True
 
-        self.vmec.run()
+        vmec.run()
 
-        It_half = self.vmec.wout.signgs * 2*np.pi * self.vmec.wout.bsubumnc[0, 1::] / mu0
+        It_half = vmec.wout.signgs * 2*np.pi * vmec.wout.bsubumnc[0, 1::] / mu0
 
-        Bx, By, Bz = B_cartesian(self.vmec)
+        Bx, By, Bz = B_cartesian(vmec)
 
         # Reset input values
-        self.vmec.indata.ac_aux_f = ac_aux_f_prev
-        self.vmec.indata.ac_aux_s = ac_aux_s_prev
-        self.vmec.indata.pcurr_type = pcurr_type_prev
-        self.vmec.indata.curtor = curtor_prev
-        self.vmec.need_to_run_code = True
+        vmec.indata.ac_aux_f = ac_aux_f_prev
+        vmec.indata.ac_aux_s = ac_aux_s_prev
+        vmec.indata.pcurr_type = pcurr_type_prev
+        vmec.indata.curtor = curtor_prev
+        vmec.need_to_run_code = True
 
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
-        return deltaB_dot_B/(mu0*self.vmec.ds*self.vmec.wout.phi[-1]*self.vmec.wout.signgs*np.sum(self.weight_function(self.vmec.s_half_grid)))
+        return deltaB_dot_B/(mu0*vmec.ds*vmec.wout.phi[-1]*vmec.wout.signgs*np.sum(self.weight_function(vmec.s_half_grid)))
 
 
 class WellWeighted(Optimizable):
@@ -631,9 +634,10 @@ class WellWeighted(Optimizable):
         """
         Computes the quantity :math:`J` described in the class definition.
         """
-        self.vmec.run()
-        return np.sum((self.weight_function1(self.vmec.s_half_grid)-self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:]) \
-            / np.sum((self.weight_function1(self.vmec.s_half_grid)+self.weight_function2(self.vmec.s_half_grid)) * self.vmec.wout.vp[1:])
+        vmec = self.vmec
+        vmec.run()
+        return np.sum((self.weight_function1(vmec.s_half_grid)-self.weight_function2(vmec.s_half_grid)) * vmec.wout.vp[1:]) \
+            / np.sum((self.weight_function1(vmec.s_half_grid)+self.weight_function2(vmec.s_half_grid)) * vmec.wout.vp[1:])
 
     def dJ(self):
         """
@@ -662,42 +666,43 @@ class WellWeighted(Optimizable):
         Returns:
             :math:`G` : 2d array of size (numquadpoints_phi,numquadpoints_theta)
         """
-        self.vmec.run()
+        vmec = self.vmec
+        vmec.run()
 
         Bx0, By0, Bz0 = B_cartesian(self.vmec)
 
         mu0 = 4*np.pi*1e-7
-        am_aux_f_prev = np.copy(self.vmec.indata.am_aux_f)
-        am_aux_s_prev = np.copy(self.vmec.indata.am_aux_s)
-        pmass_type_prev = np.copy(self.vmec.indata.pmass_type)
+        am_aux_f_prev = np.copy(vmec.indata.am_aux_f)
+        am_aux_s_prev = np.copy(vmec.indata.am_aux_s)
+        pmass_type_prev = np.copy(vmec.indata.pmass_type)
 
-        pres = self.vmec.wout.pres[1::]
-        weight1 = self.weight_function1(self.vmec.s_half_grid) - self.weight_function2(self.vmec.s_half_grid)
-        weight2 = self.weight_function1(self.vmec.s_half_grid) + self.weight_function2(self.vmec.s_half_grid)
-        numerator = np.sum(weight1 * self.vmec.wout.vp[1::])
-        denominator = np.sum(weight2 * self.vmec.wout.vp[1::])
+        pres = vmec.wout.pres[1::]
+        weight1 = self.weight_function1(vmec.s_half_grid) - self.weight_function2(vmec.s_half_grid)
+        weight2 = self.weight_function1(vmec.s_half_grid) + self.weight_function2(vmec.s_half_grid)
+        numerator = np.sum(weight1 * vmec.wout.vp[1::])
+        denominator = np.sum(weight2 * vmec.wout.vp[1::])
         fW = numerator/denominator
-        perturbation = (weight1 - fW * weight2) / (denominator * self.vmec.ds * 4 * np.pi * np.pi)
+        perturbation = (weight1 - fW * weight2) / (denominator * vmec.ds * 4 * np.pi * np.pi)
 
         # Perturbed pressure profile
         pres_new = pres + self.adjoint_epsilon*perturbation
 
-        self.vmec.indata.am_aux_f = -1.*np.ones_like(self.vmec.indata.am_aux_f)
-        self.vmec.indata.am_aux_s = -1.*np.ones_like(self.vmec.indata.am_aux_s)
-        self.vmec.indata.am_aux_f[0:self.vmec.wout.ns-1] = pres_new
-        self.vmec.indata.am_aux_s[0:self.vmec.wout.ns-1] = self.vmec.s_half_grid
-        self.vmec.indata.pmass_type = b'cubic_spline'
-        self.vmec.need_to_run_code = True
+        vmec.indata.am_aux_f = -1.*np.ones_like(vmec.indata.am_aux_f)
+        vmec.indata.am_aux_s = -1.*np.ones_like(vmec.indata.am_aux_s)
+        vmec.indata.am_aux_f[0:vmec.wout.ns-1] = pres_new
+        vmec.indata.am_aux_s[0:vmec.wout.ns-1] = vmec.s_half_grid
+        vmec.indata.pmass_type = b'cubic_spline'
+        vmec.need_to_run_code = True
 
-        self.vmec.run()
+        vmec.run()
 
         Bx, By, Bz = B_cartesian(self.vmec)
 
         # Reset input values
-        self.vmec.indata.am_aux_f = am_aux_f_prev
-        self.vmec.indata.am_aux_s = am_aux_s_prev
-        self.vmec.indata.pmass_type = pmass_type_prev
-        self.vmec.need_to_run_code = True
+        vmec.indata.am_aux_f = am_aux_f_prev
+        vmec.indata.am_aux_s = am_aux_s_prev
+        vmec.indata.pmass_type = pmass_type_prev
+        vmec.need_to_run_code = True
 
         deltaB_dot_B = ((Bx-Bx0)*Bx0 + (By-By0)*By0 + (Bz-Bz0)*Bz0)/self.adjoint_epsilon
 
@@ -1301,7 +1306,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         This function is used for computing an array of values of theta_vmec that
         give a desired theta_pest array.
         """
-        return theta_p_target - (theta_v + np.sum(lmns[js, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
+        return theta_p_target - (theta_v + np.sum(lmns[jradius, :, None] * np.sin(xm[:, None] * theta_v - xn[:, None] * phi0), axis=0))
 
     theta_vmec = np.zeros((ns, nalpha, nl))
     for js in range(ns):
