@@ -8,7 +8,6 @@ from simsopt.field import BiotSavart, Coil
 from simsopt.geo.jit import jit
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
-from scipy import integrate
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
@@ -26,14 +25,17 @@ def delta(a, b):
 
 
 def compute_regularization_circ(a):
+    """Regularization for a circular conductor"""
     return a**2 / jnp.sqrt(jnp.e)
 
 
 def compute_regularization_rect(a, b):
+    """Regularization for a rectangular conductor"""
     return a * b * delta(a, b)
 
 
 def singularity_term_circ(gamma, gammadash, gammadashdash, a):
+    """singularity substraction for the regularized field in a circular conductor"""
     A = 1 / jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**3 * \
         jnp.cross(gammadashdash, gammadash) * (jnp.log(a / 8 /
                                                        jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]) + 3 / 4)
@@ -50,27 +52,26 @@ def singularity_term_circ_matt(gamma, gammadash, gammadashdash, a):
 
 
 def singularity_term_rect(gammadash, gammadashdash, a, b):
+    """singularity substraction for the regularized field in a rectangular conductor"""
     A = (jnp.cross(gammadash, gammadashdash)) / (2*jnp.linalg.norm(gammadash, axis=1)
                                                  [:, jnp.newaxis]**3) * (-2 + jnp.log(64 / (delta(a, b) * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
 
     return A
 
 
-def integrand_circ(i, gamma, gammadash, gammadashdash, phi, phidash, a):
-    first_term = np.cross(gammadash[i], (gamma-gamma[i])) / (
-        np.linalg.norm(gamma - gamma[i])**2 + a**2/np.sqrt(math.e)) ** 1.5
+def integrand_circ(i, j, gamma, gammadash, gammadashdash, phi, phi_0, a):
+    """Integrand of the regularized magnetic field formular at position phi[i], phi[j]. i is the index the field is evaluated (gamma[i]=gamma(phi[i])) while j is thee integrration index."""
+    dr = gamma[i]-gamma[j]
 
-    second_term = np.cross(gammadashdash, gammadash[i]) * (1 - np.cos(phidash[i] - phi)[:, np.newaxis])\
-        / ((2 - 2*np.cos(phidash[i] - phi)) * np.linalg.norm(gammadashdash) + a**2/np.sqrt(math.e))[:, np.newaxis]**1.5
-
-    #        1 - np.cos(phidash[i] - phi)) * np.linalg.norm(gammadash)**2 + a**2/np.sqrt(math.e))[:, np.newaxis]**1.5)
-    # integrand = (np.cross(gammadash[i], (gamma-gamma[i]))) / (np.linalg.norm(gamma - gamma[i])**2 + a/np.sqrt(math.e)) ** 1.5 \
-    #    + (np.cross(gammadashdash, gammadash) * (1 - np.cos(phidash[i] - phi)[:, np.newaxis]) / (2 * (
-    #        1 - np.cos(phidash[i] - phi)) * np.linalg.norm(gammadash)**2 + a**2/np.sqrt(math.e))[:, np.newaxis]**1.5)
-
+    first_term = np.cross(
+        gammadash[j], dr) / (np.linalg.norm(dr)**2 + a**2/np.sqrt(math.e)) ** 1.5
+    cos_fac = 2 - 2 * np.cos(2*np.pi*(phi[j] - phi[i]))
+    denominator2 = cos_fac * \
+        np.linalg.norm(gammadash[i])**2 + a**2/np.sqrt(math.e)
+    factor2 = 0.5 * cos_fac / denominator2**1.5
+    second_term = np.cross(gammadashdash[i], gammadash[i]) * factor2
     integrand = first_term + second_term
 
-    # integrand = np.cross(gammadash[i], (gamma-gamma[i]))
     return integrand
 
 
@@ -81,6 +82,7 @@ def integrand_circ_matt(i, gamma, gammadash, gammadashdash, phi, phidash, a):
     dr = gamma[i] - gamma
     temp = np.linalg.norm(dr, axis=1)**2 + regularization
     denominator = temp * np.sqrt(temp)
+
     cos_fac = 2 - 2 * np.cos(phidash[i] - phi)
     temp2 = cos_fac * \
         np.linalg.norm(gammadash, axis=1)**2 + regularization
@@ -88,7 +90,7 @@ def integrand_circ_matt(i, gamma, gammadash, gammadashdash, phi, phidash, a):
     factor2 = 0.5 * cos_fac / denominator2
     integrand = np.cross(gammadash, dr) / denominator[:, np.newaxis] + \
         factor2[:, np.newaxis] * np.cross(gammadashdash, gammadash)
-    return -integrand
+    return integrand
 
 
 def integrand_circ_better(gamma, gammadash, gammadashdash, phi, gammaprime, gammadashprime, phiprime, a):
@@ -104,19 +106,15 @@ def integrand_circ_better(gamma, gammadash, gammadashdash, phi, gammaprime, gamm
     return integrand
 
 
-def integral_circ(gamma, gammadash, gammadashdash, phi, phidash, a):
-    n_quad = phidash.shape[0]
-    dphidash = phidash[1]
-    integral = np.zeros((n_quad, 3))
-    integrand = np.zeros((n_quad, n_quad, 3))
+def integral_circ(gamma, gammadash, gammadashdash, phi, i, a):
+    nphi = phi.shape[0]
+    dphi = 2*np.pi / nphi
+    integral = np.zeros(3)
+    for j, phi_0 in enumerate(phi):
+        integral += integrand_circ(i, j, gamma, gammadash,
+                                   gammadashdash, phi, phi_0, a)
 
-    for i, _ in enumerate(phidash):
-
-        integrand[i] = integrand_circ(i, gamma, gammadash,
-                                      gammadashdash, phi, phidash, a) * dphidash
-        integral[i, 0] = integrate.simpson(integrand[i, :, 0], phidash)
-        integral[i, 1] = integrate.simpson(integrand[i, :, 1], phidash)
-        integral[i, 2] = integrate.simpson(integrand[i, :, 2], phidash)
+    integral *= dphi
     return integral
 
 
@@ -131,9 +129,6 @@ def integral_circ_matt(gamma, gammadash, gammadashdash, phi, phidash, a):
 
         integrand[i] = integrand_circ_matt(i, gamma, gammadash,
                                            gammadashdash, phi, phidash, a)
-        # integral[i, 0] = integrate.simpson(integrand[i, :, 0], phidash)
-        # integral[i, 1] = integrate.simpson(integrand[i, :, 1], phidash)
-        # integral[i, 2] = integrate.simpson(integrand[i, :, 2], phidash)
         integral[i, 0] = np.sum(integrand[i, :, 0])
         integral[i, 1] = np.sum(integrand[i, :, 1])
         integral[i, 2] = np.sum(integrand[i, :, 2])
@@ -210,17 +205,20 @@ def c_axis_angle_pure(coil, B):
 def field_on_coils(coil, a=0.05):
     """Calculate the regularized field on a coil with circular cross section following the Landreman and Hurwitz method"""
     I = coil._current.current
-    phi = coil.curve.quadpoints * 2 * np.pi
-    phidash = coil.curve.quadpoints * 2 * np.pi
+    phi = coil.curve.quadpoints  # * 2 * np.pi
+    phidash = coil.curve.quadpoints  # * 2 * np.pi
     dphidash = phidash[1]
     n_quad = phidash.shape[0]
     gamma = coil.curve.gamma()
     gammadash = coil.curve.gammadash() / 2 / np.pi
     gammadashdash = coil.curve.gammadashdash() / 4 / np.pi**2
-    A = singularity_term_circ_matt(gamma, gammadash, gammadashdash, a)
-    integral = integral_circ_matt(
-        gamma, gammadash, gammadashdash, phi, phidash, a)
-    b_reg = I * Biot_savart_prefactor * (integral+A)
+    integral_term = np.zeros((n_quad, 3))
+
+    A = singularity_term_circ(gamma, gammadash, gammadashdash, a)
+    for i, _ in enumerate(phi):
+        integral_term[i] = integral_circ(
+            gamma, gammadash, gammadashdash, phi, i, a)
+    b_reg = I * Biot_savart_prefactor * (integral_term + A)
 
     return b_reg
 
