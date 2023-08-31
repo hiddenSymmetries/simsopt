@@ -216,7 +216,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         surf.local_full_x = surf.get_dofs()
         return surf
     
-    
     @classmethod
     def from_other_surface(cls, other: "SurfaceRZFourier", **kwargs):
         """
@@ -226,6 +225,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         ntheta = kwargs.pop("ntheta", None)
         nphi = kwargs.pop("nphi", None)
         grid_range = kwargs.pop("range", None)
+        mpol = kwargs.pop("mpol", other.mpol)
+        ntor = kwargs.pop("ntor", other.ntor)
+        nfp = kwargs.pop("nfp", other.nfp)
+        stellsym = kwargs.pop("stellsym", other.stellsym)
 
         otherntheta = other.quadpoints_theta.size 
         othernphi = other.quadpoints_phi.size 
@@ -240,8 +243,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             kwargs["quadpoints_phi"] = other.quadpoints_phi
             kwargs["quadpoints_theta"] = other.quadpoints_theta
         
-        surf = cls(mpol=other.mpol, ntor=other.ntor, nfp=other.nfp, stellsym=other.stellsym,
-                     **kwargs)
+        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+                 **kwargs)
         surf.rc[:, :] = other.rc
         surf.zs[:, :] = other.zs
         if not other.stellsym:
