@@ -30,7 +30,7 @@ class CurvePerturbationTesting(unittest.TestCase):
             gdest *= 1/dphi
             err = np.abs(gdest - gd[2:-2, :])
 
-            print("np.mean(err)", np.mean(err))
+            print("test_perturbed_gammadash: np.mean(err)", np.mean(err))
             if idx == 0:
                 assert np.mean(err) < 3e-4
             else:
@@ -45,7 +45,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         rg = np.random.Generator(PCG64(1))
         sample = PerturbationSample(sampler, randomgen=rg)
         periodic_err = np.abs(sample[0][:n, :] - sample[0][n:, :])
-        print("periodic_err", np.mean(periodic_err))
+        print("test_perturbed_periodic: periodic_err =", np.mean(periodic_err))
         assert np.mean(periodic_err) < 1e-6
 
     def test_perturbed_objective_torsion(self):
@@ -75,6 +75,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         h = 1e-3 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
+        print("test_perturbed_objective_torsion: np.abs(deriv):", np.abs(deriv))
         assert np.abs(deriv) > 1e-10
         err = 1e6
         for i in range(10, 20):
@@ -120,6 +121,7 @@ class CurvePerturbationTesting(unittest.TestCase):
         J = CurveCurveDistance([curve1, curve2], 2.0)
         J0 = J.J()
         curve1.resample()
+        print(f"test_perturbed_objective_distance: J0 = {J0}  J.J() = {J.J()}")
         assert J0 != J.J()
         J0 = J.J()
         curve_dofs = J.x
