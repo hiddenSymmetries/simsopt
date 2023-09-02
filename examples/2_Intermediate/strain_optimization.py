@@ -1,7 +1,9 @@
+#!/usr/bin/env python
+
 """
 This script performs an optimization of the HTS tape winding angle 
 with respect to binormal curvature and torsional strain cost functions. 
-The orientation of the tape is defined wrt the Frenet-Serret Frame
+The orientation of the tape is defined with respect to the Frenet-Serret Frame
 """
 
 import numpy as np
@@ -53,10 +55,5 @@ def fun(dofs):
 f = fun
 dofs = JF.x
 
-print("""
-################################################################################
-### Run the optimisation #######################################################
-################################################################################
-""")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)

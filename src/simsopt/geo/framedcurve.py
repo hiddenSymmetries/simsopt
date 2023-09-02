@@ -34,12 +34,14 @@ class FramedCurve(sopp.Curve, Curve):
 
 
 class FramedCurveFrenet(FramedCurve):
-    """
+    r"""
     Given a curve, one defines a reference frame using the Frenet normal and
     binormal vectors:
 
     tangent = dr/dl
-    normal = (dtangent/dl)/|dtangent/dl|
+
+    normal = (dtangent/dl)/||dtangent/dl||
+
     binormal = tangent x normal 
 
     In addition, we specify an angle along the curve that 
@@ -228,7 +230,7 @@ class FramedCurveCentroid(FramedCurve):
 
     def __init__(self, curve, rotation=None):
         FramedCurve.__init__(self, curve, rotation)
-        
+
         self.torsion = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: torsion_pure_centroid(
             gamma, gammadash, gammadashdash, alpha, alphadash))
         self.torsiongrad_vjp0 = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash, v: vjp(
