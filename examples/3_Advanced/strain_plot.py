@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 This script shows terms for torsion and binormal curvature to be used in a coil optimization cost function.
 We use a multifilament approach that initializes the coils using the Frenet-Serret Frame.
