@@ -111,7 +111,7 @@ class FocusData(object):
         filename: a FOCUS file
         keep_Ic_zeros: (optional) if True, all dipoles in the file will be 
             retained in the data structure irrespective of the value of their
-            Ic parameter. If False, only magnets with Ic == 0 will be imported.
+            Ic parameter. If False, only magnets with Ic == 1 will be imported.
             Default is False.
         downsample: (optional) if set to integer value n, the initialization
             method will only load every nth magnet from the file. If 1, all
