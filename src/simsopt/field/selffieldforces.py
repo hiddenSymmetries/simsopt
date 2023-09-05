@@ -24,12 +24,12 @@ def delta(a, b):
     return jnp.exp(-25/6 + k(a, b))
 
 
-def compute_regularization_circ(a):
+def regularization_circ(a):
     """Regularization for a circular conductor"""
     return a**2 / jnp.sqrt(jnp.e)
 
 
-def compute_regularization_rect(a, b):
+def regularization_rect(a, b):
     """Regularization for a rectangular conductor"""
     return a * b * delta(a, b)
 
@@ -43,18 +43,11 @@ def singularity_term_circ(gamma, gammadash, gammadashdash, a):
     return A
 
 
-def singularity_term_circ_matt(gamma, gammadash, gammadashdash, a):
-    d1gamma_norm = np.linalg.norm(gammadash, axis=1)[:, np.newaxis]
-    A = 0.5 / d1gamma_norm**3 * \
-        (2 + np.log(a**2/np.sqrt(math.e) / d1gamma_norm / 64)) * \
-        np.cross(gammadash, gammadashdash)
-    return -A
-
-
 def singularity_term_rect(gammadash, gammadashdash, a, b):
     """singularity substraction for the regularized field in a rectangular conductor"""
-    A = (jnp.cross(gammadash, gammadashdash)) / (2*jnp.linalg.norm(gammadash, axis=1)
-                                                 [:, jnp.newaxis]**3) * (-2 + jnp.log(64 / (delta(a, b) * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
+    A = 1 / jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**3 / 2 * \
+        (jnp.cross(gammadash, gammadashdash)) * (-2 + jnp.log(64 / (delta(a, b)
+                                                                    * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
 
     return A
 
@@ -62,12 +55,12 @@ def singularity_term_rect(gammadash, gammadashdash, a, b):
 def integrand_circ(i, j, gamma, gammadash, gammadashdash, phi, phi_0, a):
     """Integrand of the regularized magnetic field formular at position phi[i], phi[j]. i is the index the field is evaluated (gamma[i]=gamma(phi[i])) while j is thee integrration index."""
     dr = gamma[i]-gamma[j]
-
+    regularization = regularization_circ(a)
     first_term = np.cross(
-        gammadash[j], dr) / (np.linalg.norm(dr)**2 + a**2/np.sqrt(math.e)) ** 1.5
+        gammadash[j], dr) / (np.linalg.norm(dr)**2 + regularization) ** 1.5
     cos_fac = 2 - 2 * np.cos(2*np.pi*(phi[j] - phi[i]))
     denominator2 = cos_fac * \
-        np.linalg.norm(gammadash[i])**2 + a**2/np.sqrt(math.e)
+        np.linalg.norm(gammadash[i])**2 + regularization
     factor2 = 0.5 * cos_fac / denominator2**1.5
     second_term = np.cross(gammadashdash[i], gammadash[i]) * factor2
     integrand = first_term + second_term
@@ -75,34 +68,19 @@ def integrand_circ(i, j, gamma, gammadash, gammadashdash, phi, phi_0, a):
     return integrand
 
 
-def integrand_circ_matt(i, gamma, gammadash, gammadashdash, phi, phidash, a):
-    """Function to compare to Matt's julia Repo"""
-
-    regularization = a**2 / np.sqrt(math.e)
-    dr = gamma[i] - gamma
-    temp = np.linalg.norm(dr, axis=1)**2 + regularization
-    denominator = temp * np.sqrt(temp)
-
-    cos_fac = 2 - 2 * np.cos(phidash[i] - phi)
-    temp2 = cos_fac * \
-        np.linalg.norm(gammadash, axis=1)**2 + regularization
-    denominator2 = temp2 * np.sqrt(temp2)
-    factor2 = 0.5 * cos_fac / denominator2
-    integrand = np.cross(gammadash, dr) / denominator[:, np.newaxis] + \
-        factor2[:, np.newaxis] * np.cross(gammadashdash, gammadash)
-    return integrand
-
-
-def integrand_circ_better(gamma, gammadash, gammadashdash, phi, gammaprime, gammadashprime, phiprime, a):
-    """Different implementation of the integration for future use. Nothing new here so far."""
-
-    first_term = np.cross(gammadashprime, (gamma-gammaprime)) / (
-        np.linalg.norm(gamma - gammaprime)**2 + a**2/np.sqrt(math.e)) ** 1.5
-
-    second_term = np.cross(gammadashdash, gammadashprime) * (1 - np.cos(phiprime - phi)[:, np.newaxis])\
-        / ((2 - 2*np.cos(phiprime - phi)) * np.linalg.norm(gammadashdash) + a**2/np.sqrt(math.e))[:, np.newaxis]**1.5
-
+def integrand_rect(i, j, gamma, gammadash, gammadashdash, phi, phi_0, a, b):
+    """Integrand of the regularized magnetic field formular at position phi[i], phi[j]. i is the index the field is evaluated (gamma[i]=gamma(phi[i])) while j is the integrration index."""
+    dr = gamma[i]-gamma[j]
+    regularization = regularization_rect(a, b)
+    first_term = np.cross(
+        gammadash[j], dr) / (np.linalg.norm(dr)**2 + regularization) ** 1.5
+    cos_fac = 2 - 2 * np.cos(2*np.pi*(phi[j] - phi[i]))
+    denominator2 = cos_fac * \
+        np.linalg.norm(gammadash[i])**2 + regularization
+    factor2 = 0.5 * cos_fac / denominator2**1.5
+    second_term = np.cross(gammadashdash[i], gammadash[i]) * factor2
     integrand = first_term + second_term
+
     return integrand
 
 
@@ -118,32 +96,15 @@ def integral_circ(gamma, gammadash, gammadashdash, phi, i, a):
     return integral
 
 
-def integral_circ_matt(gamma, gammadash, gammadashdash, phi, phidash, a):
-    """Function to compare to Matt's julia Repo"""
-    n_quad = phidash.shape[0]
-    dphidash = phidash[1]
-    integral = np.zeros((n_quad, 3))
-    integrand = np.zeros((n_quad, n_quad, 3))
+def integral_rect(gamma, gammadash, gammadashdash, phi, i, a, b):
+    nphi = phi.shape[0]
+    dphi = 2*np.pi / nphi
+    integral = np.zeros(3)
+    for j, phi_0 in enumerate(phi):
+        integral += integrand_rect(i, j, gamma, gammadash,
+                                   gammadashdash, phi, phi_0, a, b)
 
-    for i, _ in enumerate(phidash):
-
-        integrand[i] = integrand_circ_matt(i, gamma, gammadash,
-                                           gammadashdash, phi, phidash, a)
-        integral[i, 0] = np.sum(integrand[i, :, 0])
-        integral[i, 1] = np.sum(integrand[i, :, 1])
-        integral[i, 2] = np.sum(integrand[i, :, 2])
-
-    integral *= dphidash
-    return integral
-
-
-def integral_circ_better(gamma, gammadash, gammadashdash, phi, gammaprime, gammadashprime, phiprime, a):
-    """Different implementation of the integration for future use. Nothing new here so far."""
-    n_quad = phiprime.shape[0]
-    integrand = integrand_circ_better(
-        gamma, gammadash, gammadashdash, phi, gammaprime, gammadashprime, phiprime, a)
-    weights = np.ones(n_quad)
-    integral = (i*w for i, w in zip(integrand, weights))
+    integral *= dphi
     return integral
 
 
@@ -218,7 +179,7 @@ def field_on_coils(coil, a=0.05):
     for i, _ in enumerate(phi):
         integral_term[i] = integral_circ(
             gamma, gammadash, gammadashdash, phi, i, a)
-    b_reg = I * Biot_savart_prefactor * (integral_term + A)
+    b_reg = I * Biot_savart_prefactor * (A + integral_term)
 
     return b_reg
 
@@ -226,26 +187,22 @@ def field_on_coils(coil, a=0.05):
 def field_on_coils_rect(coil, a=0.05, b=0.03):
     """Calculate the field on a coil with rectangular cross section follownig the method from Landreman, Hurwitz & Antonsen"""
     I = coil._current.current
-    phi = coil.curve.quadpoints
-    phidash = coil.curve.quadpoints
+    phi = coil.curve.quadpoints  # * 2 * np.pi
+    phidash = coil.curve.quadpoints  # * 2 * np.pi
+    dphidash = phidash[1]
     n_quad = phidash.shape[0]
     gamma = coil.curve.gamma()
-    gammadash = coil.curve.gammadash()
-    gammadashdash = coil.curve.gammadashdash()
+    gammadash = coil.curve.gammadash() / 2 / np.pi
+    gammadashdash = coil.curve.gammadashdash() / 4 / np.pi**2
+    integral_term = np.zeros((n_quad, 3))
 
-    A = (jnp.cross(gammadash, gammadashdash)) / (2*jnp.linalg.norm(gammadash, axis=1)
-                                                 [:, jnp.newaxis]**3) * (-2 + jnp.log(64 / (delta(a, b) * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
+    A = singularity_term_rect(gammadash, gammadashdash, a, b)
+    for i, _ in enumerate(phi):
+        integral_term[i] = integral_rect(
+            gamma, gammadash, gammadashdash, phi, i, a, b)
 
-    b_int_phi_dash = jnp.zeros((n_quad, n_quad, 3))
-    integral += 0
-    for i in range(len(phidash)):
-        b_int_phi_dash.at[i].set((jnp.cross(gammadash[i], (gamma-gamma[i]))) / (jnp.linalg.norm(gamma - gamma[i])**2 + delta + a * b) ** 1.5
-                                 + (jnp.cross(gammadashdash, gammadash) * (1 - jnp.cos(phidash[i] - phi)[:, jnp.newaxis]) / ((
-                                     2 - 2 * jnp.cos(phidash[i] - phi)) * jnp.linalg.norm(gammadash)**2 + delta * a * b)[:, jnp.newaxis]))
+    b_reg = I * Biot_savart_prefactor * (A+integral_term)
 
-    integral = jnp.trapz(b_int_phi_dash, phidash, axis=0)
-
-    b_reg = I * Biot_savart_prefactor * (A + integral)
     return b_reg
 
 
@@ -326,6 +283,15 @@ def field_from_other_coils(coil, coils, a=0.05):
 def self_force(coil, a=0.05):
     """force of the coils onto itself"""
     B = field_on_coils(coil, a)
+    t, _, _ = coil.curve.frenet_frame()
+    I = coil._current.current
+    force = np.cross(I*t, B)
+    return force
+
+
+def self_force_rect(coil, a=0.05, b=0.03):
+    """force of the coils onto itself for a reectangular crosssection"""
+    B = field_on_coils_rect(coil, a)
     t, _, _ = coil.curve.frenet_frame()
     I = coil._current.current
     force = np.cross(I*t, B)
