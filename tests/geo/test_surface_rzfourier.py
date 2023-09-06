@@ -645,6 +645,38 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
         self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
 
+    def test_surface_from_other_surface(self):
+        """
+        Test the creation of a new surface from another surface
+        """
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        s.local_full_x = s.get_dofs()
+
+        s2 = SurfaceRZFourier.from_other_surface(s)
+        self.assertAlmostEqual(s.area(), s2.area(), places=4)
+        self.assertAlmostEqual(s.volume(), s2.volume(), places=3)
+
+    def test_surface_from_other_surface_with_different_resolution(self):
+        """
+        Test the creation of a new surface from another with changes in nfp, 
+        range, and Fourier resolution. 
+        """
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        s.local_full_x = s.get_dofs()
+
+        s2 = SurfaceRZFourier.from_other_surface(s, mpol=3, ntor=2, range='field period )
+        s3 = SurfaceRZFourier.from_other_surface(s2, nfp=4, ntheta=100, nphi=100, range='half period')
+        s4 = SurfaceRZFourier.from_other_surface(s3, nfp=s1.nfp,  range='full period')
+        self.assertAlmostEqual(s.area(), s4.area(), places=4)
+        self.assertAlmostEqual(s.volume(), s2.volume(), places=3)
+
+
     def test_shared_dof_serialization(self):
         import tempfile
         from pathlib import Path
