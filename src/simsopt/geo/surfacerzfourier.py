@@ -239,12 +239,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         if ntheta is not otherntheta and nphi is not othernphi and grid_range is not None:
             kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
                 ntheta=ntheta, nphi=nphi, nfp=other.nfp, range=grid_range)
-        else: 
+        else:
             kwargs["quadpoints_phi"] = other.quadpoints_phi
             kwargs["quadpoints_theta"] = other.quadpoints_theta
-        
+      
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
-                 **kwargs)
+                   **kwargs)
         surf.rc[:, :] = other.rc
         surf.zs[:, :] = other.zs
         if not other.stellsym:
@@ -263,7 +263,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         Args:
             filename: Name of the ``input.*`` file to read.
-            kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
+            kwargs: Any other arguments to pass to the ``SurfaceRZFourier``
+            constructor.
               You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
         """
 
