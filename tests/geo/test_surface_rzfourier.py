@@ -670,12 +670,11 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s.zs[1, 0] = 0.2
         s.local_full_x = s.get_dofs()
 
-        s2 = SurfaceRZFourier.from_other_surface(s, mpol=3, ntor=2, range='field period )
+        s2 = SurfaceRZFourier.from_other_surface(s, mpol=3, ntor=2, range='field period')
         s3 = SurfaceRZFourier.from_other_surface(s2, nfp=4, ntheta=100, nphi=100, range='half period')
-        s4 = SurfaceRZFourier.from_other_surface(s3, nfp=s1.nfp,  range='full period')
+        s4 = SurfaceRZFourier.from_other_surface(s3, nfp=s.nfp,  range='full torus')
         self.assertAlmostEqual(s.area(), s4.area(), places=4)
-        self.assertAlmostEqual(s.volume(), s2.volume(), places=3)
-
+        self.assertAlmostEqual(s.volume(), s4.volume(), places=3)
 
     def test_shared_dof_serialization(self):
         import tempfile

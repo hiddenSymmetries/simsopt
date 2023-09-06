@@ -230,10 +230,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         nfp = kwargs.pop("nfp", other.nfp)
         stellsym = kwargs.pop("stellsym", other.stellsym)
 
-        otherntheta = other.quadpoints_theta.size 
-        othernphi = other.quadpoints_phi.size 
+        otherntheta = other.quadpoints_theta.size
+        othernphi = other.quadpoints_phi.size
 
-        #recalculate the quadpoints if necessary (grid_range is not stored in the
+        # recalculate the quadpoints if necessary (grid_range is not stored in the
         # surface object, so assume that if it is given, the gridpoints should be
         # recalculated to the specified size)
         if ntheta is not otherntheta and nphi is not othernphi and grid_range is not None:
@@ -242,14 +242,16 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         else:
             kwargs["quadpoints_phi"] = other.quadpoints_phi
             kwargs["quadpoints_theta"] = other.quadpoints_theta
-      
-        surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym,
+        # create new surface in old resolution
+        surf = cls(mpol=other.mpol, ntor=other.ntor, nfp=nfp, stellsym=stellsym,
                    **kwargs)
         surf.rc[:, :] = other.rc
         surf.zs[:, :] = other.zs
         if not other.stellsym:
             surf.rs[:, :] = other.rs
             surf.zc[:, :] = other.zc
+        # set to the requested resolution
+        surf.change_resolution(mpol, ntor)
         surf.local_full_x = surf.get_dofs()
         return surf
 
