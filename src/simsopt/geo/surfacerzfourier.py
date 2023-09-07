@@ -215,7 +215,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
-    
+
     @classmethod
     def from_other_surface(cls, other: "SurfaceRZFourier", **kwargs):
         """
@@ -265,8 +265,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         Args:
             filename: Name of the ``input.*`` file to read.
-            kwargs: Any other arguments to pass to the ``SurfaceRZFourier``
-            constructor.
+            kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
               You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
         """
 

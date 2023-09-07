@@ -649,32 +649,49 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         Test the creation of a new surface from another surface
         """
-        s = SurfaceRZFourier()
-        s.rc[0, 0] = 1.3
-        s.rc[1, 0] = 0.4
-        s.zs[1, 0] = 0.2
-        s.local_full_x = s.get_dofs()
+        s = SurfaceRZFourier(ntor=1, stellsym=False)
+        s.set_rc(0, 0, 1.3)
+        s.set_rc(1, 0, 0.4)
+        s.set_zs(1, 0, 0.2)
+        s.set_rc(0, 1, 0.1)
+        s.set_zs(0, 1, 0.06)
+        s.set_rs(0, 1, 0.15)
+        s.set_zc(0, 1, -0.09)
 
         s2 = SurfaceRZFourier.from_other_surface(s)
-        self.assertAlmostEqual(s.area(), s2.area(), places=4)
-        self.assertAlmostEqual(s.volume(), s2.volume(), places=3)
+        self.assertAlmostEqual(s.area(), s2.area(), places=14)
+        self.assertAlmostEqual(s.volume(), s2.volume(), places=14)
+        np.testing.assert_allclose(s.x, s2.x)
+        np.testing.assert_allclose(s.quadpoints_theta, s2.quadpoints_theta)
+        np.testing.assert_allclose(s.quadpoints_phi, s2.quadpoints_phi)
 
     def test_surface_from_other_surface_with_different_resolution(self):
         """
         Test the creation of a new surface from another with changes in nfp, 
         range, and Fourier resolution. 
         """
-        s = SurfaceRZFourier()
-        s.rc[0, 0] = 1.3
-        s.rc[1, 0] = 0.4
-        s.zs[1, 0] = 0.2
-        s.local_full_x = s.get_dofs()
+        s = SurfaceRZFourier(ntor=1, nfp=2)
+        s.set_rc(0, 0, 1.3)
+        s.set_rc(1, 0, 0.4)
+        s.set_zs(1, 0, 0.2)
+        s.set_rc(0, 1, 0.1)
+        s.set_zs(0, 1, 0.06)
 
         s2 = SurfaceRZFourier.from_other_surface(s, mpol=3, ntor=2, range='field period')
-        s3 = SurfaceRZFourier.from_other_surface(s2, nfp=4, ntheta=100, nphi=100, range='half period')
-        s4 = SurfaceRZFourier.from_other_surface(s3, nfp=s.nfp,  range='full torus')
-        self.assertAlmostEqual(s.area(), s4.area(), places=4)
-        self.assertAlmostEqual(s.volume(), s4.volume(), places=3)
+        s3 = SurfaceRZFourier.from_other_surface(s2, nfp=5, ntheta=90, nphi=100, range='half period')
+        s4 = SurfaceRZFourier.from_other_surface(s3, nfp=s.nfp, range='full torus')
+        s5 = SurfaceRZFourier.from_other_surface(s4, ntheta=90, nphi=100, range='half period')
+        np.testing.assert_allclose(s.area(), s2.area())
+        np.testing.assert_allclose(s.volume(), s2.volume())
+        # Don't compare s3, since nfp is different.
+        np.testing.assert_allclose(s.area(), s4.area())
+        np.testing.assert_allclose(s.volume(), s4.volume())
+        np.testing.assert_allclose(s.area(), s5.area())
+        np.testing.assert_allclose(s.volume(), s5.volume())
+
+        # This next test fails. Do we want this to work?
+        # s2 = SurfaceRZFourier.from_other_surface(s, ntheta=100)
+        # self.assertEqual(s2.quadpoints_theta.size, 100)
 
     def test_shared_dof_serialization(self):
         import tempfile
