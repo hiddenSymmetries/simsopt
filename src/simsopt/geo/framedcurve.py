@@ -285,31 +285,6 @@ class FramedCurveCentroid(FramedCurve):
             self.rotation.alpha(self.curve.quadpoints), self.rotation.alphadash(self.curve.quadpoints)
         )
 
-    def d_frame_torsion(self):
-        gamma = self.curve.gamma()
-        d1gamma = self.curve.gammadash()
-        d2gamma = self.curve.gammadashdash()
-        alpha = self.rotation.alpha(self.curve.quadpoints)
-        alphadash = self.rotation.alphadash(self.curve.quadpoints)
-
-        grad0 = self.torsiongrad0(gamma, d1gamma, d2gamma,
-                                  d3gamma, alpha, alphadash)
-        grad1 = self.torsiongrad1(gamma, d1gamma, d2gamma,
-                                  d3gamma, alpha, alphadash)
-        grad2 = self.torsiongrad2(gamma, d1gamma, d2gamma,
-                                  d3gamma, alpha, alphadash)
-        grad4 = self.torsiongrad4(gamma, d1gamma, d2gamma,
-                                  d3gamma, alpha, alphadash)
-        grad5 = self.torsiongrad5(gamma, d1gamma, d2gamma,
-                                  d3gamma, alpha, alphadash)
-
-        return self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
-            + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
-            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
-            + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-
     def rotated_frame_dcoeff_vjp(self, v, dn, db, arg=0):
         assert arg in [0, 1, 2, 3]
         g = self.curve.gamma()
