@@ -3,7 +3,6 @@ import jax.numpy as jnp
 from jax import vjp, jvp, grad
 import simsoptpp as sopp
 from simsopt.geo.jit import jit
-from simsopt.geo import ZeroRotation, Curve
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
 from simsopt.geo.curveobjectives import Lp_torsion_pure
