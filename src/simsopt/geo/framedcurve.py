@@ -1,7 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
-from jax import vjp, jvp, grad
-
+from jax import vjp, jvp
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
