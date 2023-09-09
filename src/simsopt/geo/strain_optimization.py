@@ -1,4 +1,3 @@
-import numpy as np
 import jax.numpy as jnp
 from jax import vjp, jvp, grad
 import simsoptpp as sopp
