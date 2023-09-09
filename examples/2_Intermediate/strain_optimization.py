@@ -2,7 +2,12 @@
 
 """
 This script performs an optimization of the HTS tape winding angle 
-with respect to binormal curvature and torsional strain cost functions. 
+with respect to binormal curvature and torsional strain cost functions as defined in
+
+    Paz Soldan, "Non-planar coil winding angle optimization for compatibility with 
+    non-insulated high-temperature superconducting magnets", Journal of Plasma Physics 
+    86 (2020), doi:10.1017/S0022377820001208.
+    
 The orientation of the tape is defined with respect to the Frenet-Serret Frame
 """
 
