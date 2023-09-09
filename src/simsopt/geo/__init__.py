@@ -22,6 +22,7 @@ from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 from .strain_optimization import *
+from .framed_curve import *
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
