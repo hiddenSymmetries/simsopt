@@ -51,7 +51,7 @@ else()
     unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
     CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    	set(CMAKE_CXX_FLAGS "-O3 -mfma -ffp-contract=fast")
+    	set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
     elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")  
     	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
     else()
@@ -118,6 +118,8 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
     src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp
     src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
+    src/simsoptpp/integral_BdotN.cpp
+    src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
@@ -134,7 +136,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
 endif()
-target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUDE_DIRS}")
 # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
 
 if(OpenMP_CXX_FOUND)
