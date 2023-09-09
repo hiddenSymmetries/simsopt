@@ -1,6 +1,5 @@
 import jax.numpy as jnp
-from jax import vjp, jvp, grad
-import simsoptpp as sopp
+from jax import vjp, grad
 from simsopt.geo.jit import jit
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
