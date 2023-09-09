@@ -12,17 +12,13 @@ The orientation of the tape is defined with respect to the Frenet-Serret Frame
 """
 
 import numpy as np
-import os
-import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo import StrainOpt, LPTorsionalStrainPenalty, LPBinormalCurvatureStrainPenalty
 from simsopt.geo import FrameRotation, FramedCurveFrenet, CurveXYZFourier
-from simsopt.field import load_coils_from_makegrid_file
 from simsopt.configs import get_hsx_data
-import matplotlib.pyplot as plt
+from simsopt.util import in_github_actions
 
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if in_github_actions else 400
 
 curves, currents, ma = get_hsx_data(Nt_coils=10, ppp=10)
 curve = curves[1]
