@@ -1,1 +1,0 @@
-# self field for force optimization
