@@ -31,7 +31,7 @@ class StrainOptTesting(unittest.TestCase):
             assert np.allclose(rotation.x, rotationShared.x)
             assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
         else:
-            rotation = ZeroRotation(c.quadpoints)
+            rotation = None
 
         if centroid:
             framedcurve = FramedCurveCentroid(c, rotation)
