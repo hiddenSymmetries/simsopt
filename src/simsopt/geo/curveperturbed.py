@@ -69,8 +69,14 @@ class GaussianSampler(GSONable):
                     lam = lambdify((x, y), f.diff(*(ii * [x] + jj * [y])), "numpy")
                 cov_mat[(ii*n):((ii+1)*n), (jj*n):((jj+1)*n)] = lam(XX, YY)
 
-        from scipy.linalg import sqrtm
-        self.L = np.real(sqrtm(cov_mat))
+        # we need to compute the sqrt of the covariance matrix. we used to do this using scipy.linalg.sqrtm,
+        # but it seems sometime between scipy 1.11.1 and 1.11.2 that function broke/changed behaviour.
+        # So we use a LDLT decomposition instead. See als https://github.com/hiddenSymmetries/simsopt/issues/349
+        # from scipy.linalg import sqrtm, ldl
+        # self.L = np.real(sqrtm(cov_mat))
+        from scipy.linalg import ldl
+        lu, d, _ = ldl(cov_mat)
+        self.L = lu @ np.sqrt(np.maximum(d, 0))
 
     def draw_sample(self, randomgen=None):
         """
