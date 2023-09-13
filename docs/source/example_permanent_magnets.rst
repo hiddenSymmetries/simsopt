@@ -222,7 +222,7 @@ For this GPMOm algorithm, the following keyword can be used::
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
 Probably the most useful improvement to the GPMO algorithm is to incorporate
-backtracking. Basically, every `backtracking` iterations, the algorithm will
+backtracking. Basically, every ``backtracking`` iterations, the algorithm will
 pause placing new magnets, and look around for suboptimal magnets (a magnet
 with an oppositely oriented magnet very close to it). If it finds such a pair
 of magnets, it removes them from the grid and continues on, until all such pairs are
@@ -237,16 +237,16 @@ removed. Then it re-continues placing magnets::
 
 Notice that with backtracking, the algorithm may run 40000 iterations and only place 19000 magnets
 in the final solution, because of pair removals. For this reason, there is an additional
-keyword argument `max_nMagnets` that can be used to specify the maximum number of magnets to place
-before the algorithm quits. The `Nadjacent` parameter is also used a bit differently here. It is 
+keyword argument ``max_nMagnets`` that can be used to specify the maximum number of magnets to place
+before the algorithm quits. The ``Nadjacent`` parameter is also used a bit differently here. It is 
 telling the backtracking that only oppositely-oriented magnet pairs that are within each-other's
 10 nearest neighbors should be removed. Playing with this hyperparameter can improve performance
 for most stellarators. 
 
-Next, Ken Hammond has nicely incorporated an ability to define arbitrary coordinate systems
+Next, it is possible to define arbitrary coordinate systems
 for each of the permanent magnets. The result is that each of the permanent magnets is given a 
 set of orientation vectors that determine the discrete set of allowable dipole vector directions 
-for that magnet. An advanced usage, using the Subset 5 orientations from the PM4Stell paper `Design of an arrangement of cubic magnets for a quasi-axisymmetric stellarator experiment
+for that magnet. An advanced usage, using the Subset 5 orientations from the paper `Design of an arrangement of cubic magnets for a quasi-axisymmetric stellarator experiment
 <https://iopscience.iop.org/article/10.1088/1741-4326/ac906e/meta>`__ is as follows::
 
   # Obtain data on the magnet arrangement
@@ -296,14 +296,14 @@ for that magnet. An advanced usage, using the Subset 5 orientations from the PM4
       s, Bnormal, famus_filename, **kwargs
   )
 
-If the PermanentMagnetGrid is initialized with `pol_vectors`, the optimization should
-be performed with the `ArbVec` (or, described in a moment, the `ArbVec_backtracking`) algorithm variant::
+If the PermanentMagnetGrid is initialized with ``pol_vectors``, the optimization should
+be performed with the ``ArbVec`` (or, described in a moment, the ``ArbVec_backtracking``) algorithm variant::
 
   algorithm = 'ArbVec'
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
 For best performance, GPMO should be used with backtracking AND orientations for 
-each magnet. Even better, the backtracking can be improved by specifying `thresh_angle`,
+each magnet. Even better, the backtracking can be improved by specifying ``thresh_angle``,
 which determines the minimum angle between two nearby magnets to consider removing them
 during backtracking (the default backtracking algorithm assumes that thresh_angle = :math:`\pi`,
 i.e. fully oppositely oriented, but when there are many orientations available to the magnets,
@@ -323,6 +323,32 @@ use of the GPMO algorithm and its variants looks something like::
           kwargs['max_nMagnets'] = 10000 
   R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
-This performs GPMO with backtracking and the orientations allowed in `pol_vectors`. The backtracking is performed
+This performs GPMO with backtracking and the orientations allowed in ``pol_vectors``. The backtracking is performed
 only every 200 iterations, and, if a given magnet and one of its 10 nearest
 neighbors are oriented > 120 degrees with respect to each other, this pair is removed. 
+
+The ``ArbVec_backtracking`` algorithm also supports user-input initial
+guesses for solutions. In the previous examples, the GPMO algorithms were
+all initialized to empty grids. To initialize to an arbitrary solution,
+use the ``m_init`` keyword argument. ``m_init`` is a 2D array with one row for
+each grid position and three columns, with each column corresponding to a
+Cartesian x, y, or z component of the dipole moment for each grid position. 
+
+The optimizer will ensure that the initial guess solution complies with the 
+allowable polarizations specified by the ``pol_vectors`` field of the ``pm_grid``
+class instance. Thus, if any rows of the ``m_init`` keyword argument contain
+dipole moments that are not permitted for the respective grid position, 
+the optimizer will instead use the closest allowable dipole moment (possibly 
+zero).
+
+As an example, suppose a set of magnets contained within ``pm_opt`` from the
+previous examples has already been optimized, and you would like to refine
+the optimization with different GPMO parameters. The initialization and
+re-optimization can be performed as follows::
+
+  kwargs['m_init'] = pm_opt.m.reshape([-1, 3])
+  # Modify other kwargs as desired to adjust optimization parameters
+  R2_history2, Bn_history2, m_history2 = GPMO(pm_opt, algorithm, **kwargs)
+
+Note that initializations via the ``m_init`` keyword argument are currently 
+only supported for the ``ArbVec_backtracking`` algorithm.
