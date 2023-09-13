@@ -78,6 +78,25 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(s.boundary.get_rc(0, 1), 0.1, places=places)
             self.assertAlmostEqual(s.boundary.get_zs(0, 1), 0.1, places=places)
 
+    def test_init_freeboundary_nonstellsym(self):
+        """
+        Try creating a Spec instance from a freeboundary file that is also
+        non-stellarator symmetric. 
+        Check value of normal field
+        """
+
+        filename = os.path.join(TEST_DIR, 'M16n08.sp')
+
+        with ScratchDir("."):
+            s = Spec(filename)
+
+            places = 7
+            self.assertAlmostEqual(s.normal_field.get_vns(0, 1), 3.615260745287559e-04, places)
+            self.assertAlmostEqual(s.normal_field.get_vns(3, -1), 1.714666510000000E-03, places)
+            self.assertAlmostEqual(s.normal_field.get_vnc(1, 0), 1.924871538367248e-04, places)
+            self.assertAlmostEqual(s.normal_field.get_vnc(1, -2), 4.070523669489626e-04, places)
+
+
     def test_init_freeboundary(self):
         """
         Try creating a Spec instance from a freeboundary file. Check value
@@ -91,7 +110,7 @@ class SpecTests(unittest.TestCase):
 
             places = 5
             self.assertAlmostEqual(s.normal_field.get_vns(0, 1), -1.116910580000000E-04, places)
-            self.assertAlmostEqual(s.normal_field.get_vns(3, -1), 1.714666510000000E-03, places)
+            self.assertAlmostEqual(s.normal_field.get_vns(3, -1), -1.269776831212886e-04, places)
 
     def test_run(self):
         """
