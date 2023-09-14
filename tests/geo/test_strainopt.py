@@ -6,6 +6,7 @@ import numpy as np
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from scipy.optimize import minimize
 
+
 class StrainOptTesting(unittest.TestCase):
 
     def test_strain_opt(self):
@@ -16,9 +17,9 @@ class StrainOptTesting(unittest.TestCase):
         """
         for centroid in [True, False]:
             quadpoints = np.linspace(0, 1, 10, endpoint=False)
-            curve = CurveXYZFourier(quadpoints,order=1)
-            curve.set('xc(1)',1e-4)
-            curve.set('ys(1)',1e-4)
+            curve = CurveXYZFourier(quadpoints, order=1)
+            curve.set('xc(1)', 1e-4)
+            curve.set('ys(1)', 1e-4)
             curve.fix_all()
             order = 2 
             np.random.seed(1)
@@ -32,12 +33,13 @@ class StrainOptTesting(unittest.TestCase):
             Jt = LPTorsionalStrainPenalty(framedcurve, width=1e-3, p=2, threshold=0)
             Jb = LPBinormalCurvatureStrainPenalty(framedcurve, width=1e-3, p=2, threshold=0)
             J = Jt+Jb
+
             def fun(dofs):
                 J.x = dofs
                 grad = J.dJ()
                 return J.J(), grad
             res = minimize(fun, J.x, jac=True, method='L-BFGS-B',
-               options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
+                           options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
             assert Jt.J() < 1e-12 
             assert Jb.J() < 1e-12
 
