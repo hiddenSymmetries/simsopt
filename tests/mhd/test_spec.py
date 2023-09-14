@@ -96,7 +96,6 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(s.normal_field.get_vnc(1, 0), 1.924871538367248e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, -2), 4.070523669489626e-04, places)
 
-
     def test_init_freeboundary(self):
         """
         Try creating a Spec instance from a freeboundary file. Check value
