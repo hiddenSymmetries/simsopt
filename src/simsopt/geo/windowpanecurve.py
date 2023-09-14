@@ -1,14 +1,10 @@
 import jax.numpy as jnp
 from math import pi, sin, cos
 import numpy as np
-from .curve import Curve
-from .curvexyzfourier import CurveXYZFourier
-import simsoptpp as sopp
-from simsopt._core.optimizable import DOFs, Optimizable
-from .._core.derivative import Derivative
-from jax import grad, jit, vjp
+from .curve import JaxCurve
+from simsopt._core.optimizable import Optimizable
 
-__all__ = ['WindowpaneCurve']
+__all__ = ['WindowpaneCurveXYZFourier']
 
 def shift_pure( v, xyz ):
     for ii in range(0,3):
@@ -16,32 +12,26 @@ def shift_pure( v, xyz ):
     return v
 
 class Position( Optimizable ):
-    def __init__(self, gamma, x, y, z):
+    def __init__(self, x, y, z):
         dofs = np.array([x, y, z])
-        self._gamma = gamma
         Optimizable.__init__(self, x0=dofs, names=self._make_names())
 
-        self.fun = lambda dofs: shift_pure( jnp.array(self._gamma), jnp.array(dofs) ) 
-        self.jac = lambda dofs, v: vjp(self.fun, jnp.array(dofs))[1](v)[0]
+        self.fun = jit(lambda dofs, arr: shift_pure( arr, jnp.array(dofs) ))
     
-    def set_gamma(self, gamma):
-        self._gamma = gamma
-
     def _make_names(self):
         return ['x', 'y', 'z']
     
     def set_dofs(self, dofs):
-        self.local_x = dofs
+        self.local_full_x = dofs
 
-    def shift(self):
-        return self.fun(self.local_x)
+    def shift(self, arr):
+        return self.fun(self.local_full_x, arr)
     
-    def vjp(self, v): 
-        return Derivative({self: self.vjp_impl(v)})
+    # def vjp(self, v): 
+    #     return Derivative({self: self.vjp_impl(v)})
     
-    def vjp_impl(self, v):
-        return self.jac(self.local_x, v)
-
+    # def vjp_impl(self, v):
+    #     return self.jac(self.local_full_x, v)
 
 def rotate_pure( v, ypr ):        
     yaw = ypr[0]
@@ -67,161 +57,101 @@ def rotate_pure( v, ypr ):
     return v @ Myaw @ Mpitch @ Mroll
 
 class Orientation( Optimizable ):
-    def __init__(self, gamma, yaw, pitch, roll):
+    def __init__(self, yaw, pitch, roll):
         dofs = np.array([yaw, pitch, roll])
-        self._gamma = gamma
         Optimizable.__init__(self, x0=dofs, names=self._make_names())
 
-        self.fun = jit(lambda dofs: rotate_pure( jnp.array(self._gamma), jnp.array(dofs) ) )
-        self.jac = jit(lambda dofs, v: vjp(self.fun, jnp.array(dofs))[1](v)[0] )
+        self.fun = jit(lambda dofs, arr: rotate_pure( arr, jnp.array(dofs) ) )
     
-    def set_gamma(self, gamma):
-        self._gamma = gamma
-
     def _make_names(self):
         return ['yaw', 'pitch', 'roll']
     
     def set_dofs(self, dofs):
-        self.local_x = dofs
+        self.local_full_x = dofs
     
-    def rotate_array(self):
-        return self.fun(self.local_x)
+    def rotate_array(self, arr):
+        return self.fun(self.local_full_x, arr)
     
-    def vjp(self, v):
-        return Derivative({self: self.vjp_impl(v)})
+    # def vjp(self, v):
+    #     return Derivative({self: self.vjp_impl(v)})
 
-    def vjp_impl(self, v):
-        return self.jac(self.local_x, v)
+    # def vjp_impl(self, v):
+    #     return self.jac(self.local_full_x, v)
 
-class WindowpaneCurve( sopp.Curve, Curve ):
+def centercurve_pure(dofs, quadpoints, order):
+    xyz = dofs[0:3]
+    ypr = dofs[3:6]
+    fmn = dofs[6:]
+
+    k = len(fmn)//3
+    coeffs = [fmn[:k], fmn[k:(2*k)], fmn[(2*k):]]
+    points = quadpoints
+    gamma = jnp.zeros((len(points), 3))
+    for i in range(3):
+        for j in range(0, order):
+            gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.sin(2 * pi * j * points))
+            gamma = gamma.at[:, i].add(coeffs[i][2 * j + 1] * jnp.cos(2 * pi * j * points))
+
+    return shift_pure( rotate_pure( gamma, ypr ), xyz )
+
+
+class WindowpaneCurveXYZFourier( JaxCurve ):
     """
-    WindowpaneCurve inherits from the Curve base class. It takes as 
-    input a Curve, which is assumed to be centered at the origin
-    (xc(0)=yc(0)=zc(0)). The base curve is assumed to be fixed, only
-    its orientation can change.
-
-    It is then shifted along a vector (x,z)=(Rc,Zc), and rotated 
-    with respect to the yaw, pitch and roll angle.
+    WindowpaneCurveXYZFourier is a translated and rotated 
+    JaxCurveXYZFourier Curve.
     """
-    def __init__(self, curve, xc, yc, zc, yaw, pitch, roll ):
-        self.curve = curve
+    def __init__(self, quadpoint, order, dofs=None, xyz=None, ypr=None ):
+        if isinstance(quadpoints, int):
+            quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
 
-        sopp.Curve.__init__(self, curve.quadpoints)
-        self.position = Position( self.curve.gamma(), xc, yc, zc ) # get rid of that?
-        self.orientation = Orientation( self.curve.gamma(), yaw, pitch, roll )
-        Curve.__init__(self, depends_on=[curve, self.position, self.orientation])
+        if xyz is None:
+            xyz = np.zeros((3,))
 
-    def test_curve(self):
-        for c in ['xc(0)', 'yc(0)', 'zc(0)']:
-            if self.curve.is_free(c):
-                raise ValueError(f'Curve {c} should be fixed')
-            if self.curve.get(c)!=0:
-                raise ValueError(f'Curve should be centered at origin, but {c} is not zero')
-   
-    def gamma_impl(self, gamma, quadpoints):
-        r"""
-        This function returns the x,y,z coordinates of the curve, :math:`\Gamma`, where :math:`\Gamma` are the x, y, z
-        coordinates of the curve.
+        if ypr is None:
+            ypr = np.zeros((3,))
 
-        """
-        self.test_curve()
-        if len(quadpoints) == len(self.curve.quadpoints) \
-                and np.sum((quadpoints-self.curve.quadpoints)**2) < 1e-15:
-            self.orientation.set_gamma( self.curve.gamma() )
-            gamma[:] = self.orientation.rotate_array()
-            self.position.set_gamma( gamma )
-            gamma[:] = self.position.shift()
+        pure = lambda dofs, points: centercurve_pure(dofs, points)
+        
+        self.order = order
+        self.coefficients = [xyz, ypr, np.zeros((2*order,)), np.zeros((2*order,)), np.zeros((2*order,))]
+
+        if dofs is None:
+            super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+                             external_dof_setter=WindowpaneCurveXYZFourier.set_dofs_impl)
         else:
-            self.curve.gamma_impl(gamma, quadpoints)
-            self.orientation.set_gamma( gamma )
-            gamma[:] = self.orientation.rotate_array()
-            self.position.set_gamma( gamma )
-            gamma[:] = self.position.shift()
-    
-    def gammadash_impl(self, gammadash):
-        r"""
-        This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z
-        coordinates of the curve.
+            super().__init__(quadpoints, pure, dofs=dofs,
+                             external_dof_setter=WindowpaneCurveXYZFourier.set_dofs_impl)
 
+    def num_dofs(self):
         """
-        self.orientation.set_gamma( self.curve.gammadash() )
-        gammadash[:] = self.orientation.rotate_array()
-
-    def gammadashdash_impl(self, gammadashdash):
-        r"""
-        This function returns :math:`\Gamma''(\varphi)`, where :math:`\Gamma` are the x, y, z
-        coordinates of the curve.
-
+        This function returns the number of dofs associated to this object.
         """
-        self.orientation.set_gamma( self.curve.gammadashdash() )
-        gammadashdash[:] = self.orientation.rotate_array( )
-    
-    def gammadashdashdash_impl(self, gammadashdashdash):
-        r"""
-        This function returns :math:`\Gamma'''(\varphi)`, where :math:`\Gamma` are the x, y, z
-        coordinates of the curve.
+        return 3 + 3 + 3*(2*self.order)
 
+    def get_dofs(self):
         """
-        self.orientation.set_gamma( self.curve.gammadashdashdash() )
-        gammadashdashdash[:] = self.orientation.rotate_array( )
-
-    # def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
-    #     r"""
-    #     This function returns
-
-    #     .. math::
-    #         \frac{\partial \Gamma}{\partial \mathbf c}
-
-    #     where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
-    #     coordinates of the curve.
-
-    #     """
-    #     dgamma_by_dcoeff[:] = self.orientation.rotate_array( self.curve.dgamma_by_dcoeff() ) + self.position.vjp( dgamma_by_dcoeff ) + self.orientation.vjp( dgamma_by_dcoeff )
-        
-    # def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
-    #     dgammadash_by_dcoeff[:] = self.orientation.rotate_array( self.curve.dgammadash_by_dcoeff() ) + self.position.vjp( dgammadash_by_dcoeff ) + self.orientation.vjp( dgammadash_by_dcoeff )
-        
-    # def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
-    #     dgammadashdash_by_dcoeff[:] = self.orientation.rotate_array( self.curve.dgammadashdash_by_dcoeff() ) + self.position.vjp( dgammadashdash_by_dcoeff ) + self.orientation.vjp( dgammadashdash_by_dcoeff )
-
-    # def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
-    #     dgammadashdashdash_by_dcoeff[:] = self.orientation.rotate_array( self.curve.dgammadash_by_dcoeff ) + self.position.vjp( dgammadash_by_dcoeff ) + self.orientation.vjp( dgammadash_by_dcoeff )
-
-    def dgamma_by_dcoeff_vjp(self, v):
-        r"""
-        This function returns the vector Jacobian product
-
-        .. math::
-            v^T \frac{\partial \Gamma}{\partial \mathbf c} 
-
-        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
-        coordinates of the curve.
-
+        This function returns the dofs associated to this object.
         """
-        dgdcurve =  self.curve.dgamma_by_dcoeff_vjp( v )
-        self.orientation.set_gamma( self.curve.gamma() )
-        dgdorientation = self.orientation.vjp( v )
-        newgamma = self.orientation.rotate_array()
-        self.position.set_gamma( newgamma )
-        dgdposition = self.position.vjp( v )
-        return dgdcurve + dgdposition + dgdorientation
+        return np.concatenate(self.coefficients)
     
-    def dgammadash_by_dcoeff_vjp(self, v):
-        dgdcurve =  self.curve.dgammadash_by_dcoeff_vjp( v )
-        self.orientation.set_gamma( self.curve.gamma() )
-        dgdorientation = self.orientation.vjp( v )
-        return dgdcurve + dgdorientation
-    
-    def dgammadashdash_by_dcoeff_vjp(self, v):
-        dgdcurve =  self.curve.dgammadashdash_by_dcoeff_vjp( v )
-        self.orientation.set_gamma( self.curve.gamma() )
-        dgdorientation = self.orientation.vjp( v )
-        return dgdcurve + dgdorientation
-    
-    def dgammadashdashdash_by_dcoeff_vjp(self, v):
-        dgdcurve =  self.curve.dgammadashdashdash_by_dcoeff_vjp( v )
-        self.orientation.set_gamma( self.curve.gamma() )
-        dgdorientation = self.orientation.vjp( v )
-        return dgdcurve + dgdorientation
-    
+    def set_dofs_impl(self, dofs):
+        self.coefficients[0][:] = dofs[0:3]
+        self.coefficients[1][:] = dofs[3:6]
+
+        counter = 0
+        for i in range(3):
+            for j in range(0, self.order):
+                self.coefficients[i+2][2*j] = dofs[counter]
+                counter += 1
+                self.coefficients[i+2][2*j+1] = dofs[counter]
+                counter += 1
+
+    def _make_names(self):
+        xyc_name = ['xc', 'yc', 'zc']
+        ypr_name = ['yaw', 'pitch', 'roll']
+        dofs_name = []
+        for c in ['x', 'y', 'z']:
+            for j in range(0, self.order):
+                dofs_name += [f'{c}s({j+1})', f'{c}c({j+1})']
+        return xyc_name + ypr_name + dofs_name
 
