@@ -265,7 +265,7 @@ class Spec(Optimizable):
         if si.lfreebound:
             self.normal_field = NormalField.from_spec(filename)
         else:
-            self.normal_field = None
+            self.normal_field: Optional[NormalField] = None
 
         # By default, all dofs owned by SPEC directly, as opposed to
         # dofs owned by the boundary surface object, are fixed.
