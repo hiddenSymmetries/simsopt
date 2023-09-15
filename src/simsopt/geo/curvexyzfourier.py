@@ -203,7 +203,6 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
 
 
 class JaxCurveXYZFourier(JaxCurve):
-
     """
     A Python+Jax implementation of the CurveXYZFourier class.  There is
     actually no reason why one should use this over the C++ implementation in
