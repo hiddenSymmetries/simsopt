@@ -588,18 +588,30 @@ class CurrentVoxelsField(MagneticField):
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        raise ValueError('dB_by_dX calculation not yet implemented')
-        dB[:] = sopp.current_voxels_field_B(points, self.int_points_full, self.J_full)
+        contig = np.ascontiguousarray
+        dB[:] = sopp.current_voxels_field_dB(
+            contig(points), 
+            contig(self.int_points_full), 
+            contig(self.J_full)
+        ) * self.grid_scaling
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        raise ValueError('Vector potential calculation not yet implemented')
-        A[:] = sopp.current_voxels_field_B(points, self.int_points_full, self.J_full)
+        contig = np.ascontiguousarray
+        A[:] = sopp.current_voxels_field_A(
+            contig(points), 
+            contig(self.int_points_full), 
+            contig(self.J_full)
+        ) * self.grid_scaling
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
-        raise ValueError('dA_by_dX calculation not yet implemented')
-        dA[:] = sopp.current_voxels_field_B(points, self.int_points_full, self.J_full)
+        contig = np.ascontiguousarray
+        dA[:] = sopp.current_voxels_field_dA(
+            contig(points), 
+            contig(self.int_points_full), 
+            contig(self.J_full)
+        ) * self.grid_scaling
 
     def as_dict(self, serial_objs_dict) -> dict:
         d = super().as_dict(serial_objs_dict=serial_objs_dict)
