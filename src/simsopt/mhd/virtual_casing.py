@@ -87,6 +87,9 @@ class VirtualCasing:
     - ``B_external_normal``: An array of size ``(trgt_nphi, trgt_ntheta)`` with the contribution
       to the magnetic field due to current outside the surface, taking just the component
       normal to the surface.
+    - r``B_external_normal_extended``: An array of size ``(trgt_nphi * nfp * 2, trgt_ntheta)`` with the contribution
+      to the magnetic field due to current outside the surface, taking just the component
+      normal to the surface. This is an extension of the B_external_normal array to cover the full torus.
 
     The :math:`\phi` and :math:`\theta` grids for these data are both
     uniformly spaced, and are the same as for
@@ -269,7 +272,7 @@ class VirtualCasing:
         Bexternal_normal_with_last_point = np.hstack((Bexternal_normal, Bexternal_normal[:, [0]]))
         Bexternal_normal_with_last_point = np.vstack((Bexternal_normal_with_last_point, -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)[0]))
         flipped_B = -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)
-        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal, flipped_B[:-1,:-1])) for i in range(nfp)])
+        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal, flipped_B[:-1, :-1])) for i in range(nfp)])
 
         if filename is not None:
             if filename == 'auto':
