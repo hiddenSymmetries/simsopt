@@ -417,6 +417,3 @@ class VirtualCasing:
         if show:
             plt.show()
         return ax
-        if show:
-            plt.show()
-        return ax
