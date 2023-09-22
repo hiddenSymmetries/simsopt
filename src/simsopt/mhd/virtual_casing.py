@@ -188,6 +188,7 @@ class VirtualCasing:
             surf.set_rc(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.rmnc[jmn, -1])
             surf.set_zs(int(vmec.wout.xm[jmn]), int(vmec.wout.xn[jmn] / nfp), vmec.wout.zmns[jmn, -1])
         Bxyz = B_cartesian(vmec, nphi=src_nphi, ntheta=src_ntheta, range=ran)
+        cls.Bxyz = Bxyz
         gamma = surf.gamma()
         logger.debug(f'gamma.shape: {gamma.shape}')
         logger.debug(f'Bxyz[0].shape: {Bxyz[0].shape}')
