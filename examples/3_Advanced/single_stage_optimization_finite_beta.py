@@ -14,6 +14,7 @@ from mpi4py import MPI
 from math import isnan
 from pathlib import Path
 from scipy.optimize import minimize
+from simsopt.mhd.vmec_diagnostics import B_cartesian
 from simsopt.util import MpiPartition, proc0_print, comm_world
 from simsopt._core.util import ObjectiveFailure
 from simsopt import make_optimizable
@@ -172,8 +173,16 @@ def fun_J(prob, coils_prob):
         except ObjectiveFailure as e:
             pass
 
+    bs.set_points(vc.trgt_surf.gamma().reshape((-1, 3)))
+    Bvmec = np.transpose(np.array(B_cartesian(vmec, quadpoints_phi=vc.trgt_surf.quadpoints_phi,
+                                            quadpoints_theta=vc.trgt_surf.quadpoints_theta)),(1,2,0))
+    Bvirtualcasing = vc.B_external
+    Bcoil = bs.B().reshape(Bvirtualcasing.shape)
+    Bsquared_interface = np.sum((Bcoil - Bvirtualcasing)*(Bcoil - Bvirtualcasing + 2*Bvmec),axis=-1)
+    sum_Bsquared_interface = np.sum(Bsquared_interface**2)
+
     bs.set_points(surf.gamma().reshape((-1, 3)))
-    J_stage_2 = coils_objective_weight * JF.J()
+    J_stage_2 = coils_objective_weight * (JF.J() + sum_Bsquared_interface)
     J = J_stage_1 + J_stage_2
     return J
 
