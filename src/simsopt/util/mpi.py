@@ -16,12 +16,14 @@ import numpy as np
 from .._core.dev import SimsoptRequires
 try:
     from mpi4py import MPI
+    comm_world = MPI.COMM_WORLD
 except ImportError:
     MPI = None
+    comm_world = None
 
 STOP = 0
 
-__all__ = ['log', 'MpiPartition']
+__all__ = ['log', 'MpiPartition', 'proc0_print', 'comm_world']
 
 
 def log(level: int = logging.INFO):
@@ -41,6 +43,18 @@ def log(level: int = logging.INFO):
 
 
 logger = logging.getLogger(__name__)
+
+"""
+Print only on MPI process 0. This function works also if MPI is not found.
+"""
+
+
+def proc0_print(*args, **kwargs):
+    if MPI is None:
+        print(*args, **kwargs)
+    else:
+        if MPI.COMM_WORLD.rank == 0:
+            print(*args, **kwargs)
 
 
 @SimsoptRequires(MPI is not None, "mpi4py is not installed")

@@ -12,7 +12,7 @@ The script should be run as:
     mpirun -n 1 python permanent_magnet_MUSE.py
 on a cluster machine but 
     python permanent_magnet_MUSE.py
-is sufficient on other machines. Note that the code is 
+is sufficient on other machines. Note that this code does not use MPI, but is 
 parallelized via OpenMP and XSIMD, so will run substantially
 faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
@@ -33,14 +33,13 @@ from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
-from simsopt.util import FocusData, discretize_polarizations, polarization_axes
+from simsopt.util import FocusData, discretize_polarizations, polarization_axes, in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 
 t_start = time.time()
 
 # Set some parameters -- if doing CI, lower the resolution
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-if ci:
+if in_github_actions:
     nphi = 2
     nIter_max = 100
     nBacktracking = 50
