@@ -175,10 +175,10 @@ def fun_J(prob, coils_prob):
 
     bs.set_points(vc.trgt_surf.gamma().reshape((-1, 3)))
     Bvmec = np.transpose(np.array(B_cartesian(vmec, quadpoints_phi=vc.trgt_surf.quadpoints_phi,
-                                            quadpoints_theta=vc.trgt_surf.quadpoints_theta)),(1,2,0))
+                                              quadpoints_theta=vc.trgt_surf.quadpoints_theta)), (1, 2, 0))
     Bvirtualcasing = vc.B_external
     Bcoil = bs.B().reshape(Bvirtualcasing.shape)
-    Bsquared_interface = np.sum((Bcoil - Bvirtualcasing)*(Bcoil - Bvirtualcasing + 2*Bvmec),axis=-1)
+    Bsquared_interface = np.sum((Bcoil - Bvirtualcasing)*(Bcoil - Bvirtualcasing + 2*Bvmec), axis=-1)
     sum_Bsquared_interface = np.sum(Bsquared_interface**2)
 
     bs.set_points(surf.gamma().reshape((-1, 3)))
