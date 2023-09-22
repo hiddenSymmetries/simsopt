@@ -200,6 +200,7 @@ class VirtualCasing:
         trgt_surf = SurfaceRZFourier.from_nphi_ntheta(mpol=vmec.wout.mpol, ntor=vmec.wout.ntor, nfp=nfp,
                                                       nphi=trgt_nphi, ntheta=trgt_ntheta, range=ran)
         trgt_surf.x = surf.x
+        cls.trgt_surf = trgt_surf
 
         unit_normal = trgt_surf.unitnormal()
         logger.debug(f'unit_normal.shape: {unit_normal.shape}')
