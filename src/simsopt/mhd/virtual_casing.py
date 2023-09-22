@@ -296,6 +296,7 @@ class VirtualCasing:
             f.createDimension('src_nphi', self.src_nphi)
             f.createDimension('trgt_ntheta', self.trgt_ntheta)
             f.createDimension('trgt_nphi', self.trgt_nphi)
+            f.createDimension('trgt_nphi_extended', self.trgt_nphi * 2 * self.nfp)
             f.createDimension('xyz', 3)
 
             src_ntheta = f.createVariable('src_ntheta', 'i', tuple())
@@ -368,6 +369,11 @@ class VirtualCasing:
             B_external_normal.description = 'Component of B_external normal to the surface'
             B_external_normal.units = 'Tesla'
 
+            B_external_normal_extended = f.createVariable('B_external_normal_extended', 'd', ('trgt_nphi_extended', 'trgt_ntheta'))
+            B_external_normal_extended[:, :] = self.B_external_normal_extended
+            B_external_normal_extended.description = 'Component of B_external normal to the surface, repeated to cover the full torus'
+            B_external_normal_extended.units = 'Tesla'
+
     @classmethod
     def load(cls, filename):
         """
@@ -410,13 +416,20 @@ class VirtualCasing:
         fig.colorbar(contours)
         fig.tight_layout()
 
-        fig, ax = plt.subplots()
-        contours = ax.contourf(np.linspace(0, 1, self.B_external_normal_extended.T.shape[1]), np.linspace(0, 1, self.B_external_normal_extended.T.shape[0]), self.B_external_normal_extended.T, 25*self.nfp*2)
-        ax.set_xlabel(r'$\phi$')
-        ax.set_ylabel(r'$\theta$')
-        ax.set_title('B_external_normal_extended [Tesla]')
-        fig.colorbar(contours)
-        fig.tight_layout()
+        fig1, ax1 = plt.subplots()
+        shape = self.B_external_normal_extended.T.shape
+        contours = ax1.contourf(
+            np.linspace(0, 1, shape[1]),
+            np.linspace(0, 1, shape[0]),
+            self.B_external_normal_extended.T,
+            25,
+        )
+        ax1.set_xlabel(r'$\phi$')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_title('B_external_normal_extended [Tesla]')
+        fig1.colorbar(contours)
+        fig1.tight_layout()
+
         if show:
             plt.show()
         return ax
