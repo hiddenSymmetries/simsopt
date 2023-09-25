@@ -117,7 +117,7 @@ def field_on_coils(coil, a=0.05):
     n_quad = phidash.shape[0]
     gamma = coil.curve.gamma()
     gammadash = coil.curve.gammadash() / 2 / np.pi
-    gammadashdash = coil.curve.gammadashdash() / 4 / np.pi**2
+    gammadashdash = coil.curve.curve.gammadashdash() / 4 / np.pi**2
     integral_term = np.zeros((n_quad, 3))
 
     A = singularity_term_circ(gamma, gammadash, gammadashdash, a)
@@ -157,6 +157,7 @@ def G(x, y):
 
 
 def K(u, v, kappa_1, kappa_2, p, q, a, b):
+    """Auxiliary function for the calculation of the internal field of a rectangular crosssction"""
     K = - 2 * u * v * (kappa_1 * q - kappa_2 * p) * jnp.log(a * u**2 / b + b * v**2 / a) + \
         (kappa_2 * q - kappa_1 * p) * (a * u**2 / b + b * v**2 / a) * jnp.log(a * u**2 / b + b * v**2 / a) + \
         4 * a * u**2 * kappa_2 * p / b * \
@@ -198,15 +199,9 @@ def local_field_rect(coil, u, v, a, b):
     b_b = jnp.zeros((N_phi, 3))
     b_0 = jnp.zeros((N_phi, 3))
 
-    k = (4 * b) / (3 * a) * jnp.arctan(a/b) + (4*a)/(3*b)*jnp.arctan(b/a) + \
-        (b**2)/(6*a**2)*jnp.log(b/a) + (a**2)/(6*b**2)*jnp.log(a/b) - \
-        (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
-
-    delta = jnp.exp(-25/6 + k)
-
     for i in range(N_phi):
         b_b.at[i].set(kappa[i] * b[i] / 2 *
-                      (4 + 2*jnp.log(2) + jnp.log(delta)))
+                      (4 + 2*jnp.log(2) + jnp.log(delta(a, b))))
         b_kappa.at[i].set(1 / 16 * (K(u - 1, v - 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b) + K(u + 1, v + 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b)
                                     - K(u - 1, v + 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b) - K(u + 1, v - 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b)))
         b_0.at[i].set(1 / (a * b) * ((G(b * (v - 1), a * (u - 1)) + G(b * (v + 1), a * (u + 1)) - G(b * (v + 1), a * (u - 1)) - G(b * (v - 1), a * (u + 1))) * q -

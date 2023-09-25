@@ -26,8 +26,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 ncoils = 4
 R0 = 1
-R1 = 1
-order = 5
+R1 = 0.8
+order = 3
 
 LENGTH_WEIGHT = 1e-5
 
@@ -37,7 +37,7 @@ CC_WEIGHT = 1e-1
 CS_THRESHOLD = 0.4
 CS_WEIGHT = 10
 
-FORCE_WEIGHT = 1e-20
+FORCE_WEIGHT = 0  # 1e-13
 
 config_str = f"{ncoils}_coils_force_weight_{FORCE_WEIGHT}"
 #######################################################
@@ -53,7 +53,7 @@ s = SurfaceRZFourier.from_vmec_input(
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(
-    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=50)
 base_currents = [Current(2.5e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -80,9 +80,6 @@ Jforce = sum(Jforce_list)
 
 
 JF = Jf \
-    + LENGTH_WEIGHT * sum(Jls) \
-    + CC_WEIGHT * Jccdist \
-    + CS_WEIGHT * Jcsdist \
     + Jforce * FORCE_WEIGHT
 
 MAXITER = 10
@@ -93,26 +90,23 @@ def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={Jforce.J():.3e}, Jflux={Jf.J():.3e}")
+    print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={FORCE_WEIGHT*Jforce.J():.3e}, Jflux={Jf.J():.3e}")
     return J, grad
 
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_{config_str}")
-print("Coil force optimization")
+curves_to_vtk(base_curves, OUT_DIR + f"curves_opt_{config_str}")
 
-MAXITER = 100
 dofs = res.x
-FORCE_WEIGHT *= 1e6
+print("Force Optimization")
+FORCE_WEIGHT += 1e-13
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 
+curves_to_vtk(base_curves, OUT_DIR + f"curves_opt_force_{config_str}")
 
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_{config_str}")
-curves_to_vtk(base_curves, OUT_DIR +
-              f"curves_opt_hfp_{config_str}")
 pointData = {"B_N": np.sum(bs.B().reshape(
     (nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]/np.linalg.norm(bs.B().reshape(
         (nphi, ntheta, 3)), axis=2)}
