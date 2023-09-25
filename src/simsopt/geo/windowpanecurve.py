@@ -56,20 +56,14 @@ class WindowpaneCurveXYZFourier( JaxCurve ):
     WindowpaneCurveXYZFourier is a translated and rotated 
     JaxCurveXYZFourier Curve.
     """
-    def __init__(self, quadpoints, order, dofs=None, xyz=None, ypr=None ):
+    def __init__(self, quadpoints, order, dofs=None ):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-
-        if xyz is None:
-            xyz = np.zeros((3,))
-
-        if ypr is None:
-            ypr = np.zeros((3,))
 
         self.order = order
         pure = lambda dofs, points: centercurve_pure(dofs, points, self.order)
 
-        self.coefficients = [xyz, ypr, np.zeros((2*order,)), np.zeros((2*order,)), np.zeros((2*order,))]
+        self.coefficients = [np.zeros((3,)), np.zeros((3,)), np.zeros((2*order,)), np.zeros((2*order,)), np.zeros((2*order,))]
         if dofs is None:
             super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
                              external_dof_setter=WindowpaneCurveXYZFourier.set_dofs_impl,

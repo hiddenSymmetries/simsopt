@@ -11,7 +11,7 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves']
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_windowpane_curves']
 
 
 @jit
@@ -882,3 +882,27 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curve.x = curve.x  # need to do this to transfer data to C++
         curves.append(curve)
     return curves
+
+def create_equally_spaced_windowpane_curves( ncurves, nfp, stellsym, R0, R1, Z0, order, numquadpoints=None ):
+    if numquadpoints is None:
+        numquadpoints = 15 * order
+
+    curves = []
+    from .windowpanecurve import WindowpaneCurveXYZFourier
+
+    phi = np.linspace(0,np.pi/nfp,ncurves,endpoint=False)
+    dphi = np.pi/nfp * 1/ncurves
+    phi = phi + dphi/2
+    for ii in range(ncurves):
+        c = WindowpaneCurveXYZFourier( numquadpoints, order )
+        c.set('xc(1)',R1)
+        c.set('zs(1)',R1)
+        c.set('x0', R0*np.cos(phi[ii]) )
+        c.set('y0', R0*np.sin(phi[ii]) )
+        c.set('z0', Z0)
+        c.set('yaw', np.pi/2 - phi[ii])
+        curves.append( c )
+
+    return curves
+
+

@@ -11,7 +11,7 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber']
+           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance']
 
 
 @jit
@@ -525,3 +525,40 @@ class LinkingNumber(Optimizable):
     @derivative_dec
     def dJ(self):
         return Derivative({})
+    
+
+@jit
+def curve_cylinder_distance_pure(g, R0):
+    R = jnp.sqrt(g[:,0]**2 + g[:,1]**2)
+    npts = g.shape[0]
+    return jnp.sqrt(jnp.sum((R-R0)**2)) / npts
+
+@jit
+def curve_centroid_cylinder_distance_pure(g, R0):
+    c = jnp.mean(g,axis=0)
+    Rc = jnp.sqrt(c[0]**2+c[1]**2)
+    return Rc-R0
+
+class CurveCylinderDistance(Optimizable):
+    def __init__(self, curve, R0, mth='pts'):
+        self.curve = curve
+        self.R0 = R0
+        self.mth = mth
+
+        if mth=='pts':
+            self._Jlocal = curve_cylinder_distance_pure
+        elif mth=='ctr':
+            self._Jlocal = curve_centroid_cylinder_distance_pure
+        else:
+            raise ValueError('Unknown mth')
+        
+        self.thisgrad = jit(lambda g, R: grad(self._Jlocal, argnums=0)(g, R))
+        super().__init__(depends_on=[curve])
+
+    def J(self):
+        return self._Jlocal(self.curve.gamma(), self.R0)
+    
+    @derivative_dec
+    def dJ(self):
+        grad0 = self.thisgrad(self.curve.gamma(), self.R0)
+        return self.curve.dgamma_by_dcoeff_vjp(grad0)
