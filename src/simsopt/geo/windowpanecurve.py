@@ -45,7 +45,7 @@ def centercurve_pure(dofs, quadpoints, order):
     gamma = jnp.zeros((len(points), 3))
     for i in range(0,3):
         for j in range(0, order):
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.sin(2 * pi * (j+1) * points))
+            gamma = gamma.at[:, i].add(coeffs[i][2 * j    ] * jnp.sin(2 * pi * (j+1) * points))
             gamma = gamma.at[:, i].add(coeffs[i][2 * j + 1] * jnp.cos(2 * pi * (j+1) * points))
 
     return shift_pure( rotate_pure( gamma, ypr ), xyz )

@@ -11,7 +11,7 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_windowpane_curves']
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_windowpane_curves', 'new_windowpane_curve_on_max_error']
 
 
 @jit
@@ -904,5 +904,82 @@ def create_equally_spaced_windowpane_curves( ncurves, nfp, stellsym, R0, R1, Z0,
         curves.append( c )
 
     return curves
+
+def new_windowpane_curve_on_max_error( surf, coils, a, order, nqpts=None, dofs=None, r=None):
+    """
+    Args:
+    ----
+     - surf: target surface
+     - coils: set of coils (full torus)
+     - a: distance from windowpane coil center to the surface
+     - order: coil order
+     - nqpts: number of coil quadrature points. by default 15*order
+     - dofs: coil shaping coefficient (xs(1) .. zc(n)) with n the coil order.
+             should be size 6*order. Note that the xz plane of the coil is the
+             plane parallel to the plasma surface.
+             If None (default), set it as a circle of radius r
+     - r: Only used if dofs is None.
+    """
+    from .surfacerzfourier import SurfaceRZFourier
+    from ..field.biotsavart import BiotSavart
+    from .windowpanecurve import WindowpaneCurveXYZFourier
+
+    if nqpts is None:
+        nqpts = 15*order
+
+    if dofs is None:
+        if r is None:
+            raise ValueError('Need to provide r or some dofs!')
+        dofs = np.zeros((6*order,))
+        dofs[1] = r
+        dofs[4*order] = r
+
+    nfp = surf.nfp
+    phi = surf.quadpoints_phi
+    nphi = surf.quadpoints_phi.size
+    ntheta = surf.quadpoints_theta.size
+    if phi[-1]==1 and nfp>1:
+        wsurf = SurfaceRZFourier( 
+            nfp=nfp, mpol=surf.mpol, ntor=surf.ntor, 
+            quadpoints_phi=np.linspace(0,1/nfp,nphi), 
+            quadpoints_theta=np.linspace(0,1,ntheta) 
+            )
+        wsurf.unfix_all()
+        wsurf.set_dofs(surf.get_dofs())
+        wsurf.fix_all()
+    else:
+        wsurf = surf
+    
+    bs = BiotSavart( coils )
+    bs.set_points(wsurf.gamma().reshape((-1,3)))
+
+    phi = wsurf.quadpoints_phi
+    theta = wsurf.quadpoints_theta
+
+    # Find max B.n position on surface
+    tgrid, pgrid = np.meshgrid(theta, phi)
+    Bdotn = np.sum(bs.B().reshape((nphi, ntheta, 3)) * wsurf.unitnormal(), axis=2)
+    imax = np.argmax( Bdotn )
+    pmax = pgrid.reshape((ntheta*nphi,))[imax]
+    tmax = tgrid.reshape((ntheta*nphi,))[imax]
+
+    # Construct coil position
+    xyz = wsurf.gamma().reshape((ntheta*nphi,3))[imax]
+    d = np.sqrt(xyz[0]**2 + xyz[1]**2 + xyz[2]**2)
+    xyz = xyz * (a/d + 1)
+
+    # Construct yaw, pitch roll
+    ypr = [pmax+np.pi/2, 0, tmax-np.pi/2]
+
+    # Construct coil
+    dofs = xyz.tolist() + ypr + dofs.tolist()
+    curve = WindowpaneCurveXYZFourier( nqpts, order)
+    curve.set_dofs( dofs )
+    
+    return curve
+
+
+
+
 
 
