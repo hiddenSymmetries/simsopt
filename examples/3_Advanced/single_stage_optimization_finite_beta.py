@@ -32,7 +32,7 @@ os.chdir(parent_path)
 ##########################################################################################
 ############## Input parameters
 ##########################################################################################
-MAXITER_stage_2 = 10
+MAXITER_stage_2 = 30
 MAXITER_single_stage = 10
 max_mode = 1
 vmec_input_filename = os.path.join(parent_path, 'inputs', 'input.QH_finitebeta')
@@ -46,7 +46,9 @@ nphi_VMEC = 34
 ntheta_VMEC = 34
 vc_src_nphi = ntheta_VMEC
 nmodes_coils = 7
-coils_objective_weight = 1e+3
+# coils_objective_weight = 1e+3
+coils_objective_weight_Bsquared = 1e+1
+coils_objective_weight_JF = 3e+2
 aspect_ratio_weight = 1
 diff_method = "forward"
 R0 = 1.0
@@ -170,19 +172,35 @@ def fun_J(prob, coils_prob):
         try:
             vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
             Jf.target = vc.B_external_normal
+            Jf.B_external = vc.B_external
+            Jf.trgt_surf = vc.trgt_surf
         except ObjectiveFailure as e:
             pass
 
-    bs.set_points(vc.trgt_surf.gamma().reshape((-1, 3)))
-    Bvmec = np.transpose(np.array(B_cartesian(vmec, quadpoints_phi=vc.trgt_surf.quadpoints_phi,
-                                              quadpoints_theta=vc.trgt_surf.quadpoints_theta)), (1, 2, 0))
-    Bvirtualcasing = vc.B_external
+    bs.set_points(Jf.trgt_surf.gamma().reshape((-1, 3)))
+    Bvmec = np.transpose(np.array(B_cartesian(vmec, quadpoints_phi=Jf.trgt_surf.quadpoints_phi,
+                                              quadpoints_theta=Jf.trgt_surf.quadpoints_theta)), (1, 2, 0))
+    Bvirtualcasing = Jf.B_external
     Bcoil = bs.B().reshape(Bvirtualcasing.shape)
     Bsquared_interface = np.sum((Bcoil - Bvirtualcasing)*(Bcoil - Bvirtualcasing + 2*Bvmec), axis=-1)
     sum_Bsquared_interface = np.sum(Bsquared_interface**2)
 
+    #### What we want is Delta B^2 = B_total_outside^2 - B_total_inside^2
+    #### B_total_inside = Bvmec
+    #### Bvmec = Btotal = Bplasma_inside + Bcoils_inside
+    #### B_total_outside = Bplasma_outside + Bcoils_outside
+    #### Bcoils_outside_1 = B_biot_savart
+    #### Bcoils_outside_2 = B_external
+    #### Stage 2 optimization minimizes B_biot_savart - B_target (B_target = B_external)
+    #### B_V = Bplasma_outside = Btotal - B_external
+
+    ### Delta B^2 = B_total_outside^2 - B_total_inside^2
+    ###           = (Bplasma_outside + Bcoils_outside)^2 - B_total_inside^2
+    ###           = (Bvmec - B_external + B_biot_savart)^2 - Bvmec^2
+    ###           = (Bbiotsavart - Bexternal) . (Bbiotsavart - Bexternal + 2 Bvmec)
+
     bs.set_points(surf.gamma().reshape((-1, 3)))
-    J_stage_2 = coils_objective_weight * (JF.J() + sum_Bsquared_interface)
+    J_stage_2 = coils_objective_weight_JF * JF.J() + coils_objective_weight_Bsquared * sum_Bsquared_interface
     J = J_stage_1 + J_stage_2
     return J
 
@@ -208,7 +226,7 @@ def fun(dofss, prob_jacobian, info={'Nfeval': 0}):
     else:
         proc0_print(f"fun#{info['Nfeval']}: Objective function = {J:.4f}")
         coils_dJ = JF.dJ()
-        grad_with_respect_to_coils = coils_objective_weight * coils_dJ
+        grad_with_respect_to_coils = coils_objective_weight_JF * coils_dJ
         JF.fix_all()  # Must re-fix the coil dofs before beginning the finite differencing.
         grad_with_respect_to_surface = prob_jacobian.jac(prob.x)[0]
 
@@ -235,6 +253,8 @@ dofs = np.concatenate((JF.x, vmec.x))
 bs.set_points(surf.gamma().reshape((-1, 3)))
 vc = VirtualCasing.from_vmec(vmec, src_nphi=vc_src_nphi, trgt_nphi=nphi_VMEC, trgt_ntheta=ntheta_VMEC, filename=None)
 Jf = SquaredFlux(surf, bs, definition="local", target=vc.B_external_normal)
+Jf.B_external = vc.B_external
+Jf.trgt_surf = vc.trgt_surf
 proc0_print(f"Aspect ratio before optimization: {vmec.aspect()}")
 proc0_print(f"Mean iota before optimization: {vmec.mean_iota()}")
 proc0_print(f"Quasisymmetry objective before optimization: {qs.total()}")
