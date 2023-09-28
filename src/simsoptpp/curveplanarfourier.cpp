@@ -254,54 +254,280 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
             j[0] += rs[n-1] * sin(n*phi) * sin(phi);
         }
         
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j[0] * q_norm[3];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i[0] * q_norm[3]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i[0] * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j[0] * q_norm[1];
-        counter++;
-
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[2];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
                             + 2 * i[0] * q_norm[2]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j[0] * q_norm[1];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i[0] * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[0];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[1];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
                             + 2 * i[0] * q_norm[1]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
-        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
-                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[3];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j[0] * q_norm[0];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
                             + 2 * i[0] * q_norm[0]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j[0] * q_norm[3];
-        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
                             + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
                             - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j[0] * q_norm[2];
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            + 
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            + (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +                            
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
         counter++;
 
 
@@ -381,54 +607,280 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
                 j[0] += rs[n-1] * ( (n) * cos(n*phi) * sin(phi) + sin(n*phi) * cos(phi)) * 2 * M_PI;
         }
 
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j[0] * q_norm[3];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i[0] * q_norm[3]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i[0] * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j[0] * q_norm[1];
-        counter++;
-
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[2];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
                             + 2 * i[0] * q_norm[2]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j[0] * q_norm[1];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i[0] * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[0];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[1];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
                             + 2 * i[0] * q_norm[1]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
-        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
-                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[3];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j[0] * q_norm[0];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
                             + 2 * i[0] * q_norm[0]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j[0] * q_norm[3];
-        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
                             + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
                             - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j[0] * q_norm[2];
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            + 
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            + (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +                            
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
         counter++;
 
         for (int i = 0; i < 2; ++i) {
@@ -510,54 +962,280 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
         j[0] *= 2*M_PI*2*M_PI;
         k[0] *= 2*M_PI*2*M_PI;
         
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j[0] * q_norm[3];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i[0] * q_norm[3]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i[0] * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j[0] * q_norm[1];
-        counter++;
-
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[2];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
                             + 2 * i[0] * q_norm[2]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j[0] * q_norm[1];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i[0] * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[0];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[1];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
                             + 2 * i[0] * q_norm[1]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
-        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
-                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[3];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j[0] * q_norm[0];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
                             + 2 * i[0] * q_norm[0]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j[0] * q_norm[3];
-        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
                             + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
                             - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j[0] * q_norm[2];
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            + 
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            + (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +                            
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
         counter++;
 
         for (int i = 0; i < 3; ++i) {
@@ -662,54 +1340,280 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
         j[0] *= 2*M_PI*2*M_PI*2*M_PI;
         k[0] *= 2*M_PI*2*M_PI*2*M_PI;
         
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j[0] * q_norm[3];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i[0] * q_norm[3]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i[0] * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j[0] * q_norm[1];
-        counter++;
-
-        data(m, 0, counter) = 4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
                             - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[2];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
                             + 2 * i[0] * q_norm[2]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j[0] * q_norm[1];
-        data(m, 2, counter) = - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i[0] * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j[0] * q_norm[0];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[1];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
                             + 2 * i[0] * q_norm[1]
-                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2];
-        data(m, 2, counter) = - 2 * i[0] * q_norm[0]
-                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j[0] * q_norm[3];
-        counter++;
-
-        data(m, 0, counter) = - 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j[0] * q_norm[0];
-        data(m, 1, counter) = - 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
                             + 2 * i[0] * q_norm[0]
                             + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j[0] * q_norm[3];
-        data(m, 2, counter) = 2 * i[0] * q_norm[1]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[0] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
                             + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
                             - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j[0] * q_norm[2];
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[0] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (1 / std::sqrt(s) - q[1] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[1] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            + 
+                            (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[2] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (- q[3] * q[2] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+        counter++;
+
+        data(m, 0, counter) = (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
+                            - 2 * j[0] * q_norm[3]) 
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            + (4 * i[0] * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[2]) 
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[1]) 
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +                            
+                            (- 4 * i[0] * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
+                            - 2 * j[0] * q_norm[0]) 
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 1, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
+                            + 2 * i[0] * q_norm[3]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[2]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
+                            - 4 * j[0] * q_norm[1])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
+                            + 2 * i[0] * q_norm[1]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
+                            + 2 * i[0] * q_norm[0]
+                            + 4 * j[0] * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * q_norm[3])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
+
+
+        data(m, 2, counter) = (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
+                            - 2 * i[0] * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
+                            + 2 * j[0] * q_norm[1])
+                            * (- q[0] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
+                            + 2 * i[0] * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
+                            + 2 * j[0] * q_norm[0])
+                            * (- q[1] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (- 2 * i[0] * q_norm[0]
+                            - 4 * i[0] * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
+                            + 2 * j[0] * q_norm[3])
+                            * (- q[2] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)))
+                            +
+                            (2 * i[0] * q_norm[1]
+                            + 4 * i[0] * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
+                            - 4 * j[0] * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
+                            + 2 * j[0] * q_norm[2])
+                            * (1 / std::sqrt(s) - q[3] * q[3] / (std::sqrt(s) * std::sqrt(s) * std::sqrt(s)));
         counter++;
 
         for (int i = 0; i < 3; ++i) {
