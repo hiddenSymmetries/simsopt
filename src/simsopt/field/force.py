@@ -6,67 +6,12 @@ import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
 from .coil import Coil
+from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
-
-
-def field_on_coils_circ_pure(gamma, gammadash, gammadashdash, phi, current, a=0.05):
-    """Regularized field for optimization"""
-    I = current
-    n_quad = phi.shape[0]
-
-    A = (1 / jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**3 * jnp.cross(gammadashdash, gammadash)) * (
-        1 + jnp.log(a / (8 * math.e**0.25 * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis])))
-    b_int_phi_dash = jnp.zeros((n_quad, n_quad, 3))
-
-    for i in range(len(phi)):
-        b_int_phi_dash.at[i].set((jnp.cross(gammadash[i], (gamma-gamma[i]))) / (jnp.linalg.norm(gamma - gamma[i])**2 + a/jnp.sqrt(math.e)) ** 1.5
-                                 + (jnp.cross(gammadashdash, gammadash) * (1 - jnp.cos(phi[i] - phi)[:, jnp.newaxis]) / (2 * (
-                                     1 - jnp.cos(phi[i] - phi)) * jnp.linalg.norm(gammadash)**2 + a**2/jnp.sqrt(math.e))[:, jnp.newaxis]))
-
-    integral = jnp.trapz(b_int_phi_dash, phi, axis=0)
-
-    b_reg = I * Biot_savart_prefactor * (integral + A)
-
-    return b_reg
-
-
-def field_on_coils_rect_pure(gamma, gammadash, gammadashdash, phi, current, a=0.05, b=0.03):
-    """Regularized field for optimization of a coil with rectangular cross section"""
-    I = current
-    n_quad = phi.shape[0]
-
-    k = (4 * b) / (3 * a) * jnp.arctan(a/b) + (4*a)/(3*b)*jnp.arctan(b/a) + \
-        (b**2)/(6*a**2)*jnp.log(b/a) + (a**2)/(6*b**2)*jnp.log(a/b) - \
-        (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
-
-    delta = jnp.exp(-25/6 + k)
-    A = (jnp.cross(gammadash, gammadashdash)) / (2*jnp.linalg.norm(gammadash, axis=1)
-                                                 [:, jnp.newaxis]**3) * (-2 + jnp.log(64 / (delta * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
-
-    b_int_phi_dash = jnp.zeros((n_quad, n_quad, 3))
-
-    for i in range(len(phi)):
-        b_int_phi_dash.at[i].set((jnp.cross(gammadash[i], (gamma-gamma[i]))) / (jnp.linalg.norm(gamma - gamma[i])**2 + delta + a * b) ** 1.5
-                                 + (jnp.cross(gammadashdash, gammadash) * (1 - jnp.cos(phi[i] - phi)[:, jnp.newaxis]) / ((
-                                     2 - 2 * jnp.cos(phi[i] - phi)) * jnp.linalg.norm(gammadash)**2 + delta * a * b)[:, jnp.newaxis]))
-
-    integral = jnp.trapz(b_int_phi_dash, phi, axis=0)
-
-    b_reg = I * Biot_savart_prefactor * (integral + A)
-
-    return b_reg
-
-
-def field_from_other_coils_pure(gamma, curves, currents):
-    """field on one coil from the other coils"""
-    coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-    b_ext = BiotSavart(coils)
-    b_ext.set_points(gamma)
-    return b_ext.B()
 
 
 def coil_force_pure(B, I, t):
@@ -75,25 +20,35 @@ def coil_force_pure(B, I, t):
     return force
 
 
-def self_force_circ(coil, a):
+def self_force(coil, regularization):
     """
-    Compute the self-force on a circular-cross-section coil.
+    Compute the self-force of a coil.
     """
-    bs = BiotSavart()
-    bs.set_points(coil.curve.gamma())
     I = coil.current.get_value()
-    tangent = coil.curve.gammadash() / jnp.linalg.norm(coil.curve.gammadash())
+    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(), axis=1)[:, None]
+    B = B_regularized(coil, regularization)
+    return coil_force_pure(B, I, tangent)
+
+
+def self_force_circ(coil, a):
+    """Compute the Lorentz self-force of a coil with circular cross-section"""
+    return self_force(coil, regularization_circ(a))
+
+
+def self_force_rect(coil, a, b):
+    """Compute the Lorentz self-force of a coil with rectangular cross-section"""
+    return self_force(coil, regularization_rect(a, b))
 
 
 @jit
 def force_opt_pure(gamma, gammadash, gammadashdash,
-                   current, phi, b_ext):
+                   current, phi, B_ext, regularization):
     """Cost function for force optimization. Optimize for peak self force on the coil (so far)"""
     t = gammadash / jnp.linalg.norm(gammadash)
-    b_self = field_on_coils_rect_pure(
-        gamma, gammadash, gammadashdash, phi, phi, current)
-    b_tot = b_self + b_ext
-    force = coil_force_pure(b_tot, current, t)
+    B_self = B_regularized_pure(
+        gamma, gammadash, gammadashdash, phi, phi, current, regularization)
+    B_tot = B_self + B_ext
+    force = coil_force_pure(B_tot, current, t)
     f_norm = jnp.linalg.norm(force, axis=1)
     result = jnp.max(f_norm)
     # result = jnp.sum(f_norm)
