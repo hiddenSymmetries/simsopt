@@ -9,7 +9,6 @@ import simsoptpp as sopp
 from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
-from .._core.json import GSONDecoder
 from .._core.dev import SimsoptRequires
 
 try:
@@ -369,6 +368,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         stellsym = np.max(np.abs(rs)) == 0 and np.max(np.abs(zc)) == 0
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
+
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        grid_range = kwargs.pop("range", None)
+
+        if ntheta is not None or nphi is not None:
+            kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                ntheta=ntheta, nphi=nphi, nfp=nfp, range=grid_range)
 
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, **kwargs)
 

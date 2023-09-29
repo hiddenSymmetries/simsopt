@@ -4,7 +4,6 @@ import scipy
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
-from .._core.json import GSONable
 
 __all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
 

@@ -799,7 +799,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, ylims=None, surf=None):
     """
     Create a poincare plot. Usage:
 
@@ -816,16 +816,28 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     import matplotlib.pyplot as plt
     from math import ceil, sqrt
     nrowcol = ceil(sqrt(len(phis)))
-    fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(16, 10))
+    plt.figure()
+    fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
+    for ax in axs.ravel():
+        ax.set_aspect(aspect)
     color = None
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
-        axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.3f}\\pi$ ", loc='right', y=0.0)
-        axs[row, col].set_xlabel("$r$")
-        axs[row, col].set_ylabel("$z$")
-        axs[row, col].set_aspect(aspect)
-        axs[row, col].tick_params(direction="in")
+        if i != len(phis) - 1:
+            axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
+        else:
+            axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='right', y=0.0)
+        if row == nrowcol - 1:
+            axs[row, col].set_xlabel("$r$")
+        if col == 0:
+            axs[row, col].set_ylabel("$z$")
+        if col == 1:
+            axs[row, col].set_yticklabels([])
+        if xlims is not None:
+            axs[row, col].set_xlim(xlims)
+        if ylims is not None:
+            axs[row, col].set_ylim(ylims)
         for j in range(len(fieldlines_phi_hits)):
             lost = fieldlines_phi_hits[j][-1, 1] < 0
             if mark_lost:
@@ -834,7 +846,18 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=0.2, linewidths=0, c=color)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=2, linewidths=0, c=color)
+
+        plt.rc('axes', axisbelow=True)
+        axs[row, col].grid(True, linewidth=0.5)
+
+        # if passed a surface, plot the plasma surface outline
+        if surf is not None:
+            cross_section = surf.cross_section(phi=phis[i])
+            r_interp = np.sqrt(cross_section[:, 0] ** 2 + cross_section[:, 1] ** 2)
+            z_interp = cross_section[:, 2]
+            axs[row, col].plot(r_interp, z_interp, linewidth=1, c='k')
+
     plt.tight_layout()
     plt.savefig(filename, dpi=dpi)
     plt.close()

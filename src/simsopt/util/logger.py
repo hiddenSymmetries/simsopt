@@ -11,7 +11,6 @@ from pathlib import Path
 from ruamel.yaml import YAML
 try:
     from mpi4py import MPI
-    # from .mpi_logger import MPILogHandler
 except:
     MPI = None
 
