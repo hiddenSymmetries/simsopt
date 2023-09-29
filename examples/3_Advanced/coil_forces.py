@@ -1,5 +1,5 @@
 """
-Examples script for the force metric in a stage-two coil optiimiization
+Examples script for the force metric in a stage-two coil optimization
 """
 import os
 from pathlib import Path
@@ -11,7 +11,7 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.selffieldforces import ForceOpt
+from simsopt.field.forces import ForceOpt
 
 
 # File for the desired boundary magnetic surface:
