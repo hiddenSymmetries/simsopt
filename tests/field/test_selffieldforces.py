@@ -6,41 +6,108 @@ import numpy as np
 from scipy import constants
 import matplotlib.pyplot as plt
 
-from simsopt.field.selffieldforces import field_on_coils, ForceOpt, force_on_coil, self_force
+#from simsopt.field.selffield import field_on_coils
+#from simsopt.field.force import ForceOpt, force_on_coil, self_force
 from simsopt.field import Coil, Current, apply_symmetries_to_curves, apply_symmetries_to_currents
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.configs import get_hsx_data
 from simsopt.geo import CurveXYZFourier
+from simsopt.field.selffield import (
+    field_on_coils_circ,
+    field_on_coils_rect,
+    rectangular_xsection_k,
+    rectangular_xsection_delta,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class SpecialFunctionsTests(unittest.TestCase):
+    """
+    Test the functions that are specific to the reduced model for rectangular
+    cross-section coils.
+    """
+
+    def test_k_square(self):
+        """Check value of k for a square cross-section."""
+        truth = 2.556493222766492
+        np.testing.assert_allclose(rectangular_xsection_k(0.3, 0.3), truth)
+        np.testing.assert_allclose(rectangular_xsection_k(2.7, 2.7), truth)
+
+    def test_delta_square(self):
+        """Check value of delta for a square cross-section."""
+        truth = 0.19985294779417703
+        np.testing.assert_allclose(rectangular_xsection_delta(0.3, 0.3), truth)
+        np.testing.assert_allclose(rectangular_xsection_delta(2.7, 2.7), truth)
+
+    def test_symmetry(self):
+        """k and delta should be unchanged if a and b are swapped."""
+        n_ratio = 10
+        d = 0.01  # Geometric mean of a and b
+        for ratio in [0.1, 3.7]:
+            a = d * ratio
+            b = d / ratio
+            np.testing.assert_allclose(
+                rectangular_xsection_delta(a, b), rectangular_xsection_delta(b, a)
+            )
+            np.testing.assert_allclose(
+                rectangular_xsection_k(a, b), rectangular_xsection_k(b, a)
+            )
+
+    def test_limits(self):
+        """Check limits of k and delta for a >> b and b >> a."""
+        ratios = [1.1e6, 2.2e4, 3.5e5]
+        xs = [0.2, 1.0, 7.3]
+        for ratio in ratios:
+            for x in xs:
+                # a >> b
+                b = x
+                a = b * ratio
+                np.testing.assert_allclose(rectangular_xsection_k(a, b), (7.0 / 6) + np.log(a / b), rtol=1e-3)
+                np.testing.assert_allclose(rectangular_xsection_delta(a, b), a / (b * np.exp(3)), rtol=1e-3)
+
+                # b >> a
+                a = x
+                b = ratio * a
+                np.testing.assert_allclose(rectangular_xsection_k(a, b), (7.0 / 6) + np.log(b / a), rtol=1e-3)
+                np.testing.assert_allclose(rectangular_xsection_delta(a, b), b / (a * np.exp(3)), rtol=1e-3)
 
 
 class CoilForcesTest(unittest.TestCase):
 
     def test_circular_coil(self):
-        """Check whether hoop force on a circular coil is right"""
-        R0 = 0
-        R1 = 1
+        """Check whether B_reg and hoop force on a circular coil are correct."""
+        R0 = 1.7
         I = 10000
         a = 0.01
-        N_quad = 1000
+        b = 0.023
+        order = 1
 
-        dofs = [0, 0, 1, 0, 1, 0, 0, 0., 0.]
-        curve = CurveXYZFourier(N_quad, 1)
-        curve.x = dofs
+        # Analytic field has only a z component
+        B_reg_analytic_circ = constants.mu_0 * I / (4 * np.pi * R0) * (np.log(8 * R0 / a) - 3 / 4)
+        # Eq (98) in Landreman Hurwitz Antonsen:
+        B_reg_analytic_rect = constants.mu_0 * I / (4 * np.pi * R0) * (
+            np.log(8 * R0 / np.sqrt(a * b)) + 13.0 / 12 - rectangular_xsection_k(a, b) / 2
+        )
 
-        current = Current(I)
-        coil = Coil(curve, current)
+        for N_quad in [3, 13, 23]:
 
-        _, n, _ = curve.frenet_frame()
+            # Create a circle of radius R0 in the x-y plane:
+            curve = CurveXYZFourier(N_quad, order)
+            curve.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
 
-        hoop_force_analytical = np.linalg.norm(constants.mu_0 *
-                                               I**2 / 4 / np.pi / R1 * (np.log(8 * R1 / a) - 3 / 4) * n, axis=1)
+            current = Current(I)
+            coil = Coil(curve, current)
 
-        hoop_force_test = np.linalg.norm(self_force(coil, a), axis=1)
+            # Check the case of circular cross-section:
+            B_reg_test = field_on_coils_circ(coil, a)
+            np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_circ)
+            np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
 
-        np.testing.assert_array_almost_equal(
-            hoop_force_test, hoop_force_analytical, 2)
+            # Check the case of rectangular cross-section:
+            B_reg_test = field_on_coils_rect(coil, a, b)
+            np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_rect)
+            np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
 
     def test_force_objective(self):
         """Check whether objective function matches function for export"""
@@ -90,7 +157,7 @@ class CoilForcesTest(unittest.TestCase):
         self.assertEqual(1, 1)
 
     def test_hsx_coil(self):
-        """Check whether HSX coil 1 is correct [not yet functioinal]"""
+        """Compare self-force for HSX coil 1 to result from CoilForces.jl [not yet functioinal]"""
         curves, currents, ma = get_hsx_data(Nt_coils=10)
         I = 150e3
         a = 0.1
