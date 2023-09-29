@@ -2,11 +2,10 @@
 
 import os
 import numpy as np
-from simsopt.util import MpiPartition
-from simsopt.mhd import Vmec
-from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, proc0_print
 
 """
 This example shows how scripting can be used to increase the size
@@ -24,8 +23,8 @@ resolution for VMEC and booz_xform is increased.
 
 #log()
 
-print("Running 2_Intermediate/resolution_increase.py")
-print("=============================================")
+proc0_print("Running 2_Intermediate/resolution_increase.py")
+proc0_print("=============================================")
 
 mpi = MpiPartition()
 mpi.write()
@@ -55,10 +54,9 @@ for step in range(3):
     vmec.indata.mpol = 3 + step
     vmec.indata.ntor = vmec.indata.mpol
 
-    if mpi.proc0_world:
-        print("Beginning optimization with max_mode =", max_mode, \
-              ", vmec mpol=ntor=", vmec.indata.mpol, \
-              ". Previous vmec iteration = ", vmec.iter)
+    proc0_print("Beginning optimization with max_mode =", max_mode, \
+                ", vmec mpol=ntor=", vmec.indata.mpol, \
+                ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
     surf.fix_all()
@@ -75,11 +73,10 @@ for step in range(3):
     # deleted when vmec runs again:
     vmec.files_to_delete = []
 
-    if mpi.proc0_world:
-        print(f"Done optimization with max_mode ={max_mode}. "
-              f"Final vmec iteration = {vmec.iter}")
+    proc0_print(f"Done optimization with max_mode ={max_mode}. "
+                f"Final vmec iteration = {vmec.iter}")
 
-print("Good bye")
+proc0_print("Good bye")
 
-print("End of 2_Intermediate/resolution_increase.py")
-print("=============================================")
+proc0_print("End of 2_Intermediate/resolution_increase.py")
+proc0_print("=============================================")

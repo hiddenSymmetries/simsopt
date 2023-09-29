@@ -4,14 +4,13 @@ import os
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.field import BoozerRadialInterpolant, InterpolatedBoozerField
-from simsopt.field import trace_particles_boozer, MinToroidalFluxStoppingCriterion, \
-    MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
-    compute_resonances
-from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-from simsopt.mhd import Vmec
 
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
+from simsopt.field import (BoozerRadialInterpolant, InterpolatedBoozerField, trace_particles_boozer,
+                           MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion,
+                           ToroidalTransitStoppingCriterion, compute_resonances)
+from simsopt.mhd import Vmec
+from simsopt.util import in_github_actions
+from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.LandremanPaul2021_QH')
 logging.basicConfig()
@@ -138,7 +137,7 @@ gc_tys, gc_zeta_hits = trace_particles_boozer(
     Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
     forget_exact_path=False)
 
-if not ci:
+if not in_github_actions:
     plt.figure()
     plt.scatter(np.abs(m), np.abs(n))
     plt.plot(np.abs(ms), np.abs(ms/iota_min))

@@ -1,7 +1,9 @@
 import unittest
 import json
 import os
+
 import numpy as np
+from monty.tempfile import ScratchDir
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -140,24 +142,23 @@ class ScaledCurrentTesting(unittest.TestCase):
 
 class CoilFormatConvertTesting(unittest.TestCase):
     def test_makegrid(self):
-        stellsym = True
         curves, currents, ma = get_ncsx_data()
-
-        coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
+        with ScratchDir("."):
+            coils_to_focus('test.focus', curves, currents, nfp=3, stellsym=True)
 
     def test_focus(self):
-        stellsym = True
-        curves, currents, ma = get_ncsx_data()        
-        coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
+        curves, currents, ma = get_ncsx_data()
+        with ScratchDir("."):
+            coils_to_makegrid('coils.test', curves, currents, nfp=3, stellsym=True)
 
     def test_load_coils_from_makegrid_file(self):     
         order = 25
         ppp = 10
 
-        curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)  
-        coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
-
-        loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)
+        curves, currents, ma = get_ncsx_data(Nt_coils=order, ppp=ppp)
+        with ScratchDir("."):
+            coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
+            loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order, ppp)
 
         gamma = [curve.gamma() for curve in curves]
         loaded_gamma = [coil.curve.gamma() for coil in loaded_coils]
@@ -186,8 +187,6 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
         np.testing.assert_allclose(B, loaded_B)
         np.testing.assert_allclose(gamma, loaded_gamma)
-
-        os.remove("coils.file_to_load")
 
 
 if __name__ == "__main__":

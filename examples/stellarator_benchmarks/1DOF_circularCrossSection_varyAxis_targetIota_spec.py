@@ -4,11 +4,11 @@ import os
 import logging
 import numpy as np
 
-from simsopt.util import MpiPartition, log
+from simsopt.geo import SurfaceGarabedian
 from simsopt.mhd import Spec
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
-from simsopt.geo import SurfaceGarabedian
+from simsopt.util import MpiPartition, log, proc0_print
 
 """
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
@@ -28,8 +28,8 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 """
 
 # Print out detailed logging info. This could be commented out if desired.
-print("Running 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
-print("=============================================================")
+proc0_print("Running 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
+proc0_print("=============================================================")
 log(logging.DEBUG)
 
 # Divide up the MPI processes. Since the finite difference gradient
@@ -67,14 +67,14 @@ least_squares_mpi_solve(prob, mpi=mpi, grad=True)
 final_objective = prob.objective()
 final_iota = equil.iota()
 
-if mpi.proc0_world:
-    print("At the optimum,")
-    print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
-    print(" iota = ", final_iota)
-    print(" objective function = ", final_objective)
+proc0_print("At the optimum,")
+proc0_print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
+proc0_print(" iota = ", final_iota)
+proc0_print(" objective function = ", final_objective)
 
+if mpi.proc0_world:
     assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
     assert np.abs(final_iota - desired_iota) < 1.0e-5
     assert final_objective < 1.0e-15
-print("End of 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
-print("=============================================================")
+proc0_print("End of 1DOF_circularCrossSection_varyAxis_targetIota_spec.py")
+proc0_print("=============================================================")

@@ -3,10 +3,10 @@ from pathlib import Path
 import json
 
 from qsc import Qsc
-
 import numpy as np
-from simsopt import save, load
+from monty.tempfile import ScratchDir
 
+from simsopt import save, load
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
 from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
@@ -277,8 +277,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # be shifted by the hiddenSymmetries VMEC2000 module.  For any
         # input file and version of VMEC, we can compare
         # coordinate-independent properties like the volume and area.
-        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()),
-                               places=13)
+        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
         self.assertAlmostEqual(s1.area(), s2.area(), places=7)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
@@ -286,14 +285,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_get_and_write_nml(self):
         """
@@ -305,8 +300,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         new_filename = 'boundary.li383_low_res'
-        s1.write_nml(new_filename)
-        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        with ScratchDir("."):
+            s1.write_nml(new_filename)
+            s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
         places = 13
@@ -315,19 +311,18 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
 
         # Try a non-stellarator-symmetric case
         filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         nml_str = s1.get_nml()  # This time, cover the case in which a string is returned
-        new_filename = 'boundary'
-        with open(new_filename, 'w') as f:
-            f.write(nml_str)
-        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        with ScratchDir("."):
+            new_filename = 'boundary'
+            with open(new_filename, 'w') as f:
+                f.write(nml_str)
+            s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
         places = 13
@@ -336,14 +331,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_from_focus(self):
         """
