@@ -57,52 +57,6 @@ def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
     )[:, None]
 
 
-def B_regularized_integrand(i, j, r_c, rc_prime, rc_prime_prime, phi, regularization):
-    """Integrand of the regularized magnetic field formula.
-
-    i is the index of the point at which the field is evaluated. j is the index of the source point.
-
-    regularization corresponds to delta * a * b for rectangular x-section, or to
-    a²/√e for circular x-section.
-
-    The argument phi and the derivatives rc_prime & rc_prime_prime refer to an angle that goes up to
-    2π, not up to 1.
-    """
-    dr = r_c[i] - r_c[j]
-    first_term = (
-        jnp.cross(rc_prime[j], dr) / (jnp.linalg.norm(dr)**2 + regularization) ** 1.5
-    )
-    cos_fac = 2 - 2 * jnp.cos(phi[j] - phi[i])
-    denominator2 = cos_fac * jnp.linalg.norm(rc_prime[i])**2 + regularization
-    factor2 = 0.5 * cos_fac / denominator2**1.5
-    second_term = jnp.cross(rc_prime_prime[i], rc_prime[i]) * factor2
-    integrand = first_term + second_term
-
-    return integrand
-
-
-def B_regularized_integral(r_c, rc_prime, rc_prime_prime, phi, i, regularization):
-    """Integral in the regularized magnetic field formula, without the analytic
-    term added back in.
-
-    i is the index of the point at which the field is evaluated.
-
-    regularization corresponds to delta * a * b for rectangular x-section, or to
-    a²/√e for circular x-section.
-
-    The argument phi and the derivatives rc_prime & rc_prime_prime refer to an angle that goes up to
-    2π, not up to 1.
-    """
-
-    nphi = phi.shape[0]
-    dphi = 2 * jnp.pi / nphi
-    integral = jnp.zeros(3)
-    for j, phi_0 in enumerate(phi):
-        integral += B_regularized_integrand(i, j, r_c, rc_prime, rc_prime_prime, phi, regularization)
-
-    return integral * dphi
-
-
 def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
     # The factors of 2π in the next few lines come from the fact that simsopt
     # uses a curve parameter that goes up to 1 rather than 2π.
@@ -111,13 +65,22 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     rc_prime = gammadash / 2 / np.pi
     rc_prime_prime = gammadashdash / 4 / np.pi**2
     n_quad = phi.shape[0]
+    dphi = 2 * jnp.pi / n_quad
 
     analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
+
     integral_term = jnp.zeros((n_quad, 3))
-    for i in range(len(phi)):
-        integral_term.at[i].set(
-            B_regularized_integral(r_c, rc_prime, rc_prime_prime, phi, i, regularization)
+    for j in range(n_quad):
+        dr = r_c - r_c[j]
+        first_term = (
+            jnp.cross(rc_prime[j], dr) / ((jnp.linalg.norm(dr, axis=1)**2 + regularization) ** 1.5)[:, None]
         )
+        cos_fac = 2 - 2 * jnp.cos(phi[j] - phi)
+        denominator2 = cos_fac * jnp.linalg.norm(rc_prime, axis=1)**2 + regularization
+        factor2 = 0.5 * cos_fac / denominator2**1.5
+        second_term = jnp.cross(rc_prime_prime, rc_prime) * factor2[:, None]
+        integral_term += dphi * (first_term + second_term)
+
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
