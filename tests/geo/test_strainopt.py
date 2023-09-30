@@ -7,7 +7,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from scipy.optimize import minimize
 
 
-class StrainOptTesting(unittest.TestCase):
+class CoilStrainTesting(unittest.TestCase):
 
     def test_strain_opt(self):
         """ 

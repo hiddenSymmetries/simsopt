@@ -13,7 +13,7 @@ The orientation of the tape is defined with respect to the Frenet-Serret Frame
 
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.geo import StrainOpt, LPTorsionalStrainPenalty, LPBinormalCurvatureStrainPenalty
+from simsopt.geo import CoilStrain, LPTorsionalStrainPenalty, LPBinormalCurvatureStrainPenalty
 from simsopt.geo import FrameRotation, FramedCurveFrenet, CurveXYZFourier
 from simsopt.configs import get_hsx_data
 from simsopt.util import in_github_actions
@@ -40,7 +40,7 @@ Jtor = LPTorsionalStrainPenalty(framedcurve, p=2, threshold=tor_threshold)
 Jbin = LPBinormalCurvatureStrainPenalty(
     framedcurve, p=2, threshold=cur_threshold)
 
-strain = StrainOpt(framedcurve, width)
+strain = CoilStrain(framedcurve, width)
 JF = Jtor + Jbin
 
 

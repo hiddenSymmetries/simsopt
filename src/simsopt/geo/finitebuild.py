@@ -1,12 +1,5 @@
 import numpy as np
-import jax.numpy as jnp
-from jax import vjp, jvp
 
-import simsoptpp as sopp
-from .._core.optimizable import Optimizable
-from .._core.derivative import Derivative
-from .curve import Curve
-from .jit import jit
 from .framedcurve import FramedCurve, FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
 
 """
@@ -50,7 +43,6 @@ class CurveFilament(FramedCurve):
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
         assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
-        c = self.curve
         t, n, b = self.framedcurve.rotated_frame()
         gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
 
