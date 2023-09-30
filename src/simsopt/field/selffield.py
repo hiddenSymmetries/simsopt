@@ -73,10 +73,10 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     for j in range(n_quad):
         dr = r_c - r_c[j]
         first_term = (
-            jnp.cross(rc_prime[j], dr) / ((jnp.linalg.norm(dr, axis=1)**2 + regularization) ** 1.5)[:, None]
+            jnp.cross(rc_prime[j], dr) / ((jnp.sum(dr * dr, axis=1) + regularization) ** 1.5)[:, None]
         )
         cos_fac = 2 - 2 * jnp.cos(phi[j] - phi)
-        denominator2 = cos_fac * jnp.linalg.norm(rc_prime, axis=1)**2 + regularization
+        denominator2 = cos_fac * jnp.sum(rc_prime * rc_prime, axis=1) + regularization
         factor2 = 0.5 * cos_fac / denominator2**1.5
         second_term = jnp.cross(rc_prime_prime, rc_prime) * factor2[:, None]
         integral_term += dphi * (first_term + second_term)
@@ -86,10 +86,6 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
 
 def B_regularized(coil, regularization):
     """Calculate the regularized field on a coil following the Landreman and Hurwitz method"""
-    phi = coil.curve.quadpoints * 2 * np.pi
-    r_c = coil.curve.gamma()
-    rc_prime = coil.curve.gammadash() / 2 / np.pi
-    rc_prime_prime = coil.curve.gammadashdash() / 4 / np.pi**2
     return B_regularized_pure(
         coil.curve.gamma(),
         coil.curve.gammadash(),

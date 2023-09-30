@@ -11,7 +11,7 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.forces import ForceOpt
+from simsopt.field.force import ForceOpt
 
 
 # File for the desired boundary magnetic surface:
