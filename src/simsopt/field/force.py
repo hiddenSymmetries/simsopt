@@ -5,7 +5,6 @@ import numpy as np
 import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
-from .coil import Coil
 from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
@@ -51,7 +50,6 @@ def force_opt_pure(gamma, gammadash, gammadashdash,
     force = coil_force_pure(B_tot, current, tangent)
     f_norm = jnp.linalg.norm(force, axis=1)
     result = jnp.max(f_norm)
-    # result = jnp.sum(f_norm)
     return result
 
 
@@ -106,9 +104,9 @@ class ForceOpt(Optimizable):
 
         grad0 = self.thisgrad0(gamma, d1gamma, d2gamma,
                                current, phi, B_ext)
-        grad1 = self.thisgrad0(gamma, d1gamma, d2gamma,
+        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma,
                                current, phi, B_ext)
-        grad2 = self.thisgrad0(gamma, d1gamma, d2gamma,
+        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma,
                                current, phi, B_ext)
 
         return (

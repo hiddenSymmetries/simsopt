@@ -1,15 +1,13 @@
-import os
 import unittest
 import logging
 
 import numpy as np
 from scipy import constants
 from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data
+from simsopt.configs import get_hsx_data, get_ncsx_data
 from simsopt.geo import CurveXYZFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
@@ -193,6 +191,8 @@ class CoilForcesTest(unittest.TestCase):
 
         self.assertAlmostEqual(objective, export)
 
+        # This test is not working yet - remove @unittest.skip eventually
+
     def test_update_points(self):
         """Check whether quadrature points are updated"""
         nfp = 4
@@ -207,23 +207,24 @@ class CoilForcesTest(unittest.TestCase):
 
     def test_forces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""
-        nfp = 2
-        ncoils = 3
-        I = 1.9
+        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
+        # actual coil shapes from the experiment, just a few nonzero dofs.
+        curves, currents, axis = get_ncsx_data(Nt_coils=2)
 
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        # The next line is needed temporarily because ForceOpt doesn't yet
+        # account for derivatives with respect to currents. This next line
+        # should be removed once that derivative is added.
+        [current.fix_all() for current in currents]
+
+        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
 
         J = ForceOpt(coils[0], coils[1:], regularization_circ(0.05))
-        J0 = J.J()
         coil_dofs = coils[0].x
-        h = 1e-3 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
+        h = np.ones_like(coil_dofs)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        err = 1e-4
-        #for i in range(5, 25):
-        for i in range(5, 10):
+        err = 100
+        for i in range(10, 19):
             eps = 0.5**i
             coils[0].x = coil_dofs + eps * h
             Jp = J.J()
@@ -231,14 +232,9 @@ class CoilForcesTest(unittest.TestCase):
             Jm = J.J()
             deriv_est = (Jp - Jm) / (2 * eps)
             err_new = np.linalg.norm(deriv_est - deriv)
-            print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err)
-
-            # print("err_new %s" % (err_new))
-            print(eps, err - err_new)
-            #assert err_new < err
+            #print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            np.testing.assert_array_less(err_new, 0.3 * err)
             err = err_new
-
-        # This test is incomplete - asserts should be uncommented.
 
 
 if __name__ == '__main__':

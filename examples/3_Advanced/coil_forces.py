@@ -1,6 +1,9 @@
+#!/usr/bin/env python
+
 """
-Examples script for the force metric in a stage-two coil optimization
+Example script for the force metric in a stage-two coil optimization
 """
+
 import os
 from pathlib import Path
 from scipy.optimize import minimize
@@ -8,10 +11,11 @@ import numpy as np
 from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
 from simsopt.geo import SurfaceRZFourier
 from simsopt.field import Current, coils_via_symmetries
-from simsopt.objectives import SquaredFlux, QuadraticPenalty
+from simsopt.objectives import SquaredFlux
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
 from simsopt.field.force import ForceOpt
+from simsopt.field.selffield import regularization_circ
 
 
 # File for the desired boundary magnetic surface:
@@ -53,7 +57,7 @@ s = SurfaceRZFourier.from_vmec_input(
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(
-    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=50)
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=15)
 base_currents = [Current(2.5e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -74,7 +78,7 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jforce_list = [ForceOpt(coils[i], coils[:i]+coils[i+1:])
+Jforce_list = [ForceOpt(coils[i], coils[:i]+coils[i+1:], regularization_circ(0.05))
                for i in range(0, len(coils))]
 Jforce = sum(Jforce_list)
 
@@ -94,12 +98,13 @@ def fun(dofs):
     return J, grad
 
 
+print("Beginning optimization without force objective")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(base_curves, OUT_DIR + f"curves_opt_{config_str}")
 
 dofs = res.x
-print("Force Optimization")
+print("Beginning optimization with force objective")
 FORCE_WEIGHT += 1e-13
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
