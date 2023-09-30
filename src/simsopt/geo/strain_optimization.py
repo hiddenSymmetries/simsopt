@@ -6,7 +6,7 @@ from simsopt._core.derivative import derivative_dec
 from simsopt.geo.curveobjectives import Lp_torsion_pure
 
 __all__ = ['LPBinormalCurvatureStrainPenalty',
-           'LPTorsionalStrainPenalty', 'StrainOpt']
+           'LPTorsionalStrainPenalty', 'CoilStrain']
 
 
 class LPBinormalCurvatureStrainPenalty(Optimizable):
@@ -15,14 +15,21 @@ class LPBinormalCurvatureStrainPenalty(Optimizable):
     of the binormal curvature strain, and penalizes where the local strain exceeds a threshold
 
     .. math::
-        J = \frac{1}{p} \int_{\text{curve}} \text{max}(\epsilon_{\text{bend}} - \epsilon_0, 0)^p ~dl
+        J = \frac{1}{p} \int_{\text{curve}} \text{max}(\epsilon_{\text{bend}} - \epsilon_0, 0)^p ~dl,
 
-    where :math:`\epsilon_0` is a threshold strain, given by the argument ``threshold``.
+    where
+
+    .. math::
+        \epsilon_{\text{bend}} = \frac{w |\hat{\textbf{b}} \cdot \boldsymbol{\kappa}|}{2},
+
+    :math:`w` is the width of the tape, :math:`\hat{\textbf{b}}` is the 
+    frame binormal vector, :math:`\boldsymbol{\kappa}` is the curvature vector of the 
+    filamentary coil, and :math:`\epsilon_0` is a threshold strain, given by the argument ``threshold``.
     """
 
     def __init__(self, framedcurve, width=1e-3, p=2, threshold=0):
         self.framedcurve = framedcurve
-        self.strain = StrainOpt(framedcurve, width)
+        self.strain = CoilStrain(framedcurve, width)
         self.width = width
         self.p = p
         self.threshold = threshold
@@ -65,12 +72,18 @@ class LPTorsionalStrainPenalty(Optimizable):
     .. math::
         J = \frac{1}{p} \int_{\text{curve}} \text{max}(\epsilon_{\text{tor}} - \epsilon_0, 0)^p ~dl
 
-    where :math:`\epsilon_0` is a threshold strain, given by the argument ``threshold``.
+    where
+
+    .. math::
+        \epsilon_{\text{tor}} = \frac{\tau^2 w^2}{12},
+
+    :math:`\tau` is the torsion of the tape frame, :math:`w` is the width of the tape,
+    and :math:`\epsilon_0` is a threshold strain, given by the argument ``threshold``.
     """
 
     def __init__(self, framedcurve, width=1e-3, p=2, threshold=0):
         self.framedcurve = framedcurve
-        self.strain = StrainOpt(framedcurve, width)
+        self.strain = CoilStrain(framedcurve, width)
         self.width = width
         self.p = p
         self.threshold = threshold
@@ -105,7 +118,7 @@ class LPTorsionalStrainPenalty(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-class StrainOpt(Optimizable):
+class CoilStrain(Optimizable):
     r"""
     This class evaluates the torsional and binormal curvature strains on HTS, based on
     a filamentary model of the coil and the orientation of the HTS tape. 
@@ -119,13 +132,18 @@ class StrainOpt(Optimizable):
     the expressions for the strains are: 
 
     .. math::
-        \epsilon_{\text{tor}} = \frac{\tau^2 w^2}{12} 
+        \epsilon_{\text{tor}} = \frac{\tau^2 w^2}{12}
+
         \epsilon_{\text{bend}} = \frac{w |\hat{\textbf{b}} \cdot \boldsymbol{\kappa}|}{2},
 
     where :math:`\tau` is the torsion of the tape frame, :math:`\hat{\textbf{b}}` is the 
-    frame binormal vector, and :math:`\boldsymbol{\kappa}` is the curvature vector of the 
-    filamentary coil. 
+    frame binormal vector, :math:`\boldsymbol{\kappa}` is the curvature vector of the 
+    filamentary coil, and :math:`w` is the width of the tape.
 
+    This class is not intended to be used as an objective function inside
+    optimization. For that purpose you should instead use
+    :obj:`LPBinormalCurvatureStrainPenalty` or :obj:`LPTorsionalStrainPenalty`.
+    Those classes also compute gradients whereas this class does not.
     """
 
     def __init__(self, framedcurve, width=1e-3):
@@ -143,14 +161,14 @@ class StrainOpt(Optimizable):
         super().__init__(depends_on=[framedcurve])
 
     def torsional_strain(self):
-        """
+        r"""
         Returns the value of the torsional strain, :math:`\epsilon_{\text{tor}}`, along 
         the quadpoints defining the filamentary coil. 
         """
         return self.torstrain_jax(self.framedcurve.frame_torsion(), self.width)
 
     def binormal_curvature_strain(self):
-        """
+        r"""
         Returns the value of the torsional strain, :math:`\epsilon_{\text{bend}}`, along 
         the quadpoints defining the filamentary coil. 
         """

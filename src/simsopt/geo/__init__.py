@@ -22,7 +22,6 @@ from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 from .strain_optimization import *
-from .framedcurve import *
 
 from .permanent_magnet_grid import *
 

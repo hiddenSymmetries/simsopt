@@ -261,7 +261,6 @@ class FramedCurveCentroid(FramedCurve):
         gamma = self.curve.gamma()
         d1gamma = self.curve.gammadash()
         d2gamma = self.curve.gammadashdash()
-        d3gamma = self.curve.gammadashdashdash()
         alpha = self.rotation.alpha(self.curve.quadpoints)
         alphadash = self.rotation.alphadash(self.curve.quadpoints)
         return self.torsion(gamma, d1gamma, d2gamma, alpha, alphadash)
@@ -270,7 +269,6 @@ class FramedCurveCentroid(FramedCurve):
         gamma = self.curve.gamma()
         d1gamma = self.curve.gammadash()
         d2gamma = self.curve.gammadashdash()
-        d3gamma = self.curve.gammadashdashdash()
         alpha = self.rotation.alpha(self.curve.quadpoints)
         alphadash = self.rotation.alphadash(self.curve.quadpoints)
         return self.binorm(gamma, d1gamma, d2gamma, alpha, alphadash)
@@ -422,7 +420,7 @@ class ZeroRotation(Optimizable):
 
         .. code-block:: python
 
-            rot = FilamentRotation(...)
+            rot = FrameRotation(...)
             rot.fix_all()
 
         """
@@ -602,12 +600,6 @@ def rotationdash_dcoeff(points, order):
 def inner(a, b):
     """Inner product for arrays of shape (N, 3)"""
     return np.sum(a*b, axis=1)
-
-
-torsion2vjp0 = jit(lambda ndash, b, v: vjp(
-    lambda nd: torsion_pure(nd, b), ndash)[1](v)[0])
-torsion2vjp1 = jit(lambda ndash, b, v: vjp(
-    lambda bi: torsion_pure(ndash, bi), b)[1](v)[0])
 
 
 def torsion_pure_frenet(gamma, gammadash, gammadashdash, gammadashdashdash,
