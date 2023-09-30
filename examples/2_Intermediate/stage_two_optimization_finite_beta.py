@@ -17,16 +17,11 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.mhd import Vmec
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, coils_via_symmetries
-from simsopt.geo import CurveLength
-from simsopt.mhd import VirtualCasing
-
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.geo import CurveLength, curves_to_vtk, create_equally_spaced_curves, SurfaceRZFourier
+from simsopt.mhd import VirtualCasing, Vmec
+from simsopt.objectives import QuadraticPenalty, SquaredFlux
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 5 and stellarator symmetry, multiply ncoils by 5 * 2 to get the total number of coils.)
@@ -45,8 +40,7 @@ order = 6
 LENGTH_PENALTY = 1e0
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 500
+MAXITER = 50 if in_github_actions else 500
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -69,8 +63,8 @@ vc_src_nphi = 80
 #######################################################
 
 # Directory for output
-OUT_DIR = "./output/"
-os.makedirs(OUT_DIR, exist_ok=True)
+out_dir = Path("output")
+out_dir.mkdir(parents=True, exist_ok=True)
 
 # Once the virtual casing calculation has been run once, the results
 # can be used for many coil optimizations. Therefore here we check to
@@ -107,11 +101,12 @@ base_currents += [total_current - sum(base_currents)]
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)
+
 bs.set_points(s.gamma().reshape((-1, 3)))
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, OUT_DIR + "curves_init")
+curves_to_vtk(curves, out_dir / "curves_init")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
+s.to_vtk(out_dir / "surf_init", extra_data=pointData)
 
 # Define the objective function:
 Jf = SquaredFlux(s, bs, target=vc.B_external_normal)
@@ -168,8 +163,8 @@ print("""
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300, 'ftol': 1e-20, 'gtol': 1e-20}, tol=1e-20)
 dofs = res.x
-curves_to_vtk(curves, OUT_DIR + "curves_opt")
+curves_to_vtk(curves, out_dir / "curves_opt")
 Bbs = bs.B().reshape((nphi, ntheta, 3))
 BdotN = np.abs(np.sum(Bbs * s.unitnormal(), axis=2) - vc.B_external_normal) / np.linalg.norm(Bbs, axis=2)
 pointData = {"B_N": BdotN[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+s.to_vtk(out_dir / "surf_opt", extra_data=pointData)

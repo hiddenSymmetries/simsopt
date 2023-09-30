@@ -39,6 +39,10 @@ mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/constrained_optimization.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution_boozer.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/free_boundary_vmec.py
+
+mpiexec $MPI_OPTIONS -n 2 ./3_Advanced/single_stage_optimization.py
+mpiexec $MPI_OPTIONS -n 2 ./3_Advanced/single_stage_optimization_finite_beta.py
 
 ./2_Intermediate/vmec_adjoint.py
 ./2_Intermediate/tracing_boozer.py

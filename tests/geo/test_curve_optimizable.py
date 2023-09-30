@@ -1,6 +1,8 @@
 import numpy as np
 import unittest
 
+from monty.tempfile import ScratchDir
+
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
@@ -62,7 +64,8 @@ class Testing(unittest.TestCase):
         # assert np.allclose(fd_jac, jac, rtol=1e-4, atol=1e-4)
 
         # Solve the minimization problem:
-        least_squares_serial_solve(prob, ftol=1e-10, xtol=1e-10, gtol=1e-10)
+        with ScratchDir("."):
+            least_squares_serial_solve(prob, ftol=1e-10, xtol=1e-10, gtol=1e-10)
 
         print('At the optimum, x: ', prob.x)
         print(' Final curve dofs: ', curve.local_full_x)
