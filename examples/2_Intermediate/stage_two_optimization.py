@@ -25,15 +25,11 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.objectives import Weight
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, coils_via_symmetries
-from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
+                         CurveLength, CurveCurveDistance, MeanSquaredCurvature,
+                         LpCurveCurvature, CurveSurfaceDistance)
+from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:

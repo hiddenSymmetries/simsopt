@@ -10,7 +10,7 @@ import copy
 import logging
 import os.path
 import traceback
-from typing import Union
+from typing import Optional
 
 import numpy as np
 
@@ -90,8 +90,8 @@ class Spec(Optimizable):
     """
 
     def __init__(self,
-                 filename: Union[str, None] = None,
-                 mpi: Union[MpiPartition, None] = None,
+                 filename: Optional[str] = None,
+                 mpi: Optional[MpiPartition] = None,
                  verbose: bool = True,
                  keep_all_files: bool = False,
                  tolerance: float = 1e-12):

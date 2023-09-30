@@ -253,3 +253,28 @@ class MPIFiniteDifferenceTests(unittest.TestCase):
             mpi.together()
             if mpi.proc0_world:
                 fd.log_file.close()
+
+    def test_bcast_fixed_dofs(self):
+        """Test that MPIFiniteDifference also MPI-broadcasts the fixed dofs."""
+
+        for ngroups in range(1, 4):
+            mpi = MpiPartition(ngroups=ngroups)
+            logger.info(f"nprocs={mpi.nprocs_world} ngroups={ngroups}")
+            optimizable = TestFunction1()
+            optimizable.fix_all()
+            optimizable.unfix('x0')
+            arr_to_bcast = np.arange(3) * 0.25 + ngroups + 7  # Arbitrary values
+            if mpi.proc0_world:
+                # Only proc0_world has the data:
+                optimizable.full_x = arr_to_bcast
+            if not mpi.proc0_world:
+                self.assertGreater(np.sum(np.abs(optimizable.full_x - arr_to_bcast)), 20)
+
+            with MPIFiniteDifference(optimizable.J, mpi) as fd:
+                # bcast the array within the MPIFiniteDifference context:
+                if mpi.proc0_world:
+                    fd.jac()
+
+            # The data should now reside with all group leaders:
+            if mpi.proc0_groups:
+                np.testing.assert_allclose(optimizable.full_x, arr_to_bcast)

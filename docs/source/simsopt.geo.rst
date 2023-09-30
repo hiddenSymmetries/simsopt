@@ -92,6 +92,14 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.permanent\_magnet\_grid module
+------------------------------------------
+
+.. automodule:: simsopt.geo.permanent_magnet_grid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.plotting module
 ---------------------------
 
