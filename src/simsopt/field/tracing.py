@@ -818,6 +818,8 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     nrowcol = ceil(sqrt(len(phis)))
     plt.figure()
     fig, axs = plt.subplots(nrowcol, nrowcol, figsize=(8, 5))
+    for ax in axs.ravel():
+        ax.set_aspect(aspect)
     color = None
     for i in range(len(phis)):
         row = i//nrowcol
