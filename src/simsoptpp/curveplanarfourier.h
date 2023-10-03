@@ -5,17 +5,22 @@
 template<class Array>
 class CurvePlanarFourier : public Curve<Array> {
     /*
-       CurvePlanarFourier is a curve that is represented as a plane rotated about the 
-       x and y axis using the following Fourier series: 
+       CurvePlanarFourier is a curve that is represented using the following Fourier series: 
 
            r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
         
-        with rotation about an axis and angle determine by a set of quarternions
-            q = [cos(\theta/2), x * sin(\theta/2), y * sin(\theta/2), z * sin(\theta/2)]
+        with rotation about an axis and angle determined by a set of quarternions
+            q = [q_0, q_1, q_2, q_3] = [cos(\theta/2), x * sin(\theta/2), y * sin(\theta/2), z * sin(\theta/2)]
+
+        Quaternions are normalized to prevent scaling the curves, but remain unnormalized as dofs to prevent optimization error.
+
+        A center vector is used to specify the location of the center of the curve:
+
+            c = [c_x, c_y, c_z]
 
        The dofs are stored in the order 
 
-           [r_{c,0},...,r_{c,order},r_{s,1},...,r_{s,order},t_{x},t_{y}]
+           [r_{c,0},...,r_{c,order},r_{s,1},...,r_{s,order}, q_0, q_1, q_2, q_3, c_x, c_y, c_z]
 
        */
     public:
