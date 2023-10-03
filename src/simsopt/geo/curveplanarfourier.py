@@ -23,7 +23,7 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
     .. math::
        [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
-    
+
 
     """
 

@@ -110,7 +110,7 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils) #Error
+Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)  # Error
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
@@ -130,6 +130,7 @@ JF = Jf \
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
 
 def fun(dofs):
     JF.x = dofs

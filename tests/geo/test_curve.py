@@ -100,6 +100,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 class Testing(unittest.TestCase):
 
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveHelicalInitx0"]
+
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
         curve1 = CurveHelical(x, 2, 5, 2, 1.0, 0.3)
