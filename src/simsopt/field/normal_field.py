@@ -101,18 +101,18 @@ class NormalField(Optimizable):
         if ph['istellsym']:
             vnc = None
         else:
-            vnc = np.asarray(ph['vnc'][1:])
+            vnc = np.asarray(ph['vnc'])
 
-        nf = cls(
-            nfp=ph['nfp'], 
-            stellsym=ph['istellsym'], 
-            mpol=ph['Mpol'], 
+        normal_field = cls(
+            nfp=ph['nfp'],
+            stellsym=bool(ph['istellsym']),
+            mpol=ph['Mpol'],
             ntor=ph['Ntor'],
             vns=vns,
             vnc=vnc
         )
 
-        return nf
+        return normal_field
 
     def get_index_in_dofs(self, m, n, mpol=None, ntor=None, even=False):
         """
