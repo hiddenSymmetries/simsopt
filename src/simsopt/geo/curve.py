@@ -885,7 +885,11 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
 
 def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """
-    Insert text here
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
     """
 
     if numquadpoints is None:

@@ -9,7 +9,22 @@ __all__ = ['CurvePlanarFourier']
 
 class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     r"""
-    Insert text here
+    ``CurvePlanarFourier`` is a curve that is represented by a polar coordinate fourier serires, a rotation quaternion, and a center point following the form:
+    .. math::
+       r(\phi) &= \sum_{m=0}^{\text{order}} r_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(n_{\text{fp}} m \phi)
+       \bf{q} &= [q_0,q_i,q_j,q_k] &= [\cos(\theta / 2), \hat{x}\sin(\theta / 2), \hat{y}\sin(\theta / 2), \hat{z}\sin(\theta / 2)]
+    where :math:'\theta' is the counterclockwise rotation about a unit axis :math:'(\hat{x},\hat{y},\hat{z})'.
+
+    The quaternion is normalized for calculations to prevent scaling. The dofs themselves are not normalized. This results in a redundancy in the optimization,
+    where several different sets of dofs may correspond to the same normalized quaternion. 
+    Normalizing the dofs directly would create a dependence between the quaternion dofs, which may cause issues during optimization.
+
+    The dofs are stored in the order
+
+    .. math::
+       [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
+    
+
     """
 
     def __init__(self, quadpoints, order, nfp, stellsym, dofs=None):
