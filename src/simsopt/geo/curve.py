@@ -883,6 +883,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curves.append(curve)
     return curves
 
+
 def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """
     Create ``ncurves`` curves of type
@@ -906,7 +907,7 @@ def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
         center = [R0 * cos(angle), R0 * sin(angle), 0]
         rotation = [1, -cos(angle), -sin(angle), 0]
         dofs = np.zeros(len(curve.get_dofs()))
-    
+
         j = 0
         for i in rcCoeffs:
             dofs[j] = i
