@@ -1,6 +1,8 @@
 import logging
 import unittest
 import json
+import os
+
 
 import numpy as np
 
@@ -10,7 +12,10 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
-from simsopt.configs.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data, get_w7x_data  
+from simsopt.field.coil import coils_to_makegrid
+from simsopt.geo import CurveLength, CurveCurveDistance
+
 
 try:
     import pyevtk
@@ -463,6 +468,45 @@ class Testing(unittest.TestCase):
             for rotated in [True, False]:
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_serialization(curvetype, rotated)
+
+    def test_load_curves_from_makegrid_file(self):
+        get_config_functions = [get_ncsx_data, get_w7x_data]
+        order = 10
+        ppp = 4
+
+        for get_config_function in get_config_functions:
+            curves, currents, ma = get_config_function(Nt_coils=order, ppp=ppp)  
+
+            # write coils to MAKEGRID file
+            coils_to_makegrid("coils.file_to_load", curves, currents, nfp=1)
+            loaded_curves = CurveXYZFourier.load_curves_from_makegrid_file("coils.file_to_load", order, ppp)
+
+            assert len(curves) == len(loaded_curves)
+
+            for j in range(len(curves)):
+                np.testing.assert_allclose(curves[j].x, loaded_curves[j].x)
+
+            gamma = [curve.gamma() for curve in curves]
+            loaded_gamma = [curve.gamma() for curve in loaded_curves]
+
+            np.testing.assert_allclose(gamma, loaded_gamma)
+
+            kappa = [np.max(curve.kappa()) for curve in curves]
+            loaded_kappa = [np.max(curve.kappa()) for curve in loaded_curves]
+
+            np.testing.assert_allclose(kappa, loaded_kappa)
+
+            length = [CurveLength(c).J() for c in curves]
+            loaded_length = [CurveLength(c).J() for c in loaded_curves]
+
+            np.testing.assert_allclose(length, loaded_length)
+
+            ccdist = CurveCurveDistance(curves, 0).J()
+            loaded_ccdist = CurveCurveDistance(loaded_curves, 0).J()
+
+            np.testing.assert_allclose(ccdist, loaded_ccdist)
+
+            os.remove("coils.file_to_load")
 
 
 if __name__ == "__main__":

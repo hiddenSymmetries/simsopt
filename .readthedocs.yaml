@@ -8,8 +8,8 @@ sphinx:
    fail_on_warning: false
 
 # Optionally build your docs in additional formats such as PDF
-formats:
-   - pdf
+# formats:
+#   - pdf
 
 # Optionally set the version of Python and requirements required to build your docs
 python:
@@ -19,4 +19,3 @@ python:
    - requirements: requirements.txt
    - method: pip
      path: .
-   system_packages: false
