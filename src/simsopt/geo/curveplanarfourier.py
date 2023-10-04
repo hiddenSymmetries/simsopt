@@ -9,15 +9,27 @@ __all__ = ['CurvePlanarFourier']
 
 class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     r"""
-    ``CurvePlanarFourier`` is a curve that is represented by a polar coordinate fourier serires, a rotation quaternion, and a center point following the form:
-    .. math::
-       r(\phi) &= \sum_{m=0}^{\text{order}} r_{c,m}\cos(n_{\text{fp}} m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(n_{\text{fp}} m \phi)
-       \bf{q} &= [q_0,q_i,q_j,q_k] &= [\cos(\theta / 2), \hat{x}\sin(\theta / 2), \hat{y}\sin(\theta / 2), \hat{z}\sin(\theta / 2)]
-    where :math:'\theta' is the counterclockwise rotation about a unit axis :math:'(\hat{x},\hat{y},\hat{z})'.
+    ``CurvePlanarFourier`` is a curve that is represented by a polar coordinate
+    Fourier serires, a rotation quaternion, and a center point following the
+    form:
 
-    The quaternion is normalized for calculations to prevent scaling. The dofs themselves are not normalized. This results in a redundancy in the optimization,
-    where several different sets of dofs may correspond to the same normalized quaternion. 
-    Normalizing the dofs directly would create a dependence between the quaternion dofs, which may cause issues during optimization.
+    .. math::
+
+       r(\phi) &= \sum_{m=0}^{\text{order}} r_{c,m}\cos(m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(m \phi)
+
+       \bf{q} &= [q_0,q_i,q_j,q_k]
+
+       &= [\cos(\theta / 2), \hat{x}\sin(\theta / 2), \hat{y}\sin(\theta / 2), \hat{z}\sin(\theta / 2)]
+
+    where :math:`\theta` is the counterclockwise rotation about a unit axis
+    :math:`(\hat{x},\hat{y},\hat{z})`.
+
+    The quaternion is normalized for calculations to prevent scaling. The dofs
+    themselves are not normalized. This results in a redundancy in the
+    optimization, where several different sets of dofs may correspond to the
+    same normalized quaternion. Normalizing the dofs directly would create a
+    dependence between the quaternion dofs, which may cause issues during
+    optimization.
 
     The dofs are stored in the order
 
