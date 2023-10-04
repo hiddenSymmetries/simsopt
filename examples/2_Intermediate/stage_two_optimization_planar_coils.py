@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 r"""
+This coil optimization script is similar to stage_two_optimization.py. However
+in this version, the coils are constrained to be planar, by using the curve type
+CurvePlanarFourier. Also the LinkingNumber objective is used to prevent coils
+from becoming topologically linked with each other.
+
 In this example we solve a FOCUS like Stage II coil optimisation problem: the
 goal is to find coils that generate a specific target normal field on a given
 surface.  In this particular case we consider a vacuum field, so the target is
@@ -12,6 +17,7 @@ The objective is given by
         + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
         + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
         + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
+        + LinkingNumber
 
 if any of the weights are increased, or the thresholds are tightened, the coils
 are more regular and better separated, but the target normal field may not be
@@ -25,15 +31,14 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.objectives import Weight
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
-from simsopt.geo import curves_to_vtk, create_equally_spaced_planar_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, coils_via_symmetries
-from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.geo import (
+    CurveLength, CurveCurveDistance,
+    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
+    SurfaceRZFourier, curves_to_vtk, create_equally_spaced_planar_curves,
+)
+from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -70,8 +75,7 @@ MSC_THRESHOLD = 10
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
