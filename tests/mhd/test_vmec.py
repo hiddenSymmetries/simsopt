@@ -11,10 +11,9 @@ except:
     MPI = None
 
 try:
-    import vmec
-    vmec_found = True
+    import vmec as vmec_mod
 except ImportError:
-    vmec_found = False
+    vmec_mod = None
 
 from simsopt._core.optimizable import make_optimizable
 from simsopt.objectives.least_squares import LeastSquaresProblem
@@ -159,7 +158,7 @@ class InitializedFromWout(unittest.TestCase):
             iota2 = vmec.mean_iota()
 
 
-@unittest.skipIf((MPI is not None) and (vmec_found), "Interface to MPI and VMEC found")
+@unittest.skipIf((MPI is not None) and (vmec_mod is not None), "Interface to MPI and VMEC found")
 class VmecTestsWithoutMPIorvmec(unittest.TestCase):
     def test_runnable_raises(self):
         """
@@ -171,7 +170,7 @@ class VmecTestsWithoutMPIorvmec(unittest.TestCase):
             v = Vmec()
 
 
-@unittest.skipIf((MPI is None) or (not vmec_found), "Valid Python interface to VMEC not found")
+@unittest.skipIf((MPI is None) or (vmec_mod is None), "Valid Python interface to VMEC not found")
 class VmecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
