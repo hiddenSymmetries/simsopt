@@ -183,7 +183,7 @@ class Derivative:
             for k in optim.unique_dof_lineage:
                 local_derivs = np.zeros(k.local_full_dof_size)
                 for opt in k.dofs.dep_opts():
-                    local_derivs += self.data[opt] #return the full derivative here, including the derivatives of fixed dofs
+                    local_derivs += self.data[opt]  # return the full derivative here, including the derivatives of fixed dofs
                     keys.append(opt)
                 derivs.append(local_derivs)
             return Derivative({k: d for k, d in zip(keys, derivs)})
@@ -194,11 +194,10 @@ class Derivative:
                 if np.any(k.dofs_free_status):
                     local_derivs = np.zeros(k.local_dof_size)
                     for opt in k.dofs.dep_opts():
-                        local_derivs += self.data[opt][opt.local_dofs_free_status] # filter out the derivatives of fixed dofs
+                        local_derivs += self.data[opt][opt.local_dofs_free_status]  # filter out the derivatives of fixed dofs
                         keys.append(opt)
                     derivs.append(local_derivs)
             return np.concatenate(derivs)
-
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
     def __radd__(self, other):
