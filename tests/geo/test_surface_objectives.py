@@ -330,6 +330,7 @@ class NonQSRatioTests(unittest.TestCase):
             bs.coils[0].curve.fix('xc(0)')
 
         coeffs = bs.x
+        
         def f(dofs):
             bs.x = dofs
             return io.J()
