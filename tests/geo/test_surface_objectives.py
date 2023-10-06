@@ -318,14 +318,18 @@ class NonQSRatioTests(unittest.TestCase):
         """
         for label in ["Volume", "ToroidalFlux"]:
             for axis in [False, True]:
-                with self.subTest(label=label, axis=axis):
-                    self.subtest_nonQSratio_derivative(label, axis)
+                for fix_coil_dof in [True, False]:
+                    with self.subTest(label=label, axis=axis, fix_coil_dof=fix_coil_dof):
+                        self.subtest_nonQSratio_derivative(label, axis, fix_coil_dof)
 
-    def subtest_nonQSratio_derivative(self, label, axis):
+    def subtest_nonQSratio_derivative(self, label, axis, fix_coil_dof):
         bs, boozer_surface = get_boozer_surface(label=label)
-        coeffs = bs.x
         io = NonQuasiSymmetricRatio(boozer_surface, bs, quasi_poloidal=axis)
+        
+        if fix_coil_dof:
+            bs.coils[0].curve.fix('xc(0)')
 
+        coeffs = bs.x
         def f(dofs):
             bs.x = dofs
             return io.J()
