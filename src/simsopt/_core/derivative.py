@@ -176,20 +176,28 @@ class Derivative:
         """
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
-        derivs = []
-        keys = []
-        for k in optim.unique_dof_lineage:
-            if np.any(k.dofs_free_status):
-                local_derivs = np.zeros(k.local_dof_size)
+        
+        if not as_derivative:
+            derivs = []
+            keys = []
+            for k in optim.unique_dof_lineage:
+                if np.any(k.dofs_free_status):
+                    local_derivs = np.zeros(k.local_dof_size)
+                    for opt in k.dofs.dep_opts():
+                        local_derivs += self.data[opt][opt.local_dofs_free_status]
+                        keys.append(opt)
+                    derivs.append(local_derivs)
+            return np.concatenate(derivs)
+        else:
+            derivs = []
+            keys = []
+            for k in optim.unique_dof_lineage:
+                local_derivs = np.zeros(k.local_full_dof_size)
                 for opt in k.dofs.dep_opts():
-                    local_derivs += self.data[opt][opt.local_dofs_free_status]
+                    local_derivs += self.data[opt]
                     keys.append(opt)
                 derivs.append(local_derivs)
-
-        if as_derivative:
             return Derivative({k: d for k, d in zip(keys, derivs)})
-        else:
-            return np.concatenate(derivs)
 
     # https://stackoverflow.com/questions/11624955/avoiding-python-sum-default-start-arg-behavior
     def __radd__(self, other):
