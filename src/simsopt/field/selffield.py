@@ -1,27 +1,32 @@
-"""Implements the force on a coil in its own magnetic field and the field of other coils."""
+"""
+This module contains functions for computing the self-field of a coil using the
+method from Hurwitz, Landreman, & Antonsen, arXiv (2023).
+"""
+
 import math
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
 from jax import grad
-from simsopt.field import BiotSavart, Coil
-from simsopt.geo.jit import jit
-from simsopt._core import Optimizable
-from simsopt._core.derivative import derivative_dec
+from .biotsavart import BiotSavart
+from .coil import Coil
+from ..geo.jit import jit
+from .._core.optimizable import Optimizable
+from .._core.derivative import derivative_dec
 
-Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
+Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
 
-def k(a, b):
-    """Auxiliary function for field in reectangular conductor"""
+def rectangular_xsection_k(a, b):
+    """Auxiliary function for field in rectangular conductor"""
     return (4 * b) / (3 * a) * jnp.arctan(a/b) + (4*a)/(3*b)*jnp.arctan(b/a) + \
         (b**2)/(6*a**2)*jnp.log(b/a) + (a**2)/(6*b**2)*jnp.log(a/b) - \
         (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
 
 
-def delta(a, b):
+def rectangular_xsection_delta(a, b):
     """Auxiliary function for field in rectangular conductor"""
-    return jnp.exp(-25/6 + k(a, b))
+    return jnp.exp(-25/6 + rectangular_xsection_k(a, b))
 
 
 def regularization_circ(a):
@@ -31,124 +36,72 @@ def regularization_circ(a):
 
 def regularization_rect(a, b):
     """Regularization for a rectangular conductor"""
-    return a * b * delta(a, b)
+    return a * b * rectangular_xsection_delta(a, b)
 
 
-def singularity_term_circ(gamma, gammadash, gammadashdash, a):
-    """singularity substraction for the regularized field in a circular conductor"""
-    A = 1 / jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**3 * \
-        jnp.cross(gammadashdash, gammadash) * (jnp.log(a / 8 /
-                                                       jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]) + 3 / 4)
+def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
+    """The term in the regularized Biot-Savart law in which the near-singularity
+    has been integrated analytically.
 
-    return A
+    regularization corresponds to delta * a * b for rectangular x-section, or to
+    a²/√e for circular x-section.
 
+    A prefactor of μ₀ I / (4π) is not included.
 
-def singularity_term_rect(gammadash, gammadashdash, a, b):
-    """singularity substraction for the regularized field in a rectangular conductor"""
-    A = 1 / jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**3 / 2 * \
-        (jnp.cross(gammadash, gammadashdash)) * (-2 + jnp.log(64 / (delta(a, b)
-                                                                    * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
-
-    return A
-
-
-def integrand_circ(i, j, gamma, gammadash, gammadashdash, phi, phi_0, a):
-    """Integrand of the regularized magnetic field formular at position phi[i], phi[j]. i is the index the field is evaluated (gamma[i]=gamma(phi[i])) while j is thee integrration index."""
-    dr = gamma[i]-gamma[j]
-    regularization = regularization_circ(a)
-    first_term = np.cross(
-        gammadash[j], dr) / (np.linalg.norm(dr)**2 + regularization) ** 1.5
-    cos_fac = 2 - 2 * np.cos(2*np.pi*(phi[j] - phi[i]))
-    denominator2 = cos_fac * \
-        np.linalg.norm(gammadash[i])**2 + regularization
-    factor2 = 0.5 * cos_fac / denominator2**1.5
-    second_term = np.cross(gammadashdash[i], gammadash[i]) * factor2
-    integrand = first_term + second_term
-
-    return integrand
+    The derivatives rc_prime, rc_prime_prime refer to an angle that goes up to
+    2π, not up to 1.
+    """
+    norm_rc_prime = jnp.linalg.norm(rc_prime, axis=1)
+    return jnp.cross(rc_prime, rc_prime_prime) * (
+        0.5 * (-2 + jnp.log(64 * norm_rc_prime * norm_rc_prime / regularization)) / (norm_rc_prime**3)
+    )[:, None]
 
 
-def integrand_rect(i, j, gamma, gammadash, gammadashdash, phi, phi_0, a, b):
-    """Integrand of the regularized magnetic field formular at position phi[i], phi[j]. i is the index the field is evaluated (gamma[i]=gamma(phi[i])) while j is the integrration index."""
-    dr = gamma[i]-gamma[j]
-    regularization = regularization_rect(a, b)
-    first_term = np.cross(
-        gammadash[j], dr) / (np.linalg.norm(dr)**2 + regularization) ** 1.5
-    cos_fac = 2 - 2 * np.cos(2*np.pi*(phi[j] - phi[i]))
-    denominator2 = cos_fac * \
-        np.linalg.norm(gammadash[i])**2 + regularization
-    factor2 = 0.5 * cos_fac / denominator2**1.5
-    second_term = np.cross(gammadashdash[i], gammadash[i]) * factor2
-    integrand = first_term + second_term
+def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
+    # The factors of 2π in the next few lines come from the fact that simsopt
+    # uses a curve parameter that goes up to 1 rather than 2π.
+    phi = quadpoints * 2 * np.pi
+    r_c = gamma
+    rc_prime = gammadash / 2 / np.pi
+    rc_prime_prime = gammadashdash / 4 / np.pi**2
+    n_quad = phi.shape[0]
+    dphi = 2 * jnp.pi / n_quad
 
-    return integrand
+    analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
 
+    integral_term = jnp.zeros((n_quad, 3))
+    for j in range(n_quad):
+        dr = r_c - r_c[j]
+        first_term = (
+            jnp.cross(rc_prime[j], dr) / ((jnp.sum(dr * dr, axis=1) + regularization) ** 1.5)[:, None]
+        )
+        cos_fac = 2 - 2 * jnp.cos(phi[j] - phi)
+        denominator2 = cos_fac * jnp.sum(rc_prime * rc_prime, axis=1) + regularization
+        factor2 = 0.5 * cos_fac / denominator2**1.5
+        second_term = jnp.cross(rc_prime_prime, rc_prime) * factor2[:, None]
+        integral_term += dphi * (first_term + second_term)
 
-def integral_circ(gamma, gammadash, gammadashdash, phi, i, a):
-    nphi = phi.shape[0]
-    dphi = 2*np.pi / nphi
-    integral = np.zeros(3)
-    for j, phi_0 in enumerate(phi):
-        integral += integrand_circ(i, j, gamma, gammadash,
-                                   gammadashdash, phi, phi_0, a)
-
-    integral *= dphi
-    return integral
-
-
-def integral_rect(gamma, gammadash, gammadashdash, phi, i, a, b):
-    nphi = phi.shape[0]
-    dphi = 2*np.pi / nphi
-    integral = np.zeros(3)
-    for j, phi_0 in enumerate(phi):
-        integral += integrand_rect(i, j, gamma, gammadash,
-                                   gammadashdash, phi, phi_0, a, b)
-
-    integral *= dphi
-    return integral
+    return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
-def field_on_coils(coil, a=0.05):
-    """Calculate the regularized field on a coil with circular cross section following the Landreman and Hurwitz method"""
-    I = coil._current.current
-    phi = coil.curve.quadpoints  # * 2 * np.pi
-    phidash = coil.curve.quadpoints  # * 2 * np.pi
-    dphidash = phidash[1]
-    n_quad = phidash.shape[0]
-    gamma = coil.curve.gamma()
-    gammadash = coil.curve.gammadash() / 2 / np.pi
-    gammadashdash = coil.curve.curve.gammadashdash() / 4 / np.pi**2
-    integral_term = np.zeros((n_quad, 3))
-
-    A = singularity_term_circ(gamma, gammadash, gammadashdash, a)
-    for i, _ in enumerate(phi):
-        integral_term[i] = integral_circ(
-            gamma, gammadash, gammadashdash, phi, i, a)
-    b_reg = I * Biot_savart_prefactor * (A + integral_term)
-
-    return b_reg
+def B_regularized(coil, regularization):
+    """Calculate the regularized field on a coil following the Landreman and Hurwitz method"""
+    return B_regularized_pure(
+        coil.curve.gamma(),
+        coil.curve.gammadash(),
+        coil.curve.gammadashdash(),
+        coil.curve.quadpoints,
+        coil._current.current,
+        regularization,
+    )
 
 
-def field_on_coils_rect(coil, a=0.05, b=0.03):
-    """Calculate the field on a coil with rectangular cross section follownig the method from Landreman, Hurwitz & Antonsen"""
-    I = coil._current.current
-    phi = coil.curve.quadpoints  # * 2 * np.pi
-    phidash = coil.curve.quadpoints  # * 2 * np.pi
-    dphidash = phidash[1]
-    n_quad = phidash.shape[0]
-    gamma = coil.curve.gamma()
-    gammadash = coil.curve.gammadash() / 2 / np.pi
-    gammadashdash = coil.curve.gammadashdash() / 4 / np.pi**2
-    integral_term = np.zeros((n_quad, 3))
+def B_regularized_circ(coil, a):
+    return B_regularized(coil, regularization_circ(a))
 
-    A = singularity_term_rect(gammadash, gammadashdash, a, b)
-    for i, _ in enumerate(phi):
-        integral_term[i] = integral_rect(
-            gamma, gammadash, gammadashdash, phi, i, a, b)
 
-    b_reg = I * Biot_savart_prefactor * (A+integral_term)
-
-    return b_reg
+def B_regularized_rect(coil, a, b):
+    return B_regularized(coil, regularization_rect(a, b))
 
 
 def G(x, y):
@@ -212,7 +165,7 @@ def local_field_rect(coil, u, v, a, b):
     return b_loc
 
 
-def field_from_other_coils(coil, coils, a=0.05):
+def field_from_other_coils(coil, coils):
     """field on one coil from the other coils"""
     gamma = coil.curve.gamma()
     b_ext = BiotSavart(coils)
@@ -220,55 +173,7 @@ def field_from_other_coils(coil, coils, a=0.05):
     return b_ext.B()
 
 
-def field_on_coils_pure(gamma, gammadash, gammadashdash, phi, phidash, current,  a=0.05):
-    """Regularized field for optimization"""
-    I = current
-    n_quad = phidash.shape[0]
-
-    A = (1 / jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**3 * jnp.cross(gammadashdash, gammadash)) * (
-        1 + jnp.log(a / (8 * math.e**0.25 * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis])))
-    b_int_phi_dash = jnp.zeros((n_quad, n_quad, 3))
-
-    for i in range(len(phidash)):
-        b_int_phi_dash.at[i].set((jnp.cross(gammadash[i], (gamma-gamma[i]))) / (jnp.linalg.norm(gamma - gamma[i])**2 + a/jnp.sqrt(math.e)) ** 1.5
-                                 + (jnp.cross(gammadashdash, gammadash) * (1 - jnp.cos(phidash[i] - phi)[:, jnp.newaxis]) / (2 * (
-                                     1 - jnp.cos(phidash[i] - phi)) * jnp.linalg.norm(gammadash)**2 + a**2/jnp.sqrt(math.e))[:, jnp.newaxis]))
-
-    integral = jnp.trapz(b_int_phi_dash, phidash, axis=0)
-
-    b_reg = (constants.mu_0 * I / 4 / jnp.pi) * (integral + A)
-
-    return b_reg
-
-
-def field_on_coils_rect_pure(gamma, gammadash, gammadashdash, phi, phidash, current, a=0.05, b=0.03):
-    """Regularized field for optimization of a coil with rectangular cross section"""
-    I = current
-    n_quad = phidash.shape[0]
-
-    k = (4 * b) / (3 * a) * jnp.arctan(a/b) + (4*a)/(3*b)*jnp.arctan(b/a) + \
-        (b**2)/(6*a**2)*jnp.log(b/a) + (a**2)/(6*b**2)*jnp.log(a/b) - \
-        (a**4 - 6*a**2*b**2 + b**4)/(6*a**2*b**2)*jnp.log(a/b+b/a)
-
-    delta = jnp.exp(-25/6 + k)
-    A = (jnp.cross(gammadash, gammadashdash)) / (2*jnp.linalg.norm(gammadash, axis=1)
-                                                 [:, jnp.newaxis]**3) * (-2 + jnp.log(64 / (delta * a * b) * jnp.linalg.norm(gammadash, axis=1)[:, jnp.newaxis]**2))
-
-    b_int_phi_dash = jnp.zeros((n_quad, n_quad, 3))
-
-    for i in range(len(phidash)):
-        b_int_phi_dash.at[i].set((jnp.cross(gammadash[i], (gamma-gamma[i]))) / (jnp.linalg.norm(gamma - gamma[i])**2 + delta + a * b) ** 1.5
-                                 + (jnp.cross(gammadashdash, gammadash) * (1 - jnp.cos(phidash[i] - phi)[:, jnp.newaxis]) / ((
-                                     2 - 2 * jnp.cos(phidash[i] - phi)) * jnp.linalg.norm(gammadash)**2 + delta * a * b)[:, jnp.newaxis]))
-
-    integral = jnp.trapz(b_int_phi_dash, phidash, axis=0)
-
-    b_reg = (constants.mu_0 * I / 4 / jnp.pi) * (integral + A)
-
-    return b_reg
-
-
-def field_from_other_coils_pure(gamma, curves, currents, a=0.05):
+def field_from_other_coils_pure(gamma, curves, currents):
     """field on one coil from the other coils"""
     coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
     b_ext = BiotSavart(coils)

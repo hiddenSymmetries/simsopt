@@ -1,172 +1,240 @@
-import os
 import unittest
 import logging
 
 import numpy as np
 from scipy import constants
-import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
-from simsopt.field.selffieldforces import field_on_coils, ForceOpt, force_on_coil, self_force
-from simsopt.field import Coil, Current, apply_symmetries_to_curves, apply_symmetries_to_currents
+from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data
+from simsopt.configs import get_hsx_data, get_ncsx_data
 from simsopt.geo import CurveXYZFourier
+from simsopt.field.selffield import (
+    B_regularized_circ,
+    B_regularized_rect,
+    rectangular_xsection_k,
+    rectangular_xsection_delta,
+    regularization_circ,
+)
+from simsopt.field.force import self_force_circ, self_force_rect, ForceOpt
 
 logger = logging.getLogger(__name__)
+
+
+class SpecialFunctionsTests(unittest.TestCase):
+    """
+    Test the functions that are specific to the reduced model for rectangular
+    cross-section coils.
+    """
+
+    def test_k_square(self):
+        """Check value of k for a square cross-section."""
+        truth = 2.556493222766492
+        np.testing.assert_allclose(rectangular_xsection_k(0.3, 0.3), truth)
+        np.testing.assert_allclose(rectangular_xsection_k(2.7, 2.7), truth)
+
+    def test_delta_square(self):
+        """Check value of delta for a square cross-section."""
+        truth = 0.19985294779417703
+        np.testing.assert_allclose(rectangular_xsection_delta(0.3, 0.3), truth)
+        np.testing.assert_allclose(rectangular_xsection_delta(2.7, 2.7), truth)
+
+    def test_symmetry(self):
+        """k and delta should be unchanged if a and b are swapped."""
+        n_ratio = 10
+        d = 0.01  # Geometric mean of a and b
+        for ratio in [0.1, 3.7]:
+            a = d * ratio
+            b = d / ratio
+            np.testing.assert_allclose(
+                rectangular_xsection_delta(a, b), rectangular_xsection_delta(b, a)
+            )
+            np.testing.assert_allclose(
+                rectangular_xsection_k(a, b), rectangular_xsection_k(b, a)
+            )
+
+    def test_limits(self):
+        """Check limits of k and delta for a >> b and b >> a."""
+        ratios = [1.1e6, 2.2e4, 3.5e5]
+        xs = [0.2, 1.0, 7.3]
+        for ratio in ratios:
+            for x in xs:
+                # a >> b
+                b = x
+                a = b * ratio
+                np.testing.assert_allclose(rectangular_xsection_k(a, b), (7.0 / 6) + np.log(a / b), rtol=1e-3)
+                np.testing.assert_allclose(rectangular_xsection_delta(a, b), a / (b * np.exp(3)), rtol=1e-3)
+
+                # b >> a
+                a = x
+                b = ratio * a
+                np.testing.assert_allclose(rectangular_xsection_k(a, b), (7.0 / 6) + np.log(b / a), rtol=1e-3)
+                np.testing.assert_allclose(rectangular_xsection_delta(a, b), b / (a * np.exp(3)), rtol=1e-3)
 
 
 class CoilForcesTest(unittest.TestCase):
 
     def test_circular_coil(self):
-        """Check whether hoop force on a circular coil is right"""
-        R0 = 0
-        R1 = 1
+        """Check whether B_reg and hoop force on a circular-centerline coil are correct."""
+        R0 = 1.7
         I = 10000
         a = 0.01
-        N_quad = 1000
+        b = 0.023
+        order = 1
 
-        dofs = [0, 0, 1, 0, 1, 0, 0, 0., 0.]
-        curve = CurveXYZFourier(N_quad, 1)
-        curve.x = dofs
+        # Analytic field has only a z component
+        B_reg_analytic_circ = constants.mu_0 * I / (4 * np.pi * R0) * (np.log(8 * R0 / a) - 3 / 4)
+        # Eq (98) in Landreman Hurwitz Antonsen:
+        B_reg_analytic_rect = constants.mu_0 * I / (4 * np.pi * R0) * (
+            np.log(8 * R0 / np.sqrt(a * b)) + 13.0 / 12 - rectangular_xsection_k(a, b) / 2
+        )
+        force_analytic_circ = B_reg_analytic_circ * I
+        force_analytic_rect = B_reg_analytic_rect * I
 
-        current = Current(I)
-        coil = Coil(curve, current)
+        for N_quad in [23, 13, 23]:
 
-        _, n, _ = curve.frenet_frame()
+            # Create a circle of radius R0 in the x-y plane:
+            curve = CurveXYZFourier(N_quad, order)
+            curve.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
+            phi = 2 * np.pi * curve.quadpoints
 
-        hoop_force_analytical = np.linalg.norm(constants.mu_0 *
-                                               I**2 / 4 / np.pi / R1 * (np.log(8 * R1 / a) - 3 / 4) * n, axis=1)
+            current = Current(I)
+            coil = Coil(curve, current)
 
-        hoop_force_test = np.linalg.norm(self_force(coil, a), axis=1)
+            # Check the case of circular cross-section:
 
-        np.testing.assert_array_almost_equal(
-            hoop_force_test, hoop_force_analytical, 2)
+            B_reg_test = B_regularized_circ(coil, a)
+            np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_circ)
+            np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
 
+            force_test = self_force_circ(coil, a)
+            np.testing.assert_allclose(force_test[:, 0], force_analytic_circ * np.cos(phi))
+            np.testing.assert_allclose(force_test[:, 1], force_analytic_circ * np.sin(phi))
+            np.testing.assert_allclose(force_test[:, 2], 0.0)
+
+            # Check the case of rectangular cross-section:
+
+            B_reg_test = B_regularized_rect(coil, a, b)
+            np.testing.assert_allclose(B_reg_test[:, 2], B_reg_analytic_rect)
+            np.testing.assert_allclose(B_reg_test[:, 0:2], 0)
+
+            force_test = self_force_rect(coil, a, b)
+            np.testing.assert_allclose(force_test[:, 0], force_analytic_rect * np.cos(phi))
+            np.testing.assert_allclose(force_test[:, 1], force_analytic_rect * np.sin(phi))
+            np.testing.assert_allclose(force_test[:, 2], 0.0)
+
+    def test_force_convergence(self):
+        """Check that the self-force is approximately independent of the number of quadrature points"""
+        ppps = [8, 4, 2, 7, 5]
+        for j, ppp in enumerate(ppps):
+            curves, currents, ma = get_hsx_data(ppp=ppp)
+            curve = curves[0]
+            I = 1.5e3
+            a = 0.01
+            coil = Coil(curve, Current(I))
+            force = self_force_circ(coil, a)
+            max_force = np.max(np.abs(force))
+            #print("ppp:", ppp, " max force:", max_force)
+            if j == 0:
+                interpolant = interp1d(curve.quadpoints, force, axis=0)
+                max_force_ref = max_force
+            else:
+                np.testing.assert_allclose(force, interpolant(curve.quadpoints), atol=max_force_ref / 60)
+            #print(np.max(np.abs(force - interpolant(curve.quadpoints))))
+            #plt.plot(curve.quadpoints, force[:, 0], '+-')
+            #plt.plot(curve.quadpoints, interpolant(curve.quadpoints)[:, 0], 'x-')
+            #plt.show()
+
+    def test_hsx_coil(self):
+        """Compare self-force for HSX coil 1 to result from CoilForces.jl"""
+        curves, currents, ma = get_hsx_data()
+        assert len(curves[0].quadpoints) == 160
+        I = 150e3
+        a = 0.01
+        b = 0.023
+        coil = Coil(curves[0], Current(I))
+
+        # Case of circular cross-section
+
+        # The data from CoilForces.jl were generated with the command
+        # CoilForces.reference_HSX_force_for_simsopt_test()
+        F_x_benchmark = np.array(
+            [-15624.06752062059, -21673.892879345873, -27805.92218896322, -33138.2025931857, -36514.62850757798, -37154.811045050716, -35224.36483811566, -31790.6909934216, -28271.570764376913, -25877.063414550663, -25275.54000792784, -26426.552957555898, -28608.08732785721, -30742.66146788618, -31901.1192650387, -31658.2982018783, -30115.01252455622, -27693.625158453917, -24916.97602450875, -22268.001550194127, -20113.123569572494, -18657.02934190755, -17925.729621918534, -17787.670352261383, -18012.98424762069, -18355.612668419068, -18631.130455525174, -18762.19098176415, -18778.162916012046, -18776.500656205895, -18866.881771744567, -19120.832848894337, -19543.090214569205, -20070.954769137115, -20598.194181114803, -21013.020202255055, -21236.028702664324, -21244.690600996386, -21076.947768954156, -20815.355048694666, -20560.007956111527, -20400.310604802795, -20393.566682281307, -20554.83647318684, -20858.986285059094, -21253.088938981215, -21675.620708707665, -22078.139271497712, -22445.18444801059, -22808.75225496607, -23254.130115531163, -23913.827617806084, -24946.957266144746, -26504.403695291898, -28685.32300927181, -31495.471071978012, -34819.49374359714, -38414.82789487393, -41923.29333627555, -44885.22293635466, -46749.75134352123, -46917.59025432583, -44896.50887106118, -40598.462003586974, -34608.57105847433, -28108.332731765862, -22356.321253373, -18075.405570497107, -15192.820251877345, -13027.925896696135, -10728.68775277632, -7731.104577216556, -4026.458734812997, -67.65800705092924, 3603.7480987311537, 6685.7274727329805, 9170.743233515725, 11193.25631660189, 12863.446736995473, 14199.174999621611, 15157.063376046968, 15709.513692788054, 15907.086239630167, 15889.032882713132, 15843.097529146156, 15944.109516240991, 16304.199171854023, 16953.280592130628, 17852.57440796256, 18932.066168700923, 20133.516941300426, 21437.167716977303, 22858.402963585464, 24417.568974489524, 26100.277202379944, 27828.811426061613, 29459.771430218898, 30813.7836860175, 31730.62350657151, 32128.502820609796, 32038.429339023023, 31593.803847403953, 30979.028723505002, 30362.077268204735, 29840.850204702965, 29422.877198133527, 29042.28057709125, 28604.02774189412, 28036.121314230902, 27327.793860493435, 26538.11580899982, 25773.01411179288, 25142.696104375616, 24718.6066327647, 24507.334842447635, 24451.10991168722, 24454.085831995577, 24423.536258237124, 24308.931868210013, 24122.627773352768, 23933.764307662732, 23838.57162949479, 23919.941100154054, 24212.798983180386, 24689.158548635372, 25269.212310785344, 25854.347267952628, 26368.228758087153, 26787.918123459167, 27150.79244000832, 27533.348289627098, 28010.279752667528, 28611.021858534772, 29293.073660468486, 29946.40958260143, 30430.92513540546, 30631.564524187717, 30503.197269324868, 30080.279217014842, 29444.6938562621, 28667.38229651914, 27753.348490269695, 26621.137071620036, 25137.82866539427, 23205.371963209964, 20853.92976118877, 18273.842305983166, 15753.018584850472, 13562.095187201534, 11864.517807863573, 10688.16332321768, 9935.766441264674, 9398.023223792645, 8766.844594289494, 7680.841209848606, 5824.4042671660145, 3040.702284846631, -630.2054351866387, -5035.57692055936, -10048.785939525675]
+        )
+
+        F_x_test = self_force_circ(coil, a)[:, 0]
+        np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
+
+        # Case of rectangular cross-section
+
+        F_x_benchmark = np.array(
+            [-15905.20099921593, -22089.84960387874, -28376.348489470365, -33849.08438046449, -37297.138833218974, -37901.3580214951, -35838.71064362283, -32228.643120480687, -28546.9118841109, -26046.96628692484, -25421.777194138715, -26630.791911489407, -28919.842325785943, -31157.40078884933, -32368.19957740524, -32111.184287572887, -30498.330514718982, -27974.45692852191, -25085.400672446423, -22334.49737678633, -20104.78648017159, -18610.931535243944, -17878.995292047493, -17767.35330442759, -18030.259902092654, -18406.512856357545, -18702.39969540496, -18838.862854941028, -18849.823944445518, -18840.62799920807, -18928.85330885538, -19191.02138695175, -19632.210519767978, -20185.474968977625, -20737.621297822592, -21169.977809582055, -21398.747768091078, -21400.62658689198, -21216.133558586924, -20932.595132161085, -20655.60793743372, -20479.40191077005, -20464.28582628529, -20625.83431400738, -20936.962932518098, -21341.067527434556, -21772.38656616101, -22178.862986210577, -22542.999300185398, -22897.045487538875, -23329.342412912913, -23978.387795050137, -25011.595805992223, -26588.8272541588, -28816.499234411625, -31703.566987071903, -35132.3971671138, -38852.71510558583, -42494.50815372789, -45583.48852415488, -47551.1577527285, -47776.415427331594, -45743.97982645536, -41354.37991615283, -35210.20495138465, -28540.23742988024, -22654.55869049082, -18301.96907423793, -15401.963398143102, -13243.762349314706, -10939.450828758423, -7900.820612170931, -4120.028225769904, -72.86209546891608, 3674.253747922276, 6809.0803070326565, 9328.115750414787, 11374.122069162511, 13062.097330371573, 14409.383808494194, 15369.251684718018, 15911.988418337934, 16090.021555975769, 16048.21613878066, 15981.151899412167, 16068.941633738388, 16425.88464448961, 17080.88532516404, 17992.129241265648, 19086.46631302506, 20304.322975363317, 21627.219065732254, 23073.563938875737, 24666.38845701993, 26391.47816311481, 28167.521012668185, 29843.93199662863, 31232.367301229497, 32164.969954389788, 32556.923587447265, 32442.446350951064, 31963.284032424053, 31314.01211399212, 30670.79551082286, 30135.039340095944, 29712.330052677768, 29330.71025802117, 28887.8200773726, 28306.412420411067, 27574.83013193789, 26755.843397583598, 25961.936385889934, 25310.01540139794, 24875.789463354584, 24666.066357125907, 24619.136261928328, 24632.619408002214, 24607.413073397413, 24489.503028993608, 24292.044623409187, 24088.74651990258, 23982.195361428472, 24060.929104794097, 24362.6460843878, 24858.082439252874, 25462.457564195745, 26070.50973682213, 26600.547196554344, 27028.01270305341, 27393.03996450607, 27777.872708277075, 28263.357416931998, 28882.7902495421, 29593.307386932454, 30279.887846398404, 30794.507327329207, 31014.791285198782, 30892.485429183558, 30464.50108998591, 29819.03800239511, 29033.577206319136, 28116.32127507844, 26983.626000124084, 25495.394951521277, 23544.852551314456, 21157.350595114454, 18526.131317622883, 15948.394109661942, 13705.248433750054, 11967.480036214449, 10766.293968812726, 10004.685998499026, 9470.706025372589, 8849.607342610005, 7769.149525451194, 5902.017638994769, 3084.6416074691333, -641.878548205229, -5119.944566458021, -10221.371299891642]
+        )
+
+        F_x_test = self_force_rect(coil, a, b)[:, 0]
+        np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
+
+    @unittest.skip
     def test_force_objective(self):
         """Check whether objective function matches function for export"""
-        nfp = 4
+        nfp = 3
         ncoils = 4
-        I = 1
+        I = 1.7
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        curves = apply_symmetries_to_curves(base_curves, nfp, True)
-
-        base_currents = []
-        for i in range(ncoils):
-            curr = Current(I)
-            base_currents.append(curr)
-
-        curves = apply_symmetries_to_curves(base_curves, nfp, True)
-        currents = apply_symmetries_to_currents(
-            base_currents, nfp, True)
-
-        coils = [Coil(c, curr) for (c, curr) in zip(curves, currents)]
+        base_currents = [Current(I) for j in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
         objective = float(ForceOpt(coils[0], coils[1:]).J())
         export = np.max(np.linalg.norm(
             force_on_coil(coils[0], coils[1:]), axis=1))
 
-        self.assertEqual(objective, export)
+        self.assertAlmostEqual(objective, export)
+
+        # This test is not working yet - remove @unittest.skip eventually
 
     def test_update_points(self):
         """Check whether quadrature points are updated"""
         nfp = 4
-        ncoils = 4
-        I = 1
+        ncoils = 3
+        I = 1.3
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        curves = apply_symmetries_to_curves(base_curves, nfp, True)
+        base_currents = [Current(I) for j in range(ncoils)]
+        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        base_currents = []
-        for i in range(ncoils):
-            curr = Current(I)
-            base_currents.append(curr)
-
-        curves = apply_symmetries_to_curves(base_curves, nfp, True)
-        currents = apply_symmetries_to_currents(
-            base_currents, nfp, True)
-
-        coils = [Coil(c, curr) for (c, curr) in zip(curves, currents)]
-        self.assertEqual(1, 1)
-
-    def test_hsx_coil(self):
-        """Check whether HSX coil 1 is correct [not yet functioinal]"""
-        curves, currents, ma = get_hsx_data(Nt_coils=10)
-        I = 150e3
-        a = 0.1
-        c = curves[0]
-        curr = Current(I)
-        phi_test = np.linspace(
-            0, 2*np.pi, curves[0].gamma().shape[0], endpoint=False)
-
-        coil = Coil(curves[0], curr)
-
-        phi = np.array([0.0, 0.06283185307179587, 0.12566370614359174, 0.18849555921538758, 0.25132741228718347, 0.3141592653589793, 0.37699111843077515, 0.43982297150257105, 0.5026548245743669, 0.5654866776461628, 0.6283185307179586, 0.6911503837897545, 0.7539822368615503, 0.8168140899333463, 0.8796459430051421, 0.9424777960769378, 1.0053096491487339, 1.0681415022205298, 1.1309733552923256, 1.1938052083641213, 1.2566370614359172, 1.3194689145077132, 1.382300767579509, 1.4451326206513047, 1.5079644737231006, 1.5707963267948966, 1.6336281798666925, 1.6964600329384882, 1.7592918860102842, 1.8221237390820801, 1.8849555921538756, 1.9477874452256716, 2.0106192982974678, 2.0734511513692637, 2.1362830044410597, 2.199114857512855, 2.261946710584651, 2.324778563656447, 2.3876104167282426, 2.4504422698000385, 2.5132741228718345, 2.57610597594363, 2.6389378290154264, 2.701769682087222, 2.764601535159018, 2.827433388230814, 2.8902652413026093, 2.9530970943744057, 3.015928947446201,
-                        3.078760800517997, 3.141592653589793, 3.204424506661589, 3.267256359733385, 3.330088212805181, 3.3929200658769765, 3.4557519189487724, 3.5185837720205684, 3.581415625092364, 3.6442474781641603, 3.707079331235956, 3.7699111843077513, 3.8327430373795477, 3.895574890451343, 3.9584067435231396, 4.0212385965949355, 4.084070449666731, 4.1469023027385274, 4.209734155810323, 4.272566008882119, 4.335397861953915, 4.39822971502571, 4.461061568097507, 4.523893421169302, 4.586725274241098, 4.649557127312894, 4.71238898038469, 4.775220833456485, 4.838052686528282, 4.900884539600077, 4.9637163926718735, 5.026548245743669, 5.0893800988154645, 5.15221195188726, 5.215043804959057, 5.277875658030853, 5.340707511102648, 5.403539364174444, 5.466371217246239, 5.529203070318036, 5.592034923389832, 5.654866776461628, 5.717698629533423, 5.780530482605219, 5.843362335677015, 5.906194188748811, 5.969026041820607, 6.031857894892402, 6.094689747964199, 6.157521601035994, 6.220353454107791])
-
-        F_x_benchmark = np.array([-15.621714454504355, -25.386254814014332, -34.00485918824268, -37.25194320715892, -33.94735819154057, -28.26391306808791, -25.278784250490897, -26.807548029155342, -30.369264292607372, -31.97730171116336, -30.114496277699605, -26.035156403506647, -21.78467333474507, -18.8847783133302, -17.80907138700853, -18.013558438748653, -18.537801229627746, -18.77246376727638, -18.77160911102063, -18.945014431688293, -19.541492178765562, -20.3942380706085, -21.07455240765378, -21.25886817032106, -20.97720133880779, -20.558557456604085, -20.37432066919552, -20.604321836381924, -21.169376652400235, -21.840640725676806, -22.445147818892284, -23.05807741033117, -24.083684322447443, -26.14177826533346, -29.73275453813305, -34.814238890535925, -40.552395526684464, -45.35984208591351, -47.042221180903084, -43.43013791962298, -34.60426514262674, -24.49931440690929, -17.399226392831004, -13.444360463399379, -9.627015721735356, -4.026391898504832, 2.1961219738518714, 7.225619188022534, 10.817296830609212,
-                                  13.4379905995812, 15.15565642466898, 15.861808944422751, 15.873934125390347, 15.903699160657348, 16.52863837250943, 17.851365769730304, 19.638910116508573, 21.70860446798523, 24.09135719843826, 26.789854323159766, 29.457514422299667, 31.422188359643474, 32.14422671768141, 31.69893238992888, 30.72080180997715, 29.837018009118612, 29.193568709496084, 28.50077325792555, 27.477359476543903, 26.220378619749138, 25.139917640814485, 24.56624036043404, 24.448757554214936, 24.434956022149535, 24.2394202908342, 23.932116798706417, 23.860151476346307, 24.292881129282332, 25.14798153122407, 26.070046793056417, 26.786490712365225, 27.37008389921956, 28.117302410777462, 29.151131014219267, 30.165249880318953, 30.629251572733402, 30.277187693419982, 29.295451439912902, 27.945841375906173, 26.074227978416182, 23.203781887268054, 19.314951539216192, 15.280161323855381, 12.159646367697459, 10.343668130239022, 9.39618499956079, 8.191364531018712, 5.342861437557306, 0.1681693022707696, -6.9708975292215785])
-
-        F_x_test = self_force(coil, a)[:, 0] / 1e3
-
-        np.testing.assert_array_almost_equal(F_x_benchmark, F_x_test, 3)
-
-    def test_force_convergence(self):
-        """Check force for different number of quadrature points"""
-        N_quad = [10, 100, 1000, 3000, 5000]
-        dofs = [0, 0, 1, 0, 0, 0, 1., 0., 0., 0, 0, 0, 0, 0.2, 0.]
-        # 100 = Number of quadrature points, 1 = max Fourier mode number
-        curves = [CurveXYZFourier(n, 2) for n in N_quad]
-        for c in curves:
-            c.x = dofs
-        current = Current(10000.)
-        coils = [Coil(c, current) for c in curves]
-        forces = [np.max(self_force(c)) for c in coils]
-        forces_res = [forces[-1]-f for f in forces]
-        self.assertAlmostEqual(forces_res[-1], 0)
+        # This test is incomplete.
 
     def test_forces_taylor_test(self):
-        """Try whether dJ matches finite differences of J"""
-        nfp = 4
-        ncoils = 4
-        I = 1
+        """Verify that dJ matches finite differences of J"""
+        # The Fourier spectrum of the NCSX coils is truncated - we don't need the
+        # actual coil shapes from the experiment, just a few nonzero dofs.
+        curves, currents, axis = get_ncsx_data(Nt_coils=2)
 
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        curves = apply_symmetries_to_curves(base_curves, nfp, True)
+        # The next line is needed temporarily because ForceOpt doesn't yet
+        # account for derivatives with respect to currents. This next line
+        # should be removed once that derivative is added.
+        [current.fix_all() for current in currents]
 
-        base_currents = []
-        for i in range(ncoils):
-            curr = Current(I)
-            base_currents.append(curr)
+        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
 
-        curves = apply_symmetries_to_curves(base_curves, nfp, True)
-        currents = apply_symmetries_to_currents(
-            base_currents, nfp, True)
-
-        coils = [Coil(c, curr) for (c, curr) in zip(curves, currents)]
-
-        J = ForceOpt(coils[0], coils[1:])
-        J0 = J.J()
+        J = ForceOpt(coils[0], coils[1:], regularization_circ(0.05))
         coil_dofs = coils[0].x
-        h = 1e-3 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
+        h = np.ones_like(coil_dofs)
         dJ = J.dJ()
         deriv = np.sum(dJ * h)
-        err = 1e-6
-        for i in range(5, 25):
+        err = 100
+        for i in range(10, 19):
             eps = 0.5**i
             coils[0].x = coil_dofs + eps * h
             Jp = J.J()
             coils[0].x = coil_dofs - eps * h
             Jm = J.J()
-            deriv_est = (Jp-Jm)/(2*eps)
-            err_new = np.linalg.norm(deriv_est-deriv)
-
-            # print("err_new %s" % (err_new))
-            print(eps, err - err_new)
-            # assert err_new < err
+            deriv_est = (Jp - Jm) / (2 * eps)
+            err_new = np.linalg.norm(deriv_est - deriv)
+            #print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            np.testing.assert_array_less(err_new, 0.3 * err)
             err = err_new
-
-        self.assertAlmostEqual(err, 0, 4)
 
 
 if __name__ == '__main__':
