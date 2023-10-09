@@ -483,9 +483,6 @@ class SurfaceTaylorTests(unittest.TestCase):
         taylor_test2(f, df, d2f, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 20))))
 
-
-
-
     def subtest_surface_phi_derivative(self, surfacetype, stellsym):
         epss = [0.5**i for i in range(10, 15)]
         phis = np.asarray([0.6] + [0.6 + eps for eps in epss])

@@ -15,6 +15,7 @@ __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'MajorRadius', 'NonQuasiSymmetricRatio', 'BoozerResidual', 
            'AspectRatio']
 
+
 class AspectRatio(Optimizable):
     """
     Wrapper class for surface area label.
@@ -64,8 +65,6 @@ class AspectRatio(Optimizable):
         Calculate the second partial derivatives with respect to the surface coefficients.
         """
         return self.surface.d2aspect_ratio_by_dcoeff_dcoeff()
-
-
 
 
 class Area(Optimizable):
