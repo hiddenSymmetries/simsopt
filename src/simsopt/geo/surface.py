@@ -498,8 +498,7 @@ class Surface(Optimizable):
         dR_dt = self.dmajor_radius_by_dcoeff()[None, :]
         d2R_dsdt = self.d2major_radius_by_dcoeff_dcoeff()
 
-        return (2*R*dr_dt*dr_ds)/r**3 - (dR_dt*dr_ds)/r**2 - \
-                (dr_dt*dR_ds)/r**2 - (R*d2r_dsdt)/r**2 + d2R_dsdt/r
+        return (2*R*dr_dt*dr_ds)/r**3 - (dR_dt*dr_ds)/r**2 - (dr_dt*dR_ds)/r**2 - (R*d2r_dsdt)/r**2 + d2R_dsdt/r
 
     def minor_radius(self):
         r"""
@@ -576,7 +575,7 @@ class Surface(Optimizable):
 
         return ((6*V*dr_dt*dr_ds)/r**4 - (2*dV_dt*dr_ds)/r**3 - \
                 (2*dr_dt*dV_ds)/r**3 - (2*V*d2r_dsdt)/r**3 + \
-                d2V_dsdt/r**2)* np.sign(V)/(2*np.pi**2)
+                d2V_dsdt/r**2) * np.sign(V)/(2*np.pi**2)
 
     def mean_cross_sectional_area(self):
         r"""
@@ -746,37 +745,32 @@ class Surface(Optimizable):
         dytheta_dt = dg2_ds[:, :, 1, None, :]
         dztheta_dt = dg2_ds[:, :, 2, None, :]
 
-
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
-        d2mean_area_ds2 = np.sign(mean_area)*np.mean( 
-                        (2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
-                        ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta - \
-                        ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt - \
-                        xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt + \
-                        xtheta*y*dzvarphi_dt + x*(-(zvarphi*dytheta_dt) + ztheta*dyvarphi_dt \
-                        + yvarphi*dztheta_dt - ytheta*dzvarphi_dt))*dr_ds - \
-                        r*dr_dt*((yvarphi*ztheta - ytheta*zvarphi)*dx_ds + \
-                        y*zvarphi*dxtheta_ds - y*ztheta*dxvarphi_ds - xvarphi*ztheta*dy_ds + \
-                        xtheta*zvarphi*dy_ds - xvarphi*y*dztheta_ds + xtheta*y*dzvarphi_ds + \
-                        x*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + yvarphi*dztheta_ds - \
-                        ytheta*dzvarphi_ds)) + r**2*((-(zvarphi*dytheta_dt) + \
-                        ztheta*dyvarphi_dt + yvarphi*dztheta_dt - ytheta*dzvarphi_dt)*dx_ds + \
-                        zvarphi*dy_dt*dxtheta_ds + y*dzvarphi_dt*dxtheta_ds - \
-                        ztheta*dy_dt*dxvarphi_ds - y*dztheta_dt*dxvarphi_ds + \
-                        zvarphi*dxtheta_dt*dy_ds - ztheta*dxvarphi_dt*dy_ds - \
-                        xvarphi*dztheta_dt*dy_ds + xtheta*dzvarphi_dt*dy_ds - \
-                        y*dxvarphi_dt*dztheta_ds - xvarphi*dy_dt*dztheta_ds + \
-                        y*dxtheta_dt*dzvarphi_ds + xtheta*dy_dt*dzvarphi_ds + \
-                        dx_dt*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + \
-                        yvarphi*dztheta_ds - ytheta*dzvarphi_ds) + \
-                        x*(-(dzvarphi_dt*dytheta_ds) + dztheta_dt*dyvarphi_ds + \
-                        dyvarphi_dt*dztheta_ds - dytheta_dt*dzvarphi_ds)) + \
-                        r*(xvarphi*y*ztheta - xtheta*y*zvarphi + x*(-(yvarphi*ztheta) + \
-                        ytheta*zvarphi))*dr2_dsdt)/r**3
-                            , axis=(0, 1))/(2*np.pi)
+        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \        # noqa 
+                                                     ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta - \
+                                                     ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt - \
+                                                     xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt + \
+                                                     xtheta*y*dzvarphi_dt + x*(-(zvarphi*dytheta_dt) + ztheta*dyvarphi_dt \
+                                                     + yvarphi*dztheta_dt - ytheta*dzvarphi_dt))*dr_ds - \
+                                                     r*dr_dt*((yvarphi*ztheta - ytheta*zvarphi)*dx_ds + \
+                                                     y*zvarphi*dxtheta_ds - y*ztheta*dxvarphi_ds - xvarphi*ztheta*dy_ds + \
+                                                     xtheta*zvarphi*dy_ds - xvarphi*y*dztheta_ds + xtheta*y*dzvarphi_ds + \
+                                                     x*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + yvarphi*dztheta_ds - \
+                                                     ytheta*dzvarphi_ds)) + r**2*((-(zvarphi*dytheta_dt) + \
+                                                     ztheta*dyvarphi_dt + yvarphi*dztheta_dt - ytheta*dzvarphi_dt)*dx_ds + \
+                                                     zvarphi*dy_dt*dxtheta_ds + y*dzvarphi_dt*dxtheta_ds - \
+                                                     ztheta*dy_dt*dxvarphi_ds - y*dztheta_dt*dxvarphi_ds + \
+                                                     zvarphi*dxtheta_dt*dy_ds - ztheta*dxvarphi_dt*dy_ds - \
+                                                     xvarphi*dztheta_dt*dy_ds + xtheta*dzvarphi_dt*dy_ds - \
+                                                     y*dxvarphi_dt*dztheta_ds - xvarphi*dy_dt*dztheta_ds + \
+                                                     y*dxtheta_dt*dzvarphi_ds + xtheta*dy_dt*dzvarphi_ds + \
+                                                     dx_dt*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + \
+                                                     yvarphi*dztheta_ds - ytheta*dzvarphi_ds) + \
+                                                     x*(-(dzvarphi_dt*dytheta_ds) + dztheta_dt*dyvarphi_ds + \
+                                                     dyvarphi_dt*dztheta_ds - dytheta_dt*dzvarphi_ds)) + \
+                                                     r*(xvarphi*y*ztheta - xtheta*y*zvarphi + x*(-(yvarphi*ztheta) + \
+                                                     ytheta*zvarphi))*dr2_dsdt)/r**3, axis=(0, 1))/(2*np.pi)
         return d2mean_area_ds2
-
-
 
     def arclength_poloidal_angle(self):
         """
