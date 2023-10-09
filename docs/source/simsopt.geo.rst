@@ -76,10 +76,26 @@ simsopt.geo.finitebuild module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.framedcurve module
+------------------------------
+
+.. automodule:: simsopt.geo.framedcurve
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.jit module
 ----------------------
 
 .. automodule:: simsopt.geo.jit
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.permanent\_magnet\_grid module
+------------------------------------------
+
+.. automodule:: simsopt.geo.permanent_magnet_grid
    :members:
    :undoc-members:
    :show-inheritance:
@@ -96,6 +112,14 @@ simsopt.geo.qfmsurface module
 -----------------------------
 
 .. automodule:: simsopt.geo.qfmsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.strain_optimization module
+--------------------------------------
+
+.. automodule:: simsopt.geo.strain_optimization
    :members:
    :undoc-members:
    :show-inheritance:

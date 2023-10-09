@@ -4,7 +4,10 @@
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include <Eigen/Core>
+
 typedef xt::pyarray<double> PyArray;
+#include "xtensor-python/pytensor.hpp"     // Numpy bindings
+typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include <math.h>
 #include <chrono>
 
@@ -13,12 +16,14 @@ typedef xt::pyarray<double> PyArray;
 
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
-#include "dommaschk.h"
-#include "reiman.h"
 #include "boozerradialinterpolant.h"
+#include "dipole_field.h"
+#include "dommaschk.h"
+#include "integral_BdotN.h"
+#include "permanent_magnet_optimization.h"
+#include "reiman.h"
+#include "simdhelpers.h"
 #include "boozerresidual.h"
-
-
 
 namespace py = pybind11;
 
@@ -44,14 +49,39 @@ PYBIND11_MODULE(simsoptpp, m) {
     init_tracing(m);
     init_distance(m);
 
+#if defined(USE_XSIMD)
+    m.attr("using_xsimd") = true;
+#else
+    m.attr("using_xsimd") = false;
+#endif
+
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
 
+    // Functions below are implemented for permanent magnet optimization
+    m.def("dipole_field_B" , &dipole_field_B);
+    m.def("dipole_field_A" , &dipole_field_A);
+    m.def("dipole_field_dB", &dipole_field_dB);
+    m.def("dipole_field_dA" , &dipole_field_dA);
+    m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
+    m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
+
+    // Permanent magnet optimization algorithms have many default arguments
+    m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);
+    // variants of GPMO algorithm
+    m.def("GPMO_backtracking", &GPMO_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7, py::arg("max_nMagnets"));
+    m.def("GPMO_multi", &GPMO_multi, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
+    m.def("GPMO_ArbVec", &GPMO_ArbVec, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100);
+    m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"), py::arg("x_init"));
+    m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
+
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("integral_BdotN", &integral_BdotN);
 
     m.def("ReimanB" , &ReimanB);
     m.def("ReimandB", &ReimandB);
@@ -95,57 +125,6 @@ PYBIND11_MODULE(simsoptpp, m) {
             eigC = eigv.transpose()*eigB;
             return C;
         });
-
-    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n) {
-        int nphi = Bcoil.shape(0);
-        int ntheta = Bcoil.shape(1);
-        double *Bcoil_ptr = Bcoil.data();
-        double *Btarget_ptr = NULL;
-        double *n_ptr = n.data();
-        if(Bcoil.layout() != xt::layout_type::row_major)
-              throw std::runtime_error("Bcoil needs to be in row-major storage order");
-        if(Bcoil.shape(2) != 3)
-            throw std::runtime_error("Bcoil has wrong shape.");
-        if(Bcoil.size() != 3*nphi*ntheta)
-            throw std::runtime_error("Bcoil has wrong size.");
-        if(n.layout() != xt::layout_type::row_major)
-              throw std::runtime_error("n needs to be in row-major storage order");
-        if(n.shape(0) != nphi)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.shape(1) != ntheta)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.shape(2) != 3)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.size() != 3*nphi*ntheta)
-            throw std::runtime_error("n has wrong size.");
-        if(Btarget.size() > 0){
-            if(Btarget.layout() != xt::layout_type::row_major)
-                throw std::runtime_error("Btarget needs to be in row-major storage order");
-            if(Btarget.shape(0) != nphi)
-                throw std::runtime_error("Btarget has wrong shape.");
-            if(Btarget.shape(1) != ntheta)
-                throw std::runtime_error("Btarget has wrong shape.");
-            if(Btarget.size() != nphi*ntheta)
-                throw std::runtime_error("Btarget has wrong size.");
-
-            Btarget_ptr = Btarget.data();
-        }
-        double res = 0;
-#pragma omp parallel for reduction(+:res)
-        for(int i=0; i<nphi*ntheta; i++){
-            double normN = std::sqrt(n_ptr[3*i+0]*n_ptr[3*i+0] + n_ptr[3*i+1]*n_ptr[3*i+1] + n_ptr[3*i+2]*n_ptr[3*i+2]);
-            double Nx = n_ptr[3*i+0]/normN;
-            double Ny = n_ptr[3*i+1]/normN;
-            double Nz = n_ptr[3*i+2]/normN;
-            double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
-            if(Btarget_ptr != NULL)
-                BcoildotN -= Btarget_ptr[i];
-            res += (BcoildotN * BcoildotN) * normN;
-        }
-        return 0.5 * res / (nphi*ntheta);
-    });
-
-
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

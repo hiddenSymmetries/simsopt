@@ -1,9 +1,8 @@
-import json
 import numpy as np
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
-from .._core.json import GSONable, GSONDecoder, GSONEncoder
+from .._core.json import GSONDecoder
 
 __all__ = ['BiotSavart']
 

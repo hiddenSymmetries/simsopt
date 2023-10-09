@@ -1,0 +1,36 @@
+diff --git a/setup.cfg b/setup.cfg
+index bad6dde9..e84a9c30 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -44,8 +44,8 @@ keywords =
+ [options]
+ install_requires = 
+     numpy >= 1.19.4
+-    jax >= 0.2.5
+-    jaxlib >= 0.1.56
++    # jax >= 0.2.5
++    # jaxlib >= 0.1.56
+     scipy >= 1.5.4
+     Deprecated >= 1.2.10
+     nptyping >= 1.3.0
+diff --git a/src/simsopt/_core/json.py b/src/simsopt/_core/json.py
+index 192e1d84..eccfcfdd 100644
+--- a/src/simsopt/_core/json.py
++++ b/src/simsopt/_core/json.py
+@@ -23,6 +23,7 @@ import numpy as np
+ 
+ try:
+     import jax
++    import jaxlib.xla_extension
+ except ImportError:
+     jax = None
+ 
+@@ -366,7 +367,7 @@ class GSONEncoder(json.JSONEncoder):
+         if isinstance(o, UUID):
+             return {"@module": "uuid", "@class": "UUID", "string": str(o)}
+ 
+-        if jax is not None and isinstance(o, jax.Array):
++        if jax is not None and isinstance(o, jaxlib.xla_extension.DeviceArray):
+             o = np.asarray(o)
+ 
+         if isinstance(o, np.ndarray):

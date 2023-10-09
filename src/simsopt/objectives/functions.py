@@ -7,7 +7,6 @@ This module provides a few minimal optimizable objects, each
 representing a function. These functions are mostly used for testing.
 """
 
-import logging
 from numbers import Real, Number
 from typing import Sequence
 

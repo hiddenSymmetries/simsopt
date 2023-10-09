@@ -25,15 +25,12 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.objectives import Weight
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, coils_via_symmetries
-from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
+                         CurveLength, CurveCurveDistance, MeanSquaredCurvature,
+                         LpCurveCurvature, CurveSurfaceDistance)
+from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -70,8 +67,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()

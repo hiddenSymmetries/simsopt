@@ -3,11 +3,10 @@
 import os
 import numpy as np
 
-from simsopt.util import log, MpiPartition
-from simsopt.mhd import Vmec, Spec, Boozer, Quasisymmetry
-from simsopt.mhd.spec import Residue
+from simsopt.mhd import Vmec, Spec, Boozer, Quasisymmetry, Residue
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import log, MpiPartition, in_github_actions
 
 """
 In this example, we simultaneously optimize for quasisymmetry and
@@ -69,8 +68,7 @@ prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
 
 # Check whether we're in the CI. If so, just do a single function
 # evaluation rather than a real optimization.
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-if ci:
+if in_github_actions:
     obj = prob.objective()
 else:
     # Remove the max_nfev=1 in the next line to do a serious optimization:
