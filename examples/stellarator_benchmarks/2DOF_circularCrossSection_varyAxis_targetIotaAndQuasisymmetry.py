@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
+import os
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
-import os
+from simsopt.util import proc0_print
 
 """
 This script solve the problem in
@@ -12,8 +13,8 @@ See that website for a detailed description of the problem and plots
 of the objective function landscape.
 """
 
-print("Running 2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py")
-print("========================================================================")
+proc0_print("Running 2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py")
+proc0_print("========================================================================")
 vmec = Vmec(os.path.join(os.path.dirname(__file__), 'inputs', 'input.2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry'))
 
 # Define parameter space:
@@ -36,9 +37,10 @@ prob = LeastSquaresProblem.from_tuples([(vmec.iota_axis, -0.41, 100),
 least_squares_serial_solve(prob)
 
 # print("Final values before shifting and scaling:", prob.dofs.f())
-print("Final residuals:", prob.residuals())
-print("Final state vector:", prob.x)
-print("Final iota on axis:", vmec.iota_axis())
+residuals = prob.residuals()  # Evaluate this on all procs
+proc0_print("Final residuals:", residuals)
+proc0_print("Final state vector:", prob.x)
+proc0_print("Final iota on axis:", vmec.iota_axis())
 
-print("End of 2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py")
-print("========================================================================")
+proc0_print("End of 2DOF_circularCrossSection_varyAxis_targetIotaAndQuasisymmetry.py")
+proc0_print("========================================================================")

@@ -17,12 +17,13 @@ directory
 For this problem the two independent variables are ``RBC(1,1)`` and
 ``ZBS(1,1)``, which control the shape of the plasma boundary::
   
-  R(phi) = 1 + 0.1 * cos(theta) + RBC(1,1) * cos(theta - 5 * phi),
-  Z(phi) =     0.1 * sin(theta) + ZBS(1,1) * sin(theta - 5 * phi).
+  R(theta, phi) = 1 + 0.1 * cos(theta) + RBC(1,1) * cos(theta - 5 * phi),
+  Z(theta, phi) =     0.1 * sin(theta) + ZBS(1,1) * sin(theta - 5 * phi).
 
 Note that this boundary has five field periods. We consider the vacuum
 field inside this boundary magnetic surface, i.e. there is no plasma
-current or pressure.  The objective function is
+current or pressure. The toroidal flux enclosed by the boundary
+surface is held fixed. The objective function is
 
 .. code-block::
    

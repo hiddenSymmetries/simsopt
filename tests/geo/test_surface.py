@@ -389,5 +389,39 @@ class isSelfIntersecting(unittest.TestCase):
         assert not s.is_self_intersecting()
 
 
+class UtilTests(unittest.TestCase):
+    def test_extend_via_normal(self):
+        """
+        If you apply extend_via_normal() or extend_via_projected_normal() to a
+        circular-cross-section axisymmetric torus, you should get back a similar
+        torus but with the expected larger minor radius.
+        """
+        mpol = 4
+        ntor = 5
+        nfp = 3
+        surf1 = SurfaceRZFourier.from_nphi_ntheta(mpol=mpol, ntor=ntor, nfp=nfp)
+        surf2 = SurfaceRZFourier.from_nphi_ntheta(mpol=mpol, ntor=ntor, nfp=nfp)
+        R0 = 1.7
+        aminor1 = 0.3
+        aminor2 = 0.5
+        surf1.set_rc(0, 0, R0)
+        surf2.set_rc(0, 0, R0)
+        surf1.set_rc(1, 0, aminor1)
+        surf2.set_rc(1, 0, aminor2)
+        surf1.set_zs(1, 0, aminor1)
+        surf2.set_zs(1, 0, aminor2)
+        x0 = surf1.x
+        assert max(np.abs(surf1.x - surf2.x)) > 0.1
+
+        surf1.extend_via_normal(aminor2 - aminor1)
+        np.testing.assert_allclose(surf1.x, surf2.x, atol=1e-14)
+
+        surf1.x = x0  # Restore the original shape
+        assert max(np.abs(surf1.x - surf2.x)) > 0.1
+
+        surf1.extend_via_projected_normal(aminor2 - aminor1)
+        np.testing.assert_allclose(surf1.x, surf2.x, atol=1e-14)
+
+
 if __name__ == "__main__":
     unittest.main()

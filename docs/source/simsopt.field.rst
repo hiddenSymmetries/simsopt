@@ -44,6 +44,22 @@ simsopt.field.magneticfieldclasses module
    :undoc-members:
    :show-inheritance:
 
+simsopt.field.mgrid module
+--------------------------
+
+.. automodule:: simsopt.field.mgrid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.field.normal\_field module
+----------------------------------
+
+.. automodule:: simsopt.field.normal_field
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.field.sampling module
 -----------------------------
 
