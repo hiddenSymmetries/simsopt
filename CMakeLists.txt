@@ -117,11 +117,6 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/LinkingNumber/toolbox/src/")
-target_link_directories(${PROJECT_NAME} PRIVATE "thirdparty/LinkingNumber/build/")
-target_link_libraries(${PROJECT_NAME} PRIVATE LinkingNumber_linux)
-
-
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
 
