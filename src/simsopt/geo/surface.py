@@ -746,7 +746,7 @@ class Surface(Optimizable):
         dztheta_dt = dg2_ds[:, :, 2, None, :]
 
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
-        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \        # noqa 
+        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
                                                      ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta - \
                                                      ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt - \
                                                      xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt + \
@@ -769,7 +769,7 @@ class Surface(Optimizable):
                                                      x*(-(dzvarphi_dt*dytheta_ds) + dztheta_dt*dyvarphi_ds + \
                                                      dyvarphi_dt*dztheta_ds - dytheta_dt*dzvarphi_ds)) + \
                                                      r*(xvarphi*y*ztheta - xtheta*y*zvarphi + x*(-(yvarphi*ztheta) + \
-                                                     ytheta*zvarphi))*dr2_dsdt)/r**3, axis=(0, 1))/(2*np.pi)
+                                                     ytheta*zvarphi))*dr2_dsdt)/r**3, axis=(0, 1))/(2*np.pi) # noqa
         return d2mean_area_ds2
 
     def arclength_poloidal_angle(self):
