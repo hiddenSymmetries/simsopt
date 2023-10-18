@@ -1,112 +1,120 @@
 #!/usr/bin/env python
 r"""
 This example uses the current voxels method 
-outlined in Kaptanoglu, Langlois & Landreman (2023) in order
-to generate a figure-eight coil for the Landreman-Paul 
-QA stellarator. Then this solution is used to initialize
-a filament optimization of a single helical figure-eight
-coil that further reduces the errors. 
+outline in Kaptanoglu & Landreman 2023 in order
+to make finite-build coils with no multi-filament
+approximation. 
 
 The script should be run as:
-    mpirun -n 1 python current_voxels_QA.py 
-or
-    python current_voxels_QA.py 
+    mpirun -n 1 python current_voxels.py 
+
 """
 
 import os
+import logging
 from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
+import simsoptpp as sopp
+import simsopt
 from simsopt.geo import SurfaceRZFourier, Curve, curves_to_vtk
 from simsopt.objectives import SquaredFlux
 from simsopt.field.biotsavart import BiotSavart
-from simsopt.field import Coil, Current
+from simsopt.field import InterpolatedField, SurfaceClassifier
 from simsopt.field.magneticfieldclasses import CurrentVoxelsField
 from simsopt.geo import CurrentVoxelsGrid
-from simsopt.solve import relax_and_split_minres 
-from simsopt.util.permanent_magnet_helper_functions import \
-    make_filament_from_voxels, perform_filament_optimization, make_Bnormal_plots, \
-    calculate_on_axis_B
+from simsopt.solve import relax_and_split_minres
+from simsopt.util.permanent_magnet_helper_functions import *
 import time
-
 t_start = time.time()
 
-# Set surface parameters
-nphi = 32
+t1 = time.time()
+# Set some parameters
+nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
-input_name = 'input.LandremanPaul2021_QA'
+# coil_range = 'full torus'
+coil_range = 'half period'
+input_name = 'input.circular_tokamak' 
 
 # Read in the plasma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
-s = SurfaceRZFourier.from_vmec_input(surface_filename, range='half period', nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(surface_filename, range=coil_range, nphi=nphi, ntheta=ntheta)
 
-# Make high-resolution, full-torus version of the surface for plots
 qphi = s.nfp * nphi * 2
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_vmec_input(
-    surface_filename,
+    surface_filename, range="full torus",
     quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta
 )
+if coil_range == 'half period':
+    s.nfp = 2
+    s.stellsym = True
+    s_plot.nfp = 2
+    s_plot.stellsym = True
+else:
+    s.stellsym = False
 
 # Make the output directory
-out_dir = 'current_voxels_QA/'
+out_dir = 'current_voxels_axisymmetric_convex/'
 os.makedirs(out_dir, exist_ok=True)
 
-# Initialize an inner and outer toroidal surface using normal vectors of the plasma boundary
-poff = 0.5
-coff = 0.3
-s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+# No external coils
+Bnormal = np.zeros((nphi, ntheta))
+t2 = time.time()
+print('First setup took time = ', t2 - t1, ' s')
 
-# Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_projected_normal(poff)
-s_outer.extend_via_projected_normal(poff + coff)
+# Define a curve to define a Itarget loss term
+# As the boundary of the stellarator at theta = 0
+t1 = time.time()
+numquadpoints = nphi * s.nfp * 2
+curve = make_curve_at_theta0(s, numquadpoints)
+curves_to_vtk([curve], out_dir + f"Itarget_curve")
+Itarget = 30e6
+t2 = time.time()
+print('Curve initialization took time = ', t2 - t1, ' s')
 
+fac1 = 1.2
+fac2 = 2
+fac3 = 3
+
+#create the outside boundary for the PMs
+s_out = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=coil_range, nfp=s.nfp, stellsym=s.stellsym)
+s_out.set_rc(0, 0, s.get_rc(0, 0) * fac1)
+s_out.set_rc(1, 0, s.get_rc(1, 0) * fac3)
+s_out.set_zs(1, 0, s.get_rc(1, 0) * fac3)
+s_out.to_vtk(out_dir + "surf_out")
+
+#create the inside boundary for the PMs
+s_in = SurfaceRZFourier.from_nphi_ntheta(nphi=nphi, ntheta=ntheta, range=coil_range, nfp=s.nfp, stellsym=s.stellsym)
+s_in.set_rc(0, 0, s.get_rc(0, 0) * fac1)
+s_in.set_rc(1, 0, s.get_rc(1, 0) * fac2)
+s_in.set_zs(1, 0, s.get_rc(1, 0) * fac2)
+s_in.to_vtk(out_dir + "surf_in")
+
+Nx = 30
+Ny = Nx
+Nz = Nx 
 # Finally, initialize the current voxels 
 t1 = time.time()
-Nx = 30  # 20 voxels in each direction in the voxel volume
 kwargs = {}
-kwargs = {"Nx": Nx, "Ny": Nx, "Nz": Nx}
+kwargs = {"Nx": Nx, "Ny": Nx, "Nz": Nx, "Itarget": Itarget}
 current_voxels_grid = CurrentVoxelsGrid(
-    s, s_inner, s_outer, **kwargs 
+    s, s_in, s_out, **kwargs 
 )
-
-# Save vtks of the Itarget_curve, inner and outer toroidal surfaces (used to generate
-# the volume of current voxels), and current voxel grid.
-curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + f"Itarget_curve")
 current_voxels_grid.inner_toroidal_surface.to_vtk(out_dir + 'inner')
 current_voxels_grid.outer_toroidal_surface.to_vtk(out_dir + 'outer')
 current_voxels_grid.to_vtk_before_solve(out_dir + 'grid_before_solve_Nx' + str(Nx))
 t2 = time.time()
 print('WV grid initialization took time = ', t2 - t1, ' s')
 
-# Optimize the voxels without sparsity to generate an initial guess for the full optimization
-kappa = 1e-3  # Tikhonov regularization 
+t1 = time.time()
+kappa = 1e-5
 kwargs = {"out_dir": out_dir, "kappa": kappa, "max_iter": 5000, "precondition": True}
 minres_dict = relax_and_split_minres( 
     current_voxels_grid, **kwargs 
 )
-
-# Optimize the voxels with the group sparsity term active
-max_iter = 100  # max number of MINRES iterations for each call 
-rs_max_iter = 100  # max number of relax-and-split iterations
-nu = 1e2  # stength of the "relaxation" loss term 
-l0_threshold = 1e4  # threshold for the group l0 loss term
-l0_thresholds = np.linspace(  # Sequence of increasing thresholds
-    l0_threshold, 100 * l0_threshold, 5, endpoint=True
-)
-kwargs['alpha0'] = minres_dict['alpha_opt']
-kwargs['l0_thresholds'] = l0_thresholds
-kwargs['nu'] = nu
-kwargs['max_iter'] = max_iter
-kwargs['rs_max_iter'] = rs_max_iter
-minres_dict = relax_and_split_minres( 
-    current_voxels_grid, **kwargs 
-)
-
-# Unpack final ouputs and save the solution to vtk
 alpha_opt = minres_dict['alpha_opt']
 fB = minres_dict['fB']
 fI = minres_dict['fI']
@@ -115,6 +123,10 @@ fRS = minres_dict['fRS']
 f0 = minres_dict['f0']
 fC = minres_dict['fC']
 fminres = minres_dict['fminres']
+t2 = time.time()
+print('MINRES solve time = ', t2 - t1, ' s')    
+
+curves_to_vtk([current_voxels_grid.Itarget_curve], out_dir + f"Itarget_curve")
 current_voxels_grid.to_vtk_after_solve(out_dir + 'grid_after_Tikhonov_solve_Nx' + str(Nx))
 
 # set up CurrentVoxels Bfield and check fB value
@@ -150,36 +162,16 @@ plt.semilogy(fK, 'b', label=r'$\lambda \|\alpha\|^2$')
 plt.semilogy(fC, 'c', label=r'$f_C$')
 plt.semilogy(fI, 'm', label=r'$f_I$')
 plt.semilogy(fminres, 'k--', label=r'MINRES residual')
-if l0_thresholds[-1] > 0:
-    fRS[np.abs(fRS) < 1e-20] = 0.0
-    plt.semilogy(fRS, 'g', label=r'$\nu^{-1} \|\alpha - w\|^2$')
 plt.grid(True)
 plt.legend()
 # plt.savefig(out_dir + 'optimization_progress.jpg')
 
 # Check the divergence-free constraints are well-satisfied
-current_voxels_grid.check_fluxes()
+# current_voxels_grid.check_fluxes()
 
 # Check the average |B| along the major radius
 calculate_on_axis_B(bs_current_voxels, s)
 
 t_end = time.time()
 print('Total voxels time = ', t_end - t_start)
-print('f fB fI fK fC')
-print(f0[-1], fB[-1], fI[-1], fK[-1], fC[-1])
-
-# Initialize a filament optimization from the current voxels solution
-filament_curve = make_filament_from_voxels(current_voxels_grid, l0_thresholds[-1], num_fourier=30)
-curves = [filament_curve]
-curves_to_vtk(curves, out_dir + f"filament_curve")
-current = Current(current_voxels_grid.Itarget / 2.0)
-current.fix_all()
-coil = [Coil(filament_curve, current)]
-bs = BiotSavart(coil)
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(out_dir + "surf_filament_initial", extra_data=pointData)
-
-# perform the filament optimization
-perform_filament_optimization(s_plot, bs, curves)
 plt.show()
