@@ -6,11 +6,12 @@ import numpy as np
 import jax.numpy as jnp
 from jax import grad
 from simsopt.field import BiotSavart, Coil
-from simsopt.field.selffield import field_on_coils
+from simsopt.field.selffield import B_regularized, regularization_rect, regularization_circ, B_regularized_pure
+from simsopt.geo import FramedCurve
+from simsopt.geo.framedcurve import rotated_frenet_frame
 from simsopt.geo.jit import jit
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
-from simsopt.geo.finitebuild import rotated_centroid_frame
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
@@ -62,82 +63,61 @@ def c_axis_pure(t, b):
 
 def c_axis_angle_pure(coil, B):
     """Angle between the magnetic field and the c-axis of the REBCO Tape"""
-    t, n, b = rotated_centroid_frame(coil.curve.gamma(
-    ), coil.curve.gammadash(), coil.curve.rotation.alpha(coil.curve.quadpoints))
+    t, _, b = coil.curve.rotated_frame()
     b_norm = jnp.einsum("ij, i->ij", B, 1/jnp.linalg.norm(B, axis=1))
 
     c_axis = c_axis_pure(t, b)
     angle = jnp.arccos(inner(c_axis, b_norm))
+
     return angle
 
 
-def critical_current_obj(coil, JANUS=True):
-    field = field_on_coils(coil)
-    angle = c_axis_angle_pure(coil, field)
-    file_path = "/Users/paulhuslage/PhD/epos-simsopt/src/simsopt/examples/3_Advanced/inputs/Ic_angle_field_interpolation_with units.pck"
-    B_norm = np.linalg.norm(field, axis=1)
+def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b):
 
-    with open(file_path, "rb") as file:
-        # Load the contents of the .pck file
-        data = pickle.load(file)
+    regularization = regularization_rect(a, b)
+    tangent, normal, binormal = rotated_frenet_frame(
+        gamma, gammadash, gammadashdash, alpha)
 
-    ic_interpolation = data['Ic_interpolation']
-    ic_interpolation_reversed = data['Ic_interpolation_reversed']
+    # Fit parameters for reduced Kim-like model of the critical current (doi:10.1088/0953-2048/24/6/065005)
+    xi = -0.3
+    k = 0.7
+    B_0 = 42.6e-3
+    Ic_0 = 1
 
-    if JANUS:
-        Ic = [ic_interpolation_reversed([a, f]) for a, f in zip(angle, B_norm)]
-    else:
-        Ic = [ic_interpolation([a, f]) for a, f in zip(angle, B_norm)]
+    field = B_regularized_pure(
+        gamma, gammadash, gammadashdash, quadpoints, current, regularization)
+    B_proj = field - inner(field, tangent)[:, None] * tangent
 
-    return np.min(Ic)
+    B_perp = inner(B_proj, normal)
+    B_par = inner(B_proj, binormal)
 
-
-def critical_current(coil, JANUS=True):
-    field = field_on_coils(coil)
-    angle = c_axis_angle_pure(coil, field)
-    file_path = "/Users/paulhuslage/PhD/epos-simsopt/src/simsopt/examples/3_Advanced/inputs/Ic_angle_field_interpolation_with units.pck"
-    B_norm = np.linalg.norm(field, axis=1)
-
-    with open(file_path, "rb") as file:
-        # Load the contents of the .pck file
-        data = pickle.load(file)
-
-    ic_interpolation = data['Ic_interpolation']
-    ic_interpolation_reversed = data['Ic_interpolation_reversed']
-
-    if JANUS:
-        Ic = [ic_interpolation_reversed([a, f]) for a, f in zip(angle, B_norm)]
-    else:
-        Ic = [ic_interpolation([a, f]) for a, f in zip(angle, B_norm)]
-
+    Ic = Ic_0*(jnp.sqrt(k**2 * B_par**2 + B_perp**2) / B_0)**xi
     return Ic
 
 
-def critical_current_pure(coil, JANUS=True):
-    field = field_on_coils(coil)
-    angle = c_axis_angle_pure(coil, field)
-    file_path = "/Users/paulhuslage/PhD/epos-simsopt/src/simsopt/examples/3_Advanced/inputs/Ic_angle_field_interpolation_with units.pck"
-    B_norm = np.linalg.norm(field, axis=1)
-
-    with open(file_path, "rb") as file:
-        # Load the contents of the .pck file
-        data = pickle.load(file)
-
-    ic_interpolation = data['Ic_interpolation']
-    ic_interpolation_reversed = data['Ic_interpolation_reversed']
-
-    if JANUS:
-        Ic = [ic_interpolation_reversed([a, f]) for a, f in zip(angle, B_norm)]
-    else:
-        Ic = [ic_interpolation([a, f]) for a, f in zip(angle, B_norm)]
-
+def critical_current(framedcoil, a, b, JANUS=True):
+    """Critical current on a coil assuming a homogeneous current distribution. Replace with analytical model"""
+    Ic = critical_current_pure(framedcoil.curve.curve.gamma(), framedcoil.curve.curve.gammadash(), framedcoil.curve.curve.gammadashdash(
+    ), framedcoil.curve.rotation.alpha(framedcoil.curve.quadpoints), framedcoil.curve.quadpoints, framedcoil.current.current, a, b)
     return Ic
+
+
+def critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b):
+    Ic = critical_current_pure(
+        gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b)
+    obj = np.min(Ic)
+    return obj
+
+
+def critical_current_obj(framedcoil, a, b, JANUS=True):
+    """Objective for field alignement optimization: Target minimum of the critical current along the coil"""
+    return np.min(critical_current(framedcoil, a, b))
 
 
 class CrtitcalCurrentOpt(Optimizable):
     """Optimizable class to optimize the critical on a ReBCO coil"""
 
-    def __init__(self, coil, coils, a=0.05):
+    def __init__(self, framedcoil, coils, a=0.05):
         self.coil = coil
         self.curve = coil.curve
         self.coils = coils
@@ -146,9 +126,9 @@ class CrtitcalCurrentOpt(Optimizable):
         self.B_self = 0
         self.B = 0
         self.alpha = coil.curve.rotation.alpha(coil.curve.quadpoints)
-        self.J_jax = jit(lambda gamma, gammadash, gammadashdash,
-                         current, phi, phidash, B_ext: force_opt_pure(gamma, gammadash, gammadashdash,
-                                                                      current, phi, phidash, B_ext))
+        self.quadpoints = coil.curve.quadpoints
+        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a,
+                         b: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
 
         self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, current, phi, phidash, B_ext: grad(
             self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, current, phi, phidash, B_ext))
@@ -190,34 +170,3 @@ class CrtitcalCurrentOpt(Optimizable):
             + self.coil.curve.dgammadashdash_by_dcoeff_vjp(grad2)
 
     return_fn_map = {'J': J, 'dJ': dJ}
-
-
-def field_alignment_pure(curve, field):
-    angle = c_axis_angle_pure(curve, field)
-    Ic = 0
-    return Ic
-
-
-def grad_field_alignment_pure(curve, field):
-    angle = c_axis_angle_pure(curve, field)
-    return 0
-
-
-class FieldAlignment(Optimizable):
-
-    def init(self, curve, field):
-        Optimizable.__init__(self, depends_on=[curve])
-        self.curve = curve
-        self.field = field
-        # new_dofs = np.zeros(len(dofs))
-        # for i in range(len(dofs)):
-        # new_dofs[i] = dofs[i]
-
-    def J(self):
-
-        return field_alignment_pure(self.curve, self.field)
-
-    @derivative_dec
-    def dJ(self):
-        # return Derivative({self: lambda x0: gradfunction(x0, self.order, self.curves, self.n)})
-        return grad_field_alignment_pure(self.curve, self.field)
