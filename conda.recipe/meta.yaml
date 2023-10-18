@@ -51,8 +51,8 @@ requirements:
 about:
   home: {{ data.get('url') }}
   summary: simplified framework for stellarator optimization
-  license: LGPL
-  license_file: ["COPYING", "COPYING.LESSER"]
+  license: MIT
+  license_file: "LICENSE"
   description:
   doc_url: https://simsopt.readthedocs.io/
   dev_url: {{ data.get('url') }}
