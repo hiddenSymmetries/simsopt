@@ -87,6 +87,9 @@ class VirtualCasing:
     - ``B_external_normal``: An array of size ``(trgt_nphi, trgt_ntheta)`` with the contribution
       to the magnetic field due to current outside the surface, taking just the component
       normal to the surface.
+    - r``B_external_normal_extended``: An array of size ``(trgt_nphi * nfp * 2, trgt_ntheta)`` with the contribution
+      to the magnetic field due to current outside the surface, taking just the component
+      normal to the surface. This is an extension of the B_external_normal array to cover the full torus.
 
     The :math:`\phi` and :math:`\theta` grids for these data are both
     uniformly spaced, and are the same as for
@@ -266,6 +269,11 @@ class VirtualCasing:
         vc.B_external = Bexternal3d
         vc.B_external_normal = Bexternal_normal
 
+        Bexternal_normal_with_last_point = np.hstack((Bexternal_normal, Bexternal_normal[:, [0]]))
+        Bexternal_normal_with_last_point = np.vstack((Bexternal_normal_with_last_point, -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)[0]))
+        flipped_B = -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)
+        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal, flipped_B[:-1, :-1])) for i in range(nfp)])
+
         if filename is not None:
             if filename == 'auto':
                 directory, basefile = os.path.split(vmec.output_file)
@@ -288,6 +296,7 @@ class VirtualCasing:
             f.createDimension('src_nphi', self.src_nphi)
             f.createDimension('trgt_ntheta', self.trgt_ntheta)
             f.createDimension('trgt_nphi', self.trgt_nphi)
+            f.createDimension('trgt_nphi_extended', self.trgt_nphi * 2 * self.nfp)
             f.createDimension('xyz', 3)
 
             src_ntheta = f.createVariable('src_ntheta', 'i', tuple())
@@ -360,6 +369,11 @@ class VirtualCasing:
             B_external_normal.description = 'Component of B_external normal to the surface'
             B_external_normal.units = 'Tesla'
 
+            B_external_normal_extended = f.createVariable('B_external_normal_extended', 'd', ('trgt_nphi_extended', 'trgt_ntheta'))
+            B_external_normal_extended[:, :] = self.B_external_normal_extended
+            B_external_normal_extended.description = 'Component of B_external normal to the surface, repeated to cover the full torus'
+            B_external_normal_extended.units = 'Tesla'
+
     @classmethod
     def load(cls, filename):
         """
@@ -401,6 +415,21 @@ class VirtualCasing:
         ax.set_title('B_external_normal [Tesla]')
         fig.colorbar(contours)
         fig.tight_layout()
+
+        fig1, ax1 = plt.subplots()
+        shape = self.B_external_normal_extended.T.shape
+        contours = ax1.contourf(
+            np.linspace(0, 1, shape[1]),
+            np.linspace(0, 1, shape[0]),
+            self.B_external_normal_extended.T,
+            25,
+        )
+        ax1.set_xlabel(r'$\phi$')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_title('B_external_normal_extended [Tesla]')
+        fig1.colorbar(contours)
+        fig1.tight_layout()
+
         if show:
             plt.show()
         return ax
