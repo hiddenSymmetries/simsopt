@@ -151,3 +151,6 @@ class Weight(object):
     def __imul__(self, alpha):
         self.value *= alpha
         return self
+    
+    def __str__(self):
+        return f"{self.value}"
