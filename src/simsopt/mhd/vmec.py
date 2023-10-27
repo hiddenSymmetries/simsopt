@@ -308,7 +308,7 @@ class Vmec(Optimizable):
                 raise RuntimeError(
                     "Running VMEC from simsopt requires VMEC python extension. "
                     "Install the VMEC python extension from "
-                    "https://https://github.com/hiddenSymmetries/VMEC2000")
+                    "https://github.com/hiddenSymmetries/VMEC2000")
 
             comm = self.mpi.comm_groups
             self.fcomm = comm.py2f()
