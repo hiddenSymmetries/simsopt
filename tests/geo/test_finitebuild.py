@@ -1,11 +1,10 @@
 import unittest
-from .surface_test_helpers import get_surface, get_exact_surface
+from .surface_test_helpers import get_surface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
 from simsopt.geo.curveobjectives import CurveLength, CurveCurveDistance
 from simsopt.geo import CurveFilament, FrameRotation, \
     create_multifilament_grid, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
-from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.objectives.fluxobjective import SquaredFlux
 from simsopt.objectives.utilities import QuadraticPenalty
 from simsopt.configs.zoo import get_ncsx_data
