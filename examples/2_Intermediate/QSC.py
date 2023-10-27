@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import logging
-import numpy as np
 from qsc import Qsc
 
 from simsopt._core import Optimizable

@@ -1,6 +1,5 @@
 import unittest
 import json
-import os
 
 import numpy as np
 from monty.tempfile import ScratchDir

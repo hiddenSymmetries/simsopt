@@ -4,7 +4,7 @@ import json
 import numpy as np
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
+from simsopt.geo.curveobjectives import CurveLength, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
 from simsopt.geo import parameters
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
