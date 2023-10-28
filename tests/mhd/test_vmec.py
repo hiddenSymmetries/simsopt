@@ -152,10 +152,10 @@ class InitializedFromWout(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_li383_low_res_reference.nc')
         vmec = Vmec(filename)
-        iota = vmec.mean_iota()
+        _ = vmec.mean_iota()
         vmec.boundary.set_rc(1, 0, 2.0)
         with self.assertRaises(RuntimeError):
-            iota2 = vmec.mean_iota()
+            vmec.mean_iota()
 
 
 @unittest.skipIf((MPI is not None) and (vmec_mod is not None), "Interface to MPI and VMEC found")
@@ -167,7 +167,7 @@ class VmecTestsWithoutMPIorvmec(unittest.TestCase):
         """
         from simsopt.mhd.vmec import Vmec
         with self.assertRaises(RuntimeError):
-            v = Vmec()
+            Vmec()
 
 
 @unittest.skipIf((MPI is None) or (vmec_mod is None), "Valid Python interface to VMEC not found")
@@ -573,7 +573,6 @@ class VmecTests(unittest.TestCase):
             # Now try a spline Profile with vmec using splines:
             vmec.indata.piota_type = 'cubic_spline'
             iota2.local_unfix_all()
-            newx = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
             iota2.x = (2.2 - 0.7 * s_spline - 1.1 * s_spline ** 2)
             vmec.run()
             np.testing.assert_allclose(vmec.wout.iotas[1:], (2.2 - 0.7 * s - 1.1 * s * s))
