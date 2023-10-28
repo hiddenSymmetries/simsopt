@@ -33,6 +33,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1, B2)
 
     def test_biotsavart_exponential_convergence(self):
+        BiotSavart([Coil(get_curve(), Current(1e4))])
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         btrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).B()
         bcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).B()
