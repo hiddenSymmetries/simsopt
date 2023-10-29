@@ -334,7 +334,7 @@ class Vmec(Optimizable):
             # Deallocate arrays allocated by VMEC's fixaray():
             vmec.cleanup(False)
             if ierr != 0:
-                raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}".)
+                raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
 
             # objstr = " for Vmec " + str(hex(id(self)))
 
