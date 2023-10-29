@@ -25,6 +25,9 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "simdhelpers.h"
 #include "boozerresidual.h"
 
+#include "linking_number.hh"
+typedef LK::LinkingNumber<double> LK_class;
+
 namespace py = pybind11;
 
 using std::vector;
@@ -125,6 +128,28 @@ PYBIND11_MODULE(simsoptpp, m) {
             eigC = eigv.transpose()*eigB;
             return C;
         });
+    m.def("ln", [](PyArray& A, PyArray& B) {
+            LK_class lk(2);
+            int nseg1 = A.shape(0);
+            int nseg2 = B.shape(0);
+            
+            double c1[10000][3];
+            double c2[10000][3];
+            for(int i; i < nseg1; i++){
+                c1[i][0] = A(i, 0);
+                c1[i][1] = A(i, 1);
+                c1[i][2] = A(i, 2);
+            }
+    
+            for(int i; i < nseg2; i++){
+                c2[i][0] = B(i, 0);
+                c2[i][1] = B(i, 1);
+                c2[i][2] = B(i, 2);
+            }
+    
+            return lk.eval(c1, nseg1, c2, nseg2) ;
+        });
+
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
