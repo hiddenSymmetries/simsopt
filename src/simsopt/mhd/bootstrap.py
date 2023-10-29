@@ -447,7 +447,6 @@ class RedlGeomVmec(Optimizable):
         psi_edge = -self.vmec.wout.phi[-1] / (2 * np.pi)
 
         # First, interpolate in s to get the quantities we need on the surfaces we need.
-        method = 'linear'
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
         iota = interp(surfaces)
@@ -562,7 +561,6 @@ class RedlGeomBoozer(Optimizable):
                     f'Surfaces for RedlGeomBoozer: {surfaces}')
 
         # First, interpolate in s to get the quantities we need on the surfaces we need.
-        method = 'linear'
 
         interp = interp1d(self.vmec.s_half_grid, self.vmec.wout.iotas[1:], fill_value="extrapolate")
         iota = interp(surfaces)
