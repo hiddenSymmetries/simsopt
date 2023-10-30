@@ -8,6 +8,10 @@ import numpy as np
 
 from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
+from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
+from simsopt.geo.surfacehenneberg import SurfaceHenneberg
+from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
     best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
