@@ -91,6 +91,7 @@ class CoilStrainTesting(unittest.TestCase):
                 J.x = dofs - eps*h
                 f2 = J.J()
                 errf = np.abs((f1-f2)/(2*eps) - df)
+                assert errf < 0.3 * errf_old
                 errf_old = errf
         else:
             # Binormal curvature vanishes in Frenet frame
@@ -115,7 +116,7 @@ class CoilStrainTesting(unittest.TestCase):
         else:
             framedcurve = FramedCurveFrenet(c, rotation)
 
-        J = LPTorsionalStrainPenalty(framedcurve, width=1e-3, p=2, threshold=1e-4)
+        J = LPTorsionalStrainPenalty(framedcurve, width=1e-3, p=2, threshold=1e-8)
 
         dofs = J.x
 
@@ -131,5 +132,6 @@ class CoilStrainTesting(unittest.TestCase):
             J.x = dofs - eps*h
             f2 = J.J()
             errf = np.abs((f1-f2)/(2*eps) - df)
+            assert errf < 0.3 * errf_old
             errf_old = errf
 
