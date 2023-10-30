@@ -165,7 +165,7 @@ class QfmSurface(GSONable):
         con = lambda x: self.qfm_label_constraint(x, derivatives=1)[0]
         dcon = lambda x: self.qfm_label_constraint(x, derivatives=1)[1]
 
-        nlc = NonlinearConstraint(con, 0, 0)
+        # nlc = NonlinearConstraint(con, 0, 0)
         eq_constraints = [{'type': 'eq', 'fun': con, 'jac': dcon}]
         res = minimize(
             fun, x, jac=True, method='SLSQP', constraints=eq_constraints,
