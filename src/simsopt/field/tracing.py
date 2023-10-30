@@ -798,7 +798,8 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, ylims=None, surf=None):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
+                       ylims=None, surf=None, s=2, marker='o'):
     """
     Create a poincare plot. Usage:
 
@@ -845,7 +846,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=2, linewidths=0, c=color)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker=marker, s=s, linewidths=0, c=color)
 
         plt.rc('axes', axisbelow=True)
         axs[row, col].grid(True, linewidth=0.5)
