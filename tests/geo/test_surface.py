@@ -8,10 +8,6 @@ import numpy as np
 
 from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.geo.surfacexyzfourier import SurfaceXYZFourier
-from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
-from simsopt.geo.surfacehenneberg import SurfaceHenneberg
-from simsopt.geo.surfacegarabedian import SurfaceGarabedian
 from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
     best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
@@ -21,12 +17,6 @@ from .surface_test_helpers import get_surface
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 stellsym_list = [True, False]
-
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
 
 surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier",
                  "SurfaceHenneberg", "SurfaceGarabedian"]
@@ -300,7 +290,7 @@ class SurfaceScaledTests(unittest.TestCase):
                     scale_factors = np.random.random_sample(dof_size)
                     scaled_s = SurfaceScaled(s, scale_factors)
                     scaled_s_str = json.dumps(SIMSON(scaled_s), cls=GSONEncoder)
-                    regen_s = json.loads(scaled_s_str, cls=GSONDecoder)
+                    json.loads(scaled_s_str, cls=GSONDecoder)
 
 
 class BestNphiOverNthetaTests(unittest.TestCase):

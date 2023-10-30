@@ -2,14 +2,26 @@ import unittest
 import re
 import json
 
+try:
+    import matplotlib
+except ImportError:
+    matplotlib = None
+try:
+    import networkx
+except ImportError:
+    networkx = None
+try:
+    import pygraphviz
+except ImportError:
+    pygraphviz = None
+
 import numpy as np
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
-from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable, \
     ScaledOptimizable, OptimizableSum, load, save
 from simsopt.objectives.functions import Identity, Rosenbrock, TestObject1, \
-    TestObject2, Beale
+    Beale
 from simsopt.objectives.functions import Adder as FAdder
 
 
@@ -1115,6 +1127,8 @@ class OptimizableTests(unittest.TestCase):
         ancestors = test_obj2._get_ancestors()
         self.assertEqual(len(ancestors), 4)
 
+    @unittest.skipIf(matplotlib is None or pygraphviz is None or networkx is None,
+                     "Plotting libraries are missing")
     def test_plot(self):
         """
         Verify that a DAG can be plotted.
@@ -1125,19 +1139,6 @@ class OptimizableTests(unittest.TestCase):
         function.
         """
         show = False
-
-        try:
-            import matplotlib
-        except ImportError:
-            return
-        try:
-            import networkx
-        except ImportError:
-            return
-        try:
-            import pygraphviz
-        except ImportError:
-            return
 
         # optimizable with no parents
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
@@ -1392,17 +1393,17 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
 
         adder_orig.fix("x")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11, 12]
         adder_shared_dofs.x = [11]
 
         adder_orig.unfix("z")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11]
         adder_shared_dofs.x = [11, 12]
 
         adder_shared_dofs.unfix_all()
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11, 12]
         adder_orig.x = [11, 12, 13]
 
