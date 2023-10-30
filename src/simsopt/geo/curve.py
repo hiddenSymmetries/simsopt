@@ -204,10 +204,8 @@ class Curve(Optimizable):
         dgamma_by_dphidphi = self.gammadashdash()
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         dgamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
-        num_coeff = dgamma_by_dphidcoeff.shape[2]
 
         norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
         numerator = np.cross(dgamma_by_dphi, dgamma_by_dphidphi)
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
@@ -288,7 +286,6 @@ class Curve(Optimizable):
         tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
                                       - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
                                       )
-        kappa = self.kappa
         n[:, :] = (1./norm(tdash))[:, None] * tdash
         b[:, :] = np.cross(t, n, axis=1)
         return t, n, b
@@ -327,7 +324,6 @@ class Curve(Optimizable):
 
         norm = lambda a: np.linalg.norm(a, axis=1)
         inner = lambda a, b: np.sum(a*b, axis=1)
-        inner2 = lambda a, b: np.sum(a*b, axis=2)
 
         N = len(self.quadpoints)
         dt_by_dcoeff, dn_by_dcoeff, db_by_dcoeff = (np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())))
