@@ -20,13 +20,15 @@ except:
 
 try:
     import vmec
-    vmec_found = True
 except ImportError:
-    vmec_found = False
+    vmec = None
 
-from simsopt.mhd.vmec import Vmec
+if (MPI is not None) and vmec is not None:
+    from simsopt.mhd.vmec import Vmec
+else:
+    Vmec = None
+
 from simsopt.mhd.virtual_casing import VirtualCasing
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
@@ -41,7 +43,7 @@ variables = [
 
 @unittest.skipIf(
     (virtual_casing is None) or
-    (MPI is None) or (not vmec_found),
+    (MPI is None) or (Vmec is None),
     "Need virtual_casing, mpi4py, and vmec python packages")
 class VirtualCasingVmecTests(unittest.TestCase):
 
@@ -52,13 +54,13 @@ class VirtualCasingVmecTests(unittest.TestCase):
         """
         with ScratchDir("."):
             filename = os.path.join(TEST_DIR, 'input.li383_low_res')
-            vc = VirtualCasing.from_vmec(filename, src_nphi=8)
+            VirtualCasing.from_vmec(filename, src_nphi=8)
 
             filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-            vc = VirtualCasing.from_vmec(filename, src_nphi=9, src_ntheta=10)
+            VirtualCasing.from_vmec(filename, src_nphi=9, src_ntheta=10)
 
             vmec = Vmec(filename)
-            vc = VirtualCasing.from_vmec(vmec, src_nphi=10)
+            VirtualCasing.from_vmec(vmec, src_nphi=10)
 
 
 @unittest.skipIf(
@@ -199,7 +201,6 @@ class VirtualCasingTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
-        nfp = vmec.wout.nfp
         src_nphi = 48
         src_ntheta = 12
         vc = VirtualCasing.from_vmec(vmec, src_nphi=src_nphi, src_ntheta=src_ntheta, use_stellsym=False)

@@ -435,7 +435,7 @@ class JsonTest(unittest.TestCase):
 
         x = {"energies": [np.float64(1234.5)]}
         d = jsanitize(x, strict=True)
-        assert type(d["energies"][0]) == float
+        assert isinstance(d["energies"][0], float)
 
         # Test data nested in a class
         x = np.array([[1 + 1j, 2 + 1j], [3 + 1j, 4 + 1j]], dtype="complex64")
