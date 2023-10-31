@@ -184,7 +184,7 @@ class QuasisymmetryTests(unittest.TestCase):
             # registered surface:
             # Register a QP target at s = 1:
             s = 0.9999
-            Quasisymmetry(b, s, 0, 1)
+            Quasisymmetry(b, s, 0, 1).J()
             self.assertEqual(b.s, {0.5, s, 1.0})
             np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
             self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1, s: 1})
@@ -205,7 +205,7 @@ class QuasisymmetryTests(unittest.TestCase):
     def test_boozer_li383(self):
         v = Vmec(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
         b = Boozer(v, mpol=32, ntor=16)
-        Quasisymmetry(b, [0.0, 1.0], 1, 0)
+        Quasisymmetry(b, [0.0, 1.0], 1, 0).J()
         np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
         bmnc = b.bx.bmnc_b
