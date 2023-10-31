@@ -497,28 +497,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
-    @unittest.skip
-    def test_derivatives(self):
-        """
-        Check the automatic differentiation for area and volume.
-        """
-        for mpol in range(1, 3):
-            for ntor in range(2):
-                for nfp in range(1, 4):
-                    s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
-                    x0 = s.get_dofs()
-                    x = np.random.rand(len(x0)) - 0.5
-                    x[0] = np.random.rand() + 2
-                    # This surface will probably self-intersect, but I
-                    # don't think this actually matters here.
-                    s.set_dofs(x)
-
-                    dofs = Dofs([s.area, s.volume])
-                    jac = dofs.jac()
-                    fd_jac = dofs.fd_jac()
-                    print('difference for surface test_derivatives:', jac - fd_jac)
-                    np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
-
     def test_vjps(self):
         mpol = 10
         ntor = 10
