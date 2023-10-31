@@ -4,7 +4,7 @@ from typing import Union
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import simsoptpp as sopp
 from .surface import Surface
@@ -693,7 +693,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         sinaphi = np.sin(alpha * phi)
         cosaphi = np.cos(alpha * phi)
         R = R0H2D + rho * cosaphi - zeta * sinaphi
-        Z = Z0H2D + rho * sinaphi + zeta * cosaphi
+        # Z = Z0H2D + rho * sinaphi + zeta * cosaphi
         d_R_d_phi = d_R0H2D_d_phi + d_rho_d_phi * cosaphi + rho * (-alpha * sinaphi) \
             - d_zeta_d_phi * sinaphi - zeta * (alpha * cosaphi)
         d_Z_d_phi = d_Z0H2D_d_phi + d_rho_d_phi * sinaphi + rho * (alpha * cosaphi) \

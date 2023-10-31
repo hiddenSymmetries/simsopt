@@ -1289,7 +1289,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Upper bounds of the free DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
     @upper_bounds.setter
