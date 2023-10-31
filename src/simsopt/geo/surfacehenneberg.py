@@ -682,7 +682,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                 rho += self.get_rhomn(m, n) * cosangle
                 d_rho_d_phi -= self.get_rhomn(m, n) * sinangle * (nfp * n - alpha)
         R0H2D = np.kron(R0H, np.ones((ntheta, 1)))
-        Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
+        # Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
         b2D = np.kron(b, np.ones((ntheta, 1)))
         zeta = b2D * np.sin(theta - alpha * phi)
         d_R0H2D_d_phi = np.kron(d_R0H_d_phi, np.ones((ntheta, 1)))

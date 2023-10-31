@@ -490,7 +490,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''
         out_dir: Path or string for the output directory for saved files.
     """
     from simsopt.field.magneticfieldclasses import InterpolatedField
-    from simsopt.objectives import SquaredFlux
+    # from simsopt.objectives import SquaredFlux
 
     out_dir = Path(out_dir)
 
@@ -502,11 +502,11 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''
     phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
     zrange = (0, np.max(zs), n // 2)
     degree = 4  # 2 is sufficient sometimes
-    nphi = len(s_plot.quadpoints_phi)
-    ntheta = len(s_plot.quadpoints_theta)
+    # nphi = len(s_plot.quadpoints_phi)
+    # ntheta = len(s_plot.quadpoints_theta)
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    # Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
     # Bnormal_dipole = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
     # f_B = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_pre_poincare_check")
