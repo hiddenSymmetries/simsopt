@@ -19,15 +19,11 @@ except:
     MPI = None
 
 try:
-    import vmec
+    import vmec as vmec_mod
 except ImportError:
-    vmec = None
+    vmec_mod = None
 
-if (MPI is not None) and vmec is not None:
-    from simsopt.mhd.vmec import Vmec
-else:
-    Vmec = None
-
+from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.virtual_casing import VirtualCasing
 from . import TEST_DIR
 
@@ -43,7 +39,7 @@ variables = [
 
 @unittest.skipIf(
     (virtual_casing is None) or
-    (MPI is None) or (Vmec is None),
+    (MPI is None) or (vmec_mod is None),
     "Need virtual_casing, mpi4py, and vmec python packages")
 class VirtualCasingVmecTests(unittest.TestCase):
 
