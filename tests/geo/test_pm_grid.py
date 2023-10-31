@@ -16,7 +16,6 @@ from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vect
                                                pol_ec23, pol_fe17, pol_fe23, pol_fe30)
 
 
-#from . import TEST_DIR
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 # File for the desired boundary magnetic surface:

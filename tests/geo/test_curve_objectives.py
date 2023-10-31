@@ -4,7 +4,7 @@ import json
 import numpy as np
 
 from simsopt.geo import parameters
-from simsopt.geo.curve import RotatedCurve, curves_to_vtk, create_equally_spaced_curves
+from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
@@ -314,7 +314,6 @@ class Testing(unittest.TestCase):
             )
 
     def test_curve_surface_distance(self):
-        from scipy.spatial.distance import cdist
         np.random.seed(0)
         base_curves, base_currents, _ = get_ncsx_data(Nt_coils=10)
         curves = [c.curve for c in coils_via_symmetries(base_curves, base_currents, 3, True)]
@@ -382,8 +381,6 @@ class Testing(unittest.TestCase):
 
         fullArray = Object1.J()
         fullArray2 = Object2.J()
-        deriv1 = Object1.dJ()
-        deriv2 = Object2.dJ()
         print("Link Number Testing (should be 0, 1)")
         print(fullArray)
         print(fullArray2)
