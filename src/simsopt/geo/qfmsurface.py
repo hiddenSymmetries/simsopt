@@ -1,4 +1,4 @@
-from scipy.optimize import minimize, NonlinearConstraint
+from scipy.optimize import minimize # , NonlinearConstraint
 
 from .._core.json import GSONable
 from .surfaceobjectives import QfmResidual
