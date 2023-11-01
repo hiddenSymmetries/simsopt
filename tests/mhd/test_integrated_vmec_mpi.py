@@ -2,7 +2,6 @@ import unittest
 import logging
 
 import numpy as np
-from monty.tempfile import ScratchDir
 try:
     from mpi4py import MPI
 except ImportError:
@@ -46,7 +45,7 @@ class IntegratedTests(unittest.TestCase):
 
         # logging.basicConfig(level=logging.DEBUG)
         # logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
-        logger = logging.getLogger(__name__)
+        logging.getLogger(__name__)
         for ngroups in range(1, 1 + MPI.COMM_WORLD.Get_size()):
             for grad in [False, True]:
                 # In the next line, we can adjust how many groups the pool of MPI

@@ -8,7 +8,7 @@ except:
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
 
-from simsopt.util import proc0_print, comm_world
+from simsopt.util import proc0_print
 
 # logging.basicConfig(level=logging.DEBUG)
 # logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
