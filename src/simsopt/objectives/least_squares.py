@@ -18,7 +18,7 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
-from .._core.types import RealArray, IntArray, BoolArray
+from .._core.types import RealArray
 
 __all__ = ['LeastSquaresProblem']
 

@@ -9,7 +9,6 @@ except:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
-from simsopt.objectives.functions import Beale
 from simsopt.objectives.least_squares import LeastSquaresProblem
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition

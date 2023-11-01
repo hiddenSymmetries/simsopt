@@ -118,9 +118,6 @@ class MagneticField(sopp.MagneticField, Optimizable):
         zs = np.linspace(zmin, zmax, nz, endpoint=True)
 
         Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')
-        X = R * np.cos(Phi)
-        Y = R * np.sin(Phi)
-        Z = Z
 
         RPhiZ = np.zeros((R.size, 3))
         RPhiZ[:, 0] = R.flatten()

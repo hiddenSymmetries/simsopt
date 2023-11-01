@@ -23,7 +23,6 @@ class CoilStrainTesting(unittest.TestCase):
             curve.fix_all()
             order = 2 
             np.random.seed(1)
-            dofs = np.random.standard_normal(size=(2*order+1,))
             rotation = FrameRotation(quadpoints, order)
             rotation.x = np.random.standard_normal(size=(2*order+1,))
             if centroid:
@@ -38,7 +37,7 @@ class CoilStrainTesting(unittest.TestCase):
                 J.x = dofs
                 grad = J.dJ()
                 return J.J(), grad
-            res = minimize(fun, J.x, jac=True, method='L-BFGS-B',
+            minimize(fun, J.x, jac=True, method='L-BFGS-B',
                            options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
             assert Jt.J() < 1e-12 
             assert Jb.J() < 1e-12

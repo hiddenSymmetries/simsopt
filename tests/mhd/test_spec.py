@@ -1,23 +1,19 @@
-from cmath import isnan
 import logging
 import os
-import shutil
 import unittest
 
 import numpy as np
 from monty.tempfile import ScratchDir
 
 try:
-    import spec
-    spec_found = True
+    import spec as spec_mod
 except ImportError:
-    spec_found = False
+    spec_mod = None
 
 try:
     import pyoculus
-    pyoculus_found = True
 except ImportError:
-    pyoculus_found = False
+    pyoculus = None
 
 try:
     from mpi4py import MPI
@@ -29,7 +25,7 @@ from simsopt.mhd import ProfileSpec
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
 
-if (MPI is not None) and spec_found:
+if (MPI is not None) and (spec_mod is not None):
     from simsopt.mhd import Spec, Residue
 
 from . import TEST_DIR
@@ -38,7 +34,7 @@ logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG)
 
 
-@unittest.skipIf(not spec_found, "SPEC python module not found")
+@unittest.skipIf(spec_mod is None, "SPEC python module not found")
 class SpecTests(unittest.TestCase):
     def test_init_defaults(self):
         """
@@ -439,7 +435,7 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(equil.iota(), -0.4114567, places=3)
             self.assertAlmostEqual(prob.objective(), 7.912501330E-04, places=3)
 
-    @unittest.skipIf((not spec_found) or (not pyoculus_found),
+    @unittest.skipIf((spec_mod is None) or (pyoculus is None),
                      "SPEC python module or pyoculus not found")
     def test_residue(self):
         """
