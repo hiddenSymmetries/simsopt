@@ -2,6 +2,7 @@ import unittest
 from simsopt.geo.curve import create_equally_spaced_curves, create_equally_spaced_planar_curves
 from simsopt.field import coils_via_symmetries, BiotSavart, Current
 
+
 class Testing(unittest.TestCase):
     def test_equally_spaced_planar_coils(self):
         ncoils = 4
@@ -20,7 +21,8 @@ class Testing(unittest.TestCase):
         bs_planar = BiotSavart(coils_planar)
         err = bs.AbsB()[0][0] - bs_planar.AbsB()[0][0]
         print(err)
-        assert(err < 3e-10)
+        assert (err < 3e-10)
+
 
 if __name__ == "__main__":
     unittest.main()

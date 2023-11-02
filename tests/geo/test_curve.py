@@ -509,5 +509,6 @@ class Testing(unittest.TestCase):
 
             os.remove("coils.file_to_load")
 
+
 if __name__ == "__main__":
     unittest.main()
