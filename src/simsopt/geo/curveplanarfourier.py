@@ -23,7 +23,7 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
     where :math:`\theta` is the counterclockwise rotation about a unit axis
     :math:`(\hat{x},\hat{y},\hat{z})`.
-    
+
     A quaternion is used for rotation rather than other methods for rotation to
     prevent gimbal locking during optimization. The quaternion is normalized for 
     calculations to prevent scaling. The dofs themselves are not normalized. This 
