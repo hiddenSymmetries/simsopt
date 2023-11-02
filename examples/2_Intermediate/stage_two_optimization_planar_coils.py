@@ -114,7 +114,7 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
-Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)  # Error
+Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]

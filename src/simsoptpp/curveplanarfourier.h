@@ -101,6 +101,8 @@ class CurvePlanarFourier : public Curve<Array> {
         }
 
 
+        double inv_magnitude();
+
         void gamma_impl(Array& data, Array& quadpoints) override;
         void gammadash_impl(Array& data) override;
         void gammadashdash_impl(Array& data) override;
