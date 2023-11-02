@@ -23,13 +23,14 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
     where :math:`\theta` is the counterclockwise rotation about a unit axis
     :math:`(\hat{x},\hat{y},\hat{z})`.
-
-    The quaternion is normalized for calculations to prevent scaling. The dofs
-    themselves are not normalized. This results in a redundancy in the
-    optimization, where several different sets of dofs may correspond to the
-    same normalized quaternion. Normalizing the dofs directly would create a
-    dependence between the quaternion dofs, which may cause issues during
-    optimization.
+    
+    A quaternion is used for rotation rather than other methods for rotation to
+    prevent gimbal locking during optimization. The quaternion is normalized for 
+    calculations to prevent scaling. The dofs themselves are not normalized. This 
+    results in a redundancy in the optimization, where several different sets of 
+    dofs may correspond to the same normalized quaternion. Normalizing the dofs 
+    directly would create a dependence between the quaternion dofs, which may cause 
+    issues during optimization.
 
     The dofs are stored in the order
 
