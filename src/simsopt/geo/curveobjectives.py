@@ -520,7 +520,7 @@ class LinkingNumber(Optimizable):
                     integrals = sopp.linkNumber(R1, R2, dR1, dR2) * dS * dT
                     linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
         linkNumSum = sum(sum(abs(linkNum)))
-        return linkNumSum
+        return round(linkNumSum)
 
     @derivative_dec
     def dJ(self):
