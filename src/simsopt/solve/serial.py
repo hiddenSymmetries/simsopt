@@ -98,21 +98,18 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
             # Initialize log file
             datalogging_started = True
             ndofs = prob.dof_size
-            objective_file.write(
-                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
-            objective_file.write("function_evaluation,seconds")
+            x_names = prob.dof_names
+            fn_names = prob.residual_names
+            head_str = f"Problem type: Least Squares\nnparams: {ndofs}\n"
+            head_str += "function_evaluation,seconds"
             for j in range(ndofs):
-                objective_file.write(f",x({j})")
-            objective_file.write(",objective_function\n")
+                head_str += f",{x_names[j]}"
+            head_str += ",objective_function"
+            objective_file.write(head_str + "\n")
 
-            residuals_file.write(
-                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
-            residuals_file.write("function_evaluation,seconds")
-            for j in range(ndofs):
-                residuals_file.write(f",x({j})")
-            residuals_file.write(",objective_function")
-            for j in range(len(residuals)):
-                residuals_file.write(f",F({j})")
+            residuals_file.write(head_str)
+            for name in fn_names:
+                residuals_file.write(f",{name}")
             residuals_file.write("\n")
 
         elapsed_t = time() - start_time

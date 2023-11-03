@@ -43,12 +43,11 @@ class LeastSquaresProblem(Optimizable):
         goals: Targets for residuals in optimization
         weights: Weight associated with each of the residual
         funcs_in: Input functions (Generally one of the output functions of
-                  the Optimizable instances
+            the Optimizable instances
         depends_on: (Alternative initialization) Instead of specifying funcs_in,
-                one could specify the Optimizable objects
+            one could specify the Optimizable objects
         opt_return_fns:  (Alternative initialization) If using *depends_on*,
-                specify the return functions associated with each Optimizable
-                object
+            specify the return functions associated with each Optimizable object
     """
 
     def __init__(self,
@@ -81,6 +80,7 @@ class LeastSquaresProblem(Optimizable):
 
         super().__init__(depends_on=depends_on, opt_return_fns=opt_return_fns,
                          funcs_in=funcs_in)
+        self._func_names = self._get_func_names()
 
     @classmethod
     def from_sigma(cls,
@@ -134,6 +134,16 @@ class LeastSquaresProblem(Optimizable):
         """
         funcs_in, goals, weights = zip(*tuples)
         return cls(goals, weights, funcs_in=funcs_in, fail=fail)
+
+    def _get_func_names(self):
+        func_names = []
+        for fn in self.funcs_in:
+            func_names.append(fn.__qualname__)
+        return func_names
+
+    @property
+    def residual_names(self):
+        return self._func_names
 
     def unweighted_residuals(self, x=None, *args, **kwargs):
         """
