@@ -1,14 +1,11 @@
 """Implements optimization of the angle between the magnetic field and the ReBCO c-axis."""
-import math
-import pickle
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
 from jax import grad
-from simsopt.field import BiotSavart, Coil
-from simsopt.field.selffield import B_regularized, regularization_rect, regularization_circ, B_regularized_pure
-from simsopt.geo import FramedCurve
-from simsopt.geo.framedcurve import rotated_frenet_frame
+from simsopt.field import BiotSavart
+from simsopt.field.selffield import regularization_rect, B_regularized_pure
+from simsopt.geo.framedcurve import rotated_centroid_frame
 from simsopt.geo.jit import jit
 from simsopt._core import Optimizable
 from simsopt._core.derivative import derivative_dec
@@ -75,14 +72,14 @@ def c_axis_angle_pure(coil, B):
 def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b):
 
     regularization = regularization_rect(a, b)
-    tangent, normal, binormal = rotated_frenet_frame(
-        gamma, gammadash, gammadashdash, alpha)
+    tangent, normal, binormal = rotated_centroid_frame(
+        gamma, gammadash, alpha)
 
     # Fit parameters for reduced Kim-like model of the critical current (doi:10.1088/0953-2048/24/6/065005)
-    xi = -0.3
-    k = 0.7
+    xi = -0.7
+    k = 0.3
     B_0 = 42.6e-3
-    Ic_0 = 1
+    Ic_0 = 1  # 1.3e11,
 
     field = B_regularized_pure(
         gamma, gammadash, gammadashdash, quadpoints, current, regularization)
@@ -102,71 +99,95 @@ def critical_current(framedcoil, a, b, JANUS=True):
     return Ic
 
 
-def critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b):
+def critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p):
+    Ic0 = 1
     Ic = critical_current_pure(
         gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b)
-    obj = np.min(Ic)
+    obj = (1./p)*jnp.mean((Ic-Ic0)**p)
     return obj
 
 
-def critical_current_obj(framedcoil, a, b, JANUS=True):
+def critical_current_obj(framedcoil, a, b, p=4, JANUS=True):
     """Objective for field alignement optimization: Target minimum of the critical current along the coil"""
-    return np.min(critical_current(framedcoil, a, b))
+    obj = critical_current_obj_pure(framedcoil.curve.curve.gamma, framedcoil.curve.curve.d1gamma, framedcoil.curve.curve.d2gamma,
+                                    framedcoil.curve.rotation.alpha(framedcoil.curve.quadpoints), framedcoil.curve.quadpoints, framedcoil.current.current, a, b, p)
+    return obj
 
 
 class CrtitcalCurrentOpt(Optimizable):
     """Optimizable class to optimize the critical on a ReBCO coil"""
 
-    def __init__(self, framedcoil, coils, a=0.05):
-        self.coil = coil
-        self.curve = coil.curve
+    def __init__(self, framedcoil, coils, a=0.05, b=0.05, p=2):
+        self.coil = framedcoil
+        self.curve = framedcoil.curve
         self.coils = coils
         self.a = a
-        self.B_ext = BiotSavart(coils).set_points(self.curve.gamma()).B()
+        self.b = b
+        self.p = p
+        self.B_ext = BiotSavart(coils).set_points(
+            framedcoil.curve.curve.gamma()).B()
         self.B_self = 0
         self.B = 0
-        self.alpha = coil.curve.rotation.alpha(coil.curve.quadpoints)
-        self.quadpoints = coil.curve.quadpoints
+        self.alpha = framedcoil.curve.rotation.alpha(
+            framedcoil.curve.quadpoints)
+        self.quadpoints = framedcoil.curve.quadpoints
         self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a,
-                         b: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
+                         b, p: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p))
 
-        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, current, phi, phidash, B_ext: grad(
-            self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, current, phi, phidash, B_ext))
-        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, current, phi, phidash, B_ext: grad(
-            self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, current, phi, phidash, B_ext))
-        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, current, phi, phidash, B_ext: grad(
-            self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, current, phi, phidash, B_ext))
+        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a,
+                             b, p: grad(
+                                 self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a,
+                                                        b, p))
+        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p: grad(
+            self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p))
+        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p: grad(
+            self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p))
+        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p: grad(
+            self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, p))
 
-        super().__init__(depends_on=[coil])
+        super().__init__(depends_on=[framedcoil])
 
     def J(self):
-        gamma = self.coil.curve.gamma()
-        d1gamma = self.coil.curve.gammadash()
-        d2gamma = self.coil.curve.gammadashdash()
+        gamma = self.coil.curve.curve.gamma()
+        d1gamma = self.coil.curve.curve.gammadash()
+        d2gamma = self.coil.curve.curve.gammadashdash()
         current = self.coil.current.get_value()
-        phi = self.coil.curve.quadpoints
-        phidash = self.coil.curve.quadpoints
+        phi = self.coil.curve.curve.quadpoints
+        phidash = self.coil.curve.curve.quadpoints
+        alpha = self.coil.curve.rotation.alpha(phi)
+        a = self.a
+        b = self.b
+        p = self.p
+
         B_ext = self.B_ext
-        return self.J_jax(gamma, d1gamma, d2gamma, current, phi, phidash, B_ext)
+        return self.J_jax(gamma, d1gamma, d2gamma, alpha, phi, current, a, b, p)
 
     @derivative_dec
     def dJ(self):
-        gamma = self.coil.curve.gamma()
-        d1gamma = self.coil.curve.gammadash()
-        d2gamma = self.coil.curve.gammadashdash()
+        gamma = self.coil.curve.curve.gamma()
+        d1gamma = self.coil.curve.curve.gammadash()
+        d2gamma = self.coil.curve.curve.gammadashdash()
         current = self.coil.current.get_value()
         phi = self.coil.curve.quadpoints
         phidash = self.coil.curve.quadpoints
+        alpha = self.coil.curve.rotation.alpha(phi)
+        a = self.a
+        b = self.b
+        p = self.p
+
         B_ext = self.B_ext
 
         grad0 = self.thisgrad0(gamma, d1gamma, d2gamma,
-                               current, phi, phidash, B_ext)
-        grad1 = self.thisgrad0(gamma, d1gamma, d2gamma,
-                               current, phi, phidash, B_ext)
-        grad2 = self.thisgrad0(gamma, d1gamma, d2gamma,
-                               current, phi, phidash, B_ext)
+                               alpha, phi, current, a, b, p)
+        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma,
+                               alpha, phi, current, a, b, p)
+        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma,
+                               alpha, phi, current, a, b, p)
+        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma,
+                               alpha, phi, current, a, b, p)
 
-        return self.coil.curve.dgamma_by_dcoeff_vjp(grad0) + self.coil.curve.dgammadash_by_dcoeff_vjp(grad1) \
-            + self.coil.curve.dgammadashdash_by_dcoeff_vjp(grad2)
+        return self.coil.curve.curve.dgamma_by_dcoeff_vjp(grad0) + self.coil.curve.curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.coil.curve.curve.dgammadashdash_by_dcoeff_vjp(
+                grad2) + self.coil.curve.rotation.dalpha_by_dcoeff_vjp(phi, grad3)
 
     return_fn_map = {'J': J, 'dJ': dJ}

@@ -24,7 +24,8 @@ def self_force(coil, regularization):
     Compute the self-force of a coil.
     """
     I = coil.current.get_value()
-    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(), axis=1)[:, None]
+    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(),
+                                                      axis=1)[:, None]
     B = B_regularized(coil, regularization)
     return coil_force_pure(B, I, tangent)
 
@@ -62,27 +63,31 @@ class ForceOpt(Optimizable):
         self.regularization = regularization
         self.B_ext = BiotSavart(coils).set_points(self.coil.curve.gamma()).B()
         self.J_jax = jit(
-            lambda gamma, gammadash, gammadashdash, current, phi, B_ext: 
-            force_opt_pure(gamma, gammadash, gammadashdash, current, phi, B_ext, regularization)
+            lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
+            force_opt_pure(gamma, gammadash, gammadashdash,
+                           current, phi, B_ext, regularization)
         )
 
         self.thisgrad0 = jit(
             lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
-            grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, current, phi, B_ext)
+            grad(self.J_jax, argnums=0)(gamma, gammadash,
+                                        gammadashdash, current, phi, B_ext)
         )
         self.thisgrad1 = jit(
             lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
-            grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, current, phi, B_ext)
+            grad(self.J_jax, argnums=1)(gamma, gammadash,
+                                        gammadashdash, current, phi, B_ext)
         )
         self.thisgrad2 = jit(
             lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
-            grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, current, phi, B_ext)
+            grad(self.J_jax, argnums=2)(gamma, gammadash,
+                                        gammadashdash, current, phi, B_ext)
         )
 
         super().__init__(depends_on=[coil])
         # The version in the next line is needed
-        #eventually to get derivatives with respect to the other source coils:
-        #super().__init__(depends_on=[coil] + coils)
+        # eventually to get derivatives with respect to the other source coils:
+        # super().__init__(depends_on=[coil] + coils)
 
     def J(self):
         gamma = self.coil.curve.gamma()
