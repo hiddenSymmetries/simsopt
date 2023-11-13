@@ -14,7 +14,7 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.force import ForceOpt
+from simsopt.field.force import MaxForceOpt, LpForceOpt, MeanSquaredForceOpt
 from simsopt.field.selffield import regularization_circ
 
 
@@ -26,7 +26,6 @@ filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 # Directory for output
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
-
 
 ncoils = 4
 R0 = 1
@@ -64,6 +63,8 @@ base_currents = [Current(2.5e5) for i in range(ncoils)]
 # of the currents:
 base_currents[0].fix_all()
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+base_coils = coils[:ncoils]
+
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
@@ -78,25 +79,21 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jforce_list = [ForceOpt(coils[i], coils[:i]+coils[i+1:], regularization_circ(0.05))
-               for i in range(0, len(coils))]
-Jforce = sum(Jforce_list)
+Jforce = MaxForceOpt(base_coils, coils, regularization_circ(0.05))
+# Jforce = MeanSquaredForceOpt(base_coils, coils, regularization_circ(0.05))
+# Jforce = LpForceOpt(base_coils, coils, regularization_circ(0.05), 2)
 
-
-JF = Jf \
-    + Jforce * FORCE_WEIGHT
+JF = Jf + Jforce * FORCE_WEIGHT
 
 MAXITER = 10
 dofs = JF.x
-
 
 def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={FORCE_WEIGHT*Jforce.J():.3e}, Jflux={Jf.J():.3e}")
+    print(f"J={J:.3e}, ||∇J||={np.linalg.norm(grad):.3e}, J_force={Jforce.J():.3e}, Jflux={Jf.J():.3e}", flush=True)
     return J, grad
-
 
 print("Beginning optimization without force objective")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
@@ -105,7 +102,10 @@ curves_to_vtk(base_curves, OUT_DIR + f"curves_opt_{config_str}")
 
 dofs = res.x
 print("Beginning optimization with force objective")
-FORCE_WEIGHT += 1e-13
+# FORCE_WEIGHT += 5*1e-9
+FORCE_WEIGHT += 5*1e-9
+JF = Jf + Jforce * FORCE_WEIGHT
+print(FORCE_WEIGHT)
 
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
