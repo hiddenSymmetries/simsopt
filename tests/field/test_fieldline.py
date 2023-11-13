@@ -9,15 +9,13 @@ from simsopt.configs.zoo import get_ncsx_data
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-import simsoptpp as sopp
 
 logging.basicConfig()
 
 try:
     import pyevtk
-    with_evtk = True
 except ImportError:
-    with_evtk = False
+    pyevtk = None
 
 
 def validate_phi_hits(phi_hits, nphis):
@@ -53,7 +51,7 @@ class FieldlineTesting(unittest.TestCase):
             assert np.allclose(res_tys[i][:, 3], 0.)
             assert np.allclose(np.linalg.norm(res_tys[i][:, 1:3], axis=1), R0[i])
             assert validate_phi_hits(res_phi_hits[i], nphis)
-        if with_evtk:
+        if pyevtk is not None:
             particles_to_vtk(res_tys, '/tmp/fieldlines')
 
     def test_poincare_tokamak(self):

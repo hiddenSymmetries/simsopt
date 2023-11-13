@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides classes to handle radial profiles of density,
@@ -16,7 +16,6 @@ import numbers
 
 from .._core.optimizable import Optimizable
 from .._core.descriptor import PositiveInteger
-from .._core.types import RealArray
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
            'ProfilePressure', 'ProfileSpec']

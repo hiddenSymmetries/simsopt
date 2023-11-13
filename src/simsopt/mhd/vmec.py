@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides a class that handles the VMEC equilibrium code.
@@ -330,14 +330,13 @@ class Vmec(Optimizable):
             logger.info('About to call runvmec to readin')
             vmec.runvmec(self.ictrl, filename, self.verbose, self.fcomm, reset_file)
             ierr = self.ictrl[1]
-            logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
+            logger.info(f'Done with runvmec. ierr={ierr}. Calling cleanup next.')
             # Deallocate arrays allocated by VMEC's fixaray():
             vmec.cleanup(False)
             if ierr != 0:
-                raise RuntimeError("Failed to initialize VMEC from input file {}. "
-                                   "error code {}".format(filename, ierr))
+                raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
 
-            objstr = " for Vmec " + str(hex(id(self)))
+            # objstr = " for Vmec " + str(hex(id(self)))
 
             # A vmec object has mpol and ntor attributes independent of
             # the boundary. The boundary surface object is initialized
@@ -390,7 +389,7 @@ class Vmec(Optimizable):
 
     @boundary.setter
     def boundary(self, boundary):
-        if not boundary is self._boundary:
+        if boundary is not self._boundary:
             logging.debug('Replacing surface in boundary setter')
             self.remove_parent(self._boundary)
             self._boundary = boundary
@@ -403,7 +402,7 @@ class Vmec(Optimizable):
 
     @pressure_profile.setter
     def pressure_profile(self, pressure_profile):
-        if not pressure_profile is self._pressure_profile:
+        if pressure_profile is not self._pressure_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._pressure_profile is not None:
                 self.remove_parent(self._pressure_profile)
@@ -418,7 +417,7 @@ class Vmec(Optimizable):
 
     @current_profile.setter
     def current_profile(self, current_profile):
-        if not current_profile is self._current_profile:
+        if current_profile is not self._current_profile:
             logging.debug('Replacing current_profile in setter')
             if self._current_profile is not None:
                 self.remove_parent(self._current_profile)
@@ -433,7 +432,7 @@ class Vmec(Optimizable):
 
     @iota_profile.setter
     def iota_profile(self, iota_profile):
-        if not iota_profile is self._iota_profile:
+        if iota_profile is not self._iota_profile:
             logging.debug('Replacing iota_profile in setter')
             if self._iota_profile is not None:
                 self.remove_parent(self._iota_profile)
@@ -583,17 +582,17 @@ class Vmec(Optimizable):
         if vi.nzeta != 0:
             nml += f'NZETA = {vi.nzeta}\n'
         index = np.max(np.nonzero(vi.ns_array))
-        nml += f'NS_ARRAY    ='
+        nml += 'NS_ARRAY    ='
         for j in range(index + 1):
             nml += f'{vi.ns_array[j]:7}'
         nml += '\n'
         index = np.max(np.where(vi.niter_array > 0))
-        nml += f'NITER_ARRAY ='
+        nml += 'NITER_ARRAY ='
         for j in range(index + 1):
             nml += f'{vi.niter_array[j]:7}'
         nml += '\n'
         index = np.max(np.nonzero(vi.ftol_array))
-        nml += f'FTOL_ARRAY  ='
+        nml += 'FTOL_ARRAY  ='
         for j in range(index + 1):
             nml += f'{vi.ftol_array[j]:7}'
         nml += '\n'
@@ -717,8 +716,7 @@ class Vmec(Optimizable):
         # should logically never occur, so these codes raise a
         # different exception.
         if ierr in [0, 5]:
-            raise RuntimeError(f"runvmec returned an error code that should " \
-                               "never occur: ierr={ierr}")
+            raise RuntimeError(f"runvmec returned an error code that should never occur: ierr={ierr}")
         if ierr != 11:
             raise ObjectiveFailure(f"VMEC did not converge. ierr={ierr}")
 
