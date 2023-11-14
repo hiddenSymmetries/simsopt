@@ -475,7 +475,6 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
             theta0 = res_tys[ip][0, 2]
             zeta0 = res_tys[ip][0, 3]
             theta0_mod = theta0 % (2*np.pi)
-            zeta0_mod = zeta0 % (2*np.pi)
             x0 = s0 * np.cos(theta0)
             y0 = s0 * np.sin(theta0)
         else:
@@ -550,10 +549,10 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                             logger.debug(f'(R,Z)r = {np.sqrt(res_tys[ip][indexr,1]**2 + res_tys[ip][indexr,2]**2),res_tys[ip][indexr,3]}')
 
                         mpol = np.amax([mpoll, mpolm, mpolr])
-                        index_mpol = np.argmax([mpoll, mpolm, mpolr])
+                        # index_mpol = np.argmax([mpoll, mpolm, mpolr])
                         ntor = np.amax([ntorl, ntorm, ntorr])
-                        index_ntor = np.argmax([ntorl, ntorm, ntorr])
-                        index = np.amax([index_mpol, index_ntor])
+                        # index_ntor = np.argmax([ntorl, ntorm, ntorr])
+                        # index = np.amax([index_mpol, index_ntor])
                         resonances.append(np.asarray([R0, Z0, phi0, vpar0, t, mpol, ntor]))
     return resonances
 
@@ -799,7 +798,8 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     pass
 
 
-def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, ylims=None, surf=None):
+def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
+                       ylims=None, surf=None, s=2, marker='o'):
     """
     Create a poincare plot. Usage:
 
@@ -846,7 +846,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
             if data_this_phi.size == 0:
                 continue
             r = np.sqrt(data_this_phi[:, 2]**2+data_this_phi[:, 3]**2)
-            axs[row, col].scatter(r, data_this_phi[:, 4], marker='o', s=2, linewidths=0, c=color)
+            axs[row, col].scatter(r, data_this_phi[:, 4], marker=marker, s=s, linewidths=0, c=color)
 
         plt.rc('axes', axisbelow=True)
         axs[row, col].grid(True, linewidth=0.5)

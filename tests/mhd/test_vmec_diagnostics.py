@@ -8,22 +8,20 @@ from monty.tempfile import ScratchDir
 from simsopt.mhd.vmec_diagnostics import QuasisymmetryRatioResidual, \
     B_cartesian, IotaTargetMetric, IotaWeighted, WellWeighted, \
     vmec_splines, vmec_compute_geometry, vmec_fieldlines
-from simsopt.objectives.least_squares import LeastSquaresProblem
 
 try:
     import matplotlib
-    matplotlib_found = True
 except:
-    matplotlib_found = False
+    matplotlib = None
 
 try:
     import vmec
-except ImportError as e:
+except ImportError:
     vmec = None
 
 try:
     from mpi4py import MPI
-except ImportError as e:
+except ImportError:
     MPI = None
 
 from simsopt.mhd.vmec import Vmec
@@ -255,8 +253,6 @@ class BCartesianTests(unittest.TestCase):
                     theta, phi = np.meshgrid(theta1D, phi1D)
 
                     bmnc = 1.5 * vmec.wout.bmnc[:, -1] - 0.5 * vmec.wout.bmnc[:, -2]
-                    xm = vmec.wout.xm_nyq
-                    xn = vmec.wout.xn_nyq
                     angle = vmec.wout.xm_nyq[:, None, None] * theta[None, :, :] \
                         - vmec.wout.xn_nyq[:, None, None] * phi[None, :, :]
                     B = np.sum(bmnc[:, None, None] * np.cos(angle), axis=0)
@@ -464,9 +460,9 @@ class VmecComputeGeometryTests(unittest.TestCase):
         results1 = vmec_compute_geometry(splines, s, theta, phi)
         results2 = vmec_compute_geometry(vmec, np.array([s]), theta3d, phi3d)
 
-        variables = ["theta_pest", "grad_psi_dot_grad_psi", "B_cross_kappa_dot_grad_psi"]
-        for v in variables:
-            np.testing.assert_allclose(eval("results1." + v), eval("results2." + v))
+        np.testing.assert_allclose(results1.theta_pest, results2.theta_pest)
+        np.testing.assert_allclose(results1.grad_psi_dot_grad_psi, results2.grad_psi_dot_grad_psi)
+        np.testing.assert_allclose(results1.B_cross_kappa_dot_grad_psi, results2.B_cross_kappa_dot_grad_psi)
 
     def test_compare_to_desc(self):
         """
@@ -710,7 +706,7 @@ class VmecFieldlinesTests(unittest.TestCase):
                                    fl.toroidal_flux_sign * (B0 / Aminor) * (-np.cos(theta) / R + phi * d_iota_d_r * eps * np.sin(theta)),
                                    atol=0.006)
 
-    @unittest.skipIf(not matplotlib_found, "Matplotlib python module not found")
+    @unittest.skipIf(matplotlib is None, "Matplotlib python module not found")
     def test_plot(self):
         """
         Test the plotting function of vmec_fieldlines()
@@ -718,13 +714,13 @@ class VmecFieldlinesTests(unittest.TestCase):
         vmec = Vmec(os.path.join(TEST_DIR, 'wout_W7-X_without_coil_ripple_beta0p05_d23p4_tm_reference.nc'))
 
         phi = np.linspace(-np.pi / 5, np.pi / 5, 7)
-        fl = vmec_fieldlines(vmec, s=1, alpha=0, phi1d=phi, plot=True, show=False)
+        vmec_fieldlines(vmec, s=1, alpha=0, phi1d=phi, plot=True, show=False)
 
         theta = np.linspace(-np.pi, np.pi, 100)
-        fl = vmec_fieldlines(vmec, s=0.5, alpha=np.pi, theta1d=theta, plot=True, show=False)
+        vmec_fieldlines(vmec, s=0.5, alpha=np.pi, theta1d=theta, plot=True, show=False)
 
         alpha = np.linspace(0, 2 * np.pi, 10, endpoint=False)
-        fl = vmec_fieldlines(vmec, s=[0.25, 0.5], alpha=alpha, phi1d=phi, plot=True, show=False)
+        vmec_fieldlines(vmec, s=[0.25, 0.5], alpha=alpha, phi1d=phi, plot=True, show=False)
 
 
 if __name__ == "__main__":

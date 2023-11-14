@@ -27,7 +27,6 @@ from simsopt.objectives import SquaredFlux
 from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
                          PermanentMagnetGrid, SurfaceRZFourier,
                          create_equally_spaced_curves)
-from simsopt.solve import relax_and_split
 from simsoptpp import dipole_field_Bn
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -157,11 +156,8 @@ class Testing(unittest.TestCase):
         # Convert to Cartesian coordinates
         r = np.sqrt(np.power(points[:, 0], 2) + np.power(points[:, 1], 2))
         phi = np.arctan2(points[:, 1], points[:, 0])
-        z = points[:, 2]
         B2_cart = np.zeros_like(B2)
-        # Bx = Br cos(phi) - Bphi sin(phi)
         B2_cart[:, 0] = B2[:, 0] * np.cos(phi) - B2[:, 1] * np.sin(phi)
-        # By = Br sin(phi) + Bphi cos(phi)
         B2_cart[:, 1] = B2[:, 0] * np.sin(phi) + B2[:, 1] * np.cos(phi)
         B2_cart[:, 2] = B2[:, 2]
         dB2_by_dX = np.array([
@@ -718,7 +714,7 @@ class Testing(unittest.TestCase):
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-            Bn_dipole_only = np.sum(b_dipole.B().reshape(-1, 3) * s.unitnormal().reshape(-1, 3), axis=1)
+            # Bn_dipole_only = np.sum(b_dipole.B().reshape(-1, 3) * s.unitnormal().reshape(-1, 3), axis=1)
             assert np.isclose(B_opt, B_dipole_field)
             A_dipole = dipole_field_Bn(s.gamma().reshape(-1, 3),
                                        pm_opt.dipole_grid_xyz,

@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from simsopt.configs import get_ncsx_data
 from simsopt.field import coils_via_symmetries, BiotSavart
-from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface, MajorRadius
+from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
