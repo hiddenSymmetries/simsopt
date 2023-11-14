@@ -1,7 +1,6 @@
 import unittest
-import logging
 import numpy as np
-from simsopt.objectives.functions import Identity, Rosenbrock
+from simsopt.objectives.functions import Identity
 #from simsopt.core.optimizable import Target
 from simsopt.objectives.least_squares import LeastSquaresProblem
 
@@ -37,11 +36,11 @@ class LeastSquaresProblemTests(unittest.TestCase):
 
         # sigma cannot be zero
         with self.assertRaises(ValueError):
-            lst = LeastSquaresProblem.from_sigma(3, 0, depends_on=iden)
+            LeastSquaresProblem.from_sigma(3, 0, depends_on=iden)
 
         # Weight cannot be negative
         with self.assertRaises(ValueError):
-            lst = LeastSquaresProblem(3, -1.0, depends_on=iden)
+            LeastSquaresProblem(3, -1.0, depends_on=iden)
 
     def test_multiple_funcs_single_input(self):
         iden1 = Identity(x=10)

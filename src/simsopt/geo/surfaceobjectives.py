@@ -430,7 +430,6 @@ def parameter_derivatives(surface: Surface,
         1d array of size (ndofs)
     """
     N = surface.normal()
-    norm_N = np.linalg.norm(N, axis=2)
     dx_by_dc = surface.dgamma_by_dcoeff()
     N_dot_dx_by_dc = np.einsum('ijk,ijkl->ijl', N, dx_by_dc)
     nphi = surface.gamma().shape[0]

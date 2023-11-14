@@ -1,6 +1,5 @@
 import unittest
 from pathlib import Path
-import json
 
 from qsc import Qsc
 import numpy as np
@@ -14,12 +13,6 @@ from simsopt._core.optimizable import Optimizable
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 stellsym_list = [True, False]
-
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
@@ -75,19 +68,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s2.area(), true_area, places=4)
         self.assertAlmostEqual(s2.volume(), true_volume, places=3)
 
-    def test_area_volume(self):
-        """
-        Test the calculation of area and volume for an axisymmetric surface
-        """
-        s = SurfaceRZFourier()
-        s.rc[0, 0] = 1.3
-        s.rc[1, 0] = 0.4
-        s.zs[1, 0] = 0.2
-
-        true_area = 15.827322032265993
-        true_volume = 2.0528777154265874
-        self.assertAlmostEqual(s.area(), true_area, places=4)
-        self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
     def test_get_dofs(self):
         """
@@ -517,28 +497,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
-    @unittest.skip
-    def test_derivatives(self):
-        """
-        Check the automatic differentiation for area and volume.
-        """
-        for mpol in range(1, 3):
-            for ntor in range(2):
-                for nfp in range(1, 4):
-                    s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
-                    x0 = s.get_dofs()
-                    x = np.random.rand(len(x0)) - 0.5
-                    x[0] = np.random.rand() + 2
-                    # This surface will probably self-intersect, but I
-                    # don't think this actually matters here.
-                    s.set_dofs(x)
-
-                    dofs = Dofs([s.area, s.volume])
-                    jac = dofs.jac()
-                    fd_jac = dofs.fd_jac()
-                    print('difference for surface test_derivatives:', jac - fd_jac)
-                    np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
-
     def test_vjps(self):
         mpol = 10
         ntor = 10
@@ -748,10 +706,8 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         #print('Original SurfaceRZFourier dofs:', s1.x)
-        x1 = s1.x
         s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
         s3 = s2.to_RZFourier()
-        x3 = s3.x
         #for j, name in enumerate(s1.local_dof_names):
         #    print(name, x1[j], x3[j], x1[j] - x3[j])
         np.testing.assert_allclose(s1.full_x, s3.full_x)
