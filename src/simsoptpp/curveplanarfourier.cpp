@@ -34,12 +34,9 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
         }
     }
     for (int m = 0; m < numquadpoints; ++m) {
-        double i;
-        double j;
-        double k;
-        i = data(m, 0);
-        j = data(m, 1);
-        k = data(m, 2);
+        double i = data(m, 0);
+        double j = data(m, 1);
+        double k = data(m, 2);
 
         /* Performs quaternion based rotation, see https://www.cis.upenn.edu/~cis5150/ws-book-Ib.pdf page 575, 576 for details regarding this rotation*/
         data(m, 0) = (i - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k) + center[0];
@@ -69,13 +66,9 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
         
     data *= (2*M_PI);
     for (int m = 0; m < numquadpoints; ++m) {
-        double i;
-        double j;
-        double k;
-        i = data(m, 0);
-        j = data(m, 1);
-        k = data(m, 2);
-
+        double i = data(m, 0);
+        double j = data(m, 1);
+        double k = data(m, 2);
 
         /* Performs quaternion based rotation, see https://www.cis.upenn.edu/~cis5150/ws-book-Ib.pdf page 575, 576 for details regarding this rotation*/
         data(m, 0) = (i - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k);
@@ -104,13 +97,9 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
     }
     data *= 2*M_PI*2*M_PI;
     for (int m = 0; m < numquadpoints; ++m) {
-        double i;
-        double j;
-        double k;
-        i = data(m, 0);
-        j = data(m, 1);
-        k = data(m, 2);
-
+        double i = data(m, 0);
+        double j = data(m, 1);
+        double k = data(m, 2);
 
         /* Performs quaternion based rotation*/
         data(m, 0) = (i - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k);
@@ -151,13 +140,9 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
     }
     data *= 2*M_PI*2*M_PI*2*M_PI;
     for (int m = 0; m < numquadpoints; ++m) {
-        double i;
-        double j;
-        double k;
-        i = data(m, 0);
-        j = data(m, 1);
-        k = data(m, 2);
-
+        double i = data(m, 0);
+        double j = data(m, 1);
+        double k = data(m, 2);
 
         /* Performs quaternion based rotation*/
         data(m, 0) = (i - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * i + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * j + 2 * (q_norm[1] * q_norm[3] + q_norm[2] * q_norm[0]) * k);
@@ -495,12 +480,11 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
         counter++;
 
 
+        data(m, 0, counter) = 0;
+        data(m, 1, counter) = 0;
+        data(m, 2, counter) = 0;
         for (int i = 0; i < 3; ++i) {
-            data(m, 0, counter) = 0;
-            data(m, 1, counter) = 0;
-            data(m, 2, counter) = 0;
             data(m, i, counter) = 1;
-
             counter++;
         }
     }
