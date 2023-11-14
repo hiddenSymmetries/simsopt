@@ -4,10 +4,8 @@ template<class Array>
 double CurvePlanarFourier<Array>::inv_magnitude() {
     double s = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
     if(s != 0) {
-	    double sqrt_inv_s = 1 / std::sqrt(s);
-        return sqrt_inv_s;
-    }
-    else {
+        return 1 / std::sqrt(s);
+    } else {
         return 1;
     }
 
@@ -15,6 +13,7 @@ double CurvePlanarFourier<Array>::inv_magnitude() {
 
 template<class Array>
 void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
+    double sinphi, cosphi, siniphi, cosiphi;
     int numquadpoints = quadpoints.size();
     data *= 0;
 
@@ -23,13 +22,15 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
-        for (int i = 0; i < order+1; ++i) {
-            data(k, 0) += rc[i] * cos(i*phi) * cos(phi);
-            data(k, 1) += rc[i] * cos(i*phi) * sin(phi);
-        }
+        sinphi = sin(phi);
+        cosphi = cos(phi);
+        data(k, 0) = rc[0] * cosphi;
+        data(k, 1) = rc[0] * sinphi;
         for (int i = 1; i < order+1; ++i) {
-            data(k, 0) += rs[i-1] * sin(i*phi) * cos(phi);
-            data(k, 1) += rs[i-1] * sin(i*phi) * sin(phi);
+            siniphi = sin(i * phi);
+            cosiphi = cos(i * phi);
+            data(k, 0) += (rc[i] * cosiphi + rs[i-1] * siniphi) * cosphi;
+            data(k, 1) += (rc[i] * cosiphi + rs[i-1] * siniphi) * sinphi;
         }
     }
     for (int m = 0; m < numquadpoints; ++m) {
