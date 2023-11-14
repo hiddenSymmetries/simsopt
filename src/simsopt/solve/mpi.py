@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides two main functions, fd_jac_mpi and
@@ -19,7 +19,7 @@ from scipy.optimize import NonlinearConstraint, LinearConstraint
 
 try:
     from mpi4py import MPI
-except ImportError as err:
+except ImportError:
     MPI = None
 
 from .._core.optimizable import Optimizable
@@ -494,7 +494,6 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
         if prob.has_nlc:
             constraint_file.close()
 
-    datalog_started = False
     logger.info("Completed solve.")
 
     # Finally, make sure all procs get the optimal state vector.

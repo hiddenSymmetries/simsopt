@@ -61,13 +61,13 @@ class FluxObjectiveTests(unittest.TestCase):
         np.testing.assert_allclose(J3, should_be3)
 
         with self.assertRaises(ValueError):
-            J4 = SquaredFlux(surf, bs, target, definition="foobar")
+            SquaredFlux(surf, bs, target, definition="foobar")
 
     def check_taylor_test(self, J):
         dofs = J.x
         np.random.seed(1)
         h = np.random.uniform(size=dofs.shape)
-        J0, dJ0 = J.J(), J.dJ()
+        dJ0 = J.dJ()
         dJh = sum(dJ0 * h)
         err_old = 1e10
         for i in range(11, 17):

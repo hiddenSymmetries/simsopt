@@ -22,12 +22,6 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 stellsym_list = [True, False]
 
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
-
 surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFourier",
                  "SurfaceHenneberg", "SurfaceGarabedian"]
 
@@ -300,7 +294,7 @@ class SurfaceScaledTests(unittest.TestCase):
                     scale_factors = np.random.random_sample(dof_size)
                     scaled_s = SurfaceScaled(s, scale_factors)
                     scaled_s_str = json.dumps(SIMSON(scaled_s), cls=GSONEncoder)
-                    regen_s = json.loads(scaled_s_str, cls=GSONDecoder)
+                    json.loads(scaled_s_str, cls=GSONDecoder)
 
 
 class BestNphiOverNthetaTests(unittest.TestCase):

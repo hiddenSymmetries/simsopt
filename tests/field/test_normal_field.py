@@ -9,7 +9,7 @@ from simsopt.field import NormalField
 
 try:
     import py_spec
-except ImportError as e:
+except ImportError:
     py_spec = None
 
 from . import TEST_DIR

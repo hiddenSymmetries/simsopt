@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module contains functions that can postprocess VMEC output.
@@ -164,7 +164,6 @@ class QuasisymmetryRatioResidual(Optimizable):
         d_psi_d_s = -self.vmec.wout.phi[-1] / (2 * np.pi)
 
         # First, interpolate in s to get the quantities we need on the surfaces we need.
-        method = 'linear'
 
         interp = interp1d(vmec.s_half_grid, vmec.wout.iotas[1:], fill_value="extrapolate")
         iota = interp(self.surfaces)
@@ -1277,9 +1276,6 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
     mnmax = vs.mnmax
     xm = vs.xm
     xn = vs.xn
-    mnmax_nyq = vs.mnmax_nyq
-    xm_nyq = vs.xm_nyq
-    xn_nyq = vs.xn_nyq
 
     # Now that we have an s grid, evaluate everything on that grid:
     iota = vs.iota(s)
