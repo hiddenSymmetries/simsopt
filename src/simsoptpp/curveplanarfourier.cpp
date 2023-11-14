@@ -480,10 +480,10 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
         counter++;
 
 
-        data(m, 0, counter) = 0;
-        data(m, 1, counter) = 0;
-        data(m, 2, counter) = 0;
         for (int i = 0; i < 3; ++i) {
+            data(m, 0, counter) = 0;
+            data(m, 1, counter) = 0;
+            data(m, 2, counter) = 0;
             data(m, i, counter) = 1;
             counter++;
         }

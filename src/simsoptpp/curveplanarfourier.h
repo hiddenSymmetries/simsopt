@@ -5,8 +5,8 @@
 template<class Array>
 class CurvePlanarFourier : public Curve<Array> {
     /*
-       CurvePlanarFourier is a curve that is restricted to lie in a plane. In
-       the plane, the curve is represented using a Fourier series in plane polar coordinates:
+        CurvePlanarFourier is a curve that is restricted to lie in a plane. In
+        the plane, the curve is represented using a Fourier series in plane polar coordinates:
 
            r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
         
@@ -24,7 +24,7 @@ class CurvePlanarFourier : public Curve<Array> {
 
             c = [c_x, c_y, c_z]
 
-       The dofs are stored in the order 
+        The dofs are stored in the order
 
            [r_{c,0},...,r_{c,order},r_{s,1},...,r_{s,order}, q_0, q_1, q_2, q_3, c_x, c_y, c_z]
 
