@@ -304,8 +304,9 @@ class Quasisymmetry(Optimizable):
             symmetry-breaking Fourier modes of ``|B|``.
         """
 
-        # Only group leaders do anything:
+        # Group leaders calculate metric, workers participate in job:
         if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
+            self.boozer.run()
             logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
             return np.array([])
 

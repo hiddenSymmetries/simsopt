@@ -1110,9 +1110,11 @@ class Residue(Optimizable):
         Run Spec if needed, find the periodic field line, and return the residue
         """
         if not self.mpi.proc0_groups:
+            if self.need_to_run_code:
+                self.spec.run()
             logger.info(
                 "This proc is skipping Residue.J() since it is not a group leader.")
-            return
+            return 0.0
 
         if self.need_to_run_code:
             self.spec.run()
