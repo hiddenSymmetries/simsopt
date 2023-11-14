@@ -11,10 +11,13 @@ class CurvePlanarFourier : public Curve<Array> {
            r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
         
         The plane is rotated using a quarternion
-        
+
             q = [q_0, q_1, q_2, q_3] = [cos(\theta/2), x * sin(\theta/2), y * sin(\theta/2), z * sin(\theta/2)]
 
-        The dofs for the quaternion need not generally have unit norm. The
+        Details of the quaternion rotation can be found for example in pages
+        575-576 of https://www.cis.upenn.edu/~cis5150/ws-book-Ib.pdf.
+
+        The simsopt dofs for the quaternion need not generally have unit norm. The
         quaternion is normalized before being applied to the curve to prevent scaling the curve.
 
         A translation vector is used to specify the location of the center of the curve:
@@ -103,9 +106,6 @@ class CurvePlanarFourier : public Curve<Array> {
             return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
         }
 
-
-        double inv_magnitude();
-
         void gamma_impl(Array& data, Array& quadpoints) override;
         void gammadash_impl(Array& data) override;
         void gammadashdash_impl(Array& data) override;
@@ -115,6 +115,7 @@ class CurvePlanarFourier : public Curve<Array> {
         void dgammadashdash_by_dcoeff_impl(Array& data) override;
         void dgammadashdashdash_by_dcoeff_impl(Array& data) override;
 
-        
+private:
+        double inv_magnitude();
 
 };
