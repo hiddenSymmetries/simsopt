@@ -5,16 +5,19 @@
 template<class Array>
 class CurvePlanarFourier : public Curve<Array> {
     /*
-       CurvePlanarFourier is a curve that is represented using the following Fourier series: 
+       CurvePlanarFourier is a curve that is restricted to lie in a plane. In
+       the plane, the curve is represented using a Fourier series in plane polar coordinates:
 
            r(phi) = \sum_{n=0}^{order} x_{c,n}cos(n*nfp*phi) + \sum_{n=1}^order x_{s,n}sin(n*nfp*phi)
         
-        with rotation about an axis and angle determined by a set of quarternions
+        The plane is rotated using a quarternion
+        
             q = [q_0, q_1, q_2, q_3] = [cos(\theta/2), x * sin(\theta/2), y * sin(\theta/2), z * sin(\theta/2)]
 
-        Quaternions are normalized to prevent scaling the curves, but remain unnormalized as dofs to prevent optimization error.
+        The dofs for the quaternion need not generally have unit norm. The
+        quaternion is normalized before being applied to the curve to prevent scaling the curve.
 
-        A center vector is used to specify the location of the center of the curve:
+        A translation vector is used to specify the location of the center of the curve:
 
             c = [c_x, c_y, c_z]
 
