@@ -13,7 +13,7 @@ TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 class Testing(unittest.TestCase):
 
-    def test_circularcoil_optimization(self):
+    def test_circularcoil_current_optimization(self):
 
         # test I,r0 optimization
         coil = CircularCoil()
@@ -50,6 +50,7 @@ class Testing(unittest.TestCase):
         print(' Final coil current: ', coil.x[1])
         assert np.allclose(coil.x, [1.12345, 4.8])
 
+    def test_circularcoil_position_optimization(self):
 
         # test center optimization
         coil = CircularCoil()
@@ -86,6 +87,7 @@ class Testing(unittest.TestCase):
         print(' Final coil position: ', coil.x)
         assert np.allclose(coil.x, [0, 0, 0])
 
+    def test_circularcoil_orientation_optimization(self):
 
         # test normal optimization
         coil = CircularCoil()
