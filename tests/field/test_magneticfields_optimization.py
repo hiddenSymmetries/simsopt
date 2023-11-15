@@ -78,32 +78,7 @@ class Testing(unittest.TestCase):
         Bmag = 1.2*2*np.pi/1.12345
         prob = LeastSquaresProblem.from_tuples([(Bx_coil.J, 0, 1.0),(By_coil.J, 0, 1.0),(Bz_coil.J, Bmag, 1.0)])
 
-        # Optimize z
-        coil.fix('x0')
-        coil.fix('y0')
-        points = np.array([[coil.get('x0'), coil.get('y0'), 1]])
-        coil.set_points(points)
-
-        with ScratchDir("."):
-            least_squares_serial_solve(prob, ftol=1e-15, xtol=1e-15, gtol=1e-15)
-
-        print('Next coil position: ', coil.full_x[1:4])
-
-        # Optimize y
-        coil.fix('z0')
-        coil.unfix('y0')
-        points[0][1] = 1
-        coil.set_points(points)
-
-        with ScratchDir("."):
-            least_squares_serial_solve(prob, ftol=1e-15, xtol=1e-15, gtol=1e-15)
-
-        print('Next coil position: ', coil.full_x[1:4])
-
-        # Optimize x
-        coil.fix('y0')
-        coil.unfix('x0')
-        points[0][0] = 1
+        points = np.array([[1, 1, 1]])
         coil.set_points(points)
 
         with ScratchDir("."):
