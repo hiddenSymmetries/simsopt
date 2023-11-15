@@ -73,9 +73,8 @@ class IntegratedTests(unittest.TestCase):
                 prob = LeastSquaresProblem.from_tuples([(equil.aspect, 7, 1),
                                                         (qs.J, 0, 1)])
                 # Make sure all procs run vmec:
-                #qs_initial = qs.J()  #DO NOT CALL J! for some reason hangs
                 least_squares_mpi_solve(prob, mpi, grad=grad, max_nfev=2)
-                ## we just want to test if the problem runs for the one fev
+                ## we just want to test if the problem runs for the two fevs
 
     def test_Residue_parallelization(self):
         """
@@ -115,7 +114,9 @@ class IntegratedTests(unittest.TestCase):
                 prob = LeastSquaresProblem.from_tuples([(residue1.J, 0, 1),
                                                         (residue2.J, 0, 1)])
                
-                # Solve this bad boiiii
+                # Solve for two nfevs to test if runs
                 least_squares_mpi_solve(prob, mpi=mpi, grad=grad, max_nfev=2)
+                
+                # No assertions, run is to short to complete, just testing if it does run
 
                 

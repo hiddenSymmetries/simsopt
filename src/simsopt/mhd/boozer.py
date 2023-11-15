@@ -303,15 +303,14 @@ class Quasisymmetry(Optimizable):
             1D numpy array listing all the normalized mode amplitudes of
             symmetry-breaking Fourier modes of ``|B|``.
         """
+        # run on all mpi processes (will skip if recompute bell not rung)
+        self.boozer.run()
 
         # Group leaders calculate metric, workers participate in job:
         if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
-            self.boozer.run()
             logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
             return np.array([])
 
-        # The next line is the expensive part of the calculation:
-        self.boozer.run()
 
         symmetry_error = []
         for js, s in enumerate(self.s):
