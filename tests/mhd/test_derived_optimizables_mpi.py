@@ -11,6 +11,10 @@ try:
     import vmec
 except ImportError:
     vmec = None
+try:
+    from simsopt.mhd import Spec
+except ImportError:
+    Spec = None
 
 from simsopt.objectives.least_squares import LeastSquaresProblem
 
@@ -28,7 +32,7 @@ from . import TEST_DIR
 #@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
 
 
-@unittest.skipIf((MPI is None) or (vmec is None), "Valid Python interface to VMEC not found")
+@unittest.skipIf((MPI is None) or (vmec is None) or (Spec is None), "VMEC or Spec not found")
 class IntegratedTests(unittest.TestCase):
     def test_Quasisymmetry_paralellization(self):
         """
