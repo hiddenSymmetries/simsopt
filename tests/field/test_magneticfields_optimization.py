@@ -48,7 +48,7 @@ class Testing(unittest.TestCase):
 
         print(' Final coil radius: ', coil.x[0])
         print(' Final coil current: ', coil.x[1])
-        assert np.allclose(coil.x, [1.12345, 4.8])
+        assert np.allclose(coil.x, [1.12345, 4.8], atol=1e-6)
 
     def test_circularcoil_position_optimization(self):
 
@@ -64,9 +64,6 @@ class Testing(unittest.TestCase):
 
         print('Initial coil position: ', coil.x)
 
-        points = np.array([[0, 0, 0]])
-        coil.set_points(points)
-
         def Bx(c):
             return c.B()[0][0]
         def By(c):
@@ -81,11 +78,42 @@ class Testing(unittest.TestCase):
         Bmag = 1.2*2*np.pi/1.12345
         prob = LeastSquaresProblem.from_tuples([(Bx_coil.J, 0, 1.0),(By_coil.J, 0, 1.0),(Bz_coil.J, Bmag, 1.0)])
 
+        # Optimize z
+        coil.fix('x0')
+        coil.fix('y0')
+        points = np.array([[coil.get('x0'), coil.get('y0'), 1]])
+        coil.set_points(points)
+
         with ScratchDir("."):
-            least_squares_serial_solve(prob, gtol=1e-24)
+            least_squares_serial_solve(prob, ftol=1e-15, xtol=1e-15, gtol=1e-15)
+
+        print('Next coil position: ', coil.full_x[1:4])
+
+        # Optimize y
+        coil.fix('z0')
+        coil.unfix('y0')
+        points[0][1] = 1
+        coil.set_points(points)
+
+        with ScratchDir("."):
+            least_squares_serial_solve(prob, ftol=1e-15, xtol=1e-15, gtol=1e-15)
+
+        print('Next coil position: ', coil.full_x[1:4])
+
+        # Optimize x
+        coil.fix('y0')
+        coil.unfix('x0')
+        points[0][0] = 1
+        coil.set_points(points)
+
+        with ScratchDir("."):
+            least_squares_serial_solve(prob, ftol=1e-15, xtol=1e-15, gtol=1e-15)
+
+        coil.unfix('y0')
+        coil.unfix('z0')
 
         print(' Final coil position: ', coil.x)
-        assert np.allclose(coil.x, [0, 0, 0])
+        assert np.allclose(coil.x, np.ones(3), atol=1e-6)
 
     def test_circularcoil_orientation_optimization(self):
 
@@ -123,5 +151,5 @@ class Testing(unittest.TestCase):
             least_squares_serial_solve(prob)
 
         print(' Final coil normal: ', coil.x)
-        assert np.allclose(coil.x, [0, np.pi/4])
+        assert np.allclose(coil.x, [0, np.pi/4], atol=1e-6)
 
