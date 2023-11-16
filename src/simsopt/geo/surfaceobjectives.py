@@ -595,26 +595,59 @@ class NonQuasiSymmetricRatio(Optimizable):
         quasi_poloidal: `False` for quasiaxisymmetry and `True` for quasipoloidal symmetry
     """
 
-    def __init__(self, boozer_surface, bs, sDIM=20, quasi_poloidal=False):
+    def __init__(self, boozer_surface, bs, sDIM=20, quasi='QA'):
         # only BoozerExact surfaces work for now
         assert boozer_surface.res['type'] == 'exact'
         # only SurfaceXYZTensorFourier for now
         assert type(boozer_surface.surface) is SurfaceXYZTensorFourier 
+        assert (quasi == 'QA') or (quasi == 'QH') or (quasi == 'QP')
 
         Optimizable.__init__(self, depends_on=[boozer_surface])
         in_surface = boozer_surface.surface
         self.boozer_surface = boozer_surface
 
         surface = in_surface
-        phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
-        thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
+        phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM+1, endpoint=False)
+        thetas = np.linspace(0, 1., 2*sDIM+1, endpoint=False)
         surface = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas, dofs=in_surface.dofs)
 
-        self.axis = 1 if quasi_poloidal else 0
+        self.quasi=quasi
+        def make_QA_matrix(in_nphi, in_ntheta):
+            idx = np.arange(in_nphi)
+            jdx = np.arange(in_ntheta)
+            idx, jdx = np.meshgrid(idx, jdx, indexing='ij')
+            return idx, jdx
+
+        def make_QP_matrix(in_nphi, in_ntheta):
+            idx = np.arange(in_nphi)
+            jdx = np.arange(in_ntheta)
+            idx, jdx = np.meshgrid(idx, jdx, indexing='ij')
+            return jdx, idx
+
+        def make_QH_matrix(in_nphi, in_ntheta):
+            idx = np.arange(in_nphi)
+            jdx = np.arange(in_ntheta)
+            idx, jdx = np.meshgrid(idx, jdx, indexing='ij')
+            idx, jdx = np.mod(idx-jdx, in_nphi), np.mod(idx+jdx, in_ntheta)
+
+            idx = np.arange(in_nphi)
+            jdx = np.arange(in_ntheta)
+            idx, jdx = np.meshgrid(idx, jdx, indexing='ij')
+            idx, jdx = np.mod(idx-jdx, in_nphi), np.mod(idx+jdx, in_ntheta)
+            return idx, jdx
+        
+        if quasi == 'QH':
+            self.idx, self.jdx = make_QH_matrix(phis.size, thetas.size)
+        elif quasi == 'QP':
+            self.idx, self.jdx = make_QP_matrix(phis.size, thetas.size)
+        else:
+            self.idx, self.jdx = make_QA_matrix(phis.size, thetas.size)
+        
         self.in_surface = in_surface
         self.surface = surface
         self.biotsavart = bs
         self.recompute_bell()
+
 
     def recompute_bell(self, parent=None):
         self._J = None
@@ -635,10 +668,12 @@ class NonQuasiSymmetricRatio(Optimizable):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
             res = self.boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=res['iota'], G=res['G'])
+        idx = self.idx
+        jdx = self.jdx
 
-        self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
-        axis = self.axis
-
+        pts = self.surface.gamma()[idx, jdx, :]
+        self.biotsavart.set_points(pts.reshape((-1, 3)))
+        
         # compute J
         surface = self.surface
         nphi = surface.quadpoints_phi.size
@@ -647,17 +682,12 @@ class NonQuasiSymmetricRatio(Optimizable):
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
-
-        nor = surface.normal()
+        
+        nor = surface.normal()[idx, jdx, :]
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
 
-        B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
-
-        if axis == 0:
-            B_QS = B_QS[None, :]
-        else:
-            B_QS = B_QS[:, None]
-
+        B_QS = np.mean(modB * dS, axis=0) / np.mean(dS, axis=0)
+        B_QS = B_QS[None, :]
         B_nonQS = modB - B_QS
         self._J = np.mean(dS * B_nonQS**2) / np.mean(dS * B_QS**2)
 
@@ -666,7 +696,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         G = booz_surf.res['G']
         P, L, U = booz_surf.res['PLU']
         dconstraint_dcoils_vjp = boozer_surface_dexactresidual_dcoils_dcurrents_vjp
-
+        
         dJ_by_dB = self.dJ_by_dB().reshape((-1, 3))
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
 
@@ -684,23 +714,20 @@ class NonQuasiSymmetricRatio(Optimizable):
         surface = self.surface
         nphi = surface.quadpoints_phi.size
         ntheta = surface.quadpoints_theta.size
-        axis = self.axis
+        idx = self.idx
+        jdx = self.jdx
 
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
 
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
-        nor = surface.normal()
+        nor = surface.normal()[idx, jdx, :]
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
 
-        denom = np.mean(dS, axis=axis)
-        B_QS = np.mean(modB * dS, axis=axis) / denom
+        denom = np.mean(dS, axis=0)
+        B_QS = np.mean(modB * dS, axis=0) / denom
 
-        if axis == 0:
-            B_QS = B_QS[None, :]
-        else:
-            B_QS = B_QS[:, None]
-
+        B_QS = B_QS[None, :]
         B_nonQS = modB - B_QS
 
         dmodB_dB = B / modB[..., None]
@@ -717,44 +744,37 @@ class NonQuasiSymmetricRatio(Optimizable):
         surface = self.surface
         nphi = surface.quadpoints_phi.size
         ntheta = surface.quadpoints_theta.size
-        axis = self.axis
+        idx = self.idx
+        jdx = self.jdx
 
         B = self.biotsavart.B()
         B = B.reshape((nphi, ntheta, 3))
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
-
-        nor = surface.normal()
-        dnor_dc = surface.dnormal_by_dcoeff()
+        
+        nor = surface.normal()[idx, jdx, :]
+        dnor_dc = surface.dnormal_by_dcoeff()[idx, jdx, :, :]
         dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
         dS_dc = (nor[:, :, 0, None]*dnor_dc[:, :, 0, :] + nor[:, :, 1, None]*dnor_dc[:, :, 1, :] + nor[:, :, 2, None]*dnor_dc[:, :, 2, :])/dS[:, :, None]
 
-        B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
-
-        if axis == 0:
-            B_QS = B_QS[None, :]
-        else:
-            B_QS = B_QS[:, None]
+        B_QS = np.mean(modB * dS, axis=0) / np.mean(dS, axis=0)
+        B_QS = B_QS[None, :]
 
         B_nonQS = modB - B_QS
 
         dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
-        dx_dc = surface.dgamma_by_dcoeff()
+        dx_dc = surface.dgamma_by_dcoeff()[idx, jdx, :, :]
         dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
 
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
 
-        num = np.mean(modB * dS, axis=axis)
-        denom = np.mean(dS, axis=axis)
-        dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=axis) 
-        ddenom_dc = np.mean(dS_dc, axis=axis)
+        num = np.mean(modB * dS, axis=0)
+        denom = np.mean(dS, axis=0)
+        dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=0) 
+        ddenom_dc = np.mean(dS_dc, axis=0)
         B_QS_dc = (dnum_dc * denom[:, None] - ddenom_dc * num[:, None])/denom[:, None]**2
 
-        if axis == 0:
-            B_QS_dc = B_QS_dc[None, :, :]
-        else:
-            B_QS_dc = B_QS_dc[:, None, :]
-
+        B_QS_dc = B_QS_dc[None, :, :]
         B_nonQS_dc = dmodB_dc - B_QS_dc
 
         num = 0.5*np.mean(dS * B_nonQS**2)
@@ -763,7 +783,6 @@ class NonQuasiSymmetricRatio(Optimizable):
         ddenom_by_dc = np.mean(0.5*dS_dc * B_QS[..., None]**2 + dS[..., None] * B_QS[..., None] * B_QS_dc, axis=(0, 1)) 
         dJ_by_dc = (denom * dnum_by_dc - num * ddenom_by_dc) / denom**2 
         return dJ_by_dc
-
 
 class Iotas(Optimizable):
     """
