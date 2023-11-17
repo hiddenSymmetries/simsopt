@@ -8,10 +8,11 @@ from .jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
 import simsoptpp as sopp
+from simsopt.geo.framedcurve import FramedCurveCentroid 
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber']
+           'MeanSquaredCurvature', 'LinkingNumber', 'FramedCurveTwist']
 
 
 @jit
@@ -525,3 +526,19 @@ class LinkingNumber(Optimizable):
     @derivative_dec
     def dJ(self):
         return Derivative({})
+
+class FramedCurveTwist(Optimizable):
+
+    def __init__(self, framedcurve):
+        Optimizable.__init__(self, depends_on=[framedcurve])
+        self.framedcurve = framedcurve 
+        self.framedcurve_centroid = FramedCurveCentroid(framedcurve.curve)
+
+    def J(self):
+        return self.framedcurve_centroid.frame_twist() - self.framedcurve.frame_twist() 
+
+    @derivative_dec 
+    def dJ(self):
+        return self.framedcurve_centroid.dframe_twist_by_dcoeff() \
+             - self.framedcurve.dframe_twist_by_dcoeff() 
+
