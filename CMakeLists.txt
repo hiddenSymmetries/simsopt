@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
-project(simsoptpp)
+project(simsoptpp LANGUAGES CXX)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(Python_FIND_STRATEGY LOCATION)
-find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+find_package(pybind11 CONFIG REQUIRED)
 
 message(status "Python executable is ${Python_EXECUTABLE}")
 message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
@@ -106,7 +107,7 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
-add_subdirectory(thirdparty/pybind11)
+# add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
@@ -164,4 +165,4 @@ target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
 #install(TARGETS ${PROJECT_NAME}
 #        #LIBRARY
 #        DESTINATION src/${PROJECT_NAME})
-#install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION .)
