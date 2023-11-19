@@ -527,18 +527,49 @@ class LinkingNumber(Optimizable):
     def dJ(self):
         return Derivative({})
 
+@jit
+def curvetwist_pure(twist1,twist2):
+    """
+    This function is used in a Python+Jax implementation of the FramedCurveTwist objective function.
+    """
+    return jnp.max(twist1 - twist2) - jnp.min(twist1 - twist2)
+
+
 class FramedCurveTwist(Optimizable):
 
     def __init__(self, framedcurve):
+        r"""
+        Computes the maximum relative twist angle between the framedcurve
+        and the centroid frame. This can be used within the context
+        of HTS strain optimization to avoid 180-degree turns, which
+        can be challenging to wind. 
+
+        The value is 1 if the are interlocked, 0 if not.
+        
+        .. math::
+            Link(c1,c2) = \frac{1}{4\pi} \oint_{c1}\oint_{c2}\frac{\textbf{R1} - \textbf{R2}}{|\textbf{R1}-\textbf{R2}|^3} (d\textbf{R1} \times d\textbf{R2})
+            
+        where :math:`c1` is the first curve and :math:`c2` is the second curve, 
+        :math:`\textbf{R1}` is the radius vector of the first curve, and 
+        :math:`\textbf{R2}` is the radius vector of the second curve
+
+        Args:
+            curves: the set of curves on which the linking number should be computed.
+        
+        """
         Optimizable.__init__(self, depends_on=[framedcurve])
         self.framedcurve = framedcurve 
         self.framedcurve_centroid = FramedCurveCentroid(framedcurve.curve)
+        self.framedcurve_centroid.rotation.fix_all()
+        self.thisgrad0 = jit(lambda twist1, twist2: grad(curvetwist_pure, argnums=0)(twist1,twist2))
+        self.thisgrad1 = jit(lambda twist1, twist2: grad(curvetwist_pure, argnums=1)(twist1,twist2))
 
     def J(self):
-        return self.framedcurve_centroid.frame_twist() - self.framedcurve.frame_twist() 
+        return curvetwist_pure(self.framedcurve_centroid.frame_twist(),self.framedcurve.frame_twist())
 
-    @derivative_dec 
+    @derivative_dec
     def dJ(self):
-        return self.framedcurve_centroid.dframe_twist_by_dcoeff() \
-             - self.framedcurve.dframe_twist_by_dcoeff() 
-
+        grad0 = self.thisgrad0(self.framedcurve_centroid.frame_twist(), self.framedcurve.frame_twist())
+        grad1 = self.thisgrad1(self.framedcurve_centroid.frame_twist(), self.framedcurve.frame_twist())
+        return self.framedcurve_centroid.dframe_twist_by_dcoeff_vjp(grad0) \
+             + self.framedcurve.dframe_twist_by_dcoeff_vjp(grad1)
