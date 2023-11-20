@@ -41,7 +41,7 @@ jobs:
           channel-priority: strict
 
       - name: Prepare
-        run: conda install -y conda-build conda-verify setuptools_scm anaconda-client
+        run: conda install -y conda-build conda-verify setuptools_scm anaconda-client scikit-build-core
 
       - name: Build and upload
         if: github.event_name == 'release' && github.event.action == 'published'
