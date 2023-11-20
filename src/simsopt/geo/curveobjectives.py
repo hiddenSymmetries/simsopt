@@ -11,7 +11,7 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance']
+           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance', 'PortSize']
 
 
 @jit
@@ -101,6 +101,83 @@ class LpCurveCurvature(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
+def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal):
+    """ Return largest circular port access size, with normal access
+
+    For each quadrature point on the surface, evaluate the smallest distance
+    from the coils to the line normal to the surface at this point. Return then
+    largest of these minimum radii.
+    """
+
+    ntheta, nphi, _ = gamma_surf.shape
+    ncurves, _, _ = gamma_curves.shape
+    max_port_size = 0
+    for itheta in range(0, ntheta):
+        for iphi in range(0, nphi):
+            Rsurf_square = gamma_surf[itheta,iphi,0]**2+gamma_surf[itheta,iphi,1]**2
+
+            min_dist = jnp.inf
+            for icurve in range(0,ncurves):
+                gamma_curve = gamma_curves[icurve]
+                npts, _ = gamma_curve.shape
+                for ipts in range(0, npts):
+
+                    # first skip any point from the curve that is closer to the origin
+                    Rcurve_square = gamma_curve[ipts,0]**2+gamma_curve[ipts,1]**2
+                    if Rcurve_square<Rsurf_square:
+                        continue
+
+                    # Evaluate vector between surface point and curve point
+                    v = gamma_curve[ipts] - gamma_surf[itheta,iphi]
+
+                    # Evaluate distance
+                    d = jnp.linalg.norm(jnp.cross(v, unit_normal[itheta,iphi]))
+
+                    if d<min_dist:
+                        min_dist = d
+                    
+            if min_dist>max_port_size:
+                max_port_size = min_dist
+
+    return max_port_size
+
+class PortSize(Optimizable):
+    r"""
+    Evaluate the largest port size given some coils and a boundary. The porte size is defined as the radius of the largest straight cylinder that can fit within the coils and connect to the plasma boundary along its normal direction
+    """
+    def __init__(self, curves, boundary):
+        self.curves = curves
+        self.boundary = boundary
+
+        # I don't know how to get derivatives of unit_normal wrt boundary dofs; for now this class only depends on curves. Should not be used in any kind of combined approach, excepted if finite differences are implemented
+        super().__init__(depends_on=[curves])
+
+        self.J_jax=jit(lambda gamma_curves, gamma_surf, unit_normal: coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal))
+        self.thisgrad0 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal))
+        #self.thisgrad1 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=1)(gamma_curves, gamma_surf, unit_normal))
+        #self.thisgrad2 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=2)(gamma_curves, gamma_surf, unit_normal))
+
+    def J(self):
+        gamma_curves = np.array([curve.gamma() for curve in self.curves])
+        gamma_boundary = self.boundary.gamma()
+        unit_normal = self.boundary.unitnormal()
+
+        return self.J_jax(gamma_curves, gamma_boundary, unit_normal)
+    
+    def dJ(self):
+        gamma_curves = np.array([curve.gamma() for curve in self.curves])
+        gamma_boundary = self.boundary.gamma()
+        unit_normal = self.boundary.unitnormal()
+
+        grad0 = self.thisgrad0(gamma_curves, gamma_boundary, unit_normal)
+        #grad1 = self.thisgrad1(gamma_curves, gamma_boundary, unit_normal)
+        #grad2 = self.thisgrad2(gamma_curves, gamma_boundary, unit_normal)
+
+        return np.sum([curve.dgamma_by_dcoeff_vjp(gg) for curve, gg in zip(self.curves, grad0)])
+         
+
+
+
 @jit
 def Lp_torsion_pure(torsion, gammadash, p, threshold):
     """
@@ -154,7 +231,6 @@ def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
     alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
-
 
 class CurveCurveDistance(Optimizable):
     r"""
