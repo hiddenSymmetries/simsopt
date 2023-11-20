@@ -165,7 +165,9 @@ jobs:
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: pip install -v .[MPI,SPEC]
+      run: |
+        pip install -v .
+        pip install mpi4py py_spec pyoculus h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
@@ -173,7 +175,9 @@ jobs:
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'vmec')
-      run: pip install -v .[MPI]
+      run: |
+        pip install -v .
+        pip install mpi4py
 
     - name: Run serial examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
