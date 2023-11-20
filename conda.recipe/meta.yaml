@@ -24,6 +24,8 @@ requirements:
     - libgomp      # [linux]
     - "setuptools_scm[toml]"
     - boost
+    - pybind11
+    - scikit-build-core
 
   host:
     - pip
@@ -32,6 +34,7 @@ requirements:
     - "setuptools_scm[toml]"
     - scikit-build-core
     - python {{ python }}
+    - pybind11
 
   run:
     - python
