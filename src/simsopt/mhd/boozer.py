@@ -114,10 +114,6 @@ class Boozer(Optimizable):
         Run booz_xform on all the surfaces that have been registered.
         """
 
-        if (self.mpi is not None) and (not self.mpi.proc0_groups):
-            logger.info("This proc is skipping Boozer.run since it is not a group leader.")
-            return
-
         if not self.need_to_run_code:
             logger.info("Boozer.run() called but no need to re-run Boozer transformation.")
             return
@@ -126,7 +122,13 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
+            #partake in parallel VMEC job
             self.equil.run()
+            #skedaddle if you are not proc0 of your group
+            if (self.mpi is not None) and (not self.mpi.proc0_groups):
+                logger.info("This proc is skipping the rest of boozer.run since it is not a group leader.")
+                return
+
             wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values
