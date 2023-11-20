@@ -247,7 +247,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8.17
+        python-version: 3.9.17
 
     - name: Install coverage
       run: pip install coverage
