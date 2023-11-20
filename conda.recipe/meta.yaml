@@ -28,9 +28,9 @@ requirements:
   host:
     - pip
     - wheel
-    - setuptools
     - numpy {{ numpy }}
     - "setuptools_scm[toml]"
+    - scikit-build-core
     - python {{ python }}
 
   run:
