@@ -12,35 +12,29 @@ try:
 except ImportError:
     vmec = None
 try:
-    from simsopt.mhd import Spec
+    import spec
 except ImportError:
-    Spec = None
+    spec = None
 
-from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.objectives import LeastSquaresProblem
 
 if MPI is not None:
-    from simsopt.mhd import Boozer, Quasisymmetry
-    from simsopt.mhd import Vmec
-    from simsopt.mhd import Spec, Residue
-    from simsopt.solve.mpi import least_squares_mpi_solve
+    from simsopt.mhd import Boozer, Quasisymmetry, Vmec, Spec, Residue
+    from simsopt.solve import least_squares_mpi_solve
     from simsopt.util.mpi import MpiPartition
 
 from . import TEST_DIR
 
 #logging.basicConfig(level=logging.DEBUG)
 
-#@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
-
-
-@unittest.skipIf((MPI is None) or (vmec is None) or (Spec is None), "VMEC or Spec not found")
 class IntegratedTests(unittest.TestCase):
+    @unittest.skipIf((MPI is None) or (vmec is None), "VMEC not found")
     def test_Quasisymmetry_paralellization(self):
         """
         this test checks if the Quasisymmetry objective evaluation is correctly 
         implemented to run in MPI tasks with different numbers of leaders and
         workers. 
         """
-        # logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
         logging.getLogger(__name__)
         for ngroups in range(1, 1 + MPI.COMM_WORLD.Get_size()):
             for grad in [False, True]:
@@ -80,6 +74,7 @@ class IntegratedTests(unittest.TestCase):
                 least_squares_mpi_solve(prob, mpi, grad=grad, max_nfev=2)
                 ## we just want to test if the problem runs for the two fevs
 
+    @unittest.skipIf((MPI is None) or (spec is None), "SPEC not found")
     def test_Residue_parallelization(self):
         """
         This test checks if the Residue objective evaluation is correctly implemented
@@ -121,6 +116,6 @@ class IntegratedTests(unittest.TestCase):
                 # Solve for two nfevs to test if runs
                 least_squares_mpi_solve(prob, mpi=mpi, grad=grad, max_nfev=2)
                 
-                # No assertions, run is to short to complete, just testing if it does run
+                # No assertions, run is too short to complete, just testing if it does run
 
                 
