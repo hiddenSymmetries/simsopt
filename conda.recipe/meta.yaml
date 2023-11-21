@@ -49,11 +49,13 @@ requirements:
     - pyevtk
 
 about:
+  home: https://github.com/hiddenSymmetries/simsopt
   summary: simplified framework for stellarator optimization
   license: MIT
   license_file: "LICENSE"
   description:
   doc_url: https://simsopt.readthedocs.io/
+  dev_url: https://github.com/hiddenSymmetries/simsopt
 
 extra:
   recipe-maintainers:
