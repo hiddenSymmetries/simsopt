@@ -1,6 +1,3 @@
-# {% set data = load_setup_py_data(setup_file='../setup.py', from_recipe_dir=True) %}
-# {% set version = data.get('version') %}
-
 package:
   name: simsopt
   version: {{ GIT_DESCRIBE_TAG }}+{{ GIT_BUILD_STR }}
@@ -52,13 +49,11 @@ requirements:
     - pyevtk
 
 about:
-  home: {{ data.get('url') }}
   summary: simplified framework for stellarator optimization
   license: MIT
   license_file: "LICENSE"
   description:
   doc_url: https://simsopt.readthedocs.io/
-  dev_url: {{ data.get('url') }}
 
 extra:
   recipe-maintainers:
