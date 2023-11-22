@@ -88,7 +88,7 @@ jobs:
     - name: Install python dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz mpi4py  py_spec pyoculus h5py
+        # pip install sympy pyevtk matplotlib plotly networkx pygraphviz mpi4py  py_spec pyoculus h5py
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -158,7 +158,7 @@ jobs:
 
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
-      run: pip install -v ".[MPI,SPEC]"
+      run: pip install -v ".[MPI,SPEC,VIS]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
