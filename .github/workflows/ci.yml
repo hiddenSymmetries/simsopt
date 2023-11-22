@@ -49,6 +49,11 @@ jobs:
         set -ex
         ls -l
 
+    - name: Print python location
+      run: |
+        set -ex
+        which python
+
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
