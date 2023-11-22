@@ -105,3 +105,13 @@ extend-exclude = ["thirdparty"]
 "tests/geo/test_curve.py" = ["F401"]
 "tests/geo/test_surface.py" = ["F401"]
 "tests/mhd/test_virtual_casing.py" = ["F841"]
+
+[tool.coverage.run]
+parallel = true
+relative_files = true
+source = ["simsopt"]
+
+[tool.coverage.paths]
+source = [
+    "*/lib*/python*/site-packages/simsopt"
+]
