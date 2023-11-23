@@ -528,11 +528,20 @@ class LinkingNumber(Optimizable):
         return Derivative({})
 
 @jit
-def curvetwist_pure(twist1,twist2):
+# def curvetwist_pure(twist1,twist2):
+def curvetwist_pure(n1,n2,b1,b1dash,n2dash):
     """
     This function is used in a Python+Jax implementation of the FramedCurveTwist objective function.
     """
-    return jnp.max(twist1 - twist2) - jnp.min(twist1 - twist2)
+    # return jnp.max(twist1 - twist2) - jnp.min(twist1 - twist2)
+    # _, n1, b1 = fc.rotated_frame()
+    # _, n2, b2 = fc_centroid.rotated_frame()
+    # _, n1dash, b1dash = fc.rotated_frame_dash()
+    # _, n2dash, b2dash = fc_centroid.rotated_frame_dash()
+    dot1 = b1dash[:,0]*n2[:,0] + b1dash[:,1]*n2[:,1] + b1dash[:,2]*n2[:,2]
+    dot2 = n2dash[:,0]*b1[:,0] + n2dash[:,1]*b1[:,1] + n2dash[:,2]*b1[:,2]
+    dot3 = n1[:,0]*n2[:,0] + n1[:,1]*n2[:,1] + n1[:,2]*n2[:,2]
+    return jnp.arccos(jnp.maximum(jnp.minimum(dot3[0],1),-1)) + jnp.cumsum((dot1 + dot2)/dot3)/len(n1)
 
 
 class FramedCurveTwist(Optimizable):
@@ -565,11 +574,25 @@ class FramedCurveTwist(Optimizable):
         self.thisgrad1 = jit(lambda twist1, twist2: grad(curvetwist_pure, argnums=1)(twist1,twist2))
 
     def J(self):
-        return curvetwist_pure(self.framedcurve_centroid.frame_twist(),self.framedcurve.frame_twist())
+        # _, n1, _ = self.framedcurve.rotated_frame()
+        # _, _, b2 = self.framedcurve_centroid.rotated_frame()
+        # dot = n1[:,0]*b2[:,0] + n1[:,1]*b2[:,1] + n1[:,2]*b2[:,2]
+
+        _, n1, b1 = self.framedcurve.rotated_frame()
+        _, n2, b2 = self.framedcurve_centroid.rotated_frame()
+        _, n1dash, b1dash = self.framedcurve.rotated_frame_dash()
+        _, n2dash, b2dash = self.framedcurve_centroid.rotated_frame_dash()
+        dot1 = b1dash[:,0]*n2[:,0] + b1dash[:,1]*n2[:,1] + b1dash[:,2]*n2[:,2]
+        dot2 = n2dash[:,0]*b1[:,0] + n2dash[:,1]*b1[:,1] + n2dash[:,2]*b1[:,2]
+        dot3 = n1[:,0]*n2[:,0] + n1[:,1]*n2[:,1] + n1[:,2]*n2[:,2]
+        data = np.arccos(np.maximum(np.minimum(dot3[0],1),-1)) + np.cumsum((dot1 + dot2)/(len(dot1)*dot3))
+        return np.max(data)-np.min(data)
+        # return curvetwist_pure(self.framedcurve_centroid.frame_twist(),self.framedcurve.frame_twist())
 
     @derivative_dec
     def dJ(self):
-        grad0 = self.thisgrad0(self.framedcurve_centroid.frame_twist(), self.framedcurve.frame_twist())
-        grad1 = self.thisgrad1(self.framedcurve_centroid.frame_twist(), self.framedcurve.frame_twist())
-        return self.framedcurve_centroid.dframe_twist_by_dcoeff_vjp(grad0) \
-             + self.framedcurve.dframe_twist_by_dcoeff_vjp(grad1)
+        return Derivative({})
+        # grad0 = self.thisgrad0(self.framedcurve_centroid.frame_twist(), self.framedcurve.frame_twist())
+        # grad1 = self.thisgrad1(self.framedcurve_centroid.frame_twist(), self.framedcurve.frame_twist())
+        # return self.framedcurve_centroid.dframe_twist_by_dcoeff_vjp(grad0) \
+        #      + self.framedcurve.dframe_twist_by_dcoeff_vjp(grad1)

@@ -30,13 +30,13 @@ class FramedCurve(sopp.Curve, Curve):
         self.rotation = rotation
         Curve.__init__(self, depends_on=deps)
 
-        self.frame_twist_jax = jit(lambda t, n, ndash: frame_twist_pure(t,n,ndash))
-        self.frame_twistgrad_vjp0 = jit(lambda t, n, ndash, v: vjp(
-            lambda g: self.frame_twist_jax(g, n, ndash), t)[1](v)[0])
-        self.frame_twistgrad_vjp1 = jit(lambda t, n, ndash, v: vjp(
-            lambda g: self.frame_twist_jax(t, g, ndash), n)[1](v)[0])
-        self.frame_twistgrad_vjp2 = jit(lambda t, n, ndash, v: vjp(
-            lambda g: self.frame_twist_jax(t, n, g), ndash)[1](v)[0])
+        self.frame_twist_jax = jit(lambda gammadash, t, n, ndash: frame_twist_pure(gammadash,t,n,ndash))
+        self.frame_twistgrad_vjp0 = jit(lambda gammadash, t, n, ndash, v: vjp(
+            lambda g: self.frame_twist_jax(g, t, n, ndash), t)[1](v)[0])
+        self.frame_twistgrad_vjp1 = jit(lambda gammadash, t, n, ndash, v: vjp(
+            lambda g: self.frame_twist_jax(gammadash, t, g, ndash), n)[1](v)[0])
+        self.frame_twistgrad_vjp2 = jit(lambda gammadash, t, n, ndash, v: vjp(
+            lambda g: self.frame_twist_jax(gammadash, t, n, g), ndash)[1](v)[0])
 
     def frame_twist(self):
         """
@@ -44,9 +44,10 @@ class FramedCurve(sopp.Curve, Curve):
         of the given frame, quantifying the winding of the normal about the given 
         curve. 
         """
+        gammadash = self.curve.gammadash()
         t, n, _ = self.rotated_frame()
         _, ndash, _ = self.rotated_frame_dash()
-        return self.frame_twist_jax(t, n, ndash)
+        return self.frame_twist_jax(gammadash, t, n, ndash)
 
         # T = n[:,0] * (ndash[:,1] * t[:,2] - ndash[:,2] * t[:,1]) \
         # +   n[:,1] * (ndash[:,2] * t[:,0] - ndash[:,0] * t[:,2]) \
@@ -54,6 +55,7 @@ class FramedCurve(sopp.Curve, Curve):
         # return np.cumsum(T)/(2*np.pi*np.cumsum(np.ones_like(T)))
 
     def dframe_twist_by_dcoeff_vjp(self, v):
+        gammadash = self.curve.gammadash()
         t, n, _ = self.rotated_frame()
         _, ndash, _ = self.rotated_frame_dash()
 
@@ -64,9 +66,9 @@ class FramedCurve(sopp.Curve, Curve):
         # alpha = self.rotation.alpha(self.curve.quadpoints)
         # alphadash = self.rotation.alphadash(self.curve.quadpoints)
 
-        grad0 = self.frame_twistgrad_vjp0(t, n, ndash, v)
-        grad1 = self.frame_twistgrad_vjp1(t, n, ndash, v)
-        grad2 = self.frame_twistgrad_vjp2(t, n, ndash, v)
+        grad0 = self.frame_twistgrad_vjp0(gammadash, t, n, ndash, v)
+        grad1 = self.frame_twistgrad_vjp1(gammadash, t, n, ndash, v)
+        grad2 = self.frame_twistgrad_vjp2(gammadash, t, n, ndash, v)
  
         return self.rotated_frame_dcoeff_vjp(grad0,grad1,np.zeros_like(grad0)) \
             +  self.rotated_frame_dash_dcoeff_vjp(np.zeros_like(grad0),grad2,np.zeros_like(grad0))
@@ -824,8 +826,10 @@ def binormal_curvature_pure_centroid(gamma, gammadash, gammadashdash,
 #     +   n[:,2] * (ndash[:,0] * t[:,1] - ndash[:,1] * t[:,0]) 
 #     return jnp.cumsum(T)/(2*jnp.pi*jnp.cumsum(jnp.ones_like(T)))
 
-def frame_twist_pure(t,n,ndash):
+def frame_twist_pure(gammadash,t,n,ndash):
+    arc_length = jnp.linalg.norm(gammadash, axis=1)
     T = n[:,0] * (ndash[:,1] * t[:,2] - ndash[:,2] * t[:,1]) \
     +   n[:,1] * (ndash[:,2] * t[:,0] - ndash[:,0] * t[:,2]) \
     +   n[:,2] * (ndash[:,0] * t[:,1] - ndash[:,1] * t[:,0])
-    return jnp.cumsum(T)/(2*jnp.pi*jnp.cumsum(jnp.ones_like(T)))
+    return T/(2*jnp.pi*arc_length)
+    # return jnp.cumsum(T)/(2*jnp.pi*jnp.cumsum(jnp.ones_like(T)))
