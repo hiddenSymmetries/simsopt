@@ -10,7 +10,8 @@ import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
-from .._core.json import GSONDecoder
+from .._core.optimizable import DOFs
+from .._core.descriptor import OneofIntegers, Integer, PositiveInteger
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+    nfp = Integer(min_value=1)
+    alpha_fac = OneofIntegers(-1, 0, 1)
+    mmax = Integer(min_value=1)
+    nmax = PositiveInteger()
 
     def __init__(self,
                  nfp: int = 1,
@@ -98,11 +103,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  nmax: int = 0,
                  quadpoints_phi: RealArray = None,
                  quadpoints_theta: RealArray = None,
-                 dofs=None
-                 ):
-
-        if alpha_fac > 1 or alpha_fac < -1:
-            raise ValueError('alpha_fac must be 1, 0, or -1')
+                 dofs: DOFs = None):
 
         self.nfp = nfp
         self.alpha_fac = alpha_fac
@@ -155,18 +156,18 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     def _make_names(self):
         names = []
         for n in range(self.nmax + 1):
-            names.append('R0nH(' + str(n) + ')')
+            names.append(f'R0nH({n})')
         for n in range(1, self.nmax + 1):
-            names.append('Z0nH(' + str(n) + ')')
+            names.append(f'Z0nH({n})')
         for n in range(self.nmax + 1):
-            names.append('bn(' + str(n) + ')')
+            names.append(f'bn({n})')
         # Handle m = 0 modes in rho_mn:
         for n in range(1, self.nmax + 1):
-            names.append('rhomn(0,' + str(n) + ')')
+            names.append(f'rhomn(0,{n})')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
-                names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+                names.append(f'rhomn({m},{n})')
         return names
 
     def _validate_mn(self, m, n):
@@ -268,12 +269,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         """
         if mmax < 0:
             raise ValueError('mmax must be >= 0')
-        if mmax > self.mmax:
-            mmax = self.mmax
+        mmax = min(self.mmax, mmax)
         if nmax < 0:
             raise ValueError('nmax must be >= 0')
-        if nmax > self.nmax:
-            nmax = self.nmax
+        nmax = min(self.nmax, nmax)
 
         fn = self.fix if fixed else self.unfix
 

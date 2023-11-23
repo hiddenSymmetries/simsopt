@@ -1,13 +1,11 @@
 import numpy as np
-from .._core.optimizable import DOFs, Optimizable
-import simsoptpp as sopp
-from sklearn.linear_model import Lasso
-from simsopt.geo import Surface, SurfaceRZFourier
-from simsopt.field.currentpotential import CurrentPotentialFourier
+import warnings
 from scipy.io import netcdf_file
 from scipy.interpolate import interp2d
 from simsopt.field.magneticfieldclasses import WindingSurfaceField
-import warnings
+from simsopt.geo import SurfaceRZFourier
+from simsopt.field.currentpotential import CurrentPotentialFourier
+import simsoptpp as sopp
 
 __all__ = ["CurrentPotentialSolve"]
 

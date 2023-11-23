@@ -1,5 +1,7 @@
 #include "magneticfield_biotsavart.h"
 #include "biot_savart_impl.h"
+#include <fmt/core.h>
+#include <fmt/format.h>
 
 template<class Array>
 void set_array_to_zero(Array& data){
