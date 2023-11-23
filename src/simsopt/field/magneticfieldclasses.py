@@ -533,6 +533,44 @@ class CircularCoil(MagneticField):
         field.set_points_cart(xyz)
         return field
 
+    def gamma(self, points=64):
+        """Export points of the coil."""
+
+        angle_points = np.linspace(0, 2*np.pi, points+1)[:-1]
+
+        x = self.r0 * np.cos(angle_points)
+        y = self.r0 * np.sin(angle_points)
+        z = 0 * angle_points
+
+        coords = np.add(np.dot(self._rotmat(), np.column_stack([x,y,z]).T).T, self.center)
+        return coords
+
+    def to_vtk(self, filename, close=False):
+        """
+        Export circular coil to VTK format
+
+        Args:
+            filename: Name of the file to write.
+            close: Whether to draw the segment from the last quadrature point back to the first.
+        """
+        from pyevtk.hl import polyLinesToVTK
+
+        def wrap(data):
+            return np.concatenate([data, [data[0]]])
+
+        # get the coordinates
+        if close:
+            x = wrap(self.gamma()[:, 0])
+            y = wrap(self.gamma()[:, 1])
+            z = wrap(self.gamma()[:, 2])
+            ppl = np.asarray([self.gamma().shape[0]+1])
+        else:
+            x = self.gamma()[:, 0]
+            y = self.gamma()[:, 1]
+            z = self.gamma()[:, 2]
+            ppl = np.asarray([self.gamma().shape[0]])
+
+        polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl)
 
 class DipoleField(MagneticField):
     r"""
