@@ -158,7 +158,7 @@ class CurrentPotentialSolve:
         f = netcdf_file(filename, 'w')
         f.history = 'Created for writing a SIMSOPT-optimized winding surface and current potential to a regcoil-style output file'
 
-        scalars = ['nfp', 'mpol_plasma', 'ntor_plasma', 'mpol_potential', 'ntor_potential', 'symmetry_option', 'net_poloidal_current_amperes', 'net_toroidal_current_amperes', 'ntheta_plasma', 'nzeta_plasma', 'ntheta_coil', 'nzeta_coil']
+        scalars = ['nfp', 'mpol_plasma', 'ntor_plasma', 'mpol_potential', 'ntor_potential', 'symmetry_option', 'net_poloidal_current_Amperes', 'net_toroidal_current_Amperes', 'ntheta_plasma', 'nzeta_plasma', 'ntheta_coil', 'nzeta_coil']
         s = self.plasma_surface
         w = self.winding_surface
         G = self.current_potential.net_poloidal_current_amperes
