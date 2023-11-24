@@ -58,6 +58,8 @@ else()
     	set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
     endif()
 endif()
+# Ensure all code used from Eigen does not have LGPL license:
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
 message(STATUS "CMAKE_CXX_FLAGS are ${CMAKE_CXX_FLAGS}")
 
 if(DEFINED ENV{CONDA_PREFIX})

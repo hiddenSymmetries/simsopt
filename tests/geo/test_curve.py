@@ -20,9 +20,8 @@ from simsopt.geo import CurveLength, CurveCurveDistance
 
 try:
     import pyevtk
-    pyevtk_found = True
 except ImportError:
-    pyevtk_found = False
+    pyevtk = None
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
@@ -387,7 +386,7 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_curve_dkappa_by_dphi_derivative(curvetype, rotated)
 
-    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_curve_to_vtk(self):
         curve0 = get_curve(self.curvetypes[0], False)
         curve1 = get_curve(self.curvetypes[1], True)

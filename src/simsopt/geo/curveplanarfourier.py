@@ -8,24 +8,33 @@ __all__ = ['CurvePlanarFourier']
 
 class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
     r"""
-    ``CurvePlanarFourier`` is a curve that is represented by a polar coordinate
-    Fourier serires, a rotation quaternion, and a center point following the
-    form:
+    ``CurvePlanarFourier`` is a curve that is restricted to lie in a plane. The
+    shape of the curve within the plane is represented by a Fourier series in
+    polar coordinates. The resulting planar curve is then rotated in three
+    dimensions using a quaternion, and finally a translation is applied. The
+    Fourier series in polar coordinates is
 
     .. math::
 
-       r(\phi) &= \sum_{m=0}^{\text{order}} r_{c,m}\cos(m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(m \phi)
+       r(\phi) = \sum_{m=0}^{\text{order}} r_{c,m}\cos(m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(m \phi).
+
+    The rotation quaternion is
+
+    .. math::
 
        \bf{q} &= [q_0,q_i,q_j,q_k]
 
        &= [\cos(\theta / 2), \hat{x}\sin(\theta / 2), \hat{y}\sin(\theta / 2), \hat{z}\sin(\theta / 2)]
 
-    where :math:`\theta` is the counterclockwise rotation about a unit axis
-    :math:`(\hat{x},\hat{y},\hat{z})`.
+    where :math:`\theta` is the counterclockwise rotation angle about a unit axis
+    :math:`(\hat{x},\hat{y},\hat{z})`. Details of the quaternion rotation can be
+    found for example in pages 575-576 of
+    https://www.cis.upenn.edu/~cis5150/ws-book-Ib.pdf.
+
 
     A quaternion is used for rotation rather than other methods for rotation to
-    prevent gimbal locking during optimization. The quaternion is normalized for 
-    calculations to prevent scaling. The dofs themselves are not normalized. This 
+    prevent gimbal locking during optimization. The quaternion is normalized
+    before being applied to prevent scaling of the curve. The dofs themselves are not normalized. This
     results in a redundancy in the optimization, where several different sets of 
     dofs may correspond to the same normalized quaternion. Normalizing the dofs 
     directly would create a dependence between the quaternion dofs, which may cause 
