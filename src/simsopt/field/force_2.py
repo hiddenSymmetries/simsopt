@@ -12,6 +12,7 @@ from jax import jit #replace above
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 from functools import partial
+from scipy.linalg import block_diag
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
@@ -73,6 +74,8 @@ class MeanSquaredForceOpt(Optimizable):
                                self.quadpoints)
         )
 
+        self.tt = jit(lambda gammadash: gammadash / jnp.linalg.norm(gammadash,axis=1)[:, None])
+
         super().__init__(depends_on=basecoils)
 
     def J(self):
@@ -103,14 +106,82 @@ class MeanSquaredForceOpt(Optimizable):
 
     @derivative_dec
     def dJ(self):
+        # Mutual force calculation
+        forces_mutual = np.empty([self.basecoils.size, self.quadpoints.size, 3])
+        for i in range(self.basecoils.size):
+            B_mutual = self.biotsavart[i].set_points(self.basecoils[i].curve.gamma()).B()
+            I = self.basecoils[i].current.get_value()
+            tangent = self.basecoils[i].curve.gammadash() / jnp.linalg.norm(self.basecoils[i].curve.gammadash(),axis=1)[:, None]
+            forces_mutual[i, :, :] = coil_force_pure(B_mutual, I, tangent)
+
+        # Self force calculation
         gamma_conc = jnp.concatenate([coil.curve.gamma() for coil in self.basecoils])
         gammadash_conc = jnp.concatenate([coil.curve.gammadash() for coil in self.basecoils])
         gammadashdash_conc = jnp.concatenate([coil.curve.gammadashdash() for coil in self.basecoils])
         current_conc = jnp.array([coil.current.get_value() for coil in self.basecoils])
         phi_conc = jnp.concatenate([coil.curve.quadpoints for coil in self.basecoils])
+        forces_self = self.self_force_from_jax(gamma_conc, gammadash_conc, gammadashdash_conc, current_conc, phi_conc)
 
-        grad0 = self.grad0_self(gamma_conc, gammadash_conc, gammadashdash_conc, current_conc, phi_conc)
-        print(grad0)
+        # Total force & mean squared calculation
+        forces_total = forces_mutual + forces_self
+
+        # 1) d_lambda_d calculation
+        """
+        grad[0] is the derivative of a single number wrt to gamma at differnet points,
+        so it's like a 3xquadpoints matrix, or an array of 3D vectors of length quadpoints.
+        similarly, dgamma_by_coef is a 2D matrix of 3D vectors.
+        moving on here, the right component is the same, a 2D matrix of 3D vectors. t_i is bigger, a
+        matrix wrt to numbasecoils (4), quadpoints (15), and space (3). so, to take this derivative, we
+        can just sum over the individual basecoils like so:
+
+        As a note, t[quad_p,xyz]
+        """
+
+        dlambdads = []
+        dphi = 2*np.pi/self.quadpoints.size
+        for i in range(self.basecoils.size):
+            tangent = self.basecoils[i].curve.gammadash() / jnp.linalg.norm(self.basecoils[i].curve.gammadash(),axis=1)[:, None]
+            dlambdads.append(dphi * self.basecoils[i].curve.dgammadash_by_dcoeff_vjp(tangent))
+
+        # 1) d_lambda_n calculation
+        dlambdans = []
+        for i in range(self.basecoils.size):
+            coil = self.basecoils[i]
+            current = coil.current.get_value()
+
+            alpha = 2 * np.linalg.norm(coil.curve.gammadash(), axis=1)[:, None] * forces_total[i]
+            #alpha has dimensions (15, 3)
+
+            tangent = coil.curve.gammadash() / jnp.linalg.norm(coil.curve.gammadash(),axis=1)[:, None]
+            norm_forces = np.linalg.norm(forces_total[i],axis=1)
+            sum1 = self.basecoils[i].curve.dgammadash_by_dcoeff_vjp(tangent * norm_forces[:, None])
+
+            B_mutual = self.biotsavart[i].set_points(self.basecoils[i].curve.gamma()).B()
+            bcrossa = current * np.cross(B_mutual, alpha)
+            sum3 = self.basecoils[i].curve.dgammadash_by_dcoeff_vjp(bcrossa)
+
+            sum4 = self.basecoils[i].curve.dgammadash_by_dcoeff_vjp(tangent * -(tangent*bcrossa).sum(1)[:, None])
+
+            cross = current * np.cross(alpha, tangent) * np.linalg.norm(coil.curve.gammadash(),axis=1)[:, None]
+            sum5 = self.biotsavart[i].B_vjp(cross)
+
+            one = np.asarray([1.])
+            sum6 = coil.current.vjp(one * np.linalg.norm(coil.curve.gammadash(),axis=1)[:, None] * forces_total[i] / current)
+
+            sum = sum1 + sum3 + sum4 + sum5 + sum6
+            dlambdans.append(sum * dphi)
+            #do sum5!!!!
+        print(dlambdans)
+        #1a
+        #TROUBLESHOOT: the forcetotal are the same for all 4 coils
+        #1b
+
+        exit()
+        #1d
+
+        ###### so that it runs for now
+        return dlambdads[0]
+
 
         # for i in range(base_coils):
         #     tangent = self.basecoils[i].curve.gammadash() / jnp.linalg.norm(self.basecoils[i].curve.gammadash(),axis=1)[:, None]
