@@ -6,4 +6,3 @@ source = simsopt
 sources = 
     /opt/hostedtoolcache/Python/3.8.17/x64/lib/python3.8/site-packages
     /opt/hostedtoolcache/Python/3.9.17/x64/lib/python3.9/site-packages
-    /opt/hostedtoolcache/Python/3.10.13/x64/lib/python3.10/site-packages
