@@ -29,12 +29,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.8.17, 3.9.17, 3.10.13] # To sync with coveragerc use 3 levels with python version
+        python-version: [3.8, 3.9, 3.10]
         include:
-            - python-version: 3.9.17
+            - python-version: 3.9
               test-type: unit
               packages: none
-            - python-version: 3.9.17
+            - python-version: 3.9
               test-type: integrated
               packages: none
 
@@ -251,7 +251,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v4
       with:
-        python-version: 3.9.17
+        python-version: 3.9
 
     - name: Install coverage
       run: pip install coverage
