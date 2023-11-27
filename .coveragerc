@@ -1,0 +1,12 @@
+[run]
+parallel = true
+source = simsopt
+relative_files = true
+
+[paths]
+sources = 
+    src/
+    /**/lib/python3.8/site-packages
+    /**/lib/python3.9/site-packages
+    /**/lib/python3.10/site-packages
+    /**/lib/python3.11/site-packages
