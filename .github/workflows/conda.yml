@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ubuntu-latest,  macos-11]
-        python-version: ["3.8"]
+        python-version: ["3.9"]
 
     runs-on: ${{ matrix.platform }}
 
@@ -41,7 +41,7 @@ jobs:
           channel-priority: strict
 
       - name: Prepare
-        run: conda install -y conda-build conda-verify setuptools_scm anaconda-client
+        run: conda install -y conda-build conda-verify setuptools_scm anaconda-client scikit-build-core
 
       - name: Build and upload
         if: github.event_name == 'release' && github.event.action == 'published'
