@@ -106,7 +106,7 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_torsion(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
+        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=100)
         c = curves[0]
 
         if order == 1:
@@ -144,16 +144,17 @@ class CoilStrainTesting(unittest.TestCase):
 
     def subtest_twist(self, order, centroid):
         assert order in [1, None]
-        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
+        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=100)
         c = curves[0]
 
+        np.random.seed(1)
+
         if order == 1:
-            rotation = FrameRotation(c.quadpoints, order*3)
-            # rotation.x = np.array([0, 0.1, 0.3, 0, 0])
+            rotation = FrameRotation(c.quadpoints, 4)
+            # rotation.x = np.array([0, 0.1, 0.3])
             rotation.x = np.random.standard_normal(size=rotation.x.size)
-            rotationShared = FrameRotation(c.quadpoints, order*3, dofs=rotation.dofs)
-            assert np.allclose(rotation.x, rotationShared.x)
-            assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
+            alpha = rotation.alpha(c.quadpoints)
+            rotation.unfix_all()
         else:
             rotation = ZeroRotation(c.quadpoints)
             if centroid == True:
@@ -161,36 +162,39 @@ class CoilStrainTesting(unittest.TestCase):
 
         if centroid:
             framedcurve = FramedCurveCentroid(c, rotation)
-            imin = -1
-            imax = 20
         else:
             framedcurve = FramedCurveFrenet(c, rotation)
-            imin = 15
-            imax = 20
+            imin = 10
+            imax = 15
 
-        J = FramedCurveTwist(framedcurve)
+        # Check derivatives for `lp` objective 
+        J = FramedCurveTwist(framedcurve,'lp')
+        if centroid:
+            # For Centroid frame, frame rotation angle is alpha
+            rot = J.angle_profile()
+            # Shift rot and alpha to begin between 0 and 2*pi
+            rot = rot - 2*np.pi*(rot[0] // (2*np.pi))
+            alpha = alpha - 2*np.pi*(alpha[0] // (2*np.pi))
+            assert np.allclose(rot/np.linalg.norm(alpha,ord=2),alpha/np.linalg.norm(alpha,ord=2),atol=1e-3)
+            imin = 10 
+            imax = 15
+            # Net frame rotation should vanish for centroid frame
+            assert J.J('net') < 1e-3
 
+        f0 = J.J()
         dofs = J.x
-
         np.random.seed(1)
         h = np.random.standard_normal(size=dofs.shape)
         df = np.sum(J.dJ()*h)
 
         errf_old = 1e10
         for i in range(imin, imax):
-            print('i: ',i)
             eps = 0.5**i
             J.x = dofs + eps*h
             f1 = J.J()
             J.x = dofs - eps*h
             f2 = J.J()
-            errf = np.abs((f1-f2)/(2*eps) - df)
-            # print('d1: ',(f1-f2)/(2*eps))
-            # print('d2: ',df)
-
-            print(errf)
-            print('ratio: ',errf/errf_old)
-            # print('errf_old: ',0.3*errf_old)
-            # assert errf < 0.3 * errf_old
+            errf = np.abs((f1-f0)/(eps) - df)
+            assert errf < 0.6 * errf_old
             errf_old = errf
 
