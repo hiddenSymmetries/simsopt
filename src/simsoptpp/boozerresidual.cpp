@@ -36,10 +36,10 @@ template<class T>
 void boozer_residual_ds_impl(double G, double iota, T& B, T& dB_dx, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres){
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
-    int ndofs = dx_ds.shape(3);
+    size_t ndofs = dx_ds.shape(3);
     int num_points = 3 * nphi * ntheta;
 
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr size_t simd_size = xsimd::simd_type<double>::size;
     auto dx_ds_ij0 = AlignedPaddedVec(ndofs, 0);
     auto dx_ds_ij1 = AlignedPaddedVec(ndofs, 0);
     auto dx_ds_ij2 = AlignedPaddedVec(ndofs, 0);
@@ -184,7 +184,7 @@ std::tuple<double, Array> boozer_residual_ds(double G, double iota, Array& B, Ar
     // flatten the quadrature points
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
-    int ndofs = dx_ds.shape(3);
+    size_t ndofs = dx_ds.shape(3);
     int num_points = nphi * ntheta;
 
     int num_threads= 0;
@@ -259,10 +259,10 @@ template<class T>
 void boozer_residual_ds2_impl(double G, double iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres, T& d2res){
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
-    int ndofs = dx_ds.shape(3);
+    size_t ndofs = dx_ds.shape(3);
     int num_points = 3 * nphi * ntheta;
 
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr size_t simd_size = xsimd::simd_type<double>::size;
     auto dx_ds_ij0 = AlignedPaddedVec(ndofs, 0);
     auto dx_ds_ij1 = AlignedPaddedVec(ndofs, 0);
     auto dx_ds_ij2 = AlignedPaddedVec(ndofs, 0);
@@ -593,7 +593,7 @@ std::tuple<double, Array, Array> boozer_residual_ds2(double G, double iota, Arra
     // flatten the quadrature points
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
-    int ndofs = dx_ds.shape(3);
+    size_t ndofs = dx_ds.shape(3);
     int num_points = nphi * ntheta;
 
     int num_threads= 0;
