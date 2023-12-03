@@ -61,12 +61,13 @@ class ToroidalWireframe(object):
                                         dofs=surface.dofs)
 
         # Determine the locations of the node points
-        nodes = self.surface.gamma()
-        self.nodes_x = np.ascontiguousarray(nodes[:, :, 0].reshape((-1)))
-        self.nodes_y = np.ascontiguousarray(nodes[:, :, 1].reshape((-1)))
-        self.nodes_z = np.ascontiguousarray(nodes[:, :, 2].reshape((-1)))
-        self.nNodes = len(self.nodes_x)
-        node_inds = np.arange(self.nNodes).reshape(nodes.shape[:2])
+        nodes_surf = self.surface.gamma()
+        self.nNodes = np.prod(nodes_surf.shape[:2])
+        self.nodes = np.ascontiguousarray(np.zeros((self.nNodes, 3)))
+        self.nodes[:,0] = nodes_surf[:, :, 0].reshape((-1))
+        self.nodes[:,1] = nodes_surf[:, :, 1].reshape((-1))
+        self.nodes[:,2] = nodes_surf[:, :, 2].reshape((-1))
+        node_inds = np.arange(self.nNodes).reshape(nodes_surf.shape[:2])
 
 
         # Define the segments according to the pairs of nodes connecting them
@@ -81,13 +82,13 @@ class ToroidalWireframe(object):
 
         # Map nodes to index in the segment array of segment originating 
         # from the respective node
-        self.torSegmentKey = -np.ones(nodes.shape[:2]).astype(np.int64)
+        self.torSegmentKey = -np.ones(nodes_surf.shape[:2]).astype(np.int64)
         self.torSegmentKey[:-1,:] = \
             np.arange(self.nTorSegments).reshape((nPhi, nTheta))
 
         # Poloidal segments (on symmetry planes, only include segments for z>0)
         segments_pol = np.zeros((self.nPolSegments, 2))
-        self.polSegmentKey = -np.ones(nodes.shape[:2]).astype(np.int64)
+        self.polSegmentKey = -np.ones(nodes_surf.shape[:2]).astype(np.int64)
         HalfNTheta = int(nTheta/2)
 
         segments_pol[:HalfNTheta, 0] = node_inds[0, :HalfNTheta]
@@ -111,6 +112,9 @@ class ToroidalWireframe(object):
             np.ascontiguousarray(np.zeros((self.nSegments, 2)).astype(np.int64))
         self.segments[:self.nTorSegments, :] = segments_tor[:, :]
         self.segments[self.nTorSegments:, :] = segments_pol[:, :]
+
+        # Initialize currents to zero
+        self.currents = np.ascontiguousarray(np.zeros((self.nSegments)))
 
         # Define constraints to enforce current continuity
         # Constraint equations have the form B*x = d, where:
@@ -166,17 +170,17 @@ class ToroidalWireframe(object):
         
         fig = pl.figure()
         ax = fig.add_subplot(projection='3d')
-        ax.plot(self.nodes_x, self.nodes_y, self.nodes_z, '.', \
+        ax.plot(self.nodes[:,0], self.nodes[:,1], self.nodes[:,2], '.', \
                 color=(0,0,0), markersize=6)
         for i in range(self.nTorSegments):
-            ax.plot(self.nodes_x[self.segments[i,:]],
-                    self.nodes_y[self.segments[i,:]],
-                    self.nodes_z[self.segments[i,:]],
+            ax.plot(self.nodes[:,0][self.segments[i,:]],
+                    self.nodes[:,1][self.segments[i,:]],
+                    self.nodes[:,2][self.segments[i,:]],
                     '-', color=(0.8,0,0), linewidth=1)
         for i in range(self.nPolSegments):
-            ax.plot(self.nodes_x[self.segments[i+self.nTorSegments,:]],
-                    self.nodes_y[self.segments[i+self.nTorSegments,:]],
-                    self.nodes_z[self.segments[i+self.nTorSegments,:]],
+            ax.plot(self.nodes[:,0][self.segments[i+self.nTorSegments,:]],
+                    self.nodes[:,1][self.segments[i+self.nTorSegments,:]],
+                    self.nodes[:,2][self.segments[i+self.nTorSegments,:]],
                     '-', color=(0,0,0.8), linewidth=1)
         ax.set_aspect('equal')
         ax.set_xlabel('x')
