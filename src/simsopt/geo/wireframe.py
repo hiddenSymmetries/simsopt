@@ -193,31 +193,45 @@ class ToroidalWireframe(object):
                 self.constraints_B[count, [ind_tor_out, ind_pol_out]] = 1
                 count = count + 1
 
-    def make_plot(self):
+    def make_plot(self, ax=None):
         """
         Make a plot of the wireframe grid, including nodes and segments.
         """
 
         import matplotlib.pylab as pl
-        
-        fig = pl.figure()
-        ax = fig.add_subplot(projection='3d')
-        ax.plot(self.nodes[0][:, 0], self.nodes[0][:,1], self.nodes[0][:, 2], \
-                '.',  color=(0, 0, 0), markersize=6)
+        from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+        pl_segments = np.zeros((2*self.nfp*self.nSegments, 2, 3))
+        pl_currents = np.zeros((2*self.nfp*self.nSegments))
+   
         for i in range(2*self.nfp):
-            for j in range(self.nTorSegments):
-                ax.plot(self.nodes[i][:, 0][self.segments[j, :]],
-                        self.nodes[i][:, 1][self.segments[j, :]],
-                        self.nodes[i][:, 2][self.segments[j, :]],
-                        '-', color=(0.8, 0, 0), linewidth=1)
-            for j in range(self.nPolSegments):
-                ax.plot(self.nodes[i][:, 0][self.segments[j+self.nTorSegments, :]],
-                        self.nodes[i][:, 1][self.segments[j+self.nTorSegments, :]],
-                        self.nodes[i][:, 2][self.segments[j+self.nTorSegments, :]],
-                        '-', color=(0, 0, 0.8), linewidth=1)
-        ax.set_aspect('equal')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
-        pl.show()
+            ind0 = i*self.nSegments
+            ind1 = (i+1)*self.nSegments
+            pl_segments[ind0:ind1,:,:] = self.nodes[i][:,:][self.segments[:,:]]
+            pl_currents[ind0:ind1] = self.currents[:]*1e-6
+
+        lc = Line3DCollection(pl_segments)
+        lc.set_array(pl_currents)
+
+        if ax is None:
+            fig = pl.figure()
+            ax = fig.add_subplot(projection='3d')
+
+            ax.set_xlim([np.min(pl_segments[:,:,0], axis=(0,1)),
+                         np.max(pl_segments[:,:,0], axis=(0,1))])
+            ax.set_ylim([np.min(pl_segments[:,:,1], axis=(0,1)),
+                         np.max(pl_segments[:,:,1], axis=(0,1))])
+            ax.set_zlim([np.min(pl_segments[:,:,2], axis=(0,1)),
+                         np.max(pl_segments[:,:,2], axis=(0,1))])
+
+            ax.set_aspect('equal')
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_zlabel('z')
+            cb = pl.colorbar(lc)
+            cb.set_label('Current (MA)')
+
+        ax.add_collection(lc)
+
+        return(ax)
 

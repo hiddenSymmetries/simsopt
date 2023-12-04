@@ -1,5 +1,7 @@
+import numpy as np
 import simsoptpp as sopp
 from .magneticfield import MagneticField
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 class WireframeField(sopp.WireframeField, MagneticField):
     """
@@ -16,5 +18,62 @@ class WireframeField(sopp.WireframeField, MagneticField):
         sopp.WireframeField.__init__(self, wframe.nodes, wframe.segments, \
                                      wframe.seg_signs, wframe.currents)
         MagneticField.__init__(self)
+        self.wireframe = wframe
 
+    def dB_by_dsegmentcurrents(self, compute_derivatives):
+        """
+        Calculates the derivative of the magnetic field or its spatial 
+        derivatives at each field reference point with respect to the current
+        in each wireframe segment.
 
+        Paramters:
+        ----------
+            compute_derivatives: integer (must be 0 or 1)
+                If zero, will provide derivatives of the magnetic field with
+                respect to segment currents. If one, will provide derivatives
+                of the first spatial derivatives of the magnetic field with
+                respect to segment currents.
+
+        Returns:
+        --------
+            dB_by_dsegmentcurrents: list of arrays
+                Arrays of the requested derivatives, including one array for
+                each segment in the wireframe.
+        """
+
+        points = self.get_points_cart_ref()
+        nPoints = len(points)
+        if any([not self.fieldcache_get_status(f'B_{i}') \
+                for i in range(self.wireframe.nSegments)]):
+            assert compute_derivatives >= 0
+            self.compute(compute_derivatives)
+
+        self._dB_by_dcoilcurrents = \
+            [self.fieldcache_get_or_create(f'B_{i}', [nPoints, 3]) \
+             for i in range(self.wireframe.nSegments)]
+        return self._dB_by_dcoilcurrents
+
+    def dBnormal_by_dsegmentcurrents_matrix(self, surface):
+        """
+        Generates a matrix with derivatives of normal magnetic field on a
+        surface of interest with respect to the current in each wireframe
+        segment, useful for optimization of the segment currents.
+        """
+
+        points = self.get_points_cart_ref()
+        nPoints = len(points)
+
+        if not isinstance(surface, SurfaceRZFourier):
+            raise ValueError('Surface must be a SurfaceRZFourier object')
+
+        n = surface.normal()
+        absn = np.linalg.norm(n, axis=2)
+        unitn = n * (1. / absn)[:,:,None]
+
+        matrix = np.zeros((nPoints, self.wireframe.nSegments))
+        for i in range(self.wireframe.nSegments):
+            dB_dsc = self.dB_by_dsegmentcurrents(0)[i].reshape(n.shape)
+            matrix[:,i] = np.sum(dB_dsc * unitn, axis=2).reshape((-1))
+
+        return matrix
+        
