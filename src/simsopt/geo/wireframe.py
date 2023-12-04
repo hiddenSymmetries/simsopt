@@ -6,7 +6,6 @@ Definitions for the ToroidalWireframe class
 
 import numpy as np
 import warnings
-from simsopt.geo.surface import Surface
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
 class ToroidalWireframe(object):
@@ -54,21 +53,54 @@ class ToroidalWireframe(object):
         # Make copy of surface with quadrature points according to nTheta, nPhi
         qpoints_phi = list(np.linspace(0, 0.5/surface.nfp, nPhi+1))
         qpoints_theta = list(np.linspace(0, 1., nTheta, endpoint=False))
+        self.nfp = surface.nfp
         self.surface = SurfaceRZFourier(nfp=surface.nfp, stellsym=True, \
                                         mpol=surface.mpol, ntor=surface.ntor, \
                                         quadpoints_phi=qpoints_phi, \
                                         quadpoints_theta=qpoints_theta, \
                                         dofs=surface.dofs)
 
-        # Determine the locations of the node points
+        # Determine the locations of the node points within a half period
         nodes_surf = self.surface.gamma()
         self.nNodes = np.prod(nodes_surf.shape[:2])
-        self.nodes = np.ascontiguousarray(np.zeros((self.nNodes, 3)))
-        self.nodes[:,0] = nodes_surf[:, :, 0].reshape((-1))
-        self.nodes[:,1] = nodes_surf[:, :, 1].reshape((-1))
-        self.nodes[:,2] = nodes_surf[:, :, 2].reshape((-1))
+        nodes_hp = np.ascontiguousarray(np.zeros((self.nNodes, 3)))
+        nodes_hp[:, 0] = nodes_surf[:, :, 0].reshape((-1))
+        nodes_hp[:, 1] = nodes_surf[:, :, 1].reshape((-1))
+        nodes_hp[:, 2] = nodes_surf[:, :, 2].reshape((-1))
         node_inds = np.arange(self.nNodes).reshape(nodes_surf.shape[:2])
 
+        # Generate list of sets of nodes for each half period
+        self.nodes = [[]]*self.nfp*2
+        self.seg_signs = [[]]*self.nfp*2
+        self.nodes[0] = nodes_hp
+        self.seg_signs[0] = 1.0
+        self.nodes[1] = np.ascontiguousarray(np.zeros((self.nNodes, 3)))
+        self.nodes[1][:, 0] = self.nodes[0][:, 0]
+        self.nodes[1][:, 1] = -self.nodes[0][:, 1]
+        self.nodes[1][:, 2] = -self.nodes[0][:, 2]
+        self.seg_signs[1] = -1.0
+        for i in range(1, self.nfp):
+
+            phi_rot = 2.0*i*np.pi/self.nfp
+
+            self.nodes[2*i]   = np.ascontiguousarray(np.zeros((self.nNodes, 3)))
+            self.nodes[2*i+1] = np.ascontiguousarray(np.zeros((self.nNodes, 3)))
+
+            self.nodes[2*i][:, 0] = np.cos(phi_rot)*self.nodes[0][:, 0] - \
+                                    np.sin(phi_rot)*self.nodes[0][:, 1]
+            self.nodes[2*i][:, 1] = np.sin(phi_rot)*self.nodes[0][:, 0] + \
+                                    np.cos(phi_rot)*self.nodes[0][:, 1]
+            self.nodes[2*i][:, 2] = self.nodes[0][:, 2]
+
+            self.nodes[2*i+1][:, 0] = np.cos(phi_rot)*self.nodes[1][:, 0] - \
+                                      np.sin(phi_rot)*self.nodes[1][:, 1]
+            self.nodes[2*i+1][:, 1] = np.sin(phi_rot)*self.nodes[1][:, 0] + \
+                                      np.cos(phi_rot)*self.nodes[1][:, 1]
+            self.nodes[2*i+1][:, 2] = self.nodes[1][:, 2]
+
+            # Positive current direction reverses in reflected half-periods
+            self.seg_signs[2*i] = 1.0
+            self.seg_signs[2*i+1] = -1.0
 
         # Define the segments according to the pairs of nodes connecting them
         self.nTorSegments = nTheta*nPhi
@@ -170,18 +202,19 @@ class ToroidalWireframe(object):
         
         fig = pl.figure()
         ax = fig.add_subplot(projection='3d')
-        ax.plot(self.nodes[:,0], self.nodes[:,1], self.nodes[:,2], '.', \
-                color=(0,0,0), markersize=6)
-        for i in range(self.nTorSegments):
-            ax.plot(self.nodes[:,0][self.segments[i,:]],
-                    self.nodes[:,1][self.segments[i,:]],
-                    self.nodes[:,2][self.segments[i,:]],
-                    '-', color=(0.8,0,0), linewidth=1)
-        for i in range(self.nPolSegments):
-            ax.plot(self.nodes[:,0][self.segments[i+self.nTorSegments,:]],
-                    self.nodes[:,1][self.segments[i+self.nTorSegments,:]],
-                    self.nodes[:,2][self.segments[i+self.nTorSegments,:]],
-                    '-', color=(0,0,0.8), linewidth=1)
+        ax.plot(self.nodes[0][:, 0], self.nodes[0][:,1], self.nodes[0][:, 2], \
+                '.',  color=(0, 0, 0), markersize=6)
+        for i in range(2*self.nfp):
+            for j in range(self.nTorSegments):
+                ax.plot(self.nodes[i][:, 0][self.segments[j, :]],
+                        self.nodes[i][:, 1][self.segments[j, :]],
+                        self.nodes[i][:, 2][self.segments[j, :]],
+                        '-', color=(0.8, 0, 0), linewidth=1)
+            for j in range(self.nPolSegments):
+                ax.plot(self.nodes[i][:, 0][self.segments[j+self.nTorSegments, :]],
+                        self.nodes[i][:, 1][self.segments[j+self.nTorSegments, :]],
+                        self.nodes[i][:, 2][self.segments[j+self.nTorSegments, :]],
+                        '-', color=(0, 0, 0.8), linewidth=1)
         ax.set_aspect('equal')
         ax.set_xlabel('x')
         ax.set_ylabel('y')

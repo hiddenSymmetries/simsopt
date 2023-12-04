@@ -1,5 +1,3 @@
-import numpy as pp
-
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 
@@ -16,7 +14,7 @@ class WireframeField(sopp.WireframeField, MagneticField):
     def __init__(self, wframe):
 
         sopp.WireframeField.__init__(self, wframe.nodes, wframe.segments, \
-                                     wframe.currents)
+                                     wframe.seg_signs, wframe.currents)
         MagneticField.__init__(self)
 
 

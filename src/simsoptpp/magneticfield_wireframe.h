@@ -20,8 +20,9 @@ class WireframeField : public MagneticField<T> {
         using typename MagneticField<T>::Tensor3;
         using typename MagneticField<T>::Tensor4;
         //const vector<shared_ptr<Coil<Array>>> coils;
-        Array nodes;
+        vector<Array> nodes;
         IntArray segments;
+        vector<double> seg_signs;
         Array currents;
 
     private:
@@ -115,12 +116,13 @@ class WireframeField : public MagneticField<T> {
 
 
         // Constructor
-        WireframeField(Array _nodes, IntArray _segments, Array _currents) : MagneticField<T>(), nodes(_nodes), segments(_segments), currents(_currents) {
+        WireframeField(vector<Array> _nodes, IntArray _segments, vector<double> _seg_signs, Array _currents) : MagneticField<T>(), nodes(_nodes), segments(_segments), seg_signs(_seg_signs), currents(_currents) {
 
         }
 
         void compute(int derivatives);
         //void compute_A(int derivatives);
+
         virtual void invalidate_cache() override {
             MagneticField<T>::invalidate_cache();
             this->field_cache.invalidate_cache();

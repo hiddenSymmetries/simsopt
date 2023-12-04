@@ -234,8 +234,9 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             auto p0 = diff0 * norm_diff1;
             auto p1 = diff1 * norm_diff0;
             auto factorsq = factor * factor;
-            auto grad_factor = -factorsq * (p0 + p1)
-                               - (p0/norm_diff0_sq + p1/norm_diff1_sq)/denom;
+            auto grad_factor = (p0 + p1) * (-factorsq)
+                               - (p0*(1.0/norm_diff0_sq) 
+                                  + p1*(1.0/norm_diff1_sq))*(1.0/denom);
 
             dB_dX_i[0].x = grad_factor.x * diff0_cross_diff1.x;
             dB_dX_i[0].y = grad_factor.y * diff0_cross_diff1.x

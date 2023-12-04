@@ -119,7 +119,7 @@ void init_magneticfields(py::module_ &m){
     //register_common_field_methods<PyInterpolatedField>(ifield);
  
     auto wf = py::class_<PyWireframeField, PyMagneticFieldTrampoline<PyWireframeField>, shared_ptr<PyWireframeField>, PyMagneticField>(m, "WireframeField")
-        .def(py::init<PyArray&, PyIntArray&, PyArray&>())
+        .def(py::init<vector<PyArray>, PyIntArray&, vector<double>, PyArray&>())
         .def("compute", &PyWireframeField::compute)
         .def("fieldcache_get_or_create", &PyWireframeField::fieldcache_get_or_create)
         .def("fieldcache_get_status", &PyWireframeField::fieldcache_get_status);

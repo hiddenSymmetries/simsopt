@@ -2,6 +2,7 @@
 #include "wireframe_field_impl.h"
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <xtensor/xarray.hpp>
 
 template<class Array>
 void set_array_to_zero(Array& data){
@@ -19,7 +20,7 @@ void WireframeField<T, Array, IntArray>::compute(int derivatives) {
     Tensor3 _dummyjac = xt::zeros<double>({1, 1, 1});
     Tensor4 _dummyhess = xt::zeros<double>({1, 1, 1, 1});
 
-    double* nodes_ptr = &(this->nodes(0, 0));
+    int nHalfPrds = this->nodes.size();
     int nSegments = this->segments.shape(0);
     int* segments_ptr = &(this->segments(0, 0));
     double* currents_ptr = &(this->currents(0));
@@ -44,45 +45,77 @@ void WireframeField<T, Array, IntArray>::compute(int derivatives) {
             field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
     }
 
+    // Store pointers to the nodes array for each half period (in nodes vector)
+    double* halfPrd_ptr[nHalfPrds];
+    double seg_signs[nHalfPrds];
+    for (int j = 0; j < nHalfPrds; ++j) {
+        halfPrd_ptr[j] = &(this->nodes[j](0, 0));
+        seg_signs[j] = this->seg_signs[j];
+    }
+
+    Array Bij = xt::zeros<double>({npoints, 3});
+    Array dBij = xt::zeros<double>({npoints, 3, 3});
+    Array ddBij = xt::zeros<double>({npoints, 3, 3, 3});
+
 #pragma omp parallel for
     for (int i = 0; i < nSegments; ++i) {
-        Array& Bi = field_cache.get_or_create(fmt::format("B_{}", i), {npoints, 3});
+
+        Array& Bi = field_cache.get_or_create(fmt::format("B_{}", i), 
+                                              {npoints, 3});
         set_array_to_zero(Bi);
+
+        if (derivatives > 0) {
+            Array& dBi = field_cache.get_or_create(fmt::format("dB_{}", i),
+                                                   {npoints, 3, 3});
+            set_array_to_zero(dBi);
+        }
+
         double current = currents[i];
         
         int ind0 = segments_ptr[2*i];
         int ind1 = segments_ptr[2*i + 1];
-        node0[0] = nodes_ptr[3*ind0];
-        node0[1] = nodes_ptr[3*ind0 + 1];
-        node0[2] = nodes_ptr[3*ind0 + 2];
-        node1[0] = nodes_ptr[3*ind1];
-        node1[1] = nodes_ptr[3*ind1 + 1];
-        node1[2] = nodes_ptr[3*ind1 + 2];
 
-        if(derivatives == 0){
-            wireframe_field_kernel<Array, 0>(pointsx, pointsy, pointsz, 
-                node0, node1, Bi, dummyjac, dummyhess);
-        } else {
+        for (int j = 0; j < nHalfPrds; j++) {
 
-            Array& dBi = field_cache.get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
-            set_array_to_zero(dBi);
-            if(derivatives == 1) {
-                wireframe_field_kernel<Array, 1>(pointsx, pointsy, pointsz, 
-                    node0, node1, Bi, dBi, dummyhess);
+            double* nodes_ptr = halfPrd_ptr[j];
+            node0[0] = nodes_ptr[3*ind0];
+            node0[1] = nodes_ptr[3*ind0 + 1];
+            node0[2] = nodes_ptr[3*ind0 + 2];
+            node1[0] = nodes_ptr[3*ind1];
+            node1[1] = nodes_ptr[3*ind1 + 1];
+            node1[2] = nodes_ptr[3*ind1 + 2];
+
+            if(derivatives == 0){
+                wireframe_field_kernel<Array, 0>(pointsx, pointsy, pointsz, 
+                    node0, node1, Bij, dummyjac, dummyhess);
+                Bi += seg_signs[j] * Bij;
+
             } else {
+    
+                if(derivatives == 1) {
+                    Array& dBi = field_cache.get_or_create(
+                                     fmt::format("dB_{}", i), {npoints, 3, 3});
+                    wireframe_field_kernel<Array, 1>(pointsx, pointsy, pointsz, 
+                        node0, node1, Bij, dBij, dummyhess);
+                    Bi += seg_signs[j] * Bij;
+                    dBi += seg_signs[j] * dBij;
 
-                throw logic_error("Derivatives of WireframeField not implemented");
-                /*
-                Array& ddBi = field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
-                set_array_to_zero(ddBi);
-                if (derivatives == 2) {
-                    biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi);
                 } else {
-                    throw logic_error("Only two derivatives of Biot Savart implemented");
+    
+                    throw logic_error("Second spatial derivatives not "
+                                      "implemented for WireframeField");
+                    /*
+                    Array& ddBi = field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
+                    //set_array_to_zero(ddBi);
+                    if (derivatives == 2) {
+                        biot_savart_kernel<Array, 2>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dBi, ddBi);
+                    } else {
+                        throw logic_error("Only two derivatives of Biot Savart implemented");
+                    }
+                    */
                 }
-                */
+    
             }
-
         }
     }
     for (int i = 0; i < nSegments; ++i) {
