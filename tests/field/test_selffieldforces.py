@@ -16,7 +16,7 @@ from simsopt.field.selffield import (
     rectangular_xsection_delta,
     regularization_circ,
 )
-from simsopt.field.force import self_force_circ, self_force_rect, ForceOpt
+from simsopt.field.force import self_force_circ, self_force_rect, MeanSquaredForceOpt
 
 logger = logging.getLogger(__name__)
 
@@ -209,30 +209,27 @@ class CoilForcesTest(unittest.TestCase):
         """Verify that dJ matches finite differences of J"""
         # The Fourier spectrum of the NCSX coils is truncated - we don't need the
         # actual coil shapes from the experiment, just a few nonzero dofs.
+
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
-
-        # The next line is needed temporarily because ForceOpt doesn't yet
-        # account for derivatives with respect to currents. This next line
-        # should be removed once that derivative is added.
+        coils = np.array([Coil(curve, current) for curve, current in zip(curves, currents)])
         [current.fix_all() for current in currents]
+        # coil_dofs = np.array([coil.x for coil in coils])
 
-        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-
-        J = ForceOpt(coils[0], coils[1:], regularization_circ(0.05))
-        coil_dofs = coils[0].x
-        h = np.ones_like(coil_dofs)
+        J = MeanSquaredForceOpt(coils, coils, regularization_circ(0.05))
         dJ = J.dJ()
-        deriv = np.sum(dJ * h)
+        deriv = np.sum(dJ * np.ones_like(J.x))
+        dofs = J.x
+        h = np.ones_like(dofs)
         err = 100
         for i in range(10, 19):
             eps = 0.5**i
-            coils[0].x = coil_dofs + eps * h
+            J.x = dofs + eps * h
             Jp = J.J()
-            coils[0].x = coil_dofs - eps * h
+            J.x = dofs - eps * h
             Jm = J.J()
             deriv_est = (Jp - Jm) / (2 * eps)
-            err_new = np.linalg.norm(deriv_est - deriv)
-            #print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
+            err_new = np.abs(deriv_est - deriv)
+            print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
             np.testing.assert_array_less(err_new, 0.3 * err)
             err = err_new
 

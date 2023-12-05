@@ -3,7 +3,8 @@
 """
 Example script for the force metric in a stage-two coil optimization
 """
-
+import time
+start_time = time.time()
 import os
 from pathlib import Path
 from scipy.optimize import minimize
@@ -14,17 +15,17 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.force import MaxForceOpt, LpForceOpt, MeanSquaredForceOpt
+from simsopt.field.force import MeanSquaredForceOpt
 from simsopt.field.selffield import regularization_circ
 
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." /
-            "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 # Directory for output
 OUT_DIR = "./output/"
+# OUT_DIR = "/Users/sienahurwitz/Documents/Academic/UMD/Plasma Physics Research/force research/Code/python simsopt stuff/output"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 ncoils = 4
@@ -79,10 +80,12 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-Jforce = MaxForceOpt(base_coils, coils, regularization_circ(0.05))
-# Jforce = MeanSquaredForceOpt(base_coils, coils, regularization_circ(0.05))
+# Jforce = MaxForceOpt(base_coils, coils, regularization_circ(0.05))
+Jforce = MeanSquaredForceOpt(base_coils, coils, regularization_circ(0.05))
 # Jforce = LpForceOpt(base_coils, coils, regularization_circ(0.05), 2)
 
+
+# base_currents[0].unfix_all()
 JF = Jf + Jforce * FORCE_WEIGHT
 
 MAXITER = 10
@@ -103,7 +106,7 @@ curves_to_vtk(base_curves, OUT_DIR + f"curves_opt_{config_str}")
 dofs = res.x
 print("Beginning optimization with force objective")
 # FORCE_WEIGHT += 5*1e-9
-FORCE_WEIGHT += 5*1e-9
+FORCE_WEIGHT += 5*1e9
 JF = Jf + Jforce * FORCE_WEIGHT
 print(FORCE_WEIGHT)
 
@@ -116,3 +119,8 @@ pointData = {"B_N": np.sum(bs.B().reshape(
     (nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]/np.linalg.norm(bs.B().reshape(
         (nphi, ntheta, 3)), axis=2)}
 s.to_vtk(OUT_DIR + f"surf_opt_{config_str}", extra_data=pointData)
+
+end_time = time.time()
+elapsed_time = end_time - start_time
+
+print(elapsed_time)

@@ -2,117 +2,168 @@
 import math
 from scipy import constants
 import numpy as np
+import jax
 import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
 from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
-from ..geo.jit import jit
+# from ..geo.jit import jit
+from jax import jit #replace above
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
+from functools import partial
+from scipy.linalg import block_diag
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
-
 def coil_force_pure(B, I, t):
     """force on coil for optimization"""
-    force = jnp.cross(I * t, B)
-    return force
-
+    return jnp.cross(I * t, B)
 
 def self_force(coil, regularization):
     """
     Compute the self-force of a coil.
     """
     I = coil.current.get_value()
-    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(), axis=1)[:, None]
+    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(),axis=1)[:, None]
     B = B_regularized(coil, regularization)
     return coil_force_pure(B, I, tangent)
-
 
 def self_force_circ(coil, a):
     """Compute the Lorentz self-force of a coil with circular cross-section"""
     return self_force(coil, regularization_circ(a))
 
-
 def self_force_rect(coil, a, b):
     """Compute the Lorentz self-force of a coil with rectangular cross-section"""
     return self_force(coil, regularization_rect(a, b))
 
-
 @jit
-def force_opt_pure(gamma, gammadash, gammadashdash,
-                   current, phi, B_ext, regularization):
-    """Cost function for force optimization. Optimize for peak self force on the coil (so far)"""
+def selfforce_opt_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
+    """..."""
+    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
     tangent = gammadash / jnp.linalg.norm(gammadash, axis=1)[:, None]
-    B_self = B_regularized_pure(
-        gamma, gammadash, gammadashdash, phi, current, regularization)
-    B_tot = B_self + B_ext
-    force = coil_force_pure(B_tot, current, tangent)
-    f_norm = jnp.linalg.norm(force, axis=1)
-    result = jnp.max(f_norm)
-    return result
+    return coil_force_pure(B_self, current, tangent)
 
+class MeanSquaredForceOpt(Optimizable):
+    """Optimizable class to optimize forces on coils"""
+    def __init__(self, basecoils, allcoils, regularization):
+        self.basecoils = np.array(basecoils)
+        self.allcoils = np.array(allcoils)
 
-class ForceOpt(Optimizable):
-    """Optimizable class to optimize forces on a coil"""
+        @partial(jit, static_argnums=5)
+        def grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, deriv_pos):
+            gradients = jnp.empty((quadpoints.size, 3, 3))
+            for j in range(quadpoints.size):
+                gammaj = gamma[j].reshape((1, 3))
+                gammadashj = gammadash[j].reshape((1, 3))
+                gammadashdashj = gammadashdash[j].reshape((1, 3))
+                quadpointsj = jnp.array([quadpoints[j]])
+                if deriv_pos == 0:
+                    grad = jax.jacfwd(lambda g: selfforce_opt_pure(g, gammadashj, gammadashdashj, quadpointsj, current,
+                                                                   regularization).reshape(3))(gammaj)
+                elif deriv_pos == 1:
+                    grad = jax.jacfwd(lambda g: selfforce_opt_pure(gammaj, g, gammadashdashj, quadpointsj, current,
+                                                                   regularization).reshape(3))(gammadashj)
+                elif deriv_pos == 2:
+                    grad = jax.jacfwd(lambda g: selfforce_opt_pure(gammaj, gammadashj, g, quadpointsj, current,
+                                                                   regularization).reshape(3))(gammadashdashj)
+                else:
+                    raise ValueError('deriv_pos must be an integer between 0 and 2')
+                gradients = gradients.at[j, :, :].set(grad[:, 0, :])
+            return gradients
 
-    def __init__(self, coil, coils, regularization):
-        self.coil = coil
-        self.coils = coils
-        self.regularization = regularization
-        self.B_ext = BiotSavart(coils).set_points(self.coil.curve.gamma()).B()
-        self.J_jax = jit(
-            lambda gamma, gammadash, gammadashdash, current, phi, B_ext: 
-            force_opt_pure(gamma, gammadash, gammadashdash, current, phi, B_ext, regularization)
+        self.selfforce_jax = jit(
+            lambda gamma, gammadash, gammadashdash, current, quadpoints:
+            selfforce_opt_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
         )
 
-        self.thisgrad0 = jit(
-            lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
-            grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, current, phi, B_ext)
-        )
-        self.thisgrad1 = jit(
-            lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
-            grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, current, phi, B_ext)
-        )
-        self.thisgrad2 = jit(
-            lambda gamma, gammadash, gammadashdash, current, phi, B_ext:
-            grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, current, phi, B_ext)
+        self.dselfforce_dgamma = jit(
+            lambda gamma, gammadash, gammadashdash, current, quadpoints:
+            grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, 0)
         )
 
-        super().__init__(depends_on=[coil])
-        # The version in the next line is needed
-        #eventually to get derivatives with respect to the other source coils:
-        #super().__init__(depends_on=[coil] + coils)
+        self.dselfforce_dgammadash = jit(
+            lambda gamma, gammadash, gammadashdash, current, quadpoints:
+            grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, 1)
+        )
+
+        self.dselfforce_dgammadashdash = jit(
+            lambda gamma, gammadash, gammadashdash, current, quadpoints:
+            grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, 2)
+        )
+
+        super().__init__(depends_on=basecoils)
 
     def J(self):
-        gamma = self.coil.curve.gamma()
-        d1gamma = self.coil.curve.gammadash()
-        d2gamma = self.coil.curve.gammadashdash()
-        current = self.coil.current.get_value()
-        phi = self.coil.curve.quadpoints
-        B_ext = self.B_ext
-        return self.J_jax(gamma, d1gamma, d2gamma, current, phi, B_ext)
+        J = 0
+        for i in range(self.basecoils.size):
+            coil = self.basecoils[i]
+            current = coil.current.get_value()
+            gamma = coil.curve.gamma()
+            gammadash = coil.curve.gammadash()
+            gammadashdash = coil.curve.gammadashdash()
+            gammadash_norm = jnp.linalg.norm(gammadash,axis=1)
+            tangent = gammadash / gammadash_norm[:, None]
+            quadpoints = coil.curve.quadpoints
+
+            B_mutual = BiotSavart(np.delete(self.allcoils, np.where(self.allcoils == coil)[0][0])).set_points(gamma).B()
+            forces_mutual = coil_force_pure(B_mutual, current, tangent)
+            forces_self = self.selfforce_jax(gamma, gammadash, gammadashdash, current, quadpoints)
+            forces_total = forces_mutual + forces_self
+            forces_norm = np.einsum('ij,ij->i', forces_total, forces_total)
+
+            J += np.sum(forces_norm * gammadash_norm) / np.sum(gammadash_norm)
+        return J
 
     @derivative_dec
     def dJ(self):
-        gamma = self.coil.curve.gamma()
-        d1gamma = self.coil.curve.gammadash()
-        d2gamma = self.coil.curve.gammadashdash()
-        current = self.coil.current.get_value()
-        phi = self.coil.curve.quadpoints
-        B_ext = self.B_ext
+        dJ = 0
+        for i in range(self.basecoils.size):
+            coil = self.basecoils[i]
+            current = coil.current.get_value()
+            gamma = coil.curve.gamma()
+            gammadash = coil.curve.gammadash()
+            gammadashdash = coil.curve.gammadashdash()
+            gammadash_norm = jnp.linalg.norm(gammadash,axis=1)
+            tangent = gammadash / gammadash_norm[:, None]
+            quadpoints = coil.curve.quadpoints
 
-        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma,
-                               current, phi, B_ext)
-        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma,
-                               current, phi, B_ext)
-        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma,
-                               current, phi, B_ext)
+            #Finding the forces, the mutual magnetic field, and derivatives of the self-force
+            biotsavart = BiotSavart(np.delete(self.allcoils, np.where(self.allcoils == coil)[0][0]))
+            B_mutual = biotsavart.set_points(gamma).B()
+            forces_mutual = coil_force_pure(B_mutual, current, tangent)
+            forces_self = self.selfforce_jax(gamma, gammadash, gammadashdash, current, quadpoints)
+            forces_total = forces_mutual + forces_self
+            
+            dselfforce_dgamma = self.dselfforce_dgamma(gamma, gammadash, gammadashdash, current, quadpoints)
+            dselfforce_dgammadash = self.dselfforce_dgammadash(gamma, gammadash, gammadashdash, current, quadpoints)
+            dselfforce_dgammadashdash = self.dselfforce_dgammadashdash(gamma, gammadash, gammadashdash, current, quadpoints)
 
-        return (
-            self.coil.curve.dgamma_by_dcoeff_vjp(grad0)
-            + self.coil.curve.dgammadash_by_dcoeff_vjp(grad1)
-            + self.coil.curve.dgammadashdash_by_dcoeff_vjp(grad2)
-        )
+            #Calculating dJ with VJPs...
+            prefactor = (np.sum(gammadash_norm)) ** (-1)
+
+            vec = prefactor * 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgamma)
+            dJ += coil.curve.dgamma_by_dcoeff_vjp(vec)
+
+            vec = 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgammadash)
+            vec += np.einsum('ij,ij,ik->ik', forces_total, forces_total, tangent)
+            vec += 2 * current * np.cross(B_mutual, forces_total)
+            vec += -2 * current * np.einsum('ij,ij,ik->ik', tangent, np.cross(B_mutual, forces_total), tangent)
+            vec *= prefactor
+            dJ += coil.curve.dgammadash_by_dcoeff_vjp(vec)
+
+            vec = prefactor * 2 * np.einsum('i,ij,ijk->ik', gammadash_norm, forces_total, dselfforce_dgammadashdash)
+            dJ += coil.curve.dgammadashdash_by_dcoeff_vjp(vec)
+
+            vec = prefactor * 2 * current * np.einsum('i,ij->ij', gammadash_norm, np.cross(forces_total, tangent))
+            dJ += biotsavart.B_vjp(vec)
+
+            vec = np.array([np.sum(prefactor * 2 * np.einsum('i,ij,ij->i', gammadash_norm, forces_total, forces_total) / current)])
+            dJ += coil.current.vjp(vec)
+
+            prefactor = (np.sum(np.einsum('ij,ij,i->i', forces_total, forces_total, gammadash_norm))
+                         / np.sum(gammadash_norm)) ** 2
+            dJ += coil.curve.dgammadash_by_dcoeff_vjp(prefactor * tangent)
+        return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
