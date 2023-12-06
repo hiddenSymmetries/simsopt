@@ -17,6 +17,8 @@ from scipy.linalg import block_diag
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
 def coil_force_pure(B, I, t):
+    print(B)
+    print("h")
     """force on coil for optimization"""
     return jnp.cross(I * t, B)
 
@@ -141,11 +143,11 @@ class MeanSquaredForceOpt(Optimizable):
 
             #Calculating dJ with VJPs...
             prefactor = (np.sum(gammadash_norm)) ** (-1)
-
             vec = prefactor * 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgamma)
             dJ += coil.curve.dgamma_by_dcoeff_vjp(vec)
 
-            vec = 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgammadash)
+            vec = 0
+            vec += 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgammadash)
             vec += np.einsum('ij,ij,ik->ik', forces_total, forces_total, tangent)
             vec += 2 * current * np.cross(B_mutual, forces_total)
             vec += -2 * current * np.einsum('ij,ij,ik->ik', tangent, np.cross(B_mutual, forces_total), tangent)
@@ -162,7 +164,7 @@ class MeanSquaredForceOpt(Optimizable):
             dJ += coil.current.vjp(vec)
 
             prefactor = (np.sum(np.einsum('ij,ij,i->i', forces_total, forces_total, gammadash_norm))
-                         / np.sum(gammadash_norm)) ** 2
+                         / (np.sum(gammadash_norm) ** 2))
             dJ += coil.curve.dgammadash_by_dcoeff_vjp(prefactor * tangent)
         return dJ
 
