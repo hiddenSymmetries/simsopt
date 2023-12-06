@@ -4,7 +4,6 @@
 Example script for the force metric in a stage-two coil optimization
 """
 import time
-start_time = time.time()
 import os
 from pathlib import Path
 from scipy.optimize import minimize
@@ -119,8 +118,3 @@ pointData = {"B_N": np.sum(bs.B().reshape(
     (nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]/np.linalg.norm(bs.B().reshape(
         (nphi, ntheta, 3)), axis=2)}
 s.to_vtk(OUT_DIR + f"surf_opt_{config_str}", extra_data=pointData)
-
-end_time = time.time()
-elapsed_time = end_time - start_time
-
-print(elapsed_time)
