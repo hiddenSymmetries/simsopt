@@ -75,6 +75,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
+        self.nfp = nfp
         if dofs is None:
             Surface.__init__(self, x0=self.get_dofs(),
                              external_dof_setter=SurfaceRZFourier.set_dofs_impl,
@@ -550,6 +551,82 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
         self.local_full_x = self.get_dofs()
+
+    def dgammadphi(self):
+        """
+        Return dgamma/dphi
+        """
+        theta = self.quadpoints_theta*2*np.pi
+        phi = self.quadpoints_phi*2*np.pi
+        cosa = np.zeros((phi.size, theta.size, self.mpol+1, 2*self.ntor+1))
+        sina = np.zeros((phi.size, theta.size, self.mpol+1, 2*self.ntor+1))
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm==0 and nn<0:
+                    continue
+                cosa[:,:,mm,nn+self.ntor] = np.cos(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+                sina[:,:,mm,nn+self.ntor] = np.sin(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+        
+        R = np.einsum('mn,tpmn->tp', self.rc, cosa) + np.einsum('mn,tpmn->tp', self.rs, sina)
+        dRdphi = self.nfp*np.einsum('mn,n,tpmn->tp', self.rc, np.arange(-self.ntor,self.ntor+1), sina) - self.nfp*np.einsum('mn,n,tpmn->tp', self.rs, np.arange(-self.ntor,self.ntor+1), cosa)
+        dZdphi = self.nfp*np.einsum('mn,n,tpmn->tp', self.zc, np.arange(-self.ntor,self.ntor+1), sina) - self.nfp*np.einsum('mn,n,tpmn->tp', self.zs, np.arange(-self.ntor,self.ntor+1), cosa)
+
+        xx = np.einsum('pt,p->pt', dRdphi, np.cos(phi)) - np.einsum('pt,p->pt', R, np.sin(phi))
+
+        return np.stack([
+            dRdphi*np.cos(phi[:,None])-R*np.sin(phi[:,None]), 
+            dRdphi*np.sin(phi[:,None])+R*np.cos(phi[:,None]), 
+            dZdphi], axis=-1
+            )
+    
+    def dgammadtheta(self):
+        """
+        Return dgamma/dtheta
+        """
+        theta = self.quadpoints_theta*2*np.pi
+        phi = self.quadpoints_phi*2*np.pi
+        cosa = np.zeros((phi.size, theta.size, self.mpol+1, 2*self.ntor+1))
+        sina = np.zeros((phi.size, theta.size, self.mpol+1, 2*self.ntor+1))
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm==0 and nn<0:
+                    continue
+                cosa[:,:,mm,nn+self.ntor] = np.cos(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+                sina[:,:,mm,nn+self.ntor] = np.sin(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+        
+        dRdtheta = -np.einsum('mn,m,tpmn->tp', self.rc, np.arange(0,self.mpol+1), sina) + np.einsum('mn,m,tpmn->tp', self.rs, np.arange(0,self.mpol+1), cosa)
+        dZdtheta = -np.einsum('mn,m,tpmn->tp', self.zc, np.arange(0,self.mpol+1), sina) + np.einsum('mn,m,tpmn->tp', self.zs, np.arange(0,self.mpol+1), cosa)
+
+        return np.stack([
+            dRdtheta*np.cos(phi[:,None]), dRdtheta*np.sin(phi[:,None]), dZdtheta], axis=-1
+            )
+    
+
+    def test_gamma(self): 
+        theta = self.quadpoints_theta*2*np.pi
+        phi = self.quadpoints_phi*2*np.pi
+        cosa = np.zeros((phi.size, theta.size, self.mpol+1, 2*self.ntor+1))
+        sina = np.zeros((phi.size, theta.size, self.mpol+1, 2*self.ntor+1))
+        # R = np.zeros((phi.size, theta.size))
+        # Z = np.zeros((phi.size, theta.size))
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm==0 and nn<0:
+                    continue
+                cosa[:,:,mm,nn+self.ntor] = np.cos(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+                sina[:,:,mm,nn+self.ntor] = np.sin(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+                # cosa = np.cos(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+                # sina = np.sin(mm*theta[None,:]-nn*self.nfp*phi[:,None])
+                # R += self.get_rc(mm,nn) * cosa #+ self.get_rs(mm,nn) * sina
+                # Z += self.get_zs(mm,nn) * sina #+ self.get_zc(mm,nn) * cosa
+        
+        R = np.einsum('mn,tpmn->tp', self.rc, cosa) + np.einsum('mn,tpmn->tp', self.rs, sina)
+        Z = np.einsum('mn,tpmn->tp', self.zc, cosa) + np.einsum('mn,tpmn->tp', self.zs, sina)
+
+        return R, Z
+
+
+
 
     def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
         """
