@@ -4,7 +4,7 @@ from .._core.util import ObjectiveFailure
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
-from jax.lax import cond
+from jax.lax import dynamic_slice
 
 from .jit import jit
 from .._core.optimizable import Optimizable
@@ -104,8 +104,8 @@ class LpCurveCurvature(Optimizable):
 
 
 def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot):
-    p =10
-    hv = logistic
+    p = 4
+    hv = lambda x: logistic(x, k=4)
     min = lambda x: np.sum(x**(-p))**(-1./p)
     max = lambda x: np.sum(x**( p))**( 1./p)
 
@@ -119,13 +119,14 @@ def coil_normal_distance(gamma_curves, gamma_surf, unit_normal, unit_tangent, ph
     largest of these minimum radii.
 
     """
-    nphi = phi_ind.size
-    ntheta = theta_ind.size
-    port_sizes = jnp.zeros((nphi*ntheta,))
-    for counter, (ii, jj) in enumerate(zip(theta_ind,phi_ind)):
-        itheta = int(ii)
-        iphi = int(jj)
-        min_dist = find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal[iphi,itheta], unit_tangent[iphi,itheta], hv, max_sizes[iphi,itheta], ftop[iphi,itheta], fbot[iphi,itheta], min)
+    nn = phi_ind.size
+    port_sizes = jnp.zeros((nn,))
+
+    for counter, (itheta, iphi) in enumerate(zip(theta_ind,phi_ind)):
+        upper_envelop = lambda x: jnp.polyval(ftop[iphi,itheta], x)
+        lower_envelop = lambda x: jnp.polyval(fbot[iphi,itheta], x)
+
+        min_dist = find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal[iphi,itheta], unit_tangent[iphi,itheta], hv, max_sizes[iphi,itheta], upper_envelop, lower_envelop, min)
 
         port_sizes = port_sizes.at[counter].set(min_dist)
 
@@ -162,61 +163,51 @@ def find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal, unit_tan
     M = jnp.array([unit_normal,unit_tangent,bnorm]).transpose()
     invM = jnp.linalg.inv(M)
     def project(x):
-        return np.einsum('ij,...j->...i',invM,x-xsurf[...,:])
+        return jnp.einsum('ij,...j->...i',invM,x-xsurf[...,:])
 
     nphi, _, _ = gamma_surf.shape
     nphi = int(nphi/3)
     phi_start = iphi-int(nphi/2)
     phi_end = iphi+int(nphi/2)+1
-    gamma_surf = gamma_surf[phi_start:phi_end,:,:]
+    gamma_surf = gamma_surf[phi_start:phi_end]
 
     gamma_coil_proj = project(gamma_curves)
     ncurves, npts, _ = gamma_curves.shape
 
 
-    distances = np.zeros((1+ncurves*npts,))
-    distances[0] = max_size
+    distances = jnp.zeros((1+ncurves*npts,))
+    distances = distances.at[0].set( max_size )
     counter = 1
-    for icurve in range(ncurves):
-        x = gamma_coil_proj[icurve].reshape((-1,3))
+    
+    # Consider all curve pts
+    x = gamma_coil_proj.reshape((-1,3))
 
-        for ipts in range(npts):
-            new_point = x[ipts]
-            # Evaluate the upper and lowert envelop for this toroidal plane            
-            #phi = np.arctan2(gamma_surf[iphi-phi_start,itheta,1], gamma_surf[iphi-phi_start,itheta,0])
-            tn = ftop(new_point[1])
-            bn = fbot(new_point[1])
+    # Evaluate the upper and lower envelop for this toroidal plane            
+    tn = ftop(x[:,1])
+    bn = fbot(x[:,1])
 
-            # Read coordinate of the point and of the upper and lower envelop in the (n,t,b) coordinate system
-            cn=new_point[0]
-            ct=new_point[1]
-            cb=new_point[2]
-            # bn = xyzbot_proj[0]
-            # tn = xyztop_proj[0]
-            dd = ct**2 + cb**2
+    # Read coordinate of the point and of the upper and lower envelop in the (n,t,b) coordinate system
+    dd = x[:,1]**2 + x[:,2]**2
 
-            # All logical tests are replaced by an approximated Heaviside function to make the port size evaluation differentiable. 
-            # here hv(max_size-dd) checks that the point is not further than the maximum port size, hv(-cb)*hv(cn-bn) checks if the point is in front of the surface, and below the point xsurf, and hv(cb)*hv(cn-tn) checks if the point is in front of the surface, and above the point xsurf
-            # test is 1 only if the point is closer than max_size, and if the point is in front of the surface.
-            test = hv(max_size-dd) * (hv(-cb)*hv(cn-bn)+hv(cb)*hv(cn-tn))
+    # All logical tests are replaced by an approximated Heaviside function to make the port size evaluation differentiable. 
+    # here hv(max_size-dd) checks that the point is not further than the maximum port size, hv(-cb)*hv(cn-bn) checks if the point is in front of the surface, and below the point xsurf, and hv(cb)*hv(cn-tn) checks if the point is in front of the surface, and above the point xsurf
+    # test is 1 only if the point is closer than max_size, and if the point is in front of the surface.
+    test = hv(max_size-dd) * (hv(-x[:,2])*hv(x[:,0]-bn)+hv(x[:,2])*hv(x[:,0]-tn))
 
-            # we shift test and multiply it by a large number, so that if the point does not satisfy test, we associate to it a large distance
-            distances[counter] = (-1e9*(test-1) +1) * dd
-
-            counter += 1
+    # we shift test and multiply it by a large number, so that if the point does not satisfy test, we associate to it a large distance
+    distances = distances.at[1:].set( (-1e2*(test-1) +1) * dd )
+    counter += 1
 
     # p-norm to approximate minimum. p should be a parameter?
-    return np.sqrt(min(distances))
+    return jnp.sqrt(min(distances))
 
 def heaviside(x):
     """Just the regular Heaviside function
     """
-    if x>0:
-        return 1.
-    elif x==0:
-       return 0.5
-    else:
-        return 0
+    f = jnp.zeros(x.shape)
+    f = f.at[jnp.where(x>0)].set(1.0)
+    f = f.at[jnp.where(x==0)].set(0.5) 
+    return f
 
     
 def logistic(x, k=10):
@@ -229,7 +220,7 @@ def logistic(x, k=10):
     Output:
         - y: np.array of the same shape as x.
     """
-    return 0.5 + 0.5*np.tanh(k*x)
+    return 0.5 + 0.5*jnp.tanh(k*x)
 
 class PortSize(Optimizable):
     r"""
@@ -294,15 +285,12 @@ class PortSize(Optimizable):
         # For each point x=(phi,theta) on the surface, the maximal port size is defined as the max radius of a circle centered at x that fits within the surface projected on the plane tangent to the surface at x
         # Furthermore, to evaluate whether a coil is in front, above, behind, or below the surface, we need to fit the upper and lower "envelop" of the prohected surface
         self.max_port_size = np.zeros((3*nphi,ntheta))
-        deg = 5 # Degree of polynomial fit --- Should use Fourier series instead?
+        deg = 5 # Degree of polynomial fit
         # self.bot_fits = np.zeros((3*nphi,ntheta,3,deg+1)) # upper envelop fit
         # self.top_fits = np.zeros((3*nphi,ntheta,3,deg+1)) # lower envelop fit
-        tmp = lambda x: x
-        self.bot_fits = np.empty((3*nphi,ntheta), dtype=type(tmp))
-        self.top_fits = np.empty((3*nphi,ntheta), dtype=type(tmp))
-        for ii, jj in zip(self.phi_ind, self.theta_ind):
-            iphi = int(ii)
-            itheta = int(jj)
+        self.bot_fits = np.zeros((3*nphi,ntheta,deg+1))
+        self.top_fits = np.zeros((3*nphi,ntheta,deg+1))
+        for iphi, itheta in zip(self.phi_ind, self.theta_ind):
             # Construct coordinate system with normal, and tangent vectors. 
             bnorm = jnp.cross(self.unit_normal[iphi,itheta], self.unit_tangent[iphi,itheta])
             
@@ -333,8 +321,10 @@ class PortSize(Optimizable):
             self.max_port_size[iphi,itheta] = np.min(tt[:,1]**2 + tt[:,2]**2)
 
             # Interpolate lower and upper envelop - this is a linear interpolation, does it keep the C1 property? I don't think so. Smooth interpolation would be better
-            self.bot_fits[iphi,itheta] = lambda x: np.interp(x, xyzbot[:,1], xyzbot[:,2] )
-            self.top_fits[iphi,itheta] = lambda x: np.interp(x, xyztop[:,1], xyztop[:,2] )
+            #self.bot_fits[iphi,itheta] = lambda x: np.interp(x, xyzbot[:,1], xyzbot[:,2] )
+            #self.top_fits[iphi,itheta] = lambda x: np.interp(x, xyztop[:,1], xyztop[:,2] )
+            self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,2], deg)
+            self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,2], deg)
 
 
     def J(self):
@@ -346,7 +336,7 @@ class PortSize(Optimizable):
     def dJ(self):
         gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
 
-        grad0 = self.thisgrad0(gamma_curves, self.gamma_boundary, self.unit_normal, self.unit_tangent, self.phi_ind, self.theta_ind)
+        grad0 = self.thisgrad0(gamma_curves, self.gamma_boundary, self.unit_normal, self.unit_tangent, self.phi_ind, self.theta_ind, self.max_port_size, self.top_fits, self.bot_fits)
         #grad1 = self.thisgrad1(gamma_curves, gamma_boundary, unit_normal)
         #grad2 = self.thisgrad2(gamma_curves, gamma_boundary, unit_normal)
 
@@ -389,20 +379,12 @@ class PortSize(Optimizable):
         ftop = self.top_fits[iphi,itheta]
         fbot = self.bot_fits[iphi,itheta]
 
-        # def upper_envelop(phi):
-        #     return np.array([np.polyval(ftop[0], phi), 
-        #                      np.polyval(ftop[1], phi),
-        #                      np.polyval(ftop[2], phi)
-        #                      ])
-        # def lower_envelop(phi):
-        #     return np.array([np.polyval(fbot[0], phi), 
-        #                      np.polyval(fbot[1], phi),
-        #                      np.polyval(fbot[2], phi)
-        #                      ])
+        lower_envelop = lambda x: np.polyval(fbot, x)
+        upper_envelop = lambda x: np.polyval(ftop, x)
 
         min = lambda x: np.sum(x**(-10))**(-1./10)
 
-        return find_port_size(gamma_curves, gamma_boundary, iphi, itheta, unit_normal, unit_tangent, heaviside, msize, ftop, fbot, np.min)
+        return find_port_size(gamma_curves, gamma_boundary, iphi, itheta, unit_normal, unit_tangent, heaviside, msize, upper_envelop, lower_envelop, np.min)
          
 
 
