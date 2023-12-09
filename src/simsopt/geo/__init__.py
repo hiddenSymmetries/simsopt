@@ -8,6 +8,7 @@ from .curverzfourier import *
 from .curvexyzfourier import *
 from .curveperturbed import *
 from .curveobjectives import *
+from .curveplanarfourier import *
 from .framedcurve import *
 from .finitebuild import *
 from .plotting import *
@@ -28,6 +29,7 @@ from .permanent_magnet_grid import *
 __all__ = (curve.__all__ + curvehelical.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
            curveperturbed.__all__ + curveobjectives.__all__ +
+           curveplanarfourier.__all__ +
            finitebuild.__all__ + plotting.__all__ +
            boozersurface.__all__ + qfmsurface.__all__ +
            surface.__all__ +
