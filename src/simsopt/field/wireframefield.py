@@ -1,7 +1,13 @@
 import numpy as np
+import scipy as sp
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.curvexyzfourier import CurveXYZFourier
+
+mu0 = 4.0*np.pi*1e-7
+
+__all__ = ['WireframeField', 'enclosed_current']
 
 class WireframeField(sopp.WireframeField, MagneticField):
     """
@@ -77,3 +83,66 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
         return matrix
         
+def enclosed_current(curve, field, n_quadpoints, preserve_points=True):
+    """
+    Calculates the integral of a vector field along a curve in 3D space.
+    Useful for tests to verify consistency of wireframe solutions with their
+    constraints.
+
+    Parameters
+    ----------
+        curve: CurveXYZFourier class instance
+            Curve along which the integral is to be taken. The more quadrature
+            points the curve has, the greater precision the result will have.
+        field: MagneticField class instance
+            Magnetic field in which the curve is integrated.
+        n_quadpoints: integer
+            Number of quadrature points for the integral.
+        preserve_points: boolean
+            If true, the existing field points of `field` will be restored 
+            before the function returns. If false, the field points will be
+            changed to the quadrature points for integration. Default is true. 
+            Setting to false may save time.
+
+    Returns
+    -------
+        integral: double
+            Integral of the magnetic field along the curve.
+    """
+
+    if not isinstance(curve, CurveXYZFourier):
+        raise ValueError('curve must be an instance of the ' \
+                         + 'CurveXYZFourier class')
+
+    if not isinstance(field, MagneticField):
+        raise ValueError('field must be an instance of the MagneticField class')
+
+    # Make a copy of the input Curve
+    _curve = CurveXYZFourier(np.linspace(0, 1, n_quadpoints), curve.order, \
+                             dofs=curve.dofs)
+
+    # Obtain the field vectors along the curve
+    if preserve_points:
+        original_field_points = field.get_points_cart_ref()
+
+    # Set the field points equal to the curve's quadrature points
+    field.set_points(_curve.gamma())
+    field_on_curve = field.B()
+
+    if preserve_points:
+        field.set_points(original_field_points)
+
+    abs_tangent = np.linalg.norm(_curve.gammadash(), axis=1).reshape((-1,1))
+    unit_tangent = _curve.gammadash()/abs_tangent
+
+    # Find the projection of the field onto the curve tangent vector
+    B_dot_unit_tangent = np.sum(field_on_curve*unit_tangent, axis=1)
+
+    # Estimate the cumulative arc length
+    inc_arc = _curve.incremental_arclength()
+    midpoint_inc_arc = 0.5*(inc_arc[:-1] + inc_arc[1:])
+    delta_arclength = np.diff(_curve.quadpoints)*midpoint_inc_arc
+    arclength = np.concatenate(([0], np.cumsum(delta_arclength)))
+    
+    return sp.integrate.simpson(B_dot_unit_tangent, arclength)/mu0
+

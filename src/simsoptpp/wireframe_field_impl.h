@@ -177,7 +177,7 @@ void wireframe_field_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
 #else
 
 template<class T, int derivs>
-void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,
+void wireframe_field_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, AlignedPaddedVec& pointsz,
             std::vector<double>& node0, std::vector<double>& node1, 
             T& B, T& dB_by_dX, T& d2B_by_dXdX) {
 

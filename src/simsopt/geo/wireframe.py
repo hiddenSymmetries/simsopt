@@ -5,8 +5,10 @@ Definitions for the ToroidalWireframe class
 """
 
 import numpy as np
-import warnings
+import collections
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+
+__all__ = ['ToroidalWireframe']
 
 class ToroidalWireframe(object):
     """
@@ -42,13 +44,10 @@ class ToroidalWireframe(object):
         if not isinstance(nTheta, int) or not isinstance(nPhi, int):
             raise ValueError('nTheta and nPhi must be integers')
 
-        if nTheta % 2:
-            nTheta = nTheta + 1
-            warnings.warn('nTheta must be even. Increasing to %d' % (nTheta))
-
-        if nPhi % 2:
-            nPhi = nPhi + 1
-            warnings.warn('nPhi must be even. Increasing to %d' % (nPhi))
+        if nTheta % 2 or nPhi % 2:
+            raise ValueError('nPhi and nTheta must be even.')
+        self.nTheta = nTheta 
+        self.nPhi = nPhi
 
         # Make copy of surface with quadrature points according to nTheta, nPhi
         qpoints_phi = list(np.linspace(0, 0.5/surface.nfp, nPhi+1))
@@ -67,7 +66,7 @@ class ToroidalWireframe(object):
         nodes_hp[:, 0] = nodes_surf[:, :, 0].reshape((-1))
         nodes_hp[:, 1] = nodes_surf[:, :, 1].reshape((-1))
         nodes_hp[:, 2] = nodes_surf[:, :, 2].reshape((-1))
-        node_inds = np.arange(self.nNodes).reshape(nodes_surf.shape[:2])
+        self.node_inds = np.arange(self.nNodes).reshape(nodes_surf.shape[:2])
 
         # Generate list of sets of nodes for each half period
         self.nodes = [[]]*self.nfp*2
@@ -109,8 +108,8 @@ class ToroidalWireframe(object):
 
         # Toroidal segments 
         segments_tor = np.zeros((self.nTorSegments, 2))
-        segments_tor[:,0] = node_inds[:-1, :].reshape((self.nTorSegments))
-        segments_tor[:,1] = node_inds[1:,  :].reshape((self.nTorSegments))
+        segments_tor[:,0] = self.node_inds[:-1, :].reshape((self.nTorSegments))
+        segments_tor[:,1] = self.node_inds[1:,  :].reshape((self.nTorSegments))
 
         # Map nodes to index in the segment array of segment originating 
         # from the respective node
@@ -123,19 +122,19 @@ class ToroidalWireframe(object):
         self.polSegmentKey = -np.ones(nodes_surf.shape[:2]).astype(np.int64)
         HalfNTheta = int(nTheta/2)
 
-        segments_pol[:HalfNTheta, 0] = node_inds[0, :HalfNTheta]
-        segments_pol[:HalfNTheta, 1] = node_inds[0, 1:HalfNTheta+1]
+        segments_pol[:HalfNTheta, 0] = self.node_inds[0, :HalfNTheta]
+        segments_pol[:HalfNTheta, 1] = self.node_inds[0, 1:HalfNTheta+1]
         self.polSegmentKey[0, :HalfNTheta] = np.arange(HalfNTheta) + self.nTorSegments
         for i in range(1, nPhi):
             polInd0 = HalfNTheta + (i-1)*nTheta
             polInd1 = polInd0 + nTheta
-            segments_pol[polInd0:polInd1, 0] = node_inds[i, :]
-            segments_pol[polInd0:polInd1-1, 1] = node_inds[i, 1:]
-            segments_pol[polInd1-1, 1] = node_inds[i, 0]
+            segments_pol[polInd0:polInd1, 0] = self.node_inds[i, :]
+            segments_pol[polInd0:polInd1-1, 1] = self.node_inds[i, 1:]
+            segments_pol[polInd1-1, 1] = self.node_inds[i, 0]
             self.polSegmentKey[i, :] = np.arange(polInd0, polInd1) + self.nTorSegments
 
-        segments_pol[-HalfNTheta:, 0] = node_inds[-1, :HalfNTheta]
-        segments_pol[-HalfNTheta:, 1] = node_inds[-1, 1:HalfNTheta+1]
+        segments_pol[-HalfNTheta:, 0] = self.node_inds[-1, :HalfNTheta]
+        segments_pol[-HalfNTheta:, 1] = self.node_inds[-1, 1:HalfNTheta+1]
         self.polSegmentKey[-1, :HalfNTheta] = \
             np.arange(self.nPolSegments-HalfNTheta, self.nPolSegments) + self.nTorSegments
 
@@ -148,52 +147,431 @@ class ToroidalWireframe(object):
         # Initialize currents to zero
         self.currents = np.ascontiguousarray(np.zeros((self.nSegments)))
 
-        # Define constraints to enforce current continuity
-        # Constraint equations have the form B*x = d, where:
-        #   x is the array of currents in each segment
-        #   B is a matrix of coefficients of the currents in each equation
-        #   d is an array of constant terms on the RHS of each equation
+        #self.nConstraints = self.nTorSegments - 2
 
-        self.nConstraints = self.nTorSegments - 2
-        self.constraints_B = \
-            np.ascontiguousarray(np.zeros((self.nConstraints, self.nSegments)))
-        self.constraints_d = np.ascontiguousarray(np.zeros((self.nConstraints)))
+        # Add constraints to enforce continuity at each node
+        self.initialize_constraints()
+        self.add_continuity_constraints()
 
-        # Populate B matrix with coefficients to enforce continuity at each node
-        count = 0
-        for i in range(nPhi+1):
-            for j in range(nTheta):
+    def initialize_constraints(self):
+
+        self.constraints = collections.OrderedDict()
+
+    def add_constraint(self, name, constraint_type, matrix_row, constant):
+        """
+        Add a linear equality constraint on the currents in the segments
+        in the wireframe of the form 
+
+            matrix_row * x = constant, 
+
+            where:
+                x is the array of currents in each segment
+                matrix_row is a 1d array of coefficients for each segment
+                constant is the constant appearing on the right-hand side
+
+        Parameters
+        ----------
+            name: string
+                Unique name for the constraint
+            constraint_type: string
+                Type of constraint 
+            matrix_row: 1d double array
+                Array of coefficients as described above
+            constant: double
+                Constant on the right-hand side of the equation above
+        """
+
+        if name in self.constraints.keys():
+            raise ValueError('Constraint %s already exists' % (name))
+
+        if matrix_row.size != self.nSegments:
+            raise ValueError('matrix_row must have one element for every ' \
+                             + 'segment in the wireframe')
+
+        self.constraints[name] = \
+            {'type': constraint_type, \
+             'matrix_row': matrix_row, \
+             'constant': constant}
+
+    def remove_constraint(self, name):
+
+        if isinstance(name, str):
+            del self.constraints[name]
+        else:
+            for item in name:
+                del self.constraints[item]
+
+    def add_poloidal_current_constraint(self, current):
+        """
+        Add constraint to require the total poloidal current through the 
+        inboard midplane to be a certain value (effectively sets the toroidal
+        magnetic field). 
+
+        Parameters
+        ----------
+            current: double
+                Total poloidal current; i.e. the sum of the currents in all 
+                poloidal segments passing through the inboard midplane.
+                A positive poloidal current thereby creates a toroidal field 
+                in the negative toroidal direction (clockwise when viewed from 
+                above).
+        """
+
+        pol_current_per_segment = current/(2.0*self.nfp*self.nPhi)
+        pol_current_sum = pol_current_per_segment * self.nPhi * 2
+
+        halfNTheta = int(self.nTheta/2)
+        seg_ind0 = self.nTorSegments + halfNTheta - 1
+        seg_ind1a = seg_ind0 + halfNTheta
+        seg_ind2a = self.nSegments
+        seg_ind1b = seg_ind1a + 1
+        seg_ind2b = self.nSegments - self.nTheta + 1
+
+        matrix_row = np.zeros((1, self.nSegments))
+        matrix_row[0,seg_ind0] = 1
+        matrix_row[0,seg_ind1a:seg_ind2a:self.nTheta] = 1
+        matrix_row[0,seg_ind1b:seg_ind2b:self.nTheta] = 1
+
+        self.add_constraint('poloidal_current', 'poloidal_current', \
+                            matrix_row, pol_current_sum)
+
+    def remove_poloidal_current_constraint(self):
+
+        self.remove_constraint('poloidal_current')
+
+    def set_poloidal_current(self, current):
+        """
+        Set the constraint requiring the total poloidal current through the 
+        inboard midplane to be a certain value (effectively sets the toroidal
+        magnetic field). 
+
+        This method will replace an existing poloidal current constraint and
+        create one if one does not exist.
+
+        Parameters
+        ----------
+            current: double
+                Total poloidal current; i.e. the sum of the currents in all 
+                poloidal segments passing through the inboard midplane.
+                A positive poloidal current thereby creates a toroidal field 
+                in the negative toroidal direction (clockwise when viewed from 
+                above).
+        """
+
+        if 'poloidal_current' in self.constraints:
+            self.remove_constraint('poloidal_current')
+
+        self.add_poloidal_current_constraint(current)
+
+    def add_toroidal_current_constraint(self, current):
+        """
+        Add constraint to require the total toroidal current through a poloidal
+        cross-section to be a certain value (effectively requires a helical
+        current distribution when combined with a poloidal current constraint).
+ 
+        Parameters
+        ----------
+            current: double
+                Total toroidal current; i.e. the sum of the currents in all 
+                toroidal segments passing through a symmetry plane.
+                A positive toroidal current thereby creates a dipole moment
+                in the positive "z" direction.
+        """
+
+        matrix_row = np.zeros((1, self.nSegments))
+        matrix_row[0,:self.nTheta] = 1
+
+        self.add_constraint('toroidal_current', 'toroidal_current', \
+                            matrix_row, current)
+
+    def remove_toroidal_current_constraint(self):
+
+        self.remove_constraint('toroidal_current')
+
+    def set_toroidal_current(self, current):
+        """
+        Set the constraint requiring the total toroidal current through a 
+        poloidal cross-section to be a certain value (effectively requires a 
+        helical current distribution when combined with a poloidal current 
+        constraint).
+
+        This method will replace an existing toroidal current constraint and
+        create one if one does not exist.
+
+        Parameters
+        ----------
+            current: double
+                Total toroidal current; i.e. the sum of the currents in all 
+                toroidal segments passing through a symmetry plane.
+                A positive toroidal current thereby creates a dipole moment
+                in the positive "z" direction.
+        """
+
+        if 'toroidal_current' in self.constraints:
+            self.remove_constraint('toroidal_current')
+
+        self.add_toroidal_current_constraint(current)
+
+    def add_segment_constraints(self, segments):
+        """
+        Adds a constraint or constraints requiring the current to be zero in
+        one or more given segments.
+
+        Parameters
+        ----------
+            segments: integer or array/list of integers
+                Index of the segmenet or segments to be constrained
+        """
+
+        if np.isscalar(segments):
+            segments = np.array([segments])
+        else:
+            segments = np.array(segments)
+
+        if np.any(segments < 0) or np.any(segments >= self.nSegments):
+            raise ValueError('Segment indices must be positive and less than ' \
+                             + ' the number of segments in the wireframe')
+
+        for i in range(len(segments)):
+
+            matrix_row = np.zeros((1, self.nSegments))
+            matrix_row[0,segments[i]] = 1
+
+            self.add_constraint('segment_%d' % (segments[i]), 'segment', \
+                                matrix_row, 0)
+
+    def remove_segment_constraints(self, segments):
+        """
+        Removes constraints restricting the currents in given segment(s) to be
+        zero.
+
+        Parameters
+        ----------
+            segments: integer or array/list of integers
+                Index of the segmenet or segments for which constraints are to
+                be removed
+        """
+
+        if np.isscalar(segments):
+            segments = np.array([segments])
+        else:
+            segments = np.array(segments)
+
+        if np.any(segments < 0) or np.any(segments >= self.nSegments):
+            raise ValueError('Segment indices must be positive and less than ' \
+                             ' the number of segments in the wireframe')
+
+        for i in range(len(segments)):
+    
+            self.remove_constraint('segment_%d' % (segments[i]))
+
+    def set_segments_constrained(self, segments):
+        """
+        Ensures that one or more given segments are constrained to have zero
+        current.
+
+        Parameters
+        ----------
+            segments: integer or array/list of integers
+                Index of the segmenet or segments to be constrained
+        """
+
+        # Free existing constrained segments to avoid conflicts
+        self.set_segments_free(segments)
+
+        self.add_segment_constraints(segments)
+
+    def set_segments_free(self, segments):
+        """
+        Ensures that one or more given segments are unconstrained.
+
+        Parameters
+        ----------
+            segments: integer or array/list of integers
+                Index of the segmenet or segments to be unconstrained
+        """
+
+        if np.isscalar(segments):
+            segments = np.array([segments])
+        else:
+            segments = np.array(segments)
+
+        if np.any(segments < 0) or np.any(segments >= self.nSegments):
+            raise ValueError('Segment indices must be positive and less than ' \
+                             ' the number of segments in the wireframe')
+
+        for i in range(len(segments)):
+            if 'segment_%d' % (i) in self.constraints:
+                self.remove_constraint('segment_%d' % (segments[i]))
+
+    def free_all_segments(self):
+        """
+        Remove any existing constraints that restrict individual segments to
+        carry zero current.
+        """
+
+        for constr in self.constraints:
+            if self.constraints[constr]['type'] == 'segment':
+                self.remove_constraint(constr)
+
+    def constrained_segments(self):
+        """
+        Returns the IDs of the segments that are currently constrained to have
+        zero current.
+        """  
+
+        constr_keys = [key for key in self.constraints.keys() \
+                       if self.constraints[key]['type'] == 'segment']
+
+        return [int(key.split('_')[1]) for key in constr_keys]
+
+    def add_continuity_constraints(self):
+        """
+        Add constraints to ensure current continuity at each node. This is
+        called automatically on initialization and doesn't normally need to
+        be called by the user.
+        """
+
+        for i in range(self.nPhi+1):
+            for j in range(self.nTheta):
 
                 if i == 0:
-                    if j == 0 or j >= nTheta/2:
+                    if j == 0 or j >= self.nTheta/2:
+                        # Constraint automatically satisfied due to symmetry
                         continue
-                    ind_tor_in  = self.torSegmentKey[i, nTheta-j]
+                    ind_tor_in  = self.torSegmentKey[i, self.nTheta-j]
                     ind_tor_out = self.torSegmentKey[i, j]
                     ind_pol_in  = self.polSegmentKey[i, j-1]
                     ind_pol_out = self.polSegmentKey[i, j]
 
-                elif i > 0 and i < nPhi:
+                elif i > 0 and i < self.nPhi:
                     ind_tor_in  = self.torSegmentKey[i-1, j]
                     ind_tor_out = self.torSegmentKey[i, j]
                     if j == 0:
-                        ind_pol_in  = self.polSegmentKey[i, nTheta-1]
+                        ind_pol_in  = self.polSegmentKey[i, self.nTheta-1]
                     else:
                         ind_pol_in  = self.polSegmentKey[i, j-1]
                     ind_pol_out = self.polSegmentKey[i, j]
 
                 else:
-                    if j == 0 or j >= nTheta/2:
+                    if j == 0 or j >= self.nTheta/2:
+                        # Constraint automatically satisfied due to symmetry
                         continue
                     ind_tor_in  = self.torSegmentKey[i-1, j]
-                    ind_tor_out = self.torSegmentKey[i-1, nTheta-j]
+                    ind_tor_out = self.torSegmentKey[i-1, self.nTheta-j]
                     ind_pol_in  = self.polSegmentKey[i, j-1]
                     ind_pol_out = self.polSegmentKey[i, j]
 
-                self.constraints_B[count, [ind_tor_in,  ind_pol_in ]] = -1
-                self.constraints_B[count, [ind_tor_out, ind_pol_out]] = 1
-                count = count + 1
+                self.add_continuity_constraint(self.node_inds[i,j], \
+                    ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out)
 
-    def make_plot(self, ax=None):
+    def add_continuity_constraint(self, node_ind, ind_tor_in, ind_pol_in, \
+                                  ind_tor_out, ind_pol_out):
+
+        name = 'continuity_node_%d' % (node_ind)
+
+        matrix_row = np.zeros((1, self.nSegments))
+        matrix_row[0, [ind_tor_in,  ind_pol_in ]] = -1
+        matrix_row[0, [ind_tor_out, ind_pol_out]] = 1
+        
+        self.add_constraint(name, 'continuity', matrix_row, 0.0)
+        
+
+    def constraint_matrices(self, remove_redundancies=True):
+        """
+        Return the matrices for the system of equations that define the linear
+        equality constraints for the wireframe segment currents. The equations
+        have the form
+            B*x = d,
+        where x is a column vector with the segment currents, B is a matrix of
+        coefficients for the segment currents in each equation, and d is a
+        column vector of constant terms in each equation.
+
+        The matrices are initially constructed to have one row (equation) per
+        constraint. However, if some of the constraints may be redundant.
+        By default, this function will check the constraints for certain 
+        redundancies and remove rows from the matrix that are found to be 
+        redundant. This is necessary, e.g. for some constrained linear 
+        least-squares solvers in which the constraint matrix must be full-rank. 
+        However, the user may also opt out of row reduction such that the 
+        output matrices contain every constraint equation explicitly.
+
+        Note: the function does not put the output matrix into reduced row-
+        echelon form or otherwise guarantee that it will be full-rank. Rather, 
+        it only checks for cases in which all four segments connected to a node
+        are constrained to have zero current, in which case the node's
+        continuity constraint is redundant. If there are other redundancies,
+        e.g. due to arbitrary constraints introduced by the user that aren't
+        of the usual constraint types, these may not be removed.
+
+        Parameters
+        ----------
+            remove_redundancies: boolean (optional)
+                If true (the default option), rows in the matrix found to be
+                redundant will be removed. If false, no checks for redundancy
+                will be performed and all constraints will be represented in the
+                output matrices.
+
+        Returns
+        -------
+            constraints_B: 2d double array
+                The matrix B in the constraint equation
+            constraints_d: 1d double array (column vector)
+                The column vector on the right-hand side of the constraint 
+                equation
+        """
+
+       
+        # If matrix is not full rank, look for redundant continuity constraints
+        if remove_redundancies: 
+
+            inactive_nodes = self.find_inactive_nodes()
+            inactive_node_names = ['continuity_node_%d' % (i) \
+                                   for i in inactive_nodes]
+
+            constraints_B = np.ascontiguousarray( \
+                np.concatenate([self.constraints[key]['matrix_row'] \
+                                for key in self.constraints.keys() \
+                                if key not in inactive_node_names], axis=0))
+
+            constraints_d = np.ascontiguousarray(\
+                np.zeros((len(self.constraints)-len(inactive_nodes), 1)))
+
+            constraints_d[:] = np.ascontiguousarray( \
+                [[self.constraints[key]['constant']] \
+                 for key in self.constraints.keys() \
+                 if key not in inactive_node_names])
+
+        else:
+
+            constraints_B = np.ascontiguousarray( \
+                np.concatenate([constr['matrix_row'] for constr \
+                                in self.constraints.values()], axis=0))
+
+            constraints_d = np.ascontiguousarray(\
+                            np.zeros((len(self.constraints), 1)))
+            constraints_d[:] = \
+                [[constr['constant']] for constr in self.constraints.values()]
+
+        return constraints_B, constraints_d
+
+    def find_inactive_nodes(self):
+        """
+        Determines which nodes have no current flowing through them according
+        to existing segment constraints (i.e. constraints that require 
+        individual segments to have zero current).
+        """
+
+        # Tally how many inactive segments each node is connected to
+        node_sum = np.zeros((self.nNodes))
+        for seg_ind in self.constrained_segments():
+           node_sum[self.segments[seg_ind,0]] += 1
+           node_sum[self.segments[seg_ind,1]] += 1
+
+        # Three or more segments means no current flows through
+        return np.where(node_sum >= 4)[0]
+            
+    def make_plot_3d(self, ax=None):
         """
         Make a plot of the wireframe grid, including nodes and segments.
         """
@@ -212,6 +590,8 @@ class ToroidalWireframe(object):
 
         lc = Line3DCollection(pl_segments)
         lc.set_array(pl_currents)
+        lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
+        lc.set_cmap('coolwarm')
 
         if ax is None:
             fig = pl.figure()
@@ -234,4 +614,59 @@ class ToroidalWireframe(object):
         ax.add_collection(lc)
 
         return(ax)
+
+    def make_plot_2d(self, ax=None):
+        """
+        Make a plot of the wireframe grid, including nodes and segments.
+        """
+
+        import matplotlib.pyplot as pl
+        from matplotlib.collections import LineCollection
+
+        pl_segments = np.zeros((2*self.nSegments, 2, 2))
+        pl_currents = np.zeros((2*self.nSegments))
+   
+        for i in range(2):
+            ind0 = i*self.nSegments
+            ind1 = (i+1)*self.nSegments
+            if i % 2 == 0:
+                pl_segments[ind0:ind1,0,0] = np.floor(self.segments[:,0]/self.nTheta)
+                pl_segments[ind0:ind1,0,1] = self.segments[:,0] % self.nTheta
+                pl_segments[ind0:ind1,1,0] = np.floor(self.segments[:,1]/self.nTheta)
+                pl_segments[ind0:ind1,1,1] = self.segments[:,1] % self.nTheta
+
+                loop_segs = np.where(np.logical_and(pl_segments[ind0:ind1,0,1] == self.nTheta-1, pl_segments[ind0:ind1,1,1] == 0))
+                pl_segments[ind0+loop_segs[0],1,1] = self.nTheta
+
+            else:
+                pl_segments[ind0:ind1,0,0] = 2*i*self.nPhi - np.floor(self.segments[:,0]/self.nTheta)
+                pl_segments[ind0:ind1,0,1] = self.nTheta - (self.segments[:,0] % self.nTheta)
+                pl_segments[ind0:ind1,1,0] = 2*i*self.nPhi - np.floor(self.segments[:,1]/self.nTheta)
+                pl_segments[ind0:ind1,1,1] = self.nTheta - (self.segments[:,1] % self.nTheta)
+
+                loop_segs = np.where(np.logical_and(pl_segments[ind0:ind1,0,1] == 1, pl_segments[ind0:ind1,1,1] == self.nTheta))
+                pl_segments[ind0+loop_segs[0],1,1] = 0
+
+            pl_currents[ind0:ind1] = self.currents[:]*1e-6
+
+        lc = LineCollection(pl_segments)
+        lc.set_array(pl_currents)
+        lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
+        lc.set_cmap('coolwarm')
+
+        if ax is None:
+            fig = pl.figure()
+            ax = fig.add_subplot()
+
+        ax.set_xlim((-1, 2*self.nPhi + 1))
+        ax.set_ylim((-1, self.nTheta + 1))
+
+        ax.set_xlabel('Toroidal index')
+        ax.set_ylabel('Poloidal index')
+        cb = pl.colorbar(lc)
+        cb.set_label('Current (MA)')
+
+
+        ax.add_collection(lc)
+
 
