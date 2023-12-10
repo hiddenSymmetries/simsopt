@@ -149,9 +149,71 @@ class ToroidalWireframe(object):
 
         #self.nConstraints = self.nTorSegments - 2
 
+        # Create a matrix listing which segments are connected to each node
+        self.determine_connected_segments()
+
         # Add constraints to enforce continuity at each node
         self.initialize_constraints()
         self.add_continuity_constraints()
+
+    def determine_connected_segments(self):
+        """
+        Determine which segments are connected to each node.
+        """
+
+        self.connected_segments = \
+            np.ascontiguousarray(np.zeros((self.nNodes, 4)).astype(np.int64))
+
+        halfNTheta = int(self.nTheta)
+
+        for i in range(self.nPhi+1):
+            for j in range(self.nTheta):
+
+                if i == 0:
+                    ind_tor_in  = \
+                        self.torSegmentKey[i, (self.nTheta-j) % self.nTheta]
+                    ind_tor_out = self.torSegmentKey[i, j]
+                    if j == 0:
+                        ind_pol_in  = self.polSegmentKey[i, j]
+                        ind_pol_out = self.polSegmentKey[i, j]
+                    elif j < halfNTheta:
+                        ind_pol_in  = self.polSegmentKey[i, j-1]
+                        ind_pol_out = self.polSegmentKey[i, j]
+                    elif j == halfNTheta:
+                        ind_pol_in  = self.polSegmentKey[i, j-1]
+                        ind_pol_out = self.polSegmentKey[i, j-1]
+                    else:
+                        ind_pol_in  = self.polSegmentKey[i, self.nTheta-j]
+                        ind_pol_out = self.polSegmentKey[i, self.nTheta-j-1]
+
+                elif i > 0 and i < self.nPhi:
+                    ind_tor_in  = self.torSegmentKey[i-1, j]
+                    ind_tor_out = self.torSegmentKey[i, j]
+                    if j == 0:
+                        ind_pol_in  = self.polSegmentKey[i, self.nTheta-1]
+                    else:
+                        ind_pol_in  = self.polSegmentKey[i, j-1]
+                    ind_pol_out = self.polSegmentKey[i, j]
+
+                else:
+                    ind_tor_in  = self.torSegmentKey[i-1, j]
+                    ind_tor_out = \
+                        self.torSegmentKey[i-1, (self.nTheta-j) % self.nTheta]
+                    if j == 0:
+                        ind_pol_in  = self.polSegmentKey[i, 0]
+                        ind_pol_out = self.polSegmentKey[i, 0]
+                    elif j < halfNTheta:
+                        ind_pol_in  = self.polSegmentKey[i, j-1]
+                        ind_pol_out = self.polSegmentKey[i, j]
+                    elif j == halfNTheta:
+                        ind_pol_in  = self.polSegmentKey[i, j-1]
+                        ind_pol_out = self.polSegmentKey[i, j-1]
+                    else:
+                        ind_pol_in  = self.polSegmentKey[i, self.nTheta-j]
+                        ind_pol_out = self.polSegmentKey[i, self.nTheta-j-1]
+
+                self.connected_segments[self.node_inds[i,j]][:] = \
+                    [ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out]
 
     def initialize_constraints(self):
 
@@ -439,28 +501,14 @@ class ToroidalWireframe(object):
                     if j == 0 or j >= self.nTheta/2:
                         # Constraint automatically satisfied due to symmetry
                         continue
-                    ind_tor_in  = self.torSegmentKey[i, self.nTheta-j]
-                    ind_tor_out = self.torSegmentKey[i, j]
-                    ind_pol_in  = self.polSegmentKey[i, j-1]
-                    ind_pol_out = self.polSegmentKey[i, j]
 
-                elif i > 0 and i < self.nPhi:
-                    ind_tor_in  = self.torSegmentKey[i-1, j]
-                    ind_tor_out = self.torSegmentKey[i, j]
-                    if j == 0:
-                        ind_pol_in  = self.polSegmentKey[i, self.nTheta-1]
-                    else:
-                        ind_pol_in  = self.polSegmentKey[i, j-1]
-                    ind_pol_out = self.polSegmentKey[i, j]
-
-                else:
+                elif i == self.nPhi:
                     if j == 0 or j >= self.nTheta/2:
                         # Constraint automatically satisfied due to symmetry
                         continue
-                    ind_tor_in  = self.torSegmentKey[i-1, j]
-                    ind_tor_out = self.torSegmentKey[i-1, self.nTheta-j]
-                    ind_pol_in  = self.polSegmentKey[i, j-1]
-                    ind_pol_out = self.polSegmentKey[i, j]
+
+                ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out = \
+                    list(self.connected_segments[self.node_inds[i,j]])
 
                 self.add_continuity_constraint(self.node_inds[i,j], \
                     ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out)
@@ -526,6 +574,7 @@ class ToroidalWireframe(object):
         if remove_redundancies: 
 
             inactive_nodes = self.find_inactive_nodes()
+            print('    Number of inactive nodes found: %d' % (len(inactive_nodes)))
             inactive_node_names = ['continuity_node_%d' % (i) \
                                    for i in inactive_nodes]
 
@@ -534,13 +583,12 @@ class ToroidalWireframe(object):
                                 for key in self.constraints.keys() \
                                 if key not in inactive_node_names], axis=0))
 
-            constraints_d = np.ascontiguousarray(\
-                np.zeros((len(self.constraints)-len(inactive_nodes), 1)))
+            constraints_d = np.ascontiguousarray( \
+                np.zeros((constraints_B.shape[0], 1)))
 
-            constraints_d[:] = np.ascontiguousarray( \
-                [[self.constraints[key]['constant']] \
+            constraints_d[:] = [[self.constraints[key]['constant']] \
                  for key in self.constraints.keys() \
-                 if key not in inactive_node_names])
+                 if key not in inactive_node_names]
 
         else:
 
@@ -564,11 +612,13 @@ class ToroidalWireframe(object):
 
         # Tally how many inactive segments each node is connected to
         node_sum = np.zeros((self.nNodes))
-        for seg_ind in self.constrained_segments():
-           node_sum[self.segments[seg_ind,0]] += 1
-           node_sum[self.segments[seg_ind,1]] += 1
 
-        # Three or more segments means no current flows through
+        for seg_ind in self.constrained_segments():
+            connected_nodes = np.sum(self.connected_segments == seg_ind, axis=1)
+            node_sum[connected_nodes > 0] += 1
+
+        # If all four connected segments are constrained, the continuity 
+        # constraint is redundant
         return np.where(node_sum >= 4)[0]
             
     def make_plot_3d(self, ax=None):
@@ -615,56 +665,104 @@ class ToroidalWireframe(object):
 
         return(ax)
 
-    def make_plot_2d(self, ax=None):
+    def make_plot_2d(self, extent='field period', quantity='currents', ax=None):
         """
-        Make a plot of the wireframe grid, including nodes and segments.
+        Make a 2d plot of the segments in the wireframe grid.
+
+        Parameters
+        ----------
+            extent: string (optional)
+                Portion of the torus to be plotted. Options are 'half period',
+                'field period' (default), and 'torus'.
+            quantity: string (optional)
+                Quantity to be represented in the color of each segment.
+                Options are 'currents' (default) and 'constrained segments'.
+            ax: instance of the matplotlib.pyplot.Axis class (optional)
+                Axis on which to generate the plot. If None, a new plot will
+                be created.
+
+        Returns
+        -------
+            ax: instance of the matplotlib.pyplot.Axis class
+                Axis instance on which the plot was created.
         """
 
         import matplotlib.pyplot as pl
         from matplotlib.collections import LineCollection
 
-        pl_segments = np.zeros((2*self.nSegments, 2, 2))
-        pl_currents = np.zeros((2*self.nSegments))
+        if extent=='half period':
+            nHalfPeriods = 1
+        elif extent=='field period':
+            nHalfPeriods = 2
+        elif extent=='torus':
+            nHalfPeriods = self.nfp * 2
+        else:
+            raise ValueError('extent must be \'half period\', ' \
+                             + '\'field period\', or \'torus\'')
+
+        pl_segments = np.zeros((nHalfPeriods*self.nSegments, 2, 2))
+        pl_quantity = np.zeros((nHalfPeriods*self.nSegments))
    
-        for i in range(2):
+        for i in range(nHalfPeriods):
             ind0 = i*self.nSegments
             ind1 = (i+1)*self.nSegments
             if i % 2 == 0:
-                pl_segments[ind0:ind1,0,0] = np.floor(self.segments[:,0]/self.nTheta)
+                pl_segments[ind0:ind1,0,0] = \
+                    np.floor(self.segments[:,0]/self.nTheta)
                 pl_segments[ind0:ind1,0,1] = self.segments[:,0] % self.nTheta
-                pl_segments[ind0:ind1,1,0] = np.floor(self.segments[:,1]/self.nTheta)
+                pl_segments[ind0:ind1,1,0] = \
+                    np.floor(self.segments[:,1]/self.nTheta)
                 pl_segments[ind0:ind1,1,1] = self.segments[:,1] % self.nTheta
 
-                loop_segs = np.where(np.logical_and(pl_segments[ind0:ind1,0,1] == self.nTheta-1, pl_segments[ind0:ind1,1,1] == 0))
+                loop_segs = np.where( \
+                    np.logical_and(pl_segments[ind0:ind1,0,1] == self.nTheta-1,\
+                                   pl_segments[ind0:ind1,1,1] == 0))
                 pl_segments[ind0+loop_segs[0],1,1] = self.nTheta
 
             else:
-                pl_segments[ind0:ind1,0,0] = 2*i*self.nPhi - np.floor(self.segments[:,0]/self.nTheta)
-                pl_segments[ind0:ind1,0,1] = self.nTheta - (self.segments[:,0] % self.nTheta)
-                pl_segments[ind0:ind1,1,0] = 2*i*self.nPhi - np.floor(self.segments[:,1]/self.nTheta)
-                pl_segments[ind0:ind1,1,1] = self.nTheta - (self.segments[:,1] % self.nTheta)
+                pl_segments[ind0:ind1,0,0] = \
+                    2*i*self.nPhi - np.floor(self.segments[:,0]/self.nTheta)
+                pl_segments[ind0:ind1,0,1] = \
+                    self.nTheta - (self.segments[:,0] % self.nTheta)
+                pl_segments[ind0:ind1,1,0] = \
+                    2*i*self.nPhi - np.floor(self.segments[:,1]/self.nTheta)
+                pl_segments[ind0:ind1,1,1] = \
+                    self.nTheta - (self.segments[:,1] % self.nTheta)
 
-                loop_segs = np.where(np.logical_and(pl_segments[ind0:ind1,0,1] == 1, pl_segments[ind0:ind1,1,1] == self.nTheta))
+                loop_segs = np.where( \
+                    np.logical_and(pl_segments[ind0:ind1,0,1] == 1, \
+                                   pl_segments[ind0:ind1,1,1] == self.nTheta))
                 pl_segments[ind0+loop_segs[0],1,1] = 0
 
-            pl_currents[ind0:ind1] = self.currents[:]*1e-6
+            if quantity=='currents':
+                pl_quantity[ind0:ind1] = self.currents[:]*1e-6
+            elif quantity=='constrained segments':
+                pl_quantity[ind0:ind1][self.constrained_segments()] = 1
+            else:
+                raise ValueError('Unrecognized quantity for plotting')
 
         lc = LineCollection(pl_segments)
-        lc.set_array(pl_currents)
-        lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
+        lc.set_array(pl_quantity)
+        if quantity=='currents':
+            lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
+        elif quantity=='constrained segments':
+            lc.set_clim([-1, 1])
         lc.set_cmap('coolwarm')
 
         if ax is None:
             fig = pl.figure()
             ax = fig.add_subplot()
 
-        ax.set_xlim((-1, 2*self.nPhi + 1))
+        ax.set_xlim((-1, nHalfPeriods*self.nPhi + 1))
         ax.set_ylim((-1, self.nTheta + 1))
 
         ax.set_xlabel('Toroidal index')
         ax.set_ylabel('Poloidal index')
         cb = pl.colorbar(lc)
-        cb.set_label('Current (MA)')
+        if quantity=='currents':
+            cb.set_label('Current (MA)')
+        elif quantity=='constrained segments':
+            cb.set_label('1 = constrained; 0 = free')
 
 
         ax.add_collection(lc)
