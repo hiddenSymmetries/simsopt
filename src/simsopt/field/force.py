@@ -17,8 +17,6 @@ from scipy.linalg import block_diag
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
 def coil_force_pure(B, I, t):
-    print(B)
-    print("h")
     """force on coil for optimization"""
     return jnp.cross(I * t, B)
 
@@ -52,28 +50,6 @@ class MeanSquaredForceOpt(Optimizable):
         self.basecoils = np.array(basecoils)
         self.allcoils = np.array(allcoils)
 
-        @partial(jit, static_argnums=5)
-        def grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, deriv_pos):
-            gradients = jnp.empty((quadpoints.size, 3, 3))
-            for j in range(quadpoints.size):
-                gammaj = gamma[j].reshape((1, 3))
-                gammadashj = gammadash[j].reshape((1, 3))
-                gammadashdashj = gammadashdash[j].reshape((1, 3))
-                quadpointsj = jnp.array([quadpoints[j]])
-                if deriv_pos == 0:
-                    grad = jax.jacfwd(lambda g: selfforce_opt_pure(g, gammadashj, gammadashdashj, quadpointsj, current,
-                                                                   regularization).reshape(3))(gammaj)
-                elif deriv_pos == 1:
-                    grad = jax.jacfwd(lambda g: selfforce_opt_pure(gammaj, g, gammadashdashj, quadpointsj, current,
-                                                                   regularization).reshape(3))(gammadashj)
-                elif deriv_pos == 2:
-                    grad = jax.jacfwd(lambda g: selfforce_opt_pure(gammaj, gammadashj, g, quadpointsj, current,
-                                                                   regularization).reshape(3))(gammadashdashj)
-                else:
-                    raise ValueError('deriv_pos must be an integer between 0 and 2')
-                gradients = gradients.at[j, :, :].set(grad[:, 0, :])
-            return gradients
-
         self.selfforce_jax = jit(
             lambda gamma, gammadash, gammadashdash, current, quadpoints:
             selfforce_opt_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
@@ -81,17 +57,17 @@ class MeanSquaredForceOpt(Optimizable):
 
         self.dselfforce_dgamma = jit(
             lambda gamma, gammadash, gammadashdash, current, quadpoints:
-            grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, 0)
+            jnp.sum(jax.jacfwd(lambda g: selfforce_opt_pure(g, gammadash, gammadashdash, quadpoints, current, regularization))(gamma),2)
         )
 
         self.dselfforce_dgammadash = jit(
             lambda gamma, gammadash, gammadashdash, current, quadpoints:
-            grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, 1)
+            jnp.sum(jax.jacfwd(lambda g: selfforce_opt_pure(gamma, g, gammadashdash, quadpoints, current, regularization))(gammadash),2)
         )
 
         self.dselfforce_dgammadashdash = jit(
             lambda gamma, gammadash, gammadashdash, current, quadpoints:
-            grad_selfforce(gamma, gammadash, gammadashdash, current, quadpoints, 2)
+            jnp.sum(jax.jacfwd(lambda g: selfforce_opt_pure(gamma, gammadash, g, quadpoints, current, regularization))(gammadashdash),2)
         )
 
         super().__init__(depends_on=basecoils)
@@ -161,7 +137,7 @@ class MeanSquaredForceOpt(Optimizable):
             dJ += biotsavart.B_vjp(vec)
 
             vec = np.array([np.sum(prefactor * 2 * np.einsum('i,ij,ij->i', gammadash_norm, forces_total, forces_total) / current)])
-            dJ += coil.current.vjp(vec)
+            # dJ += coil.current.vjp(vec)
 
             prefactor = (np.sum(np.einsum('ij,ij,i->i', forces_total, forces_total, gammadash_norm))
                          / (np.sum(gammadash_norm) ** 2))
