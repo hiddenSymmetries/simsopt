@@ -164,11 +164,12 @@ class ToroidalWireframe(object):
         self.connected_segments = \
             np.ascontiguousarray(np.zeros((self.nNodes, 4)).astype(np.int64))
 
-        halfNTheta = int(self.nTheta)
+        halfNTheta = int(self.nTheta/2)
 
         for i in range(self.nPhi+1):
             for j in range(self.nTheta):
 
+                # First symmetry plane
                 if i == 0:
                     ind_tor_in  = \
                         self.torSegmentKey[i, (self.nTheta-j) % self.nTheta]
@@ -186,6 +187,7 @@ class ToroidalWireframe(object):
                         ind_pol_in  = self.polSegmentKey[i, self.nTheta-j]
                         ind_pol_out = self.polSegmentKey[i, self.nTheta-j-1]
 
+                # Between the symmetry planes
                 elif i > 0 and i < self.nPhi:
                     ind_tor_in  = self.torSegmentKey[i-1, j]
                     ind_tor_out = self.torSegmentKey[i, j]
@@ -195,6 +197,7 @@ class ToroidalWireframe(object):
                         ind_pol_in  = self.polSegmentKey[i, j-1]
                     ind_pol_out = self.polSegmentKey[i, j]
 
+                # Second symmetry plane
                 else:
                     ind_tor_in  = self.torSegmentKey[i-1, j]
                     ind_tor_out = \
@@ -374,7 +377,7 @@ class ToroidalWireframe(object):
 
         self.add_toroidal_current_constraint(current)
 
-    def add_segment_constraints(self, segments):
+    def add_segment_constraints(self, segments, implicit=False):
         """
         Adds a constraint or constraints requiring the current to be zero in
         one or more given segments.
@@ -383,6 +386,10 @@ class ToroidalWireframe(object):
         ----------
             segments: integer or array/list of integers
                 Index of the segmenet or segments to be constrained
+            implicit: boolean (optional)
+                If true, the constraints will be marked as implicit (i.e. 
+                implied by other constraints rather than set by the user).
+                Default is false.
         """
 
         if np.isscalar(segments):
@@ -394,15 +401,22 @@ class ToroidalWireframe(object):
             raise ValueError('Segment indices must be positive and less than ' \
                              + ' the number of segments in the wireframe')
 
+        if not implicit:
+            # Remove implicit constraints on requested segments if they exist
+            self.set_segments_free(segments)
+            name = 'segment'
+        else:
+            name = 'implicit_segment'
+
         for i in range(len(segments)):
 
             matrix_row = np.zeros((1, self.nSegments))
             matrix_row[0,segments[i]] = 1
 
-            self.add_constraint('segment_%d' % (segments[i]), 'segment', \
+            self.add_constraint(name + '_%d' % (segments[i]), name, \
                                 matrix_row, 0)
 
-    def remove_segment_constraints(self, segments):
+    def remove_segment_constraints(self, segments, implicit=False):
         """
         Removes constraints restricting the currents in given segment(s) to be
         zero.
@@ -412,6 +426,10 @@ class ToroidalWireframe(object):
             segments: integer or array/list of integers
                 Index of the segmenet or segments for which constraints are to
                 be removed
+            implicit: boolean (optional)
+                If true, the constraints will be marked as implicit (i.e. 
+                implied by other constraints rather than set by the user).
+                Default is false.
         """
 
         if np.isscalar(segments):
@@ -423,11 +441,13 @@ class ToroidalWireframe(object):
             raise ValueError('Segment indices must be positive and less than ' \
                              ' the number of segments in the wireframe')
 
+        name = 'segment' if not implicit else 'implicit_segment'       
+
         for i in range(len(segments)):
     
-            self.remove_constraint('segment_%d' % (segments[i]))
+            self.remove_constraint(name + '_%d' % (segments[i]))
 
-    def set_segments_constrained(self, segments):
+    def set_segments_constrained(self, segments, implicit=False):
         """
         Ensures that one or more given segments are constrained to have zero
         current.
@@ -436,12 +456,16 @@ class ToroidalWireframe(object):
         ----------
             segments: integer or array/list of integers
                 Index of the segmenet or segments to be constrained
+            implicit: boolean (optional)
+                If true, the constraints will be marked as implicit (i.e. 
+                implied by other constraints rather than set by the user).
+                Default is false.
         """
 
         # Free existing constrained segments to avoid conflicts
         self.set_segments_free(segments)
 
-        self.add_segment_constraints(segments)
+        self.add_segment_constraints(segments, implicit=implicit)
 
     def set_segments_free(self, segments):
         """
@@ -463,8 +487,10 @@ class ToroidalWireframe(object):
                              ' the number of segments in the wireframe')
 
         for i in range(len(segments)):
-            if 'segment_%d' % (i) in self.constraints:
+            if 'segment_%d' % (segments[i]) in self.constraints:
                 self.remove_constraint('segment_%d' % (segments[i]))
+            elif 'implicit_segment_%d' % (segments[i]) in self.constraints:
+                self.remove_constraint('implicit_segment_%d' % (segments[i]))
 
     def free_all_segments(self):
         """
@@ -473,19 +499,46 @@ class ToroidalWireframe(object):
         """
 
         for constr in self.constraints:
-            if self.constraints[constr]['type'] == 'segment':
+            if self.constraints[constr]['type'] == 'segment' \
+            or self.constraints[constr]['type'] == 'implicit_segment':
                 self.remove_constraint(constr)
 
-    def constrained_segments(self):
+    def constrained_segments(self, include='all'):
         """
-        Returns the IDs of the segments that are currently constrained to have
-        zero current.
+        Returns the IDs of the segments that are currently constrained 
+        (explicitly or implicitly) to have zero current.
+
+        Parameters
+        ----------
+            include: string (optional)
+                'all':      (default) returns IDs of both explicitly and 
+                            implicitly constrained segments.
+                'explicit': returns IDs only of explicitly constrained segments.
+                'implicit': returns IDs only of implicitly constrained segments.
+
+        Returns
+        -------
+            segment_ids: list of integers
+                IDs of the constrained segments.
         """  
 
-        constr_keys = [key for key in self.constraints.keys() \
-                       if self.constraints[key]['type'] == 'segment']
+        expl_keys = [key for key in self.constraints.keys() \
+                     if self.constraints[key]['type'] == 'segment']
+        expl_ids = [int(key.split('_')[1]) for key in expl_keys]
 
-        return [int(key.split('_')[1]) for key in constr_keys]
+        impl_keys = [key for key in self.constraints.keys() \
+                     if self.constraints[key]['type'] == 'implicit_segment']
+        impl_ids = [int(key.split('_')[2]) for key in impl_keys]
+
+        if include == 'explicit':
+            return expl_ids
+        elif include == 'implicit':
+            return impl_ids
+        elif include == 'all':
+            return expl_ids + impl_ids
+        else:
+            raise ValueError('Include must be \'all\', \'explicit\', ' \
+                             + 'or \'implicit\'')
 
     def add_continuity_constraints(self):
         """
@@ -574,7 +627,6 @@ class ToroidalWireframe(object):
         if remove_redundancies: 
 
             inactive_nodes = self.find_inactive_nodes()
-            print('    Number of inactive nodes found: %d' % (len(inactive_nodes)))
             inactive_node_names = ['continuity_node_%d' % (i) \
                                    for i in inactive_nodes]
 
@@ -610,12 +662,33 @@ class ToroidalWireframe(object):
         individual segments to have zero current).
         """
 
-        # Tally how many inactive segments each node is connected to
         node_sum = np.zeros((self.nNodes))
 
-        for seg_ind in self.constrained_segments():
-            connected_nodes = np.sum(self.connected_segments == seg_ind, axis=1)
-            node_sum[connected_nodes > 0] += 1
+        implicits_remain = True
+        while implicits_remain:
+
+            node_sum[:] = 0
+
+            # Tally how many inactive segments each node is connected to
+            for seg_ind in self.constrained_segments(include='all'):
+                connected_nodes = \
+                    np.sum(self.connected_segments == seg_ind, axis=1)
+                node_sum[connected_nodes > 0] += 1
+
+            # Check for implicitly constrained segments (i.e. free segments
+            # connected to a node whose other three segments are constrained)
+            implicits = np.where(node_sum == 3)[0]
+            if len(implicits) > 0:
+                for node_ind in implicits:
+                    for seg_ind in self.connected_segments[node_ind,:]:
+                        if ('segment_%d' % (seg_ind) not in \
+                            self.constraints.keys()) \
+                        and ('implicit_segment_%d' % (seg_ind) not in 
+                            self.constraints.keys()):
+
+                            self.add_segment_constraints(seg_ind, implicit=True)
+            else:
+                implicits_remain = False
 
         # If all four connected segments are constrained, the continuity 
         # constraint is redundant
@@ -737,7 +810,10 @@ class ToroidalWireframe(object):
             if quantity=='currents':
                 pl_quantity[ind0:ind1] = self.currents[:]*1e-6
             elif quantity=='constrained segments':
-                pl_quantity[ind0:ind1][self.constrained_segments()] = 1
+                pl_quantity[ind0:ind1][self.constrained_segments( \
+                                                       include='explicit')] = 1
+                pl_quantity[ind0:ind1][self.constrained_segments( \
+                                                       include='implicit')] = -1
             else:
                 raise ValueError('Unrecognized quantity for plotting')
 
