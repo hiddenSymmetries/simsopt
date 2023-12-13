@@ -85,12 +85,11 @@ class MeanSquaredForceOpt(Optimizable):
             quadpoints = coil.curve.quadpoints
 
             B_mutual = BiotSavart(np.delete(self.allcoils, np.where(self.allcoils == coil)[0][0])).set_points(gamma).B()
-            forces_mutual = coil_force_pure(B_mutual, current, tangent)
-            forces_self = self.selfforce_jax(gamma, gammadash, gammadashdash, current, quadpoints)
-            forces_total = forces_mutual + forces_self
-            forces_norm = np.einsum('ij,ij->i', forces_total, forces_total)
-
-            J += np.sum(forces_norm * gammadash_norm) / np.sum(gammadash_norm)
+            force_mutual = coil_force_pure(B_mutual, current, tangent)
+            force_self = self.selfforce_jax(gamma, gammadash, gammadashdash, current, quadpoints)
+            force_total = force_mutual + force_self
+            
+            J += np.sum(np.einsum('i, ij,ij->i', gammadash_norm, force_total, force_total)) / np.sum(gammadash_norm)
         return J
 
     @derivative_dec
@@ -109,9 +108,9 @@ class MeanSquaredForceOpt(Optimizable):
             #Finding the forces, the mutual magnetic field, and derivatives of the self-force
             biotsavart = BiotSavart(np.delete(self.allcoils, np.where(self.allcoils == coil)[0][0]))
             B_mutual = biotsavart.set_points(gamma).B()
-            forces_mutual = coil_force_pure(B_mutual, current, tangent)
-            forces_self = self.selfforce_jax(gamma, gammadash, gammadashdash, current, quadpoints)
-            forces_total = forces_mutual + forces_self
+            force_mutual = coil_force_pure(B_mutual, current, tangent)
+            force_self = self.selfforce_jax(gamma, gammadash, gammadashdash, current, quadpoints)
+            force_total = force_mutual + force_self
             
             dselfforce_dgamma = self.dselfforce_dgamma(gamma, gammadash, gammadashdash, current, quadpoints)
             dselfforce_dgammadash = self.dselfforce_dgammadash(gamma, gammadash, gammadashdash, current, quadpoints)
@@ -119,29 +118,30 @@ class MeanSquaredForceOpt(Optimizable):
 
             #Calculating dJ with VJPs...
             prefactor = (np.sum(gammadash_norm)) ** (-1)
-            vec = prefactor * 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgamma)
+
+            vec = prefactor * 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,force_total,dselfforce_dgamma)
             dJ += coil.curve.dgamma_by_dcoeff_vjp(vec)
 
-            vec = 0
-            vec += 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,forces_total,dselfforce_dgammadash)
-            vec += np.einsum('ij,ij,ik->ik', forces_total, forces_total, tangent)
-            vec += 2 * current * np.cross(B_mutual, forces_total)
-            vec += -2 * current * np.einsum('ij,ij,ik->ik', tangent, np.cross(B_mutual, forces_total), tangent)
+            vec = 2 * np.einsum('i,ij,ijk->ik',gammadash_norm,force_total,dselfforce_dgammadash)
+            vec += np.einsum('ij,ij,ik->ik', force_total, force_total, tangent)
+            vec += 2 * current * np.cross(B_mutual, force_total)
+            vec += -2 * current * np.einsum('ij,ij,ik->ik', tangent, np.cross(B_mutual, force_total), tangent)
             vec *= prefactor
             dJ += coil.curve.dgammadash_by_dcoeff_vjp(vec)
 
-            vec = prefactor * 2 * np.einsum('i,ij,ijk->ik', gammadash_norm, forces_total, dselfforce_dgammadashdash)
+            vec = prefactor * 2 * np.einsum('i,ij,ijk->ik', gammadash_norm, force_total, dselfforce_dgammadashdash)
             dJ += coil.curve.dgammadashdash_by_dcoeff_vjp(vec)
 
-            vec = prefactor * 2 * current * np.einsum('i,ij->ij', gammadash_norm, np.cross(forces_total, tangent))
-            dJ += biotsavart.B_vjp(vec)
+            if (self.allcoils.size > 1):
+                vec = prefactor * 2 * current * np.einsum('i,ij->ij', gammadash_norm, np.cross(force_total, tangent))
+                dJ += biotsavart.B_vjp(vec)
 
-            vec = np.array([np.sum(prefactor * 2 * np.einsum('i,ij,ij->i', gammadash_norm, forces_total, forces_total) / current)])
-            # dJ += coil.current.vjp(vec)
+            vec = np.array([np.sum(prefactor * 2 * np.einsum('i,ij,ij->i', gammadash_norm, force_total, force_total) / current)])
+            dJ += coil.current.vjp(vec)
 
-            prefactor = (np.sum(np.einsum('ij,ij,i->i', forces_total, forces_total, gammadash_norm))
+            prefactor = (np.sum(np.einsum('ij,ij,i->i', force_total, force_total, gammadash_norm))
                          / (np.sum(gammadash_norm) ** 2))
-            dJ += coil.curve.dgammadash_by_dcoeff_vjp(prefactor * tangent)
+            dJ += coil.curve.dgammadash_by_dcoeff_vjp(-prefactor * tangent)
         return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}

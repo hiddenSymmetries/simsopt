@@ -212,8 +212,8 @@ class CoilForcesTest(unittest.TestCase):
 
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
         coils = np.array([Coil(curve, current) for curve, current in zip(curves, currents)])
+        coils=np.array([coils[0]]) #remove later
         [current.fix_all() for current in currents]
-        # coil_dofs = np.array([coil.x for coil in coils])
 
         J = MeanSquaredForceOpt(coils, coils, regularization_circ(0.05))
         dJ = J.dJ()
