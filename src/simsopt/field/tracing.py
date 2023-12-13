@@ -16,7 +16,7 @@ from .._core.types import RealArray
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
-           'MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
+           'ToroidalFluxStoppingCriterion','RStoppingCriterion','ZStoppingCriterion',
            'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
            'compute_fieldlines', 'compute_resonances',
            'compute_poloidal_transits', 'compute_toroidal_transits',
