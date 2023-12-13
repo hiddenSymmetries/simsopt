@@ -393,6 +393,7 @@ class Vmec(Optimizable):
             logging.debug('Replacing surface in boundary setter')
             self.remove_parent(self._boundary)
             self._boundary = boundary
+            self.indata.nfp = boundary.nfp
             self.append_parent(boundary)
             self.need_to_run_code = True
 
