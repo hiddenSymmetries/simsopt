@@ -44,23 +44,51 @@ class ToroidalTransitStoppingCriterion : public StoppingCriterion {
         };
 };
 
-class MaxToroidalFluxStoppingCriterion : public StoppingCriterion{
+class ToroidalFluxStoppingCriterion : public StoppingCriterion{
     private:
-        double max_s;
+        double crit_s;
+        bool min_bool;
     public:
-        MaxToroidalFluxStoppingCriterion(double max_s) : max_s(max_s) {};
+        ToroidalFluxStoppingCriterion(double crit_s, bool min_bool) : crit_s(crit_s), min_bool(min_bool) {};
         bool operator()(int iter, double t, double s, double theta, double zeta) override {
-            return s>=max_s;
+            if (min_bool) {
+                return s<=crit_s;
+            } else {
+                return s>=crit_s;
+            }
+            
         };
 };
 
-class MinToroidalFluxStoppingCriterion : public StoppingCriterion{
+class ZStoppingCriterion : public StoppingCriterion{
     private:
-        double min_s;
+        double crit_z;
+        bool min_bool;
     public:
-        MinToroidalFluxStoppingCriterion(double min_s) : min_s(min_s) {};
-        bool operator()(int iter, double t, double s, double theta, double zeta) override {
-            return s<=min_s;
+        ZStoppingCriterion(double crit_z, bool min_bool) : crit_z(crit_z), min_bool(min_bool) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            if (min_bool) {
+                return z<=crit_z;
+            } else {
+                return z>=crit_z;
+            }
+            
+        };
+};
+
+class RStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_r;
+        bool min_bool;
+    public:
+        RStoppingCriterion(double crit_r, bool min_bool) : crit_r(crit_r), min_bool(min_bool) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            if (min_bool) {
+                return std::sqrt(x*x+y*y)<=crit_r;
+            } else {
+                return std::sqrt(x*x+y*y)>=crit_r;
+            }
+            
         };
 };
 

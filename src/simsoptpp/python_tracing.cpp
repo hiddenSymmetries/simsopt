@@ -17,10 +17,12 @@ void init_tracing(py::module_ &m){
     py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");
     py::class_<IterationStoppingCriterion, shared_ptr<IterationStoppingCriterion>, StoppingCriterion>(m, "IterationStoppingCriterion")
         .def(py::init<int>());
-    py::class_<MaxToroidalFluxStoppingCriterion, shared_ptr<MaxToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MaxToroidalFluxStoppingCriterion")
-        .def(py::init<double>());
-    py::class_<MinToroidalFluxStoppingCriterion, shared_ptr<MinToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MinToroidalFluxStoppingCriterion")
-        .def(py::init<double>());
+    py::class_<RStoppingCriterion, shared_ptr<RStoppingCriterion>, StoppingCriterion>(m, "RStoppingCriterion")
+        .def(py::init<double,bool>());
+    py::class_<ZStoppingCriterion, shared_ptr<ZStoppingCriterion>, StoppingCriterion>(m, "ZStoppingCriterion")
+        .def(py::init<double,bool>());
+    py::class_<ToroidalFluxStoppingCriterion, shared_ptr<ToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "ToroidalFluxStoppingCriterion")
+        .def(py::init<double,bool>());
     py::class_<ToroidalTransitStoppingCriterion, shared_ptr<ToroidalTransitStoppingCriterion>, StoppingCriterion>(m, "ToroidalTransitStoppingCriterion")
         .def(py::init<int,bool>());
     py::class_<LevelsetStoppingCriterion<PyTensor>, shared_ptr<LevelsetStoppingCriterion<PyTensor>>, StoppingCriterion>(m, "LevelsetStoppingCriterion")

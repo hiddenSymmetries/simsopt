@@ -738,39 +738,25 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
         else:
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
 
-
-class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
+class ToroidalFluxStoppingCriterion(sopp.ToroidalFluxStoppingCriterion):
     """
-    Stop the iteration once a particle falls below a critical value of
+    Stop the iteration once a particle falls above or below a critical value of
     ``s``, the normalized toroidal flux. This :class:`StoppingCriterion` is
-    important to use when tracing particles in flux coordinates, as the poloidal
-    angle becomes ill-defined at the magnetic axis. This should only be used
-    when tracing trajectories in a flux coordinate system (i.e., :class:`trace_particles_boozer`).
+    important to use when tracing particles in flux coordinates. For example,
+    the poloidal angle becomes ill-defined at the magnetic axis. This should 
+    only be used when tracing trajectories in a flux coordinate system (i.e., 
+    :class:`trace_particles_boozer`).
 
     Usage:
 
     .. code-block::
 
-        stopping_criteria=[MinToroidalFluxStopingCriterion(s)]
+        stopping_criteria=[ToroidalFluxStopingCriterion(crit_s,min_bool)]
 
-    where ``s`` is the value of the minimum normalized toroidal flux.
-    """
-    pass
-
-
-class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
-    """
-    Stop the iteration once a particle falls above a critical value of
-    ``s``, the normalized toroidal flux. This should only be used when tracing
-    trajectories in a flux coordinate system (i.e., :class:`trace_particles_boozer`).
-
-    Usage:
-
-    .. code-block::
-
-        stopping_criteria=[MaxToroidalFluxStopingCriterion(s)]
-
-    where ``s`` is the value of the maximum normalized toroidal flux.
+    where ``crit_s`` is the value of the critical normalized toroidal flux and 
+    ``min_bool'' is a boolean indicating whether to stop when  
+    ``s'' is less than the critical value (``true'') or 
+    greater than the critical value (``false'').
     """
     pass
 
@@ -797,6 +783,41 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
+class RStoppingCriterion(sopp.RStoppingCriterion):
+    """
+    Stop the iteration once a particle falls above or below a critical value of
+    ``R``, the radial cylindrical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[RStopingCriterion(crit_r,min_bool)]
+
+    where ``crit_r`` is the value of the critical coordinate and 
+    ``min_bool'' is a boolean indicating whether to stop when  
+    ``R'' is less than the critical value (``true'') or 
+    greater than the critical value (``false'').
+    """
+    pass
+
+class ZStoppingCriterion(sopp.ZStoppingCriterion):
+    """
+    Stop the iteration once a particle falls above or below a critical value of
+    ``Z``, the cylindrical vertical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[ZStopingCriterion(crit_z,min_bool)]
+
+    where ``crit_z`` is the value of the critical coordinate and 
+    ``min_bool'' is a boolean indicating whether to stop when  
+    ``Z'' is less than the critical value (``true'') or 
+    greater than the critical value (``false'').
+    """
+    pass
 
 def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
                        ylims=None, surf=None, s=2, marker='o'):

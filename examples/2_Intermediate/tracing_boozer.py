@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from simsopt.field import (BoozerRadialInterpolant, InterpolatedBoozerField, trace_particles_boozer,
-                           MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion,
+                           ToroidalFluxStoppingCriterion,
                            ToroidalTransitStoppingCriterion, compute_resonances)
 from simsopt.mhd import Vmec
 from simsopt.util import in_github_actions
@@ -75,7 +75,7 @@ mu_inits = (Ekin - mass*0.5*vpar**2)/modB_inits  # m vperp^2 /(2B)
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_inits, vpar_inits, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
-    Ekin=Ekin, tol=1e-8, mode='gc_vac', stopping_criteria=[MaxToroidalFluxStoppingCriterion(0.99), MinToroidalFluxStoppingCriterion(0.01), ToroidalTransitStoppingCriterion(100, True)],
+    Ekin=Ekin, tol=1e-8, mode='gc_vac', stopping_criteria=[ToroidalFluxStoppingCriterion(0.99,False), ToroidalFluxStoppingCriterion(0.01,True), ToroidalTransitStoppingCriterion(100, True)],
     forget_exact_path=False)
 
 Nparticles = len(gc_tys)
@@ -112,7 +112,7 @@ vpar_inits[:, 0] = -vpar
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_inits, vpar_inits, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
-    Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
+    Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[ToroidalFluxStoppingCriterion(0.01,True), ToroidalFluxStoppingCriterion(0.99,False), ToroidalTransitStoppingCriterion(30, True)],
     forget_exact_path=False)
 
 resonances = compute_resonances(gc_tys, gc_zeta_hits, ma=None, delta=0.01)
@@ -134,7 +134,7 @@ for i in range(len(resonances)):
 
 gc_tys, gc_zeta_hits = trace_particles_boozer(
     field, stz_res, vpar_res, tmax=1e-2, mass=mass, charge=ELEMENTARY_CHARGE,
-    Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[MinToroidalFluxStoppingCriterion(0.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(30, True)],
+    Ekin=Ekin, zetas=[0], tol=1e-8, stopping_criteria=[ToroidalFluxStoppingCriterion(0.01,True), ToroidalFluxStoppingCriterion(0.99,False), ToroidalTransitStoppingCriterion(30, True)],
     forget_exact_path=False)
 
 if not in_github_actions:
