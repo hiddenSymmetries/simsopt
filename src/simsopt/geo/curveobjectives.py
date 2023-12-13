@@ -104,6 +104,24 @@ class LpCurveCurvature(Optimizable):
 
 
 def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot):
+    """Find the maximum port size given surface and coils
+    
+    Heaviside, min and max functions are approximated with differentiable functions so that this function can be used in an optimization.
+
+    Args:
+        - gamma_curves: np.array of size (ncurves, npts, 3). List of points defining the coils
+        - gamma_surf: np.array of size (nphi, ntheta, 3). List of points on the surface
+        - unit_normal: np.array of size (nphi, ntheta, 3). Unit vector normal to gamma_surf
+        - unit_tangent: np.array of size (nphi, ntheta, 3). Unit vector tangent to gamma_surf
+        - phi_ind: List of phi-indices for points on gamma_surf that are candidate for a port access. Shape is (np,)
+        - theta_ind: List of theta-indices for points on gamma_surf that are candidates for a port access. Shape is (np,)
+        - max_sizes:: Maximum size for port at position iphi, itheta. Shape should be (nphi,ntheta)
+        - ftop: list of polynomials to fit the upper envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
+        - fbot: list of polynomials to fit the lower envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
+
+    Output:
+        - rp: largest circular port size on gamma_surf.
+    """
     p = 4
     hv = lambda x: logistic(x, k=4)
     min = lambda x: np.sum(x**(-p))**(-1./p)
@@ -118,6 +136,24 @@ def coil_normal_distance(gamma_curves, gamma_surf, unit_normal, unit_tangent, ph
     from the coils to the line normal to the surface at this point. Return then
     largest of these minimum radii.
 
+    Args:
+        - gamma_curves: np.array of size (ncurves, npts, 3). List of points defining the coils
+        - gamma_surf: np.array of size (nphi, ntheta, 3). List of points on the surface
+        - unit_normal: np.array of size (nphi, ntheta, 3). Unit vector normal to gamma_surf
+        - unit_tangent: np.array of size (nphi, ntheta, 3). Unit vector tangent to gamma_surf
+        - phi_ind: List of phi-indices for points on gamma_surf that are candidate for a port access. Shape is (np,)
+        - theta_ind: List of theta-indices for points on gamma_surf that are candidates for a port access. Shape is (np,)
+        - max_sizes:: Maximum size for port at position iphi, itheta. Shape should be (nphi,ntheta)
+        - ftop: list of polynomials to fit the upper envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
+        - fbot: list of polynomials to fit the lower envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
+        - hv: Heaviside function, or a differentiable approximation
+        - min: Minimum function, or a differentiable approximation 
+        - max: Maximum function, or a differentiable approximation 
+        - return_pos: Flag to control output
+
+    Output:
+        - rp: Maximum circular port size on gamma_surf.
+        - pos: (iphi, itheta) index of the maximum port size position. Only returned if return_pos is True.
     """
     nn = phi_ind.size
     port_sizes = jnp.zeros((nn,))
@@ -194,11 +230,11 @@ def find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal, unit_tan
     # test is 1 only if the point is closer than max_size, and if the point is in front of the surface.
     test = hv(max_size-dd) * (hv(-x[:,2])*hv(x[:,0]-bn)+hv(x[:,2])*hv(x[:,0]-tn))
 
-    # we shift test and multiply it by a large number, so that if the point does not satisfy test, we associate to it a large distance
+    # We shift test and multiply it by a large number, so that if the point does not satisfy test, we associate to it a large distance. Here we chose a multiplication factor of 1E2 - larger number make the target function more stiff
     distances = distances.at[1:].set( (-1e2*(test-1) +1) * dd )
     counter += 1
 
-    # p-norm to approximate minimum. p should be a parameter?
+    # Return port size
     return jnp.sqrt(min(distances))
 
 def heaviside(x):
@@ -323,8 +359,8 @@ class PortSize(Optimizable):
             # Interpolate lower and upper envelop - this is a linear interpolation, does it keep the C1 property? I don't think so. Smooth interpolation would be better
             #self.bot_fits[iphi,itheta] = lambda x: np.interp(x, xyzbot[:,1], xyzbot[:,2] )
             #self.top_fits[iphi,itheta] = lambda x: np.interp(x, xyztop[:,1], xyztop[:,2] )
-            self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,2], deg)
-            self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,2], deg)
+            self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,0], deg)
+            self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,0], deg)
 
 
     def J(self):
