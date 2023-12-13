@@ -31,13 +31,6 @@ class FramedCurve(sopp.Curve, Curve):
         self.rotation = rotation
         Curve.__init__(self, depends_on=deps)
 
-    def frame_twist(self):
-        t, n, _ = self.rotated_frame()
-        _, ndash, _ = self.rotated_frame_dash()
-        T = (n[:,0] * (ndash[:,1]*t[:,2] - ndash[:,2]*t[:,1]) \
-           + n[:,1] * (ndash[:,2]*t[:,0] - ndash[:,0]*t[:,2]) \
-           + n[:,2] * (ndash[:,0]*t[:,1] - ndash[:,1]*t[:,0]))
-        return np.sum(T)/(len(T)*2*np.pi)
 
 class FramedCurveFrenet(FramedCurve):
     r"""
