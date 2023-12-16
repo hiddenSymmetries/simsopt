@@ -16,7 +16,7 @@ from simsopt.field.selffield import (
     rectangular_xsection_delta,
     regularization_circ,
 )
-from simsopt.field.force import self_force_circ, self_force_rect, MeanSquaredForceOpt
+from simsopt.field.force import self_force_circ, self_force_rect, MeanSquaredForce
 
 logger = logging.getLogger(__name__)
 
@@ -211,11 +211,11 @@ class CoilForcesTest(unittest.TestCase):
         # actual coil shapes from the experiment, just a few nonzero dofs.
 
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
-        coils = np.array([Coil(curve, current) for curve, current in zip(curves, currents)])
-        coils=np.array([coils[0]]) #remove later
+        coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
+        coils = [coils[0]]  # remove later
         [current.fix_all() for current in currents]
 
-        J = MeanSquaredForceOpt(coils, coils, regularization_circ(0.05))
+        J = MeanSquaredForce(coils[0], coils, regularization_circ(0.05))
         dJ = J.dJ()
         deriv = np.sum(dJ * np.ones_like(J.x))
         dofs = J.x
@@ -228,7 +228,7 @@ class CoilForcesTest(unittest.TestCase):
             J.x = dofs - eps * h
             Jm = J.J()
             deriv_est = (Jp - Jm) / (2 * eps)
-            err_new = np.abs(deriv_est - deriv)
+            err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
             print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
             np.testing.assert_array_less(err_new, 0.3 * err)
             err = err_new
