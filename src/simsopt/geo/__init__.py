@@ -22,6 +22,7 @@ from .surfacerzfourier import *
 from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 from .strain_optimization import *
+from .hull import *
 
 from .permanent_magnet_grid import *
 from .windowpanecurve import *
@@ -36,4 +37,4 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
            permanent_magnet_grid.__all__ + windowpanecurve.__all__ +
-           strain_optimization.__all__ + framedcurve.__all__) 
+           strain_optimization.__all__ + framedcurve.__all__ + hull.__all__) 

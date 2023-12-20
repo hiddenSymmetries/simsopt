@@ -5,6 +5,7 @@ import numpy as np
 from jax import grad
 import jax.numpy as jnp
 from jax.lax import dynamic_slice
+from .hull import hull2D
 
 from .jit import jit
 from .._core.optimizable import Optimizable
@@ -326,7 +327,8 @@ class PortSize(Optimizable):
         # self.top_fits = np.zeros((3*nphi,ntheta,3,deg+1)) # lower envelop fit
         self.bot_fits = np.zeros((3*nphi,ntheta,deg+1))
         self.top_fits = np.zeros((3*nphi,ntheta,deg+1))
-        for iphi, itheta in zip(self.phi_ind, self.theta_ind):
+        to_pop = []
+        for ii, (iphi, itheta) in enumerate(zip(self.phi_ind, self.theta_ind)):
             # Construct coordinate system with normal, and tangent vectors. 
             bnorm = jnp.cross(self.unit_normal[iphi,itheta], self.unit_tangent[iphi,itheta])
             
@@ -343,7 +345,7 @@ class PortSize(Optimizable):
             surf = self.gamma_boundary[phi_start:phi_end,:,:]
             gamma_surf_proj = np.einsum('ij,lmj->lmi', invM, surf - xsurf[None,None,:]) # This is the section of the surface projected on the tangent plane (i.e. in coord system (n,t,b)) 
 
-            # Now find the envelop. This is an approximation, as for very twisted surfaces, toroidal planes can overlap in the (t,b) plane, and taking the max/min b-coordinate of each toroidal plane does not necessarily envelop the full projected surface. 
+            # Now find the envelop. for this, we construct the non-convex hull of the surface projected on the (t,b) plane
             xyzbot = np.zeros((new_nphi,3))
             xyztop = np.zeros((new_nphi,3))
             for jj in range(new_nphi):
@@ -351,6 +353,19 @@ class PortSize(Optimizable):
                 ibot = np.argmin(gamma_surf_proj[jj,:,2]) 
                 xyzbot[jj,:] = gamma_surf_proj[jj,ibot,:]
                 xyztop[jj,:] = gamma_surf_proj[jj,itop,:]
+
+            xflat = gamma_surf_proj.reshape((-1,3))
+            try:
+                hull = hull2D( xflat[:,1:], surf )
+                uenv = hull.envelop(1, 'upper')
+                lenv = hull.envelop(1, 'lower')
+            except ValueError:
+                print(f'Popping point (phi,theta)={(iphi,itheta)}')
+                to_pop.append(ii)
+                continue
+
+            xyztop = xflat[uenv,:]
+            xyzbot = xflat[lenv,:]
 
             # Evaluate closest point from the envelop. This sets the maximum port size
             tt = np.append(xyztop,xyzbot,axis=0)
@@ -361,6 +376,10 @@ class PortSize(Optimizable):
             #self.top_fits[iphi,itheta] = lambda x: np.interp(x, xyztop[:,1], xyztop[:,2] )
             self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,0], deg)
             self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,0], deg)
+        
+        to_pop = np.array(to_pop)
+        self.phi_ind = np.delete(self.phi_ind, to_pop)
+        self.theta_ind = np.delete(self.theta_ind, to_pop)
 
 
     def J(self):
