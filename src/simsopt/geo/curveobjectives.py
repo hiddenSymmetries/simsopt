@@ -104,7 +104,7 @@ class LpCurveCurvature(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot):
+def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p):
     """Find the maximum port size given surface and coils
     
     Heaviside, min and max functions are approximated with differentiable functions so that this function can be used in an optimization.
@@ -119,11 +119,10 @@ def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangen
         - max_sizes:: Maximum size for port at position iphi, itheta. Shape should be (nphi,ntheta)
         - ftop: list of polynomials to fit the upper envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
         - fbot: list of polynomials to fit the lower envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
-
+        - p: coefficient for p-norm
     Output:
         - rp: largest circular port size on gamma_surf.
     """
-    p = 4
     hv = lambda x: logistic(x, k=4)
     min = lambda x: np.sum(x**(-p))**(-1./p)
     max = lambda x: np.sum(x**( p))**( 1./p)
@@ -265,7 +264,7 @@ class PortSize(Optimizable):
 
     Boundary should span 3/2 field periods, and curves should be all coils spanning the same 3/2 field periods.
     """
-    def __init__(self, curves, surf):
+    def __init__(self, curves, surf, p=4):
         self.curves = curves
 
         # Every surface dependent quantity is only evaluated once for speed
@@ -275,8 +274,8 @@ class PortSize(Optimizable):
         # Also, if the port size is made dependent on the surface, the objective function might not be differentiable anymore. 
         super().__init__(depends_on=curves)
 
-        self.J_jax=lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot)
-        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot)
+        self.J_jax=lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p)
+        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p)
         #self.thisgrad1 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=1)(gamma_curves, gamma_surf, unit_normal))
         #self.thisgrad2 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=2)(gamma_curves, gamma_surf, unit_normal))
 
