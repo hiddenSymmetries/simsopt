@@ -275,7 +275,7 @@ class PortSize(Optimizable):
         super().__init__(depends_on=curves)
 
         self.J_jax=lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p)
-        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p)
+        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot)
         #self.thisgrad1 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=1)(gamma_curves, gamma_surf, unit_normal))
         #self.thisgrad2 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=2)(gamma_curves, gamma_surf, unit_normal))
 
@@ -295,7 +295,7 @@ class PortSize(Optimizable):
         self.gamma_boundary = self.boundary.gamma()
         nphi, ntheta, _ = self.gamma_boundary.shape
         if np.mod(nphi,3)!=0:
-            raise ValueError('BOundary should have quadpoints_phi be a multiple of 3')
+            raise ValueError('Boundary should have quadpoints_phi be a multiple of 3')
         nphi = int(nphi/3)
 
         # self.phi_ind and self.theta_ind are arrays that store which point on the surface are to be considered when evaluating the port access. We set phi_ind such that all points are in the central half field period of the surface, and theta_ind such that only outboard points are considered.
