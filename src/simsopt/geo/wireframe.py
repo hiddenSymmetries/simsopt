@@ -152,6 +152,9 @@ class ToroidalWireframe(object):
         # Create a matrix listing which segments are connected to each node
         self.determine_connected_segments()
 
+        # Create a matrix listing which segments surround each cell in the wireframe
+        self.set_up_cell_key()
+
         # Add constraints to enforce continuity at each node
         self.initialize_constraints()
         self.add_continuity_constraints()
@@ -217,6 +220,49 @@ class ToroidalWireframe(object):
 
                 self.connected_segments[self.node_inds[i,j]][:] = \
                     [ind_tor_in, ind_pol_in, ind_tor_out, ind_pol_out]
+
+    def set_up_cell_key(self):
+        """
+        Set up a matrix giving the indices of the segments forming each 
+        cell/loop in the wireframe.
+        """
+
+        self.cell_key = np.zeros((self.nTheta*self.nPhi, 4)).astype(np.int64)
+
+        halfNTheta = int(self.nTheta/2)
+
+        for i in range(self.nPhi):
+            for j in range(self.nTheta):
+
+                # First symmetry plane
+                if i == 0:
+                    ind_tor1 = self.torSegmentKey[i, j]
+                    ind_pol2 = self.polSegmentKey[i+1, j]
+                    ind_tor3 = self.torSegmentKey[i, (j+1) % self.nTheta]
+                    if j < halfNTheta:
+                        ind_pol4 = self.polSegmentKey[i, j]
+                    else:
+                        ind_pol4 = self.polSegmentKey[i, self.nTheta - j - 1]
+
+                # Between the symmetry planes
+                elif i < self.nPhi-1:
+                    ind_tor1 = self.torSegmentKey[i, j]
+                    ind_pol2 = self.polSegmentKey[i+1, j]
+                    ind_tor3 = self.torSegmentKey[i, (j+1) % self.nTheta]
+                    ind_pol4 = self.polSegmentKey[i, j]
+
+                # Second symmetry plane
+                else:
+                    ind_tor1 = self.torSegmentKey[i, j]
+                    if j < halfNTheta:
+                        ind_pol2 = self.polSegmentKey[i+1, j]
+                    else:
+                        ind_pol2 = self.polSegmentKey[i+1, self.nTheta - j - 1]
+                    ind_tor3 = self.torSegmentKey[i, (j+1) % self.nTheta]
+                    ind_pol4 = self.polSegmentKey[i, j]
+
+                self.cell_key[i*self.nTheta + j, :] = \
+                    [ind_tor1, ind_pol2, ind_tor3, ind_pol4]
 
     def initialize_constraints(self):
 
@@ -694,6 +740,29 @@ class ToroidalWireframe(object):
         # constraint is redundant
         return np.where(node_sum >= 4)[0]
             
+    def get_cell_key(self):
+        """
+        Returns a matrix of the segments that border every rectangular cell in the 
+        wireframe. There is one row for every cell. The columns are defined as 
+        follows:
+
+            Column  Short name  Description
+            ------  ----------  ----------------------------------------------------
+            1       ind_tor1    ID of toroidal segment with lower poloidal angle
+            2       ind_pol2    ID of poloidal segment with higher toroidal angle
+            3       ind_tor3    ID of toroidal segment with higher poloidal angle
+            4       ind_pol4    ID of poloidal segment with lower toroidal angle
+
+        Cells in which at least one bordering segment is constrained are not 
+        included in the matrix.
+        """
+
+        constr_cells = np.zeros((self.nTheta*self.nPhi))
+        for seg_ind in self.constrained_segments(include='all'):
+            constr_cells += np.sum(self.cell_key == seg_ind, axis=1).reshape((-1))
+
+        return np.ascontiguousarray(self.cell_key[constr_cells == 0])
+
     def make_plot_3d(self, ax=None):
         """
         Make a plot of the wireframe grid, including nodes and segments.
