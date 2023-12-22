@@ -742,26 +742,37 @@ class ToroidalWireframe(object):
             
     def get_cell_key(self):
         """
-        Returns a matrix of the segments that border every rectangular cell in the 
-        wireframe. There is one row for every cell. The columns are defined as 
-        follows:
+        Returns a matrix of the segments that border every rectangular cell in 
+        the wireframe. There is one row for every cell. The columns are defined
+        as follows:
 
-            Column  Short name  Description
-            ------  ----------  ----------------------------------------------------
-            1       ind_tor1    ID of toroidal segment with lower poloidal angle
-            2       ind_pol2    ID of poloidal segment with higher toroidal angle
-            3       ind_tor3    ID of toroidal segment with higher poloidal angle
-            4       ind_pol4    ID of poloidal segment with lower toroidal angle
+        Column  Short name  Description
+        ------  ----------  ----------------------------------------------------
+        1       ind_tor1    ID of toroidal segment with lower poloidal angle
+        2       ind_pol2    ID of poloidal segment with higher toroidal angle
+        3       ind_tor3    ID of toroidal segment with higher poloidal angle
+        4       ind_pol4    ID of poloidal segment with lower toroidal angle
 
         Cells in which at least one bordering segment is constrained are not 
         included in the matrix.
         """
 
+        free_cell_IDs = self.get_free_cells()
+
+        return np.ascontiguousarray(self.cell_key[free_cell_IDs])
+
+    def get_free_cells(self):
+        """
+        Returns the indices of the cells that are free; i.e. they do not border
+        any constrained segments.
+        """
+
         constr_cells = np.zeros((self.nTheta*self.nPhi))
         for seg_ind in self.constrained_segments(include='all'):
-            constr_cells += np.sum(self.cell_key == seg_ind, axis=1).reshape((-1))
+            constr_cells += \
+                np.sum(self.cell_key == seg_ind, axis=1).reshape((-1))
 
-        return np.ascontiguousarray(self.cell_key[constr_cells == 0])
+        return np.where(constr_cells == 0)[0]
 
     def make_plot_3d(self, ax=None):
         """
@@ -912,4 +923,97 @@ class ToroidalWireframe(object):
 
         ax.add_collection(lc)
 
+    def plot_cells_2d(self, cell_values, value_label=None, ax=None):
+        """
+        Generates a 2d plot of the cells in one half-period of a wireframe,
+        color-coded according to an input array of values.
+
+        Parameters
+        ----------
+            cell_values: 1d array
+                Values that determine the color of each cell.
+            value_label: string (optional)
+                Label for the colorbar
+            ax: instance of the matplotlib.pyplot.Axis class (optional)
+                Axis on which to generate the plot. If None, a new plot will
+                be created.
+
+        Returns
+        -------
+            ax: instance of the matplotlib.pyplot.Axis class
+                Axis instance on which the plot was created.
+        """
+
+        import matplotlib.pyplot as pl
+        from matplotlib.collections import PolyCollection
+
+        vertices = np.zeros((self.nTheta*self.nPhi, 4, 2))
+        #vertices[:,:,0] = \
+        #    np.floor(self.segments[self.cell_key[:,:],0]/self.nTheta)
+        #vertices[:,:,1] = \
+        #    self.segments[self.cell_key[:,:],0] % self.nTheta
+        vertices[:,0,0] = \
+            np.floor(self.segments[self.cell_key[:,0],0]/self.nTheta)
+        vertices[:,1,0] = \
+            np.floor(self.segments[self.cell_key[:,0],1]/self.nTheta)
+        vertices[:,2,0] = \
+            np.floor(self.segments[self.cell_key[:,2],1]/self.nTheta)
+        vertices[:,3,0] = \
+            np.floor(self.segments[self.cell_key[:,2],0]/self.nTheta)
+        #vertices[:,4,0] = \
+        #    np.floor(self.segments[self.cell_key[:,3],0]/self.nTheta)
+        vertices[:,0,1] = \
+            self.segments[self.cell_key[:,0],0] % self.nTheta
+        vertices[:,1,1] = \
+            self.segments[self.cell_key[:,0],1] % self.nTheta
+        vertices[:,2,1] = \
+            self.segments[self.cell_key[:,2],1] % self.nTheta
+        vertices[:,3,1] = \
+            self.segments[self.cell_key[:,2],0] % self.nTheta
+        #vertices[:,4,1] = \
+        #    self.segments[self.cell_key[:,3],0] % self.nTheta
+
+        #halfNTheta = int(self.nTheta/2)
+        #vertices[halfNTheta:self.nTheta,3,1] = \
+        #    self.nTheta + 1 - vertices[halfNTheta:self.nTheta,3,1]
+        #vertices[-halfNTheta:,1,1] = \
+        #    self.nTheta - 1 - vertices[-halfNTheta:,1,1]
+
+        loop_segs = np.where(\
+            np.logical_and(vertices[:,0,1] == self.nTheta-1, \
+                           vertices[:,2,1] == 0))
+        vertices[loop_segs,2:,1] = self.nTheta
+        
+        free_cell_ids = self.get_free_cells()
+        all_values = np.zeros((self.cell_key.shape[0]))
+
+        if len(cell_values) == self.cell_key.shape[0]:
+            all_values[:] = np.reshape(cell_values, (-1))[:]
+        elif len(cell_values) == len(free_cell_ids):
+            all_values[free_cell_ids] = np.reshape(cell_values, (-1))[:]
+        else:
+            raise ValueError('Input cell_values doesn''t have the correct ' \
+                             'number of elements')
+
+        pc = PolyCollection(vertices)
+        pc.set_array(all_values)
+        pc.set_edgecolor((0,0,0))
+        pc.set_clim(np.max(np.abs(all_values))*np.array([-1, 1]))
+        pc.set_cmap('coolwarm')
+
+        if ax is None:
+            fig = pl.figure()
+            ax = fig.add_subplot()
+
+        ax.set_xlim((-1, self.nPhi + 1))
+        ax.set_ylim((-1, self.nTheta + 1))
+
+        ax.set_xlabel('Toroidal index')
+        ax.set_ylabel('Poloidal index')
+        cb = pl.colorbar(pc)
+ 
+        if value_label:
+            cb.set_label(value_label)
+
+        ax.add_collection(pc)
 
