@@ -16,7 +16,9 @@ from .._core.types import RealArray
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
-           'ToroidalFluxStoppingCriterion','RStoppingCriterion','ZStoppingCriterion',
+           'MinToroidalFluxStoppingCriterion','MaxToroidalFluxStoppingCriterion',
+           'MinRStoppingCriterion','MinZStoppingCriterion',
+           'MaxRStoppingCriterion','MaxZStoppingCriterion',
            'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
            'compute_fieldlines', 'compute_resonances',
            'compute_poloidal_transits', 'compute_toroidal_transits',
@@ -738,28 +740,40 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
         else:
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
 
-class ToroidalFluxStoppingCriterion(sopp.ToroidalFluxStoppingCriterion):
+class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
-    Stop the iteration once a particle falls above or below a critical value of
+    Stop the iteration once a particle falls below a critical value of
     ``s``, the normalized toroidal flux. This :class:`StoppingCriterion` is
-    important to use when tracing particles in flux coordinates. For example,
-    the poloidal angle becomes ill-defined at the magnetic axis. This should 
-    only be used when tracing trajectories in a flux coordinate system (i.e., 
-    :class:`trace_particles_boozer`).
+    important to use when tracing particles in flux coordinates, as the poloidal
+    angle becomes ill-defined at the magnetic axis. This should only be used
+    when tracing trajectories in a flux coordinate system (i.e., :class:`trace_particles_boozer`).
 
     Usage:
 
     .. code-block::
 
-        stopping_criteria=[ToroidalFluxStopingCriterion(crit_s,min_bool)]
+        stopping_criteria=[MinToroidalFluxStopingCriterion(s)]
 
-    where ``crit_s`` is the value of the critical normalized toroidal flux and 
-    ``min_bool'' is a boolean indicating whether to stop when  
-    ``s'' is less than the critical value (``true'') or 
-    greater than the critical value (``false'').
+    where ``s`` is the value of the minimum normalized toroidal flux.
     """
     pass
 
+
+class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
+    """
+    Stop the iteration once a particle falls above a critical value of
+    ``s``, the normalized toroidal flux. This should only be used when tracing
+    trajectories in a flux coordinate system (i.e., :class:`trace_particles_boozer`).
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxToroidalFluxStopingCriterion(s)]
+
+    where ``s`` is the value of the maximum normalized toroidal flux.
+    """
+    pass
 
 class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     """
@@ -783,39 +797,63 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
-class RStoppingCriterion(sopp.RStoppingCriterion):
+class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
     """
-    Stop the iteration once a particle falls above or below a critical value of
+    Stop the iteration once a particle falls below a critical value of
     ``R``, the radial cylindrical coordinate. 
 
     Usage:
 
     .. code-block::
 
-        stopping_criteria=[RStopingCriterion(crit_r,min_bool)]
+        stopping_criteria=[MinRStopingCriterion(crit_r)]
 
-    where ``crit_r`` is the value of the critical coordinate and 
-    ``min_bool'' is a boolean indicating whether to stop when  
-    ``R'' is less than the critical value (``true'') or 
-    greater than the critical value (``false'').
+    where ``crit_r`` is the value of the critical coordinate.
     """
     pass
 
-class ZStoppingCriterion(sopp.ZStoppingCriterion):
+class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
     """
-    Stop the iteration once a particle falls above or below a critical value of
+    Stop the iteration once a particle falls below a critical value of
     ``Z``, the cylindrical vertical coordinate. 
 
     Usage:
 
     .. code-block::
 
-        stopping_criteria=[ZStopingCriterion(crit_z,min_bool)]
+        stopping_criteria=[MinZStopingCriterion(crit_z)]
 
-    where ``crit_z`` is the value of the critical coordinate and 
-    ``min_bool'' is a boolean indicating whether to stop when  
-    ``Z'' is less than the critical value (``true'') or 
-    greater than the critical value (``false'').
+    where ``crit_z`` is the value of the critical coordinate.
+    """
+    pass
+
+class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
+    """
+    Stop the iteration once a particle goes above a critical value of
+    ``R``, the radial cylindrical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxRStopingCriterion(crit_r,min_bool)]
+
+    where ``crit_r`` is the value of the critical coordinate.
+    """
+    pass
+
+class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
+    """
+    Stop the iteration once a particle gove above or below a critical value of
+    ``Z``, the cylindrical vertical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxZStopingCriterion(crit_z,min_bool)]
+
+    where ``crit_z`` is the value of the critical coordinate.
     """
     pass
 
