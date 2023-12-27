@@ -224,12 +224,16 @@ class ToroidalWireframe(object):
     def set_up_cell_key(self):
         """
         Set up a matrix giving the indices of the segments forming each 
-        cell/loop in the wireframe.
+        cell/loop in the wireframe. Also populate an array giving the 
+        indices of the four adjacent cells to each cell.
         """
 
-        self.cell_key = np.zeros((self.nTheta*self.nPhi, 4)).astype(np.int64)
+        nCells = self.nTheta * self.nPhi
+        self.cell_key = np.zeros((nCells, 4)).astype(np.int64)
+        self.cell_neighbors = np.zeros((nCells, 4)).astype(np.int64)
 
         halfNTheta = int(self.nTheta/2)
+        cell_grid = np.arange(nCells).reshape((self.nPhi, self.nTheta))
 
         for i in range(self.nPhi):
             for j in range(self.nTheta):
@@ -244,12 +248,22 @@ class ToroidalWireframe(object):
                     else:
                         ind_pol4 = self.polSegmentKey[i, self.nTheta - j - 1]
 
+                    nbr_npol = cell_grid[i, (j-1) % self.nTheta]
+                    nbr_ptor = cell_grid[i+1, j]
+                    nbr_ppol = cell_grid[i, (j+1) % self.nTheta]
+                    nbr_ntor = cell_grid[i, self.nTheta - j - 1]
+
                 # Between the symmetry planes
                 elif i < self.nPhi-1:
                     ind_tor1 = self.torSegmentKey[i, j]
                     ind_pol2 = self.polSegmentKey[i+1, j]
                     ind_tor3 = self.torSegmentKey[i, (j+1) % self.nTheta]
                     ind_pol4 = self.polSegmentKey[i, j]
+
+                    nbr_npol = cell_grid[i, (j-1) % self.nTheta]
+                    nbr_ptor = cell_grid[i+1, j]
+                    nbr_ppol = cell_grid[i, (j+1) % self.nTheta]
+                    nbr_ntor = cell_grid[i-1, j]
 
                 # Second symmetry plane
                 else:
@@ -261,8 +275,16 @@ class ToroidalWireframe(object):
                     ind_tor3 = self.torSegmentKey[i, (j+1) % self.nTheta]
                     ind_pol4 = self.polSegmentKey[i, j]
 
+                    nbr_npol = cell_grid[i, (j-1) % self.nTheta]
+                    nbr_ptor = cell_grid[i, self.nTheta - j - 1]
+                    nbr_ppol = cell_grid[i, (j+1) % self.nTheta]
+                    nbr_ntor = cell_grid[i-1, j]
+
                 self.cell_key[i*self.nTheta + j, :] = \
                     [ind_tor1, ind_pol2, ind_tor3, ind_pol4]
+
+                self.cell_neighbors[i*self.nTheta + j, :] = \
+                    [nbr_npol, nbr_ptor, nbr_ppol, nbr_ntor]
 
     def initialize_constraints(self):
 
@@ -753,18 +775,40 @@ class ToroidalWireframe(object):
         3       ind_tor3    ID of toroidal segment with higher poloidal angle
         4       ind_pol4    ID of poloidal segment with lower toroidal angle
 
-        Cells in which at least one bordering segment is constrained are not 
-        included in the matrix.
         """
 
-        free_cell_IDs = self.get_free_cells()
+        return np.ascontiguousarray(self.cell_key)
 
-        return np.ascontiguousarray(self.cell_key[free_cell_IDs])
+    def get_cell_neighbors(self):
+        """
+        Returns a matrix of the indices of the four adjacent cells to each cell
+        in the wireframe. There is one row for every cell. The columns are 
+        defined as follows:
 
-    def get_free_cells(self):
+        Column  Short name  Description
+        ------  ----------  ----------------------------------------------------
+        1       nbr_npol    ID of neighboring cell, negative poloidal direction
+        2       nbr_ptor    ID of neighboring cell, positive toroidal direction
+        3       nbr_ppol    ID of neighboring cell, positive poloidal direction
+        4       nbr_ntor    ID of neighboring cell, negative toroidal direction
+
+        """
+
+        return np.ascontiguousarray(self.cell_neighbors)
+
+    def get_free_cells(self, form='logical'):
         """
         Returns the indices of the cells that are free; i.e. they do not border
         any constrained segments.
+
+        Parameters
+        ----------
+            form: string (optional)
+                If 'indices', will return an array giving the row indices of 
+                the free cells as they appear in the output of get_cell_key().
+                If 'logical', will return a logical array with one element per
+                cell in which free cells are coded as true. 
+                Default is 'logical'.
         """
 
         constr_cells = np.zeros((self.nTheta*self.nPhi))
@@ -772,7 +816,13 @@ class ToroidalWireframe(object):
             constr_cells += \
                 np.sum(self.cell_key == seg_ind, axis=1).reshape((-1))
 
-        return np.where(constr_cells == 0)[0]
+        if form=='indices':
+            return np.where(constr_cells == 0)[0]
+        elif form=='logical':
+            return np.ascontiguousarray(constr_cells == 0)
+        else:
+            raise ValueError('form parameter must be ''indices'' ' \
+                             + 'or ''logical''')
 
     def make_plot_3d(self, ax=None):
         """
