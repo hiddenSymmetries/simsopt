@@ -836,7 +836,7 @@ class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxRStopingCriterion(crit_r,min_bool)]
+        stopping_criteria=[MaxRStopingCriterion(crit_r)]
 
     where ``crit_r`` is the value of the critical coordinate.
     """
@@ -851,7 +851,7 @@ class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
 
     .. code-block::
 
-        stopping_criteria=[MaxZStopingCriterion(crit_z,min_bool)]
+        stopping_criteria=[MaxZStopingCriterion(crit_z)]
 
     where ``crit_z`` is the value of the critical coordinate.
     """
