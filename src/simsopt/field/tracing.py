@@ -844,7 +844,7 @@ class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
 
 class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
     """
-    Stop the iteration once a particle gove above or below a critical value of
+    Stop the iteration once a particle gove above a critical value of
     ``Z``, the cylindrical vertical coordinate. 
 
     Usage:
