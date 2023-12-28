@@ -79,12 +79,8 @@ PYBIND11_MODULE(simsoptpp, m) {
     // Greedy stellarator coil optimization (GSCO) solver
     m.def("GSCO", &GSCO, py::arg("A_obj"), py::arg("b_obj"), py::arg("current"),
           py::arg("max_current"), py::arg("cells"), py::arg("free_cells"), 
-          py::arg("cell_neighbors"), py::arg("lambda_P"), py::arg("nIter"), 
-          py::arg("x_init"), py::arg("cell_count_init"), py::arg("nHistory"));
-    m.def("GSCO_orig", &GSCO_orig, py::arg("A_obj"), py::arg("b_obj"), 
-           py::arg("current"),
-           py::arg("max_current"), py::arg("loops"), py::arg("nIter"), 
-           py::arg("x_init"), py::arg("nHistory"));
+          py::arg("lambda_P"), py::arg("nIter"), py::arg("x_init"), 
+          py::arg("cell_count_init"), py::arg("nHistory"));
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
