@@ -57,7 +57,8 @@ void WireframeField<T, Array, IntArray>::compute(int derivatives) {
     Array dBij = xt::zeros<double>({npoints, 3, 3});
     Array ddBij = xt::zeros<double>({npoints, 3, 3, 3});
 
-#pragma omp parallel for
+    // The loop below appears to not be thread safe. Running serially for now.
+    //#pragma omp parallel for
     for (int i = 0; i < nSegments; ++i) {
 
         Array& Bi = field_cache.get_or_create(fmt::format("B_{}", i), 
