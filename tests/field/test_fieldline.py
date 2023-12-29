@@ -3,7 +3,8 @@ import logging
 import numpy as np
 
 from simsopt.field.magneticfieldclasses import ToroidalField, PoloidalField, InterpolatedField, UniformInterpolationRule
-from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data
+from simsopt.field.tracing import compute_fieldlines, particles_to_vtk, plot_poincare_data, \
+    MinRStoppingCriterion, MinZStoppingCriterion, MaxRStoppingCriterion, MaxZStoppingCriterion
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.configs.zoo import get_ncsx_data
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
@@ -136,7 +137,36 @@ class FieldlineTesting(unittest.TestCase):
         Z0 = [ma.gamma()[0, 2]]        
         phis = np.arctan2(ma.gamma()[:, 1], ma.gamma()[:, 0])
         res_tys, res_phi_hits = compute_fieldlines(
-            bs, R0, Z0, tmax=2, phis=phis, stopping_criteria=[])
-
+            bs, R0, Z0, tmax=2, phis=phis)
         for i in range(len(res_phi_hits[0])):
             assert np.linalg.norm(ma.gamma()[i+1, :] - res_phi_hits[0][i, 2:5]) < 2e-3
+
+        # Text StoppingCriterion in R and Z 
+        # For each case, check that stopping criterion was met. 
+        # Check that R/Z is less than/greater than the maximum/minimum value. 
+        Rmax = 1
+        res_tys, res_phi_hits = compute_fieldlines(
+            bs, [Rmax-0.02], [1], tmax=2000, stopping_criteria=[MaxRStoppingCriterion(Rmax)])
+        assert res_phi_hits[0][0,1] == -1
+        assert np.all(np.sqrt(res_tys[0][:, 1]**2 + res_tys[0][:, 2]**2) < Rmax)
+
+        Rmin = 0.3
+        res_tys, res_phi_hits = compute_fieldlines(
+            bs, [Rmin+0.02], [0.3], tmax=500, stopping_criteria=[MinRStoppingCriterion(Rmin)])
+        assert res_phi_hits[0][0,1] == -1
+        assert np.all(np.sqrt(res_tys[0][:, 1]**2 + res_tys[0][:, 2]**2) > Rmin) 
+        
+        Zmin = -0.1
+        res_tys, res_phi_hits = compute_fieldlines(
+            bs, [0.97], [Zmin+0.02], tmax=2000, stopping_criteria=[MinZStoppingCriterion(Zmin)]
+            )
+        assert res_phi_hits[0][0,1] == -1
+        assert np.all(res_tys[0][:, 3] > Zmin)
+        
+        Zmax = 0.5
+        res_tys, res_phi_hits = compute_fieldlines(
+            bs, [0.5], [Zmax-0.02], tmax=2000, stopping_criteria=[MaxZStoppingCriterion(Zmax)]
+            )
+        assert res_phi_hits[0][0,1] == -1
+        assert np.all(res_tys[0][:, 3] < Zmax)
+       

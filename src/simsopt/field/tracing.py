@@ -16,7 +16,9 @@ from .._core.types import RealArray
 logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
-           'MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
+           'MinToroidalFluxStoppingCriterion','MaxToroidalFluxStoppingCriterion',
+           'MinRStoppingCriterion','MinZStoppingCriterion',
+           'MaxRStoppingCriterion','MaxZStoppingCriterion',
            'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
            'compute_fieldlines', 'compute_resonances',
            'compute_poloidal_transits', 'compute_toroidal_transits',
@@ -738,7 +740,6 @@ class LevelsetStoppingCriterion(sopp.LevelsetStoppingCriterion):
         else:
             sopp.LevelsetStoppingCriterion.__init__(self, classifier)
 
-
 class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
     Stop the iteration once a particle falls below a critical value of
@@ -774,7 +775,6 @@ class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
     pass
 
-
 class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     """
     Stop the iteration once the maximum number of toroidal transits is reached.
@@ -797,6 +797,65 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
+class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
+    """
+    Stop the iteration once a particle falls below a critical value of
+    ``R``, the radial cylindrical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MinRStopingCriterion(crit_r)]
+
+    where ``crit_r`` is the value of the critical coordinate.
+    """
+    pass
+
+class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
+    """
+    Stop the iteration once a particle falls below a critical value of
+    ``Z``, the cylindrical vertical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MinZStopingCriterion(crit_z)]
+
+    where ``crit_z`` is the value of the critical coordinate.
+    """
+    pass
+
+class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
+    """
+    Stop the iteration once a particle goes above a critical value of
+    ``R``, the radial cylindrical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxRStopingCriterion(crit_r)]
+
+    where ``crit_r`` is the value of the critical coordinate.
+    """
+    pass
+
+class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
+    """
+    Stop the iteration once a particle gove above a critical value of
+    ``Z``, the cylindrical vertical coordinate. 
+
+    Usage:
+
+    .. code-block::
+
+        stopping_criteria=[MaxZStopingCriterion(crit_z)]
+
+    where ``crit_z`` is the value of the critical coordinate.
+    """
+    pass
 
 def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
                        ylims=None, surf=None, s=2, marker='o'):
