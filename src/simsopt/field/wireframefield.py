@@ -59,11 +59,26 @@ class WireframeField(sopp.WireframeField, MagneticField):
              for i in range(self.wireframe.nSegments)]
         return self._dB_by_dcoilcurrents
 
-    def dBnormal_by_dsegmentcurrents_matrix(self, surface):
+    def dBnormal_by_dsegmentcurrents_matrix(self, surface, area_weighted=False):
         """
         Generates a matrix with derivatives of normal magnetic field on a
         surface of interest with respect to the current in each wireframe
         segment, useful for optimization of the segment currents.
+
+        Parameters
+        ----------
+            surface: Surface class instance
+                Surface on which to calculate the magnetic field. It is assumed
+                that the quadrature points are evenly spaced in the toroidal
+                and poloidal angles, and that they cover a whole number of
+                half-periods.
+            area_weighted: logical (optional)
+                If true, will multiply each matrix element by the square root
+                of the surface area ascribed to the corresponding quadrature 
+                point. In this way, the expression (A*x)^2 gives the surface
+                integral of the squared flux, where A is the matrix with 
+                weighted elements and x is a vector with the currents in each 
+                wireframe segment. Default is False.
         """
 
         points = self.get_points_cart_ref()
@@ -76,10 +91,16 @@ class WireframeField(sopp.WireframeField, MagneticField):
         absn = np.linalg.norm(n, axis=2)
         unitn = n * (1. / absn)[:,:,None]
 
-        matrix = np.zeros((nPoints, self.wireframe.nSegments))
+        if area_weighted:
+            fac = np.sqrt(absn/float(absn.size))
+        else:
+            fac = np.ones(absn.shape)
+
+        matrix = np.ascontiguousarray( \
+                     np.zeros((nPoints, self.wireframe.nSegments)))
         for i in range(self.wireframe.nSegments):
             dB_dsc = self.dB_by_dsegmentcurrents(0)[i].reshape(n.shape)
-            matrix[:,i] = np.sum(dB_dsc * unitn, axis=2).reshape((-1))
+            matrix[:,i] = (fac*np.sum(dB_dsc * unitn, axis=2)).reshape((-1))
 
         return matrix
         
