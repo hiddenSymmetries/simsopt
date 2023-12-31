@@ -824,13 +824,40 @@ class ToroidalWireframe(object):
             raise ValueError('form parameter must be ''indices'' ' \
                              + 'or ''logical''')
 
-    def make_plot_3d(self, ax=None):
+    def make_plot_3d(self, ax=None, engine='mayavi', to_show='all', \
+                     active_tol=1e-12, tube_radius=0.01):
         """
-        Make a plot of the wireframe grid, including nodes and segments.
-        """
+        Make a 3d plot of the wireframe grid.
 
-        import matplotlib.pylab as pl
-        from mpl_toolkits.mplot3d.art3d import Line3DCollection
+        Parameters
+        ----------
+            engine: string (optional)
+                Plotting package to use, either 'mayavi' or 'matplotlib'.
+                Default is 'mayavi'. 'matplotlib' is not recommended.
+            to_show: string (optional)
+                If 'all', will plot all segments, including those that carry
+                no current. If 'active' will only show segments that carry
+                a current of magnitude greater than `active_tol`. Default is
+                'all'.
+            active_tol: float (optional)
+                Minimum magnitude of current carried by a given segment for it
+                to be plotted if `to_show` is set to 'active'. Default is
+                1e-12.
+            tube_radius: float (optional)
+                Radius of the tubes used to represent each segment in the 
+                mayavi rendering. Only used if `engine` is 'mayavi'. 
+                Default is 0.01.
+            ax: matplotlib.pyplot.axes class instance (optional)
+                Axes on which to make the plot. Only used if `engine` is 
+                'matplotlib'. If not provided, a new set of axes will be 
+                generated.
+
+        Returns
+        -------
+            ax: matplotlib.pyplot.axes class instance
+                Axes on which the plot is generated. Only returned if `engine` 
+                is 'matplotlib'. 
+        """
 
         pl_segments = np.zeros((2*self.nfp*self.nSegments, 2, 3))
         pl_currents = np.zeros((2*self.nfp*self.nSegments))
@@ -841,32 +868,75 @@ class ToroidalWireframe(object):
             pl_segments[ind0:ind1,:,:] = self.nodes[i][:,:][self.segments[:,:]]
             pl_currents[ind0:ind1] = self.currents[:]*1e-6
 
-        lc = Line3DCollection(pl_segments)
-        lc.set_array(pl_currents)
-        lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
-        lc.set_cmap('coolwarm')
+        if to_show == 'active':
+            inds = np.where(np.abs(pl_currents) > active_tol)[0]
+        elif to_show == 'all':
+            inds = np.arange(pl_segments.shape[0])
+        else:
+            raise ValueError('Parameter show must be ''active'' or ''all''')
 
-        if ax is None:
-            fig = pl.figure()
-            ax = fig.add_subplot(projection='3d')
+        xmin = np.min(pl_segments[:,:,0], axis=(0,1))
+        xmax = np.max(pl_segments[:,:,0], axis=(0,1))
+        ymin = np.min(pl_segments[:,:,1], axis=(0,1))
+        ymax = np.max(pl_segments[:,:,1], axis=(0,1))
+        zmin = np.min(pl_segments[:,:,2], axis=(0,1))
+        zmax = np.max(pl_segments[:,:,2], axis=(0,1))
 
-            ax.set_xlim([np.min(pl_segments[:,:,0], axis=(0,1)),
-                         np.max(pl_segments[:,:,0], axis=(0,1))])
-            ax.set_ylim([np.min(pl_segments[:,:,1], axis=(0,1)),
-                         np.max(pl_segments[:,:,1], axis=(0,1))])
-            ax.set_zlim([np.min(pl_segments[:,:,2], axis=(0,1)),
-                         np.max(pl_segments[:,:,2], axis=(0,1))])
+        if engine == 'mayavi':
 
-            ax.set_aspect('equal')
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
-            ax.set_zlabel('z')
-            cb = pl.colorbar(lc)
-            cb.set_label('Current (MA)')
+            from mayavi import mlab
 
-        ax.add_collection(lc)
+            max_cur = np.max(np.abs(self.currents*1e-6))
 
-        return(ax)
+            nSegments_tot = pl_segments.shape[0]
+            x = pl_segments[inds,:,0].reshape((-1))
+            y = pl_segments[inds,:,1].reshape((-1))
+            z = pl_segments[inds,:,2].reshape((-1))
+            s = np.ones((len(inds),2))
+            s[:,0] = pl_currents[inds]
+            s[:,1] = pl_currents[inds]
+            s = s.reshape((-1))
+
+            pts = mlab.pipeline.scalar_scatter(x, y, z, s)
+            connections = np.arange(2*len(inds)).reshape((-1,2))
+            pts.mlab_source.dataset.lines = connections
+
+            tube = mlab.pipeline.tube(pts, tube_radius=tube_radius)
+            tube.filter.radius_factor = 1.
+            mlab.pipeline.surface(tube)
+
+            #mlab.axes(extent=[xmin, xmax, ymin, ymax, zmin, zmax])
+
+            #cbar = mlab.colorbar(title='Current [MA]')
+ 
+        elif engine == 'matplotlib':
+
+            import matplotlib.pylab as pl
+            from mpl_toolkits.mplot3d.art3d import Line3DCollection
+    
+            lc = Line3DCollection(pl_segments[inds,:,:])
+            lc.set_array(pl_currents[inds])
+            lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
+            lc.set_cmap('coolwarm')
+    
+            if ax is None:
+                fig = pl.figure()
+                ax = fig.add_subplot(projection='3d')
+    
+                ax.set_xlim([xmin, xmax])
+                ax.set_ylim([ymin, ymax])
+                ax.set_zlim([zmin, zmax])
+    
+                ax.set_aspect('equal')
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+                ax.set_zlabel('z')
+                cb = pl.colorbar(lc)
+                cb.set_label('Current [MA]')
+    
+            ax.add_collection(lc)
+    
+            return(ax)
 
     def make_plot_2d(self, extent='field period', quantity='currents', ax=None):
         """
