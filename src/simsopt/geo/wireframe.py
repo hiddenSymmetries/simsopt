@@ -886,9 +886,6 @@ class ToroidalWireframe(object):
 
             from mayavi import mlab
 
-            max_cur = np.max(np.abs(self.currents*1e-6))
-
-            nSegments_tot = pl_segments.shape[0]
             x = pl_segments[inds,:,0].reshape((-1))
             y = pl_segments[inds,:,1].reshape((-1))
             z = pl_segments[inds,:,2].reshape((-1))
