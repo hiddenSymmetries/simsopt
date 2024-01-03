@@ -62,12 +62,34 @@ std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
     int nGrid = A_obj.shape(0);
     int nCells = cells.shape(0);
 
-    // Keeps a running total of the normal field at each test point
-    Array Ax_minus_b = -b_obj;
+    // Adjustment to number of history entries to save
+    int extra = (nIter % nHistory == 0) ? 1 : 2;
 
+    // Initialize the solution array
+    Array x = xt::zeros<double>({nSegs,1});
+    Array x_history = xt::zeros<double>({nSegs,nHistory+extra});
+    for (int i = 0; i < nSegs; ++i) {
+        x(i,0) = x_init(i,0);
+        x_history(i,0) = x_init(i,0);
+    }
+    double* x_ptr = &(x(0,0));
+
+    // Keeps a running total of the normal field at each test point
+    Array Ax_minus_b = xt::zeros<double>({nGrid, 1});
+
+    double* Ax_minus_b_ptr  = &(Ax_minus_b(0,0));
     double* A_ptr           = &(A_obj(0,0));
-    double* Ax_minus_b_ptr  = &(Ax_minus_b(0));
+    double* b_obj_ptr       = &(b_obj(0,0));
     int* cells_ptr          = &(cells(0,0));
+
+    // Initialize the vector Ax - b according to initial value
+    printf("  Initializing...\n");
+    //#pragma omp parallel for schedule(static)
+    for (int i = 0; i < nGrid; ++i) {
+        for (int j = 0; j < nSegs; ++j) {
+            Ax_minus_b_ptr[i] += A_ptr[i*nSegs + j] * x_ptr[j] - b_obj_ptr[i];
+        }
+    }
 
     double inf = std::numeric_limits<double>::max();
     vector<double> f_Bs(2*nCells, inf);
@@ -76,18 +98,6 @@ std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
     double* f_Bs_ptr = &(f_Bs[0]);
     double* f_Ss_ptr = &(f_Ss[0]);
     double* fs_ptr = &(fs[0]);
-
-    // Adjustment to number of history entries to save
-    int extra = (nIter % nHistory == 0) ? 1 : 2;
-
-    // Initialize the solution array
-    Array x = xt::zeros<double>({nSegs,1});
-    Array x_history = xt::zeros<double>({nSegs,nHistory+extra});
-    for (int i = 0; i < nSegs; ++i) {
-        x(i) = x_init(i);
-        x_history(i,0) = x_init(i);
-    }
-    double* x_ptr = &(x(0,0));
 
     // Initialize the cell_count array
     IntArray cell_count = xt::zeros<int>({nCells});
