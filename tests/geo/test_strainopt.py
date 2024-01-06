@@ -23,7 +23,6 @@ class CoilStrainTesting(unittest.TestCase):
             curve.fix_all()
             order = 2 
             np.random.seed(1)
-            dofs = np.random.standard_normal(size=(2*order+1,))
             rotation = FrameRotation(quadpoints, order)
             rotation.x = np.random.standard_normal(size=(2*order+1,))
             if centroid:
@@ -38,7 +37,7 @@ class CoilStrainTesting(unittest.TestCase):
                 J.x = dofs
                 grad = J.dJ()
                 return J.J(), grad
-            res = minimize(fun, J.x, jac=True, method='L-BFGS-B',
+            minimize(fun, J.x, jac=True, method='L-BFGS-B',
                            options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
             assert Jt.J() < 1e-12 
             assert Jb.J() < 1e-12
@@ -91,6 +90,7 @@ class CoilStrainTesting(unittest.TestCase):
                 J.x = dofs - eps*h
                 f2 = J.J()
                 errf = np.abs((f1-f2)/(2*eps) - df)
+                assert errf < 0.3 * errf_old
                 errf_old = errf
         else:
             # Binormal curvature vanishes in Frenet frame
@@ -115,7 +115,7 @@ class CoilStrainTesting(unittest.TestCase):
         else:
             framedcurve = FramedCurveFrenet(c, rotation)
 
-        J = LPTorsionalStrainPenalty(framedcurve, width=1e-3, p=2, threshold=1e-4)
+        J = LPTorsionalStrainPenalty(framedcurve, width=1e-3, p=2, threshold=1e-8)
 
         dofs = J.x
 
@@ -131,5 +131,6 @@ class CoilStrainTesting(unittest.TestCase):
             J.x = dofs - eps*h
             f2 = J.J()
             errf = np.abs((f1-f2)/(2*eps) - df)
+            assert errf < 0.3 * errf_old
             errf_old = errf
 

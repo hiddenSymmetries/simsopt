@@ -25,16 +25,19 @@ Optional Packages
 -----------------
 
 Several other optional packages are needed for certain aspects of
-simsopt, such as visualization/graphics and building the documentation.  These
-requirements can be found in the ``[options.extras_require]`` section
-of
-`setup.cfg <https://github.com/hiddenSymmetries/simsopt/blob/master/setup.cfg>`_.
+simsopt, such as running SPEC or VMEC, visualization/graphics, and building the
+documentation.  These requirements can be found in the
+``[options.extras_require]`` section of `setup.cfg
+<https://github.com/hiddenSymmetries/simsopt/blob/master/setup.cfg>`_.
 Also,
 
 - For MPI support:
     * mpi4py
 - For VMEC support:
-    * https://github.com/hiddenSymmetries/vmec2000
+    * https://github.com/hiddenSymmetries/vmec2000 Note that the
+      python extension in this repository is required to run VMEC or
+      optimize VMEC configurations, but is not needed for computing
+      properties of existing ``wout`` output files.
 - For computing Boozer coordinates:
     * `booz_xform <https://hiddensymmetries.github.io/booz_xform/>`_
 - For SPEC support:

@@ -14,7 +14,7 @@ stellsym_list = [True, False]
 
 def taylor_test1(f, df, x, epsilons=None, direction=None):
     np.random.seed(1)
-    f0 = f(x)
+    f(x)
     if direction is None:
         direction = np.random.rand(*(x.shape))-0.5
     dfx = df(x)@direction
@@ -40,7 +40,7 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None, direction2=None)
     if direction2 is None:
         direction2 = np.random.rand(*(x.shape))-0.5
 
-    f0 = f(x)
+    f(x)
     df0 = df(x) @ direction1
     d2fval = direction2.T @ d2f(x) @ direction1
     if epsilons is None:

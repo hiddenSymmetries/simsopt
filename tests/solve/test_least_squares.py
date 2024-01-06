@@ -9,7 +9,7 @@ except ImportError:
 
 from simsopt.objectives.functions import Identity, Rosenbrock
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve, serial_solve
+from simsopt.solve.serial import least_squares_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
     from simsopt.solve.mpi import least_squares_mpi_solve

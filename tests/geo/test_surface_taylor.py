@@ -10,7 +10,6 @@ parameters['jit'] = False
 
 def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
     np.random.seed(1)
-    f0 = f(x)
     if direction is None:
         direction = np.random.rand(*(x.shape))-0.5
     dfx = df(x)@direction
@@ -25,12 +24,10 @@ def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
         fpluseps = f(x + eps * direction)
         fminuseps = f(x - eps * direction)
         if order == 2:
-            fak = 0.3
             dfest = (fpluseps-fminuseps)/(2*eps)
         elif order == 4:
             fplus2eps = f(x + 2*eps * direction)
             fminus2eps = f(x - 2*eps * direction)
-            fak = 0.13
             dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps
                      - (1/12)*fplus2eps)/eps
         else:
@@ -97,7 +94,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
     if direction2 is None:
         direction2 = np.random.rand(*(x.shape))-0.5
 
-    f0 = f(x)
     df0 = df(x) @ direction1
     d2fval = direction2.T @ d2f(x) @ direction1
     if epsilons is None:
