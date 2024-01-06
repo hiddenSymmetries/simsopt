@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 r"""
+This coil optimization script is similar to stage_two_optimization.py. However
+in this version, the coils are constrained to be planar, by using the curve type
+CurvePlanarFourier. Also the LinkingNumber objective is used to prevent coils
+from becoming topologically linked with each other.
+
 In this example we solve a FOCUS like Stage II coil optimisation problem: the
 goal is to find coils that generate a specific target normal field on a given
 surface.  In this particular case we consider a vacuum field, so the target is
@@ -12,6 +17,7 @@ The objective is given by
         + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
         + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
         + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
+        + LinkingNumber
 
 if any of the weights are increased, or the thresholds are tightened, the coils
 are more regular and better separated, but the target normal field may not be
@@ -26,9 +32,11 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
-                         CurveLength, CurveCurveDistance, MeanSquaredCurvature,
-                         LpCurveCurvature, CurveSurfaceDistance)
+from simsopt.geo import (
+    CurveLength, CurveCurveDistance,
+    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
+    SurfaceRZFourier, curves_to_vtk, create_equally_spaced_planar_curves,
+)
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt.util import in_github_actions
 
@@ -48,22 +56,22 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-6)
+LENGTH_WEIGHT = Weight(10)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-CC_THRESHOLD = 0.1
+CC_THRESHOLD = 0.08
 CC_WEIGHT = 1000
 
 # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-CS_THRESHOLD = 0.3
+CS_THRESHOLD = 0.12
 CS_WEIGHT = 10
 
 # Threshold and weight for the curvature penalty in the objective function:
-CURVATURE_THRESHOLD = 5.
+CURVATURE_THRESHOLD = 10.
 CURVATURE_WEIGHT = 1e-6
 
 # Threshold and weight for the mean squared curvature penalty in the objective function:
-MSC_THRESHOLD = 5
+MSC_THRESHOLD = 10
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
@@ -87,7 +95,7 @@ ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
-base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
+base_curves = create_equally_spaced_planar_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -110,17 +118,18 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-
+linkNum = LinkingNumber(curves)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_WEIGHT * sum(Jls) \
+    + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), 2.6*ncoils) \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
-    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
+    + linkNum
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -133,6 +142,8 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    MaxBdotN = np.max(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+    mean_AbsB = np.mean(bs.AbsB())
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
@@ -140,6 +151,9 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    outstr += f", ⟨B·n⟩/|B|={BdotN/mean_AbsB:.1e}"
+    outstr += f", (Max B·n)/|B|={MaxBdotN/mean_AbsB:.1e}"
+    outstr += f", Link Number = {linkNum.J()}"
     print(outstr)
     return J, grad
 

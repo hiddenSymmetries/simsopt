@@ -29,12 +29,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.8.17, 3.9.17, 3.10.12] # To sync with coveragerc use 3 levels with python version
+        python-version: [3.8, 3.9, "3.10"]
         include:
-            - python-version: 3.9.17
+            - python-version: 3.9
               test-type: unit
               packages: none
-            - python-version: 3.9.17
+            - python-version: 3.9
               test-type: integrated
               packages: none
 
@@ -165,7 +165,9 @@ jobs:
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: pip install -v .[MPI,SPEC]
+      run: |
+        pip install -v .
+        pip install mpi4py py_spec pyoculus h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
@@ -173,7 +175,9 @@ jobs:
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'vmec')
-      run: pip install -v .[MPI]
+      run: |
+        pip install -v .
+        pip install mpi4py
 
     - name: Run serial examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
@@ -247,7 +251,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v4
       with:
-        python-version: 3.8.17
+        python-version: 3.9
 
     - name: Install coverage
       run: pip install coverage
