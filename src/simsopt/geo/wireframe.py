@@ -825,7 +825,7 @@ class ToroidalWireframe(object):
                              + 'or ''logical''')
 
     def make_plot_3d(self, ax=None, engine='mayavi', to_show='all', \
-                     active_tol=1e-12, tube_radius=0.01):
+                     active_tol=1e-12, tube_radius=0.01, **kwargs):
         """
         Make a 3d plot of the wireframe grid.
 
@@ -851,6 +851,9 @@ class ToroidalWireframe(object):
                 Axes on which to make the plot. Only used if `engine` is 
                 'matplotlib'. If not provided, a new set of axes will be 
                 generated.
+            **kwargs
+                Additional keyword arguments to be passed to the plotting engine
+                (mayavi only)
 
         Returns
         -------
@@ -900,7 +903,7 @@ class ToroidalWireframe(object):
 
             tube = mlab.pipeline.tube(pts, tube_radius=tube_radius)
             tube.filter.radius_factor = 1.
-            mlab.pipeline.surface(tube)
+            mlab.pipeline.surface(tube, **kwargs)
 
             #mlab.axes(extent=[xmin, xmax, ymin, ymax, zmin, zmax])
 

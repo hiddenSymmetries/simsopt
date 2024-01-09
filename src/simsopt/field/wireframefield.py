@@ -98,9 +98,10 @@ class WireframeField(sopp.WireframeField, MagneticField):
 
         matrix = np.ascontiguousarray( \
                      np.zeros((nPoints, self.wireframe.nSegments)))
+        dB_dsc = self.dB_by_dsegmentcurrents(0)
         for i in range(self.wireframe.nSegments):
-            dB_dsc = self.dB_by_dsegmentcurrents(0)[i].reshape(n.shape)
-            matrix[:,i] = (fac*np.sum(dB_dsc * unitn, axis=2)).reshape((-1))
+            dB_dsc_i = dB_dsc[i].reshape(n.shape)
+            matrix[:,i] = (fac*np.sum(dB_dsc_i * unitn, axis=2)).reshape((-1))
 
         return matrix
         
