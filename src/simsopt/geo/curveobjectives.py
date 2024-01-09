@@ -361,7 +361,7 @@ class PortSize(Optimizable):
                 hull = hull2D( xflat[:,1:], surf )
                 uenv = hull.envelop(dmax, 'upper')
                 lenv = hull.envelop(dmax, 'lower')
-            except IndexError:
+            except BaseException:
                 print(f'Popping point (phi,theta)={(iphi,itheta)}')
                 to_pop.append(ii)
                 continue
