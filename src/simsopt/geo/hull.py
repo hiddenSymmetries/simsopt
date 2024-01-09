@@ -36,7 +36,7 @@ class hull2D():
             tmp = np.unique(tmp)
             ind = np.where(tmp==pt.index)
 
-            for new_ind in np.delete(tmp, ind):
+            for new_ind in np.delete(tmp, ind): 
                 if new_ind>pt.index:
                     key = tuple(np.sort([pt.index,new_ind]))
                     self.segments[key] =  self.segment(pt, self.points[new_ind], key)
@@ -45,7 +45,7 @@ class hull2D():
 
         test, tkey = self.is_regular()         
         while not test:
-            self.pop_triangle(self.triangles[tkey])
+            self.pop_singular_triangle(self.triangles[tkey])
             test, tkey = self.is_regular()         
 
 
@@ -193,6 +193,41 @@ class hull2D():
         # Pop triangle
         self.triangles.pop(t.key)
 
+    def pop_singular_triangle(self, triangle):
+        # Find point indices
+        pindex = np.sort([p.index for p in triangle.points])
+        if self.is_segment_at_edge( self.segments[(pindex[0],pindex[1])] ):
+            key = (pindex[0],pindex[1])
+            self.segments.pop( key )
+
+            ind = self.edges.index( key )
+            self.edges.pop( ind )
+        else:
+            new_edge = (pindex[0],pindex[1])
+
+        if self.is_segment_at_edge( self.segments[(pindex[1],pindex[2])] ):
+            key = (pindex[1],pindex[2])
+            self.segments.pop( key )
+
+            ind = self.edges.index( key )
+            self.edges.pop( ind )
+        else:
+            new_edge = (pindex[1],pindex[2])
+
+        if self.is_segment_at_edge( self.segments[(pindex[0],pindex[2])] ):
+            key = (pindex[0],pindex[2])
+            self.segments.pop( key )
+
+            ind = self.edges.index( key )
+            self.edges.pop( ind )
+        else:
+            new_edge = (pindex[0],pindex[2])
+
+        self.edges.insert(ind, new_edge)
+        self.triangles.pop(triangle.key)
+
+
+
     def pop_triangle(self, triangle):
         """Pop triangle
         
@@ -259,6 +294,7 @@ class hull2D():
 
         # Return the keys
         return edge_keys
+    
 
     def sort_edge_keys(self, edges):
         """ Sort the keys from the edge segments
@@ -272,38 +308,29 @@ class hull2D():
         Output:
             - sorted_edges
         """
+        tmp = np.unique(self.edges,axis=0)
+        edges = [tuple(e) for e in tmp]
         sorted_edges = [edges[0]]
         last_pt = sorted_edges[-1][1]
-        lastlast_pt = sorted_edges[-1][0]
-        first_pt = np.array([e[0] for e in edges]) # First point of last segment
-        secnd_pt = np.array([e[1] for e in edges]) # Second point of last segment
+        edges.pop(0)
 
-        # Loop until we close the path
-        counter=0
-        while last_pt!=sorted_edges[0][0]:
-            counter+=1
-            # Find index of next segment that start from last point, and does not go back to lastlast_pt
-            indf = np.intersect1d(np.where(first_pt==last_pt), np.where(secnd_pt!=lastlast_pt))
-            inds = np.intersect1d(np.where(secnd_pt==last_pt), np.where(first_pt!=lastlast_pt))
-
-            # Append segment            
-            if indf.size==1:
-                sorted_edges.append(edges[indf[0]])
-            elif inds.size==1:
-                sorted_edges.append(edges[inds[0]][::-1])
+        while sorted_edges[-1][1]!=sorted_edges[0][0]:
+            arr_edges = np.array(edges)
+            ind = np.where(arr_edges==last_pt)
+            
+            ii = ind[0][0]
+            jj = ind[1][0]
+            if jj==0:
+                last_pt = edges[ii][1]
+                sorted_edges.append(edges[ii])
             else:
-                print('Point not found')
-                break
-
-            # Check so that we don't get stuck in infinite loop in case of a bug
-            if counter > len(edges):
-                raise ValueError('Caught in infinite loop')
+                last_pt = edges[ii][0]
+                sorted_edges.append((edges[ii][1],edges[ii][0]))
                 
-            # Update last_pt and lastlast_pt with new segment points
-            last_pt = sorted_edges[-1][1]
-            lastlast_pt = sorted_edges[-1][0]
-
+            edges.pop(ii)
         return sorted_edges
+
+
 
     def envelop(self, dmax, upper_or_lower):
         """ Get upper and lower envelop. Maybe should be moved somewhere else - not part of hull2D

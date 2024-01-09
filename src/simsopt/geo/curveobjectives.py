@@ -291,12 +291,15 @@ class PortSize(Optimizable):
             - ValueError: if the number of toroidal quadrature points of the surface is not a multiple of 3.
         """
         self.boundary = surf
+        R = surf.major_radius()
+        Nfp = surf.nfp
         # Only consider points on the outboard side
         self.gamma_boundary = self.boundary.gamma()
         nphi, ntheta, _ = self.gamma_boundary.shape
         if np.mod(nphi,3)!=0:
             raise ValueError('Boundary should have quadpoints_phi be a multiple of 3')
         nphi = int(nphi/3)
+        dmax = 2*np.pi*R/Nfp * 1/nphi
 
         # self.phi_ind and self.theta_ind are arrays that store which point on the surface are to be considered when evaluating the port access. We set phi_ind such that all points are in the central half field period of the surface, and theta_ind such that only outboard points are considered.
         phi_ind = jnp.array([], dtype=int)
@@ -356,9 +359,9 @@ class PortSize(Optimizable):
             xflat = gamma_surf_proj.reshape((-1,3))
             try:
                 hull = hull2D( xflat[:,1:], surf )
-                uenv = hull.envelop(1, 'upper')
-                lenv = hull.envelop(1, 'lower')
-            except ValueError:
+                uenv = hull.envelop(dmax, 'upper')
+                lenv = hull.envelop(dmax, 'lower')
+            except IndexError:
                 print(f'Popping point (phi,theta)={(iphi,itheta)}')
                 to_pop.append(ii)
                 continue
@@ -376,9 +379,10 @@ class PortSize(Optimizable):
             self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,0], deg)
             self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,0], deg)
         
-        to_pop = np.array(to_pop)
-        self.phi_ind = np.delete(self.phi_ind, to_pop)
-        self.theta_ind = np.delete(self.theta_ind, to_pop)
+        if len(to_pop)>0:
+            to_pop = np.array(to_pop)
+            self.phi_ind = np.delete(self.phi_ind, to_pop)
+            self.theta_ind = np.delete(self.theta_ind, to_pop)
 
 
     def J(self):
