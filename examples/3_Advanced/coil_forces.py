@@ -14,7 +14,7 @@ from simsopt.field import Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import CurveLength, CurveCurveDistance, CurveSurfaceDistance
 from simsopt.field import BiotSavart
-from simsopt.field.force import MeanSquaredForceOpt
+from simsopt.field.force import MeanSquaredForce
 from simsopt.field.selffield import regularization_circ
 
 
@@ -79,10 +79,7 @@ Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
-# Jforce = MaxForceOpt(base_coils, coils, regularization_circ(0.05))
-Jforce = MeanSquaredForceOpt(base_coils, coils, regularization_circ(0.05))
-# Jforce = LpForceOpt(base_coils, coils, regularization_circ(0.05), 2)
-
+Jforce = MeanSquaredForce(base_coils[0], coils[0], regularization_circ(0.05))
 
 # base_currents[0].unfix_all()
 JF = Jf + Jforce * FORCE_WEIGHT
