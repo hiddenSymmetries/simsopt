@@ -7,10 +7,10 @@
     "value": "BiotSavart1"
   },
   "simsopt_objs": {
-    "140477021694848": {
+    "140569591281312": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021694848",
+      "@name": "140569591281312",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -298,13 +298,13 @@
       "order": 5,
       "dofs": {
         "$type": "ref",
-        "value": "140477021694848"
+        "value": "140569591281312"
       }
     },
-    "140477021767136": {
+    "140569591465440": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021767136",
+      "@name": "140569591465440",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -350,7 +350,7 @@
       "current": 100000.0,
       "dofs": {
         "$type": "ref",
-        "value": "140477021767136"
+        "value": "140569591465440"
       }
     },
     "Coil1": {
@@ -367,10 +367,10 @@
         "value": "Current1"
       }
     },
-    "140477021694752": {
+    "140569591283520": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021694752",
+      "@name": "140569591283520",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -658,13 +658,13 @@
       "order": 5,
       "dofs": {
         "$type": "ref",
-        "value": "140477021694752"
+        "value": "140569591283520"
       }
     },
-    "140477021767232": {
+    "140569591465536": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021767232",
+      "@name": "140569591465536",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -710,7 +710,7 @@
       "current": 99999.99998890789,
       "dofs": {
         "$type": "ref",
-        "value": "140477021767232"
+        "value": "140569591465536"
       }
     },
     "Coil2": {
@@ -727,10 +727,10 @@
         "value": "Current2"
       }
     },
-    "140477021766080": {
+    "140569591464480": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021766080",
+      "@name": "140569591464480",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -1018,13 +1018,13 @@
       "order": 5,
       "dofs": {
         "$type": "ref",
-        "value": "140477021766080"
+        "value": "140569591464480"
       }
     },
-    "140477021767712": {
+    "140569591466016": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021767712",
+      "@name": "140569591466016",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -1070,7 +1070,7 @@
       "current": 99999.99998830465,
       "dofs": {
         "$type": "ref",
-        "value": "140477021767712"
+        "value": "140569591466016"
       }
     },
     "Coil3": {
@@ -1087,10 +1087,10 @@
         "value": "Current3"
       }
     },
-    "140477021766656": {
+    "140569591464960": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021766656",
+      "@name": "140569591464960",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -1378,13 +1378,13 @@
       "order": 5,
       "dofs": {
         "$type": "ref",
-        "value": "140477021766656"
+        "value": "140569591464960"
       }
     },
-    "140477021768192": {
+    "140569591466496": {
       "@module": "simsopt._core.optimizable",
       "@class": "DOFs",
-      "@name": "140477021768192",
+      "@name": "140569591466496",
       "@version": "0.19.0.post66+g27ed8eb8.d20231206.dirty",
       "x": {
         "@module": "numpy",
@@ -1430,7 +1430,7 @@
       "current": 99999.99998732771,
       "dofs": {
         "$type": "ref",
-        "value": "140477021768192"
+        "value": "140569591466496"
       }
     },
     "Coil4": {

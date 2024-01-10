@@ -95,7 +95,7 @@ bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, OUT_DIR + "curves_init")
+curves_to_vtk(curves, OUT_DIR + "curves_init", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
@@ -133,8 +133,8 @@ def fun(dofs):
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    force_string = ", ".join(f"{J.J():.1f}" for J in Jforce)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], ∫F²/L]=[{force_string}]"
+    force_string = ", ".join(f"{J.J():.2e}" for J in Jforce)
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], ∫F²/L=[{force_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
@@ -157,34 +157,27 @@ def fun(dofs):
 #     J2, _ = f(dofs - eps*h)
 #     print("err", (J1-J2)/(2*eps) - dJh)
 
-
-print("""
 ###############################################################################
-# Run the optimisation 
+# RUN THE OPTIMIZATION
 ###############################################################################
-""")
 
+print("INITIAL OPTIMIZATION")
 dofs = JF.x
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
+curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 
 # We now use the result from the optimization as the initial guess for a
 # subsequent optimization with reduced penalty for the coil length. This will
 # result in slightly longer coils but smaller `B·n` on the surface.
+print("OPTIMIZATION WITH REDUCED LENGTH PENALTY")
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_force")
+curves_to_vtk(curves, OUT_DIR + "curves_force", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")
-
-###############################################################################
-# THOUGHTS
-###############################################################################
-    
-#run taylor test with non-zero force weight
