@@ -58,7 +58,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight on the mean squared force penalty in the objective function
-FORCE_WEIGHT = 0
+FORCE_WEIGHT = Weight(0)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -161,8 +161,8 @@ def fun(dofs):
 # RUN THE OPTIMIZATION
 ###############################################################################
 
-print("INITIAL OPTIMIZATION")
 dofs = JF.x
+print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -171,13 +171,22 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 # We now use the result from the optimization as the initial guess for a
 # subsequent optimization with reduced penalty for the coil length. This will
 # result in slightly longer coils but smaller `B·n` on the surface.
-print("OPTIMIZATION WITH REDUCED LENGTH PENALTY")
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
+print("OPTIMIZATION WITH REDUCED LENGTH PENALTY")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_force", close=True)
+curves_to_vtk(curves, OUT_DIR + "curves_opt_long", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
+
+# We now add a penalty for the force.
+dofs = res.x
+FORCE_WEIGHT += 10000
+print(f"OPTIMIZATION WITH ADDED FORCE PENALTY, WEIGHT={FORCE_WEIGHT}")
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_WEIGHT={FORCE_WEIGHT}", close=True)
+pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT}", extra_data=pointData)
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")
