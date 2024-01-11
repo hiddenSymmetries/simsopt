@@ -2367,3 +2367,275 @@ events:
         
       exitCode: 1
 ...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:52 (CHECK_CXX_COMPILER_FLAG)"
+    checks:
+      - "Performing Test COMPILER_SUPPORTS_MARCH_NATIVE"
+    directories:
+      source: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-DmfI66"
+      binary: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-DmfI66"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: "14.1"
+      CMAKE_OSX_SYSROOT: "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk"
+      CMAKE_POSITION_INDEPENDENT_CODE: "ON"
+    buildResult:
+      variable: "COMPILER_SUPPORTS_MARCH_NATIVE"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-DmfI66'
+        
+        Run Build Command(s): /Users/sienahurwitz/opt/miniconda3/bin/ninja -v cmTC_41bd6
+        [1/2] /usr/bin/clang++ -DCOMPILER_SUPPORTS_MARCH_NATIVE  -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE   -march=native -MD -MT CMakeFiles/cmTC_41bd6.dir/src.cxx.o -MF CMakeFiles/cmTC_41bd6.dir/src.cxx.o.d -o CMakeFiles/cmTC_41bd6.dir/src.cxx.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-DmfI66/src.cxx
+        [2/2] : && /usr/bin/clang++ -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/cmTC_41bd6.dir/src.cxx.o -o cmTC_41bd6   && :
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:219 (try_compile)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:486 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:69 (find_package)"
+    description: "Detecting C OpenMP compiler info"
+    directories:
+      source: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj"
+      binary: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: "14.1"
+      CMAKE_OSX_SYSROOT: "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk"
+      CMAKE_POSITION_INDEPENDENT_CODE: "ON"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_C_Xclang fopenmp"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj'
+        
+        Run Build Command(s): /Users/sienahurwitz/opt/miniconda3/bin/ninja -v cmTC_7a2bc
+        [1/2] /usr/bin/clang   -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj/OpenMPTryFlag.c
+        FAILED: CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o 
+        /usr/bin/clang   -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj/OpenMPTryFlag.c
+        Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+        Target: x86_64-apple-darwin23.1.0
+        Thread model: posix
+        InstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
+         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" -cc1 -triple x86_64-apple-macosx14.1.0 -Wundef-prefix=TARGET_OS_ -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -Werror=implicit-function-declaration -emit-obj -mrelax-all --mrelax-relocations -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name OpenMPTryFlag.c -mrelocation-model pic -pic-level 2 -mframe-pointer=all -fno-strict-return -ffp-contract=on -fno-rounding-math -funwind-tables=2 -target-sdk-version=14.2 -fvisibility-inlines-hidden-static-local-var -target-cpu penryn -tune-cpu generic -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=lldb -target-linker-version 1022.1 -v -fcoverage-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj -resource-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0 -dependency-file CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o.d -skip-unused-modulemap-deps -MT CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include -internal-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include -Wno-reorder-init-list -Wno-implicit-int-float-conversion -Wno-c99-designator -Wno-final-dtor-non-final-class -Wno-extra-semi-stmt -Wno-misleading-indentation -Wno-quoted-include-in-framework-header -Wno-implicit-fallthrough -Wno-enum-enum-conversion -Wno-enum-float-conversion -Wno-elaborated-enum-base -Wno-reserved-identifier -Wno-gnu-folding-constant -fdebug-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj -ferror-limit 19 -stack-protector 1 -fstack-check -mdarwin-stkchk-strong-link -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fmax-type-align=16 -fcommon -fopenmp -clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation -fno-odr-hash-protocols -clang-vendor-feature=+enableAggressiveVLAFolding -clang-vendor-feature=+revert09abecef7bbf -clang-vendor-feature=+thisNoAlignAttr -clang-vendor-feature=+thisNoNullAttr -mllvm -disable-aligned-alloc-awareness=1 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_7a2bc.dir/OpenMPTryFlag.c.o -x c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj/OpenMPTryFlag.c
+        clang -cc1 version 15.0.0 (clang-1500.1.0.2.5) default target x86_64-apple-darwin23.1.0
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include"
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/Library/Frameworks"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/System/Library/Frameworks (framework directory)
+        End of search list.
+        /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-TsGgUj/OpenMPTryFlag.c:2:10: fatal error: 'omp.h' file not found
+        #include <omp.h>
+                 ^~~~~~~
+        1 error generated.
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:219 (try_compile)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:486 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:69 (find_package)"
+    description: "Detecting CXX OpenMP compiler info"
+    directories:
+      source: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP"
+      binary: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "-O3 -march=native -mfma -ffp-contract=fast"
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: "14.1"
+      CMAKE_OSX_SYSROOT: "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk"
+      CMAKE_POSITION_INDEPENDENT_CODE: "ON"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_CXX_Xclang fopenmp"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP'
+        
+        Run Build Command(s): /Users/sienahurwitz/opt/miniconda3/bin/ninja -v cmTC_a076a
+        [1/2] /usr/bin/clang++   -O3 -march=native -mfma -ffp-contract=fast -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP/OpenMPTryFlag.cpp
+        FAILED: CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o 
+        /usr/bin/clang++   -O3 -march=native -mfma -ffp-contract=fast -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP/OpenMPTryFlag.cpp
+        Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+        Target: x86_64-apple-darwin23.1.0
+        Thread model: posix
+        InstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
+         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" -cc1 -triple x86_64-apple-macosx14.1.0 -Wundef-prefix=TARGET_OS_ -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -Werror=implicit-function-declaration -emit-obj --mrelax-relocations -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name OpenMPTryFlag.cpp -mrelocation-model pic -pic-level 2 -mframe-pointer=all -mllvm -extra-vectorizer-passes -fno-strict-return -ffp-contract=fast -fno-rounding-math -funwind-tables=2 -target-sdk-version=14.2 -fvisibility-inlines-hidden-static-local-var -target-cpu skylake -target-feature -avx512pf -target-feature -tsxldtrk -target-feature +cx16 -target-feature +sahf -target-feature -tbm -target-feature -avx512ifma -target-feature -sha -target-feature +crc32 -target-feature -fma4 -target-feature -vpclmulqdq -target-feature +prfchw -target-feature +bmi2 -target-feature -cldemote -target-feature +fsgsbase -target-feature -avx512bf16 -target-feature -amx-tile -target-feature -uintr -target-feature -gfni -target-feature +popcnt -target-feature -ptwrite -target-feature +aes -target-feature -avx512bitalg -target-feature -movdiri -target-feature -widekl -target-feature +xsaves -target-feature -avx512er -target-feature -avxvnni -target-feature -avx512fp16 -target-feature -avx512vnni -target-feature -amx-bf16 -target-feature -avx512vpopcntdq -target-feature -pconfig -target-feature -clwb -target-feature -avx512f -target-feature +xsavec -target-feature -clzero -target-feature -pku -target-feature +mmx -target-feature -lwp -target-feature -rdpid -target-feature -xop -target-feature +rdseed -target-feature -waitpkg -target-feature -kl -target-feature -movdir64b -target-feature -sse4a -target-feature -avx512bw -target-feature +clflushopt -target-feature +xsave -target-feature -avx512vbmi2 -target-feature +64bit -target-feature -avx512vl -target-feature -serialize -target-feature -hreset -target-feature +invpcid -target-feature -avx512cd -target-feature +avx -target-feature -vaes -target-feature -amx-int8 -target-feature +cx8 -target-feature -rtm -target-feature +bmi -target-feature -enqcmd -target-feature +rdrnd -target-feature -mwaitx -target-feature +sse4.1 -target-feature +sse4.2 -target-feature +avx2 -target-feature +fxsr -target-feature -wbnoinvd -target-feature +sse -target-feature +lzcnt -target-feature +pclmul -target-feature -rdpru -target-feature +f16c -target-feature +ssse3 -target-feature +sgx -target-feature -prefetchwt1 -target-feature +cmov -target-feature -avx512vbmi -target-feature -shstk -target-feature +movbe -target-feature -avx512vp2intersect -target-feature +xsaveopt -target-feature -avx512dq -target-feature +sse2 -target-feature +adx -target-feature +sse3 -target-feature +fma -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=lldb -target-linker-version 1022.1 -v -fcoverage-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP -resource-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0 -dependency-file CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o.d -skip-unused-modulemap-deps -MT CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include/c++/v1 -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include -internal-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include -O3 -Wno-reorder-init-list -Wno-implicit-int-float-conversion -Wno-c99-designator -Wno-final-dtor-non-final-class -Wno-extra-semi-stmt -Wno-misleading-indentation -Wno-quoted-include-in-framework-header -Wno-implicit-fallthrough -Wno-enum-enum-conversion -Wno-enum-float-conversion -Wno-elaborated-enum-base -Wno-reserved-identifier -Wno-gnu-folding-constant -fdeprecated-macro -fdebug-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP -ferror-limit 19 -stack-protector 1 -fstack-check -mdarwin-stkchk-strong-link -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fno-cxx-modules -fcxx-exceptions -fexceptions -fmax-type-align=16 -fcommon -vectorize-loops -vectorize-slp -fopenmp -clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation -fno-odr-hash-protocols -clang-vendor-feature=+enableAggressiveVLAFolding -clang-vendor-feature=+revert09abecef7bbf -clang-vendor-feature=+thisNoAlignAttr -clang-vendor-feature=+thisNoNullAttr -mllvm -disable-aligned-alloc-awareness=1 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_a076a.dir/OpenMPTryFlag.cpp.o -x c++ /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP/OpenMPTryFlag.cpp
+        clang -cc1 version 15.0.0 (clang-1500.1.0.2.5) default target x86_64-apple-darwin23.1.0
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include"
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/Library/Frameworks"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include/c++/v1
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/System/Library/Frameworks (framework directory)
+        End of search list.
+        /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-gcHrzP/OpenMPTryFlag.cpp:2:10: fatal error: 'omp.h' file not found
+        #include <omp.h>
+                 ^~~~~~~
+        1 error generated.
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/CheckCXXCompilerFlag.cmake:34 (cmake_check_compiler_flag)"
+      - "CMakeLists.txt:52 (CHECK_CXX_COMPILER_FLAG)"
+    checks:
+      - "Performing Test COMPILER_SUPPORTS_MARCH_NATIVE"
+    directories:
+      source: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-oq4esz"
+      binary: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-oq4esz"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: "14.1"
+      CMAKE_OSX_SYSROOT: "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk"
+      CMAKE_POSITION_INDEPENDENT_CODE: "ON"
+    buildResult:
+      variable: "COMPILER_SUPPORTS_MARCH_NATIVE"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-oq4esz'
+        
+        Run Build Command(s): /Users/sienahurwitz/opt/miniconda3/bin/ninja -v cmTC_c780e
+        [1/2] /usr/bin/clang++ -DCOMPILER_SUPPORTS_MARCH_NATIVE  -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE   -march=native -MD -MT CMakeFiles/cmTC_c780e.dir/src.cxx.o -MF CMakeFiles/cmTC_c780e.dir/src.cxx.o.d -o CMakeFiles/cmTC_c780e.dir/src.cxx.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-oq4esz/src.cxx
+        [2/2] : && /usr/bin/clang++ -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/cmTC_c780e.dir/src.cxx.o -o cmTC_c780e   && :
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:219 (try_compile)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:486 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:69 (find_package)"
+    description: "Detecting C OpenMP compiler info"
+    directories:
+      source: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F"
+      binary: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: "14.1"
+      CMAKE_OSX_SYSROOT: "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk"
+      CMAKE_POSITION_INDEPENDENT_CODE: "ON"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_C_Xclang fopenmp"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F'
+        
+        Run Build Command(s): /Users/sienahurwitz/opt/miniconda3/bin/ninja -v cmTC_ca810
+        [1/2] /usr/bin/clang   -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F/OpenMPTryFlag.c
+        FAILED: CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o 
+        /usr/bin/clang   -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o -MF CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o.d -o CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F/OpenMPTryFlag.c
+        Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+        Target: x86_64-apple-darwin23.2.0
+        Thread model: posix
+        InstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
+         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" -cc1 -triple x86_64-apple-macosx14.1.0 -Wundef-prefix=TARGET_OS_ -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -Werror=implicit-function-declaration -emit-obj -mrelax-all --mrelax-relocations -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name OpenMPTryFlag.c -mrelocation-model pic -pic-level 2 -mframe-pointer=all -fno-strict-return -ffp-contract=on -fno-rounding-math -funwind-tables=2 -target-sdk-version=14.2 -fvisibility-inlines-hidden-static-local-var -target-cpu penryn -tune-cpu generic -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=lldb -target-linker-version 1022.1 -v -fcoverage-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F -resource-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0 -dependency-file CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o.d -skip-unused-modulemap-deps -MT CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include -internal-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include -Wno-reorder-init-list -Wno-implicit-int-float-conversion -Wno-c99-designator -Wno-final-dtor-non-final-class -Wno-extra-semi-stmt -Wno-misleading-indentation -Wno-quoted-include-in-framework-header -Wno-implicit-fallthrough -Wno-enum-enum-conversion -Wno-enum-float-conversion -Wno-elaborated-enum-base -Wno-reserved-identifier -Wno-gnu-folding-constant -fdebug-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F -ferror-limit 19 -stack-protector 1 -fstack-check -mdarwin-stkchk-strong-link -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fmax-type-align=16 -fcommon -fopenmp -clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation -fno-odr-hash-protocols -clang-vendor-feature=+enableAggressiveVLAFolding -clang-vendor-feature=+revert09abecef7bbf -clang-vendor-feature=+thisNoAlignAttr -clang-vendor-feature=+thisNoNullAttr -mllvm -disable-aligned-alloc-awareness=1 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_ca810.dir/OpenMPTryFlag.c.o -x c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F/OpenMPTryFlag.c
+        clang -cc1 version 15.0.0 (clang-1500.1.0.2.5) default target x86_64-apple-darwin23.2.0
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include"
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/Library/Frameworks"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/System/Library/Frameworks (framework directory)
+        End of search list.
+        /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-T79F9F/OpenMPTryFlag.c:2:10: fatal error: 'omp.h' file not found
+        #include <omp.h>
+                 ^~~~~~~
+        1 error generated.
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:219 (try_compile)"
+      - "/Users/sienahurwitz/opt/miniconda3/lib/python3.9/site-packages/cmake/data/share/cmake-3.28/Modules/FindOpenMP.cmake:486 (_OPENMP_GET_FLAGS)"
+      - "CMakeLists.txt:69 (find_package)"
+    description: "Detecting CXX OpenMP compiler info"
+    directories:
+      source: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh"
+      binary: "/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "-O3 -march=native -mfma -ffp-contract=fast"
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: "14.1"
+      CMAKE_OSX_SYSROOT: "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk"
+      CMAKE_POSITION_INDEPENDENT_CODE: "ON"
+    buildResult:
+      variable: "OpenMP_COMPILE_RESULT_CXX_Xclang fopenmp"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh'
+        
+        Run Build Command(s): /Users/sienahurwitz/opt/miniconda3/bin/ninja -v cmTC_d27b7
+        [1/2] /usr/bin/clang++   -O3 -march=native -mfma -ffp-contract=fast -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh/OpenMPTryFlag.cpp
+        FAILED: CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o 
+        /usr/bin/clang++   -O3 -march=native -mfma -ffp-contract=fast -Xclang -fopenmp -v -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -mmacosx-version-min=14.1 -fPIE -MD -MT CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o -MF CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o.d -o CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o -c /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh/OpenMPTryFlag.cpp
+        Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+        Target: x86_64-apple-darwin23.2.0
+        Thread model: posix
+        InstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
+         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang" -cc1 -triple x86_64-apple-macosx14.1.0 -Wundef-prefix=TARGET_OS_ -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -Werror=implicit-function-declaration -emit-obj --mrelax-relocations -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name OpenMPTryFlag.cpp -mrelocation-model pic -pic-level 2 -mframe-pointer=all -mllvm -extra-vectorizer-passes -fno-strict-return -ffp-contract=fast -fno-rounding-math -funwind-tables=2 -target-sdk-version=14.2 -fvisibility-inlines-hidden-static-local-var -target-cpu skylake -target-feature -avx512pf -target-feature -tsxldtrk -target-feature +cx16 -target-feature +sahf -target-feature -tbm -target-feature -avx512ifma -target-feature -sha -target-feature +crc32 -target-feature -fma4 -target-feature -vpclmulqdq -target-feature +prfchw -target-feature +bmi2 -target-feature -cldemote -target-feature +fsgsbase -target-feature -avx512bf16 -target-feature -amx-tile -target-feature -uintr -target-feature -gfni -target-feature +popcnt -target-feature -ptwrite -target-feature +aes -target-feature -avx512bitalg -target-feature -movdiri -target-feature -widekl -target-feature +xsaves -target-feature -avx512er -target-feature -avxvnni -target-feature -avx512fp16 -target-feature -avx512vnni -target-feature -amx-bf16 -target-feature -avx512vpopcntdq -target-feature -pconfig -target-feature -clwb -target-feature -avx512f -target-feature +xsavec -target-feature -clzero -target-feature -pku -target-feature +mmx -target-feature -lwp -target-feature -rdpid -target-feature -xop -target-feature +rdseed -target-feature -waitpkg -target-feature -kl -target-feature -movdir64b -target-feature -sse4a -target-feature -avx512bw -target-feature +clflushopt -target-feature +xsave -target-feature -avx512vbmi2 -target-feature +64bit -target-feature -avx512vl -target-feature -serialize -target-feature -hreset -target-feature +invpcid -target-feature -avx512cd -target-feature +avx -target-feature -vaes -target-feature -amx-int8 -target-feature +cx8 -target-feature -rtm -target-feature +bmi -target-feature -enqcmd -target-feature +rdrnd -target-feature -mwaitx -target-feature +sse4.1 -target-feature +sse4.2 -target-feature +avx2 -target-feature +fxsr -target-feature -wbnoinvd -target-feature +sse -target-feature +lzcnt -target-feature +pclmul -target-feature -rdpru -target-feature +f16c -target-feature +ssse3 -target-feature +sgx -target-feature -prefetchwt1 -target-feature +cmov -target-feature -avx512vbmi -target-feature -shstk -target-feature +movbe -target-feature -avx512vp2intersect -target-feature +xsaveopt -target-feature -avx512dq -target-feature +sse2 -target-feature +adx -target-feature +sse3 -target-feature +fma -mllvm -treat-scalable-fixed-error-as-warning -debugger-tuning=lldb -target-linker-version 1022.1 -v -fcoverage-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh -resource-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0 -dependency-file CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o.d -skip-unused-modulemap-deps -MT CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include/c++/v1 -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include -internal-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include -O3 -Wno-reorder-init-list -Wno-implicit-int-float-conversion -Wno-c99-designator -Wno-final-dtor-non-final-class -Wno-extra-semi-stmt -Wno-misleading-indentation -Wno-quoted-include-in-framework-header -Wno-implicit-fallthrough -Wno-enum-enum-conversion -Wno-enum-float-conversion -Wno-elaborated-enum-base -Wno-reserved-identifier -Wno-gnu-folding-constant -fdeprecated-macro -fdebug-compilation-dir=/Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh -ferror-limit 19 -stack-protector 1 -fstack-check -mdarwin-stkchk-strong-link -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fno-cxx-modules -fcxx-exceptions -fexceptions -fmax-type-align=16 -fcommon -vectorize-loops -vectorize-slp -fopenmp -clang-vendor-feature=+disableNonDependentMemberExprInCurrentInstantiation -fno-odr-hash-protocols -clang-vendor-feature=+enableAggressiveVLAFolding -clang-vendor-feature=+revert09abecef7bbf -clang-vendor-feature=+thisNoAlignAttr -clang-vendor-feature=+thisNoNullAttr -mllvm -disable-aligned-alloc-awareness=1 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_d27b7.dir/OpenMPTryFlag.cpp.o -x c++ /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh/OpenMPTryFlag.cpp
+        clang -cc1 version 15.0.0 (clang-1500.1.0.2.5) default target x86_64-apple-darwin23.2.0
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/local/include"
+        ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/Library/Frameworks"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include/c++/v1
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15.0.0/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/usr/include
+         /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include
+         /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk/System/Library/Frameworks (framework directory)
+        End of search list.
+        /Users/sienahurwitz/simsopt/CMakeFiles/CMakeScratch/TryCompile-RHqlzh/OpenMPTryFlag.cpp:2:10: fatal error: 'omp.h' file not found
+        #include <omp.h>
+                 ^~~~~~~
+        1 error generated.
+        ninja: build stopped: subcommand failed.
+        
+      exitCode: 1
+...

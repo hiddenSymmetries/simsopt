@@ -79,7 +79,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
@@ -181,12 +181,12 @@ s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
 
 # We now add a penalty for the force.
 dofs = res.x
-FORCE_WEIGHT += 10000
-print(f"OPTIMIZATION WITH ADDED FORCE PENALTY, WEIGHT={FORCE_WEIGHT}")
+FORCE_WEIGHT += 1e-14
+print(f"OPTIMIZATION WITH ADDED FORCE PENALTY, WEIGHT={FORCE_WEIGHT.value}")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_WEIGHT={FORCE_WEIGHT}", close=True)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_WEIGHT={FORCE_WEIGHT.value}", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT}", extra_data=pointData)
+s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT.value}", extra_data=pointData)
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")
