@@ -1,0 +1,21 @@
+[submodule "thirdparty/xtensor"]
+	path = thirdparty/xtensor
+	url = https://github.com/xtensor-stack/xtensor.git
+[submodule "thirdparty/xtensor-python"]
+	path = thirdparty/xtensor-python
+	url = https://github.com/xtensor-stack/xtensor-python.git
+[submodule "thirdparty/xtl"]
+	path = thirdparty/xtl
+	url = https://github.com/xtensor-stack/xtl.git
+[submodule "thirdparty/pybind11"]
+	path = thirdparty/pybind11
+	url = https://github.com/pybind/pybind11.git
+[submodule "thirdparty/xsimd"]
+	path = thirdparty/xsimd
+	url = https://github.com/xtensor-stack/xsimd.git
+[submodule "thirdparty/eigen"]
+	path = thirdparty/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "thirdparty/fmt"]
+	path = thirdparty/fmt
+	url = https://github.com/fmtlib/fmt.git
