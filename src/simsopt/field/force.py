@@ -1,18 +1,13 @@
 """Implements the force on a coil in its own magnetic field and the field of other coils."""
-import math
 from scipy import constants
 import numpy as np
-import jax
 import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
 from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
-# from ..geo.jit import jit
-from jax import jit #replace above
+from jax import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
-from functools import partial
-from scipy.linalg import block_diag
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 

@@ -134,7 +134,7 @@ def fun(dofs):
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
     force_string = ", ".join(f"{J.J():.2e}" for J in Jforce)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], ∫F²/L=[{force_string}]"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], ⟨F²⟩=[{force_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
@@ -163,6 +163,7 @@ def fun(dofs):
 
 dofs = JF.x
 print("INITIAL OPTIMIZATION")
+FORCE_WEIGHT += 1e-15
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -174,15 +175,6 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
 print("OPTIMIZATION WITH REDUCED LENGTH PENALTY")
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_long", close=True)
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
-
-# We now add a penalty for the force.
-dofs = res.x
-FORCE_WEIGHT += 1e-14
-print(f"OPTIMIZATION WITH ADDED FORCE PENALTY, WEIGHT={FORCE_WEIGHT.value}")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_WEIGHT={FORCE_WEIGHT.value}", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
