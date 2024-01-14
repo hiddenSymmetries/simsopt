@@ -124,19 +124,22 @@ class ToroidalWireframe(object):
 
         segments_pol[:HalfNTheta, 0] = self.node_inds[0, :HalfNTheta]
         segments_pol[:HalfNTheta, 1] = self.node_inds[0, 1:HalfNTheta+1]
-        self.polSegmentKey[0, :HalfNTheta] = np.arange(HalfNTheta) + self.nTorSegments
+        self.polSegmentKey[0, :HalfNTheta] = np.arange(HalfNTheta) \
+                                             + self.nTorSegments
         for i in range(1, nPhi):
             polInd0 = HalfNTheta + (i-1)*nTheta
             polInd1 = polInd0 + nTheta
             segments_pol[polInd0:polInd1, 0] = self.node_inds[i, :]
             segments_pol[polInd0:polInd1-1, 1] = self.node_inds[i, 1:]
             segments_pol[polInd1-1, 1] = self.node_inds[i, 0]
-            self.polSegmentKey[i, :] = np.arange(polInd0, polInd1) + self.nTorSegments
+            self.polSegmentKey[i, :] = np.arange(polInd0, polInd1) \
+                                       + self.nTorSegments
 
         segments_pol[-HalfNTheta:, 0] = self.node_inds[-1, :HalfNTheta]
         segments_pol[-HalfNTheta:, 1] = self.node_inds[-1, 1:HalfNTheta+1]
         self.polSegmentKey[-1, :HalfNTheta] = \
-            np.arange(self.nPolSegments-HalfNTheta, self.nPolSegments) + self.nTorSegments
+            np.arange(self.nPolSegments-HalfNTheta, self.nPolSegments) \
+            + self.nTorSegments
 
         # Join the toroidal and poloidal segments into a single array
         self.segments = \
@@ -152,7 +155,7 @@ class ToroidalWireframe(object):
         # Create a matrix listing which segments are connected to each node
         self.determine_connected_segments()
 
-        # Create a matrix listing which segments surround each cell in the wireframe
+        # Create a matrix listing which segments surround each cell 
         self.set_up_cell_key()
 
         # Add constraints to enforce continuity at each node
@@ -534,6 +537,49 @@ class ToroidalWireframe(object):
         self.set_segments_free(segments)
 
         self.add_segment_constraints(segments, implicit=implicit)
+
+    def constrain_colliding_segments(self, coll_func, pts_per_seg=10, **kwargs):
+        """
+        Constains segments found to be colliding with external objects or other
+        spatial constraints according to a user-provided function. 
+
+        Parameters
+        ----------
+            coll_func: function
+                Function with the following interface:
+                    colliding = coll_func(x, y, z, **kwargs)
+                x, y, and z are arrays the Cartesian x, y, and z coordinates
+                of a set of test points. The function returns a logical array
+                (colliding) with the same dimensions of x, y, and z in which
+                elements are True if the corresponding input point violates
+                the spatial constraint and False otherwise.
+            pts_per_seg: integer (optional)
+                Number of spatial points to test along each segment for 
+                collisions. Must be at least 2; endpoints (i.e. nodes) are
+                always included. Default is 10.
+            **kwargs:
+                Any keyword arguments to be supplied to coll_func.
+        """
+
+        if pts_per_seg < 2:
+            raise ValueError('pts_per_seg must be at least 2')
+
+        # Coordinates of the test points along each segment
+        pos = np.linspace(0.0, 1.0, pts_per_seg).reshape((pts_per_seg,1,1))
+        point0 = self.nodes[0][self.segments[:,0],:]
+        point1 = self.nodes[0][self.segments[:,1],:]
+        seg_vec = point1 - point0
+        test_pts = point0 + pos*seg_vec
+
+        # Check test points for collisions
+        coll = coll_func(test_pts[:,:,0], test_pts[:,:,1], test_pts[:,:,2], \
+                         **kwargs)
+
+        # Identify the segments containing colliding points
+        colliding_segs = np.where(np.any(coll, axis=0))[0]
+
+        # Set the colliding segments as constrained
+        self.set_segments_constrained(colliding_segs)
 
     def set_segments_free(self, segments):
         """
