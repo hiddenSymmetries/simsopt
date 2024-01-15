@@ -888,13 +888,13 @@ def create_equally_spaced_windowpane_curves( ncurves, nfp, stellsym, R0, R1, Z0,
         numquadpoints = 15 * order
 
     curves = []
-    from .windowpanecurve import WindowpaneCurveXYZFourier
+    from .orientedcurve import OrientedCurveXYZFourier
 
     phi = np.linspace(0,np.pi/nfp,ncurves,endpoint=False)
     dphi = np.pi/nfp * 1/ncurves
     phi = phi + dphi/2
     for ii in range(ncurves):
-        c = WindowpaneCurveXYZFourier( numquadpoints, order )
+        c = OrientedCurveXYZFourier( numquadpoints, order )
         c.set('xc(1)',R1)
         c.set('zs(1)',R1)
         c.set('x0', R0*np.cos(phi[ii]) )
@@ -922,7 +922,7 @@ def new_windowpane_curve_on_max_error( surf, coils, a, order, nqpts=None, dofs=N
     """
     from .surfacerzfourier import SurfaceRZFourier
     from ..field.biotsavart import BiotSavart
-    from .windowpanecurve import WindowpaneCurveXYZFourier
+    from .orientedcurve import OrientedCurveXYZFourier
 
     if nqpts is None:
         nqpts = 15*order
@@ -973,7 +973,7 @@ def new_windowpane_curve_on_max_error( surf, coils, a, order, nqpts=None, dofs=N
 
     # Construct coil
     dofs = xyz.tolist() + ypr + dofs.tolist()
-    curve = WindowpaneCurveXYZFourier( nqpts, order)
+    curve = OrientedCurveXYZFourier( nqpts, order)
     curve.set_dofs( dofs )
     
     return curve

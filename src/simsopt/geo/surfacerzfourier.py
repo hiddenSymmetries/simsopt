@@ -10,6 +10,8 @@ from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
 from .._core.dev import SimsoptRequires
+from .jit import jit
+from jax import vjp, jacfwd, jvp
 
 try:
     from qsc import Qsc
@@ -72,6 +74,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         sopp.SurfaceRZFourier.__init__(self, mpol, ntor, nfp, stellsym,
                                        quadpoints_phi, quadpoints_theta)
+        
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
@@ -571,14 +574,15 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         dRdphi = self.nfp*np.einsum('mn,n,tpmn->tp', self.rc, np.arange(-self.ntor,self.ntor+1), sina) - self.nfp*np.einsum('mn,n,tpmn->tp', self.rs, np.arange(-self.ntor,self.ntor+1), cosa)
         dZdphi = self.nfp*np.einsum('mn,n,tpmn->tp', self.zc, np.arange(-self.ntor,self.ntor+1), sina) - self.nfp*np.einsum('mn,n,tpmn->tp', self.zs, np.arange(-self.ntor,self.ntor+1), cosa)
 
-        xx = np.einsum('pt,p->pt', dRdphi, np.cos(phi)) - np.einsum('pt,p->pt', R, np.sin(phi))
-
         return np.stack([
             dRdphi*np.cos(phi[:,None])-R*np.sin(phi[:,None]), 
             dRdphi*np.sin(phi[:,None])+R*np.cos(phi[:,None]), 
             dZdphi], axis=-1
             )
     
+    def dgammadphi_by_dcoeff_vjp_impl(self, v):
+        pass
+
     def dgammadtheta(self):
         """
         Return dgamma/dtheta

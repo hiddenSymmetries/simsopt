@@ -14,7 +14,7 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance', 'PortSize']
+           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance', 'PortSize', 'WindingSurface','Access']
 
 
 @jit
@@ -173,7 +173,6 @@ def coil_normal_distance(gamma_curves, gamma_surf, unit_normal, unit_tangent, ph
     else:
         return max(port_sizes)
 
-
 def find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal, unit_tangent, hv, max_size, ftop, fbot, min):    
     """"Find the maximum port size to access a toroidal volume from a given position
     
@@ -244,8 +243,7 @@ def heaviside(x):
     f = f.at[jnp.where(x>0)].set(1.0)
     f = f.at[jnp.where(x==0)].set(0.5) 
     return f
-
-    
+  
 def logistic(x, k=10):
     """Differentiable approximation to the Heaviside function
     
@@ -447,6 +445,102 @@ class PortSize(Optimizable):
 
 
 
+
+
+
+#=======================================================
+# Promote accessibility
+    
+def promote_accessibility( gamma_curves, gamma_surf, unit_normal, unit_tangent, pfactor ):  
+    nphi, ntheta, _ = gamma_surf.shape
+    distances = jnp.zeros((nphi*ntheta,))
+    counter = -1
+    for ip in range(nphi):
+        for it in range(ntheta):
+            counter += 1
+
+            # Evaluate position on surface
+            xsurf = gamma_surf[ip, it]
+            R = jnp.sqrt(gamma_surf[ip,:,0]**2 + gamma_surf[ip,:,1]**2 )
+            R0 = jnp.mean( R )
+
+            un = unit_normal[ip, it]
+            ut = unit_tangent[ip, it]
+            # Construct coordinate associated to xsurf, and build projection operator
+            ub = jnp.cross(un, ut)
+            M = jnp.array([un,ut,ub]).transpose()
+            invM = jnp.linalg.inv(M)
+            
+            # Consider all curve pts
+            gamma_coil_proj = jnp.einsum('ij,...j->...i',invM,gamma_curves-xsurf[...,:])
+            x = gamma_coil_proj.reshape((-1,3))
+
+            # Find minimal distance from pt to coil, weighted by Heaviside fct.
+            dd = logistic( R[it]-R0, k=2*pfactor ) * ( x[:,1]**2 + x[:,2]**2 )
+            distances = distances.at[counter].set( jnp.sum(dd**pfactor) )
+
+    return jnp.sum( distances )**(1./pfactor)
+
+
+
+
+class Access(Optimizable):
+    def __init__(self, curves, surf, p=4):
+        self.curves = curves
+        self.boundary = surf
+        self.p = p
+
+        # I don't know how to get derivatives of unit_normal wrt boundary dofs; for now this class only depends on curves. Should not be used in any kind of combined approach, excepted if finite differences are implemented
+        # Also, if the port size is made dependent on the surface, the objective function might not be differentiable anymore. 
+        #super().__init__(depends_on=curves + [surf])
+        super().__init__(depends_on=curves)
+
+        self.J_jax=lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: promote_accessibility(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
+        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
+        self.thisgrad1 = lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=1)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
+        self.thisgrad2 = lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=2)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
+        self.thisgrad3 = lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=3)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
+
+
+    def J(self):
+        gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
+        gamma_boundary = self.boundary.gamma()
+        unit_normal = self.boundary.unitnormal()
+        tangent = self.boundary.dgammadphi()
+        norm = np.linalg.norm(tangent, axis=2)
+        unit_tangent = tangent / norm[:,:,None]
+
+        return self.J_jax(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
+    
+    @derivative_dec
+    def dJ(self):
+        gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
+        gamma_boundary = self.boundary.gamma()
+        unit_normal = self.boundary.unitnormal()
+        tangent = self.boundary.dgammadphi()
+        norm = np.linalg.norm(tangent, axis=2)
+        unit_tangent = tangent / norm[:,:,None]
+
+        grad0 = self.thisgrad0(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
+        # grad1 = self.thisgrad1(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
+        # grad2 = self.thisgrad2(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
+        # grad3 = self.thisgrad3(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
+
+        return np.sum([curve.dgamma_by_dcoeff_vjp(gg) for curve, gg in zip(self.curves, grad0)])
+         
+
+
+
+
+
+
+
+
+
+
+
+
+
 @jit
 def Lp_torsion_pure(torsion, gammadash, p, threshold):
     """
@@ -597,6 +691,82 @@ class CurveCurveDistance(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
+
+def ws_distance_pure(gammac, lc, gammas, ns):
+    """
+    This function is used in a Python+Jax implementation of the curve-surface distance
+    formula.
+    """
+    dists = jnp.sqrt(jnp.sum(
+        (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
+    integralweight = jnp.linalg.norm(lc, axis=1)[:, None] \
+        * jnp.linalg.norm(ns, axis=1)[None, :]
+    return jnp.mean(integralweight * dists)
+
+class WindingSurface(Optimizable):
+    r"""Used to constrain coils to remain on a surface
+    
+    Computed
+    .. math:
+        J = \sum_{i=1}^{\text{num_coils}} d_i
+
+    where 
+    .. math::
+        d_{i} = \int_{\text{curve}_i} \int_{surface} \| \mathbf{r}_i - \mathbf{s} \|_2)^2 ~dl_i ~ds\\
+
+    and :math:`\mathbf{r}_i`, :math:`\mathbf{s}` are points on coil :math:`i`
+    and the surface, respectively. This penalty is zero when all points are on the surface.
+    """
+    def __init__(self, curves, surface):
+        self.curves = curves
+        self.surface = surface
+
+        self.J_jax = jit(lambda gammac, lc, gammas, ns: ws_distance_pure(gammac, lc, gammas, ns))
+        self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
+        self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
+        self.thisgrad2 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=2)(gammac, lc, gammas, ns))
+        
+        super().__init__(depends_on=curves + [surface])    
+
+    def J(self):
+        """
+        This returns the value of the quantity.
+        """
+        res = 0
+        gammas = self.surface.gamma().reshape((-1, 3))
+        ns = self.surface.normal().reshape((-1, 3))
+        for c in self.curves:
+            gammac = c.gamma()
+            lc = c.gammadash()
+            res += self.J_jax(gammac, lc, gammas, ns)
+        return res
+
+    # @derivative_dec
+    # def dJ(self):
+    #     """
+    #     This returns the derivative of the quantity with respect to the curve dofs.
+    #     """
+    #     dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
+    #     dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
+    #     gammas = self.surface.gamma().reshape((-1, 3))
+
+    #     dgammas_by_dcoeff_vjp_vecs = [np.zeros_like(gammas) for c in self.curves]
+
+    #     ns = self.surface.normal().reshape((-1, 3))
+
+    #     for i, c in enumerate(self.curves):
+    #         gammac = c.gamma()
+    #         lc = c.gammadash()
+    #         dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gammac, lc, gammas, ns)
+    #         dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gammac, lc, gammas, ns)
+    #         dgammas_by_dcoeff_vjp_vecs[i] = self.thisgrad2(gammac, lc, gammas, ns)
+    #     res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i])  for i in range(len(self.curves))] 
+    #     res2 = [self.surface.dgamma_by_dcoeff_vjp(dgammas_by_dcoeff_vjp_vecs[i])  for i in range(len(self.curves))]
+    #     a = sum(res)
+    #     b = sum(res2)
+    #     return a + b
+
+
 def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
     """
     This function is used in a Python+Jax implementation of the curve-surface distance
@@ -687,7 +857,6 @@ class CurveSurfaceDistance(Optimizable):
         dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
         gammas = self.surface.gamma().reshape((-1, 3))
 
-        gammas = self.surface.gamma().reshape((-1, 3))
         ns = self.surface.normal().reshape((-1, 3))
         for i, _ in self.candidates:
             gammac = self.curves[i].gamma()
