@@ -693,7 +693,7 @@ class CurveCurveDistance(Optimizable):
 
 
 
-def ws_distance_pure(gammac, lc, gammas, ns):
+def ws_distance_pure(gammac, lc, gammas, ns, maximum_distance):
     """
     This function is used in a Python+Jax implementation of the curve-surface distance
     formula.
@@ -702,7 +702,7 @@ def ws_distance_pure(gammac, lc, gammas, ns):
         (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
     integralweight = jnp.linalg.norm(lc, axis=1)[:, None] \
         * jnp.linalg.norm(ns, axis=1)[None, :]
-    return jnp.mean(integralweight * dists)
+    return jnp.mean(integralweight * jnp.maximum(dists-maximum_distance, 0)**2)
 
 class WindingSurface(Optimizable):
     r"""Used to constrain coils to remain on a surface
@@ -718,11 +718,12 @@ class WindingSurface(Optimizable):
     and :math:`\mathbf{r}_i`, :math:`\mathbf{s}` are points on coil :math:`i`
     and the surface, respectively. This penalty is zero when all points are on the surface.
     """
-    def __init__(self, curves, surface):
+    def __init__(self, curves, surface, maximum_distance):
         self.curves = curves
         self.surface = surface
+        self.maximum_distance = maximum_distance
 
-        self.J_jax = jit(lambda gammac, lc, gammas, ns: ws_distance_pure(gammac, lc, gammas, ns))
+        self.J_jax = jit(lambda gammac, lc, gammas, ns: ws_distance_pure(gammac, lc, gammas, ns, self.maximum_distance))
         self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
         self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.thisgrad2 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=2)(gammac, lc, gammas, ns))
