@@ -74,7 +74,7 @@ def get_exact_surface(surface_type='SurfaceXYZFourier'):
     return s
 
 
-def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
+def get_boozer_surface(label="Volume", nphi=None, ntheta=None, mpol=6, ntor=6, maxiter=20, lab_scale=1):
     """
     Returns a boozer surface that will be used in unit tests.
     """
@@ -88,8 +88,6 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
     G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
-    mpol = 6
-    ntor = 6
     stellsym = True
     nfp = 3
 
@@ -102,18 +100,18 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
 
     if label == "Volume":
         lab = Volume(s, nphi=nphi, ntheta=ntheta)
-        lab_target = lab.J()
+        lab_target = lab_scale*lab.J()
     elif label == "ToroidalFlux":
         bs_tf = BiotSavart(coils)
         lab = ToroidalFlux(s, bs_tf, nphi=nphi, ntheta=ntheta)
-        lab_target = lab.J()
+        lab_target = lab_scale*lab.J()
     elif label == "Area":
         lab = Area(s, nphi=nphi, ntheta=ntheta)
-        lab_target = lab.J()
+        lab_target = lab_scale*lab.J()
 
     ## COMPUTE THE SURFACE
     boozer_surface = BoozerSurface(bs, s, lab, lab_target)
-    res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
+    res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=maxiter, iota=iota, G=G0)
     print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}")
 
     return bs, boozer_surface

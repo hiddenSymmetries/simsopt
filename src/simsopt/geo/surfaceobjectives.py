@@ -13,7 +13,7 @@ from ..objectives.utilities import forward_backward
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'Iotas', 
            'MajorRadius', 'NonQuasiSymmetricRatio', 'BoozerResidual', 
-           'AspectRatio']
+           'AspectRatio', 'DifferentialVolume']
 
 
 class AspectRatio(Optimizable):
@@ -878,6 +878,144 @@ class NonQuasiSymmetricRatio(Optimizable):
         dJ_by_dc = (denom * dnum_by_dc - num * ddenom_by_dc) / denom**2 
         return dJ_by_dc
 
+class DifferentialVolume(Optimizable):
+    r"""
+    This objective usese the field magnitude :math:`B(\varphi,\theta)` to evaluate an objective
+    related to the differential volume, :math:`V'(\psi)`,
+
+    .. math::
+        V'(\psi) = \int_0^{2\pi} d \theta \int_0^{2\pi} d \varphi \, G/B^2, 
+
+    Since :math:`G` is constant for a vacuum field, the objective computed by this penalty is
+
+    .. math::
+        J &= \frac{\int_{\Gamma_{s}} B_{\text{non-QS}}^2~dS}{\int_{\Gamma_{s}} B_{\text{QS}}^2~dS} \\
+
+    When :math:`J` is zero, then there is perfect QS on the given boozer surface. The ratio of the QS and non-QS components
+    of the field is returned to avoid dependence on the magnitude of the field strength.  Note that this penalty is computed
+    on an auxilliary surface with quadrature points that are different from those on the input Boozer surface.  This is to allow
+    for a spectrally accurate evaluation of the above integrals. Note that if boozer_surface.surface.stellsym == True, 
+    computing this term on the half-period with shifted quadrature points is ~not~ equivalent to computing on the full-period 
+    with unshifted points.  This is why we compute on an auxilliary surface with quadrature points on the full period.
+
+    Args:
+        boozer_surface: input boozer surface on which the penalty term is evaluated,
+        biotsavart: biotsavart object (not necessarily the same as the one used on the Boozer surface). 
+        sDIM: integer that determines the resolution of the quadrature points placed on the auxilliary surface.  
+        quasi_poloidal: `False` for quasiaxisymmetry and `True` for quasipoloidal symmetry
+    """
+
+
+    def __init__(self, boozer_surface, bs, sDIM=20):
+        # only SurfaceXYZTensorFourier for now
+        assert type(boozer_surface.surface) is SurfaceXYZTensorFourier 
+
+        Optimizable.__init__(self, depends_on=[boozer_surface])
+        in_surface = boozer_surface.surface
+        self.boozer_surface = boozer_surface
+
+        surface = in_surface
+        phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
+        thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
+        surface = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas, dofs=in_surface.dofs)
+
+        self.in_surface = in_surface
+        self.surface = surface
+        self.biotsavart = bs
+        self.recompute_bell()
+
+    def recompute_bell(self, parent=None):
+        self._J = None
+        self._dJ = None
+
+    def J(self):
+        if self._J is None:
+            self.compute()
+        return self._J
+
+    @derivative_dec
+    def dJ(self):
+        if self._dJ is None:
+            self.compute()
+        return self._dJ
+
+    def compute(self):
+        if self.boozer_surface.need_to_run_code:
+            res = self.boozer_surface.res
+            res = self.boozer_surface.run_code(res['type'], res['iota'], G=res['G'])
+        else:
+            res = self.boozer_surface.res
+
+        self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
+
+        # compute J
+        surface = self.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        G = self.boozer_surface.res['G']
+        jac = G/modB**2
+
+        self._J = np.mean(jac) 
+
+        booz_surf = self.boozer_surface
+        iota = booz_surf.res['iota']
+        P, L, U = booz_surf.res['PLU']
+        dconstraint_dcoils_vjp = self.boozer_surface.res['vjp']
+
+        dJ_by_dB = self.dJ_by_dB().reshape((-1, 3))
+        dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
+        dJ_by_dG = self._J/G
+
+        # tack on dJ_diota = 0, dJ_dG to the end of dJ_ds
+        dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0., dJ_by_dG]))
+        adj = forward_backward(P, L, U, dJ_ds)
+
+        adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
+        self._dJ = dJ_by_dcoils-adj_times_dg_dcoil
+
+    def dJ_by_dB(self):
+        """
+        Return the partial derivative of the objective with respect to the magnetic field
+        """
+        surface = self.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        G = self.boozer_surface.res['G']
+
+        dmodB_dB = B / modB[..., None]
+        dnum_by_dB = - 2 * G * dmodB_dB /(modB[...,None]**3 * nphi * ntheta) 
+        return dnum_by_dB 
+
+    def dJ_by_dsurfacecoefficients(self):
+        """
+        Return the partial derivative of the objective with respect to the surface coefficients
+        """
+        surface = self.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
+
+        B = self.biotsavart.B()
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        G = self.boozer_surface.res['G']
+
+        dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        dx_dc = surface.dgamma_by_dcoeff()
+        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
+
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
+
+        dnum_dc = np.mean(- 2 * G * dmodB_dc/(modB[...,None]**3), axis=(0,1 )) 
+        return dnum_dc 
 
 class Iotas(Optimizable):
     """

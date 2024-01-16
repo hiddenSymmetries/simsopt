@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio
+from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio, DifferentialVolume
+from simsopt.geo import BoozerSurface
 from simsopt.configs.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
@@ -337,6 +338,61 @@ class NonQSRatioTests(unittest.TestCase):
         taylor_test1(f, df, coeffs,
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
 
+
+class DifferentialVolumeTests(unittest.TestCase):
+    def test_diff_vol(self):
+        nphi = 10
+        ntheta = 10
+        mpol = 6
+        ntor = 6
+        maxiter = 100
+        bs, boozer_surface_0 = get_boozer_surface(label="ToroidalFlux",nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=0.01)
+        target_0 = boozer_surface_0.targetlabel
+        iota = boozer_surface_0.res['iota']
+        G0 = boozer_surface_0.res['G']
+        # dtheta/du = 2pi 
+        diffvol_0 = DifferentialVolume(boozer_surface_0, bs)
+        print(diffvol_0.J()*(2*np.pi))
+
+        for eps in [1e-4,1e-3,1e-2,1e-1,0.5]:
+            for label in ["Volume", "ToroidalFlux"]:
+                bs_1, boozer_surface_1 = get_boozer_surface(label=label,nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=0.01*(1+eps))
+                bs_2, boozer_surface_2 = get_boozer_surface(label=label,nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=0.01*(1-eps))
+                
+                surf_1 = boozer_surface_1.surface
+                surf_2 = boozer_surface_2.surface 
+                vol_1 = Volume(surf_1)
+                vol_2 = Volume(surf_2)
+                tf_1 = ToroidalFlux(surf_1,bs_1)
+                tf_2 = ToroidalFlux(surf_2,bs_2)
+
+                diff_flux_norm = (tf_1.J()-tf_2.J())/(2*np.pi)
+                diffvol = (vol_1.J()-vol_2.J())/diff_flux_norm
+                print(diffvol)
+
+    def test_diffvol_derivative(self):
+        """
+        Taylor test for derivative of vacuum magnetic well wrt coil parameters
+        """
+        for label in ["Volume", "ToroidalFlux"]:
+            with self.subTest(label=label):
+                self.subtest_diffvol_derivative(label)
+
+    def subtest_diffvol_derivative(self, label):
+        bs, boozer_surface = get_boozer_surface(label=label)
+        coeffs = bs.x
+        io = DifferentialVolume(boozer_surface, bs)
+
+        def f(dofs):
+            bs.x = dofs
+            return io.J()
+
+        def df(dofs):
+            bs.x = dofs
+            return io.dJ()
+
+        taylor_test1(f, df, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 19))))
 
 class LabelTests(unittest.TestCase):
     def test_label_surface_derivative1(self):
