@@ -711,7 +711,7 @@ class WindingSurface(Optimizable):
     .. math:
         J = \sum_{i=1}^{\text{num_coils}} d_i
 
-    where 
+    where
     .. math::
         d_{i} = \int_{\text{curve}_i} \int_{surface} \| \mathbf{r}_i - \mathbf{s} \|_2)^2 ~dl_i ~ds\\
 
@@ -728,7 +728,7 @@ class WindingSurface(Optimizable):
         self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.thisgrad2 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=2)(gammac, lc, gammas, ns))
         
-        super().__init__(depends_on=curves + [surface])    
+        super().__init__(depends_on=curves)    
 
     def J(self):
         """
@@ -743,30 +743,23 @@ class WindingSurface(Optimizable):
             res += self.J_jax(gammac, lc, gammas, ns)
         return res
 
-    # @derivative_dec
-    # def dJ(self):
-    #     """
-    #     This returns the derivative of the quantity with respect to the curve dofs.
-    #     """
-    #     dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
-    #     dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
-    #     gammas = self.surface.gamma().reshape((-1, 3))
+    @derivative_dec
+    def dJ(self):
+        """
+        This returns the derivative of the quantity with respect to the curve dofs.
+        """
+        dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in self.curves]
+        dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
+        gammas = self.surface.gamma().reshape((-1, 3))
 
-    #     dgammas_by_dcoeff_vjp_vecs = [np.zeros_like(gammas) for c in self.curves]
-
-    #     ns = self.surface.normal().reshape((-1, 3))
-
-    #     for i, c in enumerate(self.curves):
-    #         gammac = c.gamma()
-    #         lc = c.gammadash()
-    #         dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gammac, lc, gammas, ns)
-    #         dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gammac, lc, gammas, ns)
-    #         dgammas_by_dcoeff_vjp_vecs[i] = self.thisgrad2(gammac, lc, gammas, ns)
-    #     res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i])  for i in range(len(self.curves))] 
-    #     res2 = [self.surface.dgamma_by_dcoeff_vjp(dgammas_by_dcoeff_vjp_vecs[i])  for i in range(len(self.curves))]
-    #     a = sum(res)
-    #     b = sum(res2)
-    #     return a + b
+        ns = self.surface.normal().reshape((-1, 3))
+        for i, c in enumerate(self.curves):
+            gammac = c.gamma()
+            lc = c.gammadash()
+            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gammac, lc, gammas, ns)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gammac, lc, gammas, ns)
+        res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
+        return sum(res)
 
 
 def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
