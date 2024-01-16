@@ -474,12 +474,13 @@ def promote_accessibility( gamma_curves, gamma_surf, unit_normal, unit_tangent, 
             # Consider all curve pts
             gamma_coil_proj = jnp.einsum('ij,...j->...i',invM,gamma_curves-xsurf[...,:])
             x = gamma_coil_proj.reshape((-1,3))
+            npts, _ = x.shape
 
             # Find minimal distance from pt to coil, weighted by Heaviside fct.
-            dd = logistic( R[it]-R0, k=2*pfactor ) * ( x[:,1]**2 + x[:,2]**2 )
-            distances = distances.at[counter].set( jnp.sum(dd**pfactor) )
+            dd = logistic( R[it]-R0, k=2*pfactor ) * logistic( x[:,0] ) * ( x[:,1]**2 + x[:,2]**2 )
+            distances = distances.at[counter].set( jnp.sum(dd**pfactor) / npts )
 
-    return jnp.sum( distances )**(1./pfactor)
+    return jnp.mean( distances )**(1./pfactor)
 
 
 
