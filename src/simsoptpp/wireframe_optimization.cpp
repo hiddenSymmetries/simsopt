@@ -84,11 +84,12 @@ std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
 
     // Initialize the vector Ax - b according to initial value
     printf("  Initializing...\n");
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < nGrid; ++i) {
         for (int j = 0; j < nSegs; ++j) {
-            Ax_minus_b_ptr[i] += A_ptr[i*nSegs + j] * x_ptr[j] - b_obj_ptr[i];
+            Ax_minus_b_ptr[i] += A_ptr[i*nSegs + j] * x_ptr[j];
         }
+        Ax_minus_b_ptr[i] -= b_obj_ptr[i];
     }
 
     double inf = std::numeric_limits<double>::max();
