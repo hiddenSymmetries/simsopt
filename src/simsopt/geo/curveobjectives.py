@@ -382,7 +382,6 @@ class PortSize(Optimizable):
             self.phi_ind = np.delete(self.phi_ind, to_pop)
             self.theta_ind = np.delete(self.theta_ind, to_pop)
 
-
     def J(self):
         gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
 
@@ -450,7 +449,6 @@ class PortSize(Optimizable):
 
 #=======================================================
 # Promote accessibility
-    
 def promote_accessibility( gamma_curves, gamma_surf, unit_normal, unit_tangent, pfactor ):  
     nphi, ntheta, _ = gamma_surf.shape
     distances = jnp.zeros((nphi*ntheta,))
@@ -481,9 +479,6 @@ def promote_accessibility( gamma_curves, gamma_surf, unit_normal, unit_tangent, 
             distances = distances.at[counter].set( jnp.sum(dd**pfactor) / npts )
 
     return jnp.mean( distances )**(1./pfactor)
-
-
-
 
 class Access(Optimizable):
     def __init__(self, curves, surf, p=4):

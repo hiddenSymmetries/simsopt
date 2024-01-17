@@ -66,11 +66,11 @@ class OrientedCurveXYZFourier( JaxCurve ):
         self.coefficients = [np.zeros((3,)), np.zeros((3,)), np.zeros((2*order,)), np.zeros((2*order,)), np.zeros((2*order,))]
         if dofs is None:
             super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
-                             external_dof_setter=WindowpaneCurveXYZFourier.set_dofs_impl,
+                             external_dof_setter=OrientedCurveXYZFourier.set_dofs_impl,
                              names=self._make_names())
         else:
             super().__init__(quadpoints, pure, dofs=dofs,
-                             external_dof_setter=WindowpaneCurveXYZFourier.set_dofs_impl,
+                             external_dof_setter=OrientedCurveXYZFourier.set_dofs_impl,
                              names=self._make_names())
 
     def num_dofs(self):
