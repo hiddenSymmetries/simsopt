@@ -883,7 +883,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curves.append(curve)
     return curves
 
-def create_equally_spaced_windowpane_curves( ncurves, nfp, stellsym, R0, R1, Z0, order, numquadpoints=None ):
+def create_equally_spaced_windowpane_curves( ncurves, nfp, R0, R1, Z0, order, numquadpoints=None ):
     if numquadpoints is None:
         numquadpoints = 15 * order
 

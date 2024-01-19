@@ -254,16 +254,22 @@ class CurveCurveDistance(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
+
+
 def ws_distance_pure(gammac, lc, gammas, ns, maximum_distance):
     """
     This function is used in a Python+Jax implementation of the curve-surface distance
     formula.
     """
+    nss = gammas.size
+    ncc = gammac.size
     dists = jnp.sqrt(jnp.sum(
         (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
     integralweight = jnp.linalg.norm(lc, axis=1)[:, None] \
         * jnp.linalg.norm(ns, axis=1)[None, :]
-    return jnp.mean(integralweight * jnp.maximum(dists-maximum_distance, 0)**2)
+    return jnp.mean(
+        integralweight * jnp.maximum(dists**2-maximum_distance**2, 0)**2
+        ) / (nss*ncc)**2
 
 class WindingSurface(Optimizable):
     r"""Used to constrain coils to remain on a surface
@@ -332,7 +338,8 @@ def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
         (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
     integralweight = jnp.linalg.norm(lc, axis=1)[:, None] \
         * jnp.linalg.norm(ns, axis=1)[None, :]
-    return jnp.mean(integralweight * jnp.maximum(minimum_distance-dists, 0)**2)
+    
+    return jnp.mean(integralweight * jnp.maximum( minimum_distance-dists, 0)**2)
 
 
 class CurveSurfaceDistance(Optimizable):
@@ -352,7 +359,6 @@ class CurveSurfaceDistance(Optimizable):
     minimum coil-to-surface distance.  This penalty term is zero when the
     points on all coils :math:`i` and on the surface lie more than
     :math:`d_\min` away from one another.
-
     """
 
     def __init__(self, curves, surface, minimum_distance):
