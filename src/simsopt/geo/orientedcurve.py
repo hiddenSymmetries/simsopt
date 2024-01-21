@@ -53,8 +53,7 @@ def centercurve_pure(dofs, quadpoints, order):
 
 class OrientedCurveXYZFourier( JaxCurve ):
     """
-    OrientedCurveXYZFourier is a translated and rotated 
-    JaxCurveXYZFourier Curve.
+    OrientedCurveXYZFourier is a translated and rotated Curve.
     """
     def __init__(self, quadpoints, order, dofs=None ):
         if isinstance(quadpoints, int):
