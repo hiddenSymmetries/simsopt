@@ -8,9 +8,9 @@ except ImportError:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
-from simsopt.objectives.functions import Identity, Rosenbrock, Affine
+from simsopt.objectives.functions import Rosenbrock
 from simsopt.objectives.constrained import ConstrainedProblem
-from simsopt.solve.serial import constrained_serial_solve, serial_solve
+from simsopt.solve.serial import constrained_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
     from simsopt.solve.mpi import constrained_mpi_solve

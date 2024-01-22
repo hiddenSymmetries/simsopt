@@ -31,12 +31,10 @@ faster on multi-core machines (make sure that all the cores
 are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
 """
 
-import os
 import time
 from pathlib import Path
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
@@ -242,7 +240,6 @@ pm_opt.write_to_famus(out_dir)
 # surface is at least 64 x 64 resolution.
 vmec_flag = False
 if vmec_flag:
-    from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=1)

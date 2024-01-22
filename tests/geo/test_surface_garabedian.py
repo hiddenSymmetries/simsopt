@@ -11,11 +11,6 @@ TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 stellsym_list = [True, False]
 
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

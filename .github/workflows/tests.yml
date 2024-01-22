@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8.17] # To sync with coveragerc use 3 level
+        python-version: [3.9]
         test-type: [unit, integrated]
 
     steps:
@@ -48,6 +48,11 @@ jobs:
       run: |
         set -ex
         ls -l
+
+    - name: Print python location
+      run: |
+        set -ex
+        which python
 
     - name: apt-get stuff needed for libstell and vmec
       run: |
@@ -88,7 +93,7 @@ jobs:
     - name: Install python dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
+        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py  py_spec pyoculus h5py
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -130,8 +135,6 @@ jobs:
       run: |
         cd SPEC
         pip install .
-        # python setup.py bdist_wheel
-        # pip install dist/*.whl
 
     - name: Try import spec
       run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
@@ -159,7 +162,8 @@ jobs:
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
+      # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
+      run: pip install -v ".[MPI,SPEC,VIS]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
