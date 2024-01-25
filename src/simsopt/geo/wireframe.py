@@ -984,7 +984,8 @@ class ToroidalWireframe(object):
     
             return(ax)
 
-    def make_plot_2d(self, extent='field period', quantity='currents', ax=None):
+    def make_plot_2d(self, extent='field period', quantity='currents', \
+                     ax=None, **kwargs):
         """
         Make a 2d plot of the segments in the wireframe grid.
 
@@ -999,6 +1000,9 @@ class ToroidalWireframe(object):
             ax: instance of the matplotlib.pyplot.Axis class (optional)
                 Axis on which to generate the plot. If None, a new plot will
                 be created.
+            kwargs: optional keyword arguments
+                Keyword arguments to be passed to the LineCollection instance
+                used to plot the segments
 
         Returns
         -------
@@ -1063,7 +1067,7 @@ class ToroidalWireframe(object):
             else:
                 raise ValueError('Unrecognized quantity for plotting')
 
-        lc = LineCollection(pl_segments)
+        lc = LineCollection(pl_segments, **kwargs)
         lc.set_array(pl_quantity)
         if quantity=='currents':
             lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
