@@ -267,8 +267,8 @@ def ws_distance_pure(gammac, lc, gammas, ns, maximum_distance):
     integralweight = jnp.linalg.norm(lc, axis=1)[:, None] \
         * jnp.linalg.norm(ns, axis=1)[None, :]
     return jnp.mean(
-        integralweight * jnp.maximum(dists**2-maximum_distance**2, 0)**2
-        ) / (nss*ncc)**2
+        integralweight * jnp.maximum(dists-maximum_distance, 0)**2
+        )
 
 class WindingSurface(Optimizable):
     r"""Used to constrain coils to remain on a surface
