@@ -692,7 +692,8 @@ class ToroidalWireframe(object):
         self.add_constraint(name, 'continuity', matrix_row, 0.0)
         
 
-    def constraint_matrices(self, remove_redundancies=True):
+    def constraint_matrices(self, remove_redundancies=True, \
+                            assume_no_crossings=False):
         """
         Return the matrices for the system of equations that define the linear
         equality constraints for the wireframe segment currents. The equations
@@ -726,6 +727,12 @@ class ToroidalWireframe(object):
                 redundant will be removed. If false, no checks for redundancy
                 will be performed and all constraints will be represented in the
                 output matrices.
+            assume_no_crossings: boolean (optional)
+                If true, will apply the assumption that the wireframe contains
+                enough segment constraints such that the free segments form
+                single-track loops with no forks or crossings. In this case,
+                enough constraints will be removed to allow for one degree of
+                freedom per loop.
 
         Returns
         -------
@@ -740,7 +747,7 @@ class ToroidalWireframe(object):
         # If matrix is not full rank, look for redundant continuity constraints
         if remove_redundancies: 
 
-            inactive_nodes = self.find_inactive_nodes()
+            inactive_nodes = self.find_inactive_nodes(assume_no_crossings)
             inactive_node_names = ['continuity_node_%d' % (i) \
                                    for i in inactive_nodes]
 
@@ -769,11 +776,15 @@ class ToroidalWireframe(object):
 
         return constraints_B, constraints_d
 
-    def find_inactive_nodes(self):
+    def find_inactive_nodes(self, assume_no_crossings=False):
         """
         Determines which nodes have no current flowing through them according
         to existing segment constraints (i.e. constraints that require 
         individual segments to have zero current).
+
+        Additionally, if no crossings are assumed, identifies one node per
+        loop of current for which the associated continuity constraint should
+        be marked as redundant.
         """
 
         node_sum = np.zeros((self.nNodes))
@@ -806,7 +817,63 @@ class ToroidalWireframe(object):
 
         # If all four connected segments are constrained, the continuity 
         # constraint is redundant
-        return np.where(node_sum >= 4)[0]
+        node_inactive = node_sum >= 4
+
+        # If no crossings are assumed, remove one constraint per loop
+        redundant_for_loop = np.full((self.nNodes), False)
+        if assume_no_crossings:
+
+            # Populate a set with the IDs of the free segments
+            free_segs = set()
+            for i in range(self.nSegments):
+                if 'segment_%d' % (i) not in self.constraints \
+                and 'implicit_segment_%d' % (i) not in self.constraints:
+                    free_segs.add(i)
+
+            # Identify each loop
+            loop_count = 0
+            while len(free_segs) > 0:
+
+                seg_0 = free_segs.pop()
+
+                seg_i = seg_0
+                nodes_i = self.segments[seg_i,:]
+                constraint_lifted = False
+
+                # Find the segments in the loop using a graph search
+                while True:
+
+                    # Remove at most one continuity constraint per loop (note
+                    # that some nodes on symmetry planes don't have constraints)
+                    if not constraint_lifted:
+                        if 'continuity_node_%d' % nodes_i[0] in \
+                        self.constraints:
+                            redundant_for_loop[nodes_i[0]] = True
+                            constraint_lifted = True
+
+                    count = 0
+                    for seg in self.connected_segments[nodes_i[0],:]:
+                        if seg in free_segs:
+                            seg_next = seg
+                            free_segs.remove(seg)
+                            count += 1
+                    if count == 0:
+                        for seg in self.connected_segments[nodes_i[1],:]:
+                            if seg in free_segs:
+                                seg_next = seg
+                                free_segs.remove(seg)
+                                count += 1
+                    if count == 0:
+                        loop_count += 1
+                        break
+                    if count > 1:
+                        raise RuntimeError('Closed loop assumption is ' \
+                            'invalid: %d connected segments found to seg %d' \
+                            % (count, seg_i))
+                    seg_i = seg_next
+                    nodes_i = self.segments[seg_i,:]
+
+        return np.where(np.logical_or(node_inactive, redundant_for_loop))[0]
             
     def get_cell_key(self):
         """
