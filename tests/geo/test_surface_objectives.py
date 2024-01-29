@@ -341,34 +341,35 @@ class NonQSRatioTests(unittest.TestCase):
 
 class DifferentialVolumeTests(unittest.TestCase):
     def test_diff_vol(self):
-        nphi = 10
-        ntheta = 10
-        mpol = 6
-        ntor = 6
-        maxiter = 100
-        bs, boozer_surface_0 = get_boozer_surface(label="ToroidalFlux",nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=0.01)
-        target_0 = boozer_surface_0.targetlabel
-        iota = boozer_surface_0.res['iota']
-        G0 = boozer_surface_0.res['G']
-        # dtheta/du = 2pi 
-        diffvol_0 = DifferentialVolume(boozer_surface_0, bs)
-        print(diffvol_0.J()*(2*np.pi))
+        nphi = 30
+        ntheta = 30
+        mpol = 7
+        ntor = 7
+        maxiter = 1000
+        diff_vols = []
+        diff_vols_eps = []
+        lab_scale = 1.0
+        eps = 1e-4 
+        label = "Volume"
+        bs, boozer_surface_0 = get_boozer_surface(label=label,nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=lab_scale)
+        
+        surf_0 = boozer_surface_0.surface
+        tf_0 = ToroidalFlux(surf_0,bs).J()
+        vol_0 = Volume(surf_0).J()
+        diffvol_0 = DifferentialVolume(boozer_surface_0, bs).J()
 
-        for eps in [1e-4,1e-3,1e-2,1e-1,0.5]:
-            for label in ["Volume", "ToroidalFlux"]:
-                bs_1, boozer_surface_1 = get_boozer_surface(label=label,nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=0.01*(1+eps))
-                bs_2, boozer_surface_2 = get_boozer_surface(label=label,nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=0.01*(1-eps))
-                
-                surf_1 = boozer_surface_1.surface
-                surf_2 = boozer_surface_2.surface 
-                vol_1 = Volume(surf_1)
-                vol_2 = Volume(surf_2)
-                tf_1 = ToroidalFlux(surf_1,bs_1)
-                tf_2 = ToroidalFlux(surf_2,bs_2)
+        epsilons=np.power(2., -np.asarray(range(3, 7)))
+        for eps in epsilons:
+            bs_1, boozer_surface_1 = get_boozer_surface(label=label,nphi=nphi,ntheta=ntheta,mpol=mpol,ntor=ntor,maxiter=maxiter,lab_scale=lab_scale*(1-eps))
+            
+            surf_1 = boozer_surface_1.surface
+            vol_1 = Volume(surf_1).J()
+            tf_1 = ToroidalFlux(surf_1,bs_1).J()
 
-                diff_flux_norm = (tf_1.J()-tf_2.J())/(2*np.pi)
-                diffvol = (vol_1.J()-vol_2.J())/diff_flux_norm
-                print(diffvol)
+            diff_flux_norm = (tf_1-tf_0)/(2*np.pi)
+            diffvol = (vol_1-vol_0)/diff_flux_norm
+            err = np.abs(diffvol - diffvol_0)/np.abs(diffvol_0)
+            assert err < 1e-3
 
     def test_diffvol_derivative(self):
         """

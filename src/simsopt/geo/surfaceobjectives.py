@@ -957,7 +957,7 @@ class DifferentialVolume(Optimizable):
         B = B.reshape((nphi, ntheta, 3))
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         G = self.boozer_surface.res['G']
-        jac = G/modB**2
+        jac = -2*np.pi*G/modB**2
 
         self._J = np.mean(jac) 
 
@@ -968,7 +968,7 @@ class DifferentialVolume(Optimizable):
 
         dJ_by_dB = self.dJ_by_dB().reshape((-1, 3))
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
-        dJ_by_dG = self._J/G
+        dJ_by_dG = -2*np.pi*self._J/G
 
         # tack on dJ_diota = 0, dJ_dG to the end of dJ_ds
         dJ_ds = np.concatenate((self.dJ_by_dsurfacecoefficients(), [0., dJ_by_dG]))
@@ -992,7 +992,7 @@ class DifferentialVolume(Optimizable):
 
         dmodB_dB = B / modB[..., None]
         dnum_by_dB = - 2 * G * dmodB_dB /(modB[...,None]**3 * nphi * ntheta) 
-        return dnum_by_dB 
+        return -2*np.pi*dnum_by_dB 
 
     def dJ_by_dsurfacecoefficients(self):
         """
@@ -1015,7 +1015,7 @@ class DifferentialVolume(Optimizable):
         dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
 
         dnum_dc = np.mean(- 2 * G * dmodB_dc/(modB[...,None]**3), axis=(0,1 )) 
-        return dnum_dc 
+        return -2*np.pi*dnum_dc 
 
 class Iotas(Optimizable):
     """
