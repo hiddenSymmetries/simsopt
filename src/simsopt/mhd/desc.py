@@ -23,10 +23,27 @@ except ImportError as e:
 
 try:
     from desc.equilibrium import Equilibrium
-    from desc.geometry import FourierRZToroidalSurface
-    from desc.profiles import PowerSeriesProfile
 except ImportError as e:
     Equilibrium = None
+    logger.debug(str(e))
+
+try:
+    from desc.geometry import FourierRZToroidalSurface
+except ImportError as e:
+    FourierRZToroidalSurface = None
+    logger.debug(str(e))
+
+try:
+    from desc.profiles import PowerSeriesProfile
+except ImportError as e:
+    PowerSeriesProfile = None
+    logger.debug(str(e))
+
+try:
+    from desc.vmec_utils import ptolemy_identity_fwd, ptolemy_identity_rev
+except ImportError as e:
+    ptolemy_identity_fwd = None
+    ptolemy_identity_rev = None
     logger.debug(str(e))
 
 from .._core.optimizable import Optimizable
@@ -39,41 +56,50 @@ else:
     MpiPartition = None
 
 
-def desc_to_simsopt_surf(desc_surf):
-    simsopt_surf = SurfaceRZFourier(
-        nfp=desc_surf.NFP,
-        mpol=desc_surf.M,
-        ntor=desc_surf.N,
-        stellsym=desc_surf.sym
-        )
+def desc_to_simsopt_surf(desc_surf, simsopt_surf):
+    if ptolemy_identity_rev is None:
+        raise RuntimeError('desc.ptolemy_identity_rev needs to be available for transform a DESC surface to a SurfaceRZFourier')
     
-    if not simsopt_surf.stellsym:
-        raise NotImplementedError('DESC class only implemented for stellarator symmetric surfaces')
 
-    for lmn, mode in zip(desc_surf.R_basis.modes, desc_surf.R_lmn):
-        mm = lmn[1]
-        nn = lmn[2]
-        mm = lmn[1]
-        nn = lmn[2]
-        if mm<0:
-            continue
-        if mm==0 and nn<0:
-            continue
-        name = f'rc({mm},{nn})'
-        simsopt_surf.set( name, mode )
-    for lmn, mode in zip(desc_surf.Z_basis.modes, desc_surf.Z_lmn):
-        mm = lmn[1]
-        nn = lmn[2]
-        mm = lmn[1]
-        nn = lmn[2]
-        if mm<0:
-            continue
-        if mm==0 and nn<0:
-            continue
-        name = f'zs({mm},{nn})'
-        simsopt_surf.set( name, mode )
+    # R modes
+    mm, nn, rs, rc = ptolemy_identity_rev(desc_surf.R_basis.modes[:,1], desc_surf.R_basis.modes[:,2], desc_surf.R_lmn )
+    for m, n, rmnc, rmns in zip(mm,nn,rc[0],rs[0]):
+        simsopt_surf.set(f'rc({m},{n})', rmnc)
+        if not(m==0 and n==0) and not simsopt_surf.stellsym:
+            simsopt_surf.set(f'rs({m},{n})', rmns)
 
-    return simsopt_surf
+    # Z modes
+    mm, nn, zs, zc = ptolemy_identity_rev(desc_surf.Z_basis.modes[:,1], desc_surf.Z_basis.modes[:,2], desc_surf.Z_lmn )
+    for m, n, zmnc, zmns in zip(mm,nn,zc[0],zs[0]):
+        if not simsopt_surf.stellsym:
+            simsopt_surf.set(f'rc({m},{n})', zmnc)
+        if not(m==0 and n==0):
+            simsopt_surf.set(f'zs({m},{n})', zmns)
+    
+
+def simsopt_to_desc_surf(simsopt_surf):
+    rc = simsopt_surf.rc.reshape((-1,))[simsopt_surf.ntor:]
+    zs = simsopt_surf.rs.reshape((-1,))[simsopt_surf.ntor:]
+    zc = simsopt_surf.zc.reshape((-1,))[simsopt_surf.ntor:]
+    zs = simsopt_surf.zs.reshape((-1,))[simsopt_surf.ntor:]
+
+    nm = c.size
+    m_0 = simsopt_surf.m[:nm]
+    n_0 = simsopt_surf.n[:nm]
+    m_1, n_1, r = ptolemy_identity_fwd(m_0, n_0, rs, rc)
+    _,   _,   z = ptolemy_identity_fwd(m_0, n_0, zs, zc)
+
+    mm = [int(m) for m in m_1]
+    nn = [int(n) for n in n_1]
+
+    return FourierRZToroidalSurface(
+        R_lmn = r.reshape((-1,)),
+        Z_lmn = z.reshape((-1,)),
+        modes_R = np.array([mm,nn]).transpose(),
+        NFP = simsopt_surf.nfp,
+        sym = simsopt_surf.stellsym,
+        rho = 1
+    )
 
 
 
@@ -98,9 +124,13 @@ class Desc(Optimizable):
         self._desc_surf = FourierRZToroidalSurface.from_input_file( filename )
 
         # Transform surface to a SurfaceRZFourier
-        self._simsopt_surf = desc_to_simsopt_surf( self._desc_surf )
-
-
+        self._boundary = SurfaceRZFourier(
+            nfp=self._desc_surf.NFP,
+            mpol=self._desc_surf.M,
+            ntor=self._desc_surf.N,
+            stellsym=self._desc_surf.sym
+            )
+        self._simsopt_surf = desc_to_simsopt_surf( self._desc_surf, self._boundary )
         
         # Set spectral resolution
         if M is None:
@@ -133,6 +163,12 @@ class Desc(Optimizable):
         # Set recompute bell to True
         self.need_to_run_code = True
 
+        # Initialize Optimizable
+        x0 = self.get_dofs()
+        fixed = np.full(len(x0), True)
+        names = []
+        super().__init__(x0=x0, fixed=fixed, names=names, depends_on=[self._boundary])
+
     # Resolution parameters are properties
     @property
     def M(self):
@@ -145,7 +181,21 @@ class Desc(Optimizable):
         return self._L
     @property
     def psi(self):
-        return self._psi
+        return self._psi    
+    
+    
+    @property
+    def boundary(self):
+        return self._boundary
+
+    @boundary.setter
+    def boundary(self, boundary):
+        if boundary is not self._boundary:
+            logging.debug('Replacing surface in boundary setter')
+            self.remove_parent(self._boundary)
+            self._boundary = boundary
+            self.append_parent(boundary)
+            self.need_to_run_code = True
     
     # Everytime resolution is changed, change it both internally and for the self.equilibrium instance. Then, need to run code.
     @M.setter
@@ -153,12 +203,14 @@ class Desc(Optimizable):
         if M is not self._M:
             self._M = M
             self.equilibrium.change_resolution(M=M)
+            self._simsopt_surf.change_resolution(mpol=M, ntor=self.N)
             self.need_to_run_code = True
     @M.setter
     def N(self, N):
         if N is not self._N:
             self._N = N
             self.equilibrium.change_resolution(N=N)
+            self._simsopt_surf.change_resolution(mpol=self.M, ntor=N)
             self.need_to_run_code = True
     @L.setter
     def L(self, L):
@@ -173,6 +225,8 @@ class Desc(Optimizable):
             self.equilibrium.psi = psi
             self.need_to_run_code = True
 
+    def get_dofs(self):
+        return []
 
     def run():
         pass
