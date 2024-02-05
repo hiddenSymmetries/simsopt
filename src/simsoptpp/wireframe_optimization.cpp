@@ -323,6 +323,7 @@ void check_eligibility(int nLoops, double default_current, double max_current,
                        int* loops_rep, int* freeLoops, int* segments, 
                        int* connections, double* x, double* current) {
 
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < 2*nLoops; ++i) {
 
         // Check whether the loop is free to carry current

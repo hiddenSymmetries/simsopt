@@ -612,7 +612,7 @@ class ToroidalWireframe(object):
         carry zero current.
         """
 
-        for constr in self.constraints:
+        for constr in list(self.constraints.keys()):
             if self.constraints[constr]['type'] == 'segment' \
             or self.constraints[constr]['type'] == 'implicit_segment':
                 self.remove_constraint(constr)
