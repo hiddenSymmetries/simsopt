@@ -377,9 +377,9 @@ class CircularCoil(MagneticField):
 
     def set_dofs_impl(self, dofs):
         self.r0 = dofs[0]
-        self.center = dofs[1:4]
+        self.center = dofs[1:4].tolist()
         self.Inorm = dofs[4]
-        self.normal = dofs[5:]
+        self.normal = dofs[5:].tolist()
         
     @property
     def I(self):
