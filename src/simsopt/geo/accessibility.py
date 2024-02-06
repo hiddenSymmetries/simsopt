@@ -2,6 +2,8 @@ import numpy as np
 from jax import grad
 import jax.numpy as jnp
 from .hull import hull2D
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
 
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
@@ -133,7 +135,7 @@ def find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal, unit_tan
     # All logical tests are replaced by an approximated Heaviside function to make the port size evaluation differentiable. 
     # here hv(max_size-dd) checks that the point is not further than the maximum port size, hv(-cb)*hv(cn-bn) checks if the point is in front of the surface, and below the point xsurf, and hv(cb)*hv(cn-tn) checks if the point is in front of the surface, and above the point xsurf
     # test is 1 only if the point is closer than max_size, and if the point is in front of the surface.
-    test = hv(max_size-dd) * (hv(-x[:,2])*hv(x[:,0]-bn)+hv(x[:,2])*hv(x[:,0]-tn))
+    test = hv(max_size-dd) * (hv(-x[:,2])*hv(x[:,0]-bn) + hv(x[:,2])*hv(x[:,0]-tn))
 
     # We shift test and multiply it by a large number, so that if the point does not satisfy test, we associate to it a large distance. Here we chose a multiplication factor of 1E2 - larger number make the target function more stiff
     distances = distances.at[1:].set( (-1e2*(test-1) +1) * dd )
@@ -247,22 +249,13 @@ class PortSize(Optimizable):
             # These indices are different from phi_ind!
             phi_start = iphi-int(nphi/2)
             phi_end = iphi+int(nphi/2)+1
-            new_nphi = phi_end-phi_start
             surf = self.gamma_boundary[phi_start:phi_end,:,:]
             gamma_surf_proj = np.einsum('ij,lmj->lmi', invM, surf - xsurf[None,None,:]) # This is the section of the surface projected on the tangent plane (i.e. in coord system (n,t,b)) 
 
-            # Now find the envelop. for this, we construct the non-convex hull of the surface projected on the (t,b) plane
-            xyzbot = np.zeros((new_nphi,3))
-            xyztop = np.zeros((new_nphi,3))
-            for jj in range(new_nphi):
-                itop = np.argmax(gamma_surf_proj[jj,:,2]) 
-                ibot = np.argmin(gamma_surf_proj[jj,:,2]) 
-                xyzbot[jj,:] = gamma_surf_proj[jj,ibot,:]
-                xyztop[jj,:] = gamma_surf_proj[jj,itop,:]
-
-            xflat = gamma_surf_proj.reshape((-1,3))
+            xproj = gamma_surf_proj.reshape((-1,3))
+            xflat = xproj[:,1:]
             try:
-                hull = hull2D( xflat[:,1:], surf )
+                hull = hull2D( xflat, surf )
                 uenv = hull.envelop(dmax, 'upper')
                 lenv = hull.envelop(dmax, 'lower')
             except BaseException:
@@ -270,8 +263,8 @@ class PortSize(Optimizable):
                 to_pop.append(ii)
                 continue
 
-            xyztop = xflat[uenv,:]
-            xyzbot = xflat[lenv,:]
+            xyztop = xproj[uenv,:]
+            xyzbot = xproj[lenv,:]
 
             # Evaluate closest point from the envelop. This sets the maximum port size
             tt = np.append(xyztop,xyzbot,axis=0)
@@ -280,8 +273,8 @@ class PortSize(Optimizable):
             # Interpolate lower and upper envelop - this is a linear interpolation, does it keep the C1 property? I don't think so. Smooth interpolation would be better
             #self.bot_fits[iphi,itheta] = lambda x: np.interp(x, xyzbot[:,1], xyzbot[:,2] )
             #self.top_fits[iphi,itheta] = lambda x: np.interp(x, xyztop[:,1], xyztop[:,2] )
-            self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,0], deg)
-            self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,0], deg)
+            self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,2], deg)
+            self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,2], deg)
         
         if len(to_pop)>0:
             to_pop = np.array(to_pop)
@@ -346,6 +339,68 @@ class PortSize(Optimizable):
         min = lambda x: np.sum(x**(-10))**(-1./10)
 
         return find_port_size(gamma_curves, gamma_boundary, iphi, itheta, unit_normal, unit_tangent, heaviside, msize, upper_envelop, lower_envelop, np.min)
+    
+    def plot(self, iphi, itheta, rp=None, ax=None):
+
+        if rp is None:
+            rp = self.get_port_size_at_position( iphi, itheta )
+
+        gamma_bnd = self.gamma_boundary
+        unit_normal = self.unit_normal[iphi,itheta]
+        unit_tangent = self.unit_tangent[iphi,itheta]
+
+        bnorm = jnp.cross(unit_normal, unit_tangent)
+        M = jnp.array([unit_normal,unit_tangent,bnorm]).transpose()
+        invM = jnp.linalg.inv(M)
+        def project(x):
+            return jnp.einsum('ij,...j->...i',invM,x-gamma_bnd[iphi,itheta,:])
+        
+        nphi, _, _ = gamma_bnd.shape
+        nphi = int(nphi/3)
+        phi_start = iphi-int(nphi/2)
+        phi_end = iphi+int(nphi/2)+1
+        gamma_surf = gamma_bnd[phi_start:phi_end,:,:]
+
+        gamma_surf_proj = project(gamma_surf).reshape((-1,3))
+
+        ftop = self.top_fits[iphi,itheta]
+        fbot = self.bot_fits[iphi,itheta]
+
+        lower_envelop = lambda x: np.polyval(fbot, x)
+        upper_envelop = lambda x: np.polyval(ftop, x)
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        plt.scatter(gamma_surf_proj[:,1], gamma_surf_proj[:,2], s=1, color='k')
+        xmin = np.min(gamma_surf_proj[:,1])
+        xmax = np.max(gamma_surf_proj[:,1])
+        xplot = np.linspace(xmin,xmax,128)
+        plt.plot(xplot, lower_envelop(xplot), linewidth=3, color='g')
+        plt.plot(xplot, upper_envelop(xplot), linewidth=3, color='r')
+
+        color = cm.rainbow(np.linspace(0, 1, len(self.curves)))
+        for c, col in zip(self.curves, color):
+            gamma_proj = project(c.gamma())
+            npts, _ = gamma_proj.shape
+            ind_above = []
+            ind_below = []
+            ind_front = []
+            for ii in range(npts):
+                if gamma_proj[ii,2]>upper_envelop(gamma_proj[ii,1]):
+                    ind_above.append(ii)
+                elif gamma_proj[ii,2]<lower_envelop(gamma_proj[ii,1]):
+                    ind_below.append(ii)
+                elif gamma_proj[ii,0]>=0:
+                    ind_front.append(ii)
+
+            plt.scatter(gamma_proj[ind_below,1], gamma_proj[ind_below,2], s=5, marker='^', c=col)
+            plt.scatter(gamma_proj[ind_above,1], gamma_proj[ind_above,2], s=5, marker='o', c=col)
+            plt.scatter(gamma_proj[ind_front,1], gamma_proj[ind_front,2], s=5, marker='v', c=col)
+
+        l = np.linspace(0,2*np.pi,64)
+        ax.plot(rp*np.cos(l), rp*np.sin(l), 'k-', linewidth=3)
+        ax.set_aspect('equal')
          
 
 #=======================================================
