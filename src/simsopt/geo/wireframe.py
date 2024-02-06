@@ -29,9 +29,13 @@ class ToroidalWireframe(object):
         nTheta: integer
             Number of wireframe nodes in the poloidal dimension. Must be even;
             if an odd number is provided, it will be incremented by one.
+        constraint_tol: double (optional)
+            Tolerance against which constraint equations are to be evaluated
+            (see docstring for method check_constraints for more details).
+            Default is 1e-12.
     """
 
-    def __init__(self, surface, nPhi, nTheta):
+    def __init__(self, surface, nPhi, nTheta, constraint_tol=1e-12):
 
         if not isinstance(surface, SurfaceRZFourier):
             raise ValueError('Surface must be a SurfaceRZFourier object')
@@ -49,6 +53,11 @@ class ToroidalWireframe(object):
         self.nTheta = nTheta 
         self.nPhi = nPhi
 
+        # Check the constraint tolerance
+        if not np.isscalar(constraint_tol) and not constraint_tol > 0:
+            raise ValueError('constraint_tol must be a positive scalar')
+        self.constraint_tol = constraint_tol
+            
         # Make copy of surface with quadrature points according to nTheta, nPhi
         qpoints_phi = list(np.linspace(0, 0.5/surface.nfp, nPhi+1))
         qpoints_theta = list(np.linspace(0, 1., nTheta, endpoint=False))
@@ -936,6 +945,119 @@ class ToroidalWireframe(object):
         else:
             raise ValueError('form parameter must be ''indices'' ' \
                              + 'or ''logical''')
+
+    def check_constraints(self, currents=None, constraint_tol=None):
+        """
+        Verify that every constraint is satisfied by the present values of
+        the segment currents. Specifically, for each constraint equation,
+        confirm that:
+
+            |B*x - d| < tol,
+
+        where B is a vector of coefficients, x is the array of currents in
+        each segment, d is a constant, and tol is a tolerance.
+
+        Parameters
+        ----------
+            currents: double (optional)
+                Array of segment currents to check against the constraints.
+                If none is supplied, the internal `currents` array of the
+                class instance will be checked against the constraints.
+            constraint_tol: double (optional)
+                Tolerance to apply when checking to ensure that the added
+                currents do not violate any existing constraints. Default is
+                to use the value already stored within the class instance.
+
+        Returns
+        -------
+            constraints_met: boolean
+                True if all constraints are met to within the tolerance; 
+                otherwise false
+        """
+
+        # Construct a unit vector with the currents
+        x = np.zeros((self.nSegments,1))
+        if currents is not None:
+            if len(currents) != self.nSegments:
+                raise ValueError('currents array does not match number of ' \
+                                 + 'segments')
+            x[:,0] = currents.reshape((-1,1))[:,0]
+        else:
+            x[:,0] = self.currents.reshape((-1,1))[:,0]
+
+        # Check the constraint tolerance
+        if constraint_tol is not None:
+            if not np.isscalar(constraint_tol) and not constraint_tol > 0:
+                raise ValueError('constraint_tol must be a positive scalar')
+        else:
+            constraint_tol = self.constraint_tol
+        
+
+        # Set up the constraint matrices
+        constraints_B_full, constraints_d_full = \
+            self.constraint_matrices(remove_redundancies=False)
+
+        # Evaluate the residuals of the constraint equations
+        residuals = np.matmul(constraints_B_full, x) - constraints_d_full
+
+        # Check the residuals
+        if np.any(np.abs(residuals) >= constraint_tol):
+            return False
+        else:
+            return True
+
+    def add_tfcoil_currents(self, n_tf, current_per_coil, constraint_tol=None):
+        """
+        Adds current to certain poloidal segments in order to form a set of 
+        planar TF coils. The loops will be spaced as evenly as possible within
+        the wireframe.
+        
+        Parameters
+        ----------
+            n_tf: integer
+                Number of TF coils per half-period
+            current_per_coil: double
+                Current carried by each of the coils; positive current flows
+                in the positive toroidal direction, thereby creating a negative 
+                toroidal magnetic field
+            constraint_tol: double (optional)
+                Tolerance to apply when checking to ensure that the added
+                currents do not violate any existing constraints. Default is
+                to use the value already stored within the class instance.
+        """
+
+        if n_tf > self.nPhi:
+            raise ValueError('n_tf must not exceed the wireframe nPhi')
+
+        # Indices in the toroidal dimension where current loops are to be added
+        tf_inds = np.floor(np.linspace(0, self.nPhi, n_tf, endpoint=False) \
+                              + 0.5*self.nPhi/n_tf)
+
+        tf_currents = np.zeros(self.nSegments)
+
+        # Add current to poloidal segments forming the desired loops
+        for i in range(len(tf_inds)):
+            if tf_inds[i] == 0:
+                ind0 = self.nPhi * self.nTheta
+                ind1 = ind0 + int(0.5 * self.nTheta)
+            else:
+                ind0 = int((self.nPhi + 0.5) * self.nTheta \
+                           + (tf_inds[i] - 1) * self.nTheta)
+                ind1 = ind0 + self.nTheta
+            tf_currents[ind0:ind1] = current_per_coil
+
+        # Add new TF coil currents to any existing currents
+        new_currents = tf_currents + self.currents
+
+        # Check whether proposed new currents adhere to the constraints
+        valid = self.check_constraints(currents=new_currents, \
+                                       constraint_tol=constraint_tol)
+
+        # Update currents with new values if they are within constraints
+        if valid:
+            self.currents[:] = new_currents[:]
+        else:
+            raise RuntimeError('Constraints not met for desired currents')
 
     def make_plot_3d(self, ax=None, engine='mayavi', to_show='all', \
                      active_tol=1e-12, tube_radius=0.01, **kwargs):
