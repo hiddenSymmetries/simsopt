@@ -46,7 +46,6 @@ class ToroidalField(MagneticField):
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        phi = np.arctan2(points[:, 1], points[:, 0])
         R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
 
         x = points[:, 0]
@@ -66,8 +65,6 @@ class ToroidalField(MagneticField):
 
     def _d2B_by_dXdX_impl(self, ddB):
         points = self.get_points_cart_ref()
-        x = points[:, 0]
-        y = points[:, 1]
         ddB[:] = 2*self.B0*self.R0*np.multiply(
             1/(points[:, 0]**2+points[:, 1]**2)**3, np.array([
                 [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))], [
@@ -427,7 +424,6 @@ class CircularCoil(MagneticField):
         k = np.sqrt(1-np.divide(np.square(alpha), np.square(beta)))
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
-        gamma = np.square(points[:, 0]) - np.square(points[:, 1])
         B[:] = np.dot(self._rotmat(), np.array(
             [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
@@ -734,7 +730,6 @@ class DipoleField(MagneticField):
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
-        mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
@@ -750,9 +745,7 @@ class DipoleField(MagneticField):
         # Save all the data to a vtk file which can be visualized nicely with ParaView
         data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
         from pyevtk.hl import pointsToVTK
-        pointsToVTK(
-            str(vtkname), ox, oy, oz, data=data
-        )
+        pointsToVTK(str(vtkname), ox, oy, oz, data=data)
 
 
 class Dommaschk(MagneticField):
