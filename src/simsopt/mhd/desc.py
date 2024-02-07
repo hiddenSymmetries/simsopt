@@ -8,6 +8,8 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
+from .._core.types import RealArray
+from typing import Union
 from typing import Optional
 from datetime import datetime
 
@@ -46,6 +48,10 @@ except ImportError as e:
     ptolemy_identity_rev = None
     logger.debug(str(e))
 
+
+from desc.continuation import solve_continuation_automatic
+from desc.grid import Grid
+
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
@@ -54,6 +60,8 @@ if MPI is not None:
     from ..util.mpi import MpiPartition
 else:
     MpiPartition = None
+
+__all__ = ['Desc', 'DescObjective']
 
 
 def desc_to_simsopt_surf(desc_surf, simsopt_surf):
@@ -79,11 +87,11 @@ def desc_to_simsopt_surf(desc_surf, simsopt_surf):
 
 def simsopt_to_desc_surf(simsopt_surf):
     rc = simsopt_surf.rc.reshape((-1,))[simsopt_surf.ntor:]
-    zs = simsopt_surf.rs.reshape((-1,))[simsopt_surf.ntor:]
+    rs = simsopt_surf.rs.reshape((-1,))[simsopt_surf.ntor:]
     zc = simsopt_surf.zc.reshape((-1,))[simsopt_surf.ntor:]
     zs = simsopt_surf.zs.reshape((-1,))[simsopt_surf.ntor:]
 
-    nm = c.size
+    nm = rc.size
     m_0 = simsopt_surf.m[:nm]
     n_0 = simsopt_surf.n[:nm]
     m_1, n_1, r = ptolemy_identity_fwd(m_0, n_0, rs, rc)
@@ -130,16 +138,16 @@ class Desc(Optimizable):
             ntor=self._desc_surf.N,
             stellsym=self._desc_surf.sym
             )
-        self._simsopt_surf = desc_to_simsopt_surf( self._desc_surf, self._boundary )
+        desc_to_simsopt_surf( self._desc_surf, self._boundary )
         
         # Set spectral resolution
         if M is None:
-            self._M = self.desc_surf.M
+            self._M = self._desc_surf.M
         else:
             self._M = M
 
         if N is None:
-            self._N = self.desc_surf.N
+            self._N = self._desc_surf.N
         else:
             self._M = N
 
@@ -228,7 +236,54 @@ class Desc(Optimizable):
     def get_dofs(self):
         return []
 
-    def run():
+    def run(self, **kargs):
+        if not self.need_to_run_code:
+            logger.info("run() called but no need to re-run DESC.")
+            return
+
+        # Transfer boundary dofs to DESC
+        self.equilibrium.surface = simsopt_to_desc_surf( self.boundary )
+
+        # Run DESC
+        self.eqf = solve_continuation_automatic(self.equilibrium.copy(), **kargs)
+        self.results = self.eqf[-1]
+
+        # No need to rerun,
+        self.need_to_run_code = False
+
+
+
+
+
+
+
+class DescObjective(Optimizable):
+    def __init__(self, desc:Desc, name:str, grid:Grid, fct):
+        self.desc = desc
+        self.objective_name = name
+        self.grid = grid
+        self.fct = fct
+        
+        super().__init__(depends_on=[desc])
+
+    def J(self):
+        self.desc.run()
+
+        logger.debug(f'Evaluating {self.name} from DESC')
+        values = self.desc.results.compute(self.objective_name, self.grid)[self.objective_name]
+
+        return self.fct(values)
+
+    def dJ(self):
         pass
+
+
+
+
+
+    
+
+
+
 
 
