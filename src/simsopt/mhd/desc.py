@@ -9,9 +9,11 @@ This module provides a class that handles the VMEC equilibrium code.
 import logging
 import os.path
 from .._core.types import RealArray
-from typing import Union
+from typing import Union, Iterable
 from typing import Optional
 from datetime import datetime
+from .._core.derivative import derivative_dec, Derivative
+import jax
 
 import numpy as np
 
@@ -51,6 +53,8 @@ except ImportError as e:
 
 from desc.continuation import solve_continuation_automatic
 from desc.grid import Grid
+from desc.objectives import ObjectiveFunction, RotationalTransform, ForceBalance, QuasisymmetryBoozer, QuasisymmetryTwoTerm, QuasisymmetryTripleProduct
+from desc.optimize import ProximalProjection
 
 from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
@@ -61,7 +65,7 @@ if MPI is not None:
 else:
     MpiPartition = None
 
-__all__ = ['Desc', 'DescObjective']
+__all__ = ['Desc', 'DescRotationalTransform']
 
 
 def desc_to_simsopt_surf(desc_surf, simsopt_surf):
@@ -170,6 +174,7 @@ class Desc(Optimizable):
 
         # Set recompute bell to True
         self.need_to_run_code = True
+        self.continuation = True
 
         # Initialize Optimizable
         x0 = self.get_dofs()
@@ -235,6 +240,12 @@ class Desc(Optimizable):
 
     def get_dofs(self):
         return []
+    
+    def set_dofs(self, x):
+        self.need_to_run_code = True
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
 
     def run(self, **kargs):
         if not self.need_to_run_code:
@@ -245,37 +256,114 @@ class Desc(Optimizable):
         self.equilibrium.surface = simsopt_to_desc_surf( self.boundary )
 
         # Run DESC
-        self.eqf = solve_continuation_automatic(self.equilibrium.copy(), **kargs)
-        self.results = self.eqf[-1]
+        if self.continuation:
+            # If this is the first tiem we run this equilibrium, need to use continuation method to ensure good convergence
+            eqf = solve_continuation_automatic(self.equilibrium.copy(), **kargs)
+            self.equilibrium = eqf[-1]
+            self.continuation = False 
+        else:
+            # Otherwise, start from former equilibrium
+            self.equilibrium, _ = self.equilibrium.solve(copy=True)
+
 
         # No need to rerun,
         self.need_to_run_code = False
 
+    def volume(self):
+        return self.boundary.volume()
+    
+    def aspect_ratio(self):
+        return self.boundary.aspect_ratio()
 
 
+def desc_to_simsopt_derivatives(eq, derivatives):
+    # Transform DESC derivatives into VMEC format
+    mm = eq.surface.R_basis.modes[:,1]
+    nn = eq.surface.R_basis.modes[:,2]
+    _, _, rs, rc = ptolemy_identity_rev(mm, nn, derivatives['Rb_lmn'] )
+    mm = eq.surface.Z_basis.modes[:,1]
+    nn = eq.surface.Z_basis.modes[:,2]
+    _, _, zs, zc = ptolemy_identity_rev(mm, nn, derivatives['Zb_lmn'] )
+
+    # Order derivatives as required by simsopt
+    if eq.sym:
+        return np.append(rc[0], zs[0][1:])
+    else:
+        return np.append(rc[0], rs[0][1:], zc[0], zs[0][1:])
+    
 
 
-
-
-class DescObjective(Optimizable):
-    def __init__(self, desc:Desc, name:str, grid:Grid, fct):
+class _DescObjective(Optimizable):
+    def __init__(self, desc:Desc, objective):
         self.desc = desc
-        self.objective_name = name
-        self.grid = grid
-        self.fct = fct
-        
+        self.objective = objective
+
+
+        constraint = ObjectiveFunction(ForceBalance(self.desc.equilibrium))
+        self.prox = ProximalProjection(self.objective, constraint, self.desc.equilibrium)
+
+        self.prox.build()
+
         super().__init__(depends_on=[desc])
 
     def J(self):
         self.desc.run()
 
-        logger.debug(f'Evaluating {self.name} from DESC')
-        values = self.desc.results.compute(self.objective_name, self.grid)[self.objective_name]
-
-        return self.fct(values)
-
+        logger.debug(f'Evaluating roational transform constraint from DESC')
+        x = self.prox.x(self.desc.equilibrium)
+        return self.prox.compute_unscaled(x)
+    
+    @derivative_dec
     def dJ(self):
-        pass
+        x = self.prox.x(self.desc.equilibrium)
+        jac = self.prox.jac_scaled(x)
+        derivatives = jax.vmap(self.prox.unpack_state, (0, None))(jac, False)[0]
+
+        return Derivative({
+            self.desc.boundary: desc_to_simsopt_derivatives( self.desc.equilibrium, derivatives)
+            }
+            )
+
+
+class DescRotationalTransform(_DescObjective):
+    def __init__(self, desc:Desc, **kwargs):
+        objective = ObjectiveFunction(
+            RotationalTransform(desc.equilibrium, **kwargs)
+            )
+        super().__init__(desc=desc, objective=objective)
+
+class DescQSBoozer(_DescObjective):
+    def __init__(self, desc:Desc, **kwargs):
+        objective = ObjectiveFunction(
+            QuasisymmetryBoozer(
+            eq=desc.equilibrium, **kwargs
+            )
+        )
+        super().__init__(desc=desc, objective=objective)
+
+class DescQuasisymmetryTwoTerm(_DescObjective):
+    def __init__(self, desc:Desc, **kwargs):
+        objective = ObjectiveFunction(
+            QuasisymmetryTwoTerm(
+            eq=desc.equilibrium, **kwargs
+            )
+        )
+        super().__init__(desc=desc, objective=objective)
+
+class DescQuasisymmetryTripleProduct(_DescObjective):
+    def __init__(self, desc:Desc, **kwargs):
+        objective = ObjectiveFunction(
+            QuasisymmetryTripleProduct(
+            eq=desc.equilibrium, **kwargs
+            )
+        )
+        super().__init__(desc=desc, objective=objective)
+
+
+
+
+
+
 
 
 
