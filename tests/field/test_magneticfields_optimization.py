@@ -32,13 +32,13 @@ class Testing(unittest.TestCase):
         points = np.array([[0, 0, 0]])
         coil.set_points(points)
 
-        def I(c):
+        def get_I(c):
             return c.I
-        def B(c):
+        def get_B(c):
             return c.B()[0][2]
 
-        I_coil = make_optimizable(I, coil)
-        B_coil = make_optimizable(B, coil)
+        I_coil = make_optimizable(get_I, coil)
+        B_coil = make_optimizable(get_B, coil)
 
         Bmag = 1.2*2*np.pi/1.12345
         prob = LeastSquaresProblem.from_tuples([(I_coil.J, 1.2e7, 2e6),(B_coil.J, Bmag, 1.0)])
