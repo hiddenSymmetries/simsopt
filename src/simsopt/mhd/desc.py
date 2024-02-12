@@ -276,6 +276,7 @@ class Desc(Optimizable):
         return self.boundary.aspect_ratio()
 
 
+
 def desc_to_simsopt_derivatives(eq, derivatives):
     # Transform DESC derivatives into VMEC format
     mm = eq.surface.R_basis.modes[:,1]
@@ -291,7 +292,6 @@ def desc_to_simsopt_derivatives(eq, derivatives):
     else:
         return np.append(rc[0], rs[0][1:], zc[0], zs[0][1:])
     
-
 
 class _DescObjective(Optimizable):
     def __init__(self, desc:Desc, objective):
