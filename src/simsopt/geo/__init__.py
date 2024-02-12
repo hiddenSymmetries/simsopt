@@ -9,6 +9,8 @@ from .curvexyzfourier import *
 from .curveperturbed import *
 from .curveobjectives import *
 from .framedcurve import *
+from .curvecwsfourier import *
+
 from .finitebuild import *
 from .plotting import *
 
@@ -29,6 +31,7 @@ from .orientedcurve import *
 from .accessibility import *
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
+           curvecwsfourier.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
            curveperturbed.__all__ + curveobjectives.__all__ +
            finitebuild.__all__ + plotting.__all__ +
