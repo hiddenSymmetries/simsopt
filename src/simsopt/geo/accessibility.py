@@ -8,7 +8,7 @@ from matplotlib.pyplot import cm
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 
-__all__ = ['PortSize', 'Access']
+__all__ = ['PortSize', 'VerticalPortDiscrete']
 
 
 
@@ -403,81 +403,106 @@ class PortSize(Optimizable):
         ax.set_aspect('equal')
          
 
-#=======================================================
-# Promote accessibility
-def promote_accessibility( gamma_curves, gamma_surf, unit_normal, unit_tangent, pfactor ):  
-    nphi, ntheta, _ = gamma_surf.shape
-    distances = jnp.zeros((nphi*ntheta,))
-    counter = -1
-    for ip in range(nphi):
-        for it in range(ntheta):
-            counter += 1
 
-            # Evaluate position on surface
-            xsurf = gamma_surf[ip, it]
-            R = jnp.sqrt(gamma_surf[ip,:,0]**2 + gamma_surf[ip,:,1]**2 )
-            R0 = jnp.mean( R )
 
-            un = unit_normal[ip, it]
-            ut = unit_tangent[ip, it]
-            # Construct coordinate associated to xsurf, and build projection operator
-            ub = jnp.cross(un, ut)
-            M = jnp.array([un,ut,ub]).transpose()
-            invM = jnp.linalg.inv(M)
-            
-            # Consider all curve pts
-            gamma_coil_proj = jnp.einsum('ij,...j->...i',invM,gamma_curves-xsurf[...,:])
-            x = gamma_coil_proj.reshape((-1,3))
-            npts, _ = x.shape
 
-            # Find minimal distance from pt to coil, weighted by Heaviside fct.
-            dd = logistic( R[it]-R0, k=2*pfactor ) * logistic( x[:,0] ) * ( x[:,1]**2 + x[:,2]**2 )
-            distances = distances.at[counter].set( jnp.sum(dd**pfactor) / npts )
 
-    return jnp.mean( distances )**(1./pfactor)
+def vertical_access(gamma_surf, gamma_curves, phi_ind, theta_ind, dmax):
+    
+    xflat = gamma_surf.reshape((-1,3))
 
-class Access(Optimizable):
-    def __init__(self, curves, surf, p=4):
+    xcurves = gamma_curves[:,0]
+    ycurves = gamma_curves[:,1]
+    zcurves = gamma_curves[:,2]
+
+    rports = []
+    for iphi, itheta, dd in zip(phi_ind, theta_ind, dmax):
+        xx = gamma_surf[iphi,itheta,0]
+        yy = gamma_surf[iphi,itheta,1]
+
+        surf_dist_to_pt = np.sqrt((xx-xflat[:,0])**2 + (yy-xflat[:,1])**2)
+        ind = np.where(surf_dist_to_pt<=dd)
+        mean_z = np.mean( xflat[ind,2] )
+
+        ind = np.where( zcurves>mean_z )[0]
+
+        min_dist_to_curve = np.min(
+            np.sqrt((xx-xcurves[ind])**2 + (yy-ycurves[ind])**2)
+        )
+
+        rports.append( np.min( [min_dist_to_curve, dd] ) )
+
+    ii = np.argmax( rports )
+    return rports[ii], phi_ind[ii], theta_ind[ii], ii
+
+
+class VerticalPortDiscrete( Optimizable ):
+    def __init__(self, surface, curves=None ):
+        self.surface = surface
         self.curves = curves
-        self.boundary = surf
-        self.p = p
 
-        # I don't know how to get derivatives of unit_normal wrt boundary dofs; for now this class only depends on curves. Should not be used in any kind of combined approach, excepted if finite differences are implemented
-        # Also, if the port size is made dependent on the surface, the objective function might not be differentiable anymore. 
-        #super().__init__(depends_on=curves + [surf])
+        self.update_surface()
+
         super().__init__(depends_on=curves)
 
-        self.J_jax=lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: promote_accessibility(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
-        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
-        self.thisgrad1 = lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=1)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
-        self.thisgrad2 = lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=2)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
-        self.thisgrad3 = lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, p: grad(self.J_jax, argnums=3)(gamma_curves, gamma_surf, unit_normal, unit_tangent, p)
+    def update_surface(self):
+        
+        self.gamma_surf = self.surface.gamma()
+        nphi, ntheta, _ = self.gamma_surf.shape
+
+        phi_ind = []
+        theta_ind = []
+        dmax = []
+        for iphi in range(nphi):
+            for itheta in range(ntheta):
+
+                x = self.gamma_surf[iphi,itheta,0]
+                y = self.gamma_surf[iphi,itheta,1]
+                z = self.gamma_surf[iphi,itheta,2]
+        
+                r = np.sqrt(x**2 + y**2)
+                phi = np.arctan2( y, x )
+
+                cs = self.surface.cross_section( phi )
+                Rcs = np.sqrt(cs[:,0]**2 + cs[:,1]**2)
+                irmin = np.argmin(Rcs)
+                irmax = np.argmax(Rcs)
+
+                izmax = np.argmax(cs[:,2])
+
+                r = np.sqrt(x**2 + y**2)
+                if r>=Rcs[izmax]:
+                    if z>cs[irmax,2]:
+                        phi_ind.append( iphi )
+                        theta_ind.append( itheta )
+                        
+                        dmax.append(np.min([
+                            np.sqrt((x-cs[irmin,0])**2+(y-cs[irmin,1])**2),
+                            np.sqrt((x-cs[irmax,0])**2+(y-cs[irmax,1])**2)
+                        ]))
+
+                if r<Rcs[izmax]:
+                    if z>cs[irmin,2]:
+                        phi_ind.append( iphi )
+                        theta_ind.append( itheta )
+
+                        dmax.append(np.min([
+                            np.sqrt((x-cs[irmin,0])**2+(y-cs[irmin,1])**2),
+                            np.sqrt((x-cs[irmax,0])**2+(y-cs[irmax,1])**2)
+                        ]))
 
 
-    def J(self):
-        gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
-        gamma_boundary = self.boundary.gamma()
-        unit_normal = self.boundary.unitnormal()
-        tangent = self.boundary.dgammadphi()
-        norm = np.linalg.norm(tangent, axis=2)
-        unit_tangent = tangent / norm[:,:,None]
+        self.phi_ind = np.asarray( phi_ind )
+        self.theta_ind = np.asarray( theta_ind )
+        self.dmax = np.asarray( dmax )
 
-        return self.J_jax(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
-    
-    @derivative_dec
-    def dJ(self):
-        gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
-        gamma_boundary = self.boundary.gamma()
-        unit_normal = self.boundary.unitnormal()
-        tangent = self.boundary.dgammadphi()
-        norm = np.linalg.norm(tangent, axis=2)
-        unit_tangent = tangent / norm[:,:,None]
 
-        grad0 = self.thisgrad0(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
-        # grad1 = self.thisgrad1(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
-        # grad2 = self.thisgrad2(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
-        # grad3 = self.thisgrad3(gamma_curves, gamma_boundary, unit_normal, unit_tangent, self.p)
+    def find_max_port_size_and_position(self):
 
-        return np.sum([curve.dgamma_by_dcoeff_vjp(gg) for curve, gg in zip(self.curves, grad0)])
-         
+        gamma_curves = np.stack([curve.gamma() for curve in self.curves]).reshape((-1,3))
 
+        return vertical_access( self.gamma_surf, gamma_curves, self.phi_ind, self.theta_ind, self.dmax )
+
+
+class AccessPort( Optimizable ):
+    pass
