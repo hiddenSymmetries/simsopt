@@ -702,6 +702,7 @@ class ToroidalWireframe(object):
         
 
     def constraint_matrices(self, remove_redundancies=True, \
+                            remove_constrained_segments=False, \
                             assume_no_crossings=False):
         """
         Return the matrices for the system of equations that define the linear
@@ -736,6 +737,12 @@ class ToroidalWireframe(object):
                 redundant will be removed. If false, no checks for redundancy
                 will be performed and all constraints will be represented in the
                 output matrices.
+            remove_constrained_segments: boolean (optional)
+                If true (default is false), columns in the constraint matrix
+                corresponding to constrained segments will be removed, and
+                segment constraints will not appear explicitly in the 
+                constraints matrix. In addition, if true, a third return value
+                will be supplied giving the indices of the free segments.
             assume_no_crossings: boolean (optional)
                 If true, will apply the assumption that the wireframe contains
                 enough segment constraints such that the free segments form
@@ -750,40 +757,49 @@ class ToroidalWireframe(object):
             constraints_d: 1d double array (column vector)
                 The column vector on the right-hand side of the constraint 
                 equation
+            free_segs: integer array
+                Integer indices of the free (unconstrained) segments. Only
+                returned if remove_constrained_segments == True.
         """
 
-       
-        # If matrix is not full rank, look for redundant continuity constraints
-        if remove_redundancies: 
+        # Collect names of excluded constraints in a set
 
+        excluded = set()
+
+        if remove_redundancies:
+            # Identify redundant continuity constraints
             inactive_nodes = self.find_inactive_nodes(assume_no_crossings)
-            inactive_node_names = ['continuity_node_%d' % (i) \
-                                   for i in inactive_nodes]
+            excluded.update(['continuity_node_%d' % i for i in inactive_nodes])
 
-            constraints_B = np.ascontiguousarray( \
-                np.concatenate([self.constraints[key]['matrix_row'] \
-                                for key in self.constraints.keys() \
-                                if key not in inactive_node_names], axis=0))
+        if remove_constrained_segments:
+            # Identify all segment constraints
+            excluded.update([key for key in self.constraints \
+                if self.constraints[key]['type'] == 'segment' \
+                or self.constraints[key]['type'] == 'implicit_segment'])
+       
+        # Construct the matrix and RHS from non-excluded constraints
 
-            constraints_d = np.ascontiguousarray( \
-                np.zeros((constraints_B.shape[0], 1)))
+        constraints_B = np.ascontiguousarray( \
+            np.concatenate([self.constraints[key]['matrix_row'] \
+                            for key in self.constraints \
+                            if key not in excluded], axis=0))
 
-            constraints_d[:] = [[self.constraints[key]['constant']] \
-                 for key in self.constraints.keys() \
-                 if key not in inactive_node_names]
+        constraints_d = np.ascontiguousarray( \
+            np.zeros((constraints_B.shape[0], 1)))
+
+        constraints_d[:] = [[self.constraints[key]['constant']] \
+             for key in self.constraints.keys() if key not in excluded]
+
+        if remove_constrained_segments:
+
+            free_segs = np.full(self.nSegments, True)
+            free_segs[self.constrained_segments()] = False
+            return constraints_B[:,free_segs], constraints_d, \
+                   np.where(free_segs)[0]
 
         else:
 
-            constraints_B = np.ascontiguousarray( \
-                np.concatenate([constr['matrix_row'] for constr \
-                                in self.constraints.values()], axis=0))
-
-            constraints_d = np.ascontiguousarray(\
-                            np.zeros((len(self.constraints), 1)))
-            constraints_d[:] = \
-                [[constr['constant']] for constr in self.constraints.values()]
-
-        return constraints_B, constraints_d
+            return constraints_B, constraints_d
 
     def find_inactive_nodes(self, assume_no_crossings=False):
         """
