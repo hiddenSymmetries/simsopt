@@ -68,7 +68,7 @@ jobs:
       #with:
       #  submodules: true
 
-    # We must run actions/checkout@v3 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: git clone https://github.com/hiddensymmetries/VMEC2000.git
@@ -112,7 +112,7 @@ jobs:
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
@@ -237,7 +237,7 @@ jobs:
 
     - name: Upload uncombined coverage to github
       if: contains(matrix.test-type, 'unit')
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: gh-actions-parallel-coverage
         path: .coverage.*
@@ -249,7 +249,7 @@ jobs:
     steps:
 
     - name: Set up Python 
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: 3.9
 
@@ -257,13 +257,13 @@ jobs:
       run: pip install coverage
 
     - name: Checkout simsopt 
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install simsopt before running coverage
       run: pip install .
 
     - name: Download artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: gh-actions-parallel-coverage
         path: ./
@@ -278,7 +278,7 @@ jobs:
         coverage xml
 
     - name: Upload coverage to github
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tox-gh-actions-coverage
         path: coverage.xml
