@@ -64,7 +64,7 @@ jobs:
     - name: Fetch all history for all tags
       run: git fetch --all --tags --prune --unshallow
 
-    # We must run actions/checkout@v3 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
       run: git clone --depth=1 https://github.com/hiddensymmetries/VMEC2000.git
 
@@ -105,7 +105,7 @@ jobs:
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
@@ -209,7 +209,7 @@ jobs:
 
     - name: Upload coverage to github
       if: contains(matrix.test-type, 'unit')
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tox-gh-actions-coverage
         path: coverage.xml
@@ -218,7 +218,7 @@ jobs:
     - name: Upload coverage to Codecov
       # The last conditional on the next line prevents github from trying to upload to Codecov on forks of the repository, avoiding a permissions error
       if: contains(matrix.test-type, 'unit') && github.repository_owner == 'hiddenSymmetries'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
