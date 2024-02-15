@@ -8,7 +8,7 @@ import numpy as np
 import collections
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 
-__all__ = ['ToroidalWireframe']
+__all__ = ['ToroidalWireframe', 'windowpane_wireframe']
 
 class ToroidalWireframe(object):
     """
@@ -663,6 +663,16 @@ class ToroidalWireframe(object):
             raise ValueError('Include must be \'all\', \'explicit\', ' \
                              + 'or \'implicit\'')
 
+    def free_segments(self):
+        """
+        Returns the IDs of the segments that are unconstrained, explicitly or
+        implicitly.
+        """
+
+        free_segs = np.full(self.nSegments, True)
+        free_segs[self.constrained_segments()] = False
+        return np.where(free_segs)[0]
+
     def add_continuity_constraints(self):
         """
         Add constraints to ensure current continuity at each node. This is
@@ -741,8 +751,7 @@ class ToroidalWireframe(object):
                 If true (default is false), columns in the constraint matrix
                 corresponding to constrained segments will be removed, and
                 segment constraints will not appear explicitly in the 
-                constraints matrix. In addition, if true, a third return value
-                will be supplied giving the indices of the free segments.
+                constraints matrix. 
             assume_no_crossings: boolean (optional)
                 If true, will apply the assumption that the wireframe contains
                 enough segment constraints such that the free segments form
@@ -757,9 +766,6 @@ class ToroidalWireframe(object):
             constraints_d: 1d double array (column vector)
                 The column vector on the right-hand side of the constraint 
                 equation
-            free_segs: integer array
-                Integer indices of the free (unconstrained) segments. Only
-                returned if remove_constrained_segments == True.
         """
 
         # Collect names of excluded constraints in a set
@@ -792,10 +798,7 @@ class ToroidalWireframe(object):
 
         if remove_constrained_segments:
 
-            free_segs = np.full(self.nSegments, True)
-            free_segs[self.constrained_segments()] = False
-            return constraints_B[:,free_segs], constraints_d, \
-                   np.where(free_segs)[0]
+            return constraints_B[:,self.free_segments()], constraints_d
 
         else:
 
@@ -1189,7 +1192,7 @@ class ToroidalWireframe(object):
     
             return(ax)
 
-    def make_plot_2d(self, extent='field period', quantity='currents', \
+    def make_plot_2d(self, extent='half period', quantity='currents', \
                      ax=None, **kwargs):
         """
         Make a 2d plot of the segments in the wireframe grid.
@@ -1392,3 +1395,95 @@ class ToroidalWireframe(object):
 
         ax.add_collection(pc)
 
+
+def windowpane_wireframe(surface, nCoils_tor, nCoils_pol, size_tor, size_pol, \
+                         gap_tor, gap_pol, constraint_tol=1e-12):
+    """
+    Create a ToroidalWireframe class instance with the current constrained to
+    flow only within regularly spaced rectangular loops in the grid, i.e.
+    windowpane coils.
+
+    NOTE: the `assume_no_crossings` parameter must always be set to True
+    where relevant (e.g. for obtaining constraint matrices or for RCLS solves)
+
+    Parameters
+    ----------
+        surface: SurfaceRZFourier class instance
+            Toroidal surface on which on which the nodes will be placed.
+        nCoils_tor, nCoils_pol: integers
+            Number of windowpane coils in the toroidal and poloidal dimensions 
+        size_tor, size_pol: integers
+            Number of wireframe grid cells per coil in the toroidal and 
+            poloidal dimensions; must be even
+        gap_tor, gap_pol: integers
+            Number of wireframe grid cells between adjacent windowpane coils
+            in the toroidal and poloidal dimensions; must be even
+        constraint_tol: double (optional)
+            Tolerance against which constraint equations are to be evaluated
+            (see docstring for method check_constraints for more details).
+            Default is 1e-12.
+
+    Returns
+    -------
+        wframe: ToroidalWireframe class instance
+            ToroidalWireframe instance with all segments constrained except
+            for those that form the windowpane coils
+    """
+
+    if not isinstance(nCoils_tor, int) or not isinstance(nCoils_pol, int) or \
+       not isinstance(size_tor, int) or not isinstance(size_pol, int) or \
+       not isinstance(gap_tor, int) or not isinstance(gap_pol, int):
+        raise ValueError('nCoils_tor, nCoils_pol, size_tor, size_pol, ' \
+                         + 'gap_tor, and gap_pol must be integers')
+
+    if size_tor % 2 or size_pol % 2 or gap_tor % 2 or gap_pol % 2:
+        raise ValueError('size_[tor,pol] and gap_[tor,pol] must be even.')
+
+    nPhi   = nCoils_tor*(size_tor + gap_tor)
+    nTheta = nCoils_pol*(size_pol + gap_pol)
+
+    wframe = ToroidalWireframe(surface, nPhi, nTheta, \
+                               constraint_tol=constraint_tol)
+
+    unit_pol = size_pol + gap_pol
+    unit_tor = size_tor + gap_tor
+    unit_offs = unit_tor*nTheta
+    inds_coils = np.array([], dtype=int)
+
+    half_gap_tor = int(0.5*gap_tor)
+    half_gap_pol = int(0.5*gap_pol)
+
+    # Determine the indices of the toroidal segments constituing the coils
+    for i in range(0, nCoils_tor):
+
+        for j in range(half_gap_tor, half_gap_tor+size_tor):
+
+            offs = i*unit_offs + j*nTheta
+
+            inds_bot = np.arange(half_gap_pol, nTheta, unit_pol) + offs
+            inds_top = inds_bot + size_pol
+            inds_coils = np.concatenate((inds_coils, inds_bot, inds_top))
+
+    # Determine the indices of the poloidal segments constituting the coils
+    for i in range(0, nCoils_tor):
+
+        for j in range(0, nCoils_pol):
+
+            offs_left  = i*unit_offs + half_gap_tor*nTheta - int(0.5*nTheta) \
+                         + j*unit_pol + wframe.nTorSegments
+            offs_right = offs_left + size_tor*nTheta
+
+            inds = np.arange(half_gap_pol, half_gap_pol+size_pol)
+            inds_left  = inds + offs_left
+            inds_right = inds + offs_right
+
+            inds_coils = np.concatenate((inds_coils, inds_left, inds_right))
+
+    # Identify segments that do NOT constitute the coils
+    unused_segs = np.full(wframe.nSegments, True)
+    unused_segs[inds_coils] = False
+    
+    # Constrain all segments that are not part of the coils
+    wframe.set_segments_constrained(np.where(unused_segs)[0])
+
+    return wframe

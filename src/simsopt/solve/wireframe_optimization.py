@@ -219,14 +219,16 @@ def rcls_wireframe(wframe, reg_lambda, assume_no_crossings=False, \
     # Obtain the constraint matrices
     if verbose:
         print('    Obtaining constraint matrices')
-    B, d, free_segs = \
-        wframe.constraint_matrices(assume_no_crossings=assume_no_crossings, \
-                                   remove_constrained_segments=True)
+    B, d = wframe.constraint_matrices(assume_no_crossings=assume_no_crossings, \
+                                      remove_constrained_segments=True)
+    free_segs = wframe.free_segments()
+    print(len(free_segs))
+    print(B.shape)
 
     if np.shape(B)[0] >= len(free_segs):
         raise ValueError('Least-squares problem has as many or more ' \
-            + 'constraints than degrees of freedom.\n ' \
-            + 'Wireframe may have redundant constraints or the problem is '\
+            + 'constraints than degrees\nof freedom. ' \
+            + 'Wireframe may have redundant constraints or the problem is\n' \
             + 'over-constrained.')
 
     # Trim constrained segments out of the A and T matrices
