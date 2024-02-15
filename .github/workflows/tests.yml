@@ -6,7 +6,7 @@
 # This appears to be a known harmless annoyance:
 # https://gitlab.alpinelinux.org/alpine/aports/-/issues/11122
 
-name: Simple CI
+name: Tests
 
 on: 
   push:
@@ -209,7 +209,7 @@ jobs:
 
     - name: Upload coverage to github
       if: contains(matrix.test-type, 'unit')
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: tox-gh-actions-coverage
         path: coverage.xml
