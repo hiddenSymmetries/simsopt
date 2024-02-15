@@ -9,7 +9,6 @@ import simsoptpp as sopp
 
 __all__ = ["CurrentPotentialSolve"]
 
-
 class CurrentPotentialSolve:
     """
     Current Potential Solve object is designed for performing
@@ -24,7 +23,7 @@ class CurrentPotentialSolve:
         B_GI: Bnormal coming from the net coil currents.
     """
 
-    def __init__(self, cp, plasma_surface, Bnormal_plasma, B_GI):
+    def __init__(self, cp, plasma_surface, Bnormal_plasma):
         self.current_potential = cp
         self.winding_surface = self.current_potential.winding_surface
         self.ndofs = self.current_potential.num_dofs()
@@ -34,7 +33,22 @@ class CurrentPotentialSolve:
         self.ntheta_coil = len(self.current_potential.quadpoints_theta)
         self.nzeta_coil = len(self.current_potential.quadpoints_phi)
         self.Bnormal_plasma = Bnormal_plasma
-        self.B_GI = B_GI
+        # Calculating B_GI
+        cp_no_phi_sv = CurrentPotentialFourier(
+            cp.winding_surface, mpol=cp.mpol, ntor=cp.ntor,
+            net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
+            net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
+            quadpoints_phi=cp.quadpoints_phi, 
+            quadpoints_theta=cp.quadpoints_theta,
+            stellsym=cp.stellsym
+        )
+        Bfield = WindingSurfaceField(cp_no_phi_sv)
+        points = plasma_surface.gamma().reshape(-1, 3)
+        Bfield.set_points(points)
+        B_GI_vector = Bfield.B()
+        normal = plasma_surface.unitnormal().reshape(-1, 3)
+        B_GI_winding_surface = np.sum(B_GI_vector*normal, axis=1)
+        self.B_GI = B_GI_winding_surface
         # Save list of results for each L2 or L1 winding surface
         # optimization performed with this class object
         self.ilambdas_l2 = []
@@ -137,15 +151,7 @@ class CurrentPotentialSolve:
             if not stellsym_plasma_surf:
                 s_plasma.set_rs(xm_plasma[im], int(xn_plasma[im] / nfp), rmns_plasma[im])
                 s_plasma.set_zc(xm_plasma[im], int(xn_plasma[im] / nfp), zmnc_plasma[im])
-
-        cp_copy = CurrentPotentialFourier.from_netcdf(filename, coil_ntheta_res, coil_nzeta_res)
-        Bfield = WindingSurfaceField(cp_copy)
-        points = s_plasma.gamma().reshape(-1, 3)
-        Bfield.set_points(points)
-        B = Bfield.B()
-        normal = s_plasma.unitnormal().reshape(-1, 3)
-        B_GI_winding_surface = np.sum(B*normal, axis=1)
-        return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current), B_GI_winding_surface)
+        return cls(cp, s_plasma, np.ravel(Bnormal_from_plasma_current))
 
     def write_regcoil_out(self, filename: str):
         """
