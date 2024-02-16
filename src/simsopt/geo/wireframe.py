@@ -650,7 +650,7 @@ class ToroidalWireframe(object):
             node_sum[:] = 0
 
             # Tally how many inactive segments each node is connected to
-            for seg_ind in self.free_segments(update=False):
+            for seg_ind in self.unconstrained_segments(update=False):
                 connected_nodes = \
                     np.sum(self.connected_segments == seg_ind, axis=1)
                 node_sum[connected_nodes > 0] += 1
@@ -715,7 +715,7 @@ class ToroidalWireframe(object):
             raise ValueError('Include must be \'all\', \'explicit\', ' \
                              + 'or \'implicit\'')
 
-    def free_segments(self, update=True):
+    def unconstrained_segments(self, update=True):
         """
         Returns the IDs of the segments that are unconstrained, explicitly or
         implicitly.
@@ -861,7 +861,7 @@ class ToroidalWireframe(object):
 
         if remove_constrained_segments:
 
-            return constraints_B[:,self.free_segments()], constraints_d
+            return constraints_B[:,self.unconstrained_segments()], constraints_d
 
         else:
 
@@ -881,7 +881,7 @@ class ToroidalWireframe(object):
         node_sum = np.zeros((self.nNodes))
 
         # Tally how many inactive segments each node is connected to
-        for seg_ind in self.free_segments():
+        for seg_ind in self.unconstrained_segments():
             connected_nodes = np.sum(self.connected_segments == seg_ind, axis=1)
             node_sum[connected_nodes > 0] += 1
 
