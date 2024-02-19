@@ -596,6 +596,74 @@ class ToroidalWireframe(object):
         # Set the colliding segments as constrained
         self.set_segments_constrained(colliding_segs)
 
+    def set_toroidal_breaks(self, n_breaks, width, allow_pol_current=False):
+        """
+        Imposes segment constraints to prevent current from flowing toroidally
+        through planes positioned at a given number of toroidal angles. 
+
+        The spacing  between the breaks will be as even as possible for the
+        given grid dimension. For perfectly even spacing, the number of 
+        breaks must be an integer factor of the wireframe grid's toroidal
+        dimension (nPhi).
+        
+        Parameters
+        ----------
+            n_breaks: integer
+                Number of breaks to be inserted
+            width: integer 
+                Toroidal extent of each break, in terms of the number of 
+                constrained toroidal segments (n_breaks*width must be less
+                than nPhi for the wireframe)
+            allow_pol_current: boolean (optional)
+                If True, poloidal current will be permitted to flow in regions
+                where toroidal current is forbidden. Otherwise, all poloidal
+                segments within toroidal breaks will be constrained. Default is 
+                False.
+        """
+
+        # Ensure that there aren't excessive breaks
+        if n_breaks >= 0.5*self.nPhi:
+            raise ValueError('n_breaks must be < half of wireframe nPhi')
+        if n_breaks*width > 0.5*self.nPhi:
+            raise ValueError('n_breaks*width must be <= half of ' \
+                             + 'wireframe nPhi')
+
+        # Check for existing toroidal current constraint
+        if 'toroidal_current' in self.constraints:
+            if self.constraints['toroidal_current']['constant'] == 0:
+                print('Note: existing constraint for zero net toroidal ' \
+                          + 'current is redundant\nand will be removed.')
+                self.remove_constraint('toroidal_current')
+            else:
+                raise ValueError('Toroidal breaks would conflict with ' \
+                          + 'existing nonzero toroidal\ncurrent constraint')
+
+        # Indices in the toroidal dimension where breaks are to be centered
+        tor_inds = \
+            np.ceil(np.linspace(0, self.nPhi, n_breaks, endpoint=False) \
+                                    + 0.5*self.nPhi/n_breaks)
+
+        to_constrain = []
+
+        # Determine indices of segments to constrain
+        for i in range(len(tor_inds)):
+
+            itor0 = self.nTheta * (tor_inds[i] - np.ceil(0.5*width))
+            itor1 = itor0 + self.nTheta * width
+
+            to_constrain += list(np.arange(itor0, itor1).astype(np.int64))
+
+            if width > 1 and not allow_pol_current:
+
+                ipol0 = self.nTorSegments + itor0 + int(0.5*self.nTheta)
+                ipol1 = ipol0 + self.nTheta*(width - 1)
+                assert(ipol0 >= self.nTorSegments + int(0.5*self.nTheta))
+                assert(ipol1 <= self.nSegments - int(0.5*self.nTheta))
+
+                to_constrain += list(np.arange(ipol0, ipol1).astype(np.int64))
+
+        self.set_segments_constrained(to_constrain)
+
     def set_segments_free(self, segments):
         """
         Ensures that one or more given segments are unconstrained.
@@ -649,11 +717,11 @@ class ToroidalWireframe(object):
 
             node_sum[:] = 0
 
-            # Tally how many inactive segments each node is connected to
+            # Tally how many unconstrained segments each node is connected to
             for seg_ind in self.unconstrained_segments(update=False):
                 connected_nodes = \
                     np.sum(self.connected_segments == seg_ind, axis=1)
-                node_sum[connected_nodes > 0] += 1
+                node_sum += connected_nodes
 
             # Check for implicitly constrained segments (i.e. free segments
             # connected to a node with no other free segments)
@@ -880,10 +948,10 @@ class ToroidalWireframe(object):
 
         node_sum = np.zeros((self.nNodes))
 
-        # Tally how many inactive segments each node is connected to
+        # Tally how many unconstrained segments each node is connected to
         for seg_ind in self.unconstrained_segments():
             connected_nodes = np.sum(self.connected_segments == seg_ind, axis=1)
-            node_sum[connected_nodes > 0] += 1
+            node_sum += connected_nodes
 
         # If all four connected segments are constrained, the continuity 
         # constraint is redundant
@@ -1339,7 +1407,8 @@ class ToroidalWireframe(object):
         if quantity=='currents':
             cb.set_label('Current (MA)')
         elif quantity=='constrained segments':
-            cb.set_label('1 = constrained; 0 = free')
+            cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
+                             + '0 = free')
 
 
         ax.add_collection(lc)
