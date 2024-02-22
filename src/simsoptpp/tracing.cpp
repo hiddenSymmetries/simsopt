@@ -1150,8 +1150,8 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
     }
 
     typedef typename SymplField<T>::State State;
-    vector<array<double, 5>> res = {};
-    vector<array<double, 6>> res_phi_hits = {};
+    vector<array<double, SymplField<T>::Size+1>> res = {};
+    vector<array<double, SymplField<T>::Size+2>> res_phi_hits = {};
     double t = 0.0;
     bool stop = false;
 
@@ -1192,17 +1192,17 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
     double s_guess = z[0];
     double pzeta_guess = z[3];
 
-    //testing
-    int total_root_iter = 0;
-    auto rhs_class = GuidingCenterNoKBoozerRHS<T>(f.field, f.m, f.q, f.mu, f.axis);
-    double backup_ptheta = ptheta_old;
-    printf("dt = % .3e\n", dt);
-    printf("roottol = % .3e\n", roottol);
-    printf("predictor_step %s\n", predictor_step ? "on" : "off");
+    // //testing
+    // int total_root_iter = 0;
+    // auto rhs_class = GuidingCenterNoKBoozerRHS<T>(f.field, f.m, f.q, f.mu, f.axis);
+    // double backup_ptheta = ptheta_old;
+    // printf("dt = % .3e\n", dt);
+    // printf("roottol = % .3e\n", roottol);
+    // printf("predictor_step %s\n", predictor_step ? "on" : "off");
     do {
 
         if (!forget_exact_path || t==0){
-            res.push_back(join<1,4>({t}, y));
+            res.push_back(join<1,SymplField<T>::Size>({t}, y));
         }
 
         params.ptheta_old = ptheta_old;
@@ -1241,7 +1241,7 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
               break;
             }
 
-            status = gsl_multiroot_test_residual(s_euler->f, roottol); //tolerance --> roottol ~ 1e-50
+            status = gsl_multiroot_test_residual(s_euler->f, roottol); //tolerance --> roottol ~ 1e-15
           }
         while (status == GSL_CONTINUE && root_iter < 20);
         iter++;
@@ -1253,7 +1253,6 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
         // given by the Euler step.
         f.eval_field(z[0], z[1], z[2]);
         f.get_derivatives(z[3]);
-        double check_ptheta = f.ptheta;
 
         // z[1] = theta
         // z[2] = zeta
@@ -1278,16 +1277,16 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
 
         dense.update(t, dt, y, f); // tlast = t; tcurrent = t+dt;
 
-        // testing derivatives
-        array<double, 4> dydt;
-        rhs_class(y, dydt, t);
-        assert(f.get_dsdt()==dydt[0]);
-        assert(f.get_dthdt()==dydt[1]);
-        assert(f.get_dzedt()==dydt[2]);
-        assert(f.get_dvpardt()==dydt[3]);
+        // // testing derivatives
+        // array<double, 4> dydt;
+        // rhs_class(y, dydt, t);
+        // assert(f.get_dsdt()==dydt[0]);
+        // assert(f.get_dthdt()==dydt[1]);
+        // assert(f.get_dzedt()==dydt[2]);
+        // assert(f.get_dvpardt()==dydt[3]);
                 
-        // predictor step test
-        total_root_iter += root_iter;
+        // // predictor step test
+        // total_root_iter += root_iter;
         if (predictor_step) {
             s_guess = z[0] + dt*(-f.dH[1] + f.dptheta[3]*f.dH[2] - f.dptheta[2]*f.dH[3])/f.dptheta[0];
             pzeta_guess = z[3] + dt*(- f.dH[2] + f.dH[0]*f.dptheta[2]/f.dptheta[0]); // corresponds with (2.7s) in JPP 2020
@@ -1312,14 +1311,15 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
     } while(t < tmax && !stop);
     if(!stop){
         dense.calc_state(tmax, y);
-        res.push_back(join<1, 4>({tmax}, y));
+        res.push_back(join<1,SymplField<T>::Size>({tmax}, y));
     }
     gsl_multiroot_fsolver_free (s_euler);
     gsl_vector_free(xvec_quasi);
 
-    printf("total_root_iter = %7u\n",
-                           total_root_iter);
-    std::cout << "=======" << std::flush;
+    // // test
+    // printf("total_root_iter = %7u\n",
+    //                        total_root_iter);
+    // std::cout << "=======" << std::flush;
     return std::make_tuple(res, res_phi_hits);
 }
 
