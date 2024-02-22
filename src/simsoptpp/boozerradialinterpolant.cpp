@@ -298,7 +298,7 @@ void inverse_fourier_transform_odd(Array& K, Array& kmns, Array& xm, Array& xn,
     double* thetas_array = thetas.data();
     double* zetas_array = zetas.data();
 
-    std::size_t modes_s = (xm(0) || xn(0)) ? 0 : 1;
+    // std::size_t modes_s = (xm(0) || xn(0)) ? 0 : 1;
 
     if (num_points > 1) {
         #pragma omp parallel for
@@ -364,9 +364,12 @@ void inverse_fourier_transform_odd(Array& K, Array& kmns, Array& xm, Array& xn,
         simd_t b_zeta(zetas_array[0]);
         simd_t b_K(0.);
         double res = 0;
-        #pragma omp parallel private(b_K) reduction(+:res)
+        // there are some weird bugs associated with adding this
+        // won't be able to get correct result if even and odd are
+        // called consectively 
+        // #pragma omp parallel private(b_K) reduction(+:res)
         {
-            #pragma omp for
+            // #pragma omp for
             for (std::size_t im=0; im < num_modes; im += simd_size) {
                 xs::batch<double, simd_size> b_xm, b_xn, b_kmns;
                 b_xm = xs::load_aligned(&xm_array[im]);
@@ -460,9 +463,9 @@ void inverse_fourier_transform_even(Array& K, Array& kmns, Array& xm, Array& xn,
         simd_t b_zeta(zetas_array[0]);
         simd_t b_K(0.);
         double res = 0;
-        #pragma omp parallel private(b_K) reduction(+:res)
+        // #pragma omp parallel private(b_K) reduction(+:res)
         {
-            #pragma omp for
+            // #pragma omp for
             for (std::size_t im=0; im < num_modes; im += simd_size) {
                 xs::batch<double, simd_size> b_xm, b_xn, b_kmns;
                 b_xm = xs::load_aligned(&xm_array[im]);
