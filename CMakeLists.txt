@@ -14,6 +14,8 @@ message(status "Python Development Module found value is ${Python_Development.Mo
 message(status "Python header dirs are ${Python_INCLUDE_DIRS}")
 message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
 message(status "Python version is ${Python_VERSION}")
+# set(CMAKE_BUILD_TYPE RelWithDebInfo)
+# set(CMAKE_BUILD_TYPE Debug)
 
 
 find_package(Git QUIET)
@@ -51,6 +53,14 @@ else()
 endif()
 
 find_package(OpenMP)
+if (OpenMP_FOUND)
+    message(STATUS "OpenMP_C version is ${OpenMP_C_VERSION}")
+    message(STATUS "OpenMP_C flags is ${OpenMP_C_FLAGS}")
+    message(STATUS "OpenMP_CXX flags is ${OpenMP_CXX_FLAGS}")
+    message(STATUS "OMP_CXX version is ${OpenMP_CXX_VERSION}")
+    message(STATUS "OMP include dirs are ${OpenMP_INCLUDE_DIRS}")
+    message(STATUS "OMP_CXX include dirs are ${OpenMP_CXX_INCLUDE_DIRS}")
+endif()
 find_package(Boost 1.60.0)
 if(Boost_FOUND)
     message(STATUS "Boost version is ${Boost_VERSION_STRING}")
@@ -92,13 +102,6 @@ find_package(GSL)
 if(GSL_FOUND)
    message(STATUS "GSL version is ${GSL_VERSION}")
    message(STATUS "GSL include dirs are ${GSL_INCLUDE_DIR}")
-else()
-   message(STATUS "Downloading and installing GSL.")
-   set( GSL_DIR ${CMAKE_CURRENT_BINARY_DIR}/thirdparty/gsl )
-   set( GSL_target gsl)
-
-    set(GSL_INCLUDE_DIRS ${GSL_DIR}/src/${GSL_target})
-    message(STATUS "GSL include dirs are ${GSL_INCLUDE_DIRS}")
 endif()
 
 
@@ -133,7 +136,13 @@ endif()
 target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
 
+if(OpenMP_C_FOUND)
+    message(STATUS "OMP_C version is ${OpenMP_C_VERSION}")
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_C)
+endif()
+
 if(OpenMP_CXX_FOUND)
+    message(STATUS "OMP_CXX version is ${OpenMP_CXX_VERSION}")
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
@@ -154,7 +163,6 @@ target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thir
 
 #target_include_directories(profiling PRIVATE ${GSL_INCLUDE_DIRS})
 #target_link_libraries(profiling PRIVATE ${GSL_LIBRARIES})
-
 
 
 

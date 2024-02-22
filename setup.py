@@ -96,14 +96,18 @@ class CMakeBuild(build_ext):
                 # CMake 3.12+ only.
                 build_args += ["-j{}".format(self.parallel)]
 
+        # print("build_temp", self.build_temp, flush=True)
+        # print(ext.sourcedir+"/build", flush=True)
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
         subprocess.check_call(
             ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp
+            # ["cmake", ext.sourcedir] + cmake_args, cwd=ext.sourcedir+"/build" # for debug
         )
         subprocess.check_call(
             ["cmake", "--build", ".", "--target", "simsoptpp"] + build_args, cwd=self.build_temp
+            # ["cmake", "--build", ".", "--target", "simsoptpp"] + build_args, cwd=ext.sourcedir+"/build" # for debug
         )
 
 
