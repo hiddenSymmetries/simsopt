@@ -25,6 +25,8 @@ from .surfacexyztensorfourier import *
 from .strain_optimization import *
 
 from .permanent_magnet_grid import *
+from .psc_grid import *
+
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
@@ -37,4 +39,5 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
            strain_optimization.__all__ + framedcurve.__all__ + 
-           permanent_magnet_grid.__all__)
+           permanent_magnet_grid.__all__ +
+           psc_grid.__all__)
