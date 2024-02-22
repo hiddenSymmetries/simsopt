@@ -136,7 +136,9 @@ class RegularGridInterpolant3D {
 
         int locate_unsafe(double x, double y, double z);
         void evaluate_inplace(double x, double y, double z, double* res);
-        void evaluate_local(double x, double y, double z, int cell_idx, double* res);
+        void evaluate_inplace(double x, double *res);
+        void evaluate_local(double x, double y, double z, int cell_idx, double *res);
+        void evaluate_local(double x, int cell_idx, double *res);
 
     public:
 
@@ -299,10 +301,10 @@ class RegularGridInterpolant3D {
 
         Vec evaluate(double x, double y, double z); // evaluate the interpolant at one location
         void evaluate_batch(Array& xyz, Array& fxyz); // evluate the interpolant at multiple locations
-
+        void evaluate_batch_1D(Array &xyz, Array &fxyz);
+        
         std::pair<double, double> estimate_error(std::function<Vec(Vec, Vec, Vec)> &f, int samples);
 };
-
 
 class UniformInterpolationRule : public InterpolationRule {
     protected:
