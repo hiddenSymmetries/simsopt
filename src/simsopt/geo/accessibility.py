@@ -7,10 +7,11 @@ from matplotlib.pyplot import cm
 
 from .jit import jit
 from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec
+from .._core.derivative import derivative_dec, Derivative
 from .curvecwsfourier import CurveCWSFourier
+from .curveobjectives import ArclengthVariation
 
-__all__ = ['PortSize', 'VerticalPortDiscrete', 'EnclosedXYArea', 'CurveCurveXYdistance', 'CurveXYConvexity']
+__all__ = ['PortSize', 'VerticalPortDiscrete', 'EnclosedXYArea', 'CurveCurveXYdistance', 'CurveXYConvexity', 'ToroidalAngleConstraint', 'UpwardFacingPort']
 
 
 
@@ -506,17 +507,20 @@ class VerticalPortDiscrete( Optimizable ):
 
 
 
-def enclosed_area( gamma, gammadash, factor, qpts ):
-    return 1./2. * jnp.trapz( factor*(gamma[:,0]*gammadash[:,1]-gamma[:,1]*gammadash[:,0]), qpts )
+def enclosed_area( gamma, gammadash, pts ):
+
+    #alen = jnp.linalg.norm(gammadash, axis=1)
+    dpts = jnp.append(jnp.diff(pts), 1+pts[0]-pts[-1])
+    return jnp.sum( dpts*(gamma[:,0]*gammadash[:,1]) ) 
+    #return 1./2. * jnp.mean( alen*(gamma[:,0]*gammadash[:,1]-gamma[:,1]*gammadash[:,0]) ) 
 
 class EnclosedXYArea( Optimizable ):
     def __init__(self, curve):
         self.curve = curve
 
-        self.J_jax = lambda gamma, gammadash, factor: enclosed_area(gamma, gammadash, factor, self.curve.quadpoints )
-        self.thisgrad0 = lambda gamma, gammadash, factor: grad(self.J_jax, argnums=0)(gamma, gammadash, factor)
-        self.thisgrad1 = lambda gamma, gammadash, factor: grad(self.J_jax, argnums=1)(gamma, gammadash, factor)
-        self.thisgrad2 = lambda gamma, gammadash, factor: grad(self.J_jax, argnums=2)(gamma, gammadash, factor)
+        self.J_jax = jit(lambda gamma, gammadash: enclosed_area(gamma, gammadash, self.curve.quadpoints ))
+        self.thisgrad0 = jit(lambda gamma, gammadash: grad(self.J_jax, argnums=0)(gamma, gammadash))
+        self.thisgrad1 = jit(lambda gamma, gammadash: grad(self.J_jax, argnums=1)(gamma, gammadash))
 
         super().__init__(depends_on=[curve])
 
@@ -524,21 +528,41 @@ class EnclosedXYArea( Optimizable ):
     def J(self):
         gamma = self.curve.gamma()
         gammadash = self.curve.gammadash()
-        factor = self.curve.surface_normal_z()
-        return self.J_jax(gamma, gammadash, factor)
+        return self.J_jax(gamma, gammadash)
     
     @derivative_dec
     def dJ(self):
         gamma = self.curve.gamma()
         gammadash = self.curve.gammadash()
-        factor = self.curve.surface_normal_z()
-        grad0 = self.thisgrad0(gamma, gammadash, factor)
-        grad1 = self.thisgrad1(gamma, gammadash, factor)
-        grad2 = self.thisgrad2(gamma, gammadash, factor)
+        grad0 = self.thisgrad0(gamma, gammadash)
+        grad1 = self.thisgrad1(gamma, gammadash)
 
-        return self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
-            + self.curve.dsurface_normal_z_by_dcoeff_vjp(grad2)
+        dcurve = self.curve.dgamma_by_dcoeff_vjp(grad0) \
+            + self.curve.dgammadash_by_dcoeff_vjp(grad1)
+
+        return dcurve
+
+
+def upward_facing_pure( nznorm ):
+    return jnp.sum(jnp.maximum(-nznorm, 0)**2)
+
+class UpwardFacingPort(Optimizable):
+    def __init__(self, curve):
+        self.curve = curve
+
+        self.J_jax = lambda nz: upward_facing_pure(nz)
+        self.thisgrad = lambda nz: grad(self.J_jax)(nz)
+
+        super().__init__(depends_on=[curve])
+
+    def J(self):
+        return self.J_jax(self.curve.zfactor())
+    
+    @derivative_dec
+    def dJ(self):
+        return self.curve.dzfactor_by_dcoeff_vjp(self.thisgrad(self.curve.zfactor()))
+    
+
 
 
 
@@ -548,15 +572,21 @@ def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     """
     g1 = gamma1[:,:2]
     g2 = gamma2[:,:2]
-    l1 = l1[:,:2]
-    l2 = l2[:,:2]
 
-    # This is 0 for all points below their comparison point on the curve
-    f = jnp.max(gamma2[None,:,2]-gamma1[:,None,1], 0)**2
+    # Set gammadah in z-direction to almost 0. We cannot set it to zero, otherwise derivatives would be NaN when gammadash is purely along z
+    l1 = l1.at[:,2].set( 1E-14 )
+    l2 = l2.at[:,2].set( 1E-14 )
 
-    dists = f * jnp.sqrt(jnp.sum((g1[:, None, :] - g2[None, :, :])**2, axis=2))
-    alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
-    return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(g1.shape[0]*g2.shape[0])
+    # This is 0 for all points below (i.e z2<z1) their comparison point on the curve
+    f = jnp.maximum(gamma2[None,:,2]-gamma1[:,None,2], 0)**2
+
+    dists = jnp.sqrt(jnp.sum((g1[:, None, :] - g2[None, :, :])**2, axis=2))
+
+    l1norm = jnp.linalg.norm(l1, axis=1) 
+    l2norm = jnp.linalg.norm(l2, axis=1) 
+
+    alen = l1norm[:, None] * l2norm[None, :]
+    return jnp.sum(alen * f * jnp.maximum(minimum_distance-dists, 0)**2)/(g1.shape[0])
 
 class CurveCurveXYdistance( Optimizable ):
     def __init__(self, base_curves, curve, minimum_distance=0):
@@ -568,7 +598,7 @@ class CurveCurveXYdistance( Optimizable ):
         self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2))
         self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
         self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
-        self.candidates = None
+
         self.num_basecurves = len(base_curves)
         super().__init__(depends_on=base_curves + [curve])
 
@@ -615,7 +645,7 @@ class CurveCurveXYdistance( Optimizable ):
 
 def xy_convexity( pts, gd, gdd ):
     # First we evaluate the 2D curvature
-    kappa = (gd[:,0]*gdd[:,1] - gd[:,1]*gdd[:,2]) / (gd[:,0]**2 + gd[:,1]**2)**(3./2.)
+    kappa = (gd[:,0]*gdd[:,1] - gd[:,1]*gdd[:,0]) / (gd[:,0]**2 + gd[:,1]**2)**(3./2.)
 
     integral_of_kappa = jnp.trapz(jnp.abs(kappa)*jnp.linalg.norm(gd,axis=1), pts)
 
@@ -647,3 +677,60 @@ class CurveXYConvexity( Optimizable ):
         grad1 = self.thisgrad1(gammadash, gammadashdash)
 
         return self.curve.dgammadash_by_dcoeff_vjp(grad0) + self.curve.dgammadashdash_by_dcoeff_vjp(grad1)
+    
+
+def toroidal_angle_constraint_pure(gamma, phi, minormax):
+    
+    phiarr = jnp.arctan2(gamma[:,1], gamma[:,0])
+    if minormax=='min':
+        return jnp.max(phi-phiarr, 0)**2
+    elif minormax=='max':
+        return jnp.max(phiarr-phi, 0)**2
+
+class ToroidalAngleConstraint( Optimizable ):
+    def __init__(self, curve, phi_target=0, minormax='min'):
+        self.curve = curve
+
+        self.J_jax = lambda gamma: toroidal_angle_constraint_pure( gamma, phi_target, minormax)
+        self.thisgrad = lambda gamma: grad(self.J_jax)(gamma)
+
+        super().__init__(depends_on=[curve])
+
+    def J(self):
+        gamma = self.curve.gamma()
+        return self.J_jax(gamma)
+    
+    @derivative_dec
+    def dJ(self):
+        gamma = self.curve.gamma()
+        grad = self.thisgrad(gamma)
+
+        return self.curve.dgamma_by_dcoeff_vjp(grad)
+    
+
+
+# class VerticalAccess(Optimizable):
+#     def __init__(self, curves, vessel, order, x0, quadpoints, weight_coilcoildistance=1E5, weight_arclength=1.0, weight_convex=1.0, minimum_distance=0.1):
+#         self.curves = curves
+#         self.vessel = vessel
+#         self.wcc = weight_coilcoildistance
+#         self.wac = weight_arclength
+#         self.wco = weight_convex
+        
+#         self.port_boundary = CurveCWSFourier( quadpoints, order, vessel )
+#         self.x = x0
+
+#         self.Jarea = EnclosedXYArea( self.port_boundary )
+#         self.Jcc = CurveCurveXYdistance( self.curves, self.port_boundary, minimum_distance)
+#         self.Jac = ArclengthVariation( self.port_boundary )
+#         self.Jco = CurveXYConvexity( self.port_boundary )
+
+#         super().__init__(depends_on=curves+[self.port_boundary])
+
+#     def J(self):
+#         return self.Jarea.J() + self.wcc*self.Jcc.J() + self.wac*self.Jac.J() + self.wco*self.Jco.J()
+
+#     def dJ(self):
+#         return self.Jarea.dJ() + self.wcc*self.Jcc.dJ() + self.wac*self.Jac.dJ() + self.wco*self.Jco.dJ()
+
+    
