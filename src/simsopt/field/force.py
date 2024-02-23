@@ -11,6 +11,16 @@ from .._core.derivative import derivative_dec
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
+def coil_force(coil, allcoils, regularization):
+    gammadash = coil.curve.gammadash()
+    gammadash_norm = np.linalg.norm(gammadash, axis=1)[:, None]
+    tangent = gammadash / gammadash_norm
+    mutual_coils = [c for c in allcoils if c is not coil]
+    mutual_field = BiotSavart(mutual_coils).set_points(coil.curve.gamma()).B()
+    mutualforce = np.cross(coil.current.get_value() * tangent, mutual_field)
+    selfforce = self_force(coil, regularization)
+    return selfforce + mutualforce
+
 def coil_force_pure(B, I, t):
     """force on coil for optimization"""
     return jnp.cross(I * t, B)

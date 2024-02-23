@@ -14,7 +14,7 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance, 
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import MeanSquaredForce
+from simsopt.field.force import MeanSquaredForce, coil_force
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions
 
@@ -39,7 +39,7 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-6)
+LENGTH_WEIGHT = Weight(1e-06)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -161,24 +161,34 @@ def fun(dofs):
 # RUN THE OPTIMIZATION
 ###############################################################################
 
+def pointData_forces(coils):
+    forces = []
+    for c in coils:
+        force = np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)
+        force = np.append(force, force[0])
+        forces = np.concatenate([forces, force])
+    point_data = {"F": forces}
+    return point_data
+
 dofs = JF.x
+FORCE_WEIGHT += 0
+print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 print("INITIAL OPTIMIZATION")
-FORCE_WEIGHT += 1e-15
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True)
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
+curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True, extra_data=pointData_forces(coils))
+pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData_surf)
 
 # We now use the result from the optimization as the initial guess for a
 # subsequent optimization with reduced penalty for the coil length. This will
 # result in slightly longer coils but smaller `B·n` on the surface.
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
-print("OPTIMIZATION WITH REDUCED LENGTH PENALTY")
+print("OPTIMIZATION WITH REDUCED LENGTH PENALTY\n")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_WEIGHT={FORCE_WEIGHT.value}", close=True)
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT.value}", extra_data=pointData)
+curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_FWEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", close=True, extra_data=pointData_forces(coils))
+pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", extra_data=pointData_surf)
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")
