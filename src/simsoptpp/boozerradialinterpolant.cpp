@@ -309,6 +309,7 @@ void inverse_fourier_transform_odd(Array& K, Array& kmns, Array& xm, Array& xn,
             b_K = xs::load_aligned(&K_array[ip]);
             
             simd_t sin_nfpzetas, cos_nfpzetas;
+            simd_t sinterm, costerm;
             xs::sincos(-nfp*b_zetas, sin_nfpzetas, cos_nfpzetas);
             
             int num_ntor = ntor + 1;
@@ -316,7 +317,6 @@ void inverse_fourier_transform_odd(Array& K, Array& kmns, Array& xm, Array& xn,
             int n = xn(0);
             int i = 0;
             for (int im=0; im < num_modes; ++im) {
-                simd_t sinterm, costerm;
                 b_kmns = xs::load_aligned(&kmns_array[im*num_points+ip]);
                 
                 // recompute the angle from scratch every so often, to
@@ -408,6 +408,7 @@ void inverse_fourier_transform_even(Array& K, Array& kmns, Array& xm, Array& xn,
             b_K = xs::load_aligned(&K_array[ip]);
             
             simd_t sin_nfpzetas, cos_nfpzetas;
+            simd_t sinterm, costerm;
             xs::sincos(-nfp*b_zetas, sin_nfpzetas, cos_nfpzetas);
             
             int num_ntor = ntor + 1;
@@ -415,7 +416,6 @@ void inverse_fourier_transform_even(Array& K, Array& kmns, Array& xm, Array& xn,
             int n = xn(0);
             int i = 0;
             for (int im=0; im < num_modes; ++im) {
-                simd_t sinterm, costerm;
                 b_kmns = xs::load_aligned(&kmns_array[im*num_points+ip]);
                 
                 // recompute the angle from scratch every so often, to
