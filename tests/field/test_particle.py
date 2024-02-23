@@ -619,7 +619,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             # Now trace with forget_exact_path = True. Check that gc_phi_hits is the same
             gc_tys, gc_phi_hits_2 = trace_particles_boozer(bsh, stz_inits, vpar_inits,
                                                         tmax=tmax, mass=m, charge=q, Ekin=Ekin, zetas=[], mode='gc',
-                                                        stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(100, True)],
+                                                        stopping_criteria=[MinToroidalFluxStoppingCriterion(.01), MaxToroidalFluxStoppingCriterion(0.99), ToroidalTransitStoppingCriterion(10, True)],
                                                         tol=1e-12, forget_exact_path=True, solver_options=solver_options)
 
             for i in range(len(gc_phi_hits_2)):

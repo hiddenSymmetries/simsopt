@@ -841,7 +841,7 @@ class TestingInverseFourier(unittest.TestCase):
             size = 1
             rank = 0
         
-        num_modes = [20, 48]
+        num_modes = [1, 20, 48]
         for mpol in num_modes:
             for ntor in num_modes:
                 nfp = np.random.randint(1, 8) if rank == 0 else None
