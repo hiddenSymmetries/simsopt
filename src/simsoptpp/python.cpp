@@ -16,7 +16,6 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "biot_savart_vjp_py.h"
 #include "boozerradialinterpolant.h"
 #include "dipole_field.h"
-#include "psc.h"
 #include "dommaschk.h"
 #include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
@@ -59,9 +58,6 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
     
-    // Functions below are implemented for PSC optimization
-    m.def("L_matrix" , &L_matrix);
-
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);
     m.def("dipole_field_A" , &dipole_field_A);

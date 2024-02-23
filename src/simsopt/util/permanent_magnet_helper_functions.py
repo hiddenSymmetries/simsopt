@@ -345,6 +345,27 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         for i in range(ncoils):
             base_curves[i].fix_all()
 
+    elif config_flag == 'qa_psc':
+        # generate planar TF coils
+        ncoils = 6
+        R0 = 1.0
+        R1 = 0.65
+        order = 5
+    
+        # qa needs to be scaled to 0.1 T on-axis magnetic field strength
+        from simsopt.mhd.vmec import Vmec
+        vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+        total_current = Current(total_current)
+        total_current.fix_all()
+        base_currents += [total_current - sum(base_currents)]
+        coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+        # fix all the coil shapes so only the currents are optimized
+        for i in range(ncoils):
+            base_curves[i].fix_all()
+
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
     curves_to_vtk(curves, out_dir / "curves_init")

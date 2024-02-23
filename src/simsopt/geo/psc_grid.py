@@ -31,14 +31,8 @@ class PSCgrid:
             This variable must be specified to run PSC optimization.
     """
 
-    def __init__(self, plasma_boundary: Surface, Bn):
-        Bn = np.array(Bn)
-        if len(Bn.shape) != 2: 
-            raise ValueError('Normal magnetic field surface data is incorrect shape.')
-        self.Bn = Bn
-        self.plasma_boundary = plasma_boundary.to_RZFourier()
-        self.nphi = len(self.plasma_boundary.quadpoints_phi)
-        self.ntheta = len(self.plasma_boundary.quadpoints_theta)
+    def __init__(self):
+        self.mu0 = 4 * np.pi * 1e-7
 
     def _setup_uniform_grid(self):
         """
@@ -71,6 +65,7 @@ class PSCgrid:
         print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
         Nmin = min(self.dx, min(self.dy, self.dz))
         self.R = Nmin / 4.0
+        self.a = self.R / 10.0
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
               ' is at least 2R away from the next coil'
@@ -85,13 +80,13 @@ class PSCgrid:
         #     X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
         #     Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
         # else:
-        #     X = np.linspace(x_min, x_max, Nx, endpoint=True)
-        #     Y = np.linspace(y_min, y_max, Ny, endpoint=True)
-        # Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+        X = np.linspace(x_min, x_max, Nx, endpoint=True)
+        Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+        Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
 
-        # # Make 3D mesh
-        # X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-        # self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+        # Make 3D mesh
+        X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+        self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
 
         # # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
         # if self.plasma_boundary.nfp == 4:
@@ -140,7 +135,7 @@ class PSCgrid:
     @classmethod
     def geo_setup_between_toroidal_surfaces(
         cls, 
-        plasma_boundary,
+        plasma_boundary : Surface,
         Bn,
         inner_toroidal_surface: Surface, 
         outer_toroidal_surface: Surface,
@@ -180,16 +175,25 @@ class PSCgrid:
                 inner and outer toroidal surfaces. Used only if the
                 coordinate_flag = cartesian, then Nz is the z-size of the
                 rectangular cubes in the grid.
+            Nt: int
+                Number of turns of the coil. 
         Returns
         -------
         psc_grid: An initialized PSCgrid class object.
 
         """
         
-        psc_grid = cls(plasma_boundary, Bn) 
+        psc_grid = cls() 
+        Bn = np.array(Bn)
+        if len(Bn.shape) != 2: 
+            raise ValueError('Normal magnetic field surface data is incorrect shape.')
+        psc_grid.Bn = Bn
+        psc_grid.plasma_boundary = plasma_boundary.to_RZFourier()
+        psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
+        psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
         Nx = kwargs.pop("Nx", 10)
-        Ny = kwargs.pop("Ny", 10)
-        Nz = kwargs.pop("Nz", 10)
+        Ny = Nx  # kwargs.pop("Ny", 10)
+        Nz = Nx  # kwargs.pop("Nz", 10)
         if Nx <= 0 or Ny <= 0 or Nz <= 0:
             raise ValueError('Nx, Ny, and Nz should be positive integers')
         psc_grid.Nx = Nx
@@ -203,6 +207,8 @@ class PSCgrid:
             ' magnet grid to be correctly initialized.'
         )        
 
+        Nt = kwargs.pop("Nt", 1)
+        psc_grid.Nt = Nt
         # Have the uniform grid, now need to loop through and eliminate cells.
         contig = np.ascontiguousarray
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
@@ -217,11 +223,12 @@ class PSCgrid:
         inds = np.ravel(np.logical_not(np.all(psc_grid.grid_xyz == 0.0, axis=-1)))
         psc_grid.grid_xyz = psc_grid.grid_xyz[inds, :]
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
-        psc_grid.pm_phi = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
+        # psc_grid.pm_phi = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
         pointsToVTK('psc_grid',
                     contig(psc_grid.grid_xyz[:, 0]),
                     contig(psc_grid.grid_xyz[:, 1]),
                     contig(psc_grid.grid_xyz[:, 2]))
+        print('Number of PSC locations = ', len(psc_grid.grid_xyz))
 
         # PSC coil geometry determined by its center point in grid_xyz
         # and its alpha and delta angles, which we initialize randomly here.
@@ -231,54 +238,50 @@ class PSCgrid:
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
         psc_grid.plot_curves()
+        psc_grid.inductances(psc_grid.alphas, psc_grid.deltas)
         
-        psc_grid._optimization_setup()
+        # psc_grid._optimization_setup()
         return psc_grid
+    
+    @classmethod
+    def geo_setup_manual(
+        cls, 
+        points,
+        R,
+        a,
+        alphas,
+        deltas,
+        **kwargs,
+    ):
+        
+        psc_grid = cls()
+        psc_grid.grid_xyz = points
+        psc_grid.R = R
+        psc_grid.a = a
+        psc_grid.alphas = alphas
+        psc_grid.deltas = deltas
+        Nt = kwargs.pop("Nt", 1)
+        psc_grid.Nt = Nt
+        psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
+        
+        contig = np.ascontiguousarray
+        pointsToVTK('psc_grid',
+                    contig(psc_grid.grid_xyz[:, 0]),
+                    contig(psc_grid.grid_xyz[:, 1]),
+                    contig(psc_grid.grid_xyz[:, 2]))
+        print('Number of PSC locations = ', len(psc_grid.grid_xyz))
 
-    # def _optimization_setup(self):
-
-    #     if self.Bn.shape != (self.nphi, self.ntheta):
-    #         raise ValueError('Normal magnetic field surface data is incorrect shape.')
-
-    #     # minus sign below because ||Ax - b||^2 term but original
-    #     # term is integral(B_P + B_C + B_M)^2
-    #     self.b_obj = - self.Bn.reshape(self.nphi * self.ntheta)
-
-    #     # Compute geometric factor with the C++ routine
-    #     self.A_obj = sopp.dipole_field_Bn(
-    #         np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3)),
-    #         np.ascontiguousarray(self.grid_xyz),
-    #         np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3)),
-    #         self.plasma_boundary.nfp, int(self.plasma_boundary.stellsym),
-    #         np.ascontiguousarray(self.b_obj),
-    #         self.coordinate_flag,  # cartesian, cylindrical, or simple toroidal
-    #         self.R0
-    #     )
-
-    #     # Rescale the A matrix so that 0.5 * ||Am - b||^2 = f_b,
-    #     # where f_b is the metric for Bnormal on the plasma surface
-    #     Ngrid = self.nphi * self.ntheta
-    #     self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.num_psc * 3)
-    #     Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
-    #     for i in range(self.A_obj.shape[0]):
-    #         self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid)
-    #     self.b_obj = self.b_obj * np.sqrt(Nnorms / Ngrid)
-    #     self.ATb = self.A_obj.T @ self.b_obj
-
-    #     # Compute singular values of A, use this to determine optimal step size
-    #     # for the MwPGP algorithm, with alpha ~ 2 / ATA_scale
-    #     S = np.linalg.svd(self.A_obj, full_matrices=False, compute_uv=False)
-    #     self.ATA_scale = S[0] ** 2
-
-    #     # Set initial condition for the dipoles to default IC
-    #     self.m0 = np.zeros(self.num_psc * 3)
-
-    #     # Set m to zeros
-    #     self.m = self.m0
-
-    #     # Print initial f_B metric using the initial guess
-    #     total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
-    #     print('f_B (total with initial SIMSOPT guess) = ', total_error)
+        # PSC coil geometry determined by its center point in grid_xyz
+        # and its alpha and delta angles, which we initialize randomly here.
+        # psc_grid.alphas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
+        # psc_grid.deltas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
+        
+        # Initialize curve objects corresponding to each PSC coil for 
+        # plotting in 3D
+        psc_grid.plot_curves()
+        psc_grid.inductances(psc_grid.alphas, psc_grid.deltas)
+        
+        return psc_grid
 
     def plot_curves(self):
         
@@ -288,44 +291,66 @@ class PSCgrid:
     
         order = 1
         ncoils = self.num_psc
-        self.I = np.zeros(ncoils)
-        # xc = np.zeros((num_psc, order + 1))
-        # xs = np.zeros((num_psc, order + 1))
-        # yc = np.zeros((num_psc, order + 1))
-        # ys = np.zeros((num_psc, order + 1))
-        # zc = np.zeros((num_psc, order + 1))
-        # zs = np.zeros((num_psc, order + 1))
-        
-        # CurveXYZFourier wants data in order sin_x, cos_x, sin_y, cos_y, ...
-        # coil_data = np.zeros((order + 1, num_psc * 6))
-        # for i in range(num_psc):
-        #     xyz = self.grid_xyz[i, :]
-        #     x = xyz[0] * 
-        #     coil_data[:, i * 6 + 0] = xs[i, :]
-        #     coil_data[:, i * 6 + 1] = xc[i, :]
-        #     coil_data[:, i * 6 + 2] = ys[i, :]
-        #     coil_data[:, i * 6 + 3] = yc[i, :]
-        #     coil_data[:, i * 6 + 4] = zs[i, :]
-        #     coil_data[:, i * 6 + 5] = zc[i, :]
+        # self.I = np.zeros(ncoils)
     
         # Set the degrees of freedom in the coil objects
         # base_currents = [Current(coilcurrents[i]) for i in range(ncoils)]
         ppp = 20
-        curves = [CurvePlanarFourier(order*ppp, order) for i in range(ncoils)]
+        curves = [CurvePlanarFourier(order*ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
         for ic in range(ncoils):
             xyz = self.grid_xyz[ic, :]
-            dofs = curves[ic].dofs_matrix
-            dofs[0] = np.sqrt(xyz[0] ** 2 + xyz[1] ** 2)
+            dofs = np.zeros(10)
+            dofs[0] = 0.0  # np.sqrt(xyz[0] ** 2 + xyz[1] ** 2)
             dofs[1] = self.R
             dofs[2] = self.R
-            # Now specify the rotation
+            # Now specify the rotation (no rotation of z-axis)
             dofs[3] = self.alphas[ic] * self.deltas[ic]
             dofs[4] = self.alphas[ic]
             dofs[5] = self.deltas[ic]
             # Now specify the center 
-            dofs[6] = xyz[0]
-            dofs[7] = xyz[1]
-            dofs[8] = xyz[2]
-            curves[ic].local_x = dofs
-        curves_to_vtk(curves, "curves_init")
+            dofs[7] = xyz[0]
+            dofs[8] = xyz[1]
+            dofs[9] = xyz[2]
+            curves[ic].set_dofs(dofs)
+        curves_to_vtk(curves, "psc_curves")
+        self.curves = curves
         # return coils
+    
+    def inductances(self, alphas, deltas):
+        """ Calculate the inductance matrix needed for the PSC forward problem """
+        points = self.grid_xyz
+        nphi = 20
+        phi = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
+        dphi = phi[1] - phi[0]
+        R = self.R
+        r = self.a
+        ncoils = self.num_psc
+        # print(r, R, alphas, deltas, phi)
+        L = np.zeros((ncoils, ncoils))
+        for i in range(ncoils):
+    	    # Loop through all the PSCs, using all the symmetries
+            for j in range(i + 1, ncoils):
+                xj = points[j, 0] / R
+                yj = points[j, 1] / R
+                zj = points[j, 2] / R
+                cd = np.cos(deltas[i] - deltas[j])
+                sd = np.sin(deltas[i] - deltas[j])
+                ca = np.cos(alphas[i] - alphas[j])
+                sa = np.sin(alphas[i] - alphas[j])
+                integrand = 0.0
+                for k in range(nphi):
+                    ck = np.cos(phi[k])
+                    sk = np.sin(phi[k])
+                    for kk in range(nphi):
+                        ckk = np.cos(phi[kk])
+                        skk = np.sin(phi[kk])
+                        integrand_numerator = ck * ckk * ca + sk * skk * cd - ck * skk * sa * sd 
+                        x2 = (xj + ckk - ck * cd - sk * sa * sd) ** 2
+                        y2 = (yj + skk - sk * ca) ** 2
+                        z2 = (zj + ck * sd - sk * sa * cd) ** 2
+                        integrand += integrand_numerator / np.sqrt(x2 + y2 + z2)
+                L[i, j] = integrand * dphi ** 2 / (4.0 * np.pi)
+        # symmetrize and scale
+        L = L + L.T
+        np.fill_diagonal(L, np.log(8.0 * R / r) - 2.0)
+        self.L = L * self.mu0 * R * self.Nt ** 2

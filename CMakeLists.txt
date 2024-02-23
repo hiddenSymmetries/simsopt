@@ -42,25 +42,25 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include(CheckCXXCompilerFlag)
 IF(DEFINED ENV{CI})
     if (APPLE)
-    	set(CMAKE_CXX_FLAGS "-O3 -w")
+    	set(CMAKE_CXX_FLAGS "-O3")
     else()
         message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
-        set(CMAKE_CXX_FLAGS "-O3 -w -march=westmere")
+        set(CMAKE_CXX_FLAGS "-O3 -march=westmere")
     endif()
 elseif(DEFINED ENV{CONDA_BUILD})
     message(STATUS "conda build environment detected. Let conda set compilation flags accordingly.")
-    # set(CMAKE_CXX_FLAGS "-O3 -w -march=ivybridge -mfma -ffp-contract=fast")
+    # set(CMAKE_CXX_FLAGS "-O3 -march=ivybridge -mfma -ffp-contract=fast")
 else()
     # Temporary fix till clang 15 is default on macs with Apple silicon
     message(STATUS "Local build detected. Set compilation flags accordingly (march=native).")
     unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
     CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    	set(CMAKE_CXX_FLAGS "-O3 -w -march=native -mfma -ffp-contract=fast")
+    	set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
     elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")  
-    	set(CMAKE_CXX_FLAGS "-O3 -w -mcpu=apple-a14 -mfma -ffp-contract=fast")
+    	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
     else()
-    	set(CMAKE_CXX_FLAGS "-O3 -w -ffp-contract=fast")
+    	set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
     endif()
 endif()
 # Ensure all code used from Eigen does not have LGPL license:
@@ -113,10 +113,6 @@ endif()
 
 # add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
-
-# Ignore warnings (added by Alan Kaptanoglu for clarity when debugging)
-add_definitions(-w)
-
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
@@ -130,7 +126,6 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp src/simsoptpp/curveplanarfourier.cpp
     src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
     src/simsoptpp/integral_BdotN.cpp
-    src/simsoptpp/psc.cpp
     src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
