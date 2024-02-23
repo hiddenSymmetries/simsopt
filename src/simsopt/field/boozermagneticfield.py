@@ -734,8 +734,8 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             first, last = angle_idxs[rank], angle_idxs[rank + 1]
             
             if (self.asym):
-                kmnc_buffer = np.empty((len(self.s_half_ext), len(self.xm_b)))
-            kmns_buffer = np.empty((len(self.s_half_ext), len(self.xm_b)))
+                kmnc_buffer = allocate_aligned_and_padded_array((len(self.s_half_ext), len(self.xm_b)))
+            kmns_buffer = allocate_aligned_and_padded_array((len(self.s_half_ext), len(self.xm_b)))
             thetas = thetas[first:last]
             zetas = zetas[first:last]
 
