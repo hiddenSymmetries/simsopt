@@ -302,6 +302,8 @@ def parallel_loop_bounds(comm, n):
 def align_and_pad(array, alignment=ALIGNMENT, dtype=np.dtype(np.float64)): 
     dims = array.ndim
     assert dims <= 2
+    if array.shape[0] == 0:
+        return array
     length = array.shape[1] if dims == 2 else len(array)
     padded = (length % (alignment//dtype.itemsize)) == 0
 
@@ -320,6 +322,8 @@ def align_and_pad(array, alignment=ALIGNMENT, dtype=np.dtype(np.float64)):
 
 def allocate_aligned_and_padded_array(shape, alignment=ALIGNMENT, dtype=np.dtype(np.float64)):
     assert len(shape) <= 2
+    if shape[0] == 0:
+        return np.array([])
     if len(shape) == 1:
         padded_shape = (-shape[0]%(alignment//dtype.itemsize)+shape[0], )
         padded_size = padded_shape[0]
