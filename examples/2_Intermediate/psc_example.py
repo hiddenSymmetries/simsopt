@@ -77,7 +77,7 @@ calculate_on_axis_B(bs, s)
 # Finally, initialize the psc class
 kwargs_geo = {"Nx": 10}  
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
-    s, Bnormal, s_inner, s_outer,  **kwargs_geo
+    s, Bnormal, bs, s_inner, s_outer,  **kwargs_geo
 )
 
 # plt.show()
