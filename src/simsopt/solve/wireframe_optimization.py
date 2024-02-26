@@ -154,7 +154,7 @@ def optimize_wireframe(wframe, algorithm, params, \
                          + 'instance')
 
     if verbose:
-        print('  Running Regularized Constrained Least Squares for a ' \
+        print('  Optimization of the segment currents in a ' \
               + 'ToroidalWireframe')
 
     # Mode 1: plasma boundary supplied; field calculation necessary
@@ -361,7 +361,7 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
         bn_plas_target = 0*area_weight
 
     # Calculate the target bnormal on the plasma boundary
-    c = ext_norm_target + bn_plas_target
+    c = np.ascontiguousarray(ext_norm_target + bn_plas_target)
 
     return A, c
 
