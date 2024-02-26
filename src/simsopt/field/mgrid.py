@@ -69,7 +69,11 @@ class MGrid():
         self.bz_arr = [] 
         self.bp_arr = [] 
 
-    def add_field_cylindrical(self, br, bp, bz, name=None):
+        self.ar_arr = []
+        self.az_arr = []
+        self.ap_arr = []
+
+    def add_field_cylindrical(self, br, bp, bz, ar, ap, az, name=None):
         '''
         This function saves the vector field B.
         B is defined by cylindrical components.
@@ -88,6 +92,9 @@ class MGrid():
             br: the radial component of B field
             bp: the azimuthal component of B field
             bz: the axial component of B field
+            ar: the radial component of the magnetic potential
+            ap: the azimuthal component of the magnetic potential
+            az: the axial component of the magnetic potential
             name: Name of the coil group
         '''
 
@@ -95,6 +102,11 @@ class MGrid():
         self.br_arr.append(br)
         self.bz_arr.append(bz)
         self.bp_arr.append(bp)
+        
+        # add potential
+        self.ar_arr.append(ar)
+        self.az_arr.append(az)
+        self.ap_arr.append(ap)
 
         # add coil label
         if (name is None):
@@ -103,6 +115,7 @@ class MGrid():
             label = _pad_string(name)
         self.coil_names.append(label)
         self.n_ext_cur = self.n_ext_cur + 1
+
 
         # TO-DO: this function could check for size consistency, between different fields, and for the (nr,nphi,nz) settings of a given instance
 
@@ -172,10 +185,16 @@ class MGrid():
                 var_br_001 = ds.createVariable('br'+tag, 'f8', ('phi', 'zee', 'rad'))
                 var_bp_001 = ds.createVariable('bp'+tag, 'f8', ('phi', 'zee', 'rad'))
                 var_bz_001 = ds.createVariable('bz'+tag, 'f8', ('phi', 'zee', 'rad'))
+                var_ar_001 = ds.createVariable('ar'+tag, 'f8', ('phi', 'zee', 'rad'))
+                var_ap_001 = ds.createVariable('ap'+tag, 'f8', ('phi', 'zee', 'rad'))
+                var_az_001 = ds.createVariable('az'+tag, 'f8', ('phi', 'zee', 'rad'))
 
                 var_br_001[:, :, :] = self.br_arr[j]
                 var_bz_001[:, :, :] = self.bz_arr[j]
                 var_bp_001[:, :, :] = self.bp_arr[j]
+                var_ar_001[:, :, :] = self.ar_arr[j]
+                var_az_001[:, :, :] = self.az_arr[j]
+                var_ap_001[:, :, :] = self.ap_arr[j]
 
     @classmethod 
     def from_file(cls, filename):
