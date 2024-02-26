@@ -1,6 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
-from jax import vjp, jacfwd, jvp
+from jax import vjp, jacfwd
 
 from .jit import jit
 import simsoptpp as sopp
@@ -13,7 +13,7 @@ from .._core.optimizable import Optimizable
 
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve2D', 'CurveCWSFourier']
+__all__ = ['Curve2D', 'CurveCWSFourierFree']
 
 def gamma_2d(modes, qpts, order):
     # Unpack dofs
@@ -113,7 +113,10 @@ class Curve2D( JaxCurve ):
         # Define pure function
         pure = jit(lambda dofs, points: gamma_2d(dofs, points, self.order))
 
-        self.dgamma_by_dpoint_vjp_jax = jit(lambda x, v: vjp(lambda d: pure(x, d), self.quadpoints)[1](v)[0])
+        self.gamma_flat = jit(lambda dofs, points: pure(dofs, points).flatten())
+        self.dgamma_by_dpoint = jit(lambda d, p: jacfwd(self.gamma_flat, argnums=1)(d, p))
+
+        #jax.vjp(f, x2)[1](v)
 
         # Call JaxCurve constructor
         if dofs is None:
@@ -206,7 +209,7 @@ def gamma_curve_on_surface(gamma2d, surf_dofs, qpts, mpol, ntor, nfp):
 
     return gamma
 
-class CurveCWSFourier( Optimizable ):
+class CurveCWSFourierFree( Optimizable ):
     def __init__(self, curve2d, surf):   
         
         self.curve = curve2d
@@ -227,82 +230,36 @@ class CurveCWSFourier( Optimizable ):
 
         # GAMMA DERIVATIVES
         self.dgamma_by_dcurve_jax = jit(lambda gamma2d, surf_dofs: jacfwd(self.gamma_jax, argnums=0)(gamma2d, surf_dofs))
+
+        self.gamma_flat = jit(lambda gamma2d, surf_dofs: self.gamma_jax(gamma2d, surf_dofs).flatten())
+        self.dgamma_flat_by_dcurve = jit(lambda gamma2d, surf_dofs: jacfwd(self.gamma_flat, argnums=0)(gamma2d, surf_dofs))
+
         self.dgamma_by_dsurf_jax = jit(lambda gamma2d, surf_dofs: jacfwd(self.gamma_jax, argnums=1)(gamma2d, surf_dofs))
         self.dgamma_by_dcurve_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(self.gamma_jax, gamma2d, surf_dofs)[1](v)[0])
         self.dgamma_by_dsurf_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(self.gamma_jax, gamma2d, surf_dofs)[1](v)[1])
 
 
-        self.gammadash_pure = lambda g2, sdofs, q: jvp(lambda p: self.gamma_pure(g2, sdofs, p), (q,), (self.curve.gammadash(),))[1]
-        self.gammadash_jax = jit(lambda g2, sdofs: self.gammadash_pure(g2, sdofs, points))
+        #self.gammadash_pure = lambda g2, sdofs, q: jvp(lambda p: self.gamma_pure(g2, sdofs, p), (q,), (self.curve.gammadash(),))[1]
+        # self.gammadash_jax = jit(lambda g2, sdofs: self.gammadash_pure(g2, sdofs, points))
 
         # GAMMADASH
-
-
-
-        # self.gammadash_pure = lambda dofs, surf_dofs, q: jvp(lambda p: self.gamma_pure(dofs, surf_dofs, p), (q,), (ones,))[1]
-        #self.gammadash_jax = jit(lambda dofs, surf_dofs: self.gammadash_pure(dofs, surf_dofs, points))
-
-        # # GAMMADASH DERIVATIVES
-        # self.dgammadash_by_dcurve_jax = jit(lambda dofs, surf_dofs: jacfwd(self.gammadash_jax, argnums=0)(dofs, surf_dofs))
-        # self.dgammadash_by_dsurf_jax = jit(lambda dofs, surf_dofs: jacfwd(self.gammadash_jax, argnums=1)(dofs, surf_dofs))
-        # self.dgammadash_by_dcurve_vjp_jax = jit(lambda dofs, surf_dofs, v: vjp(self.gammadash_jax, dofs, surf_dofs)[1](v)[0])
-        # self.dgammadash_by_dsurf_vjp_jax = jit(lambda dofs, surf_dofs, v: vjp(self.gammadash_jax, dofs, surf_dofs)[1](v)[1])
-
-        # # GAMMADASHDASH
-        # self.gammadashdash_pure = lambda dofs, surf_dofs, q: jvp(lambda p: self.gammadash_pure(dofs, surf_dofs, p), (q,), (ones,))[1]
-        # self.gammadashdash_jax = jit(lambda dofs, surf_dofs: self.gammadashdash_pure(dofs, surf_dofs, points))
-
-        # # GAMMADASH DERIVATIVES
-        # self.dgammadashdash_by_dcurve_jax = jit(lambda dofs, surf_dofs: jacfwd(self.gammadashdash_jax, argnums=0)(dofs, surf_dofs))
-        # self.dgammadashdash_by_dsurf_jax = jit(lambda dofs, surf_dofs: jacfwd(self.gammadashdash_jax, argnums=1)(dofs, surf_dofs))
-        # self.dgammadashdash_by_dcurve_vjp_jax = jit(lambda dofs, surf_dofs, v: vjp(self.gammadashdash_jax, dofs, surf_dofs)[1](v)[0])
-        # self.dgammadashdash_by_dsurf_vjp_jax = jit(lambda dofs, surf_dofs, v: vjp(self.gammadashdash_jax, dofs, surf_dofs)[1](v)[1])
-
-        # # GAMMADASHDASHDASH
-        # self.gammadashdashdash_pure = lambda dofs, surf_dofs, q: jvp(lambda p: self.gammadashdash_pure(dofs, surf_dofs, p), (q,), (ones,))[1]
-        # self.gammadashdashdash_jax = jit(lambda dofs, surf_dofs: self.gammadashdashdash_pure(dofs, surf_dofs, points))
-
-        # # GAMMADASHDASH DERIVATIVES
-        # self.dgammadashdashdash_by_dcurve_jax = jit(lambda dofs, surf_dofs: jacfwd(self.gammadashdashdash_jax, argnums=0)(dofs, surf_dofs))
-        # self.dgammadashdashdash_by_dsurf_jax = jit(lambda dofs, surf_dofs: jacfwd(self.gammadashdashdash_jax, argnums=1)(dofs, surf_dofs))
-        # self.dgammadashdashdash_by_dcurve_vjp_jax = jit(lambda dofs, surf_dofs, v: vjp(self.gammadashdashdash_jax, dofs, surf_dofs)[1](v)[0])
-        # self.dgammadashdashdash_by_dsurf_vjp_jax = jit(lambda dofs, surf_dofs, v: vjp(self.gammadashdashdash_jax, dofs, surf_dofs)[1](v)[1])
-
-        # # CURVATURE
-        # self.dkappa_by_dcurve_vjp_jax = jit(lambda dofs, curve_dofs, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), dofs, curve_dofs)[1](v)[0])
-        # self.dkappa_by_dsurf_vjp_jax = jit(lambda dofs, curve_dofs, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), dofs, curve_dofs)[1](v)[1])
-
-        # # TORSION
-        # self.dtorsion_by_dcurve_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
-        # self.dtorsion_by_dsurf_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[1])
-
-
-    # def gamma_impl(self, gamma, quadpoints):
-    #     r"""
-    #     This function returns the x,y,z coordinates of the curve :math:`\Gamma`.
-    #     """
-    #     gamma[:, :] = self.gamma_impl_jax(self.curve.gamma(), self.surf.get_dofs(), quadpoints)
 
 
     # GAMMA AND DERIVATIVES
     def gamma(self):
         gamma2d = self.curve.gamma()
         surf_dofs = self.surf.get_dofs()
-        return self.gamma_jax(gamma2d, surf_dofs)
+        return self.gamma_jax(gamma2d, surf_dofs)        
 
     def gammadash(self):
         gamma2d = self.curve.gamma()
         surf_dofs = self.surf.get_dofs()
-        grad0 = self.dgamma_by_dcurve_jax(gamma2d, surf_dofs)
+        J1 = self.dgamma_flat_by_dcurve(gamma2d, surf_dofs)
 
-        #return self.curve.dgamma_by_dpoint_vjp(grad0)
-        return self.gammadash_jax(gamma2d, surf_dofs)
-        
-
-    # def gammadash(self):
-    #     gamma2d = self.curve.gamma()
-    #     surf_dofs = self.surf.get_dofs()
-    #     return self.gammada(gamma2d, surf_dofs)
+        curve_dofs = self.curve.get_dofs()
+        pts = self.curve.quadpoints
+        J2 = self.curve.dgamma_by_dpoint(curve_dofs, pts)
+        return J2 @ J1.T
         
 
 
