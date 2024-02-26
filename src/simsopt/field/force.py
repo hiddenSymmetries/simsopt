@@ -48,6 +48,7 @@ def self_force_rect(coil, a, b):
     """Compute the Lorentz self-force of a coil with rectangular cross-section"""
     return self_force(coil, regularization_rect(a, b))
 
+
 @jit
 def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold):
     r"""Pure function for minimizing the Lorentz force on a coil.
