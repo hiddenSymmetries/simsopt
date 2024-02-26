@@ -127,17 +127,24 @@ class MagneticField(sopp.MagneticField, Optimizable):
         # get field on the grid
         self.set_points_cyl(RPhiZ)
         B = self.B_cyl()
+        A = self.A_cyl()
 
         # shape the components
         br, bp, bz = B.T
         br_3 = br.reshape((nphi, nz, nr))
         bp_3 = bp.reshape((nphi, nz, nr))
         bz_3 = bz.reshape((nphi, nz, nr))
+        
+        # shape the Potential components
+        ar, ap, az = A.T
+        ar_3 = ar.reshape((nphi, nz, nr))
+        ap_3 = ap.reshape((nphi, nz, nr))
+        az_3 = az.reshape((nphi, nz, nr))
 
         mgrid = MGrid(nfp=nfp,
                       nr=nr, nz=nz, nphi=nphi,
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
-        mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
+        mgrid.add_field_cylindrical(br_3, bp_3, bz_3, ar_3, ap_3, az_3, name='simsopt_coils')  
 
         mgrid.write(filename)
 
