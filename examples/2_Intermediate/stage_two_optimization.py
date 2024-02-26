@@ -25,7 +25,6 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
                          CurveLength, CurveCurveDistance, MeanSquaredCurvature,

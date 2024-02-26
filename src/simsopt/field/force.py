@@ -30,7 +30,8 @@ def self_force(coil, regularization):
     Compute the self-force of a coil.
     """
     I = coil.current.get_value()
-    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(),axis=1)[:, None]
+    tangent = coil.curve.gammadash() / np.linalg.norm(coil.curve.gammadash(),
+                                                      axis=1)[:, None]
     B = B_regularized(coil, regularization)
     return coil_force_pure(B, I, tangent)
 
