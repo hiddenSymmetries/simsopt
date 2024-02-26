@@ -5,11 +5,12 @@ import jax.numpy as jnp
 from jax import grad
 from .biotsavart import BiotSavart
 from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
-from jax import jit
+from ..geo.jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
+
 
 def coil_force(coil, allcoils, regularization):
     gammadash = coil.curve.gammadash()
@@ -21,9 +22,11 @@ def coil_force(coil, allcoils, regularization):
     selfforce = self_force(coil, regularization)
     return selfforce + mutualforce
 
+
 def coil_force_pure(B, I, t):
     """force on coil for optimization"""
     return jnp.cross(I * t, B)
+
 
 def self_force(coil, regularization):
     """
@@ -35,20 +38,15 @@ def self_force(coil, regularization):
     B = B_regularized(coil, regularization)
     return coil_force_pure(B, I, tangent)
 
+
 def self_force_circ(coil, a):
     """Compute the Lorentz self-force of a coil with circular cross-section"""
     return self_force(coil, regularization_circ(a))
 
+
 def self_force_rect(coil, a, b):
     """Compute the Lorentz self-force of a coil with rectangular cross-section"""
     return self_force(coil, regularization_rect(a, b))
-
-@jit
-def selfforce_opt_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
-    """..."""
-    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
-    tangent = gammadash / jnp.linalg.norm(gammadash, axis=1)[:, None]
-    return coil_force_pure(B_self, current, tangent)
 
 @jit
 def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold):
@@ -57,7 +55,7 @@ def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regulari
     The function is
 
      .. math::
-        J = \left(\int \text{max}(|\vec{F}| - F_0, 0)^p \ell\right)^{1/p}
+        J = \left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)^{1/p}
 
     where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
     and :math:`\ell` is arclength along the coil.
@@ -77,7 +75,7 @@ class LpCurveForce(Optimizable):
     The objective function is
 
     .. math::
-        J = \left(\int \text{max}(|\vec{F}| - F_0, 0)^p \ell\right)^{1/p}
+        J = \left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)^{1/p}
 
     where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
     and :math:`\ell` is arclength along the coil.
@@ -126,11 +124,11 @@ class LpCurveForce(Optimizable):
         self.biotsavart.set_points(self.coil.curve.gamma())
 
         args = [
-        self.coil.curve.gamma(),
-        self.coil.curve.gammadash(),
-        self.coil.curve.gammadashdash(),
-        self.coil.current.get_value(),
-        self.biotsavart.B()
+            self.coil.curve.gamma(),
+            self.coil.curve.gammadash(),
+            self.coil.curve.gammadashdash(),
+            self.coil.current.get_value(),
+            self.biotsavart.B()
         ]     
 
         return self.J_jax(*args)
@@ -140,26 +138,27 @@ class LpCurveForce(Optimizable):
         self.biotsavart.set_points(self.coil.curve.gamma())
 
         args = [
-        self.coil.curve.gamma(),
-        self.coil.curve.gammadash(),
-        self.coil.curve.gammadashdash(),
-        self.coil.current.get_value(),
-        self.biotsavart.B()
+            self.coil.curve.gamma(),
+            self.coil.curve.gammadash(),
+            self.coil.curve.gammadashdash(),
+            self.coil.current.get_value(),
+            self.biotsavart.B()
         ]
 
         dJ_dB = self.dJ_dB_mutual(*args)
         dB_dX = self.biotsavart.dB_by_dX()
-        dJ_dX = np.einsum('ij,ikj->ik',dJ_dB,dB_dX)
+        dJ_dX = np.einsum('ij,ikj->ik', dJ_dB, dB_dX)
 
         return (
-        self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
-        + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
-        + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
-        + self.coil.current.vjp(self.dJ_dcurrent(*args))
-        + self.biotsavart.B_vjp(dJ_dB)
+            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
+            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
+            + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
+            + self.coil.current.vjp(self.dJ_dcurrent(*args))
+            + self.biotsavart.B_vjp(dJ_dB)
         )
 
     return_fn_map = {'J': J, 'dJ': dJ}
+
 
 @jit
 def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual):
@@ -180,6 +179,7 @@ def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current
     force = jnp.cross(current * tangent, B_self + B_mutual)
     force_norm = jnp.linalg.norm(force, axis=1)[:, None]
     return jnp.sum(gammadash_norm * force_norm**2) / jnp.sum(gammadash_norm)
+
 
 class MeanSquaredForce(Optimizable):
     r"""Optimizable class to minimize the Lorentz force on a coil.
@@ -235,11 +235,11 @@ class MeanSquaredForce(Optimizable):
         self.biotsavart.set_points(self.coil.curve.gamma())
 
         args = [
-        self.coil.curve.gamma(),
-        self.coil.curve.gammadash(),
-        self.coil.curve.gammadashdash(),
-        self.coil.current.get_value(),
-        self.biotsavart.B()
+            self.coil.curve.gamma(),
+            self.coil.curve.gammadash(),
+            self.coil.curve.gammadashdash(),
+            self.coil.current.get_value(),
+            self.biotsavart.B()
         ]     
 
         return self.J_jax(*args)
@@ -249,23 +249,23 @@ class MeanSquaredForce(Optimizable):
         self.biotsavart.set_points(self.coil.curve.gamma())
 
         args = [
-        self.coil.curve.gamma(),
-        self.coil.curve.gammadash(),
-        self.coil.curve.gammadashdash(),
-        self.coil.current.get_value(),
-        self.biotsavart.B()
+            self.coil.curve.gamma(),
+            self.coil.curve.gammadash(),
+            self.coil.curve.gammadashdash(),
+            self.coil.current.get_value(),
+            self.biotsavart.B()
         ]
 
         dJ_dB = self.dJ_dB_mutual(*args)
         dB_dX = self.biotsavart.dB_by_dX()
-        dJ_dX = np.einsum('ij,ikj->ik',dJ_dB,dB_dX)
+        dJ_dX = np.einsum('ij,ikj->ik', dJ_dB, dB_dX)
 
         return (
-        self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
-        + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
-        + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
-        + self.coil.current.vjp(self.dJ_dcurrent(*args))
-        + self.biotsavart.B_vjp(dJ_dB)
+            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
+            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
+            + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
+            + self.coil.current.vjp(self.dJ_dcurrent(*args))
+            + self.biotsavart.B_vjp(dJ_dB)
         )
 
     return_fn_map = {'J': J, 'dJ': dJ}

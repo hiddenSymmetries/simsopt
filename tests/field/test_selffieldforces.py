@@ -16,7 +16,12 @@ from simsopt.field.selffield import (
     rectangular_xsection_delta,
     regularization_circ,
 )
-from simsopt.field.force import self_force_circ, self_force_rect, MeanSquaredForce, LpCurveForce
+from simsopt.field.force import (
+    coil_force,
+    self_force_circ, 
+    self_force_rect, 
+    MeanSquaredForce, 
+    LpCurveForce)
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +217,7 @@ class CoilForcesTest(unittest.TestCase):
 
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-        [current.fix_all() for current in currents]
+        currents[0].fix_all()
 
         J = MeanSquaredForce(coils[0], coils, regularization_circ(0.05))
         dJ = J.dJ()
@@ -220,7 +225,7 @@ class CoilForcesTest(unittest.TestCase):
         dofs = J.x
         h = np.ones_like(dofs)
         err = 100
-        for i in range(10, 19):
+        for i in range(10, 18):
             eps = 0.5**i
             J.x = dofs + eps * h
             Jp = J.J()
@@ -229,7 +234,7 @@ class CoilForcesTest(unittest.TestCase):
             deriv_est = (Jp - Jm) / (2 * eps)
             err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
             # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
-            np.testing.assert_array_less(err_new, 0.6 * err)
+            np.testing.assert_array_less(err_new, 0.3 * err)
             err = err_new
 
     def test_lpcurveforces_taylor_test(self):
@@ -239,7 +244,7 @@ class CoilForcesTest(unittest.TestCase):
 
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-        [current.fix_all() for current in currents]
+        currents[0].fix_all()
 
         J = LpCurveForce(coils[0], coils, regularization_circ(0.05), 2.5)
         dJ = J.dJ()
@@ -256,8 +261,9 @@ class CoilForcesTest(unittest.TestCase):
             deriv_est = (Jp - Jm) / (2 * eps)
             err_new = np.abs(deriv_est - deriv) / np.abs(deriv)
             # print("i:", i, "deriv_est:", deriv_est, "deriv:", deriv, "err_new:", err_new, "err:", err, "ratio:", err_new / err)
-            np.testing.assert_array_less(err_new, 0.6 * err)
+            np.testing.assert_array_less(err_new, 0.31 * err)
             err = err_new
+
 
 if __name__ == '__main__':
     unittest.main()

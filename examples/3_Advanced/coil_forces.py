@@ -39,7 +39,8 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-06)
+LENGTH_WEIGHT = Weight(1e03)
+LENGTH_TARGET = 17.4
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -102,17 +103,19 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
+
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jforce = [MeanSquaredForce(c, coils, regularization_circ(0.05)) for c in base_coils]
 
+
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
 # multiplied by scalars and added:
 JF = Jf \
-    + LENGTH_WEIGHT * sum(Jls) \
+    + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max") \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
@@ -122,6 +125,7 @@ JF = Jf \
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
+
 
 def fun(dofs):
     JF.x = dofs
@@ -169,6 +173,7 @@ def pointData_forces(coils):
         forces = np.concatenate([forces, force])
     point_data = {"F": forces}
     return point_data
+
 
 dofs = JF.x
 FORCE_WEIGHT += 0
