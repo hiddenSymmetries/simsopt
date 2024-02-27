@@ -70,7 +70,8 @@ def gamma_curve_on_surface(modes, qpts, order, surf_dofs, mpol, ntor, nfp):
 
     return gamma
 
-def zfactor(modes, qpts, order, surf_dofs, mpol, ntor, nfp, k=10):
+def normal(modes, qpts, order, surf_dofs, mpol, ntor, nfp):
+
     # Unpack dofs
     phic = modes[:order+1]
     phis = modes[order+1:2*order+1]
@@ -124,8 +125,21 @@ def zfactor(modes, qpts, order, surf_dofs, mpol, ntor, nfp, k=10):
             dzdt = dzdt + mm * zs[counter] * jnp.cos(mm*th - nn*ph)
             dzdp = dzdp - nn * nfp * zs[counter] * jnp.cos(mm*th - nn*ph)
 
+    n = jnp.zeros((qpts.size, 3))
+    nnorm = jnp.sqrt(r**2 * (drdt**2 + dzdt**2) + (drdp*dzdt-drdt*dzdp)**2)
     
-    return -r*drdt / jnp.sqrt(r**2 * (drdt**2 + dzdt**2) + (drdp*dzdt-drdt*dzdp)**2)
+    n = n.at[:,0].set(  r*dzdt / nnorm )
+    n = n.at[:,1].set( -(drdp*dzdt-drdt*dzdp) / nnorm )
+    n = n.at[:,2].set( -r*drdt / nnorm )
+    
+    return n
+
+
+def nfactor(modes, qpts, order, surf_dofs, mpol, ntor, nfp, direction='z'):
+    if direction=='z':
+        return normal(modes, qpts, order, surf_dofs, mpol, ntor, nfp)[:,2]
+    elif direction=='r':
+        return normal(modes, qpts, order, surf_dofs, mpol, ntor, nfp)[:,0]
 
     
 
@@ -170,20 +184,23 @@ class CurveCWSFourier( JaxCurve ):
                 names=self._make_names()
                 )
 
-        self.snz = jit(lambda dofs: zfactor(dofs, self.quadpoints, self.order, self.surf.x, self.surf.mpol, self.surf.ntor, self.surf.nfp))
+        self.snz = jit(lambda dofs: nfactor(dofs, self.quadpoints, self.order, self.surf.x, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='z'))
+        self.snr = jit(lambda dofs: nfactor(dofs, self.quadpoints, self.order, self.surf.x, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='r'))
 
-        self.dsnz_by_dcoeff_jax = jit(lambda dofs: jacfwd(self.normal_z))
         self.dsnz_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.snz, x)[1](v)[0])
+        self.dsnr_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.snr, x)[1](v)[0])
 
     def zfactor(self):
         return self.snz(self.get_dofs())
-    
-    def dzfactor_by_dcoeff(self, dsnz_by_dcoeff):
-        dsnz_by_dcoeff[:, :] = self.dsnz_by_dcoeff_jax(self.get_dofs())
 
     def dzfactor_by_dcoeff_vjp(self, v):
         return Derivative({self: self.dsnz_by_dcoeff_vjp_jax(self.get_dofs(), v)})
 
+    def rfactor(self):
+        return self.snr(self.get_dofs())
+
+    def drfactor_by_dcoeff_vjp(self, v):
+        return Derivative({self: self.dsnr_by_dcoeff_vjp_jax(self.get_dofs(), v)})
 
     def num_dofs(self):
         return 2*(self.order+1) + 2*self.order
