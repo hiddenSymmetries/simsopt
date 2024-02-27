@@ -126,6 +126,9 @@ def optimize_wireframe(wframe, algorithm, params, \
         nHistory: integer
             Number of intermediate solutions to record, evenly spaced among the 
             iterations
+        max_loop_count: integer (optional)
+            If nonzero, sets the maximum number of current increments to add
+            to a given loop in the wireframe (default is zero)
         x_init: double array (optional)
             Initial values of the segment currents; zero by default
         loop_count_init: integer array (optional)
@@ -216,6 +219,9 @@ def optimize_wireframe(wframe, algorithm, params, \
                 raise ValueError(('params dictionary must contain ''%s'' for ' \
                                   + 'the GSCO algorithm') % (v))
 
+        # Set default values if necessary
+        max_loop_count = 0 if 'max_loop_count' not in params \
+            else params['max_loop_count']
         x_init = None if 'x_init' not in params else params['x_init']
         loop_count_init = None if 'loop_count_init' not in params \
             else params['loop_count_init']
@@ -225,8 +231,8 @@ def optimize_wireframe(wframe, algorithm, params, \
                            params['no_crossing'], params['match_current'], \
                            params['default_current'], params['max_current'], \
                            params['nIter'], params['nHistory'], \
-                           x_init=x_init, loop_count_init=loop_count_init, \
-                           verbose=verbose)
+                           max_loop_count=max_loop_count, x_init=x_init, \
+                           loop_count_init=loop_count_init, verbose=verbose)
 
         results['loop_count'] = loop_count
         results['x_hist'] = x_hist
@@ -449,7 +455,8 @@ def rcls_wireframe(wframe, Amat, cvec, reg_lambda, assume_no_crossings, \
 
 def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
                    default_current, max_current, nIter, nHistory, \
-                   x_init=None, loop_count_init=None, verbose=True):
+                   max_loop_count=0, x_init=None, loop_count_init=None, \
+                   verbose=True):
     """
     Runs the Greedy Stellarator Coil Optimization algorithm to optimize the
     currents in a wireframe.
@@ -485,6 +492,9 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
         nHistory: integer
             Number of intermediate solutions to record, evenly spaced among the 
             iterations
+        max_loop_count: integer (optional)
+            If nonzero, sets the maximum number of current increments to add
+            to a given loop in the wireframe (default is zero)
         x_init: contiguous double array (optional)
             Initial values of the segment currents; zero by default
         loop_count_init: contiguous integer array (optional)
@@ -542,7 +552,7 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     x, loop_count, x_history, f_B_history, f_S_history, f_history = \
         sopp.GSCO(no_crossing, match_current, A, c, \
                   np.abs(default_current), np.abs(max_current), \
-                  loops, free_loops, \
+                  np.abs(max_loop_count), loops, free_loops, \
                   segments, connections, lambda_S, nIter, \
                   x_init, loop_count_init, nHistory)
     t1 = time.time()
