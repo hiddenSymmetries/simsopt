@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from simsopt.field import BiotSavart, DipoleField
+from simsopt.field import BiotSavart
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.geo.psc_grid import PSCgrid
 from simsopt.objectives import SquaredFlux
@@ -18,8 +18,8 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 32
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 64
     # Make higher resolution surface for plotting Bnormal
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -66,7 +66,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # optimize the currents in the TF coils
 bs = coil_optimization(s, bs, base_curves, curves, out_dir)
-curves_to_vtk(curves, out_dir / "TF_coils")
+curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
@@ -75,9 +75,12 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 calculate_on_axis_B(bs, s)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10}  
+kwargs_geo = {"Nx": 12}  
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, bs, s_inner, s_outer,  **kwargs_geo
 )
+
+make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial")
+make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial")
 
 # plt.show()

@@ -8,6 +8,7 @@ from . import Surface
 import simsoptpp as sopp
 from simsopt.field import BiotSavart
 from scipy.integrate import simpson, dblquad, IntegrationWarning
+import time
 
 __all__ = ['PSCgrid']
 
@@ -185,7 +186,7 @@ class PSCgrid:
         psc_grid: An initialized PSCgrid class object.
 
         """
-        
+                
         psc_grid = cls() 
         Bn = np.array(Bn)
         if len(Bn.shape) != 2: 
@@ -219,6 +220,7 @@ class PSCgrid:
         Nt = kwargs.pop("Nt", 1)
         psc_grid.Nt = Nt
         # Have the uniform grid, now need to loop through and eliminate cells.
+        t1 = time.time()
         contig = np.ascontiguousarray
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
@@ -249,11 +251,34 @@ class PSCgrid:
              -np.sin(psc_grid.alphas),
              np.cos(psc_grid.alphas) * np.cos(psc_grid.deltas)]
         ).T
+        t2 = time.time()
+        print('Initialize grid time = ', t2 - t1)
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
+        
+        t1 = time.time()
         psc_grid.fluxes(psc_grid.alphas, psc_grid.deltas)
-        psc_grid.inductances(psc_grid.alphas, psc_grid.deltas)
+        t2 = time.time()
+        print('Fluxes time = ', t2 - t1)
+        t1 = time.time()
+        phi = np.linspace(0, 2 * np.pi, 50, endpoint=False)
+        dphi = phi[1] - phi[0]
+        contig = np.ascontiguousarray
+        psc_grid.L = sopp.L_matrix(
+            contig(psc_grid.grid_xyz), 
+            contig(psc_grid.alphas), 
+            contig(psc_grid.deltas),
+            contig(phi),
+            psc_grid.R,
+        ) * dphi ** 2 / (4 * np.pi)
+        psc_grid.L = (psc_grid.L + psc_grid.L.T)
+        np.fill_diagonal(psc_grid.L, np.log(8.0 * psc_grid.R / psc_grid.a) - 2.0)
+        psc_grid.L = psc_grid.L * psc_grid.mu0 * psc_grid.R * psc_grid.Nt ** 2
+        t2 = time.time()
+        print('Inductances time = ', t2 - t1)
+        psc_grid.setup_curves()
+        psc_grid.setup_currents_and_fields()
         psc_grid.plot_curves()
 
         # psc_grid._optimization_setup()
@@ -269,6 +294,9 @@ class PSCgrid:
         deltas,
         **kwargs,
     ):
+        from simsopt.util.permanent_magnet_helper_functions import initialize_coils
+        from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves
+        from simsopt.field import Current, coils_via_symmetries
         
         psc_grid = cls()
         psc_grid.grid_xyz = points
@@ -285,8 +313,41 @@ class PSCgrid:
         if len(Bn.shape) != 2: 
             raise ValueError('Normal magnetic field surface data is incorrect shape.')
         psc_grid.Bn = Bn
-        
-        B_TF = kwargs.pop("B_TF", np.zeros((1, 3)))
+    
+        # initialize default plasma boundary
+        input_name = 'input.LandremanPaul2021_QA_lowres'
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
+        surface_filename = TEST_DIR / input_name
+        default_surf = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='full torus', nphi=16, ntheta=16
+        )
+        psc_grid.plasma_boundary = kwargs.pop("plasma_boundary", default_surf)
+        psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
+        psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
+        # generate planar TF coils
+        ncoils = 2
+        R0 = 1.0
+        R1 = 0.65
+        order = 4
+        # qa needs to be scaled to 0.1 T on-axis magnetic field strength
+        total_current = 1e6
+        base_curves = create_equally_spaced_curves(
+            ncoils, psc_grid.plasma_boundary.nfp, 
+            stellsym=psc_grid.plasma_boundary.stellsym, 
+            R0=R0, R1=R1, order=order, numquadpoints=32
+        )
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+        total_current = Current(total_current)
+        total_current.fix_all()
+        base_currents += [total_current - sum(base_currents)]
+        default_coils = coils_via_symmetries(base_curves, base_currents, 
+                                     psc_grid.plasma_boundary.nfp, 
+                                     psc_grid.plasma_boundary.stellsym)
+        # fix all the coil shapes so only the currents are optimized
+        for i in range(ncoils):
+            base_curves[i].fix_all()
+            
+        B_TF = kwargs.pop("B_TF", BiotSavart(default_coils))
         psc_grid.B_TF = B_TF
         
         contig = np.ascontiguousarray
@@ -308,35 +369,64 @@ class PSCgrid:
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
-        if isinstance(B_TF, BiotSavart):
-            psc_grid.fluxes(psc_grid.alphas, psc_grid.deltas)
-        psc_grid.inductances(psc_grid.alphas, psc_grid.deltas)
+        psc_grid.fluxes(psc_grid.alphas, psc_grid.deltas)
+        phi = np.linspace(0, 2 * np.pi, 50, endpoint=False)
+        dphi = phi[1] - phi[0]
+        contig = np.ascontiguousarray
+        psc_grid.L = sopp.L_matrix(
+            contig(psc_grid.grid_xyz), 
+            contig(psc_grid.alphas), 
+            contig(psc_grid.deltas),
+            contig(phi),
+            psc_grid.R,
+        ) * dphi ** 2 / (4 * np.pi)
+        psc_grid.L = (psc_grid.L + psc_grid.L.T)
+        np.fill_diagonal(psc_grid.L, np.log(8.0 * R / psc_grid.a) - 2.0)
+        psc_grid.L *= psc_grid.mu0 * psc_grid.R * psc_grid.Nt ** 2
+        # psc_grid.inductances(psc_grid.alphas, psc_grid.deltas)
+        psc_grid.setup_curves()
+        psc_grid.setup_currents_and_fields()
         psc_grid.plot_curves()
         
         return psc_grid
-
-    def plot_curves(self):
-        
-        from . import CurvePlanarFourier, curves_to_vtk
-        from pyevtk.hl import pointsToVTK
-
-        # r(\phi) = \sum_{m=0}^{\text{order}} r_{c,m}\cos(m \phi) + \sum_{m=1}^{\text{order}} r_{s,m}\sin(m \phi).
-        # [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, q_0, q_i, q_j, q_k, x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
     
+    def setup_currents_and_fields(self):
+        """ """
+        from simsopt.field import coils_via_symmetries, Current
+
+        # Make coils that can be used with BiotSavart
+        L_inv = np.linalg.inv(self.L)
+        self.I = -L_inv @ self.psi
+        currents = []
+        for i in range(len(self.I)):
+            currents.append(Current(self.I[i]))
+        
+        coils = coils_via_symmetries(
+            self.curves, currents, nfp=1, stellsym=False
+        )
+        self.coils = coils
+        bs = BiotSavart(coils)
+        self.B_PSC = bs
+        bs.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
+        Bnormal = np.sum(bs.B().reshape(
+            self.nphi, self.ntheta, 3
+        ) * self.plasma_boundary.unitnormal(), axis=2)
+        self.Bn_PSC = Bnormal
+    
+    def setup_curves(self):
+        """ """
+        from . import CurvePlanarFourier
+
         order = 1
         ncoils = self.num_psc
-        # self.I = np.zeros(ncoils)
-    
-        # Set the degrees of freedom in the coil objects
-        # base_currents = [Current(coilcurrents[i]) for i in range(ncoils)]
         ppp = 40
         curves = [CurvePlanarFourier(order*ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
         for ic in range(ncoils):
             xyz = self.grid_xyz[ic, :]
             dofs = np.zeros(10)
             dofs[0] = self.R
-            dofs[1] = 0.0  # self.R
-            dofs[2] = 0.0  #self.R
+            dofs[1] = 0.0
+            dofs[2] = 0.0
             # Conversion from Euler angles in 3-2-1 body sequence to 
             # quaternions: 
             # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
@@ -349,9 +439,14 @@ class PSCgrid:
             dofs[8] = xyz[1]
             dofs[9] = xyz[2] 
             curves[ic].set_dofs(dofs)
-        curves_to_vtk(curves, "psc_curves")
         self.curves = curves
+
+    def plot_curves(self):
         
+        from pyevtk.hl import pointsToVTK
+        from . import curves_to_vtk
+        
+        curves_to_vtk(self.curves, "psc_curves", close=True, scalar_data=self.I)
         contig = np.ascontiguousarray
         if isinstance(self.B_TF, BiotSavart):
             self.B_TF.set_points(self.grid_xyz)
@@ -364,6 +459,7 @@ class PSCgrid:
                                     contig(self.coil_normals[:, 1]),
                                     contig(self.coil_normals[:, 2])),
                               "psi": contig(self.psi),
+                              "I": contig(self.I),
                               "B_TF": (contig(B[:, 0]), 
                                        contig(B[:, 1]),
                                        contig(B[:, 2])),
@@ -379,18 +475,36 @@ class PSCgrid:
                                     contig(self.coil_normals[:, 2])),
                               },
             )
-        # return coils
     
     def inductances(self, alphas, deltas):
         """ Calculate the inductance matrix needed for the PSC forward problem """
         points = self.grid_xyz
-        nphi = 20
+        nphi = 10
         phi = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
         dphi = phi[1] - phi[0]
         R = self.R
         r = self.a
         ncoils = self.num_psc
         L = np.zeros((ncoils, ncoils))
+        
+        def integrand(yy, xx, cdi, sdi, cai, sai, xj, yj, zj, cdj, sdj, caj, saj):
+            ck = np.cos(xx)
+            sk = np.sin(xx)
+            ckk = np.cos(yy)
+            skk = np.sin(yy)
+            return ((-sk * cdi + ck * sai * sdi) * (
+                -skk * cdj + ckk * saj * sdj
+                ) + (ck * cai) * (ckk * caj) + (
+                    sk * sdi + ck * sai * cdi
+                    ) * (skk * sdj + ckk * saj * cdj
+                         )) / np.sqrt((
+                             xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi
+                             ) ** 2 + (
+                                 yj + skk * caj - sk * cai
+                                 ) ** 2 + (
+                                     zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi
+                                     ) ** 2)
+        
         for i in range(ncoils):
     	    # Loop through all the PSCs, using all the symmetries
             cdi = np.cos(deltas[i])
@@ -405,43 +519,42 @@ class PSCgrid:
                 sdj = np.sin(deltas[j])
                 caj = np.cos(alphas[j])
                 saj = np.sin(alphas[j])
-                integrand = 0.0
-                for k in range(nphi):
-                    ck = np.cos(phi[k])
-                    sk = np.sin(phi[k])
-                    for kk in range(nphi):
-                        ckk = np.cos(phi[kk])
-                        skk = np.sin(phi[kk])
-                        dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj)
-                        dl2_y = (ck * cai) * (ckk * caj)
-                        dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj)
-                        numerator = dl2_x + dl2_y + dl2_z
-                        x2 = (xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi) ** 2
-                        y2 = (yj + skk * caj - sk * cai) ** 2
-                        z2 = (zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi) ** 2
-                        integrand += numerator / np.sqrt(x2 + y2 + z2)
-                        # integrand += (ck * ckk * ca + sk * skk * cd - ckk * sk * sa * sd) / np.sqrt(
-                        #     (xj - ck + ckk * cd - skk * sa * sd) ** 2 + (
-                        #         yj - sk + skk * ca) ** 2 + (
-                        #             zj + ckk * sd - skk * sa * cd) ** 2)
-                        # integrand += (ck * ckk * ca + sk * skk * cd - ck * skk * sa * sd) / np.sqrt(
-                        #     (xj + ckk - ck * cd - sk * sa * sd) ** 2 + (
-                        #         yj + skk - sk * ca) ** 2 + (
-                        #             zj + ck * sd - sk * sa * cd) ** 2)
-                L[i, j] = integrand * dphi ** 2 / (4.0 * np.pi)
+                # integrand = 0.0
+                # for k in range(nphi):
+                #     ck = np.cos(phi[k])
+                #     sk = np.sin(phi[k])
+                #     for kk in range(nphi):
+                #         ckk = np.cos(phi[kk])
+                #         skk = np.sin(phi[kk])
+                #         dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj)
+                #         dl2_y = (ck * cai) * (ckk * caj)
+                #         dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj)
+                #         x2 = (xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi) ** 2
+                #         y2 = (yj + skk * caj - sk * cai) ** 2
+                #         z2 = (zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi) ** 2
+                #         integrand += (dl2_x + dl2_y + dl2_z) / np.sqrt(x2 + y2 + z2)
                 # def integrand(yy, xx):
                 #     ck = np.cos(xx)
                 #     sk = np.sin(xx)
                 #     ckk = np.cos(yy)
                 #     skk = np.sin(yy)
-                #     return (ck * ckk * ca + sk * skk * cd - ck * skk * sa * sd) / np.sqrt(
-                #                  (xj + ckk - ck * cd - sk * sa * sd) ** 2 + (
-                #                      yj + skk - sk * ca) ** 2 + (
-                #                          zj + ck * sd - sk * sa * cd) ** 2)
-                # integral, err = dblquad(integrand, 0, 2 * np.pi, 0, 2 * np.pi)
-                # L[i, j] = integral / (4.0 * np.pi)
+                #     dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj)
+                #     dl2_y = (ck * cai) * (ckk * caj)
+                #     dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj)
+                #     x2 = (xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi) ** 2
+                #     y2 = (yj + skk * caj - sk * cai) ** 2
+                #     z2 = (zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi) ** 2
+                #     return (dl2_x + dl2_y + dl2_z) / np.sqrt(x2 + y2 + z2)
+                try:
+                    integral, err = dblquad(
+                        integrand, 0, 2 * np.pi, 0, 2 * np.pi, 
+                        args=(cdi, sdi, cai, sai, xj, yj, zj, cdj, sdj, caj, saj)
+                    )
+                except IntegrationWarning:
+                    print('Integral is divergent')
+                L[i, j] = integral
         # symmetrize and scale
-        L = L + L.T
+        L = (L + L.T) / (4.0 * np.pi)  # * dphi ** 2
         np.fill_diagonal(L, np.log(8.0 * R / r) - 2.0)
         self.L = L * self.mu0 * R * self.Nt ** 2
         
@@ -449,64 +562,34 @@ class PSCgrid:
         import warnings
         warnings.filterwarnings("error")
         
-        # rho = np.linspace(0, self.R, 1000)
-        # drho = rho[1] - rho[0]
-        # theta = np.linspace(0, 2 * np.pi, 1000)
-        # dtheta = theta[1] - theta[0]
-        # rho, theta = np.meshgrid(rho, theta, indexing='ij')
         fluxes = np.zeros(len(alphas))
         centers = self.grid_xyz
         bs = self.B_TF
         plot_points = []
         Bzs = []
         for j in range(len(alphas)):
-            
-            # xyz_coil = np.array([x * np.ones(rho.shape) + rho * np.cos(theta),
-            #                      y * np.ones(rho.shape) + rho * np.sin(theta),
-            #                      z * np.ones(rho.shape)]).T.reshape(-1, 3)
-            # bs.set_points(xyz_coil)
-            # Bz = bs.B() @ self.coil_normals[j, :]
-            
+            cd = np.cos(deltas[j])
+            ca = np.cos(alphas[j])
+            sd = np.sin(deltas[j])
+            sa = np.sin(alphas[j])
+            nj = self.coil_normals[j, :]
+            xj = centers[j, 0]
+            yj = centers[j, 1]
+            zj = centers[j, 2]
             def Bz_func(yy, xx):
                 x0 = xx * np.cos(yy)
                 y0 = xx * np.sin(yy)
-                z0 = 0.0
-                x = x0 * np.cos(
-                    deltas[j]
-                    ) + y0 * np.sin(
-                        alphas[j]
-                        ) * np.sin(
-                            deltas[j]
-                            ) + z0 * np.cos(
-                                alphas[j]
-                                ) * np.sin(deltas[j]) + centers[j, 0]
-                y = y0 * np.cos(
-                        alphas[j]
-                        ) - z0 * np.sin(
-                                alphas[j]
-                                ) + centers[j, 1]
-                z = -x0 * np.sin(
-                    deltas[j]
-                    ) + y0 * np.sin(
-                        alphas[j]
-                        ) * np.cos(
-                            deltas[j]
-                            ) + z0 * np.cos(
-                                alphas[j]
-                                ) * np.cos(deltas[j]) + centers[j, 2]
+                x = x0 * cd + y0 * sa * sd + xj
+                y = y0 * ca + yj
+                z = -x0 * sd + y0 * sa * cd + zj
                 bs.set_points(np.array([x, y, z]).reshape(-1, 3))
                 if j == 0:
                     plot_points.append(np.array([x, y, z]).reshape(-1, 3))
                     Bzs.append(bs.B().reshape(-1, 3))
-                Bz = bs.B().reshape(-1, 3) @ self.coil_normals[j, :]
+                Bz = bs.B().reshape(-1, 3) @ nj
                 return (Bz * xx)[0]
             
-            print(1.8020846512773543e-08 / 2.5998449603217048e-08 * np.pi)
-            # fluxes[j] += np.sum(np.sum(Bz_func(theta, rho))) * drho * dtheta
-            # fluxes[j] += simpson(simpson(Bz.reshape(rho.shape) * rho, rho0, axis=0), theta0)
-            # fluxes[j] += gauss_weights @ (gauss_weights @ (Bz.reshape(rho.shape) * rho))
             try:
-                print(0, self.R, 0, 2 * np.pi)
                 integral, err = dblquad(Bz_func, 0, self.R, 0, 2 * np.pi)
             except IntegrationWarning:
                 print('Integral is divergent')
@@ -515,12 +598,10 @@ class PSCgrid:
         contig = np.ascontiguousarray
         plot_points = np.array(plot_points).reshape(-1, 3)
         Bzs = np.array(Bzs).reshape(-1, 3)
-        print(plot_points.shape)
         pointsToVTK('flux_int_points', contig(plot_points[:, 0]),
                     contig(plot_points[:, 1]), contig(plot_points[:, 2]),
                     data={"Bz": (contig(Bzs[:, 0]), 
                                  contig(Bzs[:, 1]),
                                  contig(Bzs[:, 2]),),},)
-                
-        self.psi = fluxes  # * self.R / 2.0 * np.pi
+        self.psi = fluxes
         
