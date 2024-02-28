@@ -390,18 +390,21 @@ class PSCgrid:
         R = self.R
         r = self.a
         ncoils = self.num_psc
-        # print(r, R, alphas, deltas, phi)
         L = np.zeros((ncoils, ncoils))
         for i in range(ncoils):
     	    # Loop through all the PSCs, using all the symmetries
+            cdi = np.cos(deltas[i])
+            sdi = np.sin(deltas[i])
+            cai = np.cos(alphas[i])
+            sai = np.sin(alphas[i])
             for j in range(i + 1, ncoils):
-                xj = points[j, 0] / R
-                yj = points[j, 1] / R
-                zj = points[j, 2] / R
-                cd = np.cos(deltas[i] - deltas[j])
-                sd = np.sin(deltas[i] - deltas[j])
-                ca = np.cos(alphas[i] - alphas[j])
-                sa = np.sin(alphas[i] - alphas[j])
+                xj = (points[j, 0] - points[i, 0]) / R
+                yj = (points[j, 1] - points[i, 1]) / R
+                zj = (points[j, 2] - points[i, 2]) / R
+                cdj = np.cos(deltas[j])
+                sdj = np.sin(deltas[j])
+                caj = np.cos(alphas[j])
+                saj = np.sin(alphas[j])
                 integrand = 0.0
                 for k in range(nphi):
                     ck = np.cos(phi[k])
@@ -409,10 +412,22 @@ class PSCgrid:
                     for kk in range(nphi):
                         ckk = np.cos(phi[kk])
                         skk = np.sin(phi[kk])
-                        integrand += (ck * ckk * ca + sk * skk * cd - ck * skk * sa * sd) / np.sqrt(
-                            (xj + ckk - ck * cd - sk * sa * sd) ** 2 + (
-                                yj + skk - sk * ca) ** 2 + (
-                                    zj + ck * sd - sk * sa * cd) ** 2)
+                        dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj)
+                        dl2_y = (ck * cai) * (ckk * caj)
+                        dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj)
+                        numerator = dl2_x + dl2_y + dl2_z
+                        x2 = (xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi) ** 2
+                        y2 = (yj + skk * caj - sk * cai) ** 2
+                        z2 = (zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi) ** 2
+                        integrand += numerator / np.sqrt(x2 + y2 + z2)
+                        # integrand += (ck * ckk * ca + sk * skk * cd - ckk * sk * sa * sd) / np.sqrt(
+                        #     (xj - ck + ckk * cd - skk * sa * sd) ** 2 + (
+                        #         yj - sk + skk * ca) ** 2 + (
+                        #             zj + ckk * sd - skk * sa * cd) ** 2)
+                        # integrand += (ck * ckk * ca + sk * skk * cd - ck * skk * sa * sd) / np.sqrt(
+                        #     (xj + ckk - ck * cd - sk * sa * sd) ** 2 + (
+                        #         yj + skk - sk * ca) ** 2 + (
+                        #             zj + ck * sd - sk * sa * cd) ** 2)
                 L[i, j] = integrand * dphi ** 2 / (4.0 * np.pi)
                 # def integrand(yy, xx):
                 #     ck = np.cos(xx)
@@ -484,13 +499,14 @@ class PSCgrid:
                     plot_points.append(np.array([x, y, z]).reshape(-1, 3))
                     Bzs.append(bs.B().reshape(-1, 3))
                 Bz = bs.B().reshape(-1, 3) @ self.coil_normals[j, :]
-                return Bz * xx  # .reshape(-1)
+                return (Bz * xx)[0]
             
             print(1.8020846512773543e-08 / 2.5998449603217048e-08 * np.pi)
             # fluxes[j] += np.sum(np.sum(Bz_func(theta, rho))) * drho * dtheta
             # fluxes[j] += simpson(simpson(Bz.reshape(rho.shape) * rho, rho0, axis=0), theta0)
             # fluxes[j] += gauss_weights @ (gauss_weights @ (Bz.reshape(rho.shape) * rho))
             try:
+                print(0, self.R, 0, 2 * np.pi)
                 integral, err = dblquad(Bz_func, 0, self.R, 0, 2 * np.pi)
             except IntegrationWarning:
                 print('Integral is divergent')

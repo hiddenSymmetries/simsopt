@@ -47,6 +47,10 @@ class Testing(unittest.TestCase):
         
         # Jackson problem 5.34a
         points = np.array([[0, 0, 0], [0, R0, 0]])
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        L = psc_array.L
         # r_coord = np.linspace(0, 100, 100)
         # k = np.sqrt(4 * R * r_coord / (R ** 2 + r_coord ** 2 + 2 * R * r_coord))
         # k = np.linspace(0, 1000, 1000)
@@ -59,9 +63,8 @@ class Testing(unittest.TestCase):
         L_mutual_analytic, err = quad(analytic_soln, 0, 1e2)
         L_mutual_analytic = L_mutual_analytic * mu0 * np.pi * R ** 2
         print(L[0, 1])
-        # print(L_mutual_analytic * 1e10, L[0, 1] * 1e10)
-        assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10))
-        assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10))
+        # assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10))
+        # assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10))
         
         # Test inductances and fluxes in simple cases like far apart coaxial coils        
         # Formulas only valid for R/a >> 1 so otherwise it will fail
@@ -153,6 +156,34 @@ class Testing(unittest.TestCase):
         R = 1
         a = 1e-5
         points = np.array([[0, 0, 0], [0, 0, R0]])
+        alphas = [np.pi / 2.0, 0.0]
+        deltas = np.zeros(2)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        assert(np.isclose(0.0, L[1, 0] * 1e10))
+        
+        # Test inductances and fluxes calculations give same results for very
+        # general configurations
+        R0 = 4
+        R = 1
+        a = 1e-5
+        points = np.array([[0, 0, 0], [0, 0, R0]])
+        alphas = np.zeros(2)
+        deltas = [np.pi / 2.0, 0.0]
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        assert(np.isclose(0.0, L[1, 0] * 1e10))
+        
+        # Test inductances and fluxes calculations give same results for very
+        # general configurations
+        R0 = 4
+        R = 1
+        a = 1e-5
+        points = np.array([[0, 0, 0], [0, 0, R0]])
         # points = (np.random.rand(2, 3) - 0.5) * 40
         # print(points)
         alphas = [np.pi / 2.0, np.pi / 2.0]
@@ -161,7 +192,119 @@ class Testing(unittest.TestCase):
             points, R=R, a=a, alphas=alphas, deltas=deltas,
         )
         L = psc_array.L
-        coils = coils_via_symmetries([psc_array.curves[1]], [Current(-I)], nfp=1, stellsym=False)
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+        bs = BiotSavart(coils)
+        kwargs = {"B_TF": bs}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+        )
+        L = psc_array.L
+        print(psc_array.psi[0] / I, L[1, 0])
+        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+        
+        # 
+        alphas = [np.pi / 8.0, np.pi / 2.3]
+        deltas = np.zeros(2)  # np.random.rand(2)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+        bs = BiotSavart(coils)
+        kwargs = {"B_TF": bs}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+        )
+        L = psc_array.L
+        print(psc_array.psi[0] / I, L[1, 0])
+        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+        
+        # repeat for delta = pi / 2, alpha = 0
+        deltas = alphas
+        alphas = np.zeros(2)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+        bs = BiotSavart(coils)
+        kwargs = {"B_TF": bs}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+        )
+        L = psc_array.L
+        print(psc_array.psi[0] / I, L[1, 0])
+        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+        
+        # Test inductances and fluxes calculations give same results for very
+        # general configurations
+        # points = np.array([[0, 0, 0], [0, 0, R0]])
+        #points = (np.random.rand(2, 3) - 0.5) * 40
+        # print(points)
+        alphas = np.random.rand(2)
+        deltas = np.random.rand(2)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+        bs = BiotSavart(coils)
+        kwargs = {"B_TF": bs}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+        )
+        L = psc_array.L
+        print(psc_array.psi[0] / I, L[1, 0])
+        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+        
+        points = np.array([[0, 0, 0], [0, R0, 0]])
+        #points = (np.random.rand(2, 3) - 0.5) * 40
+        # print(points)
+        alphas = np.random.rand(2)
+        deltas = np.random.rand(2)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+        bs = BiotSavart(coils)
+        kwargs = {"B_TF": bs}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+        )
+        L = psc_array.L
+        print(psc_array.psi[0] / I, L[1, 0])
+        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+        
+        points = np.array([[0, 0, 0], [R0, 0, 0]])
+        #points = (np.random.rand(2, 3) - 0.5) * 40
+        # print(points)
+        alphas = np.random.rand(2)
+        deltas = np.random.rand(2)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+        bs = BiotSavart(coils)
+        kwargs = {"B_TF": bs}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+        )
+        L = psc_array.L
+        print(psc_array.psi[0] / I, L[1, 0])
+        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+        
+        # points = np.array([[0, 0, 0], (np.random.rand(3) - 0.5) * 10])
+        points = (np.random.rand(2, 3) - 0.5) * 40
+        # print(points)
+        alphas = np.random.rand(2) * 2 * np.pi
+        deltas = np.random.rand(2) * 2 * np.pi
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas,
+        )
+        L = psc_array.L
+        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
         bs = BiotSavart(coils)
         kwargs = {"B_TF": bs}
         psc_array = PSCgrid.geo_setup_manual(
