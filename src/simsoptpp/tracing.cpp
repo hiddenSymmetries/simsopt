@@ -742,7 +742,7 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
     // Now check whether we have hit any of the vpar planes
         for (int i = 0; i < vpars.size(); ++i) {
             double vpar = vpars[i];
-            if( (vpar_last-vpar != 0) && (vpar_current-vpar != 0) && (((vpar_last-vpar > 0) ? 1 : ((vpar_last-vpar < 0) ? -1 : 0)) != ((vpar_current-vpar > 0) ? 1 : ((vpar_current-vpar < 0) ? -1 : 0)))){ // check whether vpar = vpars[i] was crossed
+            if(t_last!=0 && (vpar_last-vpar != 0) && (vpar_current-vpar != 0) && (((vpar_last-vpar > 0) ? 1 : ((vpar_last-vpar < 0) ? -1 : 0)) != ((vpar_current-vpar > 0) ? 1 : ((vpar_current-vpar < 0) ? -1 : 0)))){ // check whether vpar = vpars[i] was crossed
                 std::function<double(double)> rootfun = [&dense, &temp, &vpar_last, &vpar](double t){
                     dense.calc_state(t, temp);
                     return temp[3]-vpar;
