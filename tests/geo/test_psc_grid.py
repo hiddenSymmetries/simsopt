@@ -45,6 +45,7 @@ class Testing(unittest.TestCase):
             (2 / k - k) * ellipk(k ** 2) - (2 / k) * ellipe(k ** 2)
         )
         assert(np.allclose(L_self_analytic, np.diag(L)))
+        print(L_mutual_analytic, L[0, 1], L[1, 0])
         assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10))
         assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10))
         

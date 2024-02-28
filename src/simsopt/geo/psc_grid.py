@@ -272,6 +272,7 @@ class PSCgrid:
             contig(phi),
             psc_grid.R,
         ) * dphi ** 2 / (4 * np.pi)
+        print(psc_grid.L)
         psc_grid.L = (psc_grid.L + psc_grid.L.T)
         np.fill_diagonal(psc_grid.L, np.log(8.0 * psc_grid.R / psc_grid.a) - 2.0)
         psc_grid.L = psc_grid.L * psc_grid.mu0 * psc_grid.R * psc_grid.Nt ** 2
