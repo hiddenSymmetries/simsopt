@@ -1315,7 +1315,8 @@ class ToroidalWireframe(object):
                 'field period' (default), and 'torus'.
             quantity: string (optional)
                 Quantity to be represented in the color of each segment.
-                Options are 'currents' (default) and 'constrained segments'.
+                Options are 'currents' (default), 'constrained segments', and
+                'nonzero' (i.e. show segments with nonzero current).
             ax: instance of the matplotlib.pyplot.Axis class (optional)
                 Axis on which to generate the plot. If None, a new plot will
                 be created.
@@ -1383,6 +1384,8 @@ class ToroidalWireframe(object):
                                                        include='explicit')] = 1
                 pl_quantity[ind0:ind1][self.constrained_segments( \
                                                        include='implicit')] = -1
+            elif quantity=='nonzero':
+                pl_quantity[ind0:ind1] = self.currents != 0
             else:
                 raise ValueError('Unrecognized quantity for plotting')
 
@@ -1391,6 +1394,8 @@ class ToroidalWireframe(object):
         if quantity=='currents':
             lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
         elif quantity=='constrained segments':
+            lc.set_clim([-1, 1])
+        elif quantity=='nonzero':
             lc.set_clim([-1, 1])
         lc.set_cmap('coolwarm')
 
@@ -1403,10 +1408,11 @@ class ToroidalWireframe(object):
 
         ax.set_xlabel('Toroidal index')
         ax.set_ylabel('Poloidal index')
-        cb = pl.colorbar(lc)
         if quantity=='currents':
+            cb = pl.colorbar(lc)
             cb.set_label('Current (MA)')
         elif quantity=='constrained segments':
+            cb = pl.colorbar(lc)
             cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
                              + '0 = free')
 
