@@ -220,6 +220,8 @@ def optimize_wireframe(wframe, algorithm, params, \
                                   + 'the GSCO algorithm') % (v))
 
         # Set default values if necessary
+        no_new_coils = False if 'no_new_coils' not in params\
+            else params['no_new_coils']
         max_loop_count = 0 if 'max_loop_count' not in params \
             else params['max_loop_count']
         x_init = None if 'x_init' not in params else params['x_init']
@@ -231,6 +233,7 @@ def optimize_wireframe(wframe, algorithm, params, \
                            params['no_crossing'], params['match_current'], \
                            params['default_current'], params['max_current'], \
                            params['nIter'], params['nHistory'], \
+                           no_new_coils=no_new_coils,
                            max_loop_count=max_loop_count, x_init=x_init, \
                            loop_count_init=loop_count_init, verbose=verbose)
 
@@ -455,8 +458,8 @@ def rcls_wireframe(wframe, Amat, cvec, reg_lambda, assume_no_crossings, \
 
 def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
                    default_current, max_current, nIter, nHistory, \
-                   max_loop_count=0, x_init=None, loop_count_init=None, \
-                   verbose=True):
+                   no_new_coils=False, max_loop_count=0, x_init=None, \
+                   loop_count_init=None, verbose=True):
     """
     Runs the Greedy Stellarator Coil Optimization algorithm to optimize the
     currents in a wireframe.
@@ -492,6 +495,11 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
         nHistory: integer
             Number of intermediate solutions to record, evenly spaced among the 
             iterations
+        no_new_coils: boolean (optional)
+            If true, the solution will forbid the addition of currents to loops 
+            where no segments already carry current (although it is still 
+            possible for an existing coil to be split into two coils); False
+            by default
         max_loop_count: integer (optional)
             If nonzero, sets the maximum number of current increments to add
             to a given loop in the wireframe (default is zero)
@@ -550,7 +558,7 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
         print('    Running GSCO')
     t0 = time.time()
     x, loop_count, x_history, f_B_history, f_S_history, f_history = \
-        sopp.GSCO(no_crossing, match_current, A, c, \
+        sopp.GSCO(no_crossing, no_new_coils, match_current, A, c, \
                   np.abs(default_current), np.abs(max_current), \
                   np.abs(max_loop_count), loops, free_loops, \
                   segments, connections, lambda_S, nIter, \

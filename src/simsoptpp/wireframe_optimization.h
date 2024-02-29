@@ -6,7 +6,7 @@ typedef xt::pyarray<double> Array;
 typedef xt::pyarray<int> IntArray;
 
 std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
-    bool no_crossing, bool match_current,
+    bool no_crossing, bool no_new_coils, bool match_current,
     Array& A_obj, Array& b_obj, double default_current, double max_current, 
     int max_loop_count, IntArray& loops, IntArray& free_loops, 
     IntArray& segments, IntArray& connections, double lambda_P, int nIter, 
@@ -20,8 +20,8 @@ void record_history(int hist_ind, int iter, Array& x, double f_B, double f_S,
 double compute_chi2_P(Array& x, double tol);
 
 void check_eligibility(int nLoops, double default_current, double max_current, 
-                       int max_loop_count, bool no_crossing, bool match_current,
-                       double tol, int* loops, int* freeLoops, 
-                       int* loop_count, int* segments, int* connections, 
-                       double* x, double* current);
+                       int max_loop_count, bool no_crossing, bool no_new_coils, 
+                       bool match_current, double tol, int* loops_rep, 
+                       int* freeLoops, int* loop_count, int* segments, 
+                       int* connections, double* x, double* current);
 

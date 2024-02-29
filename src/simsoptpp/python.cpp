@@ -77,12 +77,12 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
 
     // Greedy stellarator coil optimization (GSCO) solver
-    m.def("GSCO", &GSCO, py::arg("no_crossing"), py::arg("match_current"), 
-          py::arg("A_obj"), py::arg("b_obj"), py::arg("current"),
-          py::arg("max_current"), py::arg("max_loop_count"), py::arg("loops"), 
-          py::arg("free_loops"), py::arg("segments"), py::arg("connections"), 
-          py::arg("lambda_P"), py::arg("nIter"), py::arg("x_init"), 
-          py::arg("cell_count_init"), py::arg("nHistory"));
+    m.def("GSCO", &GSCO, py::arg("no_crossing"), py::arg("no_new_coils"), 
+          py::arg("match_current"), py::arg("A_obj"), py::arg("b_obj"), 
+          py::arg("current"), py::arg("max_current"), py::arg("max_loop_count"),
+          py::arg("loops"), py::arg("free_loops"), py::arg("segments"), 
+          py::arg("connections"), py::arg("lambda_P"), py::arg("nIter"), 
+          py::arg("x_init"), py::arg("cell_count_init"), py::arg("nHistory"));
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);

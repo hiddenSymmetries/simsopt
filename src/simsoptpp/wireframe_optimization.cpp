@@ -22,6 +22,9 @@ using std::vector;
  *  Parameters:
  *    bool no_crossing: if true, the solution will forbid currents from crossing
  *      within the wireframe 
+ *    bool no_new_coils: if true, the solution will forbid the addition of 
+ *      currents to loops where no segments already carry current (although it
+ *      is still possible for an existing coil to be split into two coils)
  *    bool match_current: if true, added loops of current will match the current
  *      of the loop(s) adjacent to where they are added
  *    Array& A_obj: matrix corresponding to A_obj above
@@ -65,7 +68,7 @@ using std::vector;
  *      corresponding to the columns of `x_history`
  */
 std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
-    bool no_crossing, bool match_current,
+    bool no_crossing, bool no_new_coils, bool match_current,
     Array& A_obj, Array& b_obj, double default_current, double max_current, 
     int max_loop_count, IntArray& loops, IntArray& free_loops, 
     IntArray& segments, IntArray& connections, double lambda_P, int nIter, 
@@ -167,9 +170,10 @@ std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
 
         // Determine which loops are eligible for optimization
         check_eligibility(nLoops, default_current, max_current, max_loop_count,
-                          no_crossing, match_current, tol, loops_rep_ptr, 
-                          free_loops_rep_ptr, loop_count_ptr, segments_ptr, 
-                          connections_ptr, x_ptr, eligible_curr_ptr);
+                          no_crossing, no_new_coils, match_current, tol, 
+                          loops_rep_ptr, free_loops_rep_ptr, loop_count_ptr, 
+                          segments_ptr, connections_ptr, x_ptr, 
+                          eligible_curr_ptr);
 
         // Find the eligible currents; determine f values to exclude
         int nEligible = 0;
@@ -321,10 +325,10 @@ double compute_chi2_P(Array& x, double tol) {
  *
  */
 void check_eligibility(int nLoops, double default_current, double max_current, 
-                       int max_loop_count, bool no_crossing, bool match_current,
-                       double tol, int* loops_rep, int* freeLoops, 
-                       int* loop_count, int* segments, int* connections, 
-                       double* x, double* current) {
+                       int max_loop_count, bool no_crossing, bool no_new_coils, 
+                       bool match_current, double tol, int* loops_rep, 
+                       int* freeLoops, int* loop_count, int* segments, 
+                       int* connections, double* x, double* current) {
 
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < 2*nLoops; ++i) {
@@ -352,6 +356,21 @@ void check_eligibility(int nLoops, double default_current, double max_current,
         int ind_pol4 = loops_rep[i*4 + 3];
         int loop_inds[4] = {ind_tor1, ind_pol2, ind_tor3, ind_pol4};
         double loop_sgns[4] = {1.0, 1.0, -1.0, -1.0};
+
+        // If no new coils may form, check if loop has existing active segments
+        if (no_new_coils) {
+            bool no_active_segments = true;
+            for (int j = 0; j < 4; ++j) {
+                if (abs(x[loop_inds[j]]) > tol) {
+                    no_active_segments = false;
+                    break;
+                }
+            }
+            if (no_active_segments) {
+                current[i] = 0.0;
+                continue;
+            }
+        }
 
         // If matching existing current, check for existing currents in loop
         double loop_curr = 0.0;
