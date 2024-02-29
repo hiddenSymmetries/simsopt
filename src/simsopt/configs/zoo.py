@@ -24,6 +24,8 @@ def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
     filename = THIS_DIR / 'NCSX.dat'
     print(f"get_ncsx_data: THIS_DIR={THIS_DIR}, filename={filename}")
     print(f"get_ncsx_data: abspath={os.path.abspath(filename)}")
+    print(f"get_ncsx_data: cwd={os.getcwd()}")
+    print(f"get_ncsx_data: isfile? {os.path.isfile(filename)}")
     curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 3
     currents = [Current(c) for c in [6.52271941985300E+05, 6.51868569367400E+05, 5.37743588647300E+05]]
@@ -66,6 +68,8 @@ def get_hsx_data(Nt_coils=16, Nt_ma=10, ppp=10):
     filename = THIS_DIR / 'HSX.dat'
     print(f"get_hsx_data: THIS_DIR={THIS_DIR}, filename={filename}")
     print(f"get_hsx_data: abspath={os.path.abspath(filename)}")
+    print(f"get_hsx_data: cwd={os.getcwd()}")
+    print(f"get_hsx_data: isfile? {os.path.isfile(filename)}")
     curves = CurveXYZFourier.load_curves_from_file(filename, order=Nt_coils, ppp=ppp)
     nfp = 4
     currents = [Current(c) for c in [-1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05, -1.500725500000000e+05]]

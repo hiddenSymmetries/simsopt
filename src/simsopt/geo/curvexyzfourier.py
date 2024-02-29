@@ -1,4 +1,5 @@
 from math import pi
+import os
 from itertools import chain
 
 import numpy as np
@@ -82,6 +83,9 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             sin_x_coil1, cos_x_coil1, sin_y_coil1, cos_y_coil1, sin_z_coil1, cos_z_coil1, sin_x_coil2, cos_x_coil2, sin_y_coil2, cos_y_coil2, sin_z_coil2, cos_z_coil2,  ...
 
         """
+        print("load_curves_from_file: filename=", filename)
+        print("load_curves_from_file: cwd=", os.getcwd())
+        print(f"load_curves_from_file: isfile? {os.path.isfile(filename)}")
         coil_data = np.loadtxt(filename, delimiter=delimiter)
 
         assert coil_data.shape[1] % 6 == 0
