@@ -1315,8 +1315,8 @@ class ToroidalWireframe(object):
                 'field period' (default), and 'torus'.
             quantity: string (optional)
                 Quantity to be represented in the color of each segment.
-                Options are 'currents' (default), 'constrained segments', and
-                'nonzero' (i.e. show segments with nonzero current).
+                Options are 'currents' (default), 'nonzero currents' (i.e. show
+                only segments with nonzero current), and 'constrained segments'.
             ax: instance of the matplotlib.pyplot.Axis class (optional)
                 Axis on which to generate the plot. If None, a new plot will
                 be created.
@@ -1377,25 +1377,27 @@ class ToroidalWireframe(object):
                                    pl_segments[ind0:ind1,1,1] == self.nTheta))
                 pl_segments[ind0+loop_segs[0],1,1] = 0
 
-            if quantity=='currents':
+            if quantity=='currents' or quantity=='nonzero currents':
                 pl_quantity[ind0:ind1] = self.currents[:]*1e-6
             elif quantity=='constrained segments':
                 pl_quantity[ind0:ind1][self.constrained_segments( \
                                                        include='explicit')] = 1
                 pl_quantity[ind0:ind1][self.constrained_segments( \
                                                        include='implicit')] = -1
-            elif quantity=='nonzero':
-                pl_quantity[ind0:ind1] = self.currents != 0
             else:
                 raise ValueError('Unrecognized quantity for plotting')
 
-        lc = LineCollection(pl_segments, **kwargs)
-        lc.set_array(pl_quantity)
-        if quantity=='currents':
+
+        if quantity=='nonzero currents':
+            inds_to_plot = np.where(pl_quantity != 0)[0]
+        else:
+            inds_to_plot = np.arange(len(pl_quantity))
+
+        lc = LineCollection(pl_segments[inds_to_plot], **kwargs)
+        lc.set_array(pl_quantity[inds_to_plot])
+        if quantity=='currents' or quantity=='nonzero currents':
             lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
         elif quantity=='constrained segments':
-            lc.set_clim([-1, 1])
-        elif quantity=='nonzero':
             lc.set_clim([-1, 1])
         lc.set_cmap('coolwarm')
 
@@ -1408,11 +1410,10 @@ class ToroidalWireframe(object):
 
         ax.set_xlabel('Toroidal index')
         ax.set_ylabel('Poloidal index')
-        if quantity=='currents':
-            cb = pl.colorbar(lc)
+        cb = pl.colorbar(lc)
+        if quantity=='currents' or quantity=='nonzero currents':
             cb.set_label('Current (MA)')
         elif quantity=='constrained segments':
-            cb = pl.colorbar(lc)
             cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
                              + '0 = free')
 
