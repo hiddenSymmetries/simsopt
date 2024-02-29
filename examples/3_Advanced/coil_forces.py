@@ -166,6 +166,7 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
 # RUN THE OPTIMIZATION
 ###############################################################################
 
+
 def pointData_forces(coils):
     forces = []
     for c in coils:
