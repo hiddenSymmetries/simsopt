@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
-from simsopt.configs import get_hsx_data, get_ncsx_data
+from simsopt.configs.zoo import get_hsx_data, get_ncsx_data
 from simsopt.geo import CurveXYZFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
