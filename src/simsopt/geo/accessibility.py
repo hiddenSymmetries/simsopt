@@ -446,7 +446,6 @@ class VerticalPortDiscrete( Optimizable ):
         super().__init__(depends_on=curves)
 
     def update_surface(self):
-        
         self.gamma_surf = self.surface.gamma()
         nphi, ntheta, _ = self.gamma_surf.shape
 
