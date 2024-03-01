@@ -13,19 +13,10 @@ simsopt.\_core.derivative module
    :show-inheritance:
    :private-members:
 
-simsopt.\_core.dofs module
---------------------------
+simsopt.\_core.finite_difference module
+---------------------------------------
 
-.. automodule:: simsopt._core.dofs
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:
-
-simsopt.\_core.graph\_optimizable module
-----------------------------------------
-
-.. automodule:: simsopt._core.graph_optimizable
+.. automodule:: simsopt._core.finite_difference
    :members:
    :undoc-members:
    :show-inheritance:
@@ -49,11 +40,3 @@ simsopt.\_core.util module
    :show-inheritance:
    :private-members:
 
-Module contents
----------------
-
-.. automodule:: simsopt._core
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :private-members:

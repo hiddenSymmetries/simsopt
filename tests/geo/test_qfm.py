@@ -5,7 +5,7 @@ from simsopt.geo.qfmsurface import QfmSurface
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.geo.surfaceobjectives import ToroidalFlux
 from simsopt.geo.surfaceobjectives import Area, Volume
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface
 
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
@@ -41,7 +41,7 @@ class QfmSurfaceTests(unittest.TestCase):
         x = s.get_dofs()
         r0 = qfm_surface.qfm_penalty_constraints(x, derivatives=0,
                                                  constraint_weight=weight)
-        assert(r0 < 1e-10)
+        assert (r0 < 1e-10)
 
     def test_qfm_objective_gradient(self):
         """
@@ -221,7 +221,7 @@ class QfmSurfaceTests(unittest.TestCase):
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
-                c.rotmatT = c.rotmat.T
+                c.rotmatT = c.rotmat.T.copy()
             coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
         bs = BiotSavart(coils)
         bs_tf = BiotSavart(coils)
@@ -328,7 +328,7 @@ class QfmSurfaceTests(unittest.TestCase):
             for c in curves_flipped:
                 c.rotmat += 0.001*np.random.uniform(low=-1., high=1.,
                                                     size=c.rotmat.shape)
-                c.rotmatT = c.rotmat.T
+                c.rotmatT = c.rotmat.T.copy()
             coils = coils_via_symmetries(curves + curves_flipped, currents + currents_flipped, nfp, False)
 
         bs = BiotSavart(coils)

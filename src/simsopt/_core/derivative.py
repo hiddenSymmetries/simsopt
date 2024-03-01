@@ -1,7 +1,8 @@
 import numpy as np
 import numbers
 import collections
-from .graph_optimizable import Optimizable
+
+__all__ = ['Derivative']
 
 
 class OptimizableDefaultDict(collections.defaultdict):
@@ -14,6 +15,7 @@ class OptimizableDefaultDict(collections.defaultdict):
         super().__init__(None, d)
 
     def __missing__(self, key):
+        from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(key, Optimizable)
         self[key] = value = np.zeros((key.local_full_dof_size, ))
         return value
@@ -21,8 +23,8 @@ class OptimizableDefaultDict(collections.defaultdict):
 
 def copy_numpy_dict(d):
     res = OptimizableDefaultDict({})
-    for k in d:
-        res[k] = d[k].copy()
+    for k, v in d.items():
+        res[k] = v.copy()
     return res
 
 
@@ -114,15 +116,41 @@ class Derivative():
         y = other.data
         z = copy_numpy_dict(x)
         for k in y:
-            z[k] += y[k]
+            if k in z:
+                z[k] += y[k]
+            else:
+                z[k] = y[k].copy()
+        return Derivative(z)
 
+    def __sub__(self, other):
+        x = self.data
+        y = other.data
+        z = copy_numpy_dict(x)
+        for k, yk in y.items():
+            if k in z:
+                z[k] -= yk
+            else:
+                z[k] = -yk
         return Derivative(z)
 
     def __iadd__(self, other):
         x = self.data
         y = other.data
-        for k in y:
-            x[k] += y[k]
+        for k, yk in y.items():
+            if k in x:
+                x[k] += yk
+            else:
+                x[k] = yk.copy()
+        return self
+
+    def __isub__(self, other):
+        x = self.data
+        y = other.data
+        for k, yk in y.items():
+            if k in x:
+                x[k] -= yk
+            else:
+                x[k] = -yk
         return self
 
     def __mul__(self, other):
@@ -139,10 +167,14 @@ class Derivative():
             x[k] *= other
         return Derivative(x)
 
-    def __call__(self, optim: Optimizable):
+    def __call__(self, optim):
         """
         Get the derivative with respect to all DOFs that ``optim`` depends on.
+
+        Args:
+            optim: An Optimizable object
         """
+        from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
         deps = optim.ancestors + [optim]
         derivs = []

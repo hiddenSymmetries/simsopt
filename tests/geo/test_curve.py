@@ -1,13 +1,16 @@
 import logging
 import unittest
+import json
+
 import numpy as np
+from monty.json import MontyEncoder, MontyDecoder
 
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
-from simsopt.util.zoo import get_ncsx_data
+from simsopt.configs.zoo import get_ncsx_data
 
 try:
     import pyevtk
@@ -426,6 +429,36 @@ class Testing(unittest.TestCase):
                 for curve in coils:
                     ax = curve.plot(engine=engine, ax=ax, show=False, close=close)
                 c.plot(engine=engine, ax=ax, close=close, plot_derivative=True, show=show)
+
+    def test_rotated_curve_gamma_impl(self):
+        rc = get_curve("CurveXYZFourier", True, x=100)
+        c = rc.curve
+        mat = rc.rotmat
+
+        rcg = rc.gamma()
+        cg = c.gamma()
+        quadpoints = rc.quadpoints
+
+        assert np.allclose(rcg, cg@mat)
+        # run gamma_impl so that the `else` in RotatedCurve.gamma_impl gets triggered
+        tmp = np.zeros_like(cg[:10, :])
+        rc.gamma_impl(tmp, quadpoints[:10])
+        assert np.allclose(cg[:10, :]@mat, tmp)
+
+    def subtest_serialization(self, curvetype, rotated):
+        epss = [0.5**i for i in range(10, 15)]
+        x = np.asarray([0.6] + [0.6 + eps for eps in epss])
+        curve = get_curve(curvetype, rotated, x)
+
+        curve_json_str = json.dumps(curve, cls=MontyEncoder)
+        curve_regen = json.loads(curve_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(curve.gamma(), curve_regen.gamma()))
+
+    def test_serialization(self):
+        for curvetype in self.curvetypes:
+            for rotated in [True, False]:
+                with self.subTest(curvetype=curvetype, rotated=rotated):
+                    self.subtest_serialization(curvetype, rotated)
 
 
 if __name__ == "__main__":

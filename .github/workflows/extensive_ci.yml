@@ -29,12 +29,12 @@ jobs:
       matrix:
         test-type: [unit, integrated]
         packages: [all, vmec, spec, none]
-        python-version: [3.7.12, 3.8.12, 3.9.6] # , 3.10.0] # To sync with coveragerc use 3 levels with python version
+        python-version: [3.7.13, 3.8.13, 3.9.13] # , 3.10.0] # To sync with coveragerc use 3 levels with python version
         include:
-            - python-version: 3.9.6
+            - python-version: 3.9.13
               test-type: unit
               packages: none
-            - python-version: 3.9.6
+            - python-version: 3.9.13
               test-type: integrated
               packages: none
 
@@ -96,13 +96,17 @@ jobs:
       run: env
 
     - name: Install python dependencies
-      run: pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja  plotly
+      run: |
+           sudo apt-get install graphviz graphviz-dev
+           pip install wheel numpy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
-    # Checking out SPEC is a tricky because it is a private repository.
+    - name: Install virtual_casing
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
@@ -112,6 +116,13 @@ jobs:
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
+
+    # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
+    - name: Install py_spec
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      run: |
+        pip install -e SPEC/Utilities/pythontools
+        python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
       run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
@@ -124,7 +135,7 @@ jobs:
 
     - name: Try import spec
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      run: python -c "import spec.spec as spec; print(spec.constants.version)"
+      run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -164,25 +175,25 @@ jobs:
       run: pip install -v .[MPI]
 
     - name: Run serial examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
+      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
       run: |
         cd examples
         ./run_serial_examples
 
     - name: Run simple parallel examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated')
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
       run: |
         cd examples
         ./run_parallel_examples
 
     - name: Run spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'spec') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'spec')
       run: |
         cd examples
         ./run_spec_examples
 
     - name: Run vmec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'vmec')
       run: |
         cd examples
         ./run_vmec_examples
@@ -197,12 +208,16 @@ jobs:
       if: contains(matrix.test-type, 'unit')
       run: pip install coverage 
 
-    - name: Run tests on 1 MPI process using coverage
+    - name: Run expensive tests on 1 MPI process using coverage
+      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
+      run: |
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
+        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
+
+    - name: Run remaining tests on 1 MPI process using coverage
       if: contains(matrix.test-type, 'unit')
       run: | 
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
-        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
-        coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/solve
@@ -231,7 +246,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8.12
+        python-version: 3.8.13
 
     - name: Install coverage
       run: pip install coverage

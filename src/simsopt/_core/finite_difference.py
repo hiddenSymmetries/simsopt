@@ -18,17 +18,21 @@ from numbers import Real
 
 import numpy as np
 try:
-    from mpi4py import MPI
+    # We import mpi4py here rather than mpi4py.MPI so MPI is not
+    # initialized, since initializing MPI is disallowed on login nodes
+    # for some HPC systems.
+    import mpi4py
 except ImportError:
-    MPI = None
+    mpi4py = None
 
-from ..util.types import RealArray
-from ..util.dev import SimsoptRequires
-from ..util.mpi import MpiPartition
-from .graph_optimizable import Optimizable
+from .types import RealArray
+from .dev import SimsoptRequires
+from .optimizable import Optimizable
 from .util import finite_difference_steps
 
 logger = logging.getLogger(__name__)
+
+__all__ = ['FiniteDifference']
 
 
 class FiniteDifference:
@@ -112,7 +116,7 @@ class FiniteDifference:
         return jac
 
 
-@SimsoptRequires(MPI is not None, "MPIFiniteDifference requires mpi4py")
+@SimsoptRequires(mpi4py is not None, "MPIFiniteDifference requires mpi4py")
 class MPIFiniteDifference:
     """
     Provides Jacobian evaluated with finite difference scheme.
@@ -123,7 +127,7 @@ class MPIFiniteDifference:
     """
 
     def __init__(self, func: Callable,
-                 mpi: MpiPartition,
+                 mpi,  # Specifying the type MpiPartition here would require initializing MPI
                  x0: RealArray = None,
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
@@ -255,7 +259,7 @@ class MPIFiniteDifference:
                 # evals[:, j] = np.array([f() for f in dofs.funcs])
 
         # Combine the results from all groups:
-        evals = mpi.comm_leaders.reduce(evals, op=MPI.SUM, root=0)
+        evals = mpi.comm_leaders.reduce(evals, op=mpi4py.MPI.SUM, root=0)
 
         if not mpi.is_apart:
             mpi.stop_workers()
@@ -307,13 +311,11 @@ class MPIFiniteDifference:
         logger.debug('mpi workers task')
 
         # x is a buffer for receiving the state vector:
-        print(f"worker loop  dofsize is {self.opt.dof_size}")
         x = np.empty(self.opt.dof_size, dtype='d')
         # If we make it here, we must be doing a fd_jac_par
         # calculation, so receive the state vector: mpi4py has
         # separate bcast and Bcast functions!!  comm.Bcast(x, root=0)
         x = self.mpi.comm_groups.bcast(x, root=0)
-        print(f"worker loop x is {x}")
         logger.debug(f'worker loop worker x={x}')
         self.opt.x = x
 

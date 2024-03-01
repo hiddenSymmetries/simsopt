@@ -1,5 +1,5 @@
 Optimizing an equilibrium code
-============================================
+==============================
 
 Here we walk through an example of a small optimization problem in
 which a fixed-boundary MHD equilibrium code is used, but no other
@@ -60,8 +60,8 @@ For simplicity, MPI parallelization will not be used for now.
 To start, we must import several classes::
 
   from simsopt.mhd import Spec
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_serial import least_squares_serial_solve
+  from simsopt.objectives import LeastSquaresProblem
+  from simsopt.solve import least_squares_serial_solve
 
 Then we create the equilibrium object, starting from an input file::
 
@@ -81,7 +81,7 @@ defining the boundary. We choose the independent variables as follows::
   surf.unfix('zs(1,1)')
 
 The next step is to define the objective function. For details of how to define
-least-squares objective functions, see the :doc:`problems` page. For the present problem, we use
+least-squares objective functions, see the :doc:`optimizable` page. For the present problem, we use
 
 .. code-block::
 
@@ -132,24 +132,24 @@ VMEC version
 ------------
 
 To use VMEC instead of SPEC, the only essential change is to use a
-:obj:`simsopt.mhd.vmec.Vmec` object for the equilibrium instead of the
+:obj:`simsopt.mhd.Vmec` object for the equilibrium instead of the
 Spec object.
 
 Here we can also show how to add MPI to the example.  MPI can be used
 for parallelized finite-difference gradients, within each VMEC
 computation, or both at the same time.  To introduce MPI we first
-initialize an :obj:`simsopt.util.mpi.MpiPartition` object and choose
+initialize an :obj:`simsopt.util.MpiPartition` object and choose
 the number of worker groups.  The instance is then passed as an
 argument to the Vmec object and to the
-:meth:`simsopt.solver.mpi_solve.least_squares_mpi_solve` function.
-For more details about MPI, see :ref:`mpi`.
+:meth:`simsopt.solve.least_squares_mpi_solve` function.
+For more details about MPI, see :doc:`mpi`.
 
 The complete example is then as follows::
 
-  from simsopt.util.mpi import MpiPartition
+  from simsopt.util import MpiPartition
   from simsopt.mhd import Vmec
-  from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-  from simsopt.solve.graph_mpi import least_squares_mpi_solve
+  from simsopt.objectives import LeastSquaresProblem
+  from simsopt.solve import least_squares_mpi_solve
 
   # In the next line, we can adjust how many groups the pool of MPI
   # processes is split into.

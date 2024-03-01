@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
+import os
 import logging
 import numpy as np
 
-from simsopt.util.mpi import MpiPartition, log
+from simsopt.util import MpiPartition, log
 from simsopt.mhd import Spec
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_mpi import least_squares_mpi_solve
-import os
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_mpi_solve
+from simsopt.geo import SurfaceGarabedian
 
-"""¡
+"""
 This script implements the "1DOF_circularCrossSection_varyAxis_targetIota"
 example from
 https://github.com/landreman/stellopt_scenarios
@@ -43,7 +44,7 @@ equil = Spec(os.path.join(os.path.dirname(__file__), 'inputs', '1DOF_Garabedian.
 # We will optimize in the space of Garabedian coefficients rather than
 # RBC/ZBS coefficients. To do this, we convert the boundary to the
 # Garabedian representation:
-surf = equil.boundary.to_Garabedian()
+surf = SurfaceGarabedian.from_RZFourier(equil.boundary)
 equil.boundary = surf
 
 # VMEC parameters are all fixed by default, while surface parameters

@@ -1,9 +1,13 @@
 from scipy.optimize import minimize, least_squares
 import numpy as np
+from monty.json import MontyDecoder, MSONable
+
 from simsopt.geo.surfaceobjectives import boozer_surface_residual
 
+__all__ = ['BoozerSurface']
 
-class BoozerSurface():
+
+class BoozerSurface(MSONable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -36,7 +40,7 @@ class BoozerSurface():
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
-        self.bs = biotsavart
+        self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
@@ -75,11 +79,11 @@ class BoozerSurface():
 
         nsurfdofs = sdofs.size
         s = self.surface
-        bs = self.bs
+        biotsavart = self.biotsavart
 
         s.set_dofs(sdofs)
 
-        boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives)
 
         r = boozer[0]
 
@@ -160,11 +164,11 @@ class BoozerSurface():
             G = None
         lm = xl[-2:]
         s = self.surface
-        bs = self.bs
+        biotsavart = self.biotsavart
         s.set_dofs(sdofs)
         nsurfdofs = sdofs.size
 
-        boozer = boozer_surface_residual(s, iota, G, bs, derivatives=derivatives+1)
+        boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives+1)
         r, J = boozer[0:2]
 
         dl = np.zeros((xl.shape[0]-2,))
@@ -418,7 +422,7 @@ class BoozerSurface():
         surfaces of type SurfaceXYZTensorFourier right now.
 
         Given ntor, mpol, nfp and stellsym, the surface is expected to be
-        created in the following way:
+        created in the following way::
 
             phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
             thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
@@ -426,14 +430,17 @@ class BoozerSurface():
                 mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
                 quadpoints_phi=phis, quadpoints_theta=thetas)
 
-        Or the following two are also possible in the stellsym case
+        Or the following two are also possible in the stellsym case::
+
             phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
             thetas = np.linspace(0, 0.5, mpol+1, endpoint=False)
-        or
+
+        or::
+
             phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
             thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
 
-        and then
+        and then::
 
             s = SurfaceXYZTensorFourier(
                 mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp,
@@ -442,43 +449,37 @@ class BoozerSurface():
         For the stellsym case, there is some redundancy between dofs.  This is
         taken care of inside this function.
 
-        Not stellsym:
-            The surface has (2*ntor+1)*(2*mpol+1) many quadrature points and
-            3*(2*ntor+1)*(2*mpol+1) many dofs.
-            Equations:
-                - Boozer residual in x, y, and z at all quadrature points
-                - z(0, 0) = 0
-                - label constraint (e.g. volume or flux)
-            Unknowns:
-                - Surface dofs
-                - iota
-                - G
-            So we end up having 3*(2*ntor+1)*(2*mpol+1) + 2 equations and the
-            same number of unknowns.
+        In the non-stellarator-symmetric case, the surface has
+        ``(2*ntor+1)*(2*mpol+1)`` many quadrature points and
+        ``3*(2*ntor+1)*(2*mpol+1)`` many dofs.
 
-        Stellsym:
-            In this case we have
+        Equations:
+            - Boozer residual in x, y, and z at all quadrature points
+            - z(0, 0) = 0
+            - label constraint (e.g. volume or flux)
 
-                D = (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1)
-                  = 6*ntor*mpol + 3*ntor + 3*mpol + 1
+        Unknowns:
+            - Surface dofs
+            - iota
+            - G
 
-            many dofs in the surface. After calling surface.get_stellsym_mask() we have kicked out
+        So we end up having ``3*(2*ntor+1)*(2*mpol+1) + 2`` equations and the
+        same number of unknowns.
 
-                2*ntor*mpol + ntor + mpol
-
-            quadrature points, i.e. we have
-
-                2*ntor*mpol + ntor + mpol + 1
-
-            quadrature points remaining. In addition we know that the x coordinate of the
-            residual at phi=0=theta is also always satisfied. In total this
-            leaves us with
-
-                3*(2*ntor*mpol + ntor + mpol) + 2 equations for the boozer residual.
-                1 equation for the label
-
-            which is the same as the number of surface dofs + 2 extra unknowns
-            given by iota and G.
+        In the stellarator-symmetric case, we have
+        ``D = (ntor+1)*(mpol+1)+ ntor*mpol + 2*(ntor+1)*mpol + 2*ntor*(mpol+1)
+        = 6*ntor*mpol + 3*ntor + 3*mpol + 1``
+        many dofs in the surface. After calling ``surface.get_stellsym_mask()`` we have kicked out
+        ``2*ntor*mpol + ntor + mpol``
+        quadrature points, i.e. we have
+        ``2*ntor*mpol + ntor + mpol + 1``
+        quadrature points remaining. In addition we know that the x coordinate of the
+        residual at phi=0=theta is also always satisfied. In total this
+        leaves us with
+        ``3*(2*ntor*mpol + ntor + mpol) + 2`` equations for the boozer residual, plus
+        1 equation for the label,
+        which is the same as the number of surface dofs + 2 extra unknowns
+        given by iota and G.
         """
 
         from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
@@ -501,10 +502,10 @@ class BoozerSurface():
 
         label = self.label
         if G is None:
-            G = 2. * np.pi * np.sum(np.abs(self.bs.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs(self.biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
-        r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+        r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
         norm = 1e6
         while i < maxiter:
             if s.stellsym:
@@ -532,9 +533,15 @@ class BoozerSurface():
             iota = x[-2]
             G = x[-1]
             i += 1
-            r, J = boozer_surface_residual(s, iota, G, self.bs, derivatives=1)
+            r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
-        res = {
-            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota
-        }
+        res = {"residual": r, "jacobian": J, "iter": i, "success": norm <= tol,
+               "G": G, "s": s, "iota": iota}
         return res
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        bs = decoder.process_decoded(d["biotsavart"])
+        surf = decoder.process_decoded(d["surface"])
+        return cls(bs, surf, d["label"], d["targetlabel"])

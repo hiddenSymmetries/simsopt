@@ -4,9 +4,9 @@ import logging
 import numpy as np
 
 from simsopt.mhd import Spec
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.geo import SurfaceRZFourier
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_serial_solve
 
 """
 This script implements the "1DOF_circularCrossSection_varyR0_targetVolume"

@@ -16,4 +16,3 @@ IntArray = Union[Sequence[Integral], NDArray[Any, Int]]
 StrArray = Sequence[str]
 BoolArray = Union[Sequence[bool], NDArray[Any, Bool]]
 Key = Union[Integral, str]
-

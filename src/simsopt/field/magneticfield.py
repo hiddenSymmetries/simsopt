@@ -1,8 +1,11 @@
 import numpy as np
+from monty.json import MontyDecoder, MSONable
 
 import simsoptpp as sopp
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
+
+__all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
 
 
 class MagneticField(sopp.MagneticField, Optimizable):
@@ -13,7 +16,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
     .. code-block::
 
-        bfield = BiotSavart(coils, currents) # An instance of a MagneticField
+        bfield = BiotSavart(coils) # An instance of a MagneticField
         points = ... # points is a (n, 3) numpy array
         bfield.set_points(points)
         B = bfield.B() # returns the Magnetic field at `points`
@@ -25,6 +28,23 @@ class MagneticField(sopp.MagneticField, Optimizable):
     changes.
 
     '''
+
+    def set_points(self, xyz):
+        return self.set_points_cart(xyz)
+
+    def set_points_cart(self, xyz):
+        if len(xyz.shape) != 2 or xyz.shape[1] != 3:
+            raise ValueError(f"xyz array should have shape (n, 3), but has shape {xyz.shape}")
+        if not xyz.flags['C_CONTIGUOUS']:
+            raise ValueError("xyz array should be C contiguous. Consider using `numpy.ascontiguousarray`.")
+        return sopp.MagneticField.set_points_cart(self, xyz)
+
+    def set_points_cyl(self, rphiz):
+        if len(rphiz.shape) != 2 or rphiz.shape[1] != 3:
+            raise ValueError(f"rphiz array should have shape (n, 3), but has shape {rphiz.shape}")
+        if not rphiz.flags['C_CONTIGUOUS']:
+            raise ValueError("rphiz array should be C contiguous. Consider using `numpy.ascontiguousarray`.")
+        return sopp.MagneticField.set_points_cyl(self, rphiz)
 
     def __init__(self, **kwargs):
         sopp.MagneticField.__init__(self)
@@ -106,6 +126,20 @@ class MagneticFieldMultiply(MagneticField):
     def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
+    def as_dict(self) -> dict:
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        Bfield = decoder.process_decoded(d["Bfield"])
+        field = cls(d["scalar"], Bfield)
+        xyz = decoder.process_decoded(d["points"])
+        field.set_points_cart(xyz)
+        return field
+
 
 class MagneticFieldSum(MagneticField):
     """
@@ -143,3 +177,22 @@ class MagneticFieldSum(MagneticField):
 
     def B_vjp(self, v):
         return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
+
+    def as_dict(self) -> dict:
+        d = MSONable.as_dict(self)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        Bfields = []
+        for field in d["Bfields"]:
+            Bfields.append(decoder.process_decoded(field))
+        field_sum = cls(Bfields)
+        xyz = decoder.process_decoded(d["points"])
+        field_sum.set_points_cart(xyz)
+        return field_sum
+
+
+

@@ -24,7 +24,8 @@ Here is a list of publications in which simsopt results appear:
 
 #. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
      "Single-stage gradient-based stellarator coil design: stochastic optimization",
-     *Submitted*, (2021).
+     *Nuclear Fusion* **62**, 076034 (2022).
+     `[journal version] <https://doi.org/10.1088/1741-4326/ac45f3>`__
      `[arXiv version] <https://arxiv.org/pdf/2106.12137>`__
    |
    
@@ -43,7 +44,66 @@ Here is a list of publications in which simsopt results appear:
    |
    
 #. | M Landreman and E Paul,
-     "Magnetic fields with precise quasisymmetry",
-     *Submitted*, (2021).
+     "Magnetic fields with precise quasisymmetry for plasma confinement",
+     *Physical Review Letters* **128**, 035001 (2022).
+     `[journal version] <https://doi.org/10.1103/PhysRevLett.128.035001>`__
      `[arXiv version] <https://arxiv.org/pdf/2108.03711>`__
    |
+
+#. | F Wechsung and M Landreman and A Giuliani and A Cerfon and G Stadler,
+     "Precise stellarator quasi-symmetry can be achieved with electromagnetic coils",
+     *Proceedings of the National Academy of Sciences* **119**, e2202084119 (2022).
+     `[journal version] <https://doi.org/10.1073/pnas.2202084119>`__
+   |
+
+#. | A Baillod, J Loizu, J P Graves, and M Landreman,
+     "Stellarator optimization for good magnetic surfaces at finite β and toroidal current",
+     *Physics of Plasmas*, **29**, 042505 (2021).
+     `[journal version] <https://doi.org/10.1063/5.0080809>`__
+     `[arXiv version] <https://arxiv.org/pdf/2111.15564>`__
+   |
+
+#. | A Giuliani, F Wechsung, M Landreman, G Stadler, and A Cerfon,
+     "Direct computation of magnetic surfaces in Boozer coordinates and coil optimization for quasi-symmetry",
+     *Journal of Plasma Physics*, **88**, 905880401 (2022).
+     `[journal version] <https://doi.org/10.1017/S0022377822000563>`__
+     `[arXiv version] <https://arxiv.org/pdf/2203.03753>`__
+   |
+
+#. | F Wechsung, A Giuliani, M Landreman, A Cerfon, and G Stadler,
+     "A-posteriori optimization for increasing manufacturing tolerances in stellarator coil design",
+     *Submitted*, (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2203.10164>`__
+   |
+
+#. | M Landreman, S Buller, and M Drevlak,
+     "Optimization of quasisymmetric stellarators with self-consistent bootstrap current and energetic particle confinement",
+     *Physics of Plasmas*, **29**, 082501 (2022).
+     `[journal version] <https://doi.org/10.1063/5.0098166>`__
+     `[arXiv version] <https://arxiv.org/pdf/2205.02914>`__
+   |
+
+#. | R Jorge, G G Plunk, M Drevlak, M Landreman, J-F Lobsien, K Camacho Mata, and P Helander
+     "A single-field-period quasi-isodynamic stellarator",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2205.05797>`__
+   |
+
+#. | A Kaptanoglu, T Qian, F Wechsung, and M Landreman
+     "Permanent magnet optimization for stellarators as sparse regression",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2207.08984>`__
+   |
+
+#. | E J Paul, A Bhattacharjee, M Landreman, D Alex, J L Velasco, and R Nies
+     "Energetic particle loss mechanisms in reactor-scale equilibria close to quasisymmetry",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2208.02351>`__
+   |
+
+#. | A Kaptanoglu, R Conrad, and M Landreman
+     "Greedy permanent magnet optimization",
+     *Submitted* (2022).
+     `[arXiv version] <https://arxiv.org/pdf/2208.10620>`__
+   |
+

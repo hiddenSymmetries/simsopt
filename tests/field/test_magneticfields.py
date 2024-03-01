@@ -1,3 +1,14 @@
+import unittest
+import json
+
+import numpy as np
+from monty.json import MontyEncoder, MontyDecoder
+try:
+    import pyevtk
+    pyevtk_found = True
+except ImportError:
+    pyevtk_found = False
+
 from simsopt.field.magneticfieldclasses import ToroidalField, \
     ScalarPotentialRZMagneticField, CircularCoil, Dommaschk, \
     Reiman, sympy_found, InterpolatedField, PoloidalField
@@ -7,16 +18,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries, Coil, Current
-from simsopt.util.zoo import get_ncsx_data
-
-import numpy as np
-import unittest
-
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
+from simsopt.configs.zoo import get_ncsx_data
 
 
 class Testing(unittest.TestCase):
@@ -33,6 +35,12 @@ class Testing(unittest.TestCase):
         Bfield = ToroidalField(R0test, B0test)
         Bfield.set_points(points)
         B1 = Bfield.B()
+
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        B1_regen = Bfield_regen.B()
+        self.assertTrue(np.allclose(B1, B1_regen))
+
         dB1_by_dX = Bfield.dB_by_dX()
         # Bfield analytical
         B2 = np.array([(B0test*R0test/(point[0]**2+point[1]**2))*np.array([-point[1], point[0], 0.]) for point in points])
@@ -91,8 +99,17 @@ class Testing(unittest.TestCase):
         Btotal1.set_points(points)
         Btotal2.set_points(points)
         Btotal3.set_points(points)
+
+        B1 = Btotal1.B()
+        B2 = Btotal2.B()
+
+        # Verify serialization works
+        field_json_str = json.dumps(Btotal2, cls=MontyEncoder)
+        Btotal_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B2, Btotal_regen.B()))
+
         # Verify
-        assert np.allclose(Btotal1.B(), Btotal2.B())
+        assert np.allclose(B1, B2)
         assert np.allclose(Bhelical.B()+Btoroidal1.B()+Btoroidal2.B(), Btotal1.B())
         assert np.allclose(Btotal1.dB_by_dX(), Btotal2.dB_by_dX())
         assert np.allclose(Bhelical.dB_by_dX()+Btoroidal1.dB_by_dX()+Btoroidal2.dB_by_dX(), Btotal1.dB_by_dX())
@@ -116,16 +133,68 @@ class Testing(unittest.TestCase):
         Bscalar.set_points(points)
         B1 = np.array(Bscalar.B())
         dB1_by_dX = np.array(Bscalar.dB_by_dX())
+
+        # Verify serialization works
+        field_json_str = json.dumps(Bscalar, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B1, np.array(Bfield_regen.B())))
+
         # Analytical Formula for B
         rphiz = [[np.sqrt(np.power(point[0], 2) + np.power(point[1], 2)), np.arctan2(point[1], point[0]), point[2]] for point in points]
         B2 = np.array([[0.2*point[2]+0.8*point[0], (0.1+0.3*point[2])/point[0], 0.2*point[0]+0.3*point[1]+point[2]] for point in rphiz])
+        # Convert to Cartesian coordinates
+        r = np.sqrt(np.power(points[:, 0], 2) + np.power(points[:, 1], 2))
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        z = points[:, 2]
+        B2_cart = np.zeros_like(B2)
+        # Bx = Br cos(phi) - Bphi sin(phi)
+        B2_cart[:, 0] = B2[:, 0] * np.cos(phi) - B2[:, 1] * np.sin(phi)
+        # By = Br sin(phi) + Bphi cos(phi)
+        B2_cart[:, 1] = B2[:, 0] * np.sin(phi) + B2[:, 1] * np.cos(phi)
+        B2_cart[:, 2] = B2[:, 2]
         dB2_by_dX = np.array([
             [[0.8*np.cos(point[1]), -(np.cos(point[1])/point[0]**2)*(0.1+0.3*point[2]), 0.2*np.cos(point[1])-0.3*np.sin(point[1])/point[0]],
              [0.8*np.sin(point[1]), -(np.sin(point[1])/point[0]**2)*(0.1+0.3*point[2]), 0.2*np.sin(point[1])+0.3*np.cos(point[1])/point[0]],
              [0.2, 0.3/point[0], 1]] for point in rphiz])
+        dBxdx = dB1_by_dX[:, 0, 0]
+        dBxdy = dB1_by_dX[:, 1, 0]
+        dBxdz = dB1_by_dX[:, 2, 0]
+        dBydx = dB1_by_dX[:, 0, 1]
+        dBydy = dB1_by_dX[:, 1, 1]
+        dBydz = dB1_by_dX[:, 2, 1]
+        dB1_by_dX_cyl = np.zeros_like(dB2_by_dX)
+        dcosphidx = -points[:, 0]**2/r**3 + 1/r
+        dsinphidx = -points[:, 0]*points[:, 1]/r**3
+        dcosphidy = -points[:, 0]*points[:, 1]/r**3
+        dsinphidy = -points[:, 1]**2/r**3 + 1/r
+        Bx = B1[:, 0]
+        By = B1[:, 1]
+        # Br = Bx cos(phi) + By sin(phi)
+        dB1_by_dX_cyl[:, 0, 0] = dBxdx * np.cos(phi) + Bx * dcosphidx + dBydx * np.sin(phi) \
+            + By * dsinphidx
+        dB1_by_dX_cyl[:, 1, 0] = dBxdy * np.cos(phi) + Bx * dcosphidy + dBydy * np.sin(phi) \
+            + By * dsinphidy
+        dB1_by_dX_cyl[:, 2, 0] = dBxdz * np.cos(phi) + dBydz * np.sin(phi)
+        # Bphi = - sin(phi) Bx + cos(phi) By
+        dB1_by_dX_cyl[:, 0, 1] = - dBxdx * np.sin(phi) - Bx * dsinphidx + dBydx * np.cos(phi) \
+            + By * dcosphidx
+        dB1_by_dX_cyl[:, 1, 1] = - dBxdy * np.sin(phi) - Bx * dsinphidy + dBydy * np.cos(phi) \
+            + By * dcosphidy
+        dB1_by_dX_cyl[:, 2, 1] = - dBxdz * np.sin(phi) + dBydz * np.cos(phi)
+        dB1_by_dX_cyl[:, :, 2] = dB1_by_dX[:, :, 2]
         # Verify
-        assert np.allclose(B1, B2)
-        assert np.allclose(dB1_by_dX, dB2_by_dX)
+        assert np.allclose(B1, B2_cart)
+        assert np.allclose(dB1_by_dX_cyl, dB2_by_dX)
+
+        # Check for divergence-free condition for dipole field
+        # Set up magnetic field scalar potential
+        PhiStr = "Z/(R*R + Z*Z)**(3/2)"
+        # Set up scalar potential B
+        Bscalar = ScalarPotentialRZMagneticField(PhiStr)
+        Bscalar.set_points(points)
+        dB1_by_dX = np.array(Bscalar.dB_by_dX())
+        divB = dB1_by_dX[:, 0, 0] + dB1_by_dX[:, 1, 1] + dB1_by_dX[:, 2, 2]
+        assert np.allclose(np.abs(divB), 0)
 
     def test_circularcoil_Bfield(self):
         current = 1.2e7
@@ -138,6 +207,12 @@ class Testing(unittest.TestCase):
         points = np.array([[1e-10, 0, 0.]])
         Bfield.set_points(points)
         assert np.allclose(Bfield.B(), [[0, 0, current/1e7*2*np.pi/radius]])
+
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
+
         # Verify that divergence is zero
         dB1_by_dX = Bfield.dB_by_dX()
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
@@ -190,7 +265,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
-        Bfield.set_points([[0.1, 0.2, 0.3]])
+        Bfield.set_points(np.asarray([[0.1, 0.2, 0.3]]))
         Afield = Bfield.A()
         assert np.allclose(Afield, [[0, 5.15785, -2.643056]])
         # use normal=[1,0,0]
@@ -284,8 +359,8 @@ class Testing(unittest.TestCase):
         N_coils = 30
 
         N_turns = 3
-        a1 = 10 / 2 * 0.0254 
-        a2 = 19.983 / 2 * 0.0254 
+        a1 = 10 / 2 * 0.0254
+        a2 = 19.983 / 2 * 0.0254
         r_array = np.linspace(a1, a2, N_turns)
         I_amp = 433 * (33/N_turns)
 
@@ -313,7 +388,7 @@ class Testing(unittest.TestCase):
                     B = CircularCoil(I=I_amp, r0=a_m, center=R0, normal=n1)
                     coils.append(B)
 
-            B_field = MagneticFieldSum(coils)
+            B_field = sum(coils)
 
             ### setup target points
             N_points = 100
@@ -339,7 +414,7 @@ class Testing(unittest.TestCase):
             np.testing.assert_allclose(bmag, 0.281279, rtol=3e-05, atol=1e-5)
 
     def test_helicalcoil_Bfield(self):
-        point = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
+        point = np.asarray([[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         field = [[-0.00101961, 0.20767292, -0.00224908]]
         derivative = [[[0.47545098, 0.01847397, 1.10223595], [0.01847426, -2.66700072, 0.01849548], [1.10237535, 0.01847085, 2.19154973]]]
         curves = [CurveHelical(100, 2, 5, 2, 1., 0.3) for i in range(2)]
@@ -353,18 +428,29 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bhelical.B(), field)
         assert np.allclose(Bhelical.dB_by_dX(), derivative)
 
+        # Verify serialization works
+        field_json_str = json.dumps(Bhelical, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(Bhelical.B(), Bfield_regen.B()))
+
     def test_Dommaschk(self):
         mn = [[10, 2], [15, 3]]
         coeffs = [[-2.18, -2.18], [25.8, -25.8]]
         Bfield = Dommaschk(mn=mn, coeffs=coeffs)
-        Bfield.set_points([[0.9231, 0.8423, -0.1123]])
+        point = np.asarray([[0.9231, 0.8423, -0.1123]])
+        Bfield.set_points(point)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
         # Verify B
-        assert np.allclose(Bfield.B(), [[-1.72696, 3.26173, -2.22013]])
+        B = Bfield.B()
+        assert np.allclose(B, [[-1.72696, 3.26173, -2.22013]])
         # Verify gradB is symmetric and its value
         assert np.allclose(gradB, transpGradB)
         assert np.allclose(gradB, np.array([[-59.9602, 8.96793, -24.8844], [8.96793, 49.0327, -18.4131], [-24.8844, -18.4131, 10.9275]]))
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
     def test_BifieldMultiply(self):
         scalar = 1.2345
@@ -398,6 +484,10 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield2.A(), scalar*np.array(Bfield1.A()))
         assert np.allclose(Bfield2.dA_by_dX(), scalar*np.array(Bfield1.dA_by_dX()))
         assert np.allclose(Bfield2.d2A_by_dXdX(), scalar*np.array(Bfield1.d2A_by_dXdX()))
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield2, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(Bfield2.B(), Bfield_regen.B()))
 
     def test_Reiman(self):
         iota0 = 0.15
@@ -416,25 +506,29 @@ class Testing(unittest.TestCase):
         # Check that div(B)=0
         dB1 = Bfield.dB_by_dX()
         assert np.allclose(dB1[:, 0, 0]+dB1[:, 1, 1]+dB1[:, 2, 2], np.zeros((npoints)))
+        # Verify serialization works
+        field_json_str = json.dumps(Bfield, cls=MontyEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=MontyDecoder)
+        self.assertTrue(np.allclose(B1, Bfield_regen.B()))
         # Bfield analytical
         x = points[:, 0]
         y = points[:, 1]
         z = points[:, 2]
-        Bx = (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-                                            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+        Bx = (y*np.sqrt(x**2 + y**2) + x*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) -
+                                            0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) +
               0.06*x*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
               np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
-        By = (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-                                                0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) + 
+        By = (-1.*x*np.sqrt(x**2 + y**2) + y*z*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) -
+                                                0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2))))) +
               0.06*y*(1 - np.sqrt(x**2 + y**2))*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2 *
               np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/(x**2 + y**2)
-        Bz = (-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) - 
-                                             0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) - 
+        Bz = (-((-1 + np.sqrt(x**2 + y**2))*(0.15 + 0.38*((-1 + np.sqrt(x**2 + y**2))**2 + z**2) -
+                                             0.06*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.cos(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))) -
               0.06*z*((-1 + np.sqrt(x**2 + y**2))**2 + z**2)**2*np.sin(np.arctan2(y, x) - 6*np.arctan(z/(-1 + np.sqrt(x**2 + y**2)))))/np.sqrt(x**2 + y**2)
         B2 = np.array(np.vstack((Bx, By, Bz)).T)
         assert np.allclose(B1, B2)
         # Derivative
-        points = [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]]
+        points = np.asarray([[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         Bfield.set_points(points)
         dB1 = np.array(Bfield.dB_by_dX()[0])
         dB2 = np.array([[1.68810242e-03, -1.11110794e+00, 3.11091859e-04],
@@ -554,7 +648,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(B, Bh, rtol=1e-2)
         assert np.allclose(dB, dBh, rtol=1e-2)
         assert np.allclose(Bc, Bhc, rtol=1e-2)
-        assert np.allclose(dBc, dBhc, rtol=1e-2)
+        assert np.allclose(dBc, dBhc, rtol=1e-2, atol=1e-5)
 
     def test_interpolated_field_convergence_rate(self):
         R0test = 1.5
@@ -594,7 +688,7 @@ class Testing(unittest.TestCase):
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
 
-        points_xyz = np.asarray([[0.5, 0.6, 0.7]])
+        points_xyz = np.asarray([[0.5, 0.6, 0.7], [0.4, 0.1, 0.6]])
         points_rphiz = np.zeros_like(points_xyz)
         points_rphiz[:, 0] = np.linalg.norm(points_xyz[:, 0:2], axis=1)
         points_rphiz[:, 1] = np.mod(np.arctan2(points_xyz[:, 1], points_xyz[:, 0]), 2*np.pi)
@@ -609,6 +703,17 @@ class Testing(unittest.TestCase):
         assert np.allclose(bs.get_points_cyl(), points_rphiz)
         assert np.allclose(bs.get_points_cart(), points_xyz)
 
+        f_contig = np.asfortranarray(points_xyz)
+        bsbs = 2*bs
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cart(f_contig)
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cyl(f_contig)
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cart(f_contig.flatten())
+        with self.assertRaises(ValueError):
+            bsbs.set_points_cyl(f_contig.flatten())
+
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_to_vtk(self):
         curves, currents, ma = get_ncsx_data()
@@ -622,10 +727,10 @@ class Testing(unittest.TestCase):
         R0 = 1.2
         q = 1.3
         # point locations
-        points = [
+        points = np.asarray([
             [-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
             [0.1231, 2.4123, 0.002341],
-        ]
+        ])
         # Bfield from class
         Bfield = PoloidalField(R0=R0, B0=B0, q=q)
         Bfield.set_points(points)

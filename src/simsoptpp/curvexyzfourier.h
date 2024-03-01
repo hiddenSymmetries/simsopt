@@ -17,12 +17,12 @@ class CurveXYZFourier : public Curve<Array> {
            [x_{c,0},x_{s,1},x_{c,1},...,x_{s,order},x_{c,order},y_{c,0},y_{s,1},y_{c,1},...]
 
        */
-    private:
-        int order;
     public:
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
+        using Curve<Array>::check_the_persistent_cache;
         vector<vector<double>> dofs;
+        const int order;
 
         CurveXYZFourier(int _numquadpoints, int _order) : Curve<Array>(_numquadpoints), order(_order) {
             dofs = vector<vector<double>> {
@@ -76,6 +76,19 @@ class CurveXYZFourier : public Curve<Array> {
             return _dofs;
         }
 
+        Array& dgamma_by_dcoeff() override {
+            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
+        }
+        Array& dgammadash_by_dcoeff() override {
+            return check_the_persistent_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
+        }
+        Array& dgammadashdash_by_dcoeff() override {
+            return check_the_persistent_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
+        }
+        Array& dgammadashdashdash_by_dcoeff() override {
+            return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
+        }
+
         void gamma_impl(Array& data, Array& quadpoints) override;
         void gammadash_impl(Array& data) override;
         void gammadashdash_impl(Array& data) override;
@@ -84,6 +97,6 @@ class CurveXYZFourier : public Curve<Array> {
         void dgammadash_by_dcoeff_impl(Array& data) override;
         void dgammadashdash_by_dcoeff_impl(Array& data) override;
         void dgammadashdashdash_by_dcoeff_impl(Array& data) override;
-        Array dgamma_by_dcoeff_vjp_impl(Array& v) override;
-        Array dgammadash_by_dcoeff_vjp_impl(Array& v) override;
+        //Array dgamma_by_dcoeff_vjp_impl(Array& v) override;
+        //Array dgammadash_by_dcoeff_vjp_impl(Array& v) override;
 };

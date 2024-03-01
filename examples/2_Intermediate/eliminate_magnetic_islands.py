@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+import os
 import logging
 import numpy as np
-from simsopt.util.mpi import MpiPartition, log
-from simsopt.mhd.spec import Spec, Residue
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_mpi import least_squares_mpi_solve
-import os
+from simsopt.util import MpiPartition, log
+from simsopt.mhd import Spec, Residue
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_mpi_solve
 
 """
 In this example, we show how the shape of a boundary magnetic
@@ -27,7 +27,8 @@ mpi = MpiPartition()
 mpi.write()
 
 # Initialze a Spec object from a standard SPEC input file:
-s = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'QH-residues.sp'), mpi=mpi)
+s = Spec(os.path.join(os.path.dirname(__file__), 'inputs', 'QH-residues.sp'),
+         mpi=mpi)
 
 # Expand number of Fourier modes to include larger poloidal mode numbers:
 s.boundary.change_resolution(6, s.boundary.ntor)

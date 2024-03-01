@@ -14,13 +14,15 @@ import logging
 from typing import Union
 import numpy as np
 
-from monty.dev import requires
+from .._core.dev import SimsoptRequires
 try:
     from mpi4py import MPI
 except ImportError:
     MPI = None
 
 STOP = 0
+
+__all__ = ['log', 'MpiPartition']
 
 
 def log(level: int = logging.INFO):
@@ -42,7 +44,7 @@ def log(level: int = logging.INFO):
 logger = logging.getLogger(__name__)
 
 
-@requires(MPI is not None, "mpi4py is not installed")
+@SimsoptRequires(MPI is not None, "mpi4py is not installed")
 class MpiPartition:
     """
     This module contains functions related to dividing up the set of

@@ -1,6 +1,11 @@
-from simsopt._core.graph_optimizable import Optimizable
-from .._core.derivative import derivative_dec
 import numpy as np
+from monty.json import MSONable, MontyDecoder, MontyEncoder
+
+import simsoptpp as sopp
+from .._core.optimizable import Optimizable
+from .._core.derivative import derivative_dec
+
+__all__ = ['SquaredFlux']
 
 
 class SquaredFlux(Optimizable):
@@ -32,17 +37,10 @@ class SquaredFlux(Optimizable):
         Optimizable.__init__(self, x0=np.asarray([]), depends_on=[field])
 
     def J(self):
-        xyz = self.surface.gamma()
         n = self.surface.normal()
-        absn = np.linalg.norm(n, axis=2)
-        unitn = n * (1./absn)[:, :, None]
-        Bcoil = self.field.B().reshape(xyz.shape)
-        Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        if self.target is not None:
-            B_n = (Bcoil_n - self.target)
-        else:
-            B_n = Bcoil_n
-        return 0.5 * np.mean(B_n**2 * absn)
+        Bcoil = self.field.B().reshape(n.shape)
+        Btarget = self.target if self.target is not None else []
+        return sopp.integral_BdotN(Bcoil, Btarget, n)
 
     @derivative_dec
     def dJ(self):
@@ -59,57 +57,13 @@ class SquaredFlux(Optimizable):
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
+    def as_dict(self) -> dict:
+        return MSONable.as_dict(self)
 
-class CoilOptObjective(Optimizable):
-    r"""
-    Objective combining a
-    :obj:`simsopt.objectives.fluxobjective.SquaredFlux` with a list of
-    curve objectives and a distance objective to form the basis of a
-    classic Stage II optimization problem. The objective functions are
-    combined into a single scalar function using weights ``alpha`` and
-    ``beta``, so the overall objective is
-
-    .. math::
-        J = \mathrm{Jflux} + \alpha \sum_k \mathrm{Jcls}_k + \beta \mathrm{Jdist}
-
-    Args:
-        Jflux: A :obj:`simsopt.objectives.fluxobjective.SquaredFlux`
-        Jcls: Typically a list of
-          :obj:`simsopt.geo.curveobjectives.CurveLength`, though any list of objectives
-          that have a ``J()`` and ``dJ()`` function is fine.
-        alpha: The scalar weight in front of the objectives in ``Jcls``.
-        Jdist: Typically a 
-          :obj:`simsopt.geo.curveobjectives.MinimumDistance`, though any objective
-          that has a ``J()`` and ``dJ()`` function is fine.
-        beta: The scalar weight in front of the objective in ``Jdist``.
-    """
-
-    def __init__(self, Jflux, Jcls=[], alpha=0., Jdist=None, beta=0.):
-        deps = [Jflux] + Jcls
-        if Jdist is not None:
-            deps.append(Jdist)
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=deps)
-        self.Jflux = Jflux
-        self.Jcls = Jcls
-        self.alpha = alpha
-        self.Jdist = Jdist
-        self.beta = beta
-
-    def J(self):
-        res = self.Jflux.J()
-        if self.alpha > 0:
-            res += self.alpha * sum([J.J() for J in self.Jcls])
-        if self.beta > 0 and self.Jdist is not None:
-            res += self.beta * self.Jdist.J()
-        return res
-
-    @derivative_dec
-    def dJ(self):
-        res = self.Jflux.dJ(partials=True)
-        if self.alpha > 0:
-            for Jcl in self.Jcls:
-                res += self.alpha * Jcl.dJ(partials=True)
-        if self.beta > 0 and self.Jdist is not None:
-            res += self.beta * self.Jdist.dJ(partials=True)
-        return res
-
+    @classmethod
+    def from_dict(cls, d):
+        decoder = MontyDecoder()
+        surface = decoder.process_decoded(d["surface"])
+        field = decoder.process_decoded(d["field"])
+        target = decoder.process_decoded(d["target"])
+        return cls(surface, field, target)

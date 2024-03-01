@@ -2,45 +2,13 @@
 # Copyright (c) HiddenSymmetries Development Team.
 # Distributed under the terms of the LGPL License
 
-# Import MHD classes can fail if any of the required
-# dependencies are not installed
-import logging
+from .vmec import *
+from .virtual_casing import *
+from .vmec_diagnostics import *
+from .profiles import *
+from .bootstrap import *
+from .boozer import *
+from .spec import *
 
-logger = logging.getLogger(__name__)
-
-try:
-    from mpi4py import MPI
-except ImportError as e:
-    MPI = None 
-    logger.warning(str(e))
-
-if MPI is not None:
-    from .vmec import Vmec  # , vmec_found
-    from .spec import Spec, Residue  # , spec_found
-    from .boozer import Boozer, Quasisymmetry  # , boozer_found
-else:
-    Vmec = None
-    Spec = None
-    Residue = None
-    Boozer = None
-    Quasisymmetry = None
-    logger.warning("mpi4py not installed. Not loading Vmec, Spec and other MHD modules.")
-
-#try:
-#    import vmec
-#except BaseException as err:
-#    print('Unable to load VMEC module, so some functionality will not be available.')
-#    print('Reason VMEC module was not loaded:')
-#    print(err)
-
-#try:
-#    from .vmec import Vmec
-#    vmec_found = True
-#except ImportError as err:
-#    vmec_found = False
-#    print('Unable to load VMEC module, so some functionality will not be available.')
-#    print('Reason VMEC module was not loaded:')
-#    print(err)
-
-#if vmec_found:
-#    from .vmec import Vmec
+__all__ = (vmec.__all__ + virtual_casing.__all__ + vmec_diagnostics.__all__ +
+           profiles.__all__ + bootstrap.__all__ + boozer.__all__ + spec.__all__)

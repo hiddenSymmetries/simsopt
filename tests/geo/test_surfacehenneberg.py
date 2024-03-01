@@ -1,8 +1,11 @@
 import unittest
 import os
 import logging
+import json
 from pathlib import Path
+
 import numpy as np
+from monty.json import MontyEncoder, MontyDecoder
 
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 
@@ -112,7 +115,7 @@ class SurfaceHennebergTests(unittest.TestCase):
         np.testing.assert_equal(surf.local_dofs_free_status,
                                 [False, True, True, False, True, True,
                                  True, False, True, True, False, True])
-        surf.fix_all()
+        surf.local_fix_all()
         surf.fixed_range(0, 1, False)
         np.testing.assert_equal(surf.local_dofs_free_status,
                                 [True, True, True, False, False, True,
@@ -212,8 +215,14 @@ class SurfaceHennebergTests(unittest.TestCase):
             vmec = Vmec(os.path.join(TEST_DIR, test_file))
             surf1 = vmec.boundary
             surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
+            # Make sure that the graph framework dofs are sync-ed with
+            # the rc/zs arrays:
+            np.testing.assert_allclose(surf2.x, surf2.get_dofs())
             self.assertEqual(surf2.num_dofs(), len(surf2.get_dofs()))
             surf3 = surf2.to_RZFourier()
+            # Make sure that the graph framework dofs are sync-ed with
+            # the rc/zs arrays:
+            np.testing.assert_allclose(surf3.x, surf3.get_dofs())
 
             # Test gamma_lin:
             gamma2 = np.zeros((nlist, 3))
@@ -260,6 +269,26 @@ class SurfaceHennebergTests(unittest.TestCase):
         # But if the 2 iota profiles are _exactly_ the same, vmec must
         # not have actually used the converted boundary.
         self.assertTrue(np.max(np.abs(iota1 - iota2)) > 1e-12)
+
+    def test_serialization(self):
+        R0 = 1.5
+        a = 0.3
+        for nfp in range(1, 3):
+            for alpha_fac in [-1, 0, 1]:
+                for mmax in range(1, 3):
+                    for nmax in range(3):
+                        surfH = SurfaceHenneberg(nfp=nfp, alpha_fac=alpha_fac,
+                                                 mmax=mmax, nmax=nmax)
+                        surfH.R0nH[0] = R0
+                        surfH.bn[0] = a
+                        surfH.set_rhomn(1, 0, a)
+                        surfH.local_full_x = surfH.get_dofs()
+                        surf_str = json.dumps(surfH, cls=MontyEncoder)
+                        surfH_regen = json.loads(surf_str, cls=MontyDecoder)
+                        self.assertAlmostEqual(surfH.area(), surfH_regen.area(),
+                                               places=4)
+                        self.assertAlmostEqual(surfH.volume(), surfH_regen.volume(),
+                                               places=3)
 
 
 if __name__ == "__main__":

@@ -47,15 +47,17 @@ recommended approach is to use pip:
 
     pip install simsopt
 
+For detailed installation instructions on some specific systems, see
+[the wiki](https://github.com/hiddenSymmetries/simsopt/wiki).
 Also, a Docker container is available with `simsopt` and its components pre-installed, which
 can be started using
 
     docker run -it --rm hiddensymmetries/simsopt
 
 More [installation
-options](https://simsopt.readthedocs.io/en/latest/getting_started.html#),
+options](https://simsopt.readthedocs.io/en/latest/installation.html),
 [instructions for the Docker
-container](https://simsopt.readthedocs.io/en/latest/docker.html), and
+container](https://simsopt.readthedocs.io/en/latest/containers.html), and
 other information can be found in the [main simsopt documentation
 here.](https://simsopt.readthedocs.io)
 

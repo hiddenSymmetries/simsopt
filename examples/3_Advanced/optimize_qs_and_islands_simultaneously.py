@@ -3,11 +3,11 @@
 import os
 import numpy as np
 
-from simsopt.util.mpi import log, MpiPartition
+from simsopt.util import log, MpiPartition
 from simsopt.mhd import Vmec, Spec, Boozer, Quasisymmetry
 from simsopt.mhd.spec import Residue
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_mpi import least_squares_mpi_solve
+from simsopt.objectives import LeastSquaresProblem
+from simsopt.solve import least_squares_mpi_solve
 
 """
 In this example, we simultaneously optimize for quasisymmetry and

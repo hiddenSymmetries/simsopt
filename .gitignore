@@ -60,7 +60,11 @@ docs/build/
 # IDE related
 .idea
 compile_commands.json
+.vscode
 
 # Tests output
 tests/*.dat
 tests/boundary*
+
+# Version file
+src/simsopt/_version.py

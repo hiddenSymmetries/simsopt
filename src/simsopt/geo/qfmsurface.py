@@ -1,9 +1,13 @@
 from scipy.optimize import minimize, least_squares, NonlinearConstraint
 import numpy as np
+from monty.json import MontyDecoder, MSONable
+
 from simsopt.geo.surfaceobjectives import QfmResidual
 
+__all__ = ['QfmSurface']
 
-class QfmSurface():
+
+class QfmSurface(MSONable):
     r"""
     QfmSurface is used to compute a quadratic-flux minimizing surface, defined
     as the minimum of the objective function,
@@ -18,7 +22,7 @@ class QfmSurface():
 
     The label constraint can be enforced with a penalty formulation, defined
     in :func:`qfm_penalty_constraints()`, and whose minimium is computed with
-    LBFGS-B by :func:`minimize_qfm_penalty_constraints_LBFGS()'.
+    LBFGS-B by :func:`minimize_qfm_penalty_constraints_LBFGS()`.
 
     Alternatively, the label constraint can be enforced with a constrained
     optimization algorithm. This constrained optimization problem is
@@ -26,7 +30,7 @@ class QfmSurface():
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
-        self.bs = biotsavart
+        self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
@@ -90,7 +94,6 @@ class QfmSurface():
 
         assert derivatives in [0, 1]
         s = self.surface
-        bs = self.bs
         s.x = x
 
         qfm = self.qfm

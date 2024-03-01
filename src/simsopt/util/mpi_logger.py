@@ -28,13 +28,14 @@ import time
 import logging
 import array
 import atexit
+import sys
 
-from monty.dev import requires
-#import mpi4py
 try:
     from mpi4py import MPI
 except ImportError:
     MPI = None
+
+from .._core.dev import SimsoptRequires
 
 
 # Maximum length of message in characters
@@ -60,7 +61,8 @@ def _destroy_log_comm():
 _log_comm_list = []
 
 
-@requires(MPI is not None, "mpi4py is needed by MPILogHandler, but not installed")
+@SimsoptRequires(MPI is not None,
+                 "mpi4py is needed by MPILogHandler, but not installed")
 class MPILogHandler(logging.Handler):
     """A Handler which logs messages over MPI to a single process
     which then write them to a file.

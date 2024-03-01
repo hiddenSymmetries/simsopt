@@ -44,6 +44,14 @@ simsopt.geo.curveobjectives module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.curveperturbed module
+---------------------------------
+
+.. automodule:: simsopt.geo.curveperturbed
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.curverzfourier module
 ---------------------------------
 
@@ -60,6 +68,14 @@ simsopt.geo.curvexyzfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.finitebuild module
+------------------------------
+
+.. automodule:: simsopt.geo.finitebuild
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.jit module
 ----------------------
 
@@ -68,10 +84,10 @@ simsopt.geo.jit module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.plot module
------------------------
+simsopt.geo.plotting module
+---------------------------
 
-.. automodule:: simsopt.geo.plot
+.. automodule:: simsopt.geo.plotting
    :members:
    :undoc-members:
    :show-inheritance:
@@ -140,10 +156,3 @@ simsopt.geo.surfacexyztensorfourier module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: simsopt.geo
-   :members:
-   :undoc-members:
-   :show-inheritance:

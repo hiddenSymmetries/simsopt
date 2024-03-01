@@ -21,13 +21,13 @@ class CurveRZFourier : public Curve<Array> {
 
            [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
        */
-    private:
-        int order;
-        int nfp;
-        bool stellsym;
     public:
+        const int order;
+        const int nfp;
+        const bool stellsym;
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
+        using Curve<Array>::check_the_persistent_cache;
 
         Array rc;
         Array rs;
@@ -53,10 +53,6 @@ class CurveRZFourier : public Curve<Array> {
             rs = xt::zeros<double>({order});
             zc = xt::zeros<double>({order + 1});
             zs = xt::zeros<double>({order});
-        }
-
-        inline int get_nfp() {
-            return nfp;
         }
 
         inline int num_dofs() override {
@@ -104,6 +100,19 @@ class CurveRZFourier : public Curve<Array> {
                     res[counter++] = zs[i];
             }
             return res;
+        }
+
+        Array& dgamma_by_dcoeff() override {
+            return check_the_persistent_cache("dgamma_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgamma_by_dcoeff_impl(A);});
+        }
+        Array& dgammadash_by_dcoeff() override {
+            return check_the_persistent_cache("dgammadash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadash_by_dcoeff_impl(A);});
+        }
+        Array& dgammadashdash_by_dcoeff() override {
+            return check_the_persistent_cache("dgammadashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdash_by_dcoeff_impl(A);});
+        }
+        Array& dgammadashdashdash_by_dcoeff() override {
+            return check_the_persistent_cache("dgammadashdashdash_by_dcoeff", {numquadpoints, 3, num_dofs()}, [this](Array& A) { return dgammadashdashdash_by_dcoeff_impl(A);});
         }
 
         void gamma_impl(Array& data, Array& quadpoints) override;

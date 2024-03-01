@@ -1,9 +1,11 @@
 import unittest
 from pathlib import Path
+import json
 
 import numpy as np
+from monty.json import MontyDecoder, MontyEncoder
 
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
+from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -140,6 +142,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # First try a stellarator-symmetric example:
         filename = TEST_DIR / 'wout_li383_low_res_reference.nc'
         s = SurfaceRZFourier.from_wout(filename)
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
         # The value in the next line includes m values up to 4 even
         # though the RBC/ZBS arrays for the input file go up to m=6,
         # since mpol is only 4.
@@ -173,6 +178,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # First try some stellarator-symmetric examples:
         filename = TEST_DIR / 'input.li383_low_res'
         s = SurfaceRZFourier.from_vmec_input(filename)
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
         # The value in the next line includes m values up through 6,
         # even though mpol in the file is 4.
         true_volume = 2.97871721453671
@@ -265,9 +273,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
                 self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
                                        places=places)
 
-    def test_write_nml(self):
+    def test_get_and_write_nml(self):
         """
-        Test the write_nml() function. To do this, we read in a VMEC input
+        Test the get_nml() and write_nml() functions. To do this, we read in a VMEC input
         namelist, call write_nml(), read in the resulting namelist as
         a new surface, and compare the data to the original surface.
         """
@@ -293,8 +301,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # Try a non-stellarator-symmetric case
         filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
-        s1.write_nml()
+        nml_str = s1.get_nml()  # This time, cover the case in which a string is returned
         new_filename = 'boundary'
+        with open(new_filename, 'w') as f:
+            f.write(nml_str)
         s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
@@ -320,6 +330,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename = TEST_DIR / 'tf_only_half_tesla.plasma'
 
         s = SurfaceRZFourier.from_focus(filename)
+
+        # Make sure that the graph framework dofs are sync-ed with
+        # the rc/zs arrays:
+        np.testing.assert_allclose(s.x, s.get_dofs())
 
         self.assertEqual(s.nfp, 3)
         self.assertTrue(s.stellsym)
@@ -461,6 +475,209 @@ class SurfaceRZFourierTests(unittest.TestCase):
                     fd_jac = dofs.fd_jac()
                     print('difference for surface test_derivatives:', jac - fd_jac)
                     np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
+
+    def test_vjps(self):
+        mpol = 10
+        ntor = 10
+        nfp = 1
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        h = np.random.standard_normal(size=s.gamma().shape)
+
+        via_vjp = s.dgamma_by_dcoeff_vjp(h)
+        via_matvec = np.sum(s.dgamma_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
+        via_vjp = s.dgammadash1_by_dcoeff_vjp(h)
+        via_matvec = np.sum(s.dgammadash1_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
+        via_vjp = s.dgammadash2_by_dcoeff_vjp(h)
+        via_matvec = np.sum(s.dgammadash2_by_dcoeff()*h[..., None], axis=(0, 1, 2))
+        assert np.linalg.norm(via_vjp-via_matvec)/np.linalg.norm(via_vjp) < 1e-13
+
+    def test_names_order(self):
+        """
+        Verify that the order of rc, rs, zc, zs in the dof names is
+        correct. This requires that the order of these four arrays in
+        ``_make_names()`` matches the order in the C++ functions
+        ``set_dofs_impl()`` and ``get_dofs()`` in
+        ``src/simsoptpp/surfacerzfourier.h``.
+        """
+        mpol = 1
+        ntor = 1
+        nfp = 4
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        s.set_rc(0, 0, 100.0)
+        s.set_zs(0, 1, 200.0)
+        self.assertAlmostEqual(s.get('rc(0,0)'), 100.0)
+        self.assertAlmostEqual(s.get('zs(0,1)'), 200.0)
+
+        # Now try non-stellarator-symmetry
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        s.set_rc(0, 0, 10.0)
+        s.set_zs(0, 1, 20.0)
+        s.set_zc(0, 0, 30.0)
+        s.set_rs(0, 1, 40.0)
+        self.assertAlmostEqual(s.get('rc(0,0)'), 10.0)
+        self.assertAlmostEqual(s.get('zs(0,1)'), 20.0)
+        self.assertAlmostEqual(s.get('zc(0,0)'), 30.0)
+        self.assertAlmostEqual(s.get('rs(0,1)'), 40.0)
+
+    def test_mn(self):
+        """
+        Test the arrays of mode numbers m and n.
+        """
+        mpol = 3
+        ntor = 2
+        nfp = 4
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        m_correct = [0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3,
+                     0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3]
+        n_correct = [0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2,
+                     1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2, -2, -1, 0, 1, 2]
+        np.testing.assert_array_equal(s.m, m_correct)
+        np.testing.assert_array_equal(s.n, n_correct)
+
+        # Now try a non-stellarator-symmetric case
+        s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        np.testing.assert_array_equal(s.m, m_correct + m_correct)
+        np.testing.assert_array_equal(s.n, n_correct + n_correct)
+
+    def test_mn_matches_names(self):
+        """
+        Verify that the m and n attributes match the dof names.
+        """
+        mpol = 2
+        ntor = 3
+        nfp = 5
+        surf = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
+        # Drop the rc or zs from the start of the names:
+        names = [s[2:] for s in surf.local_dof_names]
+        names2 = [f'({m},{n})' for m, n in zip(surf.m, surf.n)]
+        self.assertEqual(names, names2)
+
+        # Now try a non-stellarator-symmetric case:
+        surf = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor, stellsym=False)
+        assert 'zc(0,0)' in surf.local_dof_names
+        # Drop the rc or zs from the start of the names:
+        names = [s[2:] for s in surf.local_dof_names]
+        names2 = [f'({m},{n})' for m, n in zip(surf.m, surf.n)]
+        self.assertEqual(names, names2)
+
+    def test_serialization(self):
+        """
+        Test the serialization of an axisymmetric surface using area and volume
+        """
+        s = SurfaceRZFourier()
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+        # TODO: x should be updated whenever rc and zs are modified without
+        # TODO: explict setting of x
+        s.local_full_x = s.get_dofs()
+
+        surf_str = json.dumps(s, cls=MontyEncoder)
+        s_regen = json.loads(surf_str, cls=MontyDecoder)
+
+        self.assertAlmostEqual(s.area(), s_regen.area(), places=4)
+        self.assertAlmostEqual(s.volume(), s_regen.volume(), places=3)
+
+
+class SurfaceRZPseudospectralTests(unittest.TestCase):
+    def test_names(self):
+        """
+        Check that dof names are correct.
+        """
+        surf = SurfaceRZPseudospectral(mpol=2, ntor=1, nfp=3)
+        names = ['r(0,0)', 'r(0,1)', 'r(0,2)',
+                 'r(1,0)', 'r(1,1)', 'r(1,2)', 'r(1,3)', 'r(1,4)',
+                 'z(0,1)', 'z(0,2)',
+                 'z(1,0)', 'z(1,1)', 'z(1,2)', 'z(1,3)', 'z(1,4)']
+        self.assertEqual(surf.local_dof_names, names)
+
+    def test_from_RZFourier(self):
+        """
+        Create a SurfaceRZPseudospectral object by converting a
+        SurfaceRZFourier object, and make sure the real-space dofs
+        have the correct values.
+        """
+        surf1 = SurfaceRZFourier(mpol=1, ntor=2, nfp=5)
+        surf1.set('rc(0,0)', 2000.0)
+        surf1.set('rc(1,0)', 30.0)
+        surf1.set('zs(1,0)', 20.0)
+        surf1.set('rc(0,1)', 50.0)
+        surf1.set('zs(0,1)', 40.0)
+        surf1.fix('zs(1,0)')  # The from_RZFourier function should work even if some dofs are fixed.
+        surf2 = SurfaceRZPseudospectral.from_RZFourier(surf1, r_shift=2000.0, a_scale=100.0)
+        #for name, x in zip(surf2.local_dof_names, surf2.x):
+        #    print(name, x)
+        theta = np.linspace(0, 2 * np.pi, 3, endpoint=False)
+        phi = np.linspace(0, 2 * np.pi, 5, endpoint=False)
+        self.assertAlmostEqual(surf2.get('r(0,0)'), 0.3 + 0.5)
+        self.assertAlmostEqual(surf2.get('r(0,1)'), 0.3 * np.cos(theta[1]) + 0.5)
+        self.assertAlmostEqual(surf2.get('z(0,1)'), 0.2 * np.sin(theta[1]))
+        nasserts = 3
+        for jphi in range(1, 3):
+            for jtheta in range(3):
+                nasserts += 2
+                self.assertAlmostEqual(surf2.get(f'r({jphi},{jtheta})'),
+                                       0.3 * np.cos(theta[jtheta]) + 0.5 * np.cos(-phi[jphi]))
+                self.assertAlmostEqual(surf2.get(f'z({jphi},{jtheta})'),
+                                       0.2 * np.sin(theta[jtheta]) + 0.4 * np.sin(-phi[jphi]))
+        assert nasserts == len(surf2.x)
+
+    def test_complete_grid(self):
+        """
+        Make sure the _complete_grid() function of SurfaceRZPseudospectral
+        returns values that agree with the gamma() function for a
+        SurfaceRZFourier object describing the same shape.
+        """
+        filename = TEST_DIR / 'input.li383_low_res'
+        s0 = SurfaceRZFourier.from_vmec_input(filename)
+        s1 = SurfaceRZFourier.from_vmec_input(filename, range='field period',
+                                              ntheta=2 * s0.mpol + 1,
+                                              nphi=2 * s0.ntor + 1)
+        gamma = s1.gamma()
+        r1 = np.sqrt(gamma[:, :, 0] ** 2 + gamma[:, :, 1] ** 2)
+        z1 = gamma[:, :, 2]
+
+        s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
+        r2, z2 = s2._complete_grid()
+
+        np.testing.assert_allclose(r1, r2.T)
+        np.testing.assert_allclose(z1, z2.T)
+
+    def test_convert_back(self):
+        """
+        Start with a SurfaceRZFourier object, convert to a
+        SurfaceRZPseudospectral object, and convert back to a new
+        SurfaceRZFourier object. The dofs of the initial and final
+        object should match.
+        """
+        filename = TEST_DIR / 'input.li383_low_res'
+        s1 = SurfaceRZFourier.from_vmec_input(filename)
+        #print('Original SurfaceRZFourier dofs:', s1.x)
+        x1 = s1.x
+        s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
+        s3 = s2.to_RZFourier()
+        x3 = s3.x
+        #for j, name in enumerate(s1.local_dof_names):
+        #    print(name, x1[j], x3[j], x1[j] - x3[j])
+        np.testing.assert_allclose(s1.full_x, s3.full_x)
+
+    def test_change_resolution(self):
+        """
+        If we refine the resolution, then coarsen the grid back to the
+        original resolution, the initial and final dofs should match.
+        """
+        filename = TEST_DIR / 'input.li383_low_res'
+        s1 = SurfaceRZFourier.from_vmec_input(filename)
+        s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
+        # Increase the resolution:
+        s3 = s2.change_resolution(mpol=s1.mpol + 3, ntor=s1.ntor + 4)
+        # Decrease the resolution back to where it was originally:
+        s4 = s3.change_resolution(mpol=s1.mpol, ntor=s1.ntor)
+        np.testing.assert_allclose(s2.x, s4.x)
 
 
 if __name__ == "__main__":

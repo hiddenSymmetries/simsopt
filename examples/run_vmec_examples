@@ -16,6 +16,8 @@ set -ex
 MPI_OPTIONS=${GITHUB_ACTIONS:+--oversubscribe}
 echo MPI_OPTIONS=$MPI_OPTIONS
 
+./2_Intermediate/B_external_normal.py
+
 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
 mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
 mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/1DOF_circularCrossSection_varyAxis_targetIota.py
@@ -31,8 +33,10 @@ mpiexec $MPI_OPTIONS -n 2 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVo
 mpiexec $MPI_OPTIONS -n 3 ./stellarator_benchmarks/2DOF_vmecOnly_targetIotaAndVolume.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/resolution_increase_boozer.py
 
 mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution.py
+mpiexec $MPI_OPTIONS -n 2 ./2_Intermediate/QH_fixed_resolution_boozer.py
 
 ./2_Intermediate/vmec_adjoint.py
 ./2_Intermediate/tracing_boozer.py

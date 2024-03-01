@@ -1,16 +1,31 @@
-from math import sqrt
-import numpy as np
-import simsoptpp as sopp
 import logging
-from simsopt.field.magneticfield import MagneticField
-from simsopt.field.boozermagneticfield import BoozerMagneticField
-from simsopt.field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
-from simsopt.geo.surface import SurfaceClassifier
-from simsopt.util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
-from nptyping import NDArray, Float
+from math import sqrt
+from warnings import warn
+
+import numpy as np
+# from nptyping import NDArray, Float
+
+import simsoptpp as sopp
+from .._core.util import parallel_loop_bounds
+from ..field.magneticfield import MagneticField
+from ..field.boozermagneticfield import BoozerMagneticField
+from ..field.sampling import draw_uniform_on_curve, draw_uniform_on_surface
+from ..geo.surface import SurfaceClassifier
+from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
+from .._core.types import RealArray
 
 
 logger = logging.getLogger(__name__)
+
+__all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
+           'MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
+           'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
+           'StepSizeStoppingCriterion', 'compute_fieldlines', 'compute_resonances',
+           'compute_poloidal_transits', 'compute_toroidal_transits',
+           'trace_particles', 'trace_particles_boozer',
+           'trace_particles_starting_on_curve',
+           'trace_particles_starting_on_surface',
+           'particles_to_vtk', 'plot_poincare_data']
 
 
 def compute_gc_radius(m, vperp, q, absb):
@@ -57,24 +72,8 @@ def gc_to_fullorbit_initial_guesses(field, xyz_inits, speed_pars, speed_total, m
     return xyz_inits_full, v_inits, rgs
 
 
-def parallel_loop_bounds(comm, n):
-    """
-    Split up an array [0, 1, ..., n-1] across an mpi communicator.  Example: n
-    = 8, comm with size=2 will return (0, 4) on core 0, (4, 8) on core 1,
-    meaning that the array is split up as [0, 1, 2, 3] + [4, 5, 6, 7].
-    """
-
-    if comm is None:
-        return 0, n
-    else:
-        size = comm.size
-        idxs = [i*n//size for i in range(size+1)]
-        assert idxs[0] == 0
-        assert idxs[-1] == n
-        return idxs[comm.rank], idxs[comm.rank+1]
-
-def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: NDArray[Float],
-                           parallel_speeds: NDArray[Float], mus: NDArray[Float], tmax=1e-4,
+def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: RealArray,
+                           parallel_speeds: RealArray, mus: RealArray, tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                            tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
                            forget_exact_path=False, zetas_stop=False, vpars_stop=False,
@@ -126,7 +125,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: NDAr
         stz_inits: A ``(nparticles, 3)`` array with the initial positions of
             the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A ``(nparticles, )`` array containing the speed in
-                         direction of the B field for each particle.
+            direction of the B field for each particle.
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
@@ -134,18 +133,18 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: NDAr
         tol: tolerance for the adaptive ode solver
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
-              corresponding to that zeta should be computed
+            corresponding to that zeta should be computed
         stopping_criteria: list of stopping criteria, mostly used in
-                           combination with the ``LevelsetStoppingCriterion``
-                           accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-        mode: how to trace the particles. options are
-            `gc`: general guiding center equations,
+            combination with the ``LevelsetStoppingCriterion``
+            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+        mode: how to trace the particles. Options are
+            `gc`: general guiding center equations.
             `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
-                           :math:`I = 0`, and :math:`K = 0`.
+            :math:`I = 0`, and :math:`K = 0`.
             `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
-                           particle for the ``res_tys``. To be used when only res_zeta_hits is of
-                           interest or one wants to reduce memory usage.
+            particle for the ``res_tys``. To be used when only res_zeta_hits is of
+            interest or one wants to reduce memory usage.
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -205,11 +204,12 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: NDAr
     logger.debug(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_zeta_hits
 
-def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float],
-                           parallel_speeds: NDArray[Float], tmax=1e-4,
+#TODO options
+def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
+                           parallel_speeds: RealArray, tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
-                           forget_exact_path=False, zetas_stop=False, vpars_stop=False, axis=0):
+                           tol=1e-9, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           forget_exact_path=False, solver_options=None):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. This is modeled after
     :func:`trace_particles`.
@@ -262,10 +262,11 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
         Ekin: kinetic energy in Joule, defaults to 3.52MeV
-        tol: tolerance for the adaptive ode solver
+        tol: defualt tolerance for ode solver when solver-specific tolerances are not set
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that zeta should be computed
+        TODO omega and vpar 
         stopping_criteria: list of stopping criteria, mostly used in
                            combination with the ``LevelsetStoppingCriterion``
                            accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
@@ -277,6 +278,20 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
         forget_exact_path: return only the first and last position of each
                            particle for the ``res_tys``. To be used when only res_zeta_hits is of
                            interest or one wants to reduce memory usage.
+        solver_options: solver options
+            shared options are
+                `zetas_stop`: whether to stop if hit provided zeta planes
+                `vpars_stop`: whether to stop if hit provided vpar planes
+            default solver (rk45) specific options are
+                `axis`: TODO
+                `reltol`: relative tolerance for adaptive ode solver
+                `abstol`: absolute tolerance for adaptive ode solver
+            symplectic solver specific options are 
+                `solveSympl`: using symplectic solver
+                `dt`: time step
+                `roottol`: root solver tolerance
+                `predictor_step`: provide better initial guess for the next time step 
+                    using predictor steps
 
     Returns: 2 element tuple containing
         - ``res_tys``:
@@ -295,10 +310,33 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
             or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
             was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
     """
-    if reltol is None:
-        reltol = tol 
-    if abstol is None:
-        abstol = tol 
+    if solver_options:
+        options = dict(solver_options)
+    else:
+        options = dict()
+
+    if options.get('zetas_stop') and (not len(zetas) and not len(omegas)):
+        warn("No zetas and omegas provided for the zeta stopping critierion", RuntimeWarning)
+    if options.get('vpars_stop') and (not len(vpars)):
+        warn("No vpars provided for the vpar stopping criterion", RuntimeWarning)
+    
+    options['phis_stop'] = options.pop('zetas_stop', False)
+
+    if options.get('solveSympl'):
+        for op in ['axis', 'reltol', 'abstol']:
+            if options.get(op):
+                warn("Symplectic solver does not use option %s" % op, RuntimeWarning)
+    else:
+        logger.debug(options)
+        for op in ['dt', 'roottol', 'predictor_step']:
+            if options.get(op):
+                warn("RK45 solver does not use option %s" % op, RuntimeWarning)
+                
+    options.setdefault('roottol', tol)
+    options.setdefault('reltol', tol)
+    options.setdefault('abstol', tol)
+    options.setdefault('dt', 1e-7)
+
     nparticles = stz_inits.shape[0]
     assert stz_inits.shape[0] == len(parallel_speeds)
     speed_par = parallel_speeds
@@ -314,9 +352,9 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
-            m, charge, speed_total, speed_par[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
+            m, charge, speed_total, speed_par[i], tmax, vacuum=(mode == 'gc_vac'),
             noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
-            phis_stop=zetas_stop,vpars_stop=vpars_stop,forget_exact_path=forget_exact_path,axis=axis)
+            **options)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
@@ -331,13 +369,14 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: NDArray[Float]
     if comm is not None:
         res_tys = [i for o in comm.allgather(res_tys) for i in o]
         res_zeta_hits = [i for o in comm.allgather(res_zeta_hits) for i in o]
-
     logger.debug(f'Particles lost {loss_ctr}/{nparticles}={(100*loss_ctr)//nparticles:d}%')
     return res_tys, res_zeta_hits
 
 
-def trace_particles(field: MagneticField, xyz_inits: NDArray[Float],
-                    parallel_speeds: NDArray[Float], tmax=1e-4,
+def trace_particles(field: MagneticField,
+                    xyz_inits: RealArray,  # NDArray[Float],
+                    parallel_speeds: RealArray,  # NDArray[Float],
+                    tmax=1e-4,
                     mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
                     tol=1e-9, abstol=None, reltol=None, comm=None, phis=[], stopping_criteria=[], mode='gc_vac', forget_exact_path=False,
                     phase_angle=0):
@@ -767,7 +806,7 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
                 number of poloidal transits of the orbit.
     """
     if not flux:
-        assert(ma is not None)
+        assert (ma is not None)
     nparticles = len(res_tys)
     ntransits = np.zeros((nparticles,))
     gamma = np.zeros((1, 3))
@@ -813,7 +852,7 @@ def compute_fieldlines(field, R0, Z0, tmax=200, tol=1e-7, abstol=None, reltol=No
         field: the magnetic field :math:`B`
         R0: list of radial components of initial points
         Z0: list of vertical components of initial points
-        tmax: for how long to trace. will do roughly |B|*tmax/(2*pi*r0) revolutions of the device
+        tmax: for how long to trace. will do roughly ``|B|*tmax/(2*pi*r0)`` revolutions of the device
         tol: tolerance for the adaptive ode solver
         phis: list of angles in [0, 2pi] for which intersection with the plane
               corresponding to that phi should be computed

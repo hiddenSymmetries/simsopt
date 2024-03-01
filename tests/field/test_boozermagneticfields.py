@@ -1,4 +1,5 @@
 from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField, BoozerAnalytic
+from simsoptpp import inverse_fourier_transform_odd, inverse_fourier_transform_even
 import numpy as np
 import unittest
 from pathlib import Path
@@ -10,6 +11,16 @@ filename_mhd_lasym = str((TEST_DIR / 'wout_10x10.nc').resolve())
 
 from simsopt.mhd.vmec import Vmec
 from simsopt.mhd.boozer import Boozer
+from simsopt._core.util import align_and_pad, allocate_aligned_and_padded_array
+
+try:
+    from simsopt.util.mpi import MpiPartition
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    mpi = MpiPartition(comm_world=comm)
+except ImportError as e:
+    mpi = None
+    logger.debug(str(e))
 
 class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
@@ -135,7 +146,7 @@ class TestingVmec(unittest.TestCase):
                 # First, do not initialize grid
                 booz = Boozer(vmec, mpol=1, ntor=1)
                 bri = BoozerRadialInterpolant(booz, order, rescale=rescale,
-                                              ns_delete=ns_delete, mpol=1, ntor=1)
+                                              ns_delete=ns_delete, mpol=1, ntor=1, mpi=mpi)
 
                 s_0 = np.copy(bri.s_half_ext)
                 G_0 = bri.G_spline(0.5)
@@ -145,7 +156,7 @@ class TestingVmec(unittest.TestCase):
                 booz.register(vmec.s_half_grid[0:5])
                 booz.run()
                 bri = BoozerRadialInterpolant(booz, order, rescale=False,
-                                              ns_delete=ns_delete, mpol=1, ntor=1)
+                                              ns_delete=ns_delete, mpol=1, ntor=1, mpi=mpi)
 
                 s_1 = np.copy(bri.s_half_ext)
                 G_1 = bri.G_spline(0.5)
@@ -157,7 +168,7 @@ class TestingVmec(unittest.TestCase):
                 booz.register(s_grid)
                 booz.run()
                 bri = BoozerRadialInterpolant(booz, order, rescale=False,
-                                              ns_delete=ns_delete, mpol=1, ntor=1)
+                                              ns_delete=ns_delete, mpol=1, ntor=1, mpi=mpi)
 
                 s_2 = np.copy(bri.s_half_ext)
                 G_2 = bri.G_spline(0.5)
@@ -179,7 +190,7 @@ class TestingVmec(unittest.TestCase):
             for rescale in [False, True]:
                 bri = BoozerRadialInterpolant(booz, order, rescale=rescale,
                                               ns_delete=ns_delete, mpol=20,
-                                              ntor=18)
+                                              ntor=18, mpi=mpi)
                 isurf = round(0.75*len(vmec.s_full_grid))
 
                 """
@@ -291,7 +302,7 @@ class TestingVmec(unittest.TestCase):
             for rescale in [True, False]:
                 bri = BoozerRadialInterpolant(vmec, order, mpol=20, ntor=18,
                                               rescale=rescale, ns_delete=ns_delete,
-                                              no_K=True)
+                                              no_K=True, mpi=mpi)
 
                 """
                 These evaluation points test G(), iota(), modB(), R(), and
@@ -306,7 +317,14 @@ class TestingVmec(unittest.TestCase):
                 G_full = (vmec.wout.bvco[1:-1]+vmec.wout.bvco[2::])/2.
                 iota_full = (vmec.wout.iotas[1:-1]+vmec.wout.iotas[2::])/2.
                 # magnitude of B at theta = 0, zeta = 0
-                modB00 = np.sum(bri.bx.bmnc_b, axis=0)
+                if mpi is not None:
+                    if comm.rank == 0:
+                        modB00 = np.sum(bri.bx.bmnc_b, axis=0)
+                    else:
+                        modB00 = None
+                    modB00 = comm.bcast(modB00, root=0)
+                else:
+                    modB00 = np.sum(bri.bx.bmnc_b, axis=0)
                 modB_full = (modB00[0:-1]+modB00[1::])/2
 
                 # Compare splines of derivatives with spline derivatives
@@ -315,8 +333,18 @@ class TestingVmec(unittest.TestCase):
                 iota_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.iotas[1::])
                 modB00_spline = InterpolatedUnivariateSpline(vmec.s_half_grid, modB00)
 
-                rmnc_half = bri.bx.rmnc_b
-                rmnc_full = 0.5*(bri.bx.rmnc_b[:, 0:-1] + bri.bx.rmnc_b[:, 1::])
+                if mpi is not None:
+                    if comm.rank == 0:
+                        rmnc_half = bri.bx.rmnc_b
+                        rmnc_full = 0.5*(bri.bx.rmnc_b[:, 0:-1] + bri.bx.rmnc_b[:, 1::])
+                    else:
+                        rmnc_half = None
+                        rmnc_full = None
+                    rmnc_half = comm.bcast(rmnc_half, root=0)
+                    rmnc_full = comm.bcast(rmnc_full, root=0)
+                else:
+                    rmnc_half = bri.bx.rmnc_b
+                    rmnc_full = 0.5*(bri.bx.rmnc_b[:, 0:-1] + bri.bx.rmnc_b[:, 1::])
                 # major radius at theta = 0, zeta = 0
                 R00_half = np.sum(rmnc_half, axis=0)
                 R00_full = np.sum(rmnc_full, axis=0)
@@ -454,7 +482,7 @@ class TestingVmec(unittest.TestCase):
         """
         vmec = Vmec(filename_mhd_lowres)
         order = 3
-        bri = BoozerRadialInterpolant(vmec, order, mpol=5, ntor=5, rescale=True)
+        bri = BoozerRadialInterpolant(vmec, order, mpol=5, ntor=5, rescale=True, mpi=mpi)
 
         nfp = vmec.wout.nfp
         n = 12
@@ -592,7 +620,7 @@ class TestingVmec(unittest.TestCase):
         """
         vmec = Vmec(filename_mhd_lowres)
         order = 3
-        bri = BoozerRadialInterpolant(vmec, order, mpol=5, ntor=5, rescale=True)
+        bri = BoozerRadialInterpolant(vmec, order, mpol=5, ntor=5, rescale=True, mpi=mpi)
 
         nfp = vmec.wout.nfp
         n = 12
@@ -739,7 +767,7 @@ class TestingVmec(unittest.TestCase):
         """
         vmec = Vmec(filename_mhd_lowres)
         order = 3
-        bri = BoozerRadialInterpolant(vmec, order, mpol=10, ntor=10)
+        bri = BoozerRadialInterpolant(vmec, order, mpol=10, ntor=10, mpi=mpi)
 
         # Perform interpolation from full grid
         points = np.zeros((len(vmec.s_half_grid)-1, 3))
@@ -795,6 +823,79 @@ class TestingVmec(unittest.TestCase):
             old_err_nu = err_nu
             old_err_K = err_K
 
+
+class TestingInverseFourier(unittest.TestCase):
+    def test_inverse_fourier(self):
+        thetas = np.linspace(0,2*np.pi, 131)
+        zetas = np.linspace(0,2*np.pi, 131)
+        [thetas, zetas] = np.meshgrid(thetas, zetas)
+        thetas, zetas = thetas.flatten(), zetas.flatten()
+        num_points = len(thetas)
+        padded_thetas = align_and_pad(thetas)
+        padded_zetas = align_and_pad(zetas)
+
+        if (mpi is not None):
+            size = mpi.comm_world.size
+            rank = mpi.comm_world.rank
+        else:
+            size = 1
+            rank = 0
+        
+        num_modes = [1, 20, 48]
+        for mpol in num_modes:
+            for ntor in num_modes:
+                nfp = np.random.randint(1, 8) if rank == 0 else None
+                kmns = np.random.random(mpol * (ntor*2+1) - ntor)*2 - 1 if rank == 0 else None
+                # i = np.random.randint(0, num_points) if rank == 0 else None
+                if mpi is not None:
+                    nfp = mpi.comm_world.bcast(nfp, root=0)
+                    kmns = mpi.comm_world.bcast(kmns, root=0)
+                    # i = mpi.comm_world.bcast(i, root=0)
+                                    
+                xm = np.repeat(np.array(range(mpol)), ntor*2+1)[ntor:]
+                xn = np.tile(np.array(range(-ntor*nfp, ntor*nfp+1, nfp)), mpol)[ntor:]
+                assert(len(kmns)==len(xn))
+                assert(len(kmns)==len(xm))
+
+                even_K = sum(kmns[:, np.newaxis] * np.cos(np.outer(xm, thetas) - np.outer(xn, zetas)))
+                odd_K = sum(kmns[:, np.newaxis] * np.sin(np.outer(xm, thetas) - np.outer(xn, zetas)))
+
+
+                mn_idxs = np.array([i * len(xm) // size for i in range(size + 1)])
+                first_mn, last_mn = mn_idxs[rank], mn_idxs[rank + 1]
+                padded_kmns = align_and_pad(np.tile(kmns[first_mn:last_mn, np.newaxis], (1,num_points)))
+                padded_even_output = allocate_aligned_and_padded_array(thetas.shape)
+                padded_odd_output = allocate_aligned_and_padded_array(thetas.shape)
+
+                inverse_fourier_transform_even(padded_even_output, padded_kmns, xm[first_mn:last_mn], xn[first_mn:last_mn], padded_thetas, padded_zetas, ntor, nfp)
+                inverse_fourier_transform_odd(padded_odd_output, padded_kmns, xm[first_mn:last_mn], xn[first_mn:last_mn], padded_thetas, padded_zetas, ntor, nfp)
+
+                if (mpi is not None):
+                    mpi.comm_world.Allreduce(MPI.IN_PLACE, [padded_even_output[:num_points], MPI.DOUBLE], op=MPI.SUM)
+                    mpi.comm_world.Allreduce(MPI.IN_PLACE, [padded_odd_output[:num_points], MPI.DOUBLE], op=MPI.SUM)
+
+                assert np.allclose(even_K, padded_even_output[:num_points], rtol=1e-12, atol=1e-11)
+                assert np.allclose(odd_K, padded_odd_output[:num_points], rtol=1e-12, atol=1e-11)
+
+                # a single point
+                padded_kmns = align_and_pad(kmns[first_mn:last_mn])
+                padded_xm = align_and_pad(xm[first_mn:last_mn])
+                padded_xn = align_and_pad(xn[first_mn:last_mn])
+                for i in range(num_points):
+                    theta = np.array([thetas[i]])
+                    zeta = np.array([zetas[i]])
+                    even_output = np.zeros(1)
+                    odd_output = np.zeros(1)
+
+                    inverse_fourier_transform_even(even_output, padded_kmns, padded_xm, padded_xn, theta, zeta, ntor, nfp)
+                    inverse_fourier_transform_odd(odd_output, padded_kmns, padded_xm, padded_xn, theta, zeta, ntor, nfp)
+
+                    if (mpi is not None):
+                        mpi.comm_world.Allreduce(MPI.IN_PLACE, [even_output, MPI.DOUBLE], op=MPI.SUM)
+                        mpi.comm_world.Allreduce(MPI.IN_PLACE, [odd_output, MPI.DOUBLE], op=MPI.SUM)
+
+                    assert np.allclose(even_K[i], even_output[0], rtol=1e-12, atol=1e-11)
+                    assert np.allclose(odd_K[i], odd_output[0], rtol=1e-12, atol=1e-11)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,19 +1,15 @@
 #!/usr/bin/env python
 
-from simsopt.field.boozermagneticfield import BoozerRadialInterpolant, InterpolatedBoozerField
-from simsopt.field.tracing import trace_particles_boozer, MinToroidalFluxStoppingCriterion, MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, IterationStoppingCriterion, compute_poloidal_transits, compute_toroidal_transits
-from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
-from simsopt.mhd import Vmec
-import simsoptpp as sopp
-import time
 import os
 import logging
-import sys
-import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 import numpy as np
-from pathlib import Path
-from simsopt.field.tracing import compute_resonances
+import matplotlib.pyplot as plt
+from simsopt.field import BoozerRadialInterpolant, InterpolatedBoozerField
+from simsopt.field import trace_particles_boozer, MinToroidalFluxStoppingCriterion, \
+    MaxToroidalFluxStoppingCriterion, ToroidalTransitStoppingCriterion, \
+    compute_resonances
+from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
+from simsopt.mhd import Vmec
 
 ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 

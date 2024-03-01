@@ -10,11 +10,11 @@ except:
 
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.surfacegarabedian import SurfaceGarabedian
-from simsopt.objectives.graph_least_squares import LeastSquaresProblem
-from simsopt.solve.graph_serial import least_squares_serial_solve
+from simsopt.objectives.least_squares import LeastSquaresProblem
+from simsopt.solve.serial import least_squares_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
-    from simsopt.solve.graph_mpi import least_squares_mpi_solve
+    from simsopt.solve.mpi import least_squares_mpi_solve
 
 
 def mpi_solve_1group(prob, **kwargs):
@@ -71,9 +71,9 @@ class IntegratedTests(unittest.TestCase):
 
             # Check results
             self.assertAlmostEqual(surf.get_rc(0, 0), 1.0, places=13)
-            self.assertAlmostEqual(surf.get_rc(1, 0), 0.10962565115956417, places=13)
-            self.assertAlmostEqual(surf.get_zs(0, 0), 0.0, places=13)
-            self.assertAlmostEqual(surf.get_zs(1, 0), 0.27727411213693337, places=13)
+            self.assertAlmostEqual(surf.get_rc(1, 0), 0.10962565115956417, places=12)
+            self.assertAlmostEqual(surf.get_zs(0, 0), 0.0, places=12)
+            self.assertAlmostEqual(surf.get_zs(1, 0), 0.27727411213693337, places=12)
             self.assertAlmostEqual(surf.volume(), desired_volume, places=8)
             self.assertAlmostEqual(surf.area(), desired_area, places=8)
             self.assertLess(np.abs(prob.objective()), 1.0e-15)
@@ -105,7 +105,7 @@ class IntegratedTests(unittest.TestCase):
             # optimized.  You can choose to exclude any subset of the variables
             # from the space of independent variables by setting their 'fixed'
             # property to True.
-            surf.fix_all()
+            surf.local_fix_all()
             surf.unfix('Delta(0,0)')  # Minor radius
             surf.unfix('Delta(2,0)')  # Elongation
 

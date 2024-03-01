@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8.12] # To sync with coveragerc use 3 level
+        python-version: [3.8.13] # To sync with coveragerc use 3 level
         test-type: [unit, integrated]
 
     steps:
@@ -87,12 +87,15 @@ jobs:
 
     - name: Install python dependencies
       run: |
-        pip install wheel numpy f90nml scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly
+        sudo apt-get install graphviz graphviz-dev
+        pip install wheel numpy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
-    # Checking out SPEC is a tricky because it is a private repository.
+    - name: Install virtual_casing
+      run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
+
     # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
@@ -101,9 +104,6 @@ jobs:
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
-        # token: ${{ secrets.SPEC_CHECKOUT }}
-        # ref: python_hdf5
-        # "ref" specifies the branch of the repository to use
      
     - name: ls -l again
       run: |
@@ -117,11 +117,10 @@ jobs:
         ls -l
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
-    #- name: Install py_spec
-    #  run: |
-    #    pip install -e SPEC/Utilities/pythontools
-    #    python -c "import py_spec; print('success')"
-
+    - name: Install py_spec
+      run: |
+        pip install -e SPEC/Utilities/pythontools
+        python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
       run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
@@ -134,7 +133,7 @@ jobs:
         # pip install dist/*.whl
 
     - name: Try import spec
-      run: python -c "import spec.spec as spec; print(spec.constants.version)"
+      run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
       run: ls -l /usr/lib/x86_64-linux-gnu
@@ -159,7 +158,10 @@ jobs:
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      run: pip install -v .[MPI,SPEC]
+      run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
+
+    - name: Verify that importing simsopt does not automatically initialize MPI
+      run: ./tests/verify_MPI_not_initialized.py
 
     - name: Run examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated')

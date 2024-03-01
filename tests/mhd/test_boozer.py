@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import os
 import logging
-from scipy.io import netcdf
+from scipy.io import netcdf_file
 try:
     import booz_xform
 except ImportError as e:
@@ -18,7 +18,7 @@ try:
 except ImportError as e:
     MPI = None
 
-from simsopt._core.graph_optimizable import Optimizable
+from simsopt._core.optimizable import Optimizable
 if MPI is not None:
     from simsopt.mhd.boozer import Boozer, Quasisymmetry  # , booz_xform_found
     from simsopt.mhd.vmec import Vmec  # , vmec_found
@@ -131,10 +131,6 @@ class QuasisymmetryTests(unittest.TestCase):
         qs15 = Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.3, 0.5, 0.75})
 
-    #@unittest.skip("This test won't work when run with other tests involving"
-    #               "vmec until a low-level issue with VMEC is fixed to allow"
-    #               "multiple readins.")
-
     @unittest.skipIf((booz_xform is None) or (vmec is None),
                      "vmec or booz_xform python package not found")
     def test_boozer_circular_tokamak(self):
@@ -192,8 +188,8 @@ class QuasisymmetryTests(unittest.TestCase):
         self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1, s: 1})
 
         # Compare to reference boozmn*.nc file
-        f = netcdf.netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
-                               mmap=False)
+        f = netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
+                        mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
         atol = 1e-12
         rtol = 1e-12
@@ -202,14 +198,10 @@ class QuasisymmetryTests(unittest.TestCase):
         np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, 15],
                                    atol=atol, rtol=rtol)
 
-    #@unittest.skipIf((not booz_xform_found) or (not vmec_found),
-    #                 "booz_xform python package not found")
-
-    @unittest.skip("This test won't work when run with other tests involving"
-                   "vmec until a low-level issue with VMEC is fixed to allow"
-                   "multiple readins.")
+    @unittest.skipIf((booz_xform is None) or (vmec is None),
+                     "vmec or booz_xform python package not found")
     def test_boozer_li383(self):
-        v = Vmec(os.path.join(TEST_DIR, "input.li383_low_res"))
+        v = Vmec(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
         b = Boozer(v, mpol=32, ntor=16)
         qs1 = Quasisymmetry(b, [0.0, 1.0], 1, 0)
         residuals = qs1.J()
@@ -219,8 +211,8 @@ class QuasisymmetryTests(unittest.TestCase):
 
         # Compare to a reference boozmn*.nc file created by standalone
         # booz_xform:
-        f = netcdf.netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
-                               mmap=False)
+        f = netcdf_file(os.path.join(TEST_DIR, "boozmn_li383_low_res.nc"),
+                        mmap=False)
         bmnc_ref = f.variables["bmnc_b"][()].transpose()
         f.close()
         atol = 1e-12

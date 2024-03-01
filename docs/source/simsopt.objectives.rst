@@ -20,22 +20,6 @@ simsopt.objectives.functions module
    :undoc-members:
    :show-inheritance:
 
-simsopt.objectives.graph\_functions module
-------------------------------------------
-
-.. automodule:: simsopt.objectives.graph_functions
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-simsopt.objectives.graph\_least\_squares module
------------------------------------------------
-
-.. automodule:: simsopt.objectives.graph_least_squares
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 simsopt.objectives.least\_squares module
 ----------------------------------------
 
@@ -44,10 +28,11 @@ simsopt.objectives.least\_squares module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
+simsopt.objectives.utilities module
+-----------------------------------
 
-.. automodule:: simsopt.objectives
+.. automodule:: simsopt.objectives.utilities
    :members:
    :undoc-members:
    :show-inheritance:
+

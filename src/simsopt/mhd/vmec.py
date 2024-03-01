@@ -9,9 +9,11 @@ This module provides a class that handles the VMEC equilibrium code.
 import logging
 import os.path
 from typing import Union
+from datetime import datetime
 
 import numpy as np
-from scipy.io import netcdf
+from scipy.io import netcdf_file
+from scipy.integrate import quad
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ except ImportError as e:
     vmec = None
     logger.debug(str(e))
 
-from .._core.graph_optimizable import Optimizable
+from .._core.optimizable import Optimizable
 from .._core.util import Struct, ObjectiveFailure
 from ..geo.surfacerzfourier import SurfaceRZFourier
 
@@ -36,6 +38,9 @@ if MPI is not None:
 else:
     MpiPartition = None
 
+__all__ = ["Vmec"]
+
+
 # Flags used by runvmec():
 restart_flag = 1
 readin_flag = 2
@@ -43,6 +48,34 @@ timestep_flag = 4
 output_flag = 8
 cleanup_flag = 16
 reset_jacdt_flag = 32
+
+
+def to_namelist_bool(bool_in):
+    """ Convert a boolean to a format suitable for fortran namelist input """
+    return "T" if bool_in else "F"
+
+
+def array_to_namelist(arr, aux_s=False):
+    """
+    This routine writes an array to a string, stopping after the last
+    nonzero or nonnegative entry.  This is used for writing the array
+    data in vmec input files.
+    """
+    if aux_s:
+        if np.all(arr < 0):
+            index = 0
+        else:
+            index = np.max(np.where(arr >= 0))
+    else:
+        if np.all(arr == 0):
+            index = 0
+        else:
+            index = np.max(np.nonzero(arr))
+    nml = ''
+    for j in range(index + 1):
+        nml += f'{arr[j]} '
+    nml += '\n'
+    return nml
 
 # Documentation of flags for runvmec() from the VMEC source code:
 #
@@ -140,6 +173,60 @@ class Vmec(Optimizable):
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
+    To run VMEC, two input profiles must be specified: pressure and
+    either iota or toroidal current.  Each of these profiles can be
+    specified in several ways. One way is to specify the profile in
+    the input file used to initialize the ``Vmec`` object. For
+    instance, the pressure profile is determined by the variables
+    ``pmass_type``, ``am``, ``am_aux_s``, and ``am_aux_f``. You can
+    also modify these variables from python via the ``indata``
+    attribute, e.g. ``vmec.indata.am = [1.0e5, -1.0e5]``. Another
+    option is to assign a :obj:`simsopt.mhd.profiles.Profile` object
+    to the attributes ``pressure_profile``, ``current_profile``, or
+    ``iota_profile``. This approach allows for the profiles to be
+    optimized, and it allows you to use profile shapes defined in
+    python that are not available in the fortran VMEC code. To explain
+    this approach we focus here on the pressure profile; the iota and
+    current profiles are analogous. If the ``pressure_profile``
+    attribute of a ``Vmec`` object is ``None`` (the default), then a
+    simsopt :obj:`~simsopt.mhd.profiles.Profile` object is not used,
+    and instead the settings from ``Vmec.indata`` (initialized from
+    the input file) are used. If a
+    :obj:`~simsopt.mhd.profiles.Profile` object is assigned to the
+    ``pressure_profile`` attribute, then an :ref:`edge in the
+    dependency graph <dependecies>` is introduced, so the ``Vmec``
+    object then depends on the dofs of the
+    :obj:`~simsopt.mhd.profiles.Profile` object. Whenever VMEC is run,
+    the simsopt :obj:`~simsopt.mhd.profiles.Profile` is converted to
+    either a polynomial (power series) or cubic spline in the
+    normalized toroidal flux :math:`s`, depending on whether
+    ``indata.pmass_type`` is ``"power_series"`` or
+    ``"cubic_spline"``. (The current profile is different in that
+    either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
+    instead of ``"cubic_spline"``.) The number of terms in the power
+    series or number of spline nodes is determined by the attributes
+    ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
+    is used, the spline nodes are uniformly spaced from :math:`s=0` to
+    1. Note that the choice of whether a polynomial or spline is used
+    for the VMEC calculation is independent of the subclass of
+    :obj:`~simsopt.mhd.profiles.Profile` used. Also, whether the iota
+    or current profile is used is always determined by the
+    ``indata.ncurr`` attribute: 0 for iota, 1 for current. Example::
+
+        from sismopt.mhd.profiles import ProfilePolynomial, ProfileSpline, ProfilePressure, ProfileScaled
+        from simsopt.util.constants import ELEMENTARY_CHARGE
+
+        ne = ProfilePolynomial(1.0e20 * np.array([1, 0, 0, 0, -0.9]))
+        Te = ProfilePolynomial(8.0e3 * np.array([1, -0.9]))
+        Ti = ProfileSpline([0, 0.5, 0.8, 1], 7.0e3 * np.array([1, 0.9, 0.8, 0.1]))
+        ni = ne
+        pressure = ProfilePressure(ne, Te, ni, Ti)  # p = ne * Te + ni * Ti
+        pressure_Pa = ProfileScaled(pressure, ELEMENTARY_CHARGE)  # Te and Ti profiles were in eV, so convert to SI here.
+        vmec = Vmec(filename)
+        vmec.pressure_profile = pressure_Pa
+        vmec.indata.pmass_type = "cubic_spline"
+        vmec.n_pressure = 8  # Use 8 spline nodes
+
     When VMEC is run multiple times, the default behavior is that all
     ``wout`` output files will be deleted except for the first and
     most recent iteration on worker group 0. If you wish to keep all
@@ -158,6 +245,7 @@ class Vmec(Optimizable):
         keep_all_files: If ``False``, all ``wout`` output files will be deleted
           except for the first and most recent ones from worker group 0. If
           ``True``, all ``wout`` files will be kept.
+        verbose: Whether to print to stdout when running vmec.
 
     Attributes:
         iter: Number of times VMEC has run.
@@ -175,6 +263,7 @@ class Vmec(Optimizable):
                  filename: Union[str, None] = None,
                  mpi: Union[MpiPartition, None] = None,
                  keep_all_files: bool = False,
+                 verbose: bool = True,
                  ntheta=50,
                  nphi=50):
 
@@ -196,12 +285,20 @@ class Vmec(Optimizable):
             raise ValueError('Invalid filename')
 
         self.wout = Struct()
+        self.verbose = verbose
 
         # Get MPI communicator:
         if (mpi is None and MPI is not None):
             self.mpi = MpiPartition(ngroups=1)
         else:
             self.mpi = mpi
+
+        self._pressure_profile = None
+        self._current_profile = None
+        self._iota_profile = None
+        self.n_pressure = 10
+        self.n_current = 10
+        self.n_iota = 10
 
         if self.runnable:
             if MPI is None:
@@ -228,10 +325,9 @@ class Vmec(Optimizable):
             self.ictrl[2] = 0  # numsteps
             self.ictrl[3] = 0  # ns_index
             self.ictrl[4] = 0  # iseq
-            verbose = True
             reset_file = ''
             logger.info('About to call runvmec to readin')
-            vmec.runvmec(self.ictrl, filename, verbose, self.fcomm, reset_file)
+            vmec.runvmec(self.ictrl, filename, self.verbose, self.fcomm, reset_file)
             ierr = self.ictrl[1]
             logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
             # Deallocate arrays allocated by VMEC's fixaray():
@@ -271,7 +367,7 @@ class Vmec(Optimizable):
             self.need_to_run_code = True
         else:
             # Initialized from a wout file, so not runnable.
-            self._boundary = SurfaceRZFourier.from_wout(filename)
+            self._boundary = SurfaceRZFourier.from_wout(filename, nphi=nphi, ntheta=ntheta)
             self.output_file = filename
             self.load_wout()
 
@@ -301,6 +397,51 @@ class Vmec(Optimizable):
             self.append_parent(boundary)
             self.need_to_run_code = True
 
+    @property
+    def pressure_profile(self):
+        return self._pressure_profile
+
+    @pressure_profile.setter
+    def pressure_profile(self, pressure_profile):
+        if not pressure_profile is self._pressure_profile:
+            logging.debug('Replacing pressure_profile in setter')
+            if self._pressure_profile is not None:
+                self.remove_parent(self._pressure_profile)
+            self._pressure_profile = pressure_profile
+            if pressure_profile is not None:
+                self.append_parent(pressure_profile)
+                self.need_to_run_code = True
+
+    @property
+    def current_profile(self):
+        return self._current_profile
+
+    @current_profile.setter
+    def current_profile(self, current_profile):
+        if not current_profile is self._current_profile:
+            logging.debug('Replacing current_profile in setter')
+            if self._current_profile is not None:
+                self.remove_parent(self._current_profile)
+            self._current_profile = current_profile
+            if current_profile is not None:
+                self.append_parent(current_profile)
+                self.need_to_run_code = True
+
+    @property
+    def iota_profile(self):
+        return self._iota_profile
+
+    @iota_profile.setter
+    def iota_profile(self, iota_profile):
+        if not iota_profile is self._iota_profile:
+            logging.debug('Replacing iota_profile in setter')
+            if self._iota_profile is not None:
+                self.remove_parent(self._iota_profile)
+            self._iota_profile = iota_profile
+            if iota_profile is not None:
+                self.append_parent(iota_profile)
+                self.need_to_run_code = True
+
     def get_dofs(self):
         if not self.runnable:
             # Use default values from vmec_input
@@ -322,19 +463,57 @@ class Vmec(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def run(self):
+    def set_profile(self, longname, shortname, letter):
         """
-        Run VMEC, if ``need_to_run_code`` is ``True``.
+        This function is used to set the pressure, current, and/or iota
+        profiles.
         """
-        if not self.need_to_run_code:
-            logger.info("run() called but no need to re-run VMEC.")
+        profile = self.__getattribute__(longname + "_profile")
+        if profile is None:
             return
 
-        if not self.runnable:
-            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
+        n = self.__getattribute__("n_" + longname)
+        vmec_profile_type = self.indata.__getattribute__("p" + shortname + "_type").lower()
+        if vmec_profile_type[:12] == b'power_series':
+            # Evaluate the new Profile on a Gauss-Legendre grid in s,
+            # so the polynomial fit is well conditioned.
+            nodes, weights = np.polynomial.legendre.leggauss(n)
+            x = nodes * 0.5 + 0.5  # So x is in (0, 1)
+            y = profile(x)
+            poly = np.polynomial.polynomial.Polynomial.fit(x, y, n - 1, domain=[0, 1]).convert().coef
+            logger.debug('Setting vmec ' + longname + f' profile using power series.  x: {x}  y: {y}  poly: {poly}')
+            ax = self.indata.__getattribute__("a" + letter)
+            ax[:] = 0.0
+            ax[:n] = poly
 
-        logger.info("Preparing to run VMEC.")
-        # Transfer values from Parameters to VMEC's fortran modules:
+        elif vmec_profile_type[:12] == b'cubic_spline' \
+                or vmec_profile_type[:12] == b'akima_spline' \
+                or vmec_profile_type[:12] == b'line_segment':
+            x = np.linspace(0, 1, n)
+            y = profile(x)
+            logger.debug('Setting vmec ' + longname + f' profile using splines. x: {x}  y: {y}')
+            aux_s = self.indata.__getattribute__("a" + letter + "_aux_s")
+            aux_f = self.indata.__getattribute__("a" + letter + "_aux_f")
+            aux_s[:] = 0.0
+            aux_f[:] = 0.0
+            aux_s[:n] = x
+            aux_f[:n] = y
+
+        else:
+            raise RuntimeError('To use a simsopt Profile class with vmec, vmec profile type must be power_series, '
+                               'cubic_spline, akima_spline, or line_segment. For current profiles, _i or _ip can be appended.')
+
+    def set_indata(self):
+        """
+        Transfer data from simsopt objects to Vmec's fortran module data.
+        Presently, this function sets the boundary shape and magnetic
+        axis shape.  In the future, the input profiles will be set
+        here as well. This data transfer is performed before writing a
+        Vmec input file or running Vmec. The boundary surface object
+        converted to ``SurfaceRZFourier`` is returned.
+        """
+        if not self.runnable:
+            raise RuntimeError('Cannot access indata for a Vmec object that was initialized from a wout file.')
         vi = vmec.vmec_input  # Shorthand
         # Convert boundary to RZFourier if needed:
         boundary_RZFourier = self.boundary.to_RZFourier()
@@ -364,20 +543,142 @@ class Vmec(Optimizable):
         vi.zaxis_cc[:] = 0
         vi.zaxis_cs[:] = 0
 
+        # Set profiles, if they are not None:
+        self.set_profile("pressure", "mass", "m")
+        self.set_profile("current", "curr", "c")
+        self.set_profile("iota", "iota", "i")
+        if self.pressure_profile is not None:
+            vi.pres_scale = 1.0
+        if self.current_profile is not None:
+            integral, _ = quad(self.current_profile, 0, 1)
+            vi.curtor = integral
+
+        return boundary_RZFourier
+
+    def get_input(self):
+        """
+        Generate a VMEC input file. The result will be returned as a
+        string. To save a file, see the ``write_input()`` function.
+        """
+        boundary_RZFourier = self.set_indata()  # Transfer the boundary from simsopt to fortran.
+        vi = vmec.vmec_input  # Shorthand
+        nml = '&INDATA\n'
+        nml += '! This file created by simsopt on ' + datetime.now().strftime("%B %d %Y, %H:%M:%S") + '\n\n'
+        nml += '! ---- Geometric parameters ----\n'
+        nml += f'NFP = {vi.nfp}\n'
+        nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
+
+        nml += '\n! ---- Resolution parameters ----\n'
+        nml += f'MPOL = {vi.mpol}\n'
+        nml += f'NTOR = {vi.ntor}\n'
+        index = np.max(np.nonzero(vi.ns_array))
+        nml += f'NS_ARRAY    ='
+        for j in range(index + 1):
+            nml += f'{vi.ns_array[j]:7}'
+        nml += '\n'
+        index = np.max(np.where(vi.niter_array > 0))
+        nml += f'NITER_ARRAY ='
+        for j in range(index + 1):
+            nml += f'{vi.niter_array[j]:7}'
+        nml += '\n'
+        index = np.max(np.nonzero(vi.ftol_array))
+        nml += f'FTOL_ARRAY  ='
+        for j in range(index + 1):
+            nml += f'{vi.ftol_array[j]:7}'
+        nml += '\n'
+
+        nml += '\n! ---- Boundary toroidal flux ----\n'
+        nml += f'PHIEDGE = {vi.phiedge}\n'
+
+        nml += '\n! ---- Pressure profile specification ----\n'
+        profile_type = vi.pmass_type.decode().strip()
+        nml += f'PMASS_TYPE = "{profile_type}"\n'
+        nml += 'AM = ' + array_to_namelist(vi.am)
+        if np.any(vi.am_aux_s >= 0):
+            nml += 'AM_AUX_S = ' + array_to_namelist(vi.am_aux_s, True)
+            nml += 'AM_AUX_F = ' + array_to_namelist(vi.am_aux_f)
+        nml += f'PRES_SCALE = {vi.pres_scale}\n'
+
+        nml += '\n! ---- Profile specification of iota or current ----\n'
+        nml += f'NCURR = {vi.ncurr}\n'
+        if vi.ncurr == 0:
+            # Iota profile specified
+            profile_type = vi.piota_type.decode().strip()
+            nml += f'PIOTA_TYPE = "{profile_type}"\n'
+            nml += 'AI = ' + array_to_namelist(vi.ai)
+            if np.any(vi.ai_aux_s >= 0):
+                nml += 'AI_AUX_S = ' + array_to_namelist(vi.ai_aux_s, True)
+                nml += 'AI_AUX_F = ' + array_to_namelist(vi.ai_aux_f)
+        else:
+            # Current profile specified
+            nml += f'CURTOR = {vi.curtor}\n'
+            profile_type = vi.pcurr_type.decode().strip()
+            nml += f'PCURR_TYPE = "{profile_type}"\n'
+            nml += 'AC = ' + array_to_namelist(vi.ac)
+            if np.any(vi.ac_aux_s >= 0):
+                nml += 'AC_AUX_S = ' + array_to_namelist(vi.ac_aux_s, True)
+                nml += 'AC_AUX_F = ' + array_to_namelist(vi.ac_aux_f)
+
+        nml += '\n! ---- Other numerical parameters ----\n'
+        nml += f'DELT = {vi.delt}\n'
+        nml += f'NSTEP = {vi.nstep}\n'
+
+        nml += '\n! ---- Boundary shape. Array index order is (n, m) ----\n'
+        surf_str = boundary_RZFourier.get_nml().split('\n')
+        for j in range(3, len(surf_str)):
+            nml += surf_str[j] + '\n'
+
+        return nml
+
+    def write_input(self, filename):
+        """
+        Write a VMEC input file. To just get the result as a string
+        without saving a file, see the ``get_input()`` function.
+
+        Args:
+            filename: Name of the file to write. Selected MPI processes can pass
+              ``None`` if you wish for these processes to not write a file.
+        """
+        # All procs should call self.get_input() so set_indata() gets
+        # called, even procs that do not directly write the file:
+        input_namelist = self.get_input()
+        if self.mpi.proc0_groups and (filename is not None):
+            with open(filename, 'w') as f:
+                f.write(input_namelist)
+
+    def run(self):
+        """
+        Run VMEC, if ``need_to_run_code`` is ``True``.
+        """
+        if not self.need_to_run_code:
+            logger.info("run() called but no need to re-run VMEC.")
+            return
+
+        if not self.runnable:
+            raise RuntimeError('Cannot run a Vmec object that was initialized from a wout file.')
+
+        logger.info("Preparing to run VMEC.")
+
         self.iter += 1
-        input_file = self.input_file + '_{:03d}_{:06d}'.format(
+        base_filename = self.input_file + '_{:03d}_{:06d}'.format(
             self.mpi.group, self.iter)
+        input_file = os.path.join(
+            os.getcwd(),
+            os.path.basename(base_filename))
         self.output_file = os.path.join(
             os.getcwd(),
-            os.path.basename(input_file).replace('input.', 'wout_') + '.nc')
+            os.path.basename(base_filename).replace('input.', 'wout_') + '.nc')
         mercier_file = os.path.join(
             os.getcwd(),
-            os.path.basename(input_file).replace('input.', 'mercier.'))
+            os.path.basename(base_filename).replace('input.', 'mercier.'))
         jxbout_file = os.path.join(
             os.getcwd(),
-            os.path.basename(input_file).replace('input.', 'jxbout_') + '.nc')
+            os.path.basename(base_filename).replace('input.', 'jxbout_') + '.nc')
 
-        # I should write an input file here.
+        file_to_write = input_file if self.mpi.proc0_world else None
+        # This next line also calls set_indata():
+        self.write_input(file_to_write)
+
         logger.info("Calling VMEC reinit().")
         vmec.reinit()
 
@@ -388,9 +689,8 @@ class Vmec(Optimizable):
         self.ictrl[2] = 0  # numsteps
         self.ictrl[3] = 0  # ns_index
         self.ictrl[4] = 0  # iseq
-        verbose = True
         reset_file = ''
-        vmec.runvmec(self.ictrl, input_file, verbose, self.fcomm, reset_file)
+        vmec.runvmec(self.ictrl, input_file, self.verbose, self.fcomm, reset_file)
         ierr = self.ictrl[1]
 
         # Deallocate arrays, even if vmec did not converge:
@@ -413,6 +713,8 @@ class Vmec(Optimizable):
 
         logger.info("VMEC run complete. Now loading output.")
         self.load_wout()
+        # Make sure all procs have finished loading the wout file before we delete it:
+        self.mpi.comm_groups.barrier()
         logger.info("Done loading VMEC output.")
 
         # Group leaders handle deletion of files:
@@ -449,7 +751,7 @@ class Vmec(Optimizable):
 
             # Record the latest output file to delete if we run again:
             if (self.mpi.group == 0) and (self.iter > 0) and (not self.keep_all_files):
-                self.files_to_delete.append(self.output_file)
+                self.files_to_delete += [input_file, self.output_file]
 
         self.need_to_run_code = False
 
@@ -461,7 +763,7 @@ class Vmec(Optimizable):
         ierr = 0
         logger.info(f"Attempting to read file {self.output_file}")
 
-        with netcdf.netcdf_file(self.output_file, mmap=False) as f:
+        with netcdf_file(self.output_file, mmap=False) as f:
             for key, val in f.variables.items():
                 # 2D arrays need to be transposed.
                 val2 = val[()]  # Convert to numpy array
@@ -481,6 +783,20 @@ class Vmec(Optimizable):
         self.s_half_grid = self.s_full_grid[1:] - 0.5 * self.ds
 
         return ierr
+
+    def update_mpi(self, new_mpi):
+        """
+        Replace the :obj:`~simsopt.util.mpi.MpiPartition` with a new one.
+
+        Args:
+            new_mpi: A new :obj:`simsopt.util.mpi.MpiPartition` object.
+        """
+        self.mpi = new_mpi
+        self.fcomm = self.mpi.comm_groups.py2f()
+        # Synchronize iteration counters. If we don't do this,
+        # different procs within a group may have different values of
+        # ``iter``, causing them to look for different wout files.
+        self.iter = self.mpi.comm_world.bcast(self.iter)
 
     def aspect(self):
         """
@@ -565,6 +881,23 @@ class Vmec(Optimizable):
         """
         return f"{self.name} (nfp={self.indata.nfp} mpol={self.indata.mpol}" + \
                f" ntor={self.indata.ntor})"
+
+    def external_current(self):
+        """
+        Return the total electric current associated with external
+        currents, i.e. the current through the "doughnut hole". This
+        number is useful for coil optimization, to know what the sum
+        of the coil currents must be.
+
+        Returns:
+            float with the total external electric current in Amperes.
+        """
+        self.run()
+        bvco = self.wout.bvco[-1] * 1.5 - self.wout.bvco[-2] * 0.5
+        mu0 = 4 * np.pi * (1.0e-7)
+        # The formula in the next line follows from Ampere's law:
+        # \int \vec{B} dot (d\vec{r} / d phi) d phi = mu_0 I.
+        return 2 * np.pi * bvco / mu0
 
     def vacuum_well(self):
         """

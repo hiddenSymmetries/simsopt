@@ -12,18 +12,18 @@ simsopt.util.constants module
    :undoc-members:
    :show-inheritance:
 
-simsopt.util.dev module
------------------------
+simsopt.util.fourier\_interpolation module
+------------------------------------------
 
-.. automodule:: simsopt.util.dev
+.. automodule:: simsopt.util.fourier_interpolation
    :members:
    :undoc-members:
    :show-inheritance:
 
-simsopt.util.logging module
----------------------------
+simsopt.util.logger module
+--------------------------
 
-.. automodule:: simsopt.util.logging
+.. automodule:: simsopt.util.logger
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,26 +44,3 @@ simsopt.util.mpi\_logger module
    :undoc-members:
    :show-inheritance:
 
-simsopt.util.types module
--------------------------
-
-.. automodule:: simsopt.util.types
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-simsopt.util.zoo module
------------------------
-
-.. automodule:: simsopt.util.zoo
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: simsopt.util
-   :members:
-   :undoc-members:
-   :show-inheritance:
