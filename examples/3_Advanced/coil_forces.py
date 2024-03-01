@@ -14,7 +14,7 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance, 
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import MeanSquaredForce, coil_force
+from simsopt.field.force import MeanSquaredForce, coil_force, LpCurveForce
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions
 
@@ -39,7 +39,7 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e03)
+LENGTH_WEIGHT = Weight(1e-03)
 LENGTH_TARGET = 17.4
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
@@ -52,14 +52,14 @@ CS_WEIGHT = 10
 
 # Threshold and weight for the curvature penalty in the objective function:
 CURVATURE_THRESHOLD = 5.
-CURVATURE_WEIGHT = 1e-6
+CURVATURE_WEIGHT = 1e-5
 
 # Threshold and weight for the mean squared curvature penalty in the objective function:
 MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight on the mean squared force penalty in the objective function
-FORCE_WEIGHT = Weight(0)
+FORCE_WEIGHT = Weight(1e-06)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -103,12 +103,12 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
-
 Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jforce = [MeanSquaredForce(c, coils, regularization_circ(0.05)) for c in base_coils]
+Jforce = [LpCurveForce(c, coils, regularization_circ(0.05), p=4) for c in base_coils]
+# Jforce = [MeanSquaredForce(c, coils, regularization_circ(0.05)) for c in base_coils]
 
 
 # Form the total objective function. To do this, we can exploit the
@@ -131,17 +131,6 @@ def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    jf = Jf.J()
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
-    kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    force_string = ", ".join(f"{J.J():.2e}" for J in Jforce)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], ⟨F²⟩=[{force_string}]"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    print(outstr)
     return J, grad
 
 
@@ -176,9 +165,8 @@ def pointData_forces(coils):
 
 
 dofs = JF.x
-FORCE_WEIGHT += 0
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
-print("INITIAL OPTIMIZATION")
+# print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short", close=True, extra_data=pointData_forces(coils))
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -189,7 +177,7 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData_surf)
 # result in slightly longer coils but smaller `B·n` on the surface.
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
-print("OPTIMIZATION WITH REDUCED LENGTH PENALTY\n")
+# print("OPTIMIZATION WITH REDUCED LENGTH PENALTY\n")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + f"curves_opt_force_FWEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGTH_WEIGHT.value*10:e}", close=True, extra_data=pointData_forces(coils))
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -197,3 +185,21 @@ s.to_vtk(OUT_DIR + f"surf_opt_force_WEIGHT={FORCE_WEIGHT.value:e}_LWEIGHT={LENGT
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 bs.save(OUT_DIR + "biot_savart_opt.json")
+
+#Print out final important info:
+JF.x = dofs
+J = JF.J()
+grad = JF.dJ()
+jf = Jf.J()
+BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+force = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
+outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+jforce_string = ", ".join(f"{J.J():.2e}" for J in Jforce)
+force_string = ", ".join(f"{f:.2e}" for f in force)
+outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}], Jforce=[{jforce_string}], force=[{force_string}]"
+outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+print(outstr)
