@@ -62,3 +62,60 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& phi, double R
     }
     return L;
 }
+
+Array TF_fluxes(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& B_TF, Array& normal)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas normal needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    if(rho.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("rho needs to be in row-major storage order");
+    if(phi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("phi needs to be in row-major storage order");
+    if(B_TF.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("B_TF needs to be in row-major storage order");
+    if(normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("normal needs to be in row-major storage order");
+          
+    // points shape should be (num_coils, 3)
+    // B_TF shape should be (num_rho, num_phi, 3)
+    // normal shape should be (num_coils, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_phi = phi.shape(0);  // shape should be (num_phi)
+    int num_rho = rho.shape(0);  // shape should be (num_rho)
+    Array Psi = xt::zeros<double>({num_coils});
+    
+//     #pragma omp parallel for schedule(static)
+    for(int j = 0; j < num_coils; j++) {
+        auto cdj = cos(deltas(j));
+        auto caj = cos(alphas(j));
+        auto sdj = sin(deltas(j));
+        auto saj = sin(alphas(j));
+        auto nx = normal(j, 0);
+        auto ny = normal(j, 1);
+        auto nz = normal(j, 2);
+        auto xj = points(j, 0);
+        auto yj = points(j, 1);
+        auto zj = points(j, 2);
+        double integral = 0.0;
+        for (int k = 0; k < num_rho; ++k) {
+            auto xx = rho(k);
+            for (int kk = 0; k < num_phi; ++kk) {
+                auto yy = phi(kk);
+                auto x0 = xx * cos(yy);
+                auto y0 = xx * sin(yy);
+                auto x = x0 * cdj + y0 * saj * sdj + xj;
+                auto y = y0 * caj + yj;
+                auto z = -x0 * sdj + y0 * saj * cdj + zj;
+                auto Bn = B_TF(k, kk, 0) * nx + B_TF(k, kk, 1) * ny + B_TF(k, kk, 2) * nz;
+                integral += Bn * xx;
+            }
+        }
+        Psi(j) = integral;
+    }
+    return Psi;
+}

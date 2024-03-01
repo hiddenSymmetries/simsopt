@@ -8,6 +8,7 @@ from . import Surface
 import simsoptpp as sopp
 from simsopt.field import BiotSavart
 from scipy.integrate import simpson, dblquad, IntegrationWarning
+from scipy.special import roots_chebyt, roots_legendre, roots_jacobi
 import time
 
 __all__ = ['PSCgrid']
@@ -258,13 +259,15 @@ class PSCgrid:
         # plotting in 3D
         
         t1 = time.time()
+        N = 50
+        phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        rho = np.linspace(0, psc_grid.R, N)
+        dphi = phi[1] - phi[0]
+        contig = np.ascontiguousarray
         psc_grid.fluxes(psc_grid.alphas, psc_grid.deltas)
         t2 = time.time()
         print('Fluxes time = ', t2 - t1)
         t1 = time.time()
-        phi = np.linspace(0, 2 * np.pi, 50, endpoint=False)
-        dphi = phi[1] - phi[0]
-        contig = np.ascontiguousarray
         psc_grid.L = sopp.L_matrix(
             contig(psc_grid.grid_xyz), 
             contig(psc_grid.alphas), 
@@ -479,6 +482,8 @@ class PSCgrid:
     
     def inductances(self, alphas, deltas):
         """ Calculate the inductance matrix needed for the PSC forward problem """
+        warnings.filterwarnings("error")
+
         points = self.grid_xyz
         nphi = 10
         phi = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
@@ -520,32 +525,6 @@ class PSCgrid:
                 sdj = np.sin(deltas[j])
                 caj = np.cos(alphas[j])
                 saj = np.sin(alphas[j])
-                # integrand = 0.0
-                # for k in range(nphi):
-                #     ck = np.cos(phi[k])
-                #     sk = np.sin(phi[k])
-                #     for kk in range(nphi):
-                #         ckk = np.cos(phi[kk])
-                #         skk = np.sin(phi[kk])
-                #         dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj)
-                #         dl2_y = (ck * cai) * (ckk * caj)
-                #         dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj)
-                #         x2 = (xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi) ** 2
-                #         y2 = (yj + skk * caj - sk * cai) ** 2
-                #         z2 = (zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi) ** 2
-                #         integrand += (dl2_x + dl2_y + dl2_z) / np.sqrt(x2 + y2 + z2)
-                # def integrand(yy, xx):
-                #     ck = np.cos(xx)
-                #     sk = np.sin(xx)
-                #     ckk = np.cos(yy)
-                #     skk = np.sin(yy)
-                #     dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj)
-                #     dl2_y = (ck * cai) * (ckk * caj)
-                #     dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj)
-                #     x2 = (xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi) ** 2
-                #     y2 = (yj + skk * caj - sk * cai) ** 2
-                #     z2 = (zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi) ** 2
-                #     return (dl2_x + dl2_y + dl2_z) / np.sqrt(x2 + y2 + z2)
                 try:
                     integral, err = dblquad(
                         integrand, 0, 2 * np.pi, 0, 2 * np.pi, 
@@ -559,50 +538,33 @@ class PSCgrid:
         np.fill_diagonal(L, np.log(8.0 * R / r) - 2.0)
         self.L = L * self.mu0 * R * self.Nt ** 2
         
-    def fluxes(self, alphas, deltas):
-        import warnings
+    def fluxes(self, alphas, deltas, plot_vtk=False):
         warnings.filterwarnings("error")
-        
-        fluxes = np.zeros(len(alphas))
-        centers = self.grid_xyz
         bs = self.B_TF
-        plot_points = []
-        Bzs = []
-        for j in range(len(alphas)):
-            cd = np.cos(deltas[j])
-            ca = np.cos(alphas[j])
-            sd = np.sin(deltas[j])
-            sa = np.sin(alphas[j])
-            nj = self.coil_normals[j, :]
-            xj = centers[j, 0]
-            yj = centers[j, 1]
-            zj = centers[j, 2]
-            def Bz_func(yy, xx):
-                x0 = xx * np.cos(yy)
-                y0 = xx * np.sin(yy)
-                x = x0 * cd + y0 * sa * sd + xj
-                y = y0 * ca + yj
-                z = -x0 * sd + y0 * sa * cd + zj
-                bs.set_points(np.array([x, y, z]).reshape(-1, 3))
-                if j == 0:
-                    plot_points.append(np.array([x, y, z]).reshape(-1, 3))
-                    Bzs.append(bs.B().reshape(-1, 3))
-                Bz = bs.B().reshape(-1, 3) @ nj
-                return (Bz * xx)[0]
-            
+        ncoils = len(alphas)
+        contig = np.ascontiguousarray
+        fluxes = np.zeros(ncoils)
+        def quad_func(yy, xx, cd, ca, sd, sa, nj, centers):
+            x0 = xx * np.cos(yy)
+            y0 = xx * np.sin(yy)
+            x = x0 * cd + y0 * sa * sd + centers[0]
+            y = y0 * ca + centers[1]
+            z = -x0 * sd + y0 * sa * cd + centers[2]
+            bs.set_points(contig(np.array([x, y, z]).reshape(-1, 3)))
+            return (bs.B() @ nj) * xx
+
+        for j in range(ncoils):
             try:
-                integral, err = dblquad(Bz_func, 0, self.R, 0, 2 * np.pi)
+                fluxes[j], _ = dblquad(
+                    quad_func, 0, self.R, 0, 2 * np.pi, epsabs=1, epsrel=1,
+                    args=(np.cos(deltas[j]), 
+                          np.cos(alphas[j]), 
+                          np.sin(deltas[j]), 
+                          np.sin(alphas[j]), 
+                          self.coil_normals[j, :], 
+                          self.grid_xyz[j, :])
+                )
             except IntegrationWarning:
                 print('Integral is divergent')
-            fluxes[j] = integral
-        
-        contig = np.ascontiguousarray
-        plot_points = np.array(plot_points).reshape(-1, 3)
-        Bzs = np.array(Bzs).reshape(-1, 3)
-        pointsToVTK('flux_int_points', contig(plot_points[:, 0]),
-                    contig(plot_points[:, 1]), contig(plot_points[:, 2]),
-                    data={"Bz": (contig(Bzs[:, 0]), 
-                                 contig(Bzs[:, 1]),
-                                 contig(Bzs[:, 2]),),},)
         self.psi = fluxes
         

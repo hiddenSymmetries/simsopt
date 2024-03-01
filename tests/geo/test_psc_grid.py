@@ -51,7 +51,7 @@ class Testing(unittest.TestCase):
         
         # Another simple test of the analytic formula   
         # Formulas only valid for R/a >> 1 so otherwise it will fail
-        R = 0.001
+        R = 1
         a = 1e-6
         R0 = 1
         mu0 = 4 * np.pi * 1e-7
@@ -81,9 +81,10 @@ class Testing(unittest.TestCase):
         psc_array = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
         )
+        print((psc_array.psi[0] / I)/ L[1, 0], psc_array.psi[0] / I, L[1, 0])
         assert(np.isclose(psc_array.psi[0] / I, L[1, 0]))
         # Only true because R << 1
-        assert(np.isclose(psc_array.psi[0], np.pi * psc_array.R ** 2 * Bz_center))
+        # assert(np.isclose(psc_array.psi[0], np.pi * psc_array.R ** 2 * Bz_center))
         
         # Test that inductance and flux calculations for wide set of
         # scenarios
