@@ -68,8 +68,8 @@ class PSCgrid:
         self.dz = 2 * z_max / (Nz - 1)
         print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
         Nmin = min(self.dx, min(self.dy, self.dz))
-        self.R = Nmin / 4.0
-        self.a = self.R / 10.0
+        self.R = Nmin / 2.0
+        self.a = self.R / 100.0
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
               ' is at least 2R away from the next coil'
@@ -202,6 +202,13 @@ class PSCgrid:
         psc_grid.plasma_boundary = plasma_boundary.to_RZFourier()
         psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
         psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
+        Ngrid = psc_grid.nphi * psc_grid.ntheta
+        Nnorms = np.ravel(np.sqrt(np.sum(psc_grid.plasma_boundary.normal() ** 2, axis=-1)))
+        psc_grid.grid_normalization = np.sqrt(Nnorms / Ngrid)
+        # integration over phi for L
+        N = 50
+        psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         Nx = kwargs.pop("Nx", 10)
         Ny = Nx  # kwargs.pop("Ny", 10)
         Nz = Nx  # kwargs.pop("Nz", 10)
@@ -244,14 +251,28 @@ class PSCgrid:
 
         # PSC coil geometry determined by its center point in grid_xyz
         # and its alpha and delta angles, which we initialize randomly here.
-        psc_grid.alphas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
-        psc_grid.deltas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
-
-        psc_grid.coil_normals = np.array(
-            [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
-             -np.sin(psc_grid.alphas),
-             np.cos(psc_grid.alphas) * np.cos(psc_grid.deltas)]
-        ).T
+        
+        # Randomly initialize the coil orientations
+        # psc_grid.alphas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
+        # psc_grid.deltas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
+        # psc_grid.coil_normals = np.array(
+        #     [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
+        #      -np.sin(psc_grid.alphas),
+        #      np.cos(psc_grid.alphas) * np.cos(psc_grid.deltas)]
+        # ).T
+        
+        # Initialize the coil orientations parallel to the B field. 
+        B_TF.set_points(psc_grid.grid_xyz)
+        B = B_TF.B()
+        print(B.shape)
+        psc_grid.coil_normals = (B.T / np.sqrt(np.sum(B ** 2, axis=-1))).T
+        psc_grid.alphas = np.arcsin(-psc_grid.coil_normals[:, 1])
+        minus_yinds = np.ravel(np.where(psc_grid.grid_xyz[:, 1] > 0.0))
+        psc_grid.alphas[minus_yinds] = -psc_grid.alphas[minus_yinds]
+        psc_grid.deltas = np.arccos(psc_grid.coil_normals[:, 2] / np.cos(psc_grid.alphas))
+        # determine the alphas and deltas from these normal vectors
+        print(psc_grid.coil_normals.shape, B.shape)
+        
         t2 = time.time()
         print('Initialize grid time = ', t2 - t1)
         
@@ -259,31 +280,13 @@ class PSCgrid:
         # plotting in 3D
         
         t1 = time.time()
-        N = 50
-        phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
-        rho = np.linspace(0, psc_grid.R, N)
-        dphi = phi[1] - phi[0]
-        contig = np.ascontiguousarray
-        psc_grid.fluxes(psc_grid.alphas, psc_grid.deltas)
+        psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         t2 = time.time()
-        print('Fluxes time = ', t2 - t1)
-        t1 = time.time()
-        psc_grid.L = sopp.L_matrix(
-            contig(psc_grid.grid_xyz), 
-            contig(psc_grid.alphas), 
-            contig(psc_grid.deltas),
-            contig(phi),
-            psc_grid.R,
-        ) * dphi ** 2 / (4 * np.pi)
-        print(psc_grid.L)
-        psc_grid.L = (psc_grid.L + psc_grid.L.T)
-        np.fill_diagonal(psc_grid.L, np.log(8.0 * psc_grid.R / psc_grid.a) - 2.0)
-        psc_grid.L = psc_grid.L * psc_grid.mu0 * psc_grid.R * psc_grid.Nt ** 2
-        t2 = time.time()
-        print('Inductances time = ', t2 - t1)
-        psc_grid.setup_curves()
-        psc_grid.setup_currents_and_fields()
+        print('Geo setup time = ', t2 - t1)
         psc_grid.plot_curves()
+        psc_grid.b_vector()
+        kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
+        psc_grid.A_opt = psc_grid.least_squares(kappas)
 
         # psc_grid._optimization_setup()
         return psc_grid
@@ -311,6 +314,9 @@ class PSCgrid:
         Nt = kwargs.pop("Nt", 1)
         psc_grid.Nt = Nt
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
+        N = 50
+        psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         
         Bn = kwargs.pop("Bn", np.zeros((1, 3)))
         Bn = np.array(Bn)
@@ -373,23 +379,7 @@ class PSCgrid:
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
-        psc_grid.fluxes(psc_grid.alphas, psc_grid.deltas)
-        phi = np.linspace(0, 2 * np.pi, 50, endpoint=False)
-        dphi = phi[1] - phi[0]
-        contig = np.ascontiguousarray
-        psc_grid.L = sopp.L_matrix(
-            contig(psc_grid.grid_xyz), 
-            contig(psc_grid.alphas), 
-            contig(psc_grid.deltas),
-            contig(phi),
-            psc_grid.R,
-        ) * dphi ** 2 / (4 * np.pi)
-        psc_grid.L = (psc_grid.L + psc_grid.L.T)
-        np.fill_diagonal(psc_grid.L, np.log(8.0 * R / psc_grid.a) - 2.0)
-        psc_grid.L *= psc_grid.mu0 * psc_grid.R * psc_grid.Nt ** 2
-        # psc_grid.inductances(psc_grid.alphas, psc_grid.deltas)
-        psc_grid.setup_curves()
-        psc_grid.setup_currents_and_fields()
+        psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.plot_curves()
         
         return psc_grid
@@ -567,4 +557,57 @@ class PSCgrid:
             except IntegrationWarning:
                 print('Integral is divergent')
         self.psi = fluxes
+        
+    def b_vector(self):
+        Bn_target = self.Bn.reshape(-1)
+        self.B_TF.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
+        Bn_TF = np.sum(
+            self.B_TF.B().reshape(-1, 3) * self.plasma_boundary.unitnormal(
+                ).reshape(-1, 3), axis=-1
+        )
+        self.b_opt = (Bn_TF - Bn_target) * self.grid_normalization
+        
+    def least_squares(self, kappas):
+        alphas = kappas[:len(kappas) // 2]
+        deltas = kappas[len(kappas) // 2:]
+        self.setup_orientations(alphas, deltas)
+        BdotN2 = np.sum((self.Bn_PSC.reshape(-1) * self.grid_normalization + self.b_opt) ** 2)
+        outstr = f"||Bn||^2 = {BdotN2:.2e}"
+        print(outstr)
+        return BdotN2
+        
+    def setup_orientations(self, alphas, deltas):
+        contig = np.ascontiguousarray
+        t1 = time.time()
+        self.fluxes(alphas, deltas)
+        # sopp.TF_fluxes(
+        #     contig(self.grid_xyz), 
+        #     contig(alphas),
+        #     contig(deltas), 
+        #     contig(self.rho), 
+        #     contig(self.phi), 
+        #     self.I, Array& normal, double R);
+        t2 = time.time()
+        print('Fluxes time = ', t2 - t1)
+        t1 = time.time()
+        self.L = sopp.L_matrix(
+            contig(self.grid_xyz), 
+            contig(alphas), 
+            contig(deltas),
+            contig(self.phi),
+            self.R,
+        ) * self.dphi ** 2 / (4 * np.pi)
+        self.L = (self.L + self.L.T)
+        np.fill_diagonal(self.L, np.log(8.0 * self.R / self.a) - 2.0)
+        self.L = self.L * self.mu0 * self.R * self.Nt ** 2
+        t2 = time.time()
+        print('Inductances time = ', t2 - t1)
+        t1 = time.time()
+        self.setup_curves()
+        t2 = time.time()
+        print('Setup curves time = ', t2 - t1)
+        t1 = time.time()
+        self.setup_currents_and_fields()
+        t2 = time.time()
+        print('Setup fields time = ', t2 - t1)
         
