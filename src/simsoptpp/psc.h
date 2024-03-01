@@ -4,9 +4,9 @@
 // #include <tr1/cmath>
 // #define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
 // #include <boost/lambda/lambda.hpp>
-#include <boost/math/special_functions/ellint_1.hpp>  
-#include <boost/math/special_functions/ellint_2.hpp>  
-#include <boost/math/special_functions/ellint_3.hpp>
+// #include <boost/math/special_functions/ellint_1.hpp>  
+// #include <boost/math/special_functions/ellint_2.hpp>  
+// #include <boost/math/special_functions/ellint_3.hpp>
 #include <cmath>
 #include <tuple>  // c++ tuples
 #include <string> // for string class
@@ -16,6 +16,7 @@ typedef xt::pyarray<double> Array;
 
 Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& phi, double R);
 // 
-Array TF_fluxes(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& I, Array& normal, double R);
+// Array TF_fluxes(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& I, Array& normal, double R);
+Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal);
 // 
 // Array A_matrix(Array& plasma_surface_normals, Array& B, Array& alphas, Array& deltas);

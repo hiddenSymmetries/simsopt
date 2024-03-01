@@ -240,8 +240,10 @@ class PSCgrid:
             contig(psc_grid.xyz_inner), 
             contig(psc_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(psc_grid.grid_xyz == 0.0, axis=-1)))
-        psc_grid.grid_xyz = psc_grid.grid_xyz[inds, :]
+        psc_grid.grid_xyz = np.array(psc_grid.grid_xyz[inds, :], dtype=float)
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
+        psc_grid.rho = np.linspace(0, psc_grid.R, N, endpoint=False)
+
         # psc_grid.pm_phi = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
         pointsToVTK('psc_grid',
                     contig(psc_grid.grid_xyz[:, 0]),
@@ -306,7 +308,7 @@ class PSCgrid:
         from simsopt.field import Current, coils_via_symmetries
         
         psc_grid = cls()
-        psc_grid.grid_xyz = points
+        psc_grid.grid_xyz = np.array(points, dtype=float)
         psc_grid.R = R
         psc_grid.a = a
         psc_grid.alphas = alphas
@@ -317,6 +319,7 @@ class PSCgrid:
         N = 50
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
+        psc_grid.rho = np.linspace(0, R, N, endpoint=False)
         
         Bn = kwargs.pop("Bn", np.zeros((1, 3)))
         Bn = np.array(Bn)
@@ -578,15 +581,29 @@ class PSCgrid:
         
     def setup_orientations(self, alphas, deltas):
         contig = np.ascontiguousarray
+        self.coil_normals = np.array(
+            [np.cos(alphas) * np.sin(deltas),
+              -np.sin(alphas),
+              np.cos(alphas) * np.cos(deltas)]
+        ).T
         t1 = time.time()
-        self.fluxes(alphas, deltas)
-        # sopp.TF_fluxes(
-        #     contig(self.grid_xyz), 
-        #     contig(alphas),
-        #     contig(deltas), 
-        #     contig(self.rho), 
-        #     contig(self.phi), 
-        #     self.I, Array& normal, double R);
+        # self.fluxes(alphas, deltas)
+        # flux_grid = np.zeros((len(alphas), 50, 50, 3))
+        # alphas = np.array(alphas, dtype=float)
+        # deltas = np.array(deltas, dtype=float)
+        # self.phi = np.array(self.phi, dtype=float)
+        # self.rho = np.array(self.rho, dtype=float)
+        # self.coil_normals = np.array(self.coil_normals, dtype=float)
+        # self.grid_xyz = np.array(self.grid_xyz, dtype=float)
+        print(self.grid_xyz.shape, alphas.shape, deltas.shape, self.rho.shape, self.phi.shape, self.coil_normals.shape)
+        flux_grid = sopp.flux_xyz(
+            contig(self.grid_xyz), 
+            contig(self.grid_xyz),
+            contig(deltas), 
+            contig(self.rho), 
+            contig(self.phi), 
+            contig(self.coil_normals)
+        )
         t2 = time.time()
         print('Fluxes time = ', t2 - t1)
         t1 = time.time()
