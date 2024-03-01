@@ -52,7 +52,7 @@ def self_force_rect(coil, a, b):
 @jit
 def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold):
     r"""Pure function for minimizing the Lorentz force on a coil.
-    
+
     The function is
 
      .. math::
@@ -72,7 +72,7 @@ def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regulari
 
 class LpCurveForce(Optimizable):
     r"""  Optimizable class to minimize the Lorentz force on a coil.
-    
+
     The objective function is
 
     .. math::
@@ -164,7 +164,7 @@ class LpCurveForce(Optimizable):
 @jit
 def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual):
     r"""Pure function for minimizing the Lorentz force on a coil.
-    
+
     The function is
 
     .. math:
@@ -184,7 +184,7 @@ def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current
 
 class MeanSquaredForce(Optimizable):
     r"""Optimizable class to minimize the Lorentz force on a coil.
-    
+
     The objective function is
 
     .. math:
@@ -193,6 +193,7 @@ class MeanSquaredForce(Optimizable):
     where :math:`\vec{F}` is the Lorentz force and :math:`\ell` is arclength
     along the coil.
     """
+
     def __init__(self, coil, allcoils, regularization):
         self.coil = coil
         self.allcoils = allcoils

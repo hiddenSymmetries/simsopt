@@ -80,7 +80,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="full torus", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
@@ -134,25 +134,27 @@ def fun(dofs):
     return J, grad
 
 
-# print("""
-# ###############################################################################
-# # Perform a Taylor test 
-# ###############################################################################
-# """)
-# f = fun
-# dofs = JF.x
-# np.random.seed(1)
-# h = np.random.uniform(size=dofs.shape)
-# J0, dJ0 = f(dofs)
-# dJh = sum(dJ0 * h)
-# for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
-#     J1, _ = f(dofs + eps*h)
-#     J2, _ = f(dofs - eps*h)
-#     print("err", (J1-J2)/(2*eps) - dJh)
+print("""
+###############################################################################
+# Perform a Taylor test
+###############################################################################
+""")
+print("(It make take jax several minutes to compile the objective for the first evaluation.)")
+f = fun
+dofs = JF.x
+np.random.seed(1)
+h = np.random.uniform(size=dofs.shape)
+J0, dJ0 = f(dofs)
+dJh = sum(dJ0 * h)
+for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+    J1, _ = f(dofs + eps*h)
+    J2, _ = f(dofs - eps*h)
+    print("err", (J1-J2)/(2*eps) - dJh)
 
 ###############################################################################
 # RUN THE OPTIMIZATION
 ###############################################################################
+
 
 def pointData_forces(coils):
     forces = []

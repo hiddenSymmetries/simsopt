@@ -146,7 +146,7 @@ class Weight(object):
 
     def __float__(self):
         return float(self.value)
-    
+
     def __iadd__(self, alpha):
         self.value += alpha
         return self
