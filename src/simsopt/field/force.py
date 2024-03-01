@@ -154,7 +154,7 @@ class LpCurveForce(Optimizable):
             self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
             + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
             + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
-            + self.coil.current.vjp(self.dJ_dcurrent(*args))
+            + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
             + self.biotsavart.B_vjp(dJ_dB)
         )
 
@@ -266,8 +266,8 @@ class MeanSquaredForce(Optimizable):
             self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
             + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
             + self.coil.curve.dgammadashdash_by_dcoeff_vjp(self.dJ_dgammadashdash(*args))
-            + self.coil.current.vjp(self.dJ_dcurrent(*args))
+            + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
             + self.biotsavart.B_vjp(dJ_dB)
         )
-
+    
     return_fn_map = {'J': J, 'dJ': dJ}

@@ -217,7 +217,6 @@ class CoilForcesTest(unittest.TestCase):
 
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-        currents[0].fix_all()
 
         J = MeanSquaredForce(coils[0], coils, regularization_circ(0.05))
         dJ = J.dJ()
@@ -244,7 +243,6 @@ class CoilForcesTest(unittest.TestCase):
 
         curves, currents, axis = get_ncsx_data(Nt_coils=2)
         coils = [Coil(curve, current) for curve, current in zip(curves, currents)]
-        currents[0].fix_all()
 
         J = LpCurveForce(coils[0], coils, regularization_circ(0.05), 2.5)
         dJ = J.dJ()
