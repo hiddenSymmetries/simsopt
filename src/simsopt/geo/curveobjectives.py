@@ -501,26 +501,16 @@ class LinkingNumber(Optimizable):
         """
 
     def J(self):
-        ncoils = len(self.curves)
-        linkNum = np.zeros([ncoils + 1, ncoils + 1])
-        i = 0
-        for c1 in self.curves[:(ncoils + 1)]:
-            j = 0
-            i = i + 1
-            for c2 in self.curves[:(ncoils + 1)]:
-                j = j + 1
-                if i < j:
-                    R1 = c1.gamma()
-                    R2 = c2.gamma()
-                    dS = c1.quadpoints[1] - c1.quadpoints[0]
-                    dT = c2.quadpoints[1] - c1.quadpoints[0]
-                    dR1 = c1.gammadash()
-                    dR2 = c2.gammadash()
-
-                    integrals = sopp.linkNumber(R1, R2, dR1, dR2) * dS * dT
-                    linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
-        linkNumSum = sum(sum(abs(linkNum)))
-        return round(linkNumSum)
+        ncurves = len(self.curves)
+        gammas = [c.gamma() for c in self.curves]
+        dphis = [c.quadpoints[1] - c.quadpoints[0] for c in self.curves]
+        gammadashs = [c.gammadash() for c in self.curves]
+        link_num = 0.0
+        for i in range(1, ncurves):
+            for j in range(i):
+                link_num += sopp.linkNumber(gammas[i], gammas[j], gammadashs[i], gammadashs[j]) * dphis[i] * dphis[j]
+    
+        return link_num
 
     @derivative_dec
     def dJ(self):
