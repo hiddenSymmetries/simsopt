@@ -7,7 +7,7 @@ __all__ = ["SurfaceHelicalArc"]
 
 
 class SurfaceHelicalArc(sopp.Surface, Surface):
-    def __init__(self, nfp, R0, radius_d, radius_a, theta0, alpha, nphi, ntheta, range):
+    def __init__(self, nfp, R0, radius_d, radius_a, theta0, alpha, quadpoints_phi, quadpoints_theta):
         self.nfp = nfp
         self.R0 = R0
         self.radius_a = radius_a
@@ -15,9 +15,6 @@ class SurfaceHelicalArc(sopp.Surface, Surface):
         self.theta0 = theta0
         self.alpha = alpha
 
-        quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
-            nphi=nphi, ntheta=ntheta, range=range, nfp=nfp
-        )
         self.dtheta = quadpoints_theta[1] - quadpoints_theta[0]
 
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)

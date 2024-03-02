@@ -20,7 +20,7 @@ class Tests(unittest.TestCase):
         # phi_range = "full torus"
         phi_range = "half period"
 
-        surf = SurfaceHelicalArc(
+        surf = SurfaceHelicalArc.from_nphi_ntheta(
             R0=R0,
             radius_d=d,
             radius_a=a,
@@ -97,7 +97,7 @@ class Tests(unittest.TestCase):
         # phi_range = "half period"
         # phi_range = "field period"
 
-        surf1 = SurfaceHelicalArc(
+        surf1 = SurfaceHelicalArc.from_nphi_ntheta(
             R0=R0,
             radius_d=d,
             radius_a=a,
@@ -150,7 +150,7 @@ class Tests(unittest.TestCase):
         for j in range(5):
             nphi = nphi0 * (2**j)
             ntheta = ntheta0 * (2**j)
-            surf = SurfaceHelicalArc(
+            surf = SurfaceHelicalArc.from_nphi_ntheta(
                 R0=R0,
                 radius_d=d,
                 radius_a=a,
