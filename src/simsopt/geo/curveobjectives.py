@@ -482,6 +482,8 @@ class LinkingNumber(Optimizable):
     def __init__(self, curves):
         Optimizable.__init__(self, depends_on=curves)
         self.curves = curves
+        self.dphis = np.array([c.quadpoints[1] - c.quadpoints[0] for c in self.curves])
+
         r"""
         Compute the Linking number of a set of curves (whether the curves 
         are interlocked or not).
@@ -501,16 +503,11 @@ class LinkingNumber(Optimizable):
         """
 
     def J(self):
-        ncurves = len(self.curves)
-        gammas = [c.gamma() for c in self.curves]
-        dphis = [c.quadpoints[1] - c.quadpoints[0] for c in self.curves]
-        gammadashs = [c.gammadash() for c in self.curves]
-        link_num = 0.0
-        for i in range(1, ncurves):
-            for j in range(i):
-                link_num += sopp.linkNumber(gammas[i], gammas[j], gammadashs[i], gammadashs[j]) * dphis[i] * dphis[j]
-    
-        return np.round(np.abs(link_num) / (4 * np.pi))
+        return sopp.compute_linking_number(
+            [c.gamma() for c in self.curves],
+            [c.gammadash() for c in self.curves],
+            self.dphis,
+        )
 
     @derivative_dec
     def dJ(self):
