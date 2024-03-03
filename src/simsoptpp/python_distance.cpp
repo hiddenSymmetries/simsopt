@@ -195,7 +195,7 @@ void init_distance(py::module_ &m){
                 total += det / (dr * dr * dr);
             }
         }
-        return std::round(std::abs(total) / (4 * M_PI));
+        return total;
     });
 
 }

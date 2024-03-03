@@ -510,7 +510,7 @@ class LinkingNumber(Optimizable):
             for j in range(i):
                 link_num += sopp.linkNumber(gammas[i], gammas[j], gammadashs[i], gammadashs[j]) * dphis[i] * dphis[j]
     
-        return link_num
+        return np.round(np.abs(link_num) / (4 * np.pi))
 
     @derivative_dec
     def dJ(self):
