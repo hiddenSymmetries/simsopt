@@ -358,34 +358,33 @@ class Testing(unittest.TestCase):
             err = err_new
 
     def test_linking_number(self):
+        for downsample in [1, 2, 5]:
+            curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=120)
+            curve1 = CurveXYZFourier(200, 3)
+            coeffs = curve1.dofs_matrix
+            coeffs[1][0] = 1.
+            coeffs[1][1] = 0.5
+            coeffs[2][2] = 0.5
+            curve1.set_dofs(np.concatenate(coeffs))
 
-        curves1 = create_equally_spaced_curves(2, 1, stellsym=True, R0=1, R1=0.5, order=5, numquadpoints=128)
-        curve1 = CurveXYZFourier(200, 3)
-        coeffs = curve1.dofs_matrix
-        coeffs[1][0] = 1.
-        coeffs[1][1] = 0.5
-        coeffs[2][2] = 0.5
-        curve1.set_dofs(np.concatenate(coeffs))
+            curve2 = CurveXYZFourier(150, 3)
+            coeffs = curve2.dofs_matrix
+            coeffs[1][0] = 0.5
+            coeffs[1][1] = 0.5
+            coeffs[0][0] = 0.1
+            coeffs[0][1] = 0.5
+            coeffs[0][2] = 0.5
+            curve2.set_dofs(np.concatenate(coeffs))
+            curves2 = [curve1, curve2]
+            curves3 = [curve2, curve1]
+            objective1 = LinkingNumber(curves1, downsample)
+            objective2 = LinkingNumber(curves2, downsample)
+            objective3 = LinkingNumber(curves3, downsample)
 
-        curve2 = CurveXYZFourier(150, 3)
-        coeffs = curve2.dofs_matrix
-        coeffs[1][0] = 0.5
-        coeffs[1][1] = 0.5
-        coeffs[0][0] = 0.1
-        coeffs[0][1] = 0.5
-        coeffs[0][2] = 0.5
-        curve2.set_dofs(np.concatenate(coeffs))
-        curves2 = [curve1, curve2]
-        Object1 = LinkingNumber(curves1)
-        Object2 = LinkingNumber(curves2)
-
-        fullArray = Object1.J()
-        fullArray2 = Object2.J()
-        print("Link Number Testing (should be 0, 1)")
-        print(fullArray)
-        print(fullArray2)
-        self.assertAlmostEqual(fullArray, 0)
-        self.assertAlmostEqual(fullArray2, 1)
+            print("Linking number testing (should be 0, 1, 1):", objective1.J(), objective2.J(), objective3.J())
+            np.testing.assert_allclose(objective1.J(), 0, atol=1e-14, rtol=1e-14)
+            np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14)
+            np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14)
 
 
 if __name__ == "__main__":
