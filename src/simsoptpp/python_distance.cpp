@@ -175,17 +175,18 @@ void init_distance(py::module_ &m){
     m.def("get_pointclouds_closer_than_threshold_between_two_collections", &get_close_candidates_cdist, "Between two lists of pointclouds, get all pairings that are closer than threshold to each other.", py::arg("pointCloudsA"), py::arg("pointCloudsB"), py::arg("threshold"));
     m.def("compute_linking_number", [](const vector<PyArray>& gammas, const vector<PyArray>& gammadashs, const PyArray& dphis, const double downsample) {
         int ncurves = gammas.size();
-        assert(dphis.size() == ncurves);
-        assert(gammadashs.size() == ncurves);
+        // assert(dphis.size() == ncurves);
+        // assert(gammadashs.size() == ncurves);
 
         int linking_number = 0;
+        #pragma omp parallel for reduction(+:linking_number)
         for (int p = 1; p < ncurves; p++) {
             int linknphi1 = gammas[p].shape(0);
             const double *curve1_ptr = gammas[p].data();
             const double *curve1dash_ptr = gammadashs[p].data();
-            assert(gammas[p].size() == gammadashs[p].size());
+            // assert(gammas[p].size() == gammadashs[p].size());
             for (int q = 0; q < p; q++) {
-                assert(gammas[q].size() == gammadashs[q].size());
+                // assert(gammas[q].size() == gammadashs[q].size());
                 int linknphi2 = gammas[q].shape(0);
                 const double *curve2_ptr = gammas[q].data();
                 const double *curve2dash_ptr = gammadashs[q].data();
