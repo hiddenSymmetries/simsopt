@@ -173,7 +173,7 @@ void init_distance(py::module_ &m){
 
     m.def("get_pointclouds_closer_than_threshold_within_collection", &get_close_candidates_pdist, "In a list of point clouds, get all pairings that are closer than threshold to each other.", py::arg("pointClouds"), py::arg("threshold"), py::arg("num_base_curves"));
     m.def("get_pointclouds_closer_than_threshold_between_two_collections", &get_close_candidates_cdist, "Between two lists of pointclouds, get all pairings that are closer than threshold to each other.", py::arg("pointCloudsA"), py::arg("pointCloudsB"), py::arg("threshold"));
-    m.def("compute_linking_number", [](const vector<PyArray>& gammas, const vector<PyArray>& gammadashs, const PyArray& dphis) {
+    m.def("compute_linking_number", [](const vector<PyArray>& gammas, const vector<PyArray>& gammadashs, const PyArray& dphis, const double downsample) {
         int ncurves = gammas.size();
         assert(dphis.size() == ncurves);
         assert(gammadashs.size() == ncurves);
@@ -192,8 +192,8 @@ void init_distance(py::module_ &m){
                 double difference[3] = { 0 };
                 double total = 0;
                 double dr, det;
-                for (int i=0; i < linknphi1; i++){
-                    for (int j=0; j < linknphi2; j++){
+                for (int i=0; i < linknphi1; i += downsample){
+                    for (int j=0; j < linknphi2; j += downsample){
                         difference[0] = (curve1_ptr[3*i+0] - curve2_ptr[3*j+0]);
                         difference[1] = (curve1_ptr[3*i+1] - curve2_ptr[3*j+1]);
                         difference[2] = (curve1_ptr[3*i+2] - curve2_ptr[3*j+2]);
