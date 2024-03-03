@@ -479,10 +479,14 @@ class MinimumDistance(CurveCurveDistance):
 
 class LinkingNumber(Optimizable):
 
-    def __init__(self, curves):
+    def __init__(self, curves, downsample=1):
         Optimizable.__init__(self, depends_on=curves)
         self.curves = curves
-        self.dphis = np.array([c.quadpoints[1] - c.quadpoints[0] for c in self.curves])
+        for curve in curves:
+            assert np.mod(len(curve.quadpoints), downsample) == 0, f"Downsample {downsample} does not divide the number of quadpoints {len(curve.quadpoints)}."
+
+        self.downsample = downsample
+        self.dphis = np.array([(c.quadpoints[1] - c.quadpoints[0]) * downsample for c in self.curves])
 
         r"""
         Compute the Linking number of a set of curves (whether the curves 
@@ -507,6 +511,7 @@ class LinkingNumber(Optimizable):
             [c.gamma() for c in self.curves],
             [c.gammadash() for c in self.curves],
             self.dphis,
+            self.downsample,
         )
 
     @derivative_dec
