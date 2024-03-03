@@ -376,16 +376,15 @@ class Testing(unittest.TestCase):
         coeffs[0][2] = 0.5
         curve2.set_dofs(np.concatenate(coeffs))
         curves2 = [curve1, curve2]
-        Object1 = LinkingNumber(curves1)
-        Object2 = LinkingNumber(curves2)
+        curves3 = [curve2, curve1]
+        objective1 = LinkingNumber(curves1)
+        objective2 = LinkingNumber(curves2)
+        objective3 = LinkingNumber(curves3)
 
-        fullArray = Object1.J()
-        fullArray2 = Object2.J()
-        print("Link Number Testing (should be 0, 1)")
-        print(fullArray)
-        print(fullArray2)
-        self.assertAlmostEqual(fullArray, 0)
-        self.assertAlmostEqual(fullArray2, 1)
+        print("Linking number testing (should be 0, 1, 1):", objective1.J(), objective2.J(), objective3.J())
+        np.testing.assert_allclose(objective1.J(), 0, atol=1e-14, rtol=1e-14)
+        np.testing.assert_allclose(objective2.J(), 1, atol=1e-14, rtol=1e-14)
+        np.testing.assert_allclose(objective3.J(), 1, atol=1e-14, rtol=1e-14)
 
 
 if __name__ == "__main__":
