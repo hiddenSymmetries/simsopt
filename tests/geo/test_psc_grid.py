@@ -81,7 +81,7 @@ class Testing(unittest.TestCase):
         psc_array = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
         )
-        print((psc_array.psi[0] / I)/ L[1, 0], psc_array.psi[0] / I, L[1, 0])
+        # print((psc_array.psi[0] / I)/ L[1, 0], psc_array.psi[0] / I, L[1, 0])
         assert(np.isclose(psc_array.psi[0] / I, L[1, 0]))
         # Only true because R << 1
         # assert(np.isclose(psc_array.psi[0], np.pi * psc_array.R ** 2 * Bz_center))
@@ -113,6 +113,7 @@ class Testing(unittest.TestCase):
                             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
                         )
                         L = psc_array.L
+                        print(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10)
                         assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
 
 if __name__ == "__main__":

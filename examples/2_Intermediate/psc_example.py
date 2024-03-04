@@ -19,14 +19,14 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 32
+    nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 4
     # Make higher resolution surface for plotting Bnormal
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 
-coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
@@ -101,6 +101,7 @@ psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
 
 # print('Currents = ', psc_array.I)
 make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial")
+make_Bnormal_plots(psc_array.B_TF, s_plot, out_dir, "biot_savart_InterpolatedTF")
 make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial")
 
 # Try and optimize with scipy
@@ -111,12 +112,17 @@ t2 = time.time()
 print('Time for call to least-squares = ', t2 - t1)
 # psc_array.least_squares(x0 + np.random.rand(len(x0)))
 
-# from scipy.optimize import minimize
-# print('beginning optimization: ')
-# options = {"disp": True, "maxiter": 2}
-# x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
-# # print(x0)
-# x_opt = minimize(psc_array.least_squares, x0, options=options)
-# print(x_opt)
+from scipy.optimize import minimize
+print('beginning optimization: ')
+options = {"disp": True}
+x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
+                                          )))) * 2 * np.pi
+# print(x0)
+x_opt = minimize(psc_array.least_squares, x0, options=options)
+print(x_opt)
+
+# Check that direct Bn calculation agrees with optimization calculation
+fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((qphi, ntheta))).J()
+print(fB)
 
 # plt.show()
