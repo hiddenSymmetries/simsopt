@@ -56,7 +56,7 @@ def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regulari
     The function is
 
      .. math::
-        J = \left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)^{1/p}
+        J = \frac{1}{p}\left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)
 
     where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
     and :math:`\ell` is arclength along the coil.
@@ -67,7 +67,7 @@ def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regulari
     tangent = gammadash / gammadash_norm
     force = jnp.cross(current * tangent, B_self + B_mutual)
     force_norm = jnp.linalg.norm(force, axis=1)[:, None]
-    return (jnp.sum(jnp.maximum(force_norm - threshold, 0)**p * gammadash_norm))**(1./p)
+    return (jnp.sum(jnp.maximum(force_norm - threshold, 0)**p * gammadash_norm))*(1./p)
 
 
 class LpCurveForce(Optimizable):
@@ -76,7 +76,7 @@ class LpCurveForce(Optimizable):
     The objective function is
 
     .. math::
-        J = \left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)^{1/p}
+        J = \frac{1}{p}\left(\int \text{max}(|\vec{F}| - F_0, 0)^p d\ell\right)
 
     where :math:`\vec{F}` is the Lorentz force, :math:`F_0` is a threshold force,  
     and :math:`\ell` is arclength along the coil.
@@ -269,5 +269,5 @@ class MeanSquaredForce(Optimizable):
             + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
             + self.biotsavart.B_vjp(dJ_dB)
         )
-    
+
     return_fn_map = {'J': J, 'dJ': dJ}

@@ -52,14 +52,14 @@ CS_WEIGHT = 10
 
 # Threshold and weight for the curvature penalty in the objective function:
 CURVATURE_THRESHOLD = 5.
-CURVATURE_WEIGHT = 1e-5
+CURVATURE_WEIGHT = 1e-6
 
 # Threshold and weight for the mean squared curvature penalty in the objective function:
 MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight on the mean squared force penalty in the objective function
-FORCE_WEIGHT = Weight(1e-06)
+FORCE_WEIGHT = Weight(1e-26)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -134,22 +134,22 @@ def fun(dofs):
     return J, grad
 
 
-print("""
-###############################################################################
-# Perform a Taylor test
-###############################################################################
-""")
-print("(It make take jax several minutes to compile the objective for the first evaluation.)")
-f = fun
-dofs = JF.x
-np.random.seed(1)
-h = np.random.uniform(size=dofs.shape)
-J0, dJ0 = f(dofs)
-dJh = sum(dJ0 * h)
-for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
-    J1, _ = f(dofs + eps*h)
-    J2, _ = f(dofs - eps*h)
-    print("err", (J1-J2)/(2*eps) - dJh)
+# print("""
+# ###############################################################################
+# # Perform a Taylor test
+# ###############################################################################
+# """)
+# print("(It make take jax several minutes to compile the objective for the first evaluation.)")
+# f = fun
+# dofs = JF.x
+# np.random.seed(1)
+# h = np.random.uniform(size=dofs.shape)
+# J0, dJ0 = f(dofs)
+# dJh = sum(dJ0 * h)
+# for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+#     J1, _ = f(dofs + eps*h)
+#     J2, _ = f(dofs - eps*h)
+#     print("err", (J1-J2)/(2*eps) - dJh)
 
 ###############################################################################
 # RUN THE OPTIMIZATION
