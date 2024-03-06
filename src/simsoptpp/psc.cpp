@@ -219,10 +219,10 @@ Array Bn_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, 
         auto nyp = plasma_normal(i, 1);
         auto nzp = plasma_normal(i, 2);
         for(int j = 0; j < num_coils; j++) {
-//             auto cdj = cos(deltas(j));
-//             auto caj = cos(alphas(j));
-//             auto sdj = sin(deltas(j));
-//             auto saj = sin(alphas(j));
+            auto cdj = cos(deltas(j));
+            auto caj = cos(alphas(j));
+            auto sdj = sin(deltas(j));
+            auto saj = sin(alphas(j));
             auto x0 = (xp - points(j, 0));
             auto y0 = (yp - points(j, 1));
             auto z0 = (zp - points(j, 2));
@@ -236,15 +236,32 @@ Array Bn_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, 
             auto st = sin(theta);
             auto cp = cos(phi);
             auto sp = sin(phi);
-            auto nxx = cp * ct * ct + st * st;
-            auto nxy = -sin(phi / 2.0) * sin(phi / 2.0) * sin(2.0 * theta);
-            auto nxz = ct * sp;
-            auto nyx = -sin(phi / 2.0) * sin(phi / 2.0) * sin(2.0 * theta);
-            auto nyy = ct * ct + cp * st * st;
-            auto nyz = sp * st;
-            auto nzx = -ct * sp;
-            auto nzy = -sp * st;
-            auto nzz = cp;
+//             auto nxx = cp * ct * ct + st * st;
+//             auto nxy = -sin(phi / 2.0) * sin(phi / 2.0) * sin(2.0 * theta);
+//             auto nxz = ct * sp;
+//             auto nyx = -sin(phi / 2.0) * sin(phi / 2.0) * sin(2.0 * theta);
+//             auto nyy = ct * ct + cp * st * st;
+//             auto nyz = sp * st;
+//             auto nzx = -ct * sp;
+//             auto nzy = -sp * st;
+//             auto nzz = cp;
+//  rotation_matrix[i, :, :] = np.array(
+//      [[np.cos(deltas[i]), 
+//        np.sin(deltas[i]) * np.sin(alphas[i]),
+//        np.sin(deltas[i]) * np.cos(alphas[i])],
+//        [0.0, np.cos(alphas[i]), -np.sin(alphas[i])],
+//        [-np.sin(deltas[i]), 
+//         np.cos(deltas[i]) * np.sin(alphas[i]),
+//         np.cos(deltas[i]) * np.cos(alphas[i])]])
+            auto nxx = cdj;
+            auto nxy = sdj * saj;
+            auto nxz = sdj * caj;
+            auto nyx = 0.0;
+            auto nyy = caj;
+            auto nyz = -saj;
+            auto nzx = -sdj;
+            auto nzy = cdj * saj;
+            auto nzz = cdj * caj;
             // apply transpose of the rotation matrix
             auto x = x0 * nxx + y0 * nyx + z0 * nzx;
             auto y = x0 * nxy + y0 * nyy + z0 * nzy;

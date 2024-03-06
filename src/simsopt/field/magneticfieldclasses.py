@@ -365,18 +365,66 @@ class CircularCoil(MagneticField):
         else:
             theta = np.arctan2(normal[1], normal[0])
             phi = np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2])
-
+            # alpha = np.arcsin(-normal[1])
+            # delta = np.arcsin(normal[0] / np.cos(alpha))
+            # normal[0] = theta
+            # normal[1] = phi
+        # self.rotMatrix = np.array([
+        #     [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
+        #       -np.sin(phi / 2)**2 * np.sin(2 * theta),
+        #       np.cos(theta) * np.sin(phi)],
+        #     [-np.sin(phi / 2)**2 * np.sin(2 * theta),
+        #       np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
+        #       np.sin(phi) * np.sin(theta)],
+        #     [-np.cos(theta) * np.sin(phi),
+        #       -np.sin(phi) * np.sin(theta),
+        #       np.cos(phi)]
+        # ])
+        
+        # nx = np.cos(theta) * np.sin(phi)
+        # ny = np.sin(theta) * np.sin(phi)
+        # nz = np.cos(phi)
+        # N = np.array([[0.0, -nz, ny],
+        #               [nz, 0.0, -nx],
+        #               [-ny, nx, 0.0]])
+        # N2 = N @ N
+        
+        # self.rotMatrix = np.eye(3) + np.sin(phi) * N + (1 - np.cos(phi)) * N2
+        # self.rotMatrix = np.array([[np.cos(normal[1]), np.sin(normal[0])*np.sin(normal[1]),
+        #                             np.cos(normal[0])*np.sin(normal[1])],
+        #                            [0, np.cos(normal[0]), -np.sin(normal[0])],
+        #                            [np.sin(normal[1]), np.sin(normal[0])*np.cos(normal[1]),
+        #                             np.cos(normal[0])*np.cos(normal[1])]])
+        # print(theta, phi)
+        # print('R1 = ', self.rotMatrix)
+        
         self.rotMatrix = np.array([
             [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
-             -np.sin(phi / 2)**2 * np.sin(2 * theta),
-             np.cos(theta) * np.sin(phi)],
+              -np.sin(phi / 2)**2 * np.sin(2 * theta),
+              np.cos(theta) * np.sin(phi)],
             [-np.sin(phi / 2)**2 * np.sin(2 * theta),
-             np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
-             np.sin(phi) * np.sin(theta)],
+              np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
+              np.sin(phi) * np.sin(theta)],
             [-np.cos(theta) * np.sin(phi),
-             -np.sin(phi) * np.sin(theta),
-             np.cos(phi)]
+              -np.sin(phi) * np.sin(theta),
+              np.cos(phi)]
         ])
+        # print('R1 = ', self.rotMatrix)
+        # phi_rot = np.arccos(np.cos(alpha / 2) * np.sin(alpha / 2)) * 2.0
+        # theta_rot = np.arcsin(-np.sin(alpha) / np.sin(phi_rot))
+        # self.rotMatrix = np.array([
+        #     [np.cos(phi_rot) * np.cos(theta_rot)**2 + np.sin(theta_rot)**2,
+        #       -np.sin(phi_rot / 2)**2 * np.sin(2 * theta_rot),
+        #       np.cos(theta_rot) * np.sin(phi_rot)],
+        #     [-np.sin(phi_rot / 2)**2 * np.sin(2 * theta_rot),
+        #       np.cos(theta_rot)**2 + np.cos(phi_rot) * np.sin(theta_rot)**2,
+        #       np.sin(phi_rot) * np.sin(theta_rot)],
+        #     [-np.cos(theta_rot) * np.sin(phi_rot),
+        #       -np.sin(phi_rot) * np.sin(theta_rot),
+        #       np.cos(phi_rot)]
+        # ])
+        # print('R2 = ', self.rotMatrix)
+        # exit()
 
         self.rotMatrixInv = np.array(self.rotMatrix.T)
 

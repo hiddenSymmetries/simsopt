@@ -345,7 +345,85 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
+        # use basic normal and verify against CurvePlanarFourier class
+        normal = [0, 0, 1]
+        alpha = np.arcsin(normal[1])
+        delta = np.arccos(normal[2] / np.cos(alpha))
+        center = [0, 0, 0]
+        from simsopt.geo import CurvePlanarFourier
+        order = 1
+        ppp = 300
+        curve = CurvePlanarFourier(order*ppp, order, nfp=1, stellsym=False)
+        dofs = np.zeros(10)
+        dofs[0] = radius
+        dofs[1] = 0.0
+        dofs[2] = 0.0
+        dofs[3] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[4] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[5] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+        dofs[6] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+        # Now specify the center 
+        dofs[7] = center[0]
+        dofs[8] = center[1]
+        dofs[9] = center[2] 
+        curve.set_dofs(dofs)
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.B(), Bcircular2.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        
+        # use random normal and verify against CurvePlanarFourier class
+        normal = np.random.rand(3)
+        normal = normal / np.sqrt(np.sum(normal ** 2, axis=-1))
+        alpha = np.arcsin(-normal[1])
+        delta = np.arccos(normal[2] / np.cos(alpha))
+        center = [0, 0, 0]
+        from simsopt.geo import CurvePlanarFourier
+        order = 1
+        ppp = 300
+        curve = CurvePlanarFourier(order*ppp, order, nfp=1, stellsym=False)
+        dofs = np.zeros(10)
+        dofs[0] = radius
+        dofs[1] = 0.0
+        dofs[2] = 0.0
+        dofs[3] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[4] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+        dofs[5] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+        dofs[6] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+        # Now specify the center 
+        dofs[7] = center[0]
+        dofs[8] = center[1]
+        dofs[9] = center[2] 
+        curve.set_dofs(dofs)
+        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        curve2 = CurveRZFourier(300, 1, 1, True)
+        curve2.set_dofs([radius, 0, 0])
+        Bcircular2 = BiotSavart([Coil(curve, Current(current))])
+        Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
+        Bfield.set_points(points)
+        Bcircular.set_points(points)
+        Bcircular2.set_points(points)
+        dB1_by_dX = Bfield.dB_by_dX()
+        transpGradB1 = [dBdx.T for dBdx in dB1_by_dX]
+        assert np.allclose(Bfield.B(), Bcircular.B())
+        assert np.allclose(Bfield.B(), Bcircular2.B())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
+        assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
+        assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
+        assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        
         ## Test with results from coilpy
         radius = 1.2345
         center = np.array([0.123, 1.456, 2.789])

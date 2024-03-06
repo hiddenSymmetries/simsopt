@@ -19,14 +19,14 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 4
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 32
     # Make higher resolution surface for plotting Bnormal
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 
-coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
+coff = 0.15  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
@@ -93,7 +93,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 calculate_on_axis_B(bs, s)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10}  
+kwargs_geo = {"Nx": 16}  
 # note Bnormal below is additional Bnormal (not from the TF coils or the PSCs)
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo
@@ -118,11 +118,11 @@ options = {"disp": True}
 x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
                                           )))) * 2 * np.pi
 # print(x0)
-x_opt = minimize(psc_array.least_squares, x0, options=options)
-print(x_opt)
-
-# Check that direct Bn calculation agrees with optimization calculation
-fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((qphi, ntheta))).J()
-print(fB)
+# x_opt = minimize(psc_array.least_squares, x0, options=options)
+# print(x_opt)
+print('currents = ', psc_array.I)
+# # Check that direct Bn calculation agrees with optimization calculation
+# fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((qphi, ntheta))).J()
+# print(fB)
 
 # plt.show()
