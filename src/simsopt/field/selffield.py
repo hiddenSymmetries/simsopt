@@ -91,7 +91,7 @@ def B_regularized(coil, regularization):
         coil.curve.gammadash(),
         coil.curve.gammadashdash(),
         coil.curve.quadpoints,
-        coil._current.current,
+        coil._current.get_value(),
         regularization,
     )
 
