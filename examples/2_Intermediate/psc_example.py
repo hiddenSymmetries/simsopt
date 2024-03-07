@@ -105,22 +105,22 @@ make_Bnormal_plots(psc_array.B_TF, s_plot, out_dir, "biot_savart_InterpolatedTF"
 make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial")
 
 # Try and optimize with scipy
-t1 = time.time()
-x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
-psc_array.least_squares(x0)
-t2 = time.time()
-print('Time for call to least-squares = ', t2 - t1)
+# t1 = time.time()
+# x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
+# psc_array.least_squares(x0)
+# t2 = time.time()
+# print('Time for call to least-squares = ', t2 - t1)
 # psc_array.least_squares(x0 + np.random.rand(len(x0)))
 
-from scipy.optimize import minimize
-print('beginning optimization: ')
-options = {"disp": True}
-x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
-                                          )))) * 2 * np.pi
+# from scipy.optimize import minimize
+# print('beginning optimization: ')
+# options = {"disp": True}
+# x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
+#                                           )))) * 2 * np.pi
 # print(x0)
 # x_opt = minimize(psc_array.least_squares, x0, options=options)
 # print(x_opt)
-print('currents = ', psc_array.I)
+# print('currents = ', psc_array.I)
 # # Check that direct Bn calculation agrees with optimization calculation
 # fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((qphi, ntheta))).J()
 # print(fB)

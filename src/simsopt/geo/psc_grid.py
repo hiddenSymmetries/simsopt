@@ -68,7 +68,7 @@ class PSCgrid:
         self.dz = 2 * z_max / (Nz - 1)
         # print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
         Nmin = min(self.dx, min(self.dy, self.dz))
-        self.R = Nmin / 2.0
+        self.R = Nmin / 2.5  # Need to keep coils from touching, so denominator should be > 2
         self.a = self.R / 100.0
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -261,19 +261,19 @@ class PSCgrid:
         # and its alpha and delta angles, which we initialize randomly here.
         
         # Initialize the coil orientations parallel to the B field. 
-        psc_grid.B_TF = B_TF
-        # n = 20
-        # degree = 2
-        # R = psc_grid.R
-        # gamma_outer = outer_toroidal_surface.gamma().reshape(-1, 3)
-        # rs = np.linalg.norm(gamma_outer[:, :2], axis=-1)
-        # zs = gamma_outer[:, 2]
-        # rrange = (0, np.max(rs) + R, n)  # need to also cover the plasma
-        # phirange = (0, 2 * np.pi, n * 2)
-        # zrange = (np.min(zs) - R, np.max(zs) + R, n // 2)
-        # psc_grid.B_TF = InterpolatedField(
-        #     B_TF, degree, rrange, phirange, zrange, True, nfp=1, stellsym=False
-        # )
+        # psc_grid.B_TF = B_TF
+        n = 20
+        degree = 2
+        R = psc_grid.R
+        gamma_outer = outer_toroidal_surface.gamma().reshape(-1, 3)
+        rs = np.linalg.norm(gamma_outer[:, :2], axis=-1)
+        zs = gamma_outer[:, 2]
+        rrange = (0, np.max(rs) + R, n)  # need to also cover the plasma
+        phirange = (0, 2 * np.pi, n * 2)
+        zrange = (np.min(zs) - R, np.max(zs) + R, n // 2)
+        psc_grid.B_TF = InterpolatedField(
+            B_TF, degree, rrange, phirange, zrange, True, nfp=1, stellsym=False
+        )
         B_TF.set_points(psc_grid.grid_xyz)
         B = B_TF.B()
         
@@ -296,8 +296,8 @@ class PSCgrid:
             # determine the alphas and deltas from these normal vectors
             psc_grid.coil_normals = (B.T / np.sqrt(np.sum(B ** 2, axis=-1))).T
             psc_grid.alphas = np.arcsin(-psc_grid.coil_normals[:, 1])
-            # minus_yinds = np.ravel(np.where(psc_grid.grid_xyz[:, 1] > 0.0))
-            # psc_grid.alphas[minus_yinds] = -psc_grid.alphas[minus_yinds]
+            minus_yinds = np.ravel(np.where(psc_grid.grid_xyz[:, 1] > 0.0))
+            psc_grid.alphas[minus_yinds] = -psc_grid.alphas[minus_yinds]
             psc_grid.deltas = np.arccos(psc_grid.coil_normals[:, 2] / np.cos(psc_grid.alphas))
             # psc_grid.alphas = np.arctan2(
             #     np.sqrt(
@@ -446,28 +446,16 @@ class PSCgrid:
         """ """
         from simsopt.field import coils_via_symmetries, Current, CircularCoil
 
-        # Make coils that can be used with BiotSavart
-        # L_inv = np.linalg.inv(self.L)
+        # Note L will be well-conditioned unless you accidentally initialized
+        # the PSC coils touching/intersecting, in which case it will be
+        # VERY ill-conditioned!
+        self.L_inv = np.linalg.inv(self.L)
         contig = np.ascontiguousarray
-        print('psi = ', self.psi)
-        print('min/max psi = ', np.min(abs(self.psi)), np.max(abs(self.psi)))
-        print(self.L)
-        # exit()
-        L_inv = np.linalg.pinv(self.L, rcond=1e-12)
-        print(np.linalg.cond(self.L))
-        u, s, v = np.linalg.svd(self.L)
-        
-        import matplotlib.pyplot as plt
-        plt.semilogy(s)
-        plt.grid()
-        plt.show()
-        # exit()
-        # self.I = -np.linalg.solve(self.L, self.psi)
-        self.I = -L_inv @ self.psi
+
+        self.I = -self.L_inv @ self.psi
         currents = []
         for i in range(len(self.I)):
             currents.append(Current(self.I[i]))
-        # print(self.L)
         
         self.coils = coils_via_symmetries(
             self.curves, currents, nfp=1, stellsym=False
@@ -476,14 +464,6 @@ class PSCgrid:
         self.B_PSC.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
         self.Bn_PSC = np.sum(self.B_PSC.B().reshape(
             -1, 3) * self.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
-        # self.coils_z = coils_via_symmetries(
-        #     self.curves_z, currents, nfp=1, stellsym=False
-        # )
-        # self.B_PSC_z = BiotSavart(self.coils_z)
-        # self.B_PSC_z.set_points(self.plasma_boundary.gamma().reshape(-1, 3) @ self.rotation_matrix)
-        # self.Bn_PSC_z = np.sum(self.B_PSC_z.B().reshape(
-        #     -1, 3) * self.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
-        # print('here = ', self.B_PSC.B(), self.B_PSC_z.B())
         PSC_check = sopp.Bn_PSC(
             contig(self.grid_xyz),
             contig(self.plasma_boundary.gamma().reshape(-1, 3)),
@@ -500,10 +480,10 @@ class PSCgrid:
             Bn_i = np.sum(PSC.B().reshape(
                 -1, 3) * self.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
             Bn += Bn_i
-        print(self.I)
-        print('BN check = ', PSC_check @ self.I, self.Bn_PSC, Bn)
-        inds = np.ravel(np.where(~np.isclose(PSC_check @ self.I, self.Bn_PSC)))
-        print('BN check = ', (PSC_check @ self.I)[inds], self.Bn_PSC[inds], Bn[inds])
+        # print(self.I)
+        # print('BN check = ', PSC_check @ self.I, self.Bn_PSC, Bn)
+        # inds = np.ravel(np.where(~np.isclose(PSC_check @ self.I, self.Bn_PSC)))
+        # print('BN check = ', (PSC_check @ self.I)[inds], self.Bn_PSC[inds], Bn[inds])
         assert(np.allclose(PSC_check @ self.I, self.Bn_PSC, rtol=1e-2))
         # assert(np.allclose(PSC_check @ self.I, Bn, rtol=1e-2))
     
@@ -514,20 +494,12 @@ class PSCgrid:
         order = 1
         ncoils = self.num_psc
         curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
-        # curves_z = [CurvePlanarFourier(order*ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
         for ic in range(ncoils):
-            # nx = self.coil_normals[ic, 0]
-            # ny = self.coil_normals[ic, 0]
-            # nz = self.coil_normals[ic, 0]
             xyz = self.grid_xyz[ic, :]
             dofs = np.zeros(10)
-            # dofs1 = np.zeros(10)
             dofs[0] = self.R
             dofs[1] = 0.0
             dofs[2] = 0.0
-            # dofs1[0] = self.R
-            # dofs1[1] = 0.0
-            # dofs1[2] = 0.0
             # Conversion from Euler angles in 3-2-1 body sequence to 
             # quaternions: 
             # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
@@ -535,31 +507,12 @@ class PSCgrid:
             dofs[4] = np.sin(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic] / 2.0)
             dofs[5] = np.cos(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic] / 2.0)
             dofs[6] = -np.sin(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic] / 2.0)
-            # dofs[3] = np.cos(self.alphas[ic] / 2.0)
-            # dofs[4] = -np.sin(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic])
-            # dofs[5] = np.sin(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic])
-            # dofs[6] = 0.0
-            # phi_rot = np.arccos(np.cos(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic] / 2.0)) * 2.0
-            # dofs[3] = np.cos(phi_rot / 2.0)
-            # dofs[4] = nx * np.sin(phi_rot / 2.0)
-            # dofs[5] = ny * np.sin(phi_rot / 2.0)
-            # dofs[6] = nz * np.sin(phi_rot / 2.0)
-            # print(dofs[3:7])
-            # dofs1[3] = 1.0
-            # dofs1[4] = 0.0
-            # dofs1[5] = 0.0
-            # dofs1[6] = 0.0
             # Now specify the center 
             dofs[7] = xyz[0]
             dofs[8] = xyz[1]
             dofs[9] = xyz[2] 
-            # dofs1[7] = xyz[0]
-            # dofs1[8] = xyz[1]
-            # dofs1[9] = xyz[2] 
             curves[ic].set_dofs(dofs)
-            # curves_z[ic].set_dofs(dofs)
         self.curves = curves
-        # self.curves_z = curves_z
 
     def plot_curves(self):
         
@@ -765,6 +718,9 @@ class PSCgrid:
         # t2 = time.time()
         # print('Flux integration time = ', t2 - t1)
         # t1 = time.time()
+        # self.inductances(alphas, deltas)
+        
+        ####### Inductance C++ calculation below
         self.L = sopp.L_matrix(
             contig(self.grid_xyz), 
             contig(alphas), 
@@ -773,10 +729,11 @@ class PSCgrid:
             self.R,
         ) * self.dphi ** 2 / (4 * np.pi)
         # t2 = time.time()
-        # print('Inductances c++ otal time = ', t2 - t1)
+        # print('Inductances c++ total time = ', t2 - t1)
         self.L = (self.L + self.L.T)
         np.fill_diagonal(self.L, np.log(8.0 * self.R / self.a) - 2.0)
         self.L = self.L * self.mu0 * self.R * self.Nt ** 2
+        
         # t1 = time.time()
         self.setup_curves()
         # t2 = time.time()
