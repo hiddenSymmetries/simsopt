@@ -5,7 +5,8 @@ import numpy as np
 from monty.tempfile import ScratchDir
 
 from simsopt.geo import PSCgrid
-from simsopt.field import BiotSavart, coils_via_symmetries, Current
+from simsopt.field import BiotSavart, coils_via_symmetries, Current, CircularCoil
+import simsoptpp as sopp
 
 class Testing(unittest.TestCase):
 
@@ -111,18 +112,54 @@ class Testing(unittest.TestCase):
                         coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
                         bs = BiotSavart(coils)
                         kwargs = {"B_TF": bs, "ppp": 2000}
-                        print('here ', psc_array.coil_normals, psc_array.alphas, psc_array.deltas, points, psc_array.curves[1].get_dofs())
-                        # L = psc_array.L
-                        # print(psc_array.I, psc_array.L, alphas, deltas)
                         psc_array = PSCgrid.geo_setup_manual(
                             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
                         )
-                        # print('here ', psc_array.coil_normals, psc_array.alphas, psc_array.deltas, points)
                         L = psc_array.L
-                        # print(psc_array.I)
-                        # print(L)
-                        print(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10)
-                        # assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10))
+                        
+                        # This is not a robust check but it only converges when N >> 1
+                        # points are used to do the integrations. Can easily check that 
+                        # can increase rtol as you increase N
+                        # print(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10)
+                        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
+                        
+                        psc_array.setup_psc_biotsavart()
+                        contig = np.ascontiguousarray
+                        B_PSC = sopp.B_PSC(
+                            contig(psc_array.grid_xyz),
+                            contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
+                            contig(psc_array.alphas),
+                            contig(psc_array.deltas),
+                            contig(psc_array.I),
+                            psc_array.R
+                        )
+                        Bn_PSC = sopp.Bn_PSC(
+                            contig(psc_array.grid_xyz),
+                            contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
+                            contig(psc_array.alphas),
+                            contig(psc_array.deltas),
+                            contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
+                            psc_array.R
+                        ) @ psc_array.I
+                        B_circular_coils = np.zeros(B_PSC.shape)
+                        Bn_circular_coils = np.zeros(psc_array.Bn_PSC.shape)
+                        for i in range(len(psc_array.alphas)):
+                            PSC = CircularCoil(
+                                psc_array.R, 
+                                psc_array.grid_xyz[i, :], 
+                                psc_array.I[i], 
+                                psc_array.coil_normals[i, :]
+                            )
+                            PSC.set_points(psc_array.plasma_boundary.gamma().reshape(-1, 3))
+                            B_circular_coils += PSC.B().reshape(-1, 3)
+                            Bn_circular_coils += np.sum(PSC.B().reshape(
+                                -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
+                        
+                        # Robust test of all the B and Bn calculations from circular coils
+                        assert(np.allclose(psc_array.B_PSC.B(), B_PSC))
+                        assert(np.allclose(psc_array.B_PSC.B(), B_circular_coils))
+                        assert(np.allclose(psc_array.Bn_PSC, Bn_PSC))
+                        assert(np.allclose(psc_array.Bn_PSC, Bn_circular_coils))
 
 if __name__ == "__main__":
     unittest.main()

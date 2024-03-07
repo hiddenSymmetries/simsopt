@@ -204,13 +204,18 @@ class PSCgrid:
         psc_grid.plasma_boundary = plasma_boundary.to_RZFourier()
         psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
         psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
+        psc_grid.plasma_unitnormals = psc_grid.plasma_boundary.unitnormal().reshape(-1, 3)
+        psc_grid.plasma_points = psc_grid.plasma_boundary.gamma().reshape(-1, 3)
         Ngrid = psc_grid.nphi * psc_grid.ntheta
         Nnorms = np.ravel(np.sqrt(np.sum(psc_grid.plasma_boundary.normal() ** 2, axis=-1)))
         psc_grid.grid_normalization = np.sqrt(Nnorms / Ngrid)
         # integration over phi for L
-        N = 20
+        N = 10
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
+        N = 20
+        psc_grid.flux_phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        psc_grid.flux_dphi = psc_grid.flux_phi[1] - psc_grid.flux_phi[0]
         Nx = kwargs.pop("Nx", 10)
         Ny = Nx  # kwargs.pop("Ny", 10)
         Nz = Nx  # kwargs.pop("Nz", 10)
@@ -229,6 +234,9 @@ class PSCgrid:
 
         Nt = kwargs.pop("Nt", 1)
         psc_grid.Nt = Nt
+        
+        psc_grid.out_dir = kwargs.pop("out_dir", '')
+
         # Have the uniform grid, now need to loop through and eliminate cells.
         t1 = time.time()
         contig = np.ascontiguousarray
@@ -318,9 +326,11 @@ class PSCgrid:
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         t2 = time.time()
         print('Geo setup time = ', t2 - t1)
+        psc_grid.setup_curves()
         psc_grid.plot_curves()
         psc_grid.b_vector()
         kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
+        psc_grid.kappas = kappas
         psc_grid.A_opt = psc_grid.least_squares(kappas)
 
         # psc_grid._optimization_setup()
@@ -349,12 +359,15 @@ class PSCgrid:
         psc_grid.deltas = deltas
         Nt = kwargs.pop("Nt", 1)
         psc_grid.Nt = Nt
+        psc_grid.out_dir = kwargs.pop("out_dir", '')
+        
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
-        N = 100
+        N = 1000  # decrease if not doing unit tests
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         psc_grid.rho = np.linspace(0, R, N, endpoint=False)
         psc_grid.drho = psc_grid.rho[1] - psc_grid.rho[0]
+        psc_grid.flux_phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         
         Bn = kwargs.pop("Bn", np.zeros((1, 3)))
         Bn = np.array(Bn)
@@ -372,6 +385,8 @@ class PSCgrid:
         psc_grid.plasma_boundary = kwargs.pop("plasma_boundary", default_surf)
         psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
         psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
+        psc_grid.plasma_unitnormals = psc_grid.plasma_boundary.unitnormal().reshape(-1, 3)
+        psc_grid.plasma_points = psc_grid.plasma_boundary.gamma().reshape(-1, 3)
         # generate planar TF coils
         ncoils = 2
         R0 = 1.0
@@ -438,21 +453,36 @@ class PSCgrid:
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
+        psc_grid.setup_curves()
         psc_grid.plot_curves()
         
         return psc_grid
     
     def setup_currents_and_fields(self):
         """ """
-        from simsopt.field import coils_via_symmetries, Current, CircularCoil
-
         # Note L will be well-conditioned unless you accidentally initialized
         # the PSC coils touching/intersecting, in which case it will be
         # VERY ill-conditioned!
         self.L_inv = np.linalg.inv(self.L)
-        contig = np.ascontiguousarray
-
         self.I = -self.L_inv @ self.psi
+        contig = np.ascontiguousarray
+        self.Bn_PSC = sopp.Bn_PSC(
+            contig(self.grid_xyz),
+            contig(self.plasma_points),
+            contig(self.alphas),
+            contig(self.deltas),
+            contig(self.plasma_unitnormals),
+            self.R
+        ) @ self.I
+        
+    def setup_psc_biotsavart(self):
+        from simsopt.field import coils_via_symmetries, Current
+        # self.B_PSC = CircularCoil(self.R, self.grid_xyz[0, :], self.I[0], self.coil_normals[0, :])
+        # self.B_PSC.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
+        # for i in range(1, len(self.alphas)):
+        #     self.B_PSC += CircularCoil(self.R, self.grid_xyz[i, :], self.I[i], self.coil_normals[i, :])
+        #     self.B_PSC.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
+        self.setup_curves()
         currents = []
         for i in range(len(self.I)):
             currents.append(Current(self.I[i]))
@@ -461,31 +491,7 @@ class PSCgrid:
             self.curves, currents, nfp=1, stellsym=False
         )
         self.B_PSC = BiotSavart(self.coils)
-        self.B_PSC.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
-        self.Bn_PSC = np.sum(self.B_PSC.B().reshape(
-            -1, 3) * self.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
-        PSC_check = sopp.Bn_PSC(
-            contig(self.grid_xyz),
-            contig(self.plasma_boundary.gamma().reshape(-1, 3)),
-            contig(self.alphas),
-            contig(self.deltas),
-            contig(self.plasma_boundary.unitnormal().reshape(-1, 3)),
-            contig(self.coil_normals.reshape(-1, 3)),
-            self.R
-        )
-        Bn = 0.0
-        for i in range(len(self.alphas)):
-            PSC = CircularCoil(self.R, self.grid_xyz[i, :], self.I[i], self.coil_normals[i, :])
-            PSC.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
-            Bn_i = np.sum(PSC.B().reshape(
-                -1, 3) * self.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
-            Bn += Bn_i
-        # print(self.I)
-        # print('BN check = ', PSC_check @ self.I, self.Bn_PSC, Bn)
-        # inds = np.ravel(np.where(~np.isclose(PSC_check @ self.I, self.Bn_PSC)))
-        # print('BN check = ', (PSC_check @ self.I)[inds], self.Bn_PSC[inds], Bn[inds])
-        assert(np.allclose(PSC_check @ self.I, self.Bn_PSC, rtol=1e-2))
-        # assert(np.allclose(PSC_check @ self.I, Bn, rtol=1e-2))
+        self.B_PSC.set_points(self.plasma_points)
     
     def setup_curves(self):
         """ """
@@ -520,12 +526,12 @@ class PSCgrid:
         from . import curves_to_vtk
         from simsopt.field import InterpolatedField
         
-        curves_to_vtk(self.curves, "psc_curves", close=True, scalar_data=self.I)
+        curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
         contig = np.ascontiguousarray
         if isinstance(self.B_TF, InterpolatedField):
             self.B_TF.set_points(self.grid_xyz)
             B = self.B_TF.B()
-            pointsToVTK('curve_centers', 
+            pointsToVTK(self.out_dir + 'curve_centers', 
                         contig(self.grid_xyz[:, 0]),
                         contig(self.grid_xyz[:, 1]), 
                         contig(self.grid_xyz[:, 2]),
@@ -540,7 +546,7 @@ class PSCgrid:
                               },
             )
         else:
-            pointsToVTK('curve_centers', 
+            pointsToVTK(self.out_dir + 'curve_centers', 
                         contig(self.grid_xyz[:, 0]),
                         contig(self.grid_xyz[:, 1]), 
                         contig(self.grid_xyz[:, 2]),
@@ -549,101 +555,12 @@ class PSCgrid:
                                     contig(self.coil_normals[:, 2])),
                               },
             )
-    
-    def inductances(self, alphas, deltas):
-        """ Calculate the inductance matrix needed for the PSC forward problem """
-        warnings.filterwarnings("error")
-
-        points = self.grid_xyz
-        nphi = 10
-        phi = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
-        dphi = phi[1] - phi[0]
-        R = self.R
-        r = self.a
-        ncoils = self.num_psc
-        L = np.zeros((ncoils, ncoils))
-        
-        def integrand(yy, xx, cdi, sdi, cai, sai, xj, yj, zj, cdj, sdj, caj, saj):
-            ck = np.cos(xx)
-            sk = np.sin(xx)
-            ckk = np.cos(yy)
-            skk = np.sin(yy)
-            return ((-sk * cdi + ck * sai * sdi) * (
-                -skk * cdj + ckk * saj * sdj
-                ) + (ck * cai) * (ckk * caj) + (
-                    sk * sdi + ck * sai * cdi
-                    ) * (skk * sdj + ckk * saj * cdj
-                         )) / np.sqrt((
-                             xj + ckk * cdj + skk * saj * sdj - ck * cdi - sk * sai * sdi
-                             ) ** 2 + (
-                                 yj + skk * caj - sk * cai
-                                 ) ** 2 + (
-                                     zj + skk * saj * cdj - ckk * sdj - sk * sai * cdi + ck * sdi
-                                     ) ** 2)
-        
-        for i in range(ncoils):
-    	    # Loop through all the PSCs, using all the symmetries
-            cdi = np.cos(deltas[i])
-            sdi = np.sin(deltas[i])
-            cai = np.cos(alphas[i])
-            sai = np.sin(alphas[i])
-            for j in range(i + 1, ncoils):
-                xj = (points[j, 0] - points[i, 0]) / R
-                yj = (points[j, 1] - points[i, 1]) / R
-                zj = (points[j, 2] - points[i, 2]) / R
-                cdj = np.cos(deltas[j])
-                sdj = np.sin(deltas[j])
-                caj = np.cos(alphas[j])
-                saj = np.sin(alphas[j])
-                try:
-                    integral, err = dblquad(
-                        integrand, 0, 2 * np.pi, 0, 2 * np.pi, 
-                        args=(cdi, sdi, cai, sai, xj, yj, zj, cdj, sdj, caj, saj)
-                    )
-                except IntegrationWarning:
-                    print('Integral is divergent')
-                L[i, j] = integral
-        # symmetrize and scale
-        L = (L + L.T) / (4.0 * np.pi)  # * dphi ** 2
-        np.fill_diagonal(L, np.log(8.0 * R / r) - 2.0)
-        self.L = L * self.mu0 * R * self.Nt ** 2
-        
-    def fluxes(self, alphas, deltas, plot_vtk=False):
-        warnings.filterwarnings("error")
-        bs = self.B_TF
-        ncoils = len(alphas)
-        contig = np.ascontiguousarray
-        fluxes = np.zeros(ncoils)
-        def quad_func(yy, xx, cd, ca, sd, sa, nj, centers):
-            x0 = xx * np.cos(yy)
-            y0 = xx * np.sin(yy)
-            x = x0 * cd + y0 * sa * sd + centers[0]
-            y = y0 * ca + centers[1]
-            z = -x0 * sd + y0 * sa * cd + centers[2]
-            bs.set_points(contig(np.array([x, y, z]).reshape(-1, 3)))
-            return (bs.B() @ nj) * xx
-
-        for j in range(ncoils):
-            try:
-                fluxes[j], _ = dblquad(
-                    quad_func, 0, self.R, 0, 2 * np.pi, epsabs=1, epsrel=1,
-                    args=(np.cos(deltas[j]), 
-                          np.cos(alphas[j]), 
-                          np.sin(deltas[j]), 
-                          np.sin(alphas[j]), 
-                          self.coil_normals[j, :], 
-                          self.grid_xyz[j, :])
-                )
-            except IntegrationWarning:
-                print('Integral is divergent')
-        self.psi = fluxes
         
     def b_vector(self):
         Bn_target = self.Bn.reshape(-1)
-        self.B_TF.set_points(self.plasma_boundary.gamma().reshape(-1, 3))
+        self.B_TF.set_points(self.plasma_points)
         Bn_TF = np.sum(
-            self.B_TF.B().reshape(-1, 3) * self.plasma_boundary.unitnormal(
-                ).reshape(-1, 3), axis=-1
+            self.B_TF.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1
         )
         self.b_opt = (Bn_TF + Bn_target) * self.grid_normalization
         
@@ -660,86 +577,69 @@ class PSCgrid:
         return BdotN2
         
     def setup_orientations(self, alphas, deltas):
+        self.alphas = alphas
+        self.deltas = deltas
         contig = np.ascontiguousarray
         self.coil_normals = np.array(
             [np.cos(alphas) * np.sin(deltas),
               -np.sin(alphas),
               np.cos(alphas) * np.cos(deltas)]
         ).T
-        rotation_matrix = np.zeros((len(alphas), 3, 3))
-        for i in range(len(alphas)):
-            rotation_matrix[i, :, :] = np.array(
-                [[np.cos(deltas[i]), 
-                  np.sin(deltas[i]) * np.sin(alphas[i]),
-                  np.sin(deltas[i]) * np.cos(alphas[i])],
-                  [0.0, np.cos(alphas[i]), -np.sin(alphas[i])],
-                  [-np.sin(deltas[i]), 
-                   np.cos(deltas[i]) * np.sin(alphas[i]),
-                   np.cos(deltas[i]) * np.cos(alphas[i])]])
-        self.rotation_matrix = rotation_matrix
-        # self.coil_normals = np.array(
-        #     [np.cos(deltas) * np.sin(alphas),
-        #      np.sin(deltas) * np.sin(alphas),
-        #      np.cos(alphas)]
-        # ).T
-        # t1 = time.time()
+        # rotation_matrix = np.zeros((len(alphas), 3, 3))
+        # for i in range(len(alphas)):
+        #     rotation_matrix[i, :, :] = np.array(
+        #         [[np.cos(deltas[i]), 
+        #           np.sin(deltas[i]) * np.sin(alphas[i]),
+        #           np.sin(deltas[i]) * np.cos(alphas[i])],
+        #           [0.0, np.cos(alphas[i]), -np.sin(alphas[i])],
+        #           [-np.sin(deltas[i]), 
+        #            np.cos(deltas[i]) * np.sin(alphas[i]),
+        #            np.cos(deltas[i]) * np.cos(alphas[i])]])
+        # self.rotation_matrix = rotation_matrix
+        t1 = time.time()
         flux_grid = sopp.flux_xyz(
             contig(self.grid_xyz), 
             contig(alphas),
             contig(deltas), 
             contig(self.rho), 
-            contig(self.phi), 
+            contig(self.flux_phi), 
             contig(self.coil_normals)
         )
-        # t2 = time.time()
-        # print('Fluxes time = ', t2 - t1)
-        # t1 = time.time()
         self.B_TF.set_points(contig(np.array(flux_grid).reshape(-1, 3)))
-        print('max = ', np.max(np.abs(self.B_TF.B())))
-        # t2 = time.time()
-        # print('Flux set points time = ', t2 - t1)
+        t2 = time.time()
+        print('Flux set points time = ', t2 - t1)
         N = len(self.rho)
+        Nflux = len(self.flux_phi)
         # t1 = time.time()
-        # B = self.B_TF.B()  # .reshape(len(alphas), N, N, 3)
-        # t2 = time.time()
-        # print('Flux call B only time = ', t2 - t1)
-        # t1 = time.time()
-        B = self.B_TF.B().reshape(len(alphas), N, N, 3)
+        # B = 
         # t2 = time.time()
         # print('Flux call B time = ', t2 - t1)
-        # t1 = time.time()
+        t1 = time.time()
         self.psi = sopp.flux_integration(
-            contig(B),
+            contig(self.B_TF.B().reshape(len(alphas), N, Nflux, 3)),
             contig(self.rho),
             contig(self.coil_normals)
         )
         self.psi *= self.dphi * self.drho
-        # print(flux_grid)
-        # t2 = time.time()
-        # print('Flux integration time = ', t2 - t1)
-        # t1 = time.time()
-        # self.inductances(alphas, deltas)
-        
+        t2 = time.time()
+        print('Flux integration time = ', t2 - t1)
+        t1 = time.time()        
         ####### Inductance C++ calculation below
-        self.L = sopp.L_matrix(
+        L = sopp.L_matrix(
             contig(self.grid_xyz), 
             contig(alphas), 
             contig(deltas),
             contig(self.phi),
             self.R,
         ) * self.dphi ** 2 / (4 * np.pi)
-        # t2 = time.time()
-        # print('Inductances c++ total time = ', t2 - t1)
-        self.L = (self.L + self.L.T)
-        np.fill_diagonal(self.L, np.log(8.0 * self.R / self.a) - 2.0)
-        self.L = self.L * self.mu0 * self.R * self.Nt ** 2
+        t2 = time.time()
+        print('Inductances c++ total time = ', t2 - t1)
+        L = (L + L.T)
+        np.fill_diagonal(L, np.log(8.0 * self.R / self.a) - 2.0)
+        self.L = L * self.mu0 * self.R * self.Nt ** 2
         
-        # t1 = time.time()
-        self.setup_curves()
-        # t2 = time.time()
-        # print('Setup curves time = ', t2 - t1)
-        # t1 = time.time()
+        t1 = time.time()
         self.setup_currents_and_fields()
-        # t2 = time.time()
-        # print('Setup fields time = ', t2 - t1)
+        t2 = time.time()
+        print('Setup fields time = ', t2 - t1)
         

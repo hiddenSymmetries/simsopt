@@ -20,6 +20,9 @@ Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& p
 
 Array flux_integration(Array& B, Array& rho, Array& normal);
 
-Array Bn_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& coil_normal, double R);
+Array Bn_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R);
+
+Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R);
+
 // 
 // Array A_matrix(Array& plasma_surface_normals, Array& B, Array& alphas, Array& deltas);
