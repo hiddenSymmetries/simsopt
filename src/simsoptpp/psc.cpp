@@ -153,7 +153,7 @@ Array flux_integration(Array& B, Array& rho, Array& normal)
     return Psi;
 }
 
-Array Bn_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R)
+Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R, double phi0, double stell)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -231,13 +231,17 @@ Array Bn_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, 
             auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
             auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
             auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
-            Bn_PSC(i, j) = Bx_rot * nx + By_rot * ny + Bz_rot * nz;
+            // now apply R_{fp}R_s flipping the x component, then rotating by phi0
+            auto Bx_rot_flip = Bx_rot * cos(phi0) * stell - By_rot * sin(phi0);
+            auto By_rot_flip = Bx_rot * sin(phi0) * stell + By_rot * cos(phi0);
+            auto Bz_rot_flip = Bz_rot;
+            Bn_PSC(i, j) = Bx_rot_flip * nx + By_rot_flip * ny + Bz_rot_flip * nz;
         }
     }
     return Bn_PSC * fac;
 }
 
-Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R)
+Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R, double phi0, double stell)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -307,9 +311,13 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
             auto By = current * y * z * Eplus / (rho2 * beta_gamma2);
             auto Bz = current * Eminus / beta_gamma2;
             // Need to rotate the vector
-            B_PSC(i, 0) += Bx * nxx + By * nxy + Bz * nxz;
-            B_PSC(i, 1) += Bx * nyx + By * nyy + Bz * nyz;
-            B_PSC(i, 2) += Bx * nzx + By * nzy + Bz * nzz;
+            auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
+            auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
+            auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
+            // now apply R_{fp}R_s flipping the x component, then rotating by phi0
+            B_PSC(i, 0) += Bx_rot * cos(phi0) * stell - By_rot * sin(phi0);
+            B_PSC(i, 1) += Bx_rot * sin(phi0) * stell + By_rot * cos(phi0);
+            B_PSC(i, 2) += Bz_rot;
         }
     }
     return B_PSC * fac;

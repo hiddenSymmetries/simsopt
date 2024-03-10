@@ -63,7 +63,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("L_matrix" , &L_matrix);
     m.def("flux_xyz" , &flux_xyz);
     m.def("flux_integration" , &flux_integration);
-    m.def("Bn_PSC" , &Bn_PSC);
+    m.def("A_matrix" , &A_matrix);
     m.def("B_PSC" , &B_PSC);
     
     // Functions below are implemented for permanent magnet optimization

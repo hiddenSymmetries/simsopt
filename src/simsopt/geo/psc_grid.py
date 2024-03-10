@@ -214,6 +214,10 @@ class PSCgrid:
         psc_grid.nfp = plasma_boundary.nfp
         psc_grid.stellsym = plasma_boundary.stellsym
         psc_grid.symmetry = plasma_boundary.nfp * (plasma_boundary.stellsym + 1)
+        if psc_grid.stellsym:
+            psc_grid.stell_list = [1, -1]
+        else:
+            psc_grid.stell_list = [1]
         psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
         psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
         psc_grid.plasma_unitnormals = psc_grid.plasma_boundary.unitnormal().reshape(-1, 3)
@@ -328,22 +332,7 @@ class PSCgrid:
             #     psc_grid.coil_normals[:, 1], psc_grid.coil_normals[:, 0]
             # )
             
-        nn = len(psc_grid.grid_xyz)
-        psc_grid.grid_xyz_all = np.zeros((nn * psc_grid.symmetry, 3))
-        psc_grid.coil_normals_all = np.zeros((nn * psc_grid.symmetry, 3))
-        q = 0
-        for fp in range(psc_grid.nfp):
-            for stell in [1, -1]:
-                phi0 = (2 * np.pi / psc_grid.nfp) * fp
-                # get new locations by flipping the y and z components, then rotating by phi0
-                psc_grid.grid_xyz_all[nn * q: nn * (q + 1), 0] = psc_grid.grid_xyz[:, 0] * np.cos(phi0) - psc_grid.grid_xyz[:, 1] * np.sin(phi0) * stell
-                psc_grid.grid_xyz_all[nn * q: nn * (q + 1), 1] = psc_grid.grid_xyz[:, 0] * np.sin(phi0) + psc_grid.grid_xyz[:, 1] * np.cos(phi0) * stell
-                psc_grid.grid_xyz_all[nn * q: nn * (q + 1), 2] = psc_grid.grid_xyz[:, 2] * stell
-                # get new normal vectors by flipping the x component, then rotating by phi0
-                psc_grid.coil_normals_all[nn * q: nn * (q + 1), 0] = psc_grid.coil_normals[:, 0] * np.cos(phi0) * stell - psc_grid.coil_normals[:, 1] * np.sin(phi0) 
-                psc_grid.coil_normals_all[nn * q: nn * (q + 1), 1] = psc_grid.coil_normals[:, 0] * np.sin(phi0) * stell + psc_grid.coil_normals[:, 1] * np.cos(phi0) 
-                psc_grid.coil_normals_all[nn * q: nn * (q + 1), 2] = psc_grid.coil_normals[:, 2]
-                q = q + 1
+        psc_grid.setup_full_grid()
         t2 = time.time()
         print('Initialize grid time = ', t2 - t1)
         
@@ -408,15 +397,23 @@ class PSCgrid:
         TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
         surface_filename = TEST_DIR / input_name
         default_surf = SurfaceRZFourier.from_vmec_input(
-            surface_filename, range='full torus', nphi=16, ntheta=16
+            surface_filename, range='half period', nphi=16, ntheta=16
         )
         psc_grid.plasma_boundary = kwargs.pop("plasma_boundary", default_surf)
-        psc_grid.nfp = plasma_boundary.nfp
-        psc_grid.stellsym = plasma_boundary.stellsym
+        psc_grid.nfp = psc_grid.plasma_boundary.nfp
+        psc_grid.stellsym = psc_grid.plasma_boundary.stellsym
         psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
         psc_grid.ntheta = len(psc_grid.plasma_boundary.quadpoints_theta)
         psc_grid.plasma_unitnormals = psc_grid.plasma_boundary.unitnormal().reshape(-1, 3)
         psc_grid.plasma_points = psc_grid.plasma_boundary.gamma().reshape(-1, 3)
+        psc_grid.symmetry = psc_grid.plasma_boundary.nfp * (psc_grid.plasma_boundary.stellsym + 1)
+        if psc_grid.stellsym:
+            psc_grid.stell_list = [1, -1]
+        else:
+            psc_grid.stell_list = [1]
+        Ngrid = psc_grid.nphi * psc_grid.ntheta
+        Nnorms = np.ravel(np.sqrt(np.sum(psc_grid.plasma_boundary.normal() ** 2, axis=-1)))
+        psc_grid.grid_normalization = np.sqrt(Nnorms / Ngrid)
         # generate planar TF coils
         ncoils = 2
         R0 = 1.0
@@ -482,6 +479,7 @@ class PSCgrid:
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
+        psc_grid.setup_full_grid()
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.setup_curves()
         psc_grid.plot_curves()
@@ -496,14 +494,28 @@ class PSCgrid:
         self.L_inv = np.linalg.inv(self.L)
         self.I = -self.L_inv @ self.psi
         contig = np.ascontiguousarray
-        self.Bn_PSC = (sopp.Bn_PSC(
-            contig(self.grid_xyz),
-            contig(self.plasma_points),
-            contig(self.alphas),
-            contig(self.deltas),
-            contig(self.plasma_unitnormals),
-            self.R
-        ) @ self.I) * self.grid_normalization
+        # A_matrix has shape (num_plasma_points, num_coils)
+        A_matrix = np.zeros((self.nphi * self.ntheta, self.num_psc))
+        # Need to rotate and flip it
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                phi0 = (2.0 * np.pi / self.nfp) * fp
+                # get new locations by flipping the y and z components, then rotating by phi0
+                ox = self.grid_xyz[:, 0] * np.cos(phi0) - self.grid_xyz[:, 1] * np.sin(phi0) * stell
+                oy = self.grid_xyz[:, 0] * np.sin(phi0) + self.grid_xyz[:, 1] * np.cos(phi0) * stell
+                oz = self.grid_xyz[:, 2] * stell
+                xyz = np.array([ox, oy, oz]).T
+                A_matrix += sopp.A_matrix(
+                    contig(xyz),
+                    contig(self.plasma_points),
+                    contig(self.alphas),
+                    contig(self.deltas),
+                    contig(self.plasma_unitnormals),
+                    self.R,
+                    phi0,
+                    stell
+                ) * stell  # accounts for sign change of the currents
+        self.Bn_PSC = A_matrix @ self.I
         
     def setup_psc_biotsavart(self):
         from simsopt.field import coils_via_symmetries, Current
@@ -526,197 +538,119 @@ class PSCgrid:
     def setup_curves(self, symmetrized=False):
         """ """
         from . import CurvePlanarFourier
-        from simsopt.field import Current, coils_via_symmetries
+        from simsopt.field import apply_symmetries_to_curves
 
         order = 1
         ncoils = self.num_psc
-        if symmetrized:
-            curves = [CurvePlanarFourier(
-                order*self.ppp, order, nfp=1, stellsym=False
-                ) for i in range(ncoils * self.symmetry)]
-            q = 0
-            for fp in range(self.nfp):
-                for stell in [1.0, -1.0]:
-                    for ic in range(ncoils):
-                        xyz = self.grid_xyz[ic, :]
-                        a = self.alphas[ic]
-                        d = self.deltas[ic]
-                        phi0 = (2 * np.pi / self.nfp) * fp
-                        # get new locations by flipping the y and z components, then rotating by phi0
-                        # x' = R_fp R_s x
-                        x = xyz[0] * np.cos(phi0) - xyz[1] * np.sin(phi0) * stell
-                        y = xyz[0] * np.sin(phi0) + xyz[1] * np.cos(phi0) * stell
-                        z = xyz[2] * stell
-                        dofs = np.zeros(10)
-                        dofs[0] = self.R
-                        dofs[1] = 0.0
-                        dofs[2] = 0.0
-                        
-                        # get new normal vectors by flipping the x component (R_s),
-                        # then rotating by phi0 (R_fp)
-                        # Need to write down rotation matrix R_fp R_s R_i
-                        # Take product of rotation quaternion with quaternion [0, 1, 0, 0]
-                        # x' = R_s^T R_fp^T R_i x = (R_fp R_s)^T) R_i x
-                        phi0 = -phi0
-                        q1 = np.array([np.cos(a / 2.0), np.sin(a / 2.0), 0, 0])
-                        q2 = np.array([np.cos(d / 2.0), 0, 0, np.sin(d / 2.0)])
-                        q3 = np.array([np.cos(phi0 / 2.0), 0, 0, np.sin(phi0 / 2.0)])
-                        if stell < 0:
-                            q4 = np.array([0, 0, 1, 0])
-                            q5 = np.array([0, 0, 0, 1])
-                            dofs[3:7] = hamilton_product(q5, hamilton_product(hamilton_product(
-                                q4, hamilton_product(hamilton_product(q3, hamilton_product(q2, q1)), q4)
-                            ), q5))
-                        else:
-                            dofs[3:7] = hamilton_product(q3, hamilton_product(q2, q1))
-                        # dofs[3] = np.cos(
-                        #     a / 2.0) * np.cos(
-                        #         d / 2.0) * np.cos(phi0 / 2.0) + np.sin(
-                        #             a / 2.0) * np.sin(
-                        #                 d / 2.0) * np.sin(phi0 / 2.0)
-                        # dofs[4] = np.sin(
-                        #     a / 2.0) * np.cos(
-                        #         d / 2.0) * np.cos(
-                        #             phi0 / 2.0) - np.cos(
-                        #                 a / 2.0) * np.sin(
-                        #                     d / 2.0) * np.sin(
-                        #                         phi0 / 2.0)
-                        # dofs[5] = np.cos(
-                        #     a / 2.0) * np.sin(
-                        #         d / 2.0) * np.cos(
-                        #             phi0 / 2.0) + np.sin(
-                        #                 a / 2.0) * np.cos(
-                        #                     d / 2.0) * np.sin(
-                        #                         phi0 / 2.0)
-                        # dofs[6] = np.cos(
-                        #     a / 2.0) * np.cos(
-                        #         d / 2.0) * np.sin(
-                        #             phi0 / 2.0) - np.sin(
-                        #     a / 2.0) * np.sin(
-                        #         d / 2.0) * np.cos(
-                        #             phi0 / 2.0)
-                        # if stell < 0:
-                        #     temp3 = dofs[3]
-                        #     temp4 = dofs[4]
-                        #     temp5 = dofs[5]
-                        #     temp6 = dofs[6]
-                        #     dofs[3] = -temp4
-                        #     dofs[4] = temp3
-                        #     dofs[5] = temp6
-                        #     dofs[6] = -temp5
-                        # Now specify the center 
-                        dofs[7] = x
-                        dofs[8] = y
-                        dofs[9] = z
-                        curves[q].set_dofs(dofs)
-                        q += 1
-            self.all_curves = curves
-        else:
-            curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
-            for ic in range(ncoils):
-                xyz = self.grid_xyz[ic, :]
-                dofs = np.zeros(10)
-                dofs[0] = self.R
-                dofs[1] = 0.0
-                dofs[2] = 0.0
-                # Conversion from Euler angles in 3-2-1 body sequence to 
-                # quaternions: 
-                # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-                dofs[3] = np.cos(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic] / 2.0)
-                dofs[4] = np.sin(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic] / 2.0)
-                dofs[5] = np.cos(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic] / 2.0)
-                dofs[6] = -np.sin(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic] / 2.0)
-                # Now specify the center 
-                dofs[7] = xyz[0]
-                dofs[8] = xyz[1]
-                dofs[9] = xyz[2] 
-                curves[ic].set_dofs(dofs)
-            self.curves = curves
+        curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
+        for ic in range(ncoils):
+            xyz = self.grid_xyz[ic, :]
+            dofs = np.zeros(10)
+            dofs[0] = self.R
+            dofs[1] = 0.0
+            dofs[2] = 0.0
+            # Conversion from Euler angles in 3-2-1 body sequence to 
+            # quaternions: 
+            # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+            dofs[3] = np.cos(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic] / 2.0)
+            dofs[4] = np.sin(self.alphas[ic] / 2.0) * np.cos(self.deltas[ic] / 2.0)
+            dofs[5] = np.cos(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic] / 2.0)
+            dofs[6] = -np.sin(self.alphas[ic] / 2.0) * np.sin(self.deltas[ic] / 2.0)
+            # Now specify the center 
+            dofs[7] = xyz[0]
+            dofs[8] = xyz[1]
+            dofs[9] = xyz[2] 
+            curves[ic].set_dofs(dofs)
+        self.curves = curves
+        self.all_curves = apply_symmetries_to_curves(curves, self.nfp, self.stellsym)
 
-    def plot_curves(self):
+    def plot_curves(self, filename=''):
         
         from pyevtk.hl import pointsToVTK
         from . import curves_to_vtk
         from simsopt.field import InterpolatedField, Current, coils_via_symmetries
         
-        curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
+        # curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
+        # contig = np.ascontiguousarray
+        # if isinstance(self.B_TF, InterpolatedField):
+        #     self.B_TF.set_points(self.grid_xyz)
+        #     B = self.B_TF.B()
+        #     pointsToVTK(self.out_dir + 'curve_centers', 
+        #                 contig(self.grid_xyz[:, 0]),
+        #                 contig(self.grid_xyz[:, 1]), 
+        #                 contig(self.grid_xyz[:, 2]),
+        #                 data={"n": (contig(self.coil_normals[:, 0]), 
+        #                             contig(self.coil_normals[:, 1]),
+        #                             contig(self.coil_normals[:, 2])),
+        #                       "psi": contig(self.psi),
+        #                       "I": contig(self.I),
+        #                       "B_TF": (contig(B[:, 0]), 
+        #                                contig(B[:, 1]),
+        #                                contig(B[:, 2])),
+        #                       },
+        #     )
+        # else:
+        #     pointsToVTK(self.out_dir + 'curve_centers', 
+        #                 contig(self.grid_xyz[:, 0]),
+        #                 contig(self.grid_xyz[:, 1]), 
+        #                 contig(self.grid_xyz[:, 2]),
+        #                 data={"n": (contig(self.coil_normals[:, 0]), 
+        #                             contig(self.coil_normals[:, 1]),
+        #                             contig(self.coil_normals[:, 2])),
+        #                       },
+        #     )
+        # if hasattr(self, 'all_curves'):
+        self.psi_all = np.zeros(self.num_psc * self.symmetry)
+        self.I_all = np.zeros(self.num_psc * self.symmetry)
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                self.psi_all[q * self.num_psc: (q + 1) * self.num_psc] = self.psi
+                self.I_all[q * self.num_psc: (q + 1) * self.num_psc] = self.I * stell
+                q = q + 1
+            
+        currents = []
+        # for i in range(len(self.I)):
+        #     currents.append(Current(self.I[i]))
+        # all_coils = coils_via_symmetries(
+        #     self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
+        # )
+        for i in range(self.num_psc * self.symmetry):
+            currents.append(Current(self.I_all[i]))
+        all_coils = coils_via_symmetries(
+            self.all_curves, currents, nfp=1, stellsym=False
+        )
+        self.B_PSC_all = BiotSavart(all_coils)
+
+        curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all)
         contig = np.ascontiguousarray
         if isinstance(self.B_TF, InterpolatedField):
-            self.B_TF.set_points(self.grid_xyz)
+            self.B_TF.set_points(self.grid_xyz_all)
             B = self.B_TF.B()
-            pointsToVTK(self.out_dir + 'curve_centers', 
-                        contig(self.grid_xyz[:, 0]),
-                        contig(self.grid_xyz[:, 1]), 
-                        contig(self.grid_xyz[:, 2]),
-                        data={"n": (contig(self.coil_normals[:, 0]), 
-                                    contig(self.coil_normals[:, 1]),
-                                    contig(self.coil_normals[:, 2])),
-                              "psi": contig(self.psi),
-                              "I": contig(self.I),
+            pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
+                        contig(self.grid_xyz_all[:, 0]),
+                        contig(self.grid_xyz_all[:, 1]), 
+                        contig(self.grid_xyz_all[:, 2]),
+                        data={"n": (contig(self.coil_normals_all[:, 0]), 
+                                    contig(self.coil_normals_all[:, 1]),
+                                    contig(self.coil_normals_all[:, 2])),
+                              "psi": contig(self.psi_all),
+                              "I": contig(self.I_all),
                               "B_TF": (contig(B[:, 0]), 
                                        contig(B[:, 1]),
                                        contig(B[:, 2])),
                               },
             )
         else:
-            pointsToVTK(self.out_dir + 'curve_centers', 
-                        contig(self.grid_xyz[:, 0]),
-                        contig(self.grid_xyz[:, 1]), 
-                        contig(self.grid_xyz[:, 2]),
-                        data={"n": (contig(self.coil_normals[:, 0]), 
-                                    contig(self.coil_normals[:, 1]),
-                                    contig(self.coil_normals[:, 2])),
+            pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
+                        contig(self.grid_xyz_all[:, 0]),
+                        contig(self.grid_xyz_all[:, 1]), 
+                        contig(self.grid_xyz_all[:, 2]),
+                        data={"n": (contig(self.coil_normals_all[:, 0]), 
+                                    contig(self.coil_normals_all[:, 1]),
+                                    contig(self.coil_normals_all[:, 2])),
                               },
             )
-        if hasattr(self, 'all_curves'):
-            self.psi_all = np.zeros(self.num_psc * self.symmetry)
-            self.I_all = np.zeros(self.num_psc * self.symmetry)
-            for i in range(self.symmetry):
-                self.psi_all[i * self.num_psc: (i + 1) * self.num_psc] = self.psi
-                self.I_all[i * self.num_psc: (i + 1) * self.num_psc] = self.I
-                
-            currents = []
-            # for i in range(len(self.I)):
-            #     currents.append(Current(self.I[i]))
-            # all_coils = coils_via_symmetries(
-            #     self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
-            # )
-            for i in range(self.num_psc * self.symmetry):
-                currents.append(Current(self.I_all[i]))
-            all_coils = coils_via_symmetries(
-                self.all_curves, currents, nfp=1, stellsym=False
-            )
-            self.B_PSC_all = BiotSavart(all_coils)
-
-            curves_to_vtk(self.all_curves, self.out_dir + "all_psc_curves", close=True, scalar_data=self.I_all)
-            contig = np.ascontiguousarray
-            if isinstance(self.B_TF, InterpolatedField):
-                self.B_TF.set_points(self.grid_xyz_all)
-                B = self.B_TF.B()
-                pointsToVTK(self.out_dir + 'all_curve_centers', 
-                            contig(self.grid_xyz_all[:, 0]),
-                            contig(self.grid_xyz_all[:, 1]), 
-                            contig(self.grid_xyz_all[:, 2]),
-                            data={"n": (contig(self.coil_normals_all[:, 0]), 
-                                        contig(self.coil_normals_all[:, 1]),
-                                        contig(self.coil_normals_all[:, 2])),
-                                  "psi": contig(self.psi_all),
-                                  "I": contig(self.I_all),
-                                  "B_TF": (contig(B[:, 0]), 
-                                           contig(B[:, 1]),
-                                           contig(B[:, 2])),
-                                  },
-                )
-            else:
-                pointsToVTK(self.out_dir + 'all_curve_centers', 
-                            contig(self.grid_xyz_all[:, 0]),
-                            contig(self.grid_xyz_all[:, 1]), 
-                            contig(self.grid_xyz_all[:, 2]),
-                            data={"n": (contig(self.coil_normals_all[:, 0]), 
-                                        contig(self.coil_normals_all[:, 1]),
-                                        contig(self.coil_normals_all[:, 2])),
-                                  },
-                )
         
     def b_vector(self):
         Bn_target = self.Bn.reshape(-1)
@@ -730,7 +664,7 @@ class PSCgrid:
         alphas = kappas[:len(kappas) // 2]
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
-        BdotN2 = 0.5 * np.sum((self.Bn_PSC.reshape(-1) + self.b_opt) ** 2)
+        BdotN2 = 0.5 * np.sum((self.Bn_PSC.reshape(-1) * self.grid_normalization + self.b_opt) ** 2)
         outstr = f"||Bn||^2 = {BdotN2:.2e} "
         # for i in range(len(kappas)):
         #     outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
@@ -758,7 +692,7 @@ class PSCgrid:
         #            np.cos(deltas[i]) * np.sin(alphas[i]),
         #            np.cos(deltas[i]) * np.cos(alphas[i])]])
         # self.rotation_matrix = rotation_matrix
-        t1 = time.time()
+        # t1 = time.time()
         flux_grid = sopp.flux_xyz(
             contig(self.grid_xyz), 
             contig(alphas),
@@ -768,24 +702,24 @@ class PSCgrid:
             contig(self.coil_normals)
         )
         self.B_TF.set_points(contig(np.array(flux_grid).reshape(-1, 3)))
-        t2 = time.time()
-        print('Flux set points time = ', t2 - t1)
+        # t2 = time.time()
+        # print('Flux set points time = ', t2 - t1)
         N = len(self.rho)
         Nflux = len(self.flux_phi)
         # t1 = time.time()
         # B = 
         # t2 = time.time()
         # print('Flux call B time = ', t2 - t1)
-        t1 = time.time()
+        # t1 = time.time()
         self.psi = sopp.flux_integration(
             contig(self.B_TF.B().reshape(len(alphas), N, Nflux, 3)),
             contig(self.rho),
             contig(self.coil_normals)
         )
         self.psi *= self.dphi * self.drho
-        t2 = time.time()
-        print('Flux integration time = ', t2 - t1)
-        t1 = time.time()        
+        # t2 = time.time()
+        # print('Flux integration time = ', t2 - t1)
+        # t1 = time.time()        
         ####### Inductance C++ calculation below
         L = sopp.L_matrix(
             contig(self.grid_xyz), 
@@ -794,21 +728,39 @@ class PSCgrid:
             contig(self.phi),
             self.R,
         ) * self.dphi ** 2 / (4 * np.pi)
-        t2 = time.time()
-        print('Inductances c++ total time = ', t2 - t1)
+        # t2 = time.time()
+        # print('Inductances c++ total time = ', t2 - t1)
         L = (L + L.T)
         np.fill_diagonal(L, np.log(8.0 * self.R / self.a) - 2.0)
         self.L = L * self.mu0 * self.R * self.Nt ** 2
         
-        t1 = time.time()
+        # t1 = time.time()
         self.setup_currents_and_fields()
-        t2 = time.time()
-        print('Setup fields time = ', t2 - t1)
+        # t2 = time.time()
+        # print('Setup fields time = ', t2 - t1)
         
-def hamilton_product(q1, q2):
-    q3_0 = q1[0] * q2[0] - q1[1] * q2[1] - q1[2] * q2[2] - q1[3] * q2[3]
-    q3_1 = q1[0] * q2[1] + q1[1] * q2[0] + q1[1] * q2[2] - q1[3] * q2[2]
-    q3_2 = q1[0] * q2[2] - q1[1] * q2[3] + q1[1] * q2[0] + q1[3] * q2[1]
-    q3_3 = q1[0] * q2[3] + q1[1] * q2[2] - q1[2] * q2[1] + q1[3] * q2[0]
-    return np.array([q3_0, q3_1, q3_2, q3_3])
+    def setup_full_grid(self):
+        nn = self.num_psc
+        self.grid_xyz_all = np.zeros((nn * self.symmetry, 3))
+        self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                phi0 = (2 * np.pi / self.nfp) * fp
+                # get new locations by flipping the y and z components, then rotating by phi0
+                self.grid_xyz_all[nn * q: nn * (q + 1), 0] = self.grid_xyz[:, 0] * np.cos(phi0) - self.grid_xyz[:, 1] * np.sin(phi0) * stell
+                self.grid_xyz_all[nn * q: nn * (q + 1), 1] = self.grid_xyz[:, 0] * np.sin(phi0) + self.grid_xyz[:, 1] * np.cos(phi0) * stell
+                self.grid_xyz_all[nn * q: nn * (q + 1), 2] = self.grid_xyz[:, 2] * stell
+                # get new normal vectors by flipping the x component, then rotating by phi0
+                self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
+                self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
+                self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
+                q = q + 1
+        
+# def hamilton_product(q1, q2):
+#     q3_0 = q1[0] * q2[0] - q1[1] * q2[1] - q1[2] * q2[2] - q1[3] * q2[3]
+#     q3_1 = q1[0] * q2[1] + q1[1] * q2[0] + q1[1] * q2[2] - q1[3] * q2[2]
+#     q3_2 = q1[0] * q2[2] - q1[1] * q2[3] + q1[1] * q2[0] + q1[3] * q2[1]
+#     q3_3 = q1[0] * q2[3] + q1[1] * q2[2] - q1[2] * q2[1] + q1[3] * q2[0]
+#     return np.array([q3_0, q3_1, q3_2, q3_3])
         

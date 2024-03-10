@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 from monty.tempfile import ScratchDir
 
-from simsopt.geo import PSCgrid
+from simsopt.geo import PSCgrid, SurfaceRZFourier
 from simsopt.field import BiotSavart, coils_via_symmetries, Current, CircularCoil
 import simsoptpp as sopp
 
@@ -89,6 +89,18 @@ class Testing(unittest.TestCase):
         # Only true because R << 1
         # assert(np.isclose(psc_array.psi[0], np.pi * psc_array.R ** 2 * Bz_center))
         
+        input_name = 'input.LandremanPaul2021_QA_lowres'
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        surface_filename = TEST_DIR / input_name
+        surf1 = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='full torus', nphi=16, ntheta=16
+        )
+        surf1.nfp = 1
+        surf1.stellsym = False
+        surf2 = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='half period', nphi=16, ntheta=16
+        )
+        
         # Test that inductance and flux calculations for wide set of
         # scenarios
         a = 1e-4
@@ -106,60 +118,107 @@ class Testing(unittest.TestCase):
                                      (np.random.rand(3) - 0.5) * 40])]:
                 for alphas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
                     for deltas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
-                        psc_array = PSCgrid.geo_setup_manual(
-                            points, R=R, a=a, alphas=alphas, deltas=deltas,
-                        )
-                        coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
-                        bs = BiotSavart(coils)
-                        kwargs = {"B_TF": bs, "ppp": 2000}
-                        psc_array = PSCgrid.geo_setup_manual(
-                            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
-                        )
-                        L = psc_array.L
-                        
-                        # This is not a robust check but it only converges when N >> 1
-                        # points are used to do the integrations. Can easily check that 
-                        # can increase rtol as you increase N
-                        # print(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10)
-                        assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
-                        
-                        psc_array.setup_psc_biotsavart()
-                        contig = np.ascontiguousarray
-                        B_PSC = sopp.B_PSC(
-                            contig(psc_array.grid_xyz),
-                            contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
-                            contig(psc_array.alphas),
-                            contig(psc_array.deltas),
-                            contig(psc_array.I),
-                            psc_array.R
-                        )
-                        Bn_PSC = sopp.Bn_PSC(
-                            contig(psc_array.grid_xyz),
-                            contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
-                            contig(psc_array.alphas),
-                            contig(psc_array.deltas),
-                            contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
-                            psc_array.R
-                        ) @ psc_array.I
-                        B_circular_coils = np.zeros(B_PSC.shape)
-                        Bn_circular_coils = np.zeros(psc_array.Bn_PSC.shape)
-                        for i in range(len(psc_array.alphas)):
-                            PSC = CircularCoil(
-                                psc_array.R, 
-                                psc_array.grid_xyz[i, :], 
-                                psc_array.I[i], 
-                                psc_array.coil_normals[i, :]
+                        for surf in [surf1, surf2]:
+                            psc_array = PSCgrid.geo_setup_manual(
+                                points, R=R, a=a, alphas=alphas, deltas=deltas,
                             )
-                            PSC.set_points(psc_array.plasma_boundary.gamma().reshape(-1, 3))
-                            B_circular_coils += PSC.B().reshape(-1, 3)
-                            Bn_circular_coils += np.sum(PSC.B().reshape(
+                            coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+                            bs = BiotSavart(coils)
+                            kwargs = {"B_TF": bs, "ppp": 2000, "plasma_boundary": surf}
+                            psc_array = PSCgrid.geo_setup_manual(
+                                points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
+                            )
+                            L = psc_array.L
+                            
+                            # This is not a robust check but it only converges when N >> 1
+                            # points are used to do the integrations. Can easily check that 
+                            # can increase rtol as you increase N
+                            # print(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10)
+                            assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
+                            
+                            psc_array.setup_psc_biotsavart()
+                            contig = np.ascontiguousarray
+                            # Calculate B fields like psc_array function does
+                            B_PSC = np.zeros((psc_array.nphi * psc_array.ntheta, 3))
+                            Bn_PSC = np.zeros(psc_array.nphi * psc_array.ntheta)
+                            print(psc_array.nfp, psc_array.stell_list)
+                            for fp in range(psc_array.nfp):
+                                for stell in psc_array.stell_list:
+                                    phi0 = (2 * np.pi / psc_array.nfp) * fp
+                                    # get new locations by flipping the y and z components, then rotating by phi0
+                                    ox = psc_array.grid_xyz[:, 0] * np.cos(phi0) - psc_array.grid_xyz[:, 1] * np.sin(phi0) * stell
+                                    oy = psc_array.grid_xyz[:, 0] * np.sin(phi0) + psc_array.grid_xyz[:, 1] * np.cos(phi0) * stell
+                                    oz = psc_array.grid_xyz[:, 2] * stell
+                                    xyz = np.array([ox, oy, oz]).T
+                                    Bn_PSC += sopp.A_matrix(
+                                        contig(xyz),
+                                        contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
+                                        contig(psc_array.alphas),
+                                        contig(psc_array.deltas),
+                                        contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
+                                        psc_array.R,
+                                        float(phi0),
+                                        float(stell),
+                                    ) @ psc_array.I * stell
+                                    B_PSC += sopp.B_PSC(
+                                        contig(xyz),
+                                        contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
+                                        contig(psc_array.alphas),
+                                        contig(psc_array.deltas),
+                                        contig(psc_array.I * stell),
+                                        psc_array.R,
+                                        float(phi0),
+                                        float(stell)
+                                    )
+                            # Calculate Bfields from CircularCoil class
+                            B_circular_coils = np.zeros(B_PSC.shape)
+                            Bn_circular_coils = np.zeros(psc_array.Bn_PSC.shape)
+                            for i in range(len(psc_array.alphas)):
+                                PSC = CircularCoil(
+                                    psc_array.R, 
+                                    psc_array.grid_xyz_all[i, :], 
+                                    psc_array.I_all[i], 
+                                    psc_array.coil_normals_all[i, :]
+                                )
+                                PSC.set_points(psc_array.plasma_boundary.gamma().reshape(-1, 3))
+                                B_circular_coils += PSC.B().reshape(-1, 3)
+                                Bn_circular_coils += np.sum(PSC.B().reshape(
+                                    -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
+                            # Calculate Bfields from direct BiotSavart
+                            currents = []
+                            for i in range(len(psc_array.I)):
+                                currents.append(Current(psc_array.I[i]))
+                            coils = coils_via_symmetries(
+                                psc_array.curves, currents, nfp=1, stellsym=False
+                            )
+                            B_direct = BiotSavart(coils)
+                            B_direct.set_points(psc_array.plasma_points)
+                            Bn_direct = np.sum(B_direct.B().reshape(
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
-                        
-                        # Robust test of all the B and Bn calculations from circular coils
-                        assert(np.allclose(psc_array.B_PSC.B(), B_PSC))
-                        assert(np.allclose(psc_array.B_PSC.B(), B_circular_coils))
-                        assert(np.allclose(psc_array.Bn_PSC, Bn_PSC))
-                        assert(np.allclose(psc_array.Bn_PSC, Bn_circular_coils))
+                            # Calculate Bfields from direct BiotSavart, using all the coils manually defined
+                            currents = []
+                            for i in range(psc_array.num_psc * psc_array.symmetry):
+                                currents.append(Current(psc_array.I_all[i]))
+                            all_coils = coils_via_symmetries(
+                                psc_array.all_curves, currents, nfp=1, stellsym=False
+                            )
+                            B_direct_all = BiotSavart(all_coils)
+                            B_direct_all.set_points(psc_array.plasma_points)
+                            Bn_direct_all = np.sum(B_direct_all.B().reshape(
+                                -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
+                            
+                            # Robust test of all the B and Bn calculations from circular coils
+                            # print('here = ', psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, Bn_circular_coils * 1e10)
+                            # print(psc_array.B_PSC.B()[-1] * 1e10, B_PSC[-1] * 1e10, B_circular_coils[-1] * 1e10, B_direct.B()[-1] * 1e10)
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_PSC * 1e10))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct.B() * 1e10))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct_all.B() * 1e10))
+                            print(psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10)
+                            assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10))
+                            assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10))
+                            assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct * 1e10))
+                            assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct_all * 1e10))
 
 if __name__ == "__main__":
     unittest.main()

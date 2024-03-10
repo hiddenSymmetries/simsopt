@@ -19,8 +19,8 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 64
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 16
     # Make higher resolution surface for plotting Bnormal
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -101,7 +101,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 calculate_on_axis_B(bs, s)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10, "out_dir": out_str, "random_initialization": True} 
+kwargs_geo = {"Nx": 6, "out_dir": out_str, "random_initialization": True} 
 # note Bnormal below is additional Bnormal (not from the TF coils or the PSCs)
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo
@@ -121,24 +121,28 @@ t2 = time.time()
 print('Time for call to least-squares = ', t2 - t1)
 psc_array.least_squares(x0 + np.random.rand(len(x0)))
 
-# from scipy.optimize import minimize
-# print('beginning optimization: ')
-# options = {"disp": True}
-# # x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
-# #                                           )))) * 2 * np.pi
-# # print(x0)
-# x0 = psc_array.kappas
+psc_array.setup_psc_biotsavart()
+make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_initial")
+make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_initial")
+
+from scipy.optimize import minimize
+print('beginning optimization: ')
+options = {"disp": True}
+# x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
+#                                           )))) * 2 * np.pi
 # print(x0)
-# x_opt = minimize(psc_array.least_squares, x0, options=options)
-# print(x_opt)
+x0 = psc_array.kappas
+print(x0)
+x_opt = minimize(psc_array.least_squares, x0, options=options)
+print(x_opt)
 # print('currents = ', psc_array.I)
 psc_array.setup_curves(symmetrized=True)
-psc_array.plot_curves()
+psc_array.plot_curves('final_')
 # Check that direct Bn calculation agrees with optimization calculation
 psc_array.setup_psc_biotsavart()
 fB = SquaredFlux(s, psc_array.B_PSC_all + bs, np.zeros((nphi, ntheta))).J()
 print(fB)
-make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_initial")
-make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_initial")
+make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_final")
+make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_final")
 print('end')
 # plt.show()
