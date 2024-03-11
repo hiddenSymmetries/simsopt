@@ -157,6 +157,7 @@ class Curve(Optimizable):
             raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
         return ax
 
+    
     def dgamma_by_dcoeff_vjp(self, v):
         return Derivative({self: self.dgamma_by_dcoeff_vjp_impl(v)})
 
@@ -1225,16 +1226,16 @@ def nfactor(gamma2d, surf_dofs, qpts, mpol, ntor, nfp, direction='z'):
     elif direction=='r':
         return normal(gamma2d, surf_dofs, qpts, mpol, ntor, nfp)[:,0]
 
-class CurveCWSFourierFree( Optimizable ):
+class CurveCWSFourierFree( Curve, sopp.Curve ):
     def __init__(self, curve2d, surf):   
         
         self.curve = curve2d
         self.surf = surf
 
         points = self.curve.quadpoints
-        self.quadpoints = self.curve.quadpoints
 
         # We are not doing the same search for x0
+        sopp.Curve.__init__(self, points)
         super().__init__(depends_on=[self.surf, self.curve])
 
         self.gamma_pure = jit(lambda gamma2d, surf_dofs, points: gamma_curve_on_surface(gamma2d, surf_dofs, points, self.surf.mpol, self.surf.ntor, self.surf.nfp))
@@ -1278,11 +1279,11 @@ class CurveCWSFourierFree( Optimizable ):
 
         # CURVATURE 
         self.dkappa_by_dcurve_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(lambda g2: kappa_pure(self.gammadash_jax(g2, surf_dofs), self.gammadashdash_jax(g2, surf_dofs)), gamma2d)[1](v)[0])
-        self.dkappa_by_dsurf_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(lambda g2: kappa_pure(self.gammadash_jax(g2, surf_dofs), self.gammadashdash_jax(g2, surf_dofs)), gamma2d)[1](v)[1])
+        self.dkappa_by_dsurf_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(lambda sdofs: kappa_pure(self.gammadash_jax(gamma2d, sdofs), self.gammadashdash_jax(gamma2d, surf_dofs)), surf_dofs)[1](v)[0])
 
         # TORSION
         self.dtorsion_by_dcurve_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(lambda g2: torsion_pure(self.gammadash_jax(g2, surf_dofs), self.gammadashdash_jax(g2, surf_dofs), self.gammadashdashdash_jax(g2, surf_dofs)), gamma2d)[1](v)[0])
-        self.dtorsion_by_dsurf_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(lambda g2: torsion_pure(self.gammadash_jax(g2, surf_dofs), self.gammadashdash_jax(g2, surf_dofs), self.gammadashdashdash_jax(g2, surf_dofs)), gamma2d)[1](v)[1])
+        self.dtorsion_by_dsurf_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(lambda sdofs: torsion_pure(self.gammadash_jax(gamma2d, sdofs), self.gammadashdash_jax(gamma2d, surf_dofs)), surf_dofs)[1](v)[0])
 
         # NORMAL COMPONENTS
         #gamma2d, surf_dofs, qpts, mpol, ntor, nfp
@@ -1299,22 +1300,33 @@ class CurveCWSFourierFree( Optimizable ):
     def gamma(self):
         gamma2d = self.curve.gamma()
         surf_dofs = self.surf.get_dofs()
-        return self.gamma_jax(gamma2d, surf_dofs)        
+        return self.gamma_jax(gamma2d, surf_dofs) 
+    def gamma_impl(self, gamma, quadpoints):
+        gamma[:, :] = self.gamma_pure(self.curve.gamma(), self.surf.get_dofs(), quadpoints)
 
     def gammadash(self):
         gamma2d = self.curve.gamma()
+        g2dash = self.curve.gammadash() #for some reason need to call this
         surf_dofs = self.surf.get_dofs()
         return self.gammadash_jax(gamma2d, surf_dofs)
+    def gammadash_impl(self, gammadash):
+        gammadash[:, :] = self.gammadash()
     
     def gammadashdash(self):
         gamma2d = self.curve.gamma()
+        g2dashdash = self.curve.gammadashdash()#for some reason need to call this
         surf_dofs = self.surf.get_dofs()
         return self.gammadashdash_jax(gamma2d, surf_dofs)
+    def gammadashdash_impl(self, gammadashdash):
+        gammadashdash[:, :] = self.gammadashdash()
     
     def gammadashdashdash(self):
         gamma2d = self.curve.gamma()
+        g2dashdashdash = self.curve.gammadashdashdash()#for some reason need to call this
         surf_dofs = self.surf.get_dofs()
         return self.gammadashdashdash_jax(gamma2d, surf_dofs)
+    def gammadashdashdash_impl(self, gammadashdashdash):
+        gammadashdashdash[:, :] = self.gammadashdashdash()
         
     # DERIVATIVE W.R.T DOFS
     def dgamma_by_dcoeff_vjp(self, v):

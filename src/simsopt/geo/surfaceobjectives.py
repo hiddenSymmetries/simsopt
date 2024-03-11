@@ -10,9 +10,13 @@ from .surface import Surface
 from .surfacexyztensorfourier import SurfaceXYZTensorFourier
 from ..objectives.utilities import forward_backward
 
+import jax.numpy as jnp
+from jax import grad
+from .jit import jit
+
 __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
            'QfmResidual', 'boozer_surface_residual', 'Iotas', 
-           'MajorRadius', 'NonQuasiSymmetricRatio']
+           'MajorRadius', 'NonQuasiSymmetricRatio', 'SurfaceSurfaceDistance']
 
 
 class Area(Optimizable):
@@ -897,4 +901,43 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart):
     dr_dB = dresidual_dB_flattened
 
     return r, dr_dB
+
+
+def surface_to_surface_distance_pure(gamma1, gamma2, mdist):
+    gamma1 = gamma1.reshape((-1,3))
+    gamma2 = gamma2.reshape((-1,3))
+    dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
+    return jnp.sum(jnp.maximum(mdist-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
+
+
+class SurfaceSurfaceDistance(Optimizable):
+    def __init__(self, surf1, surf2, minimum_distance):
+        self.surf1 = surf1
+        self.surf2 = surf2
+        self.mdist = minimum_distance
+
+        self.J_jax = jit(lambda g1, g2: surface_to_surface_distance_pure(g1, g2, self.mdist))
+        self.thisgrad0 = jit(lambda g1, g2: grad(self.J_jax, argnums=0)(g1,g2))
+        self.thisgrad1 = jit(lambda g1, g2: grad(self.J_jax, argnums=1)(g1,g2))
+
+        super().__init__(depends_on=[surf1, surf2])
+
+    def J(self):
+        gamma1 = self.surf1.gamma()
+        gamma2 = self.surf2.gamma()
+
+        return self.J_jax(gamma1, gamma2)
+    
+    @derivative_dec
+    def dJ(self):
+        gamma1 = self.surf1.gamma()
+        gamma2 = self.surf2.gamma()
+
+        grad0 = self.thisgrad0(gamma1, gamma2)
+        grad1 = self.thisgrad1(gamma1, gamma2)
+
+        return Derivative({
+            self.surf1: self.surf1.dgamma_by_dcoeff_vjp(grad0),
+            self.surf2: self.surf2.dgamma_by_dcoeff_vjp(grad1)
+        })
 
