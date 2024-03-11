@@ -307,7 +307,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         # generate planar TF coils
         ncoils = 4
         R0 = s.get_rc(0, 0)
-        R1 = s.get_rc(1, 0) * 2
+        R1 = s.get_rc(1, 0) * 4
         order = 5
 
         # qh needs to be scaled to 0.1 T on-axis magnetic field strength

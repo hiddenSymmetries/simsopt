@@ -19,16 +19,16 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 16
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 32
     # Make higher resolution surface for plotting Bnormal
     qphi = 2 * nphi
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 
-coff = 0.15  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA_lowres'
+coff = 1.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.8  # PM grid end offset ~ 15 cm from the plasma surface
+input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -37,28 +37,30 @@ range_param = 'half period'
 s = SurfaceRZFourier.from_vmec_input(
     surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
 )
-print('s.R = ', s.get_dofs())
+print('s.R = ', s.get_dofs(), s.get_rc(0, 0))
 
 # input_name = 'tests/test_files/input.circular_tokamak'
 # s_inner = SurfaceRZFourier(
-#     stellsym=False,
+#     stellsym=True,
 #     quadpoints_phi=s.quadpoints_phi, 
 #     quadpoints_theta=s.quadpoints_theta
 # )
-# s_inner.set_rc(1, 0, 0.1)
-# s_inner.set_zs(1, 0, 0.1)
+# s_inner.set_rc(0, 0, s.get_rc(0, 0))
+# s_inner.set_rc(1, 0, s.get_rc(1, 0))
+# s_inner.set_zs(1, 0, s.get_rc(1, 0))
 # s_outer = SurfaceRZFourier(
-#     stellsym=False,
+#     stellsym=True,
 #     quadpoints_phi=s.quadpoints_phi, 
 #     quadpoints_theta=s.quadpoints_theta
 # )
-# s_outer.set_rc(1, 0, 0.2)
-# s_outer.set_zs(1, 0, 0.2)
+# s_outer.set_rc(0, 0, s.get_rc(0, 0))
+# s_outer.set_rc(1, 0, s.get_rc(1, 0))
+# s_outer.set_zs(1, 0, s.get_rc(1, 0))
 s_inner = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
+    surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
 )
 s_outer = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
+    surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
 )
 
 # Make the inner and outer surfaces by extending the plasma surface
@@ -66,14 +68,14 @@ s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
 # Make the output directory
-out_str = "psc_output/"
-out_dir = Path("psc_output")
+out_str = "QH_psc_output/"
+out_dir = Path("QH_psc_output")
 out_dir.mkdir(parents=True, exist_ok=True)
 s_inner.to_vtk(out_str + 'inner_surf')
 s_outer.to_vtk(out_str + 'outer_surf')
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s, out_dir)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -101,7 +103,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 calculate_on_axis_B(bs, s)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 6, "out_dir": out_str, "random_initialization": True} 
+kwargs_geo = {"Nx": 10, "out_dir": out_str, "random_initialization": True} 
 # note Bnormal below is additional Bnormal (not from the TF coils or the PSCs)
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo

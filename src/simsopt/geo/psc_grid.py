@@ -66,9 +66,9 @@ class PSCgrid:
         self.dx = (x_max - x_min) / (Nx - 1)
         self.dy = (y_max - y_min) / (Ny - 1)
         self.dz = 2 * z_max / (Nz - 1)
-        # print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
+        print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
         Nmin = min(self.dx, min(self.dy, self.dz))
-        self.R = Nmin / 2.5  # Need to keep coils from touching, so denominator should be > 2
+        self.R = Nmin / 5  # Need to keep coils from touching, so denominator should be > 2
         self.a = self.R / 100.0
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -80,16 +80,18 @@ class PSCgrid:
         # the old cells.
         #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
         #### and correctly be rotated to have the right symmetries
+        print(self.dx, self.dy, x_max, y_max, x_min, y_min)
+        # exit()
         if self.plasma_boundary.nfp > 1:
             # Throw away any points not in the section phi = [0, pi / n_p] and
             # make sure all centers points are at least a distance R from the
             # sector so that all the coil points are reflected correctly. 
             X = np.linspace(
-                self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, 
+                self.dx / 2.0 + x_min, x_max - self.dx / 2.0, 
                 Nx, endpoint=True
             )
             Y = np.linspace(
-                self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, 
+                self.dy / 2.0 + y_min, y_max - self.dy / 2.0, 
                 Ny, endpoint=True
             )
         else:
@@ -100,17 +102,21 @@ class PSCgrid:
         # Make 3D mesh
         X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
         self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+        
 
-        # # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
-        # if self.plasma_boundary.nfp == 4:
-        #     inds = []
-        #     for i in range(Nx):
-        #         for j in range(Ny):
-        #             for k in range(Nz):
-        #                 if X[i, j, k] < Y[i, j, k]:
-        #                     inds.append(int(i * Ny * Nz + j * Nz + k))
-        #     good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
-        #     self.xyz_uniform = self.xyz_uniform[good_inds, :]
+        # Extra work for nfp > 1 to chop off points outside sector
+        if self.nfp > 1:
+            inds = []
+            for i in range(Nx):
+                for j in range(Ny):
+                    for k in range(Nz):
+                        phi = np.arctan2(Y[i, j, k], X[i, j, k])
+                        phi2 = np.arctan2(self.R, X[i, j, k])
+                        # Safety factor to avoid phi = 45 degrees exactly, for instance
+                        if phi >= (np.pi / self.nfp - phi2) or phi < 0.0:
+                            inds.append(int(i * Ny * Nz + j * Nz + k))
+            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
+            self.xyz_uniform = self.xyz_uniform[good_inds, :]
         # else:
         #     # Get (R, Z) coordinates of the outer boundary
         #     rphiz_outer = np.array(
@@ -226,10 +232,10 @@ class PSCgrid:
         Nnorms = np.ravel(np.sqrt(np.sum(psc_grid.plasma_boundary.normal() ** 2, axis=-1)))
         psc_grid.grid_normalization = np.sqrt(Nnorms / Ngrid)
         # integration over phi for L
-        N = 10
+        N = 200
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
-        N = 20
+        N = 500
         psc_grid.flux_phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.flux_dphi = psc_grid.flux_phi[1] - psc_grid.flux_phi[0]
         Nx = kwargs.pop("Nx", 10)
@@ -570,56 +576,96 @@ class PSCgrid:
         from . import curves_to_vtk
         from simsopt.field import InterpolatedField, Current, coils_via_symmetries
         
-        # curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
-        # contig = np.ascontiguousarray
-        # if isinstance(self.B_TF, InterpolatedField):
-        #     self.B_TF.set_points(self.grid_xyz)
-        #     B = self.B_TF.B()
-        #     pointsToVTK(self.out_dir + 'curve_centers', 
-        #                 contig(self.grid_xyz[:, 0]),
-        #                 contig(self.grid_xyz[:, 1]), 
-        #                 contig(self.grid_xyz[:, 2]),
-        #                 data={"n": (contig(self.coil_normals[:, 0]), 
-        #                             contig(self.coil_normals[:, 1]),
-        #                             contig(self.coil_normals[:, 2])),
-        #                       "psi": contig(self.psi),
-        #                       "I": contig(self.I),
-        #                       "B_TF": (contig(B[:, 0]), 
-        #                                contig(B[:, 1]),
-        #                                contig(B[:, 2])),
-        #                       },
-        #     )
-        # else:
-        #     pointsToVTK(self.out_dir + 'curve_centers', 
-        #                 contig(self.grid_xyz[:, 0]),
-        #                 contig(self.grid_xyz[:, 1]), 
-        #                 contig(self.grid_xyz[:, 2]),
-        #                 data={"n": (contig(self.coil_normals[:, 0]), 
-        #                             contig(self.coil_normals[:, 1]),
-        #                             contig(self.coil_normals[:, 2])),
-        #                       },
-        #     )
+        curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
+        contig = np.ascontiguousarray
+        if isinstance(self.B_TF, InterpolatedField):
+            self.B_TF.set_points(self.grid_xyz)
+            B = self.B_TF.B()
+            pointsToVTK(self.out_dir + 'curve_centers', 
+                        contig(self.grid_xyz[:, 0]),
+                        contig(self.grid_xyz[:, 1]), 
+                        contig(self.grid_xyz[:, 2]),
+                        data={"n": (contig(self.coil_normals[:, 0]), 
+                                    contig(self.coil_normals[:, 1]),
+                                    contig(self.coil_normals[:, 2])),
+                              "psi": contig(self.psi),
+                              "I": contig(self.I),
+                              "B_TF": (contig(B[:, 0]), 
+                                        contig(B[:, 1]),
+                                        contig(B[:, 2])),
+                              },
+            )
+        else:
+            pointsToVTK(self.out_dir + 'curve_centers', 
+                        contig(self.grid_xyz[:, 0]),
+                        contig(self.grid_xyz[:, 1]), 
+                        contig(self.grid_xyz[:, 2]),
+                        data={"n": (contig(self.coil_normals[:, 0]), 
+                                    contig(self.coil_normals[:, 1]),
+                                    contig(self.coil_normals[:, 2])),
+                              },
+            )
         # if hasattr(self, 'all_curves'):
         self.psi_all = np.zeros(self.num_psc * self.symmetry)
         self.I_all = np.zeros(self.num_psc * self.symmetry)
+        contig = np.ascontiguousarray
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 self.psi_all[q * self.num_psc: (q + 1) * self.num_psc] = self.psi
                 self.I_all[q * self.num_psc: (q + 1) * self.num_psc] = self.I * stell
+                
+                phi0 = (2.0 * np.pi / self.nfp) * fp
+                # x' = R_p^T R_s^T x
+                # get new locations by flipping the y and z components, then rotating by -phi0
+                ox = self.grid_xyz[:, 0] * np.cos(phi0) - self.grid_xyz[:, 1] * np.sin(phi0) * stell
+                oy = self.grid_xyz[:, 0] * np.sin(phi0) + self.grid_xyz[:, 1] * np.cos(phi0) * stell
+                oz = self.grid_xyz[:, 2] * stell
+                # n' = R_s R_p n
+                # get new normal vectors by flipping the x component, then rotating by phi0
+                self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
+                self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
+                self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 2] = self.coil_normals[:, 2]
+                xyz = np.array([ox, oy, oz]).T
+                normals = self.coil_normals_all[q * self.num_psc: (q + 1) * self.num_psc, :]
+                alphas = np.arcsin(-normals[:, 1])
+                minus_yinds = np.ravel(np.where(xyz[:, 1] > 0.0))
+                try:
+                    alphas[minus_yinds] = -alphas[minus_yinds]
+                except:
+                    print('')
+                deltas = np.arccos(normals[:, 2] / np.cos(alphas))
+                flux_grid = sopp.flux_xyz(
+                    contig(xyz), 
+                    contig(alphas),
+                    contig(deltas), 
+                    contig(self.rho), 
+                    contig(self.flux_phi), 
+                    contig(normals)
+                )
+                self.B_TF.set_points(contig(np.array(flux_grid).reshape(-1, 3)))
+                N = len(self.rho)
+                Nflux = len(self.flux_phi)
+                # self.B_TF.set_points(contig(xyz))
+                psi_check = sopp.flux_integration(
+                    contig(self.B_TF.B().reshape(len(self.alphas), N, Nflux, 3)),
+                    contig(self.rho),
+                    contig(normals)
+                )
+                print(fp, stell, psi_check)
                 q = q + 1
-            
+        # exit()
         currents = []
-        # for i in range(len(self.I)):
-        #     currents.append(Current(self.I[i]))
-        # all_coils = coils_via_symmetries(
-        #     self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
-        # )
-        for i in range(self.num_psc * self.symmetry):
-            currents.append(Current(self.I_all[i]))
+        for i in range(len(self.I)):
+            currents.append(Current(self.I[i]))
         all_coils = coils_via_symmetries(
-            self.all_curves, currents, nfp=1, stellsym=False
+            self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
         )
+        # for i in range(self.num_psc * self.symmetry):
+        #     currents.append(Current(self.I_all[i]))
+        # all_coils = coils_via_symmetries(
+        #     self.all_curves, currents, nfp=1, stellsym=False
+        # )
         self.B_PSC_all = BiotSavart(all_coils)
 
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all)
