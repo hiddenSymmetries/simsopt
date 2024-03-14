@@ -845,8 +845,7 @@ def curves_to_vtk(curves, filename, close=False, scalar_data=None):
     else:
         coil_data = np.zeros(data.shape)
         for i in range(len(scalar_data)):
-            # print(i, scalar_data[i], abs(scalar_data[i]))
-            coil_data[i * ppl[i]: (i + 1) * ppl[i]] = abs(scalar_data[i])
+            coil_data[i * ppl[i]: (i + 1) * ppl[i]] = scalar_data[i]
         coil_data = np.ascontiguousarray(coil_data)
         polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data, 'I': coil_data})
 

@@ -80,7 +80,7 @@ class PSCgrid:
         # the old cells.
         #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
         #### and correctly be rotated to have the right symmetries
-        print(self.dx, self.dy, x_max, y_max, x_min, y_min)
+        print(self.dx, self.dy, x_max, y_max, x_min, y_min, self.dz, self.R)
         # exit()
         if self.plasma_boundary.nfp > 1:
             # Throw away any points not in the section phi = [0, pi / n_p] and
@@ -299,10 +299,17 @@ class PSCgrid:
         rs = np.linalg.norm(gamma_outer[:, :2], axis=-1)
         zs = gamma_outer[:, 2]
         rrange = (0, np.max(rs) + R, n)  # need to also cover the plasma
-        phirange = (0, 2 * np.pi, n * 2)
-        zrange = (np.min(zs) - R, np.max(zs) + R, n // 2)
+        if psc_grid.nfp > 1:
+            phirange = (0, 2*np.pi/psc_grid.nfp, n*2)
+        else:
+            phirange = (0, 2 * np.pi, n * 2)
+        if psc_grid.stellsym:
+            zrange = (0, np.max(zs) + R, n // 2)
+        else:
+            zrange = (np.min(zs) - R, np.max(zs) + R, n // 2)
         psc_grid.B_TF = InterpolatedField(
-            B_TF, degree, rrange, phirange, zrange, True, nfp=1, stellsym=False
+            B_TF, degree, rrange, phirange, zrange, 
+            True, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
         )
         B_TF.set_points(psc_grid.grid_xyz)
         B = B_TF.B()
@@ -536,7 +543,7 @@ class PSCgrid:
             currents.append(Current(self.I[i]))
         
         coils = coils_via_symmetries(
-            self.curves, currents, nfp=1, stellsym=False
+            self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
         )
         self.B_PSC = BiotSavart(coils)
         self.B_PSC.set_points(self.plasma_points)
@@ -608,12 +615,18 @@ class PSCgrid:
         # if hasattr(self, 'all_curves'):
         self.psi_all = np.zeros(self.num_psc * self.symmetry)
         self.I_all = np.zeros(self.num_psc * self.symmetry)
+        L_total = np.zeros((self.num_psc * self.symmetry, 
+                            self.num_psc * self.symmetry))
+        B_PSC = np.zeros(self.plasma_boundary.gamma().reshape(-1, 3).shape)
         contig = np.ascontiguousarray
+        alphas_total = []
+        deltas_total = []
+        psi_total = np.zeros(self.num_psc * self.symmetry)
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 self.psi_all[q * self.num_psc: (q + 1) * self.num_psc] = self.psi
-                self.I_all[q * self.num_psc: (q + 1) * self.num_psc] = self.I * stell
+                # self.I_all[q * self.num_psc: (q + 1) * self.num_psc] = self.I * stell
                 
                 phi0 = (2.0 * np.pi / self.nfp) * fp
                 # x' = R_p^T R_s^T x
@@ -623,9 +636,9 @@ class PSCgrid:
                 oz = self.grid_xyz[:, 2] * stell
                 # n' = R_s R_p n
                 # get new normal vectors by flipping the x component, then rotating by phi0
-                self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
-                self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
-                self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 2] = self.coil_normals[:, 2]
+                # self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
+                # self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
+                # self.coil_normals_all[self.num_psc * q: self.num_psc * (q + 1), 2] = self.coil_normals[:, 2]
                 xyz = np.array([ox, oy, oz]).T
                 normals = self.coil_normals_all[q * self.num_psc: (q + 1) * self.num_psc, :]
                 alphas = np.arcsin(-normals[:, 1])
@@ -643,6 +656,8 @@ class PSCgrid:
                     contig(self.flux_phi), 
                     contig(normals)
                 )
+                alphas_total.append(alphas)
+                deltas_total.append(deltas)
                 self.B_TF.set_points(contig(np.array(flux_grid).reshape(-1, 3)))
                 N = len(self.rho)
                 Nflux = len(self.flux_phi)
@@ -652,20 +667,51 @@ class PSCgrid:
                     contig(self.rho),
                     contig(normals)
                 )
+                psi_total[q * self.num_psc: (q + 1) * self.num_psc] = psi_check
                 print(fp, stell, psi_check)
+                B_PSC += sopp.B_PSC(
+                    contig(xyz),
+                    contig(self.plasma_boundary.gamma().reshape(-1, 3)),
+                    contig(self.alphas),
+                    contig(self.deltas),
+                    contig(self.I * stell),
+                    self.R,
+                    float(phi0),
+                    float(stell)
+                )
                 q = q + 1
+        alphas_total = np.ravel(np.array(alphas_total))
+        deltas_total = np.ravel(np.array(deltas_total))
+        self.B_PSC_direct = B_PSC
+        L_total = sopp.L_matrix(
+            contig(self.grid_xyz_all), 
+            contig(alphas_total), 
+            contig(deltas_total),
+            contig(self.phi),
+            self.R,
+        ) * self.dphi ** 2 / (4 * np.pi)
+        L_total = (L_total + L_total.T)
+        np.fill_diagonal(L_total, np.log(8.0 * self.R / self.a) - 2.0)
+        self.L_total = L_total * self.mu0 * self.R * self.Nt ** 2
+        print(self.L_total, self.L_total.shape)
+        I_total = - np.linalg.solve(L_total, psi_total)
+        print(I_total, I_total.shape)
+        self.I_all = I_total
+        print(self.I)
+              #self.num_psc, self.symmetry, alphas_total.shape,
+              #self.grid_xyz_all.shape)
         # exit()
         currents = []
-        for i in range(len(self.I)):
-            currents.append(Current(self.I[i]))
-        all_coils = coils_via_symmetries(
-            self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
-        )
-        # for i in range(self.num_psc * self.symmetry):
-        #     currents.append(Current(self.I_all[i]))
+        # for i in range(len(self.I)):
+        #     currents.append(Current(self.I[i]))
         # all_coils = coils_via_symmetries(
-        #     self.all_curves, currents, nfp=1, stellsym=False
+        #     self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
         # )
+        for i in range(self.symmetry * self.num_psc):
+            currents.append(Current(self.I_all[i]))
+        all_coils = coils_via_symmetries(
+            self.all_curves, currents, nfp=1, stellsym=False
+        )
         self.B_PSC_all = BiotSavart(all_coils)
 
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all)

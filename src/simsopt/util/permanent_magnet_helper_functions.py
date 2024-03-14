@@ -313,7 +313,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         # qh needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 8.75 / 5.69674966667
+        total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.315
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
@@ -541,7 +541,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''
     trace_fieldlines(bsh, 'bsh_PMs_' + filename_poincare, s_plot, comm, out_dir)
 
 
-def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal"):
+def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal", B_axis=None):
     """
     Plot Bnormal on plasma surface from a MagneticField object.
     Do this quite a bit in the permanent magnet optimization
@@ -554,11 +554,15 @@ def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal"):
         out_dir: Path or string for the output directory for saved files.
         bs_filename: String denoting the name of the output file. 
     """
+    from simsopt.field import BiotSavart, InterpolatedField, MagneticFieldSum
     out_dir = Path(out_dir)
     nphi = len(s_plot.quadpoints_phi)
     ntheta = len(s_plot.quadpoints_theta)
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+    Bn = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]
+    if B_axis is not None:
+        Bn = Bn / (B_axis * s_plot.area())
+    pointData = {"B_N": Bn}
     s_plot.to_vtk(out_dir / bs_filename, extra_data=pointData)
 
 

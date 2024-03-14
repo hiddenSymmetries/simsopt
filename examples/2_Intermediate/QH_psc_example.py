@@ -22,12 +22,12 @@ else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = 32
     # Make higher resolution surface for plotting Bnormal
-    qphi = 2 * nphi
+    qphi = nphi * 8
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
-    quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
+    quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-coff = 1.2  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.8  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 1.5  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 1.0  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 
 # Read in the plas/ma equilibrium file
@@ -37,7 +37,8 @@ range_param = 'half period'
 s = SurfaceRZFourier.from_vmec_input(
     surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
 )
-print('s.R = ', s.get_dofs(), s.get_rc(0, 0))
+print('s.R = ', s.get_rc(0, 0))
+print('s.r = ', s.get_rc(1, 0))
 
 # input_name = 'tests/test_files/input.circular_tokamak'
 # s_inner = SurfaceRZFourier(
@@ -100,10 +101,11 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 
 # check after-optimization average on-axis magnetic field strength
-calculate_on_axis_B(bs, s)
+B_axis = calculate_on_axis_B(bs, s)
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10, "out_dir": out_str, "random_initialization": True} 
+kwargs_geo = {"Nx": 4, "out_dir": out_str, "random_initialization": True} 
 # note Bnormal below is additional Bnormal (not from the TF coils or the PSCs)
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo
@@ -111,40 +113,42 @@ psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
 
 # print('Currents = ', psc_array.I)
 psc_array.setup_psc_biotsavart()
-make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial")
-make_Bnormal_plots(psc_array.B_TF, s_plot, out_dir, "biot_savart_InterpolatedTF")
-make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial")
+make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
+make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "biot_savart_PSC_initial_all", B_axis)
+# make_Bnormal_plots(psc_array.B_PSC_direct, s_plot, out_dir, "biot_savart_PSC_initial_direct")
+# make_Bnormal_plots(psc_array.B_TF, s_plot, out_dir, "biot_savart_InterpolatedTF", B_axis)
+make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 
 # Try and optimize with scipy
-t1 = time.time()
-x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
-psc_array.least_squares(x0)
-t2 = time.time()
-print('Time for call to least-squares = ', t2 - t1)
-psc_array.least_squares(x0 + np.random.rand(len(x0)))
+# t1 = time.time()
+# x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
+# psc_array.least_squares(x0)
+# t2 = time.time()
+# print('Time for call to least-squares = ', t2 - t1)
+# psc_array.least_squares(x0 + np.random.rand(len(x0)))
 
-psc_array.setup_psc_biotsavart()
-make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_initial")
-make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_initial")
+# psc_array.setup_psc_biotsavart()
+# make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_initial", B_axis)
+# make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 
-from scipy.optimize import minimize
-print('beginning optimization: ')
-options = {"disp": True}
-# x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
-#                                           )))) * 2 * np.pi
+# from scipy.optimize import minimize
+# print('beginning optimization: ')
+# options = {"disp": True}
+# # x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
+# #                                           )))) * 2 * np.pi
+# # print(x0)
+# x0 = psc_array.kappas
 # print(x0)
-x0 = psc_array.kappas
-print(x0)
-x_opt = minimize(psc_array.least_squares, x0, options=options)
-print(x_opt)
-# print('currents = ', psc_array.I)
-psc_array.setup_curves(symmetrized=True)
-psc_array.plot_curves('final_')
-# Check that direct Bn calculation agrees with optimization calculation
-psc_array.setup_psc_biotsavart()
-fB = SquaredFlux(s, psc_array.B_PSC_all + bs, np.zeros((nphi, ntheta))).J()
-print(fB)
-make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_final")
-make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_final")
-print('end')
+# x_opt = minimize(psc_array.least_squares, x0, options=options)
+# print(x_opt)
+# # print('currents = ', psc_array.I)
+# psc_array.setup_curves(symmetrized=True)
+# psc_array.plot_curves('final_')
+# # Check that direct Bn calculation agrees with optimization calculation
+# psc_array.setup_psc_biotsavart()
+# fB = SquaredFlux(s, psc_array.B_PSC_all + bs, np.zeros((nphi, ntheta))).J()
+# print(fB)
+# make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_final")
+# make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_final")
+# print('end')
 # plt.show()
