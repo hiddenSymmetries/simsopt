@@ -23,6 +23,5 @@ Array flux_integration(Array& B, Array& rho, Array& normal);
 Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R, double phi0, double stell);
 
 Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R, double phi0, double stell);
-
 // 
 // Array A_matrix(Array& plasma_surface_normals, Array& B, Array& alphas, Array& deltas);

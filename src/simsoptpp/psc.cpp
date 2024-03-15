@@ -314,6 +314,9 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
             auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
             auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
             auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
+//             B_PSC(i, 0) += Bx * nxx + By * nxy + Bz * nxz;
+//             B_PSC(i, 1) += Bx * nyx + By * nyy + Bz * nyz;
+//             B_PSC(i, 2) += Bx * nzx + By * nzy + Bz * nzz;
             // now apply R_{fp}R_s flipping the x component, then rotating by phi0
             B_PSC(i, 0) += Bx_rot * cos(phi0) * stell - By_rot * sin(phi0);
             B_PSC(i, 1) += Bx_rot * sin(phi0) * stell + By_rot * cos(phi0);

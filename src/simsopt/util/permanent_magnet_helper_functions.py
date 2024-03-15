@@ -110,11 +110,11 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     ncoils = len(base_curves)
 
     # Weight on the curve lengths in the objective function:
-    LENGTH_WEIGHT = 1e-4
+    LENGTH_WEIGHT = 1e-1
 
     # Threshold and weight for the coil-to-coil distance penalty in the objective function:
     CC_THRESHOLD = 0.1
-    CC_WEIGHT = 1e-1
+    CC_WEIGHT = 1
 
     # Threshold and weight for the coil-to-surface distance penalty in the objective function:
     CS_THRESHOLD = 0.1
@@ -308,7 +308,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         ncoils = 4
         R0 = s.get_rc(0, 0)
         R1 = s.get_rc(1, 0) * 4
-        order = 5
+        order = 2
 
         # qh needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
@@ -322,8 +322,8 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 
         # fix all the coil shapes so only the currents are optimized
-        for i in range(ncoils):
-            base_curves[i].fix_all()
+        # for i in range(ncoils):
+        #     base_curves[i].fix_all()
     elif config_flag == 'qa':
         # generate planar TF coils
         ncoils = 8
@@ -372,7 +372,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
     return base_curves, curves, coils
 
 
-def calculate_on_axis_B(bs, s):
+def calculate_on_axis_B(bs, s, print_out=True):
     """
     Check the average, approximate, on-axis
     magnetic field strength to make sure the
@@ -401,8 +401,9 @@ def calculate_on_axis_B(bs, s):
     bs.set_points(bspoints)
     B0 = np.linalg.norm(bs.B(), axis=-1)
     B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
-    print("Bmag at R = ", R0, ", Z = 0: ", B0)
-    print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
+    if print_out:
+        print("Bmag at R = ", R0, ", Z = 0: ", B0)
+        print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
     return B0avg
 
 
@@ -561,7 +562,7 @@ def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal", B_axis=Non
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bn = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]
     if B_axis is not None:
-        Bn = Bn / (B_axis * s_plot.area())
+        Bn = Bn / B_axis
     pointData = {"B_N": Bn}
     s_plot.to_vtk(out_dir / bs_filename, extra_data=pointData)
 
