@@ -559,16 +559,26 @@ class PSCgrid:
                 # Not sure this is right. Already flipping and rotating alphas
                 # and deltas, and then phi0 and stell are doing it again...
                 # So think I should use self.alphas and self.deltas
+                # Bn_PSC += sopp.A_matrix(
+                #     contig(xyz),
+                #     contig(psc_array.plasma_points),
+                #     contig(psc_array.alphas_total[q * nn: (q + 1) * nn]),
+                #     contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
+                #     contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
+                #     psc_array.R,
+                #     0.0,
+                #     1.0
+                # ) @ (psc_array.I)
                 A_matrix += sopp.A_matrix(
                     contig(xyz),
                     contig(self.plasma_points),
-                    contig(self.alphas),
-                    contig(self.deltas),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
                     contig(self.plasma_unitnormals),
                     self.R,
-                    phi0,
-                    stell
-                ) * stell  # accounts for sign change of the currents
+                    0.0,
+                    1.0
+                )  # accounts for sign change of the currents
                 q = q + 1
         self.Bn_PSC = A_matrix @ self.I
         

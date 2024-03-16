@@ -218,7 +218,7 @@ class Testing(unittest.TestCase):
                             # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))
                             # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct.B() * 1e10))
                             # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct_all.B() * 1e10))
-                            # print('Bns = ', psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10)
+                            print('Bns = ', psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10)
                             # print('disagreements = ', psc_array.Bn_PSC[np.logical_not(np.isclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10))] * 1e10)
                             # print(Bn_PSC[np.logical_not(np.isclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10))] * 1e10)
 
@@ -268,33 +268,43 @@ class Testing(unittest.TestCase):
                                     Bn_PSC += sopp.A_matrix(
                                         contig(xyz),
                                         contig(psc_array.plasma_points),
-                                        contig(psc_array.alphas),
-                                        contig(psc_array.deltas),
+                                        contig(psc_array.alphas_total[q * nn: (q + 1) * nn]),
+                                        contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
                                         contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
                                         psc_array.R,
-                                        phi0,
-                                        stell
-                                    ) @ (psc_array.I * stell)
+                                        0.0,
+                                        1.0
+                                    ) @ (psc_array.I)
                                     B_PSC += sopp.B_PSC(
                                         contig(xyz),
                                         contig(psc_array.plasma_points),
-                                        contig(psc_array.alphas),
-                                        contig(psc_array.deltas),
-                                        contig(psc_array.I * stell),
+                                        contig(psc_array.alphas_total[q * nn: (q + 1) * nn]),
+                                        contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
+                                        contig(psc_array.I),
                                         psc_array.R,
-                                        phi0,
-                                        stell
+                                        0.0,
+                                        1.0
                                     )
                                     q = q + 1
                                     # print(q, B_PSC)
+                            B_PSC_all = sopp.B_PSC(
+                                contig(psc_array.grid_xyz_all),
+                                contig(psc_array.plasma_points),
+                                contig(psc_array.alphas_total),
+                                contig(psc_array.deltas_total),
+                                contig(psc_array.I),
+                                psc_array.R,
+                                0.0,
+                                1.0
+                            )
                             # Calculate Bfields from CircularCoil class
                             B_circular_coils = np.zeros(B_PSC.shape)
                             Bn_circular_coils = np.zeros(psc_array.Bn_PSC.shape)
-                            for i in range(len(psc_array.alphas_total)):
+                            for i in range(psc_array.alphas_total.shape[0]):
                                 PSC = CircularCoil(
                                     psc_array.R, 
                                     psc_array.grid_xyz_all[i, :], 
-                                    psc_array.I_all[i], 
+                                    psc_array.I_all[i] * np.sign(psc_array.I_all[i]), 
                                     psc_array.coil_normals_all[i, :]
                                 )
                                 PSC.set_points(psc_array.plasma_points)
@@ -326,7 +336,7 @@ class Testing(unittest.TestCase):
                             
                             # Robust test of all the B and Bn calculations from circular coils
                             # print('here = ', psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, Bn_circular_coils * 1e10)
-                            print(psc_array.B_PSC.B()[-1] * 1e10, B_PSC[-1] * 1e10, 
+                            print(psc_array.B_PSC.B()[-1] * 1e10, B_PSC[-1] * 1e10, B_PSC_all[-1] * 1e10, 
                                   B_circular_coils[-1] * 1e10, B_direct.B()[-1] * 1e10, B_direct_all.B()[-1] * 1e10)
                             # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_PSC * 1e10))
                             # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))

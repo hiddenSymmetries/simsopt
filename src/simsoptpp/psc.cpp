@@ -232,8 +232,8 @@ Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas
             auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
             auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
             // now apply R_{fp}R_s flipping the x component, then rotating by phi0
-            auto Bx_rot_flip = Bx_rot * cos(phi0) * stell - By_rot * sin(phi0);
-            auto By_rot_flip = Bx_rot * sin(phi0) * stell + By_rot * cos(phi0);
+            auto Bx_rot_flip = (Bx_rot * cos(phi0) + By_rot * sin(phi0)) * stell;
+            auto By_rot_flip = -Bx_rot * sin(phi0) + By_rot * cos(phi0);
             auto Bz_rot_flip = Bz_rot;
             Bn_PSC(i, j) = Bx_rot_flip * nx + By_rot_flip * ny + Bz_rot_flip * nz;
         }
@@ -317,10 +317,13 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
 //             B_PSC(i, 0) += Bx * nxx + By * nxy + Bz * nxz;
 //             B_PSC(i, 1) += Bx * nyx + By * nyy + Bz * nyz;
 //             B_PSC(i, 2) += Bx * nzx + By * nzy + Bz * nzz;
-            // now apply R_{fp}R_s flipping the x component, then rotating by phi0
-            B_PSC(i, 0) += Bx_rot * cos(phi0) * stell - By_rot * sin(phi0);
-            B_PSC(i, 1) += Bx_rot * sin(phi0) * stell + By_rot * cos(phi0);
+            B_PSC(i, 0) += (Bx_rot * cos(phi0) + By_rot * sin(phi0)) * stell;
+            B_PSC(i, 1) += -Bx_rot * sin(phi0) + By_rot * cos(phi0);
             B_PSC(i, 2) += Bz_rot;
+            // rotate by -phi0 and then flip x component
+            // This should be the reverse of what is done to the m vector and the dipole grid
+            // because A * m = A * R^T * R * m and R is an orthogonal matrix both
+            // for a reflection and a rotation.
         }
     }
     return B_PSC * fac;

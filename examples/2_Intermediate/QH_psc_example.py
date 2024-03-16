@@ -19,8 +19,8 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 64
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = 32
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 8
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -105,7 +105,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, "random_initialization": True, "poff": poff} 
+kwargs_geo = {"Nx": 6, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 # note Bnormal below is additional Bnormal (not from the TF coils or the PSCs)
 print(Bnormal.shape)
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
@@ -152,7 +152,7 @@ psc_array.least_squares(np.zeros(x0.shape))
 # exit()
 
 print('beginning optimization: ')
-options = {"disp": True, "maxiter": 100}
+options = {"disp": True, "maxiter": 1000}
 x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
                                           )))) * 2 * np.pi
 print(x0)
