@@ -6,6 +6,7 @@ from .magneticfieldclasses import *
 from .mgrid import *
 from .normal_field import *
 from .tracing import *
+from .coilobjective import *
 
 __all__ = (
     biotsavart.__all__
@@ -16,4 +17,5 @@ __all__ = (
     + mgrid.__all__
     + normal_field.__all__
     + tracing.__all__
+    + coilobjective.__all__
 )
