@@ -924,6 +924,44 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
 
+    def test_cyl_versions(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        btotal = bs + B0
+        rmin = 1.5
+        rmax = 1.7
+        phimin = 0
+        phimax = 2*np.pi/nfp
+        zmax = 0.1
+        N = 1000
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(nfp*phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(2*zmax) - zmax
+        btotal.set_points_cyl(points)
+
+        dB = btotal.GradAbsB()
+        B = btotal.B()
+        A = btotal.A()
+        dB_cyl = btotal.GradAbsB_cyl()
+        B_cyl = btotal.B_cyl()
+        A_cyl = btotal.A_cyl()
+
+        for j in range(N):
+            phi = points[j, 1]
+            rotation = np.array([[np.cos(phi), np.sin(phi), 0],
+                                [-np.sin(phi), np.cos(phi), 0],
+                                [0, 0, 1]])
+            np.testing.assert_allclose(rotation @ B[j, :], B_cyl[j, :])
+            np.testing.assert_allclose(rotation @ dB[j, :], dB_cyl[j, :])
+            np.testing.assert_allclose(rotation @ A[j, :], A_cyl[j, :])
+
     def test_interpolated_field_close_with_symmetries(self):
         R0test = 1.5
         B0test = 0.8
