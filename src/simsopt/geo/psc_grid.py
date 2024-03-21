@@ -580,7 +580,7 @@ class PSCgrid:
                     1.0
                 )  # accounts for sign change of the currents
                 q = q + 1
-        self.Bn_PSC = A_matrix @ self.I
+        self.Bn_PSC = (A_matrix @ self.I).reshape(-1)
         
     def setup_psc_biotsavart(self):
         from simsopt.field import coils_via_symmetries, Current
@@ -721,14 +721,112 @@ class PSCgrid:
         alphas = kappas[:len(kappas) // 2]
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
-        BdotN2 = 0.5 * np.sum((self.Bn_PSC.reshape(-1) * self.grid_normalization + self.b_opt) ** 2) / self.normalization
+        BdotN2 = 0.5 * np.sum((self.Bn_PSC * self.grid_normalization + self.b_opt) ** 2) / self.normalization
         outstr = f"Normalized f_B = {BdotN2:.3e} "
         # for i in range(len(kappas)):
         #     outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
         # outstr += "\n"
         print(outstr)
         return BdotN2
+    
+    def least_squares_jacobian(self, kappas):
+        """Compute Jacobian of the |B*n|^2 term in the optimization for using BFGS in scipy.minimize"""
+        """and should return a gradient of shape 2 * num_pscs"""
+        alphas = kappas[:len(kappas) // 2]
+        deltas = kappas[len(kappas) // 2:]
+        self.setup_orientations(alphas, deltas)
+        A = (self.Bn_PSC * self.grid_normalization + self.b_opt) / self.normalization
+        print(A.shape)
+        # print(self.Bn_PSC_deriv().shape, np.outer((self.L_inv @ self.psi_total)[:len(self.kappas)], np.ones(self.plasma_points.shape[0])).shape)
+        grad_A1 = self.Bn_PSC_deriv() * np.outer((self.L_inv @ self.psi_total)[:len(self.kappas)], np.ones(self.plasma_points.shape[0]))
+        # Should be shape (1024, 36)
+        print(grad_A1.shape)
+        L_deriv = self.L_deriv()
+        grad_A2 = -np.outer(self.Bn_PSC, (self.L_inv @ L_deriv[:L_deriv.shape[0] // 2, :] @ self.L_inv @ self.psi_total)[:self.num_psc])
+        grad_A2_2 = -np.outer(self.Bn_PSC, (self.L_inv @ L_deriv[L_deriv.shape[0] // 2:, :] @ self.L_inv @ self.psi_total)[:self.num_psc])
+        grad_A2 = np.vstack((grad_A2, grad_A2_2))
+        print(grad_A2.shape)
+        grad_A3 = self.Bn_PSC @ (self.L_inv @ self.psi_deriv())[:len(self.kappas)]
+        print(grad_A3.shape)
+        return A @ (grad_A1 + grad_A2 + grad_A3)
+    
+    def Bn_PSC_deriv(self):
+        """Should return gradient of A matrix, in shape (2 * num_pscs, num_plasma_points) """
+        # print(self.dRi_dkappak.shape, self.rotation_matrix_full.shape, self.rotation_matrixT_full.shape, self.Bn_PSC.shape, 
+        #       self.B_PSC.dB_by_dX().shape, self.plasma_points.shape, self.plasma_unitnormals.shape)
+        term1 = np.outer(np.sum(self.dRi_dkappak.T * self.rotation_matrixT_full, axis=0), self.Bn_PSC)
+        # print(term1.shape)
+        points_normals = np.zeros((self.plasma_points.shape[0], 3, 3))
+        for i in range(self.plasma_points.shape[0]):
+            points_normals[i, :, :] = np.outer(self.plasma_points[i, :], self.plasma_unitnormals[i, :])
+        points_normals = points_normals.reshape(self.plasma_points.shape[0], -1)
+        term2 = np.outer(
+            np.sum(self.dRi_dkappak * self.rotation_matrix_full, axis=-1), 
+            np.sum(self.B_PSC.dB_by_dX().reshape(self.plasma_points.shape[0], -1) * points_normals, axis=-1)
+        )
+        # print(term2.shape)
+        return term1 + term2
+    
+    def L_deriv(self):
+        """ Should return gradient of L matrix, in shape (2 * num_pscs, num_plasma_points)"""
+        contig = np.ascontiguousarray
+        L_deriv = sopp.L_deriv(
+            contig(self.grid_xyz_all), 
+            contig(self.alphas_total), 
+            contig(self.deltas_total),
+            contig(self.phi),
+            self.R,
+        ) * self.dphi ** 2 / (4 * np.pi)
+        L_deriv = (L_deriv + L_deriv.T)
+        #np.fill_diagonal(L_total, np.log(8.0 * self.R / self.a) - 2.0)
+        #self.L = L_total * self.mu0 * self.R * self.Nt ** 2
+        print(L_deriv.shape)
+        return L_deriv
         
+    def psi_deriv(self):
+        contig = np.ascontiguousarray
+        coil_normals_dalpha = np.array(
+            [-np.sin(self.alphas) * np.sin(self.deltas),
+              -np.cos(self.alphas),
+              -np.sin(self.alphas) * np.cos(self.deltas)]
+        ).T
+        coil_normals_ddelta = np.array(
+            [np.cos(self.alphas) * np.cos(self.deltas),
+             0.0,
+             -np.cos(self.alphas) * np.sin(self.deltas)]
+        ).T
+        psi_deriv1 = np.zeros(len(self.kappas))
+        psi_deriv1[:len(self.alphas)] = sopp.flux_integration(
+            contig(self.B_TF.B().reshape(
+                len(self.alphas), self.N, self.Nflux, 3
+            )),
+            contig(self.rho),
+            contig(coil_normals_dalpha)
+        )
+        psi_deriv1[len(self.alphas):] = sopp.flux_integration(
+            contig(self.B_TF.B().reshape(
+                len(self.alphas), self.N, self.Nflux, 3
+            )),
+            contig(self.rho),
+            contig(coil_normals_ddelta)
+        )
+        psi_deriv2 = np.zeros(len(self.kappas))
+        psi_deriv2[:len(self.alphas)] = sopp.flux_integration(
+            contig((self.dRi_dalphak @ self.B_TF.dB_by_dX() @ self.plasma_points).reshape(
+                len(self.alphas), self.N, self.Nflux, 3
+            )),
+            contig(self.rho),
+            contig(self.coil_normals)
+        )
+        psi_deriv2[len(self.alphas):] = sopp.flux_integration(
+            contig((self.dRi_ddeltak @ self.B_TF.dB_by_dX() @ self.plasma_points).reshape(
+                len(self.alphas), self.N, self.Nflux, 3
+            )),
+            contig(self.rho),
+            contig(self.coil_normals)
+        )
+        return (psi_deriv1 + psi_deriv2) * self.dphi * self.drho
+    
     def setup_orientations(self, alphas, deltas):
         self.alphas = alphas
         self.deltas = deltas
@@ -743,18 +841,49 @@ class PSCgrid:
             np.logical_and(np.isclose(self.coil_normals, 0.0), 
                            np.copysign(1.0, self.coil_normals) < 0)
             ] *= -1.0
-        # rotation_matrix = np.zeros((len(alphas), 3, 3))
-        # for i in range(len(alphas)):
-        #     rotation_matrix[i, :, :] = np.array(
-        #         [[np.cos(deltas[i]), 
-        #           np.sin(deltas[i]) * np.sin(alphas[i]),
-        #           np.sin(deltas[i]) * np.cos(alphas[i])],
-        #           [0.0, np.cos(alphas[i]), -np.sin(alphas[i])],
-        #           [-np.sin(deltas[i]), 
-        #            np.cos(deltas[i]) * np.sin(alphas[i]),
-        #            np.cos(deltas[i]) * np.cos(alphas[i])]])
-        # self.rotation_matrix = rotation_matrix
+        rotation_matrix = np.zeros((len(alphas), 3, 3))
+        for i in range(len(alphas)):
+            rotation_matrix[i, :, :] = np.array(
+                [[np.cos(deltas[i]), 
+                  np.sin(deltas[i]) * np.sin(alphas[i]),
+                  np.sin(deltas[i]) * np.cos(alphas[i])],
+                  [0.0, np.cos(alphas[i]), -np.sin(alphas[i])],
+                  [-np.sin(deltas[i]), 
+                    np.cos(deltas[i]) * np.sin(alphas[i]),
+                    np.cos(deltas[i]) * np.cos(alphas[i])]])
+        rotation_matrix = rotation_matrix.reshape(len(alphas), -1)
+        self.rotation_matrix = rotation_matrix
+        self.rotation_matrixT = rotation_matrix.T
+        self.rotation_matrix_full = np.vstack((rotation_matrix, rotation_matrix))
+        self.rotation_matrixT_full = np.hstack((rotation_matrix.T, rotation_matrix.T))
+        print(self.rotation_matrix_full.shape)
         # t1 = time.time()
+        dRi_dalphak = np.zeros((len(alphas), 3, 3))
+        dRi_ddeltak = np.zeros((len(alphas), 3, 3))
+        dRi_dkappak = np.zeros((2 * len(alphas), 3, 3))
+        for i in range(len(alphas)):
+            dRi_dalphak[i, :, :] = np.array(
+                [[0.0, 
+                  np.sin(deltas[i]) * np.cos(alphas[i]),
+                  -np.sin(deltas[i]) * np.sin(alphas[i])],
+                  [0.0, -np.sin(alphas[i]), -np.cos(alphas[i])],
+                  [0.0, np.cos(deltas[i]) * np.cos(alphas[i]),
+                   -np.cos(deltas[i]) * np.sin(alphas[i])]]
+            )
+            dRi_ddeltak[i, :, :] = np.array(
+                [[-np.sin(deltas[i]), 
+                  np.cos(deltas[i]) * np.sin(alphas[i]),
+                  np.cos(deltas[i]) * np.cos(alphas[i])],
+                  [0.0, 0.0, 0.0],
+                  [-np.cos(deltas[i]), 
+                   -np.sin(deltas[i]) * np.sin(alphas[i]),
+                   -np.sin(deltas[i]) * np.cos(alphas[i])]]
+            )
+            dRi_dkappak[2 * i, :, :] = dRi_dalphak[i, :, :]
+            dRi_dkappak[2 * i + 1, :, :] = dRi_ddeltak[i, :, :]
+        self.dRi_dalphak = dRi_dalphak.reshape(self.num_psc, -1)
+        self.dRi_ddeltak = dRi_ddeltak.reshape(self.num_psc, -1)
+        self.dRi_dkappak = dRi_dkappak.reshape(self.num_psc * 2, -1)
         flux_grid = sopp.flux_xyz(
             contig(self.grid_xyz), 
             contig(alphas),

@@ -66,6 +66,91 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& phi, double R
     return L;
 }
 
+// Calculate the inductance matrix needed for the PSC forward problem
+Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& phi, double R)
+{
+    // points shape should be (num_coils, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_phi = phi.shape(0);  // shape should be (num_phi)
+    Array L_deriv = xt::zeros<double>({2 * num_coils, num_coils});
+    
+    // initialize pointers to the beginning of alphas, deltas, points
+    double* points_ptr = &(points(0, 0));
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* phi_ptr = &(phi(0));
+    
+    // Loop through the the PSC array
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_coils; i++) {
+        auto cai = cos(alphas_ptr[i]);
+        auto sai = sin(alphas_ptr[i]);
+        auto cdi = cos(deltas_ptr[i]);
+        auto sdi = sin(deltas_ptr[i]);
+        auto xi = points_ptr[3 * i];
+        auto yi = points_ptr[3 * i + 1];
+        auto zi = points_ptr[3 * i + 2];
+    	// Loop through all j > i coils
+        for (int j = (i + 1); j < num_coils; ++j) {
+            auto xj = (points_ptr[3 * j] - xi) / R;
+            auto yj = (points_ptr[3 * j + 1] - yi) / R;
+            auto zj = (points_ptr[3 * j + 2] - zi) / R;
+            auto caj = cos(alphas_ptr[j]);
+            auto saj = sin(alphas_ptr[j]);
+            auto cdj = cos(deltas_ptr[j]);
+            auto sdj = sin(deltas_ptr[j]);
+            auto integrand1 = 0.0;
+            auto integrand2 = 0.0;
+            for (int k = 0; k < num_phi; ++k) {
+                auto ck = cos(phi_ptr[k]);
+                auto sk = sin(phi_ptr[k]);
+                for (int kk = 0; kk < num_phi; ++kk) {
+                    auto ckk = cos(phi_ptr[kk]);
+                    auto skk = sin(phi_ptr[kk]);
+                    auto dl2_x = (-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj);
+                    auto dl2_y = (ck * cai) * (ckk * caj);
+                    auto dl2_z = (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj);
+                    // dkappa of the numerator
+                    auto dl2_x_dalpha = (ck * cai * sdi) * (-skk * cdj + ckk * saj * sdj);
+                    auto dl2_y_dalpha = -(ck * sai) * (ckk * caj);
+                    auto dl2_z_dalpha = (ck * cai * cdi) * (skk * sdj + ckk * saj * cdj);
+                    auto dl2_x_ddelta = (sk * sdi + ck * sai * cdi) * (-skk * cdj + ckk * saj * sdj);
+                    auto dl2_y_ddelta = 0.0;
+                    auto dl2_z_ddelta = (sk * cdi - ck * sai * sdi) * (skk * sdj + ckk * saj * cdj);
+                    auto xxi = ck * cdi - sk * sai * sdi;
+                    auto xxj = xj + ckk * cdj + skk * saj * sdj;
+                    auto yyi = sk * cai;
+                    auto yyj = yj + skk * caj;
+                    auto zzi = sk * sai * cdi - ck * sdi;
+                    auto zzj = zj + skk * saj * cdj - ckk * sdj;
+                    auto xxi_dalpha = 0.0;
+                    auto yyi_dalpha = -sk * sai;
+                    auto zzi_dalpha = sk * cai * cdi;
+                    auto xxi_ddelta = -ck * sdi - sk * sai * cdi;
+                    auto yyi_ddelta = 0.0;
+                    auto zzi_ddelta = -sk * sai * sdi - ck * cdi;
+                    auto deriv_alpha = xxi_dalpha * (xxi - xxj) + yyi_dalpha * (yyi - yyj) + zzi_dalpha * (zzi - zzj);
+                    auto deriv_delta = xxi_ddelta * (xxi - xxj) + yyi_ddelta * (yyi - yyj) + zzi_ddelta * (zzi - zzj);
+                    auto x2 = (xxj - xxi) * (xxj - xxi);
+                    auto y2 = (yyj - yyi) * (yyj - yyi);
+                    auto z2 = (zzj - zzi) * (zzj - zzi);
+                    auto denom = sqrt(x2 + y2 + z2);
+                    auto denom3 = denom * denom * denom;
+                    // First term in the derivative
+                    integrand1 += (dl2_x_dalpha + dl2_y_dalpha + dl2_z_dalpha) / denom;
+                    integrand2 += (dl2_x_ddelta + dl2_y_ddelta + dl2_z_ddelta) / denom;
+                    // Second term in the derivative
+                    integrand1 -= (dl2_x + dl2_y + dl2_z) * deriv_alpha / denom3;
+                    integrand2 -= (dl2_x + dl2_y + dl2_z) * deriv_delta / denom3;
+                }
+            }
+            L_deriv(2 * i, j) = integrand1;
+            L_deriv(2 * i + 1, j) = integrand2;
+        }
+    }
+    return L_deriv;
+}
+
 Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori

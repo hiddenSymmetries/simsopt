@@ -158,7 +158,7 @@ x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
 print(x0)
 x0 = psc_array.kappas
 # print(x0)
-x_opt = minimize(psc_array.least_squares, x0, tol=1e-20, options=options)
+x_opt = minimize(psc_array.least_squares, x0, jac=psc_array.least_squares_jacobian, tol=1e-20, options=options)
 # print(x_opt)
 # print('currents = ', psc_array.I)
 psc_array.setup_curves()

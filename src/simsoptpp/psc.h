@@ -14,6 +14,8 @@
 typedef xt::pyarray<double> Array;
 
 Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& phi, double R);
+
+Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& phi, double R);
 // 
 // Array TF_fluxes(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& I, Array& normal, double R);
 Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal);
