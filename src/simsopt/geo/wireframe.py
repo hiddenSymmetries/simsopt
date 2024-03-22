@@ -3,7 +3,6 @@ wireframe.py
 
 Definitions for the ToroidalWireframe class
 """
-
 import numpy as np
 import collections
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
@@ -1268,12 +1267,33 @@ class ToroidalWireframe(object):
 
             tube = mlab.pipeline.tube(pts, tube_radius=tube_radius)
             tube.filter.radius_factor = 1.
-            mlab.pipeline.surface(tube, **kwargs)
+            surf = mlab.pipeline.surface(tube, **kwargs)
 
-            #mlab.axes(extent=[xmin, xmax, ymin, ymax, zmin, zmax])
+            # Define a colormap similar to matplotlib's "coolwarm"
+            if 'colormap' not in kwargs:
+                x_cmap = np.linspace(0,1,255).reshape((-1,1))
+                alpha = np.ones(x_cmap.shape)
+                r_cmap = 1 - np.abs(3*x_cmap - 1.5)
+                g_cmap = 1 - np.abs(3*x_cmap - 1.5)
+                b_cmap = 1 - np.abs(3*x_cmap - 1.5)
+                r_cmap[r_cmap < 0] = 0
+                g_cmap[g_cmap < 0] = 0
+                b_cmap[b_cmap < 0] = 0
+                r_cmap[x_cmap > 0.5] = 1
+                r_cmap[x_cmap > 0.75] = -2*x_cmap[x_cmap > 0.75] + 2.5
+                b_cmap[x_cmap < 0.5] = 1
+                b_cmap[x_cmap < 0.25] = 2*x_cmap[x_cmap < 0.25] + 0.5
+                f = 0.9
+                cmap = 255 * \
+                    np.concatenate((f*r_cmap, f*g_cmap, f*b_cmap, alpha), \
+                                    axis=1)
+                surf.module_manager.scalar_lut_manager.lut.table = cmap
+                curr_lim = np.max(np.abs(pl_currents[inds]))
+                surf.module_manager.scalar_lut_manager.data_range = \
+                    (-curr_lim, curr_lim)
 
-            #cbar = mlab.colorbar(title='Current [MA]')
- 
+            return surf
+
         elif engine == 'matplotlib':
 
             import matplotlib.pylab as pl
@@ -1416,7 +1436,6 @@ class ToroidalWireframe(object):
         elif quantity=='constrained segments':
             cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
                              + '0 = free')
-
 
         ax.add_collection(lc)
 
