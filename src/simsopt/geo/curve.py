@@ -12,7 +12,7 @@ from .jit import jit
 from .._core.derivative import derivative_dec
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_windowpane_curves', 'new_windowpane_curve_on_max_error', 'Curve2D', 'CurveCWSFourierFree']
+__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_windowpane_curves', 'new_windowpane_curve_on_max_error', 'Curve2D', 'CurveCWSFourierFree', 'create_equally_spaced_planar_curves']
 
 @jit
 def incremental_arclength_pure(d1gamma):
@@ -1516,3 +1516,45 @@ class CurveCWSFourierFree( Curve, sopp.Curve ):
 
 
 
+
+def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+    """
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
+    """
+
+    if numquadpoints is None:
+        numquadpoints = 15 * order
+    curves = []
+    from simsopt.geo.curveplanarfourier import CurvePlanarFourier
+    for k in range(ncurves):
+        angle = (k+0.5)*(2*np.pi) / ((1+int(stellsym))*nfp*ncurves)
+        curve = CurvePlanarFourier(numquadpoints, order, nfp, stellsym)
+
+        rcCoeffs = np.zeros(order+1)
+        rcCoeffs[0] = R1
+        rsCoeffs = np.zeros(order)
+        center = [R0 * cos(angle), R0 * sin(angle), 0]
+        rotation = [1, -cos(angle), -sin(angle), 0]
+        dofs = np.zeros(len(curve.get_dofs()))
+
+        j = 0
+        for i in rcCoeffs:
+            dofs[j] = i
+            j += 1
+        for i in rsCoeffs:
+            dofs[j] = i
+            j += 1
+        for i in rotation:
+            dofs[j] = i
+            j += 1
+        for i in center:
+            dofs[j] = i
+            j += 1
+
+        curve.set_dofs(dofs)
+        curves.append(curve)
+    return curves

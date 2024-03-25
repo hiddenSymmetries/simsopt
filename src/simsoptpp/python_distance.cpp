@@ -173,29 +173,45 @@ void init_distance(py::module_ &m){
 
     m.def("get_pointclouds_closer_than_threshold_within_collection", &get_close_candidates_pdist, "In a list of point clouds, get all pairings that are closer than threshold to each other.", py::arg("pointClouds"), py::arg("threshold"), py::arg("num_base_curves"));
     m.def("get_pointclouds_closer_than_threshold_between_two_collections", &get_close_candidates_cdist, "Between two lists of pointclouds, get all pairings that are closer than threshold to each other.", py::arg("pointCloudsA"), py::arg("pointCloudsB"), py::arg("threshold"));
-    m.def("linkNumber", [](const PyArray& curve1, const PyArray& curve2, const PyArray& curve1dash, const PyArray& curve2dash) {
-        int linknphi1 = curve1.shape(0);
-        int linknphi2 = curve2.shape(0);
-        int linkntheta1 = curve1.shape(1);
-        int linkntheta2 = curve2.shape(1);
-        const double *curve1_ptr = curve1.data();
-        const double *curve2_ptr = curve2.data();
-        const double *curve1dash_ptr = curve1dash.data();
-        const double *curve2dash_ptr = curve2dash.data();
-        double difference[3] = { 0 };
-        double total = 0;
-        for(int i=0; i < linknphi1; i++){
-            for(int j=0; j < linknphi2; j++){
-                difference[0] = (curve1_ptr[3*i+0] - curve2_ptr[3*j+0]);
-                difference[1] = (curve1_ptr[3*i+1] - curve2_ptr[3*j+1]);
-                difference[2] = (curve1_ptr[3*i+2] - curve2_ptr[3*j+2]);
-                double denom = pow(std::sqrt(difference[0]*difference[0] + difference[1]*difference[1] + difference[2]*difference[2]), 3);
-                double det = curve1dash_ptr[3*i+0]*(curve2dash_ptr[3*j+1]*difference[2] - curve2dash_ptr[3*j+2]*difference[1]) - curve1dash_ptr[3*i+1]*(curve2dash_ptr[3*j+0]*difference[2] - curve2dash_ptr[3*j+2]*difference[0]) + curve1dash_ptr[3*i+2]*(curve2dash_ptr[3*j+0]*difference[1] - curve2dash_ptr[3*j+1]*difference[0]);
-                double r = det/denom;
-                total += r;
+    m.def("compute_linking_number", [](const vector<PyArray>& gammas, const vector<PyArray>& gammadashs, const PyArray& dphis, const double downsample) {
+        int ncurves = gammas.size();
+        // assert(dphis.size() == ncurves);
+        // assert(gammadashs.size() == ncurves);
+
+        int linking_number = 0;
+        #pragma omp parallel for reduction(+:linking_number)
+        for (int p = 1; p < ncurves; p++) {
+            int linknphi1 = gammas[p].shape(0);
+            const double *curve1_ptr = gammas[p].data();
+            const double *curve1dash_ptr = gammadashs[p].data();
+            // assert(gammas[p].size() == gammadashs[p].size());
+            for (int q = 0; q < p; q++) {
+                // assert(gammas[q].size() == gammadashs[q].size());
+                int linknphi2 = gammas[q].shape(0);
+                const double *curve2_ptr = gammas[q].data();
+                const double *curve2dash_ptr = gammadashs[q].data();
+                double difference[3] = { 0 };
+                double total = 0;
+                double dr, det;
+                for (int i=0; i < linknphi1; i += downsample){
+                    for (int j=0; j < linknphi2; j += downsample){
+                        difference[0] = (curve1_ptr[3*i+0] - curve2_ptr[3*j+0]);
+                        difference[1] = (curve1_ptr[3*i+1] - curve2_ptr[3*j+1]);
+                        difference[2] = (curve1_ptr[3*i+2] - curve2_ptr[3*j+2]);
+                        dr = std::sqrt(difference[0]*difference[0] + difference[1]*difference[1] + difference[2]*difference[2]);
+                        det = curve1dash_ptr[3*i+0]*(curve2dash_ptr[3*j+1]*difference[2] 
+                            - curve2dash_ptr[3*j+2]*difference[1]) 
+                            - curve1dash_ptr[3*i+1]*(curve2dash_ptr[3*j+0]*difference[2] 
+                            - curve2dash_ptr[3*j+2]*difference[0]) 
+                            + curve1dash_ptr[3*i+2]*(curve2dash_ptr[3*j+0]*difference[1] 
+                            - curve2dash_ptr[3*j+1]*difference[0]);
+                        total += det / (dr * dr * dr);
+                    }
+                }
+                linking_number += std::round(std::abs(total * dphis[p] * dphis[q]) / (4 * M_PI));
             }
         }
-        return total;
+        return linking_number;
     });
 
 }

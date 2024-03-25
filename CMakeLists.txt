@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
-project(simsoptpp)
+project(simsoptpp LANGUAGES CXX)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(Python_FIND_STRATEGY LOCATION)
-find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+find_package(pybind11 CONFIG REQUIRED)
 
 message(status "Python executable is ${Python_EXECUTABLE}")
 message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
@@ -40,8 +41,12 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 include(CheckCXXCompilerFlag)
 IF(DEFINED ENV{CI})
-    message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
-    set(CMAKE_CXX_FLAGS "-O3 -march=westmere")
+    if (APPLE)
+    	set(CMAKE_CXX_FLAGS "-O3")
+    else()
+        message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
+        set(CMAKE_CXX_FLAGS "-O3 -march=westmere")
+    endif()
 elseif(DEFINED ENV{CONDA_BUILD})
     message(STATUS "conda build environment detected. Let conda set compilation flags accordingly.")
     # set(CMAKE_CXX_FLAGS "-O3 -march=ivybridge -mfma -ffp-contract=fast")
@@ -106,7 +111,7 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
-add_subdirectory(thirdparty/pybind11)
+# add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
@@ -118,7 +123,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/biot_savart_py.cpp
     src/simsoptpp/biot_savart_vjp_py.cpp
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
-    src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp src/simsoptpp/curvecwsfourier.cpp
+    src/simsoptpp/curve.cpp src/simsoptpp/curverzfourier.cpp src/simsoptpp/curvexyzfourier.cpp src/simsoptpp/curveplanarfourier.cpp
     src/simsoptpp/surface.cpp src/simsoptpp/surfacerzfourier.cpp src/simsoptpp/surfacexyzfourier.cpp
     src/simsoptpp/integral_BdotN.cpp
     src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
@@ -164,4 +169,4 @@ target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
 #install(TARGETS ${PROJECT_NAME}
 #        #LIBRARY
 #        DESTINATION src/${PROJECT_NAME})
-#install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION .)
