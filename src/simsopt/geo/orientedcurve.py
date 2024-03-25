@@ -7,11 +7,32 @@ from simsopt._core.optimizable import Optimizable
 __all__ = ['OrientedCurveXYZFourier']
 
 def shift_pure( v, xyz ):
+    """Apply translation in cartesian coordinates
+    
+    Args:
+     - v: array to translate. Should have size Nx3.
+     - xyz: translation vector. Should have size 3.
+
+    Returns:
+     - v+xyz: translated array, size Nx3
+    """
     for ii in range(0,3):
         v = v.at[:,ii].add(xyz[ii])
     return v
 
-def rotate_pure( v, ypr ):        
+def rotate_pure( v, ypr ):
+    """Apply rotation around x, y, and z axis.
+    
+    Args:
+     - v: set of points to rotate. Should have size Nx3.
+     - ypr: rotation angles.
+            ypr[0] describes the rotation around the z-axis.
+            ypr[1] describes the rotation around the y-axis.
+            ypr[2] describes the rotation around the x-axis.
+
+    Returns:
+    - v: Rotated set of points
+    """ 
     yaw = ypr[0]
     pitch = ypr[1]
     roll = ypr[2]
@@ -35,6 +56,16 @@ def rotate_pure( v, ypr ):
     return v @ Myaw @ Mpitch @ Mroll
 
 def centercurve_pure(dofs, quadpoints, order):
+    """Construct curve centered at the origin
+    
+    Args:
+     - dofs: Set of degrees of freedom
+     - quadpoints: Quadrature points. Array of size N, with float values between 0 and 1.
+     - order: Maximum Fourier mode number.
+
+    Returns:
+     - gamma: Curve that has been translated and rotated to the desired position.
+    """
     xyz = dofs[0:3]
     ypr = dofs[3:6]
     fmn = dofs[6:]
@@ -54,6 +85,11 @@ def centercurve_pure(dofs, quadpoints, order):
 class OrientedCurveXYZFourier( JaxCurve ):
     """
     OrientedCurveXYZFourier is a translated and rotated Curve.
+
+    Args:
+     - quadpoints: Integer (number of quadrature points), or array of size N, with float values between 0 and 1.
+     - order: Maximum mode order
+     - dofs (optionnal): Degrees of freedom
     """
     def __init__(self, quadpoints, order, dofs=None ):
         if isinstance(quadpoints, int):
