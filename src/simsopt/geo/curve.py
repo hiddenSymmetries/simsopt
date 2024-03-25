@@ -979,8 +979,6 @@ def new_windowpane_curve_on_max_error( surf, coils, a, order, nqpts=None, dofs=N
     
     return curve
 
-
-
 def gamma_2d(modes, qpts, order):
     # Unpack dofs
     phic = modes[:order+1]
@@ -1512,11 +1510,6 @@ class CurveCWSFourierFree( Curve, sopp.Curve ):
             raise ValueError("Invalid engine option! Please use one of {matplotlib, mayavi, plotly}.")
         return ax
     
-
-
-
-
-
 def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """
     Create ``ncurves`` curves of type
