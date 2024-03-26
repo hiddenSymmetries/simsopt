@@ -9,6 +9,70 @@ from simsopt.field import BiotSavart, coils_via_symmetries, Current, CircularCoi
 import simsoptpp as sopp
 
 class Testing(unittest.TestCase):
+    
+    def test_analytic_derivatives(self):
+        """
+        Tests the analytic calculations against finite differences for tiny 
+        changes to the angles, to see if the analytic calculations are correct.
+        """
+        # initialize two randomly placed coils
+        np.random.seed(1)
+        R0 = 1
+        R = 1 
+        a = 1e-5
+        points = (np.random.rand(1, 3) - 0.5) * 5
+        print(points)
+        alphas = np.random.rand(1) * 2 * np.pi
+        deltas = np.zeros(1)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        B = psc_array.B_PSC
+        L = psc_array.L
+        A = psc_array.A_matrix
+        psi = psc_array.psi
+        L_deriv = psc_array.L_deriv()
+        L_deriv = np.tensordot(
+            np.tensordot(
+            psc_array.L_inv, L_deriv, axes=([-1], [1])
+            ), psc_array.L_inv, axes=([-1], [0])
+            )
+        A_deriv = psc_array.A_deriv()
+        print(psc_array.I)
+        psi_deriv = psc_array.psi_deriv()
+        epsilon = 1e-6
+        alphas_new = alphas
+        alphas_new[0] += epsilon
+        deltas_new = np.zeros(1)
+        psc_array_new = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+        )
+        B_new = psc_array_new.B_PSC
+        L_new = psc_array_new.L
+        A_new = psc_array_new.A_matrix
+        # A_deriv = psc_array_new.A_deriv()
+        psi_new = psc_array_new.psi
+        dL_dalpha = (L_new - L) / epsilon
+        dA_dalpha = (A_new - A) / epsilon
+        # print(A, A_new)
+        # exit()
+        B.set_points(psc_array.plasma_points)
+        B_new.set_points(psc_array.plasma_points)
+
+        dB_dalpha = (B_new.B() - B.B()) / epsilon
+        dpsi_dalpha = (psi_new - psi) / epsilon
+        dL_dalpha_analytic = L_deriv
+        dA_dalpha_analytic = A_deriv
+        dpsi_dalpha_analytic = psi_deriv
+        # print(dB_dalpha.shape)
+        # print(np.sum(dB_dalpha * psc_array.plasma_unitnormals, axis=-1), 
+        #       dA_dalpha @ psc_array.I)
+        print(dA_dalpha, dA_dalpha_analytic[1, :].T)
+              #dA_dalpha_analytic[0, :, :].T, dA_dalpha_analytic[1, :, :].T, 
+              #dA_dalpha_analytic[2, :, :].T, dA_dalpha_analytic[3, :, :].T)
+        # print(dL_dalpha, dL_dalpha_analytic[:, 1, :])
+        # print(dpsi_dalpha, dpsi_dalpha_analytic[1, :])
+        exit()
 
     def test_L(self):
         """
@@ -20,11 +84,11 @@ class Testing(unittest.TestCase):
         and compute the flux through the other coil, for coils with random 
         separations, random orientations, etc.
         """
-        
-        from scipy.special import ellipk, ellipe, jv
-        from scipy.integrate import quad
+    
+        from scipy.special import ellipk, ellipe
         
         np.random.seed(1)
+        exit()
         
         # initialize coaxial coils
         R0 = 4
@@ -108,15 +172,15 @@ class Testing(unittest.TestCase):
         print('starting loop')
         for R in [0.1, 1]:
             for points in [np.array([[0, 0, 0], [0, 0, R0]]), 
-                           np.array([[0, 0, 0], [0, R0, 0]]), 
-                           np.array([[0, 0, 0], [R0, 0, 0]]),
-                           np.array([[R0, 0, 0], [0, 0, 0]]), 
-                           np.array([[0, R0, 0], [0, 0, 0]]), 
-                           np.array([[0, 0, R0], [0, 0, 0]]),
-                           np.array([[0, 0, 0], (np.random.rand(3) - 0.5) * 40]),
-                           np.array([(np.random.rand(3) - 0.5) * 40, [0, 0, 0]]),
-                           np.array([(np.random.rand(3) - 0.5) * 40, 
-                                     (np.random.rand(3) - 0.5) * 40])]:
+                            np.array([[0, 0, 0], [0, R0, 0]]), 
+                            np.array([[0, 0, 0], [R0, 0, 0]]),
+                            np.array([[R0, 0, 0], [0, 0, 0]]), 
+                            np.array([[0, R0, 0], [0, 0, 0]]), 
+                            np.array([[0, 0, R0], [0, 0, 0]]),
+                            np.array([[0, 0, 0], (np.random.rand(3) - 0.5) * 40]),
+                            np.array([(np.random.rand(3) - 0.5) * 40, [0, 0, 0]]),
+                            np.array([(np.random.rand(3) - 0.5) * 40, 
+                                      (np.random.rand(3) - 0.5) * 40])]:
                 for alphas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
                     for deltas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
                         for surf in [surf1]:
@@ -136,7 +200,6 @@ class Testing(unittest.TestCase):
                             # can increase rtol as you increase N    
                             assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
                             
-                            psc_array.setup_psc_biotsavart()
                             contig = np.ascontiguousarray
                             # Calculate B fields like psc_array function does
                             B_PSC = np.zeros((psc_array.nphi * psc_array.ntheta, 3))
@@ -155,22 +218,18 @@ class Testing(unittest.TestCase):
                                     Bn_PSC += sopp.A_matrix(
                                         contig(xyz),
                                         contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
-                                        contig(psc_array.alphas),
-                                        contig(psc_array.deltas),
+                                        contig(psc_array.alphas_total[q * nn: (q + 1) * nn]),
+                                        contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
                                         contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
                                         psc_array.R,
-                                        phi0,
-                                        stell
-                                    ) @ (psc_array.I * stell)
+                                    ) @ psc_array.I
                                     B_PSC += sopp.B_PSC(
                                         contig(xyz),
                                         contig(psc_array.plasma_boundary.gamma().reshape(-1, 3)),
-                                        contig(psc_array.alphas),
-                                        contig(psc_array.deltas),
+                                        contig(psc_array.alphas_total[q * nn: (q + 1) * nn]),
+                                        contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
                                         contig(psc_array.I * stell),
                                         psc_array.R,
-                                        phi0,
-                                        stell
                                     )
                                     q = q + 1
                                     # print(q, B_PSC)
@@ -230,7 +289,7 @@ class Testing(unittest.TestCase):
         # Applying discrete symmetries to the coils wont work unless they dont intersect the symmetry planes
         for R in [0.1, 1]:
             for points in [np.array([(np.random.rand(3) - 0.5) * 40, 
-                                     (np.random.rand(3) - 0.5) * 40])]:
+                                      (np.random.rand(3) - 0.5) * 40])]:
                 for alphas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
                     for deltas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
                         for surf in [surf1, surf2]:
@@ -249,7 +308,6 @@ class Testing(unittest.TestCase):
                             # Below is not true once coils are added from discrete symmetries!
                             # assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
                             
-                            psc_array.setup_psc_biotsavart()
                             contig = np.ascontiguousarray
                             # Calculate B fields like psc_array function does
                             B_PSC = np.zeros((psc_array.nphi * psc_array.ntheta, 3))
@@ -272,8 +330,6 @@ class Testing(unittest.TestCase):
                                         contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
                                         contig(psc_array.plasma_boundary.unitnormal().reshape(-1, 3)),
                                         psc_array.R,
-                                        0.0,
-                                        1.0
                                     ) @ (psc_array.I)
                                     B_PSC += sopp.B_PSC(
                                         contig(xyz),
@@ -282,8 +338,6 @@ class Testing(unittest.TestCase):
                                         contig(psc_array.deltas_total[q * nn: (q + 1) * nn]),
                                         contig(psc_array.I),
                                         psc_array.R,
-                                        0.0,
-                                        1.0
                                     )
                                     q = q + 1
                                     # print(q, B_PSC)
@@ -294,8 +348,6 @@ class Testing(unittest.TestCase):
                                 contig(psc_array.deltas_total),
                                 contig(psc_array.I),
                                 psc_array.R,
-                                0.0,
-                                1.0
                             )
                             # Calculate Bfields from CircularCoil class
                             B_circular_coils = np.zeros(B_PSC.shape)

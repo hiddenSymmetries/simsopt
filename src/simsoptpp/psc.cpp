@@ -5,14 +5,14 @@
 Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& phi, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
-//     if(points.layout() != xt::layout_type::row_major)
-//           throw std::runtime_error("points needs to be in row-major storage order");
-//     if(alphas.layout() != xt::layout_type::row_major)
-//           throw std::runtime_error("alphas normal needs to be in row-major storage order");
-//     if(deltas.layout() != xt::layout_type::row_major)
-//           throw std::runtime_error("deltas needs to be in row-major storage order");
-//     if(phi.layout() != xt::layout_type::row_major)
-//           throw std::runtime_error("phi needs to be in row-major storage order");
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas normal needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    if(phi.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("phi needs to be in row-major storage order");
     
     // points shape should be (num_coils, 3)
     int num_coils = alphas.shape(0);  // shape should be (num_coils)
@@ -238,7 +238,7 @@ Array flux_integration(Array& B, Array& rho, Array& normal)
     return Psi;
 }
 
-Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R, double phi0, double stell)
+Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -259,9 +259,9 @@ Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas
     int num_plasma_points = plasma_points.shape(0);
     
     // this variable is the A matrix in the least-squares term so A * I = Bn
-    Array Bn_PSC = xt::zeros<double>({num_plasma_points, num_coils});
+    Array A = xt::zeros<double>({num_plasma_points, num_coils});
     double R2 = R * R;
-    double fac = 2.0e-7;  // * R2;
+    double fac = 2.0e-7;
     using namespace boost::math;
     
     #pragma omp parallel for schedule(static)
@@ -316,17 +316,13 @@ Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas
             auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
             auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
             auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
-            // now apply R_{fp}R_s flipping the x component, then rotating by phi0
-            auto Bx_rot_flip = (Bx_rot * cos(phi0) + By_rot * sin(phi0)) * stell;
-            auto By_rot_flip = -Bx_rot * sin(phi0) + By_rot * cos(phi0);
-            auto Bz_rot_flip = Bz_rot;
-            Bn_PSC(i, j) = Bx_rot_flip * nx + By_rot_flip * ny + Bz_rot_flip * nz;
+            A(i, j) = Bx_rot * nx + By_rot * ny + Bz_rot * nz;
         }
     }
-    return Bn_PSC * fac;
+    return A * fac;
 }
 
-Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R, double phi0, double stell)
+Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -349,7 +345,7 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
     // this variable is the A matrix in the least-squares term so A * I = Bn
     Array B_PSC = xt::zeros<double>({num_plasma_points, 3});
     double R2 = R * R;
-    double fac = 2.0e-7;  // * R2;
+    double fac = 2.0e-7;
     using namespace boost::math;
     
     #pragma omp parallel for schedule(static)
@@ -396,19 +392,9 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
             auto By = current * y * z * Eplus / (rho2 * beta_gamma2);
             auto Bz = current * Eminus / beta_gamma2;
             // Need to rotate the vector
-            auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
-            auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
-            auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
-//             B_PSC(i, 0) += Bx * nxx + By * nxy + Bz * nxz;
-//             B_PSC(i, 1) += Bx * nyx + By * nyy + Bz * nyz;
-//             B_PSC(i, 2) += Bx * nzx + By * nzy + Bz * nzz;
-            B_PSC(i, 0) += (Bx_rot * cos(phi0) + By_rot * sin(phi0)) * stell;
-            B_PSC(i, 1) += -Bx_rot * sin(phi0) + By_rot * cos(phi0);
-            B_PSC(i, 2) += Bz_rot;
-            // rotate by -phi0 and then flip x component
-            // This should be the reverse of what is done to the m vector and the dipole grid
-            // because A * m = A * R^T * R * m and R is an orthogonal matrix both
-            // for a reflection and a rotation.
+            B_PSC(i, 0) += Bx * nxx + By * nxy + Bz * nxz;
+            B_PSC(i, 1) += Bx * nyx + By * nyy + Bz * nyz;
+            B_PSC(i, 2) += Bx * nzx + By * nzy + Bz * nzz;
         }
     }
     return B_PSC * fac;

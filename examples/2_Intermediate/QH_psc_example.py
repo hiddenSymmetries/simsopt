@@ -1,5 +1,19 @@
 #!/usr/bin/env python
 r"""
+This example script optimizes a set of relatively simple toroidal field coils
+and passive superconducting coils (PSCs)
+for a reactor-scale version of the precise-QH stellarator from 
+Landreman and Paul. 
+
+The script should be run as:
+    mpirun -n 1 python QH_psc_example.py
+on a cluster machine but 
+    python QH_psc_example.py
+is sufficient on other machines. Note that this code does not use MPI, but is 
+parallelized via OpenMP, so will run substantially
+faster on multi-core machines (make sure that all the cores
+are available to OpenMP, e.g. through setting OMP_NUM_THREADS).
+
 """
 from pathlib import Path
 
@@ -13,13 +27,15 @@ from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 
-np.random.seed(1)
+np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
+    # Resolution needs to be reasonably high if you are doing permanent magnets
+    # or small coils because the fields are quite local
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = 32
     # Make higher resolution surface for plotting Bnormal
@@ -27,37 +43,23 @@ else:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-coff = 1.0  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 1.0  # PM grid end offset ~ 15 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
+poff = 1.0  # PSC grid will be offset ~ 1 m from the plasma surface
+coff = 1.0  # PSC grid will be initialized between 1 m and 2 m from plasma
 
-# Read in the plas/ma equilibrium file
+# Read in the plasma equilibrium file
+input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 range_param = 'half period'
 s = SurfaceRZFourier.from_vmec_input(
     surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
 )
+# Print major and minor radius
 print('s.R = ', s.get_rc(0, 0))
 print('s.r = ', s.get_rc(1, 0))
 
-# input_name = 'tests/test_files/input.circular_tokamak'
-# s_inner = SurfaceRZFourier(
-#     stellsym=True,
-#     quadpoints_phi=s.quadpoints_phi, 
-#     quadpoints_theta=s.quadpoints_theta
-# )
-# s_inner.set_rc(0, 0, s.get_rc(0, 0))
-# s_inner.set_rc(1, 0, s.get_rc(1, 0))
-# s_inner.set_zs(1, 0, s.get_rc(1, 0))
-# s_outer = SurfaceRZFourier(
-#     stellsym=True,
-#     quadpoints_phi=s.quadpoints_phi, 
-#     quadpoints_theta=s.quadpoints_theta
-# )
-# s_outer.set_rc(0, 0, s.get_rc(0, 0))
-# s_outer.set_rc(1, 0, s.get_rc(1, 0))
-# s_outer.set_zs(1, 0, s.get_rc(1, 0))
+# Make inner and outer toroidal surfaces very high resolution,
+# which helps to initialize coils precisely between the surfaces. 
 s_inner = SurfaceRZFourier.from_vmec_input(
     surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
 )
@@ -73,6 +75,8 @@ s_outer.extend_via_normal(poff + coff)
 out_str = "QH_psc_output/"
 out_dir = Path("QH_psc_output")
 out_dir.mkdir(parents=True, exist_ok=True)
+
+# Save the inner and outer surfaces for debugging purposes
 s_inner.to_vtk(out_str + 'inner_surf')
 s_outer.to_vtk(out_str + 'outer_surf')
 
@@ -85,6 +89,7 @@ bs = BiotSavart(coils)
 # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(bs, s)
 
+# Make high resolution, full torus version of the plasma boundary for plotting
 s_plot = SurfaceRZFourier.from_vmec_input(
     surface_filename, 
     quadpoints_phi=quadpoints_phi, 
@@ -94,7 +99,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
-# optimize the currents in the TF coils
+# optimize the currents in the TF coils and plot results
 # bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -106,34 +111,17 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 6, "out_dir": out_str, "random_initialization": True, "poff": poff} 
-# note Bnormal below is additional Bnormal (not from the TF coils or the PSCs)
-print(Bnormal.shape)
+kwargs_geo = {"Nx": 5, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo
 )
 
-# print('Currents = ', psc_array.I)
-psc_array.setup_psc_biotsavart()
+# Plot initial errors from only the PSCs, and then together with the TF coils
 make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
-make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "biot_savart_PSC_initial_all", B_axis)
-# make_Bnormal_plots(psc_array.B_PSC_direct, s_plot, out_dir, "biot_savart_PSC_initial_direct")
-# make_Bnormal_plots(psc_array.B_TF, s_plot, out_dir, "biot_savart_InterpolatedTF", B_axis)
 make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 
-# Try and optimize with scipy
-t1 = time.time()
+# Check SquaredFlux values using different ways to calculate it
 x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
-psc_array.least_squares(x0)
-t2 = time.time()
-print('Time for call to least-squares = ', t2 - t1)
-# psc_array.least_squares(x0 + np.random.rand(len(x0)))
-
-psc_array.setup_psc_biotsavart()
-# make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_initial", B_axis)
-# make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
-
-from scipy.optimize import minimize
 fB = SquaredFlux(s, bs, np.zeros((nphi, ntheta))).J()
 print('fB only TF coils = ', fB / (B_axis ** 2 * s.area()))
 psc_array.least_squares(np.zeros(x0.shape))
@@ -141,37 +129,28 @@ bs.set_points(s.gamma().reshape(-1, 3))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('fB only TF direct = ', np.sum(Bnormal.reshape(-1) ** 2 * psc_array.grid_normalization ** 2
                                     ) / (2 * B_axis ** 2 * s.area()))
-# exit()
 make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
-make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "biot_savart_PSC_initial_all", B_axis)
 fB = SquaredFlux(s, psc_array.B_PSC, np.zeros((nphi, ntheta))).J()
 print(fB/ (B_axis ** 2 * s.area()))
-fB = SquaredFlux(s, psc_array.B_PSC_all + bs, np.zeros((nphi, ntheta))).J()
+fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((nphi, ntheta))).J()
 print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
-fB = SquaredFlux(s, psc_array.B_PSC_all, -Bnormal).J()
+fB = SquaredFlux(s, psc_array.B_PSC, -Bnormal).J()
 print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
-psc_array.least_squares(np.zeros(x0.shape))
-# exit()
 
+# Actually do the minimization now
+from scipy.optimize import minimize
 print('beginning optimization: ')
 options = {"disp": True, "maxiter": 1000}
-x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
-                                          )))) * 2 * np.pi
-print(x0)
+# x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
 x0 = psc_array.kappas
-# print(x0)
 x_opt = minimize(psc_array.least_squares, x0, 
-                 jac=psc_array.least_squares_jacobian, 
+                 # jac=psc_array.least_squares_jacobian, 
                  tol=1e-20, options=options)
-# print(x_opt)
-# print('currents = ', psc_array.I)
 psc_array.setup_curves()
 psc_array.plot_curves('final_')
 # Check that direct Bn calculation agrees with optimization calculation
-psc_array.setup_psc_biotsavart()
 fB = SquaredFlux(s, psc_array.B_PSC_all + bs, np.zeros((nphi, ntheta))).J()
 print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
 make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_final", B_axis)
 make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_final", B_axis)
 print('end')
-# plt.show()
