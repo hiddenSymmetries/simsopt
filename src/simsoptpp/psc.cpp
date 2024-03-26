@@ -72,7 +72,7 @@ Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& phi, double R)
     // points shape should be (num_coils, 3)
     int num_coils = alphas.shape(0);  // shape should be (num_coils)
     int num_phi = phi.shape(0);  // shape should be (num_phi)
-    Array L_deriv = xt::zeros<double>({2 * num_coils, num_coils});
+    Array L_deriv = xt::zeros<double>({2 * num_coils, num_coils, num_coils});
     
     // initialize pointers to the beginning of alphas, deltas, points
     double* points_ptr = &(points(0, 0));
@@ -144,8 +144,8 @@ Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& phi, double R)
                     integrand2 -= (dl2_x + dl2_y + dl2_z) * deriv_delta / denom3;
                 }
             }
-            L_deriv(2 * i, j) = integrand1;
-            L_deriv(2 * i + 1, j) = integrand2;
+            L_deriv(i, i, j) = integrand1;
+            L_deriv(i + num_coils, i, j) = integrand2;
         }
     }
     return L_deriv;

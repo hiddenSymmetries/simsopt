@@ -13,6 +13,7 @@ from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
 import time
 
+np.random.seed(1)
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -94,7 +95,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # optimize the currents in the TF coils
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+# bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -136,6 +137,7 @@ from scipy.optimize import minimize
 fB = SquaredFlux(s, bs, np.zeros((nphi, ntheta))).J()
 print('fB only TF coils = ', fB / (B_axis ** 2 * s.area()))
 psc_array.least_squares(np.zeros(x0.shape))
+bs.set_points(s.gamma().reshape(-1, 3))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('fB only TF direct = ', np.sum(Bnormal.reshape(-1) ** 2 * psc_array.grid_normalization ** 2
                                     ) / (2 * B_axis ** 2 * s.area()))
@@ -158,7 +160,9 @@ x0 = np.random.rand(len(np.ravel(np.array([psc_array.alphas, psc_array.deltas]
 print(x0)
 x0 = psc_array.kappas
 # print(x0)
-x_opt = minimize(psc_array.least_squares, x0, jac=psc_array.least_squares_jacobian, tol=1e-20, options=options)
+x_opt = minimize(psc_array.least_squares, x0, 
+                 jac=psc_array.least_squares_jacobian, 
+                 tol=1e-20, options=options)
 # print(x_opt)
 # print('currents = ', psc_array.I)
 psc_array.setup_curves()
