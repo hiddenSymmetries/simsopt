@@ -1062,12 +1062,18 @@ class Testing(unittest.TestCase):
                 Br = f.variables["br_001"][()]
                 Bphi = f.variables["bp_001"][()]
                 Bz = f.variables["bz_001"][()]
+                Ar = f.variables["ar_001"][()]
+                Aphi = f.variables["ap_001"][()]
+                Az = f.variables["az_001"][()]
                 assert nr == f.dimensions["rad"]
                 assert nphi == f.dimensions["phi"]
                 assert nz == f.dimensions["zee"]
                 assert Br.shape == (nphi, nz, nr)
                 assert Bphi.shape == (nphi, nz, nr)
                 assert Bz.shape == (nphi, nz, nr)
+                assert Ar.shape == (nphi, nz, nr)
+                assert Aphi.shape == (nphi, nz, nr)
+                assert Az.shape == (nphi, nz, nr)
                 r = np.linspace(rmin, rmax, nr)
                 phi = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
                 z = np.linspace(zmin, zmax, nz)
@@ -1078,6 +1084,9 @@ class Testing(unittest.TestCase):
                             np.testing.assert_allclose(Br[jphi, jz, jr], bs.B_cyl()[0, 0])
                             np.testing.assert_allclose(Bphi[jphi, jz, jr], bs.B_cyl()[0, 1])
                             np.testing.assert_allclose(Bz[jphi, jz, jr], bs.B_cyl()[0, 2])
+                            np.testing.assert_allclose(Ar[jphi, jz, jr], bs.A_cyl()[0, 0])
+                            np.testing.assert_allclose(Aphi[jphi, jz, jr], bs.A_cyl()[0, 1])
+                            np.testing.assert_allclose(Az[jphi, jz, jr], bs.A_cyl()[0, 2])
 
     def test_poloidal_field(self):
         B0 = 1.1
