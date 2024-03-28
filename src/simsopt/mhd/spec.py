@@ -1109,13 +1109,14 @@ class Residue(Optimizable):
         """
         Run Spec if needed, find the periodic field line, and return the residue
         """
+        if self.need_to_run_code:
+            self.spec.run()
+        
         if not self.mpi.proc0_groups:
             logger.info(
                 "This proc is skipping Residue.J() since it is not a group leader.")
-            return
-
-        if self.need_to_run_code:
-            self.spec.run()
+            return 0.0
+        else:
             specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
             # Set nrestart=0 because otherwise the random guesses in
             # pyoculus can cause examples/tests to be
