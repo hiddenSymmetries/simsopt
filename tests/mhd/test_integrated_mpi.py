@@ -23,6 +23,8 @@ if MPI is not None:
     from simsopt.solve import least_squares_mpi_solve
     from simsopt.util.mpi import MpiPartition
 
+from . import TEST_DIR
+
 #logging.basicConfig(level=logging.DEBUG)
 
 #@unittest.skip("This test won't work until a low-level issue with VMEC is fixed to allow multiple readins.")
