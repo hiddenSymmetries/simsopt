@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec
+from .._core.derivative import derivative_dec, Derivative
 import simsoptpp as sopp
 
 __all__ = ['CurrentPenalty']

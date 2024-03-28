@@ -119,6 +119,7 @@ set(XTENSOR_USE_TBB 0)
 
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
+    src/simsoptpp/boozerresidual.cpp
     src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
     src/simsoptpp/biot_savart_py.cpp
     src/simsoptpp/biot_savart_vjp_py.cpp
@@ -129,7 +130,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
-    src/simsoptpp/boozerradialinterpolant.cpp
+    src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/curveplanarfourier.cpp
     )
 
 set_target_properties(${PROJECT_NAME}

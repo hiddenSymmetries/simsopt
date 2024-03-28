@@ -165,4 +165,8 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
         if npsame(phis, np.linspace(0, 1/(2*self.nfp), ntor+1, endpoint=False)) and \
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[0, mpol+1:] = False
+        if npsame(phis, np.linspace(0, 1/self.nfp, 2*ntor+1, endpoint=False)[:ntor+1]) and \
+                npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
+            mask[0, mpol+1:] = False
+
         return mask
