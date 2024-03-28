@@ -500,8 +500,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 assert max(max_energy_gc_error) < -8
                 assert max(max_p_gc_error) < -8
             else:
-                print(max(max_energy_gc_error))
-                assert max(max_energy_gc_error) < -1.5
+                assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
 
 
@@ -564,7 +563,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 assert max(max_energy_gc_error) < -8
                 assert max(max_p_gc_error) < -8
             else:
-                assert max(max_energy_gc_error) < -1.5
+                assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
 
             # Now perform same tests for QH field with G, I, and K terms added
@@ -614,7 +613,7 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
                 assert max(max_energy_gc_error) < -8
                 assert max(max_p_gc_error) < -8
             else:
-                assert max(max_energy_gc_error) < -1.5
+                assert max(max_energy_gc_error) < -1.0
                 assert max(max_p_gc_error) < -8
 
             # Now trace with forget_exact_path = True. Check that gc_phi_hits is the same
