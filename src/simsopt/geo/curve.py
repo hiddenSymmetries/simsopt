@@ -1273,7 +1273,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # GAMMA AND DASHES
     def gamma(self):
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.gamma_jax(gamma2d, surf_dofs) 
     def gamma_impl(self, gamma, quadpoints):
         gamma[:, :] = self.gamma_pure(self.curve2d.gamma(), self.surf.get_dofs(), quadpoints)
@@ -1281,7 +1282,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     def gammadash(self):
         gamma2d = self.curve2d.gamma()
         g2dash = self.curve2d.gammadash() #for some reason need to call this
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.gammadash_jax(gamma2d, surf_dofs)
     def gammadash_impl(self, gammadash):
         gammadash[:, :] = self.gammadash()
@@ -1289,7 +1291,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     def gammadashdash(self):
         gamma2d = self.curve2d.gamma()
         g2dashdash = self.curve2d.gammadashdash()#for some reason need to call this
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.gammadashdash_jax(gamma2d, surf_dofs)
     def gammadashdash_impl(self, gammadashdash):
         gammadashdash[:, :] = self.gammadashdash()
@@ -1297,7 +1300,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     def gammadashdashdash(self):
         gamma2d = self.curve2d.gamma()
         g2dashdashdash = self.curve2d.gammadashdashdash()#for some reason need to call this
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.gammadashdashdash_jax(gamma2d, surf_dofs)
     def gammadashdashdash_impl(self, gammadashdashdash):
         gammadashdashdash[:, :] = self.gammadashdashdash()
@@ -1320,45 +1324,54 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # DERIVATIVE W.R.T CURVE
     def dgamma_by_dcurve_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.dgamma_by_dcurve_vjp_jax(gamma2d, surf_dofs, v)
     def dgammadash_by_dcurve_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.dgammadash_by_dcurve_vjp_jax(gamma2d, surf_dofs, v)
     def dgammadashdash_by_dcurve_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.dgammadashdash_by_dcurve_vjp_jax(gamma2d, surf_dofs, v)
     def dgammadashdashdash_by_dcurve_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return self.dgammadashdashdash_by_dcurve_vjp_jax(gamma2d, surf_dofs, v)
     
 
     # DERIVATIVE W.R.T SURFACE
     def dgamma_by_dsurf_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return Derivative({self.surf: self.dgamma_by_dsurf_vjp_jax(gamma2d, surf_dofs, v)})
     def dgammadash_by_dsurf_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return Derivative({self.surf: self.dgammadash_by_dsurf_vjp_jax(gamma2d, surf_dofs, v)})
     def dgammadashdash_by_dsurf_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return Derivative({self.surf: self.dgammadashdash_by_dsurf_vjp_jax(gamma2d, surf_dofs, v)})
     def dgammadashdashdash_by_dsurf_vjp(self, v):   
         gamma2d = self.curve2d.gamma()
-        surf_dofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        surf_dofs = s.get_dofs()
         return Derivative({self.surf: self.dgammadashdashdash_by_dsurf_vjp_jax(gamma2d, surf_dofs, v)})
     
 
     # KAPPA
     def dkappa_by_dcoeff_vjp(self, v):
         g2 = self.curve2d.gamma()
-        sdofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        sdofs = s.get_dofs()
         dkdcurve = self.dkappa_by_dcurve_vjp_jax(g2, sdofs, v)
         dkdcoef = self.curve2d.dgamma_by_dcoeff_vjp(dkdcurve)
         dkdsurf = Derivative({self.surf: self.dkappa_by_dsurf_vjp_jax(g2, sdofs, v)})
@@ -1367,7 +1380,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # TORSION
     def dtorsion_by_dcoeff_vjp(self, v):
         g2 = self.curve2d.gamma()
-        sdofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        sdofs = s.get_dofs()
         dtdcurve = self.dtorsion_by_dcurve_vjp_jax(g2, sdofs, v)
         dtdcoef = self.curve2d.dgamma_by_dcoeff_vjp(dtdcurve)
         dtdsurf = Derivative({self.surf: self.dtorsion_by_dsurf_vjp_jax(g2, sdofs, v)})
@@ -1376,12 +1390,14 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # NORMAL COMPONENTS
     def zfactor(self):
         g2 = self.curve2d.gamma()
-        sdofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        sdofs = s.get_dofs()
         return self.snz(g2, sdofs)
     
     def dzfactor_by_dcoeff_vjp(self, v):
         g2 = self.curve2d.gamma()
-        sdofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        sdofs = s.get_dofs()
         dndcurve = self.dsnz_by_dcurve_vjp_jax(g2, sdofs, v)
         dndcoef = self.curve2d.dgamma_by_dcoeff_vjp(dndcurve)
         dndsurf = Derivative({self.surf: self.dsnz_by_dsurf_vjp_jax(g2, sdofs, v)})
@@ -1389,12 +1405,14 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     
     def rfactor(self):
         g2 = self.curve2d.gamma()
-        sdofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        sdofs = s.get_dofs()
         return self.snr(g2, sdofs)
 
     def drfactor_by_dcoeff_vjp(self, v):
         g2 = self.curve2d.gamma()
-        sdofs = self.surf.get_dofs()
+        s = self.surf.to_RZFourier()
+        sdofs = s.get_dofs()
         dndcurve = self.dsnr_by_dcurve_vjp_jax(g2, sdofs, v)
         dndcoef = self.curve2d.dgamma_by_dcoeff_vjp(dndcurve)
         dndsurf = Derivative({self.surf: self.dsnr_by_dsurf_vjp_jax(g2, sdofs, v)})
