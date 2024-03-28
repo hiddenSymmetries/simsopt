@@ -151,16 +151,16 @@ class MGrid():
             var_raw_coil_cur = ds.createVariable('raw_coil_cur', 'f8', ('external_coils',))
 
             # assign values
-            var_ir.assignValue(self.nr)
-            var_jz.assignValue(self.nz)
-            var_kp.assignValue(self.nphi)
-            var_nfp.assignValue(self.nfp)
-            var_nextcur.assignValue(self.n_ext_cur)
+            var_ir.data[()] = self.nr
+            var_jz.data[()] = self.nz
+            var_kp.data[()] = self.nphi
+            var_nfp.data[()] = self.nfp
+            var_nextcur.data[()] = self.n_ext_cur
 
-            var_rmin.assignValue(self.rmin)
-            var_zmin.assignValue(self.zmin)
-            var_rmax.assignValue(self.rmax)
-            var_zmax.assignValue(self.zmax)
+            var_rmin.data[()] = self.rmin
+            var_zmin.data[()] = self.zmin
+            var_rmax.data[()] = self.rmax
+            var_zmax.data[()] = self.zmax
 
             var_mgrid_mode[:] = 'N'  # R - Raw, S - scaled, N - none (old version)
             var_raw_coil_cur[:] = np.ones(self.n_ext_cur)
