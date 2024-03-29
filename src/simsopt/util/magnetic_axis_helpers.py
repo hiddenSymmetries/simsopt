@@ -83,5 +83,5 @@ def compute_on_axis_iota(axis, biotsavart):
     results = solve_ivp(tangent_map, t_span, y0, t_eval=t_eval, rtol=1e-12, atol=1e-12, method='RK45')
     M = results.y[:, -1].reshape((2,2))
     evals, evecs = np.linalg.eig(M)
-    iota = np.arctan2(np.imag(evals[0]), np.real(evals[1])) * axis.nfp/(2*np.pi)
+    iota = np.arctan2(np.imag(evals[0]), np.real(evals[0])) * axis.nfp/(2*np.pi)
     return iota
