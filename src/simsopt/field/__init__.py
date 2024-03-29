@@ -6,6 +6,7 @@ from .magneticfieldclasses import *
 from .mgrid import *
 from .normal_field import *
 from .tracing import *
+from .magnetic_axis_helpers import *
 
 __all__ = (
     biotsavart.__all__
