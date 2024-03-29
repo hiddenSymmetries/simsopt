@@ -2,6 +2,8 @@ import numpy as np
 from simsopt.geo import CurveRZFourier
 from scipy.integrate import solve_ivp
 
+__all__ = ['compute_on_axis_iota']
+
 def compute_on_axis_iota(axis, magnetic_field):
     """
     Computes the rotational transform on the magnetic axis of a device using a method based on
