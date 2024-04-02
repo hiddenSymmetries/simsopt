@@ -3,7 +3,7 @@
 # Distributed under the terms of the MIT License
 
 """
-This module provides a class that handles the VMEC equilibrium code.
+This module provides a class that handles the DESC equilibrium code and its objectives.
 """
 
 import logging
@@ -262,6 +262,10 @@ class Desc(Optimizable):
             self.equilibrium = eqf[-1]
             self.continuation = False 
         else:
+            # !!!!!!!!!!!!!
+            # NEED TO APPLZ PERTURBATION THING FIRST 
+
+
             # Otherwise, start from former equilibrium
             self.equilibrium, _ = self.equilibrium.solve(copy=True)
 
@@ -320,7 +324,7 @@ class _DescObjective(Optimizable):
         derivatives = jax.vmap(self.prox.unpack_state, (0, None))(jac, False)[0]
 
         return Derivative({
-            self.desc.boundary: desc_to_simsopt_derivatives( self.desc.equilibrium, derivatives)
+            self.desc._boundary: desc_to_simsopt_derivatives( self.desc.equilibrium, derivatives)
             }
             )
 
