@@ -239,6 +239,10 @@ class MGrid():
             bp_arr = []
             bz_arr = []
 
+            ar_arr = []
+            ap_arr = []
+            az_arr = []
+
             nextcur = mgrid.n_ext_cur
             for j in range(nextcur):
                 idx = '{:03d}'.format(j+1)
@@ -254,6 +258,27 @@ class MGrid():
                     br_arr.append(br)
                     bp_arr.append(bp)
                     bz_arr.append(bz)
+
+                #check for potential in mgrid file
+                if 'ar_'+idx in f.variables:
+                    ar = f.variables['ar_'+idx][:]
+                    if mgrid.mode == 'S':
+                        ar_arr.append(ar * mgrid.raw_coil_current[j])
+                    else:
+                        ar_arr.append(ar)
+                        
+                if 'ap_'+idx in f.variables:
+                    ap = f.variables['ap_'+idx][:]
+                    if mgrid.mode == 'S':
+                        ap_arr.append(ap * mgrid.raw_coil_current[j])
+                    else:
+                        ap_arr.append(ap)
+                if 'az_'+idx in f.variables:
+                    az = f.variables['az_'+idx][:]
+                    if mgrid.mode == 'S':
+                        az_arr.append(az * mgrid.raw_coil_current[j])
+                    else:
+                        az_arr.append(az)
 
             mgrid.br_arr = np.array(br_arr)
             mgrid.bp_arr = np.array(bp_arr)
