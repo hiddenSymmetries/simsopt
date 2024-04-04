@@ -218,7 +218,7 @@ class SurfaceTaylorTests(unittest.TestCase):
                 # mean cross sectional area should always be positive since minor radius = sqrt(mean_cross_sectional_area/pi),
                 # flipping the sign of the dofs should still give the correct derivatives
                 for sign in [1, -1]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
                         s = get_surface(surfacetype, stellsym)
                         s.x = sign * s.x
                         self.subtest_surface_coefficient_derivative(s)
@@ -420,7 +420,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
                 for sign in [1, -1]:
-                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
                         s = get_surface(surfacetype, stellsym)
                         s.x = sign * s.x
                         self.subtest_mean_area_second_derivative(s)
