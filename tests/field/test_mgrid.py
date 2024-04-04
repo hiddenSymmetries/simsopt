@@ -49,7 +49,7 @@ class Testing(unittest.TestCase):
         assert mgrid.coil_names[0] == '__________test_coil___________'
         assert np.allclose(mgrid.br_arr[0], br)
 
-    def test_write(self):
+    def test_write(self): 
         mgrid = MGrid.from_file(test_file)
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = Path(tmpdir) / 'mgrid.test.nc'

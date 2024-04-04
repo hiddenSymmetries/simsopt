@@ -73,7 +73,7 @@ class MGrid():
         self.az_arr = []
         self.ap_arr = []
 
-    def add_field_cylindrical(self, br, bp, bz, ar, ap, az, name=None):
+    def add_field_cylindrical(self, br, bp, bz, ar=None, ap=None, az=None, name=None):
         '''
         This function saves the vector field B.
         B is defined by cylindrical components.
@@ -104,9 +104,12 @@ class MGrid():
         self.bp_arr.append(bp)
         
         # add potential
-        self.ar_arr.append(ar)
-        self.az_arr.append(az)
-        self.ap_arr.append(ap)
+        if ar is not None:
+            self.ar_arr.append(ar)
+        if ap is not None:
+            self.az_arr.append(az)
+        if az is not None:
+            self.ap_arr.append(ap)
 
         # add coil label
         if (name is None):
@@ -119,7 +122,7 @@ class MGrid():
 
         # TO-DO: this function could check for size consistency, between different fields, and for the (nr,nphi,nz) settings of a given instance
 
-    def write(self, filename):
+    def write(self, filename): 
         '''
         Export class data as a netCDF binary.
 
@@ -185,16 +188,21 @@ class MGrid():
                 var_br_001 = ds.createVariable('br'+tag, 'f8', ('phi', 'zee', 'rad'))
                 var_bp_001 = ds.createVariable('bp'+tag, 'f8', ('phi', 'zee', 'rad'))
                 var_bz_001 = ds.createVariable('bz'+tag, 'f8', ('phi', 'zee', 'rad'))
-                var_ar_001 = ds.createVariable('ar'+tag, 'f8', ('phi', 'zee', 'rad'))
-                var_ap_001 = ds.createVariable('ap'+tag, 'f8', ('phi', 'zee', 'rad'))
-                var_az_001 = ds.createVariable('az'+tag, 'f8', ('phi', 'zee', 'rad'))
 
                 var_br_001[:, :, :] = self.br_arr[j]
                 var_bz_001[:, :, :] = self.bz_arr[j]
                 var_bp_001[:, :, :] = self.bp_arr[j]
-                var_ar_001[:, :, :] = self.ar_arr[j]
-                var_az_001[:, :, :] = self.az_arr[j]
-                var_ap_001[:, :, :] = self.ap_arr[j]
+    
+                #If the potential value is not an empty cell, then include it
+                if len(self.ar_arr) > 0 :
+                    var_ar_001 = ds.createVariable('ar'+tag, 'f8', ('phi', 'zee', 'rad'))
+                    var_ar_001[:, :, :] = self.ar_arr[j]
+                if len(self.ap_arr) > 0 :
+                    var_ap_001 = ds.createVariable('ap'+tag, 'f8', ('phi', 'zee', 'rad'))
+                    var_ap_001[:, :, :] = self.ap_arr[j]
+                if len(self.az_arr) > 0 :
+                    var_az_001 = ds.createVariable('az'+tag, 'f8', ('phi', 'zee', 'rad'))
+                    var_az_001[:, :, :] = self.az_arr[j]
 
     @classmethod 
     def from_file(cls, filename):
