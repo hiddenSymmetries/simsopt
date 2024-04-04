@@ -28,6 +28,15 @@ surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFouri
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
+try:
+    import ground
+except:
+    ground = None
+
+try:
+    import bentley_ottmann
+except:
+    bentley_ottmann = None
 
 class QuadpointsTests(unittest.TestCase):
     def test_theta(self):
@@ -361,6 +370,24 @@ class CurvatureTests(unittest.TestCase):
                     K = s.surface_curvatures()[:, :, 1]
                     N = np.sqrt(np.sum(s.normal()**2, axis=2))
                     assert np.abs(np.sum(K*N)) < 1e-12
+
+
+class isSelfIntersecting(unittest.TestCase):
+    """
+    Tests the self-intersection algorithm:
+    """
+    @unittest.skipIf(ground is None or bentley_ottmann is None,
+                     "Libraries to check whether self-intersecting or not are missing")
+    def test_is_self_intersecting(self):
+        # dofs results in a surface that is self-intersecting
+        dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, \
+                          0., 0., 0., 0., 0., 0., 0.1])
+        s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
+        s.x = dofs 
+        assert s.is_self_intersecting()
+        
+        s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
+        assert not s.is_self_intersecting()
 
 
 class UtilTests(unittest.TestCase):
