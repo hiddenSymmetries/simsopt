@@ -413,6 +413,68 @@ class SurfaceTaylorTests(unittest.TestCase):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_volume_coefficient_derivative(s)
 
+    def test_minor_radius_second_derivative(self):
+        """
+        Taylor test for the second derivative of the volume w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_minor_radius_second_derivative(s)
+
+    def subtest_minor_radius_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.minor_radius()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dminor_radius_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2minor_radius_by_dcoeff_dcoeff()
+        
+        taylor_test2(f, df, d2f, coeffs,
+             epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+    def test_major_radius_second_derivative(self):
+        """
+        Taylor test for the second derivative of the volume w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_major_radius_second_derivative(s)
+
+    def subtest_major_radius_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.major_radius()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dmajor_radius_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2major_radius_by_dcoeff_dcoeff()
+        
+        taylor_test2(f, df, d2f, coeffs,
+             epsilons=np.power(2., -np.asarray(range(13, 20))))
+
     def test_mean_area_second_derivative(self):
         """
         Taylor test for the second derivative of the volume w.r.t. the dofs
