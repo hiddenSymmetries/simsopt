@@ -1041,14 +1041,14 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
 
-    def test_to_mgrid(self):
+    def test_to_mgrid(self, include_potential=True):
         curves, currents, ma = get_ncsx_data()
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = Path(tmpdir) / "mgrid.bfield.nc"
-            bs.to_mgrid(filename, nfp=nfp)
+            bs.to_mgrid(filename, nfp=nfp, include_potential=True)
 
             # Compare the B data in the file to a separate evaluation here
             with netcdf_file(filename, mmap=False) as f:
