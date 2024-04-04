@@ -445,8 +445,8 @@ class Surface(Optimizable):
                    surface might not be self-intersecting at a given angle, but may be self-intersecting elsewhere.  To be certain
                    that the surface is not self-intersecting, it is recommended to run this check at multiple angles.  Also note
                    that angle is assumed to be in radians, and not divided by 2*pi as is commonly assumed.
-            thetas: the number of points to compute poloidally in a cross section.  If None, then there will be
-                    surface.quadpoints_theta.size points in the cross section.
+            thetas: the number of uniformly spaced points to compute poloidally in a cross section.  If None, then there will be
+                    surface.quadpoints_theta.size uniformly space points in the cross section.
         Returns:
             True if surface is self-intersecting at angle, else False.
         """
