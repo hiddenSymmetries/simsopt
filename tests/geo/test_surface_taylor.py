@@ -415,7 +415,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_minor_radius_second_derivative(self):
         """
-        Taylor test for the second derivative of the volume w.r.t. the dofs
+        Taylor test for the second derivative of the minor radius w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -446,7 +446,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_major_radius_second_derivative(self):
         """
-        Taylor test for the second derivative of the volume w.r.t. the dofs
+        Taylor test for the second derivative of the major radius w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -477,7 +477,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_mean_area_second_derivative(self):
         """
-        Taylor test for the second derivative of the volume w.r.t. the dofs
+        Taylor test for the second derivative of the mean cross sectional area w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
@@ -508,7 +508,7 @@ class SurfaceTaylorTests(unittest.TestCase):
 
     def test_AR_second_derivative(self):
         """
-        Taylor test for the second derivative of the volume w.r.t. the dofs
+        Taylor test for the second derivative of the aspect ratio w.r.t. the dofs
         """
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
