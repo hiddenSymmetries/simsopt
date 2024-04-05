@@ -230,7 +230,10 @@ class MGrid():
             mgrid.filename = filename
             mgrid.n_ext_cur = int(f.variables['nextcur'].getValue())
             coil_data = f.variables['coil_group'][:]
-            mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)] 
+            if len(f.variables['coil_group'].dimensions) == 2:
+                mgrid.coil_names = [_unpack(coil_data[j]) for j in range(mgrid.n_ext_cur)] 
+            else:
+                mgrid.coil_names = [_unpack(coil_data)]
 
             mgrid.mode = f.variables['mgrid_mode'][:][0].decode()
             mgrid.raw_coil_current = np.array(f.variables['raw_coil_cur'][:])
