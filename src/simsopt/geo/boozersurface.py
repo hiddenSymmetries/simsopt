@@ -41,14 +41,13 @@ class BoozerSurface(Optimizable):
     where Newton is used to solve the first order necessary conditions for optimality.
     """
     
-    def __init__(self, biotsavart, surface, label, targetlabel, constraint_weight=None, reg=None):
+    def __init__(self, biotsavart, surface, label, targetlabel, constraint_weight=None):
         super().__init__(depends_on=[biotsavart])
         self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
         self.constraint_weight = constraint_weight
-        self.reg = reg
         self.need_to_run_code = True
 
     def recompute_bell(self, parent=None):
@@ -683,9 +682,6 @@ class BoozerSurface(Optimizable):
         rz = np.sqrt(constraint_weight) * (s.gamma()[0, 0, 2] - 0.)
         r = rnl + 0.5*rl**2 + 0.5*rz**2
         
-        if self.reg is not None:
-            r += self.reg.J()
-        
         if derivatives == 0:
             return r
         
@@ -701,8 +697,6 @@ class BoozerSurface(Optimizable):
         drl = np.sqrt(constraint_weight) * dl
         drz = np.sqrt(constraint_weight) * drz
         J = Jnl + rl * drl + rz * drz
-        if self.reg is not None:
-            J[:nsurfdofs] += self.reg.dJ()
 
         if derivatives == 1:
             return r, J
@@ -714,8 +708,6 @@ class BoozerSurface(Optimizable):
         d2rl = np.zeros((dofs.shape[0], dofs.shape[0]))
         d2rl[:nsurfdofs, :nsurfdofs] = np.sqrt(constraint_weight)*self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
         H = Hnl + drl[:, None] @ drl[None, :] + drz[:, None] @ drz[None, :] + rl * d2rl
-        if self.reg is not None:
-            H[:nsurfdofs, :nsurfdofs] += self.reg.d2J()
 
         return r, J, H
 
