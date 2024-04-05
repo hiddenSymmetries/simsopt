@@ -25,12 +25,33 @@ except ImportError:
     size = 1
     pprint = print
 
+"""
+This example optimizes the NCSX coils and currents for QA on potentially multiple surfaces using the BoozerLS approach.  
+For a single surface, the objective is:
+
+    J = ( \int_S B_nonQA**2 dS )/(\int_S B_QA dS)
+        + 0.5*(iota - iota_0)**2
+        + 0.5*(major_radius - target_major_radius)**2
+        + 0.5*max(\sum_{coils} CurveLength - CurveLengthTarget, 0)**2
+
+We first load a surface close to the magnetic axis, then optimize for QA on that surface.  
+The objective also includes penalty terms on the rotational transform, major radius,
+and total coil length.  The rotational transform and major radius penalty ensures that the surface's
+rotational transform and aspect ratio do not stray too far from the value in the initial configuration.
+There is also a penalty on the total coil length as a regularizer to prevent the coils from becoming
+too complex.  The BFGS optimizer is used, and quasisymmetry is improved substantially on the surface.
+Surface solves using the BoozerLS approach can be costly, so this script supports distributing the solves 
+across multiple MPI ranks.
+
+More details on this work can be found at or doi:10.1063/5.0129716 arxiv:2210.03248.
+"""
+
 # Directory for output
 IN_DIR = "./inputs/input_ncsx/"
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-pprint("Running 2_Intermediate/boozerQA.py")
+pprint("Running 2_Intermediate/boozerQA_ls_mpi.py")
 pprint("================================")
 
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + f"ncsx_init.json")
