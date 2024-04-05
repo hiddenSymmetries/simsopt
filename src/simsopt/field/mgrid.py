@@ -246,6 +246,10 @@ class MGrid():
             ap_arr = []
             az_arr = []
 
+            ar = []
+            ap = []
+            az = []
+
             nextcur = mgrid.n_ext_cur
             for j in range(nextcur):
                 idx = '{:03d}'.format(j+1)
@@ -276,6 +280,7 @@ class MGrid():
                         ap_arr.append(ap * mgrid.raw_coil_current[j])
                     else:
                         ap_arr.append(ap)
+                
                 if 'az_'+idx in f.variables:
                     az = f.variables['az_'+idx][:]
                     if mgrid.mode == 'S':
@@ -287,19 +292,40 @@ class MGrid():
             mgrid.bp_arr = np.array(bp_arr)
             mgrid.bz_arr = np.array(bz_arr)
 
+            mgrid.ar_arr = np.array(ar_arr)
+            mgrid.ap_arr = np.array(ap_arr)
+            mgrid.az_arr = np.array(az_arr)
+            
             # sum over coil groups
             if nextcur > 1:
                 br = np.sum(br_arr, axis=0)
                 bp = np.sum(bp_arr, axis=0)
                 bz = np.sum(bz_arr, axis=0)
+                
+                if len(mgrid.ar_arr) > 0:
+                    ar = np.sum(ar_arr, axis=0)
+                if len(mgrid.ap_arr) > 0:
+                    ap = np.sum(ap_arr, axis=0)
+                if len(mgrid.az_arr) > 0:
+                    az = np.sum(az_arr, axis=0)
             else:
                 br = br_arr[0]
                 bp = bp_arr[0]
                 bz = bz_arr[0]
+                if len(mgrid.ar_arr) > 0:
+                    ar = ar_arr[0]
+                if len(mgrid.ap_arr) > 0:
+                    ap = ap_arr[0]
+                if len(mgrid.az_arr) > 0:
+                    az = az_arr[0]
 
             mgrid.br = br
             mgrid.bp = bp
             mgrid.bz = bz
+
+            mgrid.ar = ar
+            mgrid.ap = ap
+            mgrid.az = az
 
             mgrid.bvec = np.transpose([br, bp, bz])
 
