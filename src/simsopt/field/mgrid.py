@@ -75,15 +75,15 @@ class MGrid():
 
     def add_field_cylindrical(self, br, bp, bz, ar=None, ap=None, az=None, name=None):
         '''
-        This function saves the vector field B.
-        B is defined by cylindrical components.
+        This function saves the vector field B, and (optionally) the vector potential A, to the Mgrid object.
+        B and A are provided on a tensor product grid in cylindrical components.
 
         The Mgrid array assumes B is sampled linearly first in r, then z, and last phi.
         Python arrays use the opposite convention such that B[0] gives a (r,z) square at const phi
         and B[0,0] gives a radial line and const phi and z.
 
-        It is assumed that the (br,bp,bz) inputs for this function is already in a
-        (nphi, nz, nr) shaped array.
+        It is assumed that each of the inputs ``br``, ``bp``, and ``bz`` for this function are already
+        arrays of shape ``(nphi, nz, nr)``. The same is true for ``ar``, ``ap``, and ``az`` if they are provided.
 
         This function may be called once for each coil group, 
         to save sets of fields that can be scaled using EXTCUR in VMEC.
@@ -92,9 +92,9 @@ class MGrid():
             br: the radial component of B field
             bp: the azimuthal component of B field
             bz: the axial component of B field
-            ar: the radial component of the magnetic potential
-            ap: the azimuthal component of the magnetic potential
-            az: the axial component of the magnetic potential
+            ar: the radial component of the vector potential A
+            ap: the azimuthal component of the vector potential A
+            az: the axial component of the vector potential A
             name: Name of the coil group
         '''
 

@@ -112,7 +112,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
             zmin: Minimum value of z for the grid.
             zmax: Maximum value of z for the grid.
             nfp: Number of field periods.
-            include_potential: Boolean to include the magnetic potential, defaults to false.
+            include_potential: Boolean to include the vector potential A. Defaults to false.
         """
 
         rs = np.linspace(rmin, rmax, nr, endpoint=True)
@@ -138,7 +138,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         
         if include_potential:
             A = self.A_cyl()
-            # shape the Potential components
+            # shape the potential components
             ar, ap, az = A.T
             ar_3 = ar.reshape((nphi, nz, nr))
             ap_3 = ap.reshape((nphi, nz, nr))
