@@ -16,7 +16,7 @@ from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
     best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
-from .surface_test_helpers import get_surface
+from .surface_test_helpers import get_surface, get_boozer_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -388,6 +388,21 @@ class isSelfIntersecting(unittest.TestCase):
         
         s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
         assert not s.is_self_intersecting()
+        
+        # make sure it works on an NCSX BoozerSurface
+        bs, boozer_surf = get_boozer_surface()
+        s = boozer_surf.surface
+        assert not s.is_self_intersecting(angle=0.123*np.pi)
+        assert not s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert not s.is_self_intersecting(thetas=231)
+        
+        # make sure it works on a perturbed NCSX BoozerSurface
+        dofs = s.x.copy()
+        dofs[14]+=0.2
+        s.x = dofs
+        assert s.is_self_intersecting(angle=0.123*np.pi)
+        assert s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert s.is_self_intersecting(thetas=202) 
 
 
 class UtilTests(unittest.TestCase):

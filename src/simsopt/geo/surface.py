@@ -438,7 +438,8 @@ class Surface(Optimizable):
         r"""
         This function computes a cross section of self at the input cylindrical angle.  Then,
         approximating the cross section as a piecewise linear polyline, the Bentley-Ottmann algorithm
-        is used to check for self-intersecting segments of the cross section.
+        is used to check for self-intersecting segments of the cross section.  NOTE: if this function returns False,
+        this is not a guarantee that the surface is everywhere not self-intersecting.
 
         Args:
             angle: the cylindrical angle at which we would like to check whether the surface is self-intersecting.  Note that a
