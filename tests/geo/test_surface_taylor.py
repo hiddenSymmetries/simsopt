@@ -373,8 +373,8 @@ class SurfaceTaylorTests(unittest.TestCase):
         import simsoptpp
         # defining a local surface because I'd like one on which I can control number of quadpoints, and modes
         def get_random_surface(surfacetype, stellsym, mpol, ntor, nphi, ntheta):
-            from .surface_test_helpers import get_surface
-            s = get_surface(surfacetype, stellsym, mpol=mpol, ntor=ntor, nphi=nphi, ntheta=ntheta)
+            from .surface_test_helpers import get_surface as get_surface_ext
+            s = get_surface_ext(surfacetype, stellsym, mpol=mpol, ntor=ntor, nphi=nphi, ntheta=ntheta)
             dofs = s.get_dofs()
             np.random.seed(2)
             rand_scale = 0.01
@@ -401,7 +401,7 @@ class SurfaceTaylorTests(unittest.TestCase):
                     self.subtest_volume_coefficient_second_derivative(s5)
                     
                     # this final test will fail using the original implementation because it uses too much memory
-                    if not simsoptpp.using_xsimd:
+                    if simsoptpp.using_xsimd:
                         s6 = get_random_surface(surfacetype, stellsym, mpol=10, ntor=10, nphi=100, ntheta=100)
                         self.subtest_volume_coefficient_second_derivative(s6)
                     else:
