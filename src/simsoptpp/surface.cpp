@@ -652,7 +652,6 @@ template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     // this vectorized version of d2volume_by_dcoeffdcoeff computes the second derivative of
     // the surface normal on the fly, which alleviates memory requirements.
-    // computation.
     constexpr int simd_size = xsimd::simd_type<double>::size;
     data *= 0.;
     auto nor = this->normal();
