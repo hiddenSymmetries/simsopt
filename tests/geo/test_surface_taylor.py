@@ -371,7 +371,7 @@ class SurfaceTaylorTests(unittest.TestCase):
         """
         
         import simsoptpp
-        # defining a local surface because I'd like one on which I can control number of quadpoints, and modes
+        # defining a local function get_random_surface because it let's me control number of quadpoints, and modes
         def get_random_surface(surfacetype, stellsym, mpol, ntor, nphi, ntheta):
             from .surface_test_helpers import get_surface as get_surface_ext
             s = get_surface_ext(surfacetype, stellsym, mpol=mpol, ntor=ntor, nphi=nphi, ntheta=ntheta)
