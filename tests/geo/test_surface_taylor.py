@@ -377,7 +377,6 @@ class SurfaceTaylorTests(unittest.TestCase):
         Taylor test for the second derivative of the volume w.r.t. the dofs
         """
         
-        import simsoptpp
         # defining a local function get_random_surface because it let's me control number of quadpoints, and modes
         def get_random_surface(surfacetype, stellsym, mpol, ntor, nphi, ntheta):
             from .surface_test_helpers import get_surface as get_surface_ext
