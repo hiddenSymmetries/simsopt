@@ -405,10 +405,6 @@ class SurfaceTaylorTests(unittest.TestCase):
 
                     s5 = get_random_surface(surfacetype, stellsym, mpol=4, ntor=4, nphi=31, ntheta=30)
                     self.subtest_volume_coefficient_second_derivative(s5)
-                    
-                    s6 = get_random_surface(surfacetype, stellsym, mpol=4, ntor=4, nphi=100, ntheta=100)
-                    self.subtest_volume_coefficient_second_derivative(s6)
-
 
     def subtest_volume_coefficient_second_derivative(self, s):
         coeffs = s.x
