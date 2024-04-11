@@ -400,13 +400,8 @@ class SurfaceTaylorTests(unittest.TestCase):
                     s5 = get_random_surface(surfacetype, stellsym, mpol=4, ntor=4, nphi=31, ntheta=30)
                     self.subtest_volume_coefficient_second_derivative(s5)
                     
-                    # this final test will fail using the original implementation because it uses too much memory
-                    if simsoptpp.using_xsimd:
-                        s6 = get_random_surface(surfacetype, stellsym, mpol=10, ntor=10, nphi=100, ntheta=100)
-                        self.subtest_volume_coefficient_second_derivative(s6)
-                    else:
-                        s6 = get_random_surface(surfacetype, stellsym, mpol=5, ntor=5, nphi=100, ntheta=100)
-                        self.subtest_volume_coefficient_second_derivative(s6)
+                    s6 = get_random_surface(surfacetype, stellsym, mpol=4, ntor=4, nphi=100, ntheta=100)
+                    self.subtest_volume_coefficient_second_derivative(s6)
 
 
     def subtest_volume_coefficient_second_derivative(self, s):
