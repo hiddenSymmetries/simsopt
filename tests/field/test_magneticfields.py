@@ -846,6 +846,44 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
 
+    def test_cyl_versions(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        btotal = bs + B0
+        rmin = 1.5
+        rmax = 1.7
+        phimin = 0
+        phimax = 2*np.pi/nfp
+        zmax = 0.1
+        N = 1000
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(nfp*phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(2*zmax) - zmax
+        btotal.set_points_cyl(points)
+
+        dB = btotal.GradAbsB()
+        B = btotal.B()
+        A = btotal.A()
+        dB_cyl = btotal.GradAbsB_cyl()
+        B_cyl = btotal.B_cyl()
+        A_cyl = btotal.A_cyl()
+
+        for j in range(N):
+            phi = points[j, 1]
+            rotation = np.array([[np.cos(phi), np.sin(phi), 0],
+                                [-np.sin(phi), np.cos(phi), 0],
+                                [0, 0, 1]])
+            np.testing.assert_allclose(rotation @ B[j, :], B_cyl[j, :])
+            np.testing.assert_allclose(rotation @ dB[j, :], dB_cyl[j, :])
+            np.testing.assert_allclose(rotation @ A[j, :], A_cyl[j, :])
+
     def test_interpolated_field_close_with_symmetries(self):
         R0test = 1.5
         B0test = 0.8
@@ -1003,14 +1041,14 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
 
-    def test_to_mgrid(self):
+    def subtest_to_mgrid(self, include_potential):
         curves, currents, ma = get_ncsx_data()
         nfp = 3
         coils = coils_via_symmetries(curves, currents, nfp, True)
         bs = BiotSavart(coils)
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = Path(tmpdir) / "mgrid.bfield.nc"
-            bs.to_mgrid(filename, nfp=nfp)
+            bs.to_mgrid(filename, nfp=nfp, include_potential=include_potential)
 
             # Compare the B data in the file to a separate evaluation here
             with netcdf_file(filename, mmap=False) as f:
@@ -1030,6 +1068,13 @@ class Testing(unittest.TestCase):
                 assert Br.shape == (nphi, nz, nr)
                 assert Bphi.shape == (nphi, nz, nr)
                 assert Bz.shape == (nphi, nz, nr)
+                if include_potential:
+                    Ar = f.variables["ar_001"][()]
+                    Aphi = f.variables["ap_001"][()]
+                    Az = f.variables["az_001"][()]
+                    assert Ar.shape == (nphi, nz, nr)
+                    assert Aphi.shape == (nphi, nz, nr)
+                    assert Az.shape == (nphi, nz, nr)
                 r = np.linspace(rmin, rmax, nr)
                 phi = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
                 z = np.linspace(zmin, zmax, nz)
@@ -1040,6 +1085,15 @@ class Testing(unittest.TestCase):
                             np.testing.assert_allclose(Br[jphi, jz, jr], bs.B_cyl()[0, 0])
                             np.testing.assert_allclose(Bphi[jphi, jz, jr], bs.B_cyl()[0, 1])
                             np.testing.assert_allclose(Bz[jphi, jz, jr], bs.B_cyl()[0, 2])
+                            if include_potential:
+                                np.testing.assert_allclose(Ar[jphi, jz, jr], bs.A_cyl()[0, 0])
+                                np.testing.assert_allclose(Aphi[jphi, jz, jr], bs.A_cyl()[0, 1])
+                                np.testing.assert_allclose(Az[jphi, jz, jr], bs.A_cyl()[0, 2])
+
+    def test_to_mgrid(self):
+        for include_potential in [True, False]:
+            with self.subTest(include_potential=include_potential):
+                self.subtest_to_mgrid(include_potential)
 
     def test_poloidal_field(self):
         B0 = 1.1
