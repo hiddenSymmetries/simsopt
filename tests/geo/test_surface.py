@@ -16,7 +16,7 @@ from simsopt.geo.surface import signed_distance_from_surface, SurfaceScaled, \
     best_nphi_over_ntheta
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
-from .surface_test_helpers import get_surface
+from .surface_test_helpers import get_surface, get_boozer_surface
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -28,6 +28,15 @@ surface_types = ["SurfaceRZFourier", "SurfaceXYZFourier", "SurfaceXYZTensorFouri
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.DEBUG)
 
+try:
+    import ground
+except:
+    ground = None
+
+try:
+    import bentley_ottmann
+except:
+    bentley_ottmann = None
 
 class QuadpointsTests(unittest.TestCase):
     def test_theta(self):
@@ -367,20 +376,33 @@ class isSelfIntersecting(unittest.TestCase):
     """
     Tests the self-intersection algorithm:
     """
-
+    @unittest.skipIf(ground is None or bentley_ottmann is None,
+                     "Libraries to check whether self-intersecting or not are missing")
     def test_is_self_intersecting(self):
-        # dofs1 results in a surface that is self-intersecting
-        # dofs2 results in a surface that is not self-intersecting
-        dofs1 = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, \
+        # dofs results in a surface that is self-intersecting
+        dofs = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1, \
                           0., 0., 0., 0., 0., 0., 0.1])
         s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
-        s.x = dofs1 
+        s.x = dofs 
         assert s.is_self_intersecting()
         
-        dofs2 = np.array([1., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.1,
-                          0., 0., 0., 0., 0., 0., 0.1])
-        s.x = dofs2 
+        s = get_surface('SurfaceRZFourier', True, full=True, nphi=200, ntheta=200, mpol=2, ntor=2)
         assert not s.is_self_intersecting()
+        
+        # make sure it works on an NCSX BoozerSurface
+        bs, boozer_surf = get_boozer_surface()
+        s = boozer_surf.surface
+        assert not s.is_self_intersecting(angle=0.123*np.pi)
+        assert not s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert not s.is_self_intersecting(thetas=231)
+        
+        # make sure it works on a perturbed NCSX BoozerSurface
+        dofs = s.x.copy()
+        dofs[14]+=0.2
+        s.x = dofs
+        assert s.is_self_intersecting(angle=0.123*np.pi)
+        assert s.is_self_intersecting(angle=0.123*np.pi, thetas=200)
+        assert s.is_self_intersecting(thetas=202) 
 
 
 class UtilTests(unittest.TestCase):
