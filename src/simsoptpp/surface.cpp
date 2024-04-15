@@ -1,5 +1,8 @@
 #include "surface.h"
 #include <Eigen/Dense>
+#include "simdhelpers.h"
+#include "vec3dsimd.h"
+
 
 template<class Array>
 Array surface_vjp_contraction(const Array& mat, const Array& v){
@@ -643,14 +646,12 @@ void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
     }
 }
 
-
-
-#include "xsimd/xsimd.hpp"
-#include "simdhelpers.h"
-#include "vec3dsimd.h"
+#if defined(USE_XSIMD)
 
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
+    // this vectorized version of d2volume_by_dcoeffdcoeff computes the second derivative of
+    // the surface normal on the fly, which alleviates memory requirements.
     constexpr int simd_size = xsimd::simd_type<double>::size;
     data *= 0.;
     auto nor = this->normal();
@@ -682,7 +683,8 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
             simd_t xyzij0(xyz(i,j,0));
             simd_t xyzij1(xyz(i,j,1));
             simd_t xyzij2(xyz(i,j,2));
-
+            
+            // load the tangents, normals, and derivatives wrt to surface coeffs into aligned and padded memory
             for (int n = 0; n < ndofs; ++n) {
                 dg1x_dc[n] = dg1_dc(i, j, 0, n);
                 dg1y_dc[n] = dg1_dc(i, j, 1, n);
@@ -719,6 +721,7 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                 simd_t dnor_dc_ij2m(dnor_dc(i, j, 2, m));
 
                 for (int n = 0; n < ndofs; n+=simd_size){ 
+                    // load into aligned and padded memory into batches
                     simd_t dg1_dc_ij0n = xs::load_aligned(&dg1x_dc[n]);
                     simd_t dg1_dc_ij1n = xs::load_aligned(&dg1y_dc[n]);
                     simd_t dg1_dc_ij2n = xs::load_aligned(&dg1z_dc[n]);
@@ -735,6 +738,13 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                     simd_t dxyz_dc_ij1n = xs::load_aligned(&dxyzy_dc[n]);
                     simd_t dxyz_dc_ij2n = xs::load_aligned(&dxyzz_dc[n]);
 
+                    // compute d2nor_dcdc on the fly
+                    //data(i, j, 0, m, n) =  dg1_dc(i, j, 1, m)*dg2_dc(i, j, 2, n) - dg1_dc(i, j, 2, m)*dg2_dc(i, j, 1, n);
+                    //data(i, j, 0, m, n) += dg1_dc(i, j, 1, n)*dg2_dc(i, j, 2, m) - dg1_dc(i, j, 2, n)*dg2_dc(i, j, 1, m);
+                    //data(i, j, 1, m, n) =  dg1_dc(i, j, 2, m)*dg2_dc(i, j, 0, n) - dg1_dc(i, j, 0, m)*dg2_dc(i, j, 2, n);
+                    //data(i, j, 1, m, n) += dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m);
+                    //data(i, j, 2, m, n) =  dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n);
+                    //data(i, j, 2, m, n) += dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m);
                     auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n,  dg1_dc_ij2m*dg2_dc_ij1n);
                          d2nor_dcdc_ij0mn += xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m,  dg1_dc_ij2n*dg2_dc_ij1m);
                     auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n,  dg1_dc_ij0m*dg2_dc_ij2n);
@@ -742,6 +752,13 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                     auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n,  dg1_dc_ij1m*dg2_dc_ij0n);
                          d2nor_dcdc_ij2mn += xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m,  dg1_dc_ij1n*dg2_dc_ij0m);
                     
+                    // now compute d2volume_by_dcoeffdcoeff
+                    //data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
+                    //        +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
+                    //        +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
+                    //data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+                    //        +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+                    //        +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
                     auto temp = xsimd::fma(dxyz_dc_ij0m, dnor_dc_ij0n, dxyz_dc_ij1m*dnor_dc_ij1n);
                     auto data1  = (1./3) * xsimd::fma(dxyz_dc_ij2m, dnor_dc_ij2n, temp);
                     auto data2  = (1./3) * (xsimd::fma(xyzij0, d2nor_dcdc_ij0mn , dxyz_dc_ij0n * dnor_dc_ij0m)
@@ -758,6 +775,36 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     }
     data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 }
+
+#else
+
+template<class Array>
+void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
+    data *= 0.;
+    auto nor = this->normal();
+    auto dnor_dc = this->dnormal_by_dcoeff();
+    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff(); // uses a lot of memory for moderate surface complexity
+    auto xyz = this->gamma();
+    auto dxyz_dc = this->dgamma_by_dcoeff();
+    int ndofs = num_dofs();
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            for (int m = 0; m < ndofs; ++m){
+                for (int n = 0; n < ndofs; ++n){
+                    data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
+                            +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
+                            +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
+                    data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+                            +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+                            +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+                }
+            }
+        }
+    }
+    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+}
+
+#endif
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
