@@ -14,7 +14,7 @@
 #endif
 
 #if defined(USE_XSIMD)
-template<class T, int deriv> void boozer_residual_impl(double G, double iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres, T& d2res, size_t ndofs){
+template<class T, int deriv> void boozer_residual_impl(double G, double iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres, T& d2res, size_t ndofs, bool weight_inv_modB){
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
     int num_points = 3 * nphi * ntheta;
@@ -57,7 +57,7 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
         for(int j=0; j<ntheta; j++){
             double B2ij = B(i,j,0)*B(i,j,0) + B(i,j,1)*B(i,j,1) + B(i,j,2)*B(i,j,2);
             double rB2ij = 1/B2ij;
-            double wij = sqrt(rB2ij);
+            double wij = weight_inv_modB ? sqrt(rB2ij) : 1.;
             double modB_ij = sqrt(B2ij);
             double powrmodBijthree = wij*wij*wij;
 
@@ -143,7 +143,7 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                     auto dresij2m = xsimd::fms(GG , dBij2m , xsimd::fma(dB2_ijm , btang_ij2 , B2ij * tang_ij2m));
 
                     auto dmodB_ijm = 0.5 * dB2_ijm * wij;
-                    auto dw_ijm = -dmodB_ijm * rB2ij;
+                    auto dw_ijm = weight_inv_modB ? -dmodB_ijm * rB2ij : simd_t(0.);
                     auto drtil_ij0m = xsimd::fma(dresij0m , bw_ij , dw_ijm * resij0); 
                     auto drtil_ij1m = xsimd::fma(dresij1m , bw_ij , dw_ijm * resij1); 
                     auto drtil_ij2m = xsimd::fma(dresij2m , bw_ij , dw_ijm * resij2);
@@ -289,7 +289,7 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                             auto d2res_ij2mn = xsimd::fma(GG , d2Bij2_mn , term1_2) + term2_2 + term3_2;
                             
                             auto d2modB_ijmn = (2 * B2ij * d2B2_ijmn - dB2_ijm*dB2_ij[n]) * powrmodBijthree / 4. ;
-                            auto d2wij_mn = (2. * dmodB_ijm * dmodB_ij[n] - modB_ij * d2modB_ijmn) * powrmodBijthree;
+                            auto d2wij_mn = weight_inv_modB ? (2. * dmodB_ijm * dmodB_ij[n] - modB_ij * d2modB_ijmn) * powrmodBijthree : simd_t(0.);
                            
                             auto d2rtil_0mn = dresij0m *dw_ij[n] + dresij0[n] * dw_ijm + d2res_ij0mn * wij + resij0 * d2wij_mn;
                             auto d2rtil_1mn = dresij1m *dw_ij[n] + dresij1[n] * dw_ijm + d2res_ij1mn * wij + resij1 * d2wij_mn;
@@ -336,9 +336,6 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
         }
     }
 
-    res/=num_points;
-    dres/=num_points;
-    d2res/=num_points;
     
     // symmetrize the Hessian
     for(int m = 0; m < ndofs+2; m++){
@@ -351,31 +348,31 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
 #else
 #endif
 
-double boozer_residual(double G, double iota, Array& xphi, Array& xtheta, Array& B){
+double boozer_residual(double G, double iota, Array& xphi, Array& xtheta, Array& B, bool weight_inv_modB){
     double res = 0.;
     Array dummy  = xt::zeros<double>({1});
-    boozer_residual_impl<Array, 0>(G, iota, B, dummy, dummy, xphi, xtheta, dummy, dummy, dummy, res, dummy, dummy, 0);
+    boozer_residual_impl<Array, 0>(G, iota, B, dummy, dummy, xphi, xtheta, dummy, dummy, dummy, res, dummy, dummy, 0, weight_inv_modB);
     return res;
 }
 
-std::tuple<double, Array> boozer_residual_ds(double G, double iota, Array& B, Array& dB_dx, Array& xphi, Array& xtheta, Array& dx_ds, Array& dxphi_ds, Array& dxtheta_ds){
+std::tuple<double, Array> boozer_residual_ds(double G, double iota, Array& B, Array& dB_dx, Array& xphi, Array& xtheta, Array& dx_ds, Array& dxphi_ds, Array& dxtheta_ds, bool weight_inv_modB){
     size_t ndofs = dx_ds.shape(3);
     
     double res = 0.;
     Array dres  = xt::zeros<double>({ndofs+2});
     Array dummy  = xt::zeros<double>({1});
-    boozer_residual_impl<Array, 1>(G, iota, B, dB_dx, dummy, xphi, xtheta, dx_ds, dxphi_ds, dxtheta_ds, res, dres, dummy, ndofs);
+    boozer_residual_impl<Array, 1>(G, iota, B, dB_dx, dummy, xphi, xtheta, dx_ds, dxphi_ds, dxtheta_ds, res, dres, dummy, ndofs, weight_inv_modB);
     auto tup = std::make_tuple(res, dres);
     return tup;
 }
 
-std::tuple<double, Array, Array> boozer_residual_ds2(double G, double iota, Array& B, Array& dB_dx, Array& d2B_dx2, Array& xphi, Array& xtheta, Array& dx_ds, Array& dxphi_ds, Array& dxtheta_ds){
+std::tuple<double, Array, Array> boozer_residual_ds2(double G, double iota, Array& B, Array& dB_dx, Array& d2B_dx2, Array& xphi, Array& xtheta, Array& dx_ds, Array& dxphi_ds, Array& dxtheta_ds, bool weight_inv_modB){
     size_t ndofs = dx_ds.shape(3);
 
     double res = 0.;
     Array dres  = xt::zeros<double>({ndofs+2});
     Array d2res = xt::zeros<double>({ndofs+2, ndofs+2});
-    boozer_residual_impl<Array, 2>(G, iota, B, dB_dx, d2B_dx2, xphi, xtheta, dx_ds, dxphi_ds, dxtheta_ds, res, dres, d2res, ndofs);
+    boozer_residual_impl<Array, 2>(G, iota, B, dB_dx, d2B_dx2, xphi, xtheta, dx_ds, dxphi_ds, dxtheta_ds, res, dres, d2res, ndofs, weight_inv_modB);
     auto tup = std::make_tuple(res, dres, d2res);
     return tup;
 }
