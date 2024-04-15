@@ -372,6 +372,40 @@ class SurfaceTaylorTests(unittest.TestCase):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_volume_coefficient_second_derivative(s)
 
+    def test_volume_coefficient_second_derivative2(self):
+        """
+        Taylor test for the second derivative of the volume w.r.t. the dofs
+        """
+        
+        # defining a local function get_random_surface because it let's me control number of quadpoints, and modes
+        def get_random_surface(surfacetype, stellsym, mpol, ntor, nphi, ntheta):
+            from .surface_test_helpers import get_surface as get_surface_ext
+            s = get_surface_ext(surfacetype, stellsym, mpol=mpol, ntor=ntor, nphi=nphi, ntheta=ntheta)
+            dofs = s.get_dofs()
+            np.random.seed(2)
+            rand_scale = 0.01
+            s.x = dofs + rand_scale * np.random.rand(len(dofs))
+            print(surfacetype, stellsym, mpol, ntor, nphi, ntheta)
+            return s
+
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s1 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=1)
+                    self.subtest_volume_coefficient_second_derivative(s1)
+
+                    s2 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=1)
+                    self.subtest_volume_coefficient_second_derivative(s2)
+
+                    s3 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=2, ntheta=1)
+                    self.subtest_volume_coefficient_second_derivative(s3)
+                    
+                    s4 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=2)
+                    self.subtest_volume_coefficient_second_derivative(s4)
+
+                    s5 = get_random_surface(surfacetype, stellsym, mpol=4, ntor=4, nphi=31, ntheta=30)
+                    self.subtest_volume_coefficient_second_derivative(s5)
+
     def subtest_volume_coefficient_second_derivative(self, s):
         coeffs = s.x
         s.invalidate_cache()
