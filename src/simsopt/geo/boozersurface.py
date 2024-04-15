@@ -165,9 +165,9 @@ class BoozerSurface(Optimizable):
         d2val = J.T @ J + np.sum(r[:, None, None] * H, axis=0)
         return val, dval, d2val
 
-    def boozer_penalty_constraints_vectorized(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False):
+    def boozer_penalty_constraints_vectorized(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False, weight_inv_modB=False):
         """
-        This function returns the same thing as `boozer_penalty_constraints` when `scalarized=True` and `weight_inv_modB=True`.  It
+        This function returns the same thing as `boozer_penalty_constraints` when `scalarized=True`.  It
         is much faster since it calls a vectorized implementation in cpp.
         """
 
@@ -212,13 +212,13 @@ class BoozerSurface(Optimizable):
             d2B_by_dXdX = biotsavart.d2B_by_dXdX().reshape((nphi, ntheta, 3, 3, 3))
             
         if derivatives == 0:
-            val = sopp.boozer_residual(G, iota, xphi, xtheta, B)
+            val = sopp.boozer_residual(G, iota, xphi, xtheta, B, weight_inv_modB)
             boozer = val,
         elif derivatives == 1:
-            val, dval = sopp.boozer_residual_ds(G, iota, B, dB_dx, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc)
+            val, dval = sopp.boozer_residual_ds(G, iota, B, dB_dx, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc, weight_inv_modB)
             boozer = val, dval
         elif derivatives == 2:
-            val, dval, d2val = sopp.boozer_residual_ds2(G, iota, B, dB_dx, d2B_by_dXdX, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc)
+            val, dval, d2val = sopp.boozer_residual_ds2(G, iota, B, dB_dx, d2B_by_dXdX, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc, weight_inv_modB)
             boozer = val, dval, d2val
 
         lab = self.label.J()
@@ -371,6 +371,15 @@ class BoozerSurface(Optimizable):
 
     def minimize_boozer_penalty_constraints_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, hessian=False, verbose=False):
         r"""
+        This function tries to find the surface that approximately solves
+
+        .. math::
+            \text{min}_x ~J(x) + \frac{1}{2} w_c (l - l_0)^2
+                                 + \frac{1}{2} w_c (z(\varphi=0, \theta=0) - 0)^2
+
+        where :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
+        the Boozer residuals at quadrature points :math:`1,\dots,n`.
+        This is done using BFGS.
         """
         if not self.need_to_run_code:
             return self.res
