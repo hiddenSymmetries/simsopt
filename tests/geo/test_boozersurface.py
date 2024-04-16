@@ -285,7 +285,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         s = get_surface(surfacetype, stellsym, nfp=ma.nfp)
         s.fit_to_curve(ma, 0.1)
         if get_data is get_ncsx_data:
-            iota = -0.3
+            iota = -0.4
         elif get_data is get_giuliani_data:
             iota = 0.4
         elif get_data is get_hsx_data:
@@ -326,6 +326,8 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         print('Residual norm after second stage', np.linalg.norm(res['residual']))
         assert res['success']
+        assert boozer_surface.surface.is_self_intersecting(thetas=100)
+            
         # For the stellsym case we have z(0, 0) = y(0, 0) = 0. For the not
         # stellsym case, we enforce z(0, 0) = 0, but expect y(0, 0) \neq 0
         gammazero = s.gamma()[0, 0, :]
