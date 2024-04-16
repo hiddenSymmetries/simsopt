@@ -550,7 +550,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return res
 
-    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None, verbose=False):
+    def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
         """
         This function solves the Boozer Surface residual equation exactly.  For
         this to work, we need the right balance of quadrature points, degrees
@@ -691,8 +691,6 @@ class BoozerSurface(Optimizable):
             "mask": mask, 'type': 'exact'
         }
         
-        if verbose:
-            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}", flush=True)
 
         self.res = res
         self.need_to_run_code = False
