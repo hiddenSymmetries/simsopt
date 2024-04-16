@@ -312,7 +312,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
                 tol=1e-11, maxiter=100, constraint_weight=1000.,
-                iota=res['iota'], G=res['G'], vectorize=vectorize)
+                iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
                 tol=1e-9, maxiter=15, constraint_weight=100.,
