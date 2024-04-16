@@ -407,7 +407,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return res
 
-    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', vectorize=False):
+    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
         uses a nonlinear least squares algorithm when ``method='lm'``.  Options for the method 
@@ -417,7 +417,7 @@ class BoozerSurface(Optimizable):
 
         if not self.need_to_run_code:
             return self.res
-
+        
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -427,24 +427,15 @@ class BoozerSurface(Optimizable):
         if method == 'manual':
             i = 0
             lam = 1.
-            if vectorize:
-                r, J = self.boozer_penalty_constraints_vectorized(
-                    x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
-            else:
-                r, J = self.boozer_penalty_constraints(
-                    x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+            r, J = self.boozer_penalty_constraints(
+                x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
             b = J.T@r
             JTJ = J.T@J
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
                 x -= dx
-
-                if vectorize:
-                    r, J = self.boozer_penalty_constraints_vectorized(
-                        x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
-                else:
-                    r, J = self.boozer_penalty_constraints(
-                        x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+                r, J = self.boozer_penalty_constraints(
+                    x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
                 b = J.T@r
                 JTJ = J.T@J
                 norm = np.linalg.norm(b)
