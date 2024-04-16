@@ -4,7 +4,6 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include "xtensor/xarray.hpp"
-#include <omp.h>
 #include "xtensor/xadapt.hpp"
 
 #if __cplusplus >= 201703L
@@ -13,7 +12,6 @@
 #define MYIF(c) if(c)
 #endif
 
-//#if false
 #if defined(USE_XSIMD)
 template<class T, int deriv> void boozer_residual_impl(double G, double iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres, T& d2res, size_t ndofs, bool weight_inv_modB){
     int nphi = xphi.shape(0);
