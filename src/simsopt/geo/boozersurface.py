@@ -41,13 +41,12 @@ class BoozerSurface(Optimizable):
     where Newton is used to solve the first order necessary conditions for optimality.
     """
     
-    def __init__(self, biotsavart, surface, label, targetlabel, constraint_weight=None):
+    def __init__(self, biotsavart, surface, label, targetlabel):
         super().__init__(depends_on=[biotsavart])
         self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
-        self.constraint_weight = constraint_weight
         self.need_to_run_code = True
 
     def recompute_bell(self, parent=None):
