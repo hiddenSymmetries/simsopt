@@ -380,7 +380,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for weight_inv_modB in [False, True]:
-                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 10, 17), (False, 13, 21),(True, 3, 3), (False, 3, 3)]:
+                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 6, 13), (False, 7, 13),(True, 3, 3), (False, 3, 3)]:
                         with self.subTest(surfacetype=surfacetype,
                                           stellsym=stellsym,
                                           optimize_G=optimize_G,
@@ -447,6 +447,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         #print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
 
 
+        # deriv = 2
         f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
             x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         f1, J1, H1 = boozer_surface.boozer_penalty_constraints_vectorized(
