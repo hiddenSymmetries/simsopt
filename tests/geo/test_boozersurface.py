@@ -231,11 +231,12 @@ class BoozerSurfaceTests(unittest.TestCase):
         ]
         for surfacetype, stellsym, optimize_G, second_stage in configs:
             for get_data in [get_hsx_data, get_ncsx_data, get_giuliani_data]:
-                with self.subTest(
-                    surfacetype=surfacetype, stellsym=stellsym,
-                        optimize_G=optimize_G, second_stage=second_stage, get_data=get_data):
-                    self.subtest_boozer_surface_optimisation_convergence(
-                        surfacetype, stellsym, optimize_G, second_stage, get_data)
+                for vectorize in [True, False]:
+                    with self.subTest(
+                        surfacetype=surfacetype, stellsym=stellsym,
+                            optimize_G=optimize_G, second_stage=second_stage, get_data=get_data, vectorize=vectorize):
+                        self.subtest_boozer_surface_optimisation_convergence(
+                            surfacetype, stellsym, optimize_G, second_stage, get_data)
 
     def subtest_boozer_surface_optimisation_convergence(self, surfacetype,
                                                         stellsym, optimize_G,
