@@ -53,28 +53,6 @@ class BoozerSurface(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
     
-    def run_code(self, boozer_type, iota, G=None, verbose=True):
-        """
-        Run the default solvers.
-        """
-        if not self.need_to_run_code:
-            return
-
-        if boozer_type == 'exact':
-            res = self.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=40, iota=iota, G=G, verbose=verbose)
-            return res
-        elif boozer_type == 'ls':
-            # first try BFGS
-            res = self.minimize_boozer_penalty_constraints_BFGS(tol=1e-10, maxiter=1500, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
-            iota, G = res['iota'], res['G']
-            
-            ## polish off using Newton's method
-            self.need_to_run_code = True
-            res = self.minimize_boozer_penalty_constraints_newton(tol=1e-11, maxiter=40, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose)
-            return res
-        else:
-            raise Exception(f"boozer_type not supported: {boozer_type}")
-
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, weight_inv_modB=False):
         r"""
         Define the residual
@@ -95,6 +73,8 @@ class BoozerSurface(Optimizable):
             J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x),
 
         i.e. the least squares residual and optionally the gradient and the Hessian of :math:`J(x)`.
+
+        For ``weight_inv_modB=False``, the residuals are unweighted, and they are multiplied by 1/
         """
 
         assert derivatives in [0, 1, 2]
@@ -324,7 +304,7 @@ class BoozerSurface(Optimizable):
         dres[-1, :-2] = drz
         return res, dres
 
-    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None):
+    def minimize_boozer_penalty_constraints_LBFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, vectorize=False):
         r"""
         This function tries to find the surface that approximately solves
 
@@ -345,8 +325,13 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
-        fun = lambda x: self.boozer_penalty_constraints(
-            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
+
+        if vectorize:
+            fun = lambda x: self.boozer_penalty_constraints_vectorized(
+                x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
+        else:
+            fun = lambda x: self.boozer_penalty_constraints(
+                x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
         res = minimize(
             fun, x, jac=True, method='L-BFGS-B',
             options={'maxiter': maxiter, 'ftol': tol, 'gtol': tol, 'maxcor': 200})
@@ -369,116 +354,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return resdict
 
-    def minimize_boozer_penalty_constraints_BFGS(self, tol=1e-3, maxiter=1000, constraint_weight=1., iota=0., G=None, hessian=False, verbose=False):
-        r"""
-        This function tries to find the surface that approximately solves
-
-        .. math::
-            \text{min}_x ~J(x) + \frac{1}{2} w_c (l - l_0)^2
-                                 + \frac{1}{2} w_c (z(\varphi=0, \theta=0) - 0)^2
-
-        where :math:`J(x) = \frac{1}{2}\mathbf r(x)^T \mathbf r(x)`, and :math:`\mathbf r(x)` contains
-        the Boozer residuals at quadrature points :math:`1,\dots,n`.
-        This is done using BFGS.
-        """
-        if not self.need_to_run_code:
-            return self.res
-        
-        s = self.surface
-        if G is None:
-            x = np.concatenate((s.get_dofs(), [iota]))
-        else:
-            x = np.concatenate((s.get_dofs(), [iota, G]))
-    
-        fun = lambda x: self.boozer_penalty_constraints_vectorized(
-            x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
-        res = minimize(
-            fun, x, jac=True, method='BFGS',
-            options={'maxiter': maxiter, 'gtol': tol})
-    
-        resdict = {
-            "residual": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success, "G": None, 'type': 'ls', 'solver': 'BFGS',
-            "firstorderop": res.jac, "constraint_weight": constraint_weight, "labelerr": np.abs((self.label.J()-self.targetlabel)/self.targetlabel)
-            }
-        
-        if G is None:
-            s.set_dofs(res.x[:-1])
-            iota = res.x[-1]
-        else:
-            s.set_dofs(res.x[:-2])
-            iota = res.x[-2]
-            G = res.x[-1]
-            resdict['G'] = G
-        resdict['s'] = s
-        resdict['iota'] = iota
-    
-        if hessian:
-            val, dval, d2val = self.boozer_penalty_constraints_vectorized(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-            P, L, U = lu(d2val)
-            resdict["PLU"] = (P, L, U)
-        
-        self.res = resdict
-        self.need_to_run_code = False
-        
-        if verbose:
-            print(f"BFGS solve - {resdict['success']}  iter={resdict['iter']}, iota={resdict['iota']:.16f}, ||grad||_inf = {np.linalg.norm(resdict['firstorderop'], ord=np.inf):.3e}", flush=True)
-        return resdict
-
-    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., verbose=False):
-        """
-        """
-        if not self.need_to_run_code:
-            return self.res
-    
-        s = self.surface
-        if G is None:
-            x = np.concatenate((s.get_dofs(), [iota]))
-        else:
-            x = np.concatenate((s.get_dofs(), [iota, G]))
-        i = 0
-    
-        val, dval, d2val = self.boozer_penalty_constraints_vectorized(
-            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-        norm = np.linalg.norm(dval, ord=np.inf)
-        
-        while i < maxiter and norm > tol:
-            d2val += stab*np.identity(d2val.shape[0])
-            dx = np.linalg.solve(d2val, dval)
-            if norm < 1e-9:
-                dx += np.linalg.solve(d2val, dval - d2val@dx)
-            x = x - dx
-            val, dval, d2val = self.boozer_penalty_constraints_vectorized(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-            norm = np.linalg.norm(dval, ord=np.inf)
-            
-            if norm > 1e1:
-                break
-    
-            i = i+1
-    
-        P, L, U = lu(d2val)
-        if G is None:
-            s.set_dofs(x[:-1])
-            iota = x[-1]
-        else:
-            s.set_dofs(x[:-2])
-            iota = x[-2]
-            G = x[-1]
-
-        res = {
-            "residual": val, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "firstorderop": dval,
-            "PLU": (P, L, U), 'iota': iota, "G": G, "type": "ls"
-        }
-
-        self.res = res
-        self.need_to_run_code = False
-        
-        if verbose:
-            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||grad||_inf = {np.linalg.norm(res['firstorderop'], ord=np.inf):.3e}", flush=True)
-        return res
-
-    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
+    def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0., vectorize=False):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
@@ -492,9 +368,13 @@ class BoozerSurface(Optimizable):
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
-
-        val, dval, d2val = self.boozer_penalty_constraints(
-            x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+        
+        if vectorize:
+            val, dval, d2val = self.boozer_penalty_constraints_vectorized(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+        else:
+            val, dval, d2val = self.boozer_penalty_constraints(
+                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         norm = np.linalg.norm(dval)
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
@@ -527,7 +407,7 @@ class BoozerSurface(Optimizable):
         self.need_to_run_code = False
         return res
 
-    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
+    def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm', vectorize=False):
         """
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it
         uses a nonlinear least squares algorithm when ``method='lm'``.  Options for the method 
@@ -547,15 +427,24 @@ class BoozerSurface(Optimizable):
         if method == 'manual':
             i = 0
             lam = 1.
-            r, J = self.boozer_penalty_constraints(
-                x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+            if vectorize:
+                r, J = self.boozer_penalty_constraints_vectorized(
+                    x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+            else:
+                r, J = self.boozer_penalty_constraints(
+                    x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
             b = J.T@r
             JTJ = J.T@J
             while i < maxiter and norm > tol:
                 dx = np.linalg.solve(JTJ + lam * np.diag(np.diag(JTJ)), b)
                 x -= dx
-                r, J = self.boozer_penalty_constraints(
-                    x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+
+                if vectorize:
+                    r, J = self.boozer_penalty_constraints_vectorized(
+                        x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+                else:
+                    r, J = self.boozer_penalty_constraints(
+                        x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
                 b = J.T@r
                 JTJ = J.T@J
                 norm = np.linalg.norm(b)
