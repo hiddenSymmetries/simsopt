@@ -119,7 +119,7 @@ set(XTENSOR_USE_TBB 0)
 
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
-    src/simsoptpp/boozerresidual.cpp
+    src/simsoptpp/boozerresidual_py.cpp
     src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
     src/simsoptpp/biot_savart_py.cpp
     src/simsoptpp/biot_savart_vjp_py.cpp
@@ -158,8 +158,6 @@ set_target_properties(profiling
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
 target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
-
-
 
 #get_cmake_property(_variableNames VARIABLES)
 #list (SORT _variableNames)
