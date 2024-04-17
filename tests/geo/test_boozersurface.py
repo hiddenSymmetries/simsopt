@@ -12,8 +12,8 @@ from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_sur
 surfacetypes_list = ["SurfaceXYZFourier", "SurfaceXYZTensorFourier"]
 stellsym_list = [True, False]
 
-# default stencil is 6th order, so you should be able to get 10 digits of accuracy in gradient
 def taylor_test1(f, df, x, epsilons=None, direction1=None, order=6):
+    # default stencil is 6th order, so you should be able to get 10 digits of accuracy in gradient
     np.random.seed(1)
     if direction1 is None:
         direction1 = np.random.rand(*(x.shape))-0.5
@@ -49,9 +49,9 @@ def taylor_test1(f, df, x, epsilons=None, direction1=None, order=6):
     print("###################################################################")
 
 
-# default stencil is 6th order, so you should be able to get 10 digits of accuracy in gradient
 def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
                  direction2=None, order=6):
+    # default stencil is 6th order, so you should be able to get 10 digits of accuracy in hessian
     np.random.seed(1)
     if direction1 is None:
         direction1 = np.random.rand(*(x.shape))-0.5
@@ -564,7 +564,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             i2 = ij2[0][0]
             j2 = ij2[1][0]
             print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
-        compute_differences(H0, H1)
+        #compute_differences(H0, H1)
 
 if __name__ == "__main__":
     unittest.main()
