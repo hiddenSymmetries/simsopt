@@ -410,7 +410,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             thetas = [0.2432101234, 0.9832134]
 
         
-        s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta, thetas=thetas, phis=phis, mpol=3, ntor=3)
+        s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta, thetas=thetas, phis=phis, mpol=2, ntor=2)
         s.fit_to_curve(ma, 0.1)
         s.x = s.x + np.random.rand(s.x.size)*1e-6
 
