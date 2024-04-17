@@ -488,7 +488,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         phis = [0.2234567989, 0.432123451]
         thetas = [0.2432101234, 0.9832134]
 
-        s = get_surface(surfacetype, stellsym, nphi=len(phis), ntheta=len(thetas), thetas=thetas, phis=phis, mpol=2, ntor=2)
+        s = get_surface(surfacetype, stellsym, thetas=thetas, phis=phis, mpol=2, ntor=2)
         s.fit_to_curve(ma, 0.1)
         s.x = s.x + np.random.rand(s.x.size)*1e-6
 
@@ -523,24 +523,24 @@ class BoozerSurfaceTests(unittest.TestCase):
         # check directional derivative
         h1 = np.random.rand(J0.size)-0.5
         np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
-        #print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
+        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
 
 
         # deriv = 2
-        #f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
-        #    x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
+        f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
+            x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         f1, J1, H1 = boozer_surface.boozer_penalty_constraints_vectorized(
             x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         
-        #np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        #np.testing.assert_allclose(J0, J1, atol=1e-11, rtol=1e-11)
-        #np.testing.assert_allclose(H0, H1, atol=1e-10, rtol=1e-10)
-        #h2 = np.random.rand(J0.size)-0.5
-        #
-        #np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        #np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
-        #np.testing.assert_allclose((H0@h1)@h2, (H1@h1)@h2, atol=1e-13, rtol=1e-13)
-        #print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
+        np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
+        np.testing.assert_allclose(J0, J1, atol=1e-11, rtol=1e-11)
+        np.testing.assert_allclose(H0, H1, atol=1e-10, rtol=1e-10)
+        h2 = np.random.rand(J0.size)-0.5
+        
+        np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
+        np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
+        np.testing.assert_allclose((H0@h1)@h2, (H1@h1)@h2, atol=1e-13, rtol=1e-13)
+        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
         
 
         def compute_differences(Ha, Hb):
@@ -555,7 +555,7 @@ class BoozerSurfaceTests(unittest.TestCase):
             i2 = ij2[0][0]
             j2 = ij2[1][0]
             print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
-        #compute_differences(H0, H1)
+        compute_differences(H0, H1)
 
 if __name__ == "__main__":
     unittest.main()
