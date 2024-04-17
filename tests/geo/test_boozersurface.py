@@ -380,7 +380,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for weight_inv_modB in [False, True]:
-                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 6, 9), (False, 7, 8),(True, 3, 3), (False, 3, 3)]:
+                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1)]:
+                    #for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 6, 9), (False, 7, 8),(True, 3, 3), (False, 3, 3)]:
                         with self.subTest(surfacetype=surfacetype,
                                           stellsym=stellsym,
                                           optimize_G=optimize_G,

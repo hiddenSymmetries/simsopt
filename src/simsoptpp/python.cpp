@@ -23,7 +23,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "permanent_magnet_optimization.h"
 #include "reiman.h"
 #include "simdhelpers.h"
-#include "boozerresidual.h"
+#include "boozerresidual_py.h"
 
 namespace py = pybind11;
 
