@@ -126,7 +126,32 @@ class Testing(unittest.TestCase):
 
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZHelical1","CurveXYZHelical2", "CurveHelicalInitx0"]
     
-    def test_curve_xyzhelical_xyzfourier(self):
+    def get_curvexyzhelical(self, stellsym=True, x=None, nfp=None):
+        # returns a CurveXYZHelical that is randomly perturbed
+
+        np.random.seed(1)
+        rand_scale = 1e-2
+        
+        if nfp is None:
+            nfp = 3
+        if x is None:
+            x = np.linspace(0, 1, 200, endpoint=False)
+        
+        order = 2
+        curve = CurveXYZHelical(x, order, nfp, stellsym)
+        R = 1
+        r = 0.25
+        curve.set('xc(0)', R)
+        curve.set('xc(2)', r)
+        curve.set('ys(2)', -r)
+        curve.set('zs(1)', -2*r)
+        curve.set('zs(2)',    r)
+        dofs = curve.x.copy()
+        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+
+        return curve
+
+    def test_curvehelical_is_curvexyzhelical(self):
         # this test checks that both helical coil representations can produce the same helical curve on a torus
         order = 1
         nfp = 2
@@ -140,24 +165,35 @@ class Testing(unittest.TestCase):
         curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
         assert np.mean(np.linalg.norm(curve1.gamma()-curve2.gamma(), axis=-1)) == 0 
 
-    def test_xyzhelical_symmetries(self):
-        # does the stellarator symmetric curve have rotational symmetry?
-        np.random.seed(1)
-        rand_scale = 1e-2
-        order = 2
+    def test_nonstellsym(self):
+        # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
+        # CurveXYZHelical curves.
         nfp = 3
-        x = np.array([0.123, 0.123+1/nfp])
-        curve = CurveXYZHelical(x, order, nfp, True)
-        R = 1
-        r = 0.25
-        curve.set('xc(0)', R)
-        curve.set('xc(2)', r)
-        curve.set('ys(2)', -r)
-        curve.set('zs(1)', -2*r)
-        curve.set('zs(2)',    r)
-        dofs = curve.x.copy()
-        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp)
+        from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
+        current = Current(1e5)
+        coils = coils_via_symmetries([curve], [current], 1, True)
+        bs = BiotSavart(coils)
+        bs.set_points([[1, 1, 1], [1, -1, -1]])
+        B=bs.B_cyl()
+        assert np.abs(B[0, 0]+B[1, 0]) <1e-15
+        assert np.abs(B[0, 1]-B[1, 1]) <1e-15
+        assert np.abs(B[0, 2]-B[1, 2]) <1e-15
 
+        # sanity check that a nonstellarator symmetric CurveXYZHelical produces a non-stellsym magnetic field
+        bs = BiotSavart([Coil(curve, Current(1e5))])
+        bs.set_points([[1, 1, 1], [1, -1, -1]])
+        B=bs.B_cyl()
+        assert not np.abs(B[0, 0]+B[1, 0]) <1e-15
+        assert not np.abs(B[0, 1]-B[1, 1]) <1e-15
+        assert not np.abs(B[0, 2]-B[1, 2]) <1e-15
+
+
+    def test_xyzhelical_symmetries(self):
+
+        nfp = 3
+        # does the stellarator symmetric curve have rotational symmetry?
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, 0.123+1/nfp]))
         out = curve.gamma()
         alpha = -2*np.pi/nfp
         R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
@@ -165,19 +201,7 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(out[1]-R@out[0])<1e-15
 
         # is the stellarator symmetric curve actually stellarator symmetric?
-        order = 2
-        nfp = 3
-        x = np.array([0.123, -0.123])
-        curve = CurveXYZHelical(x, order, nfp, True)
-        R = 1
-        r = 0.25
-        curve.set('xc(0)', R)
-        curve.set('xc(2)', r)
-        curve.set('ys(2)', -r)
-        curve.set('zs(1)', -2*r)
-        curve.set('zs(2)',    r)
-        dofs = curve.x.copy()
-        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, -0.123]))
         pts = curve.gamma()
         assert np.abs(pts[0, 0]-pts[1, 0]) <1e-15
         assert np.abs(pts[0, 1]+pts[1, 1]) <1e-15
@@ -185,20 +209,8 @@ class Testing(unittest.TestCase):
 
 
         # is the field from the stellarator symmetric curve actually stellarator symmetric?
-        order = 2
-        nfp = 3
-        x = np.array([0.123, -0.123])
-        curve = CurveXYZHelical(100, order, nfp, True)
-        R = 1
-        r = 0.25
-        curve.set('xc(0)', R)
-        curve.set('xc(2)', r)
-        curve.set('ys(2)', -r)
-        curve.set('zs(1)', -2*r)
-        curve.set('zs(2)',    r)
-        dofs = curve.x.copy()
-        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
         from simsopt.field import BiotSavart, Current, Coil
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x=np.linspace(0, 1, 200, endpoint=False))
         current = Current(1e5)
         coil = Coil(curve, current)
         bs = BiotSavart([coil])
@@ -209,20 +221,7 @@ class Testing(unittest.TestCase):
         assert np.abs(B[0, 2]-B[1, 2]) <1e-15
         
         # does the non-stellarator symmetric curve have rotational symmetry still?
-        order = 2
-        nfp = 5
-        x = np.array([0.123, 0.123+1/nfp])
-        curve = CurveXYZHelical(x, order, nfp, False)
-        R = 1
-        r = 0.25
-        curve.set('xc(0)', R)
-        curve.set('xc(2)', r)
-        curve.set('ys(2)', -r)
-        curve.set('zs(1)', -2*r)
-        curve.set('zs(2)',    r)
-        dofs = curve.x.copy()
-        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
-
+        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+1/nfp]))
         out = curve.gamma()
         alpha = -2*np.pi/nfp
         R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
