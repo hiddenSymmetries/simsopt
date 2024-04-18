@@ -162,8 +162,8 @@ jobs:
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
-      run: pip install -v ".[MPI,SPEC,VIS]"
+      run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
+      # run: pip install -v ".[MPI,SPEC,VIS]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
