@@ -1,5 +1,4 @@
 import jax.numpy as jnp
-from math import pi
 import numpy as np
 from .curve import JaxCurve
 
