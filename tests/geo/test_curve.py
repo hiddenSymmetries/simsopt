@@ -131,7 +131,7 @@ class Testing(unittest.TestCase):
         order = 1
         nfp = 2
         x = np.linspace(0, 1, 100, endpoint=False)
-        curve1 = CurveXYZHelical(x, 10, nfp, True)
+        curve1 = CurveXYZHelical(x, order, nfp, True)
         R = 1
         r = 0.5
         curve1.set('xc(0)', R)
@@ -139,6 +139,95 @@ class Testing(unittest.TestCase):
         curve1.set('zs(1)', -r)
         curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
         assert np.mean(np.linalg.norm(curve1.gamma()-curve2.gamma(), axis=-1)) == 0 
+
+    def test_xyzhelical_symmetries(self):
+        # does the stellarator symmetric curve have rotational symmetry?
+        np.random.seed(1)
+        rand_scale = 1e-2
+        order = 2
+        nfp = 3
+        x = np.array([0.123, 0.123+1/nfp])
+        curve = CurveXYZHelical(x, order, nfp, True)
+        R = 1
+        r = 0.25
+        curve.set('xc(0)', R)
+        curve.set('xc(2)', r)
+        curve.set('ys(2)', -r)
+        curve.set('zs(1)', -2*r)
+        curve.set('zs(2)',    r)
+        dofs = curve.x.copy()
+        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+
+        out = curve.gamma()
+        alpha = -2*np.pi/nfp
+        R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
+        print(R@out[0], out[1])
+        assert np.linalg.norm(out[1]-R@out[0])<1e-15
+
+        # is the stellarator symmetric curve actually stellarator symmetric?
+        order = 2
+        nfp = 3
+        x = np.array([0.123, -0.123])
+        curve = CurveXYZHelical(x, order, nfp, True)
+        R = 1
+        r = 0.25
+        curve.set('xc(0)', R)
+        curve.set('xc(2)', r)
+        curve.set('ys(2)', -r)
+        curve.set('zs(1)', -2*r)
+        curve.set('zs(2)',    r)
+        dofs = curve.x.copy()
+        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+        pts = curve.gamma()
+        assert np.abs(pts[0, 0]-pts[1, 0]) <1e-15
+        assert np.abs(pts[0, 1]+pts[1, 1]) <1e-15
+        assert np.abs(pts[0, 2]+pts[1, 2]) <1e-15
+
+
+        # is the field from the stellarator symmetric curve actually stellarator symmetric?
+        order = 2
+        nfp = 3
+        x = np.array([0.123, -0.123])
+        curve = CurveXYZHelical(100, order, nfp, True)
+        R = 1
+        r = 0.25
+        curve.set('xc(0)', R)
+        curve.set('xc(2)', r)
+        curve.set('ys(2)', -r)
+        curve.set('zs(1)', -2*r)
+        curve.set('zs(2)',    r)
+        dofs = curve.x.copy()
+        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+        from simsopt.field import BiotSavart, Current, Coil
+        current = Current(1e5)
+        coil = Coil(curve, current)
+        bs = BiotSavart([coil])
+        bs.set_points([[1, 1, 1], [1, -1, -1]])
+        B=bs.B_cyl()
+        assert np.abs(B[0, 0]+B[1, 0]) <1e-15
+        assert np.abs(B[0, 1]-B[1, 1]) <1e-15
+        assert np.abs(B[0, 2]-B[1, 2]) <1e-15
+        
+        # does the non-stellarator symmetric curve have rotational symmetry still?
+        order = 2
+        nfp = 5
+        x = np.array([0.123, 0.123+1/nfp])
+        curve = CurveXYZHelical(x, order, nfp, False)
+        R = 1
+        r = 0.25
+        curve.set('xc(0)', R)
+        curve.set('xc(2)', r)
+        curve.set('ys(2)', -r)
+        curve.set('zs(1)', -2*r)
+        curve.set('zs(2)',    r)
+        dofs = curve.x.copy()
+        curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+
+        out = curve.gamma()
+        alpha = -2*np.pi/nfp
+        R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
+        print(R@out[0], out[1])
+        assert np.linalg.norm(out[1]-R@out[0])<1e-15
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])

@@ -46,7 +46,7 @@ class CurveXYZHelical(JaxCurve):
     r'''A curve representation for a helical coil that does not lie on a torus.  The coordinates of the curve are given by:
         .. math::
             \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} cos(2pi n_{\text{fp}} m \theta)\\
-            \hat y(\theta) &= \sum_{m=1}^{\text{order}} y_{s,m} sin(2pi n_{\text{fp}} m \theta)\\
+            \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} sin(2pi n_{\text{fp}} m \theta)\\
             x(\theta) &= \hat x(\theta)  \cos(2pi \theta) - \hat y(\theta)  \sin(2pi \theta)\\
             y(\theta) &= \hat x(\theta)  \sin(2pi \theta) + \hat y(\theta)  \cos(2pi \theta)\\
             z(\theta) &= \sum_{i=0}^{\text{order}} z_{s,m} sin(2pi n_{\text{fp}} \theta)
