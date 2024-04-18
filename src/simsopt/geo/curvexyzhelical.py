@@ -49,7 +49,7 @@ class CurveXYZHelical(JaxCurve):
             \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} sin(2pi n_{\text{fp}} m \theta)\\
             x(\theta) &= \hat x(\theta)  \cos(2pi \theta) - \hat y(\theta)  \sin(2pi \theta)\\
             y(\theta) &= \hat x(\theta)  \sin(2pi \theta) + \hat y(\theta)  \cos(2pi \theta)\\
-            z(\theta) &= \sum_{i=0}^{\text{order}} z_{s,m} sin(2pi n_{\text{fp}} \theta)
+            z(\theta) &= \sum_{i=1}^{\text{order}} z_{s,m} sin(2pi n_{\text{fp}} \theta)
         if the coil is stellarator symmetric.  When the coil is not stellarator symmetric, the formulas above
         become
         .. math::
