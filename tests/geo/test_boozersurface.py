@@ -217,8 +217,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         bs_tf = BiotSavart(coils)
         current_sum = sum(abs(c.current.get_value()) for c in coils)
 
-        phis = np.linspace(0, 1, 15)
-        thetas = np.linspace(0, 1, 15)
+        phis = np.linspace(0, 1, 11)
+        thetas = np.linspace(0, 1, 11)
         s = get_surface(surfacetype, stellsym, phis=phis, thetas=thetas)
         s.fit_to_curve(ma, 0.1)
 
