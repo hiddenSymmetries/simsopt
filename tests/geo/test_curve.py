@@ -200,13 +200,27 @@ class Testing(unittest.TestCase):
         print(R@out[0], out[1])
         assert np.linalg.norm(out[1]-R@out[0])<1e-15
 
+        # does the stellarator symmetric curve indeed pass through (x0, 0, 0)?
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0]))
+        out = curve.gamma()
+        assert out[0, 0] !=0
+        assert out[0, 1] == 0
+        assert out[0, 2] == 0
+
+
+        # does the non-stellarator symmetric curve not pass through (x0, 0, 0)?
+        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0]))
+        out = curve.gamma()
+        assert out[0, 0] !=0
+        assert out[0, 1] != 0
+        assert out[0, 2] != 0
+
         # is the stellarator symmetric curve actually stellarator symmetric?
         curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, -0.123]))
         pts = curve.gamma()
         assert np.abs(pts[0, 0]-pts[1, 0]) <1e-15
         assert np.abs(pts[0, 1]+pts[1, 1]) <1e-15
         assert np.abs(pts[0, 2]+pts[1, 2]) <1e-15
-
 
         # is the field from the stellarator symmetric curve actually stellarator symmetric?
         from simsopt.field import BiotSavart, Current, Coil
