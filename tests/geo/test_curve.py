@@ -128,7 +128,7 @@ class Testing(unittest.TestCase):
     
     def test_curve_xyzhelical_xyzfourier(self):
         # this test checks that both helical coil representations can produce the same helical curve on a torus
-
+        
         order = 1
         nfp = 2
         x = np.linspace(0, 1, 100, endpoint=False)
@@ -138,7 +138,6 @@ class Testing(unittest.TestCase):
         curve1.set('xc(0)', R)
         curve1.set('xc(1)', r)
         curve1.set('zs(1)', -r)
-        dofs = curve1.get_dofs()
         curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
         assert np.mean(np.linalg.norm(curve1.gamma()-curve2.gamma(), axis=-1)) == 0 
 
