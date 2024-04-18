@@ -11,6 +11,7 @@ from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo.curvexyzhelical import CurveXYZHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data  
@@ -36,7 +37,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
     dfx = df(x)@direction
     if epsilons is None:
         epsilons = np.power(2., -np.asarray(range(7, 20)))
-    # print("################################################################################")
+    print("################################################################################")
     err_old = 1e9
     counter = 0
     for eps in epsilons:
@@ -46,6 +47,8 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
         fminuseps = f(x - eps * direction)
         dfest = (fpluseps-fminuseps)/(2*eps)
         err = np.linalg.norm(dfest - dfx)
+        print(err, err/err_old)
+        
         assert err < 1e-9 or err < 0.3 * err_old
         if err < 1e-9:
             break
@@ -53,9 +56,10 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
         counter += 1
     if err > 1e-10:
         assert counter > 3
-    # print("################################################################################")
+    print("################################################################################")
 
 
+#def get_curve(curvetype, rotated, x=np.linspace(0, 1, 100, endpoint=False)):
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale = 0.01
@@ -73,9 +77,13 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3, x0=np.ones((2*order,)))
     elif curvetype == "CurvePlanarFourier":
         curve = CurvePlanarFourier(x, order, 2, True)
+    elif curvetype == "CurveXYZHelical1":
+        curve = CurveXYZHelical(x, order, 2, True)
+    elif curvetype == "CurveXYZHelical2":
+        curve = CurveXYZHelical(x, order, 2, False)
     else:
         assert False
-
+    
     dofs = np.zeros((curve.dof_size, ))
     if curvetype in ["CurveXYZFourier", "JaxCurveXYZFourier"]:
         dofs[1] = 1.
@@ -87,10 +95,28 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[order+1] = 0.1
     elif curvetype in ["CurveHelical", "CurveHelicalInitx0"]:
         dofs[0] = np.pi/2
+    elif curvetype == "CurveXYZHelical1":
+        R = 1
+        r = 0.5
+        curve.set('xc(0)', R)
+        curve.set('xc(1)', -r)
+        curve.set('zs(1)', -r)
+        dofs = curve.get_dofs()
+    elif curvetype == "CurveXYZHelical2":
+        R = 1
+        r = 0.5
+        curve.set('xc(0)', R)
+        curve.set('xs(1)', -0.1*r)
+        curve.set('xc(1)', -r)
+        curve.set('zs(1)', -r)
+        curve.set('zc(0)', 1)
+        curve.set('zs(1)', r)
+        dofs = curve.get_dofs()
     else:
         assert False
 
     curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+
     if rotated:
         curve = RotatedCurve(curve, 0.5, flip=False)
     return curve
@@ -98,7 +124,23 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveHelicalInitx0"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZHelical1","CurveXYZHelical2", "CurveHelicalInitx0"]
+    
+    def test_curve_xyzhelical_xyzfourier(self):
+        # this test checks that both helical coil representations can produce the same helical curve on a torus
+
+        order = 1
+        nfp = 2
+        x = np.linspace(0, 1, 100, endpoint=False)
+        curve1 = CurveXYZHelical(x, 10, nfp, True)
+        R = 1
+        r = 0.5
+        curve1.set('xc(0)', R)
+        curve1.set('xc(1)', r)
+        curve1.set('zs(1)', -r)
+        dofs = curve1.get_dofs()
+        curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
+        assert np.mean(np.linalg.norm(curve1.gamma()-curve2.gamma(), axis=-1)) == 0 
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
