@@ -284,7 +284,7 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-9, maxiter=600, constraint_weight=100., iota=iota, G=G,
+            tol=1e-10, maxiter=600, constraint_weight=100., iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
 
@@ -295,11 +295,11 @@ class BoozerSurfaceTests(unittest.TestCase):
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-9, maxiter=15, constraint_weight=100.,
+                tol=1e-10, maxiter=20, constraint_weight=100.,
                 iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
-                tol=1e-9, maxiter=15, iota=res['iota'], G=res['G'])
+                tol=1e-10, maxiter=15, iota=res['iota'], G=res['G'])
         elif second_stage == 'residual_exact':
             res = boozer_surface.solve_residual_equation_exactly_newton(
                 tol=1e-12, maxiter=15, iota=res['iota'], G=res['G'])
