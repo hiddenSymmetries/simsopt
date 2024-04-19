@@ -138,29 +138,28 @@ class SpecTests(unittest.TestCase):
 
         filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
 
-        with ScratchDir("."):
-            s = Spec(filename)
-            nvol = s.inputlist.nvol
-            mvol = nvol + s.inputlist.lfreebound
+        s = Spec(filename)
+        nvol = s.inputlist.nvol
+        mvol = nvol + s.inputlist.lfreebound
 
-            cumulative = False  # Surfaces currents are non-cumulative quantities in SPEC
-            surface_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
+        cumulative = False  # Surfaces currents are non-cumulative quantities in SPEC
+        surface_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
 
-            s.interface_current_profile = surface_current
+        s.interface_current_profile = surface_current
 
-            # Check that all currents are actually zero
-            for lvol in range(1, mvol):
+        # Check that all currents are actually zero
+        for lvol in range(1, mvol):
+            self.assertEqual(s.get_profile('interface_current', lvol), 0)
+
+        # Modify one interface current
+        s.set_profile('interface_current', lvol=3, value=1)
+
+        # Check values
+        for lvol in range(1, mvol):
+            if lvol != 3:
                 self.assertEqual(s.get_profile('interface_current', lvol), 0)
-
-            # Modify one interface current
-            s.set_profile('interface_current', lvol=3, value=1)
-
-            # Check values
-            for lvol in range(1, mvol):
-                if lvol != 3:
-                    self.assertEqual(s.get_profile('interface_current', lvol), 0)
-                else:
-                    self.assertEqual(s.get_profile('interface_current', lvol), 1)
+            else:
+                self.assertEqual(s.get_profile('interface_current', lvol), 1)
 
     def test_set_profile_cumulative(self):
         """
@@ -170,31 +169,30 @@ class SpecTests(unittest.TestCase):
 
         filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
 
-        with ScratchDir("."):
-            s = Spec(filename)
-            nvol = s.inputlist.nvol
-            mvol = nvol + s.inputlist.lfreebound
+        s = Spec(filename)
+        nvol = s.inputlist.nvol
+        mvol = nvol + s.inputlist.lfreebound
 
-            cumulative = True  # Surfaces currents are non-cumulative quantities in SPEC
-            volume_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
+        cumulative = True  # Surfaces currents are non-cumulative quantities in SPEC
+        volume_current = ProfileSpec(np.zeros((mvol,)), cumulative=cumulative)
 
-            s.volume_current_profile = volume_current
+        s.volume_current_profile = volume_current
 
-            # Check that all currents are actually zero
-            for lvol in range(1, mvol):
+        # Check that all currents are actually zero
+        for lvol in range(1, mvol):
+            self.assertEqual(s.get_profile('volume_current', lvol), 0)
+
+        # Modify one interface current
+        s.set_profile('volume_current', lvol=3, value=1)
+
+        print(s.volume_current_profile)
+
+        # Check values
+        for lvol in range(1, mvol):
+            if lvol < 3:
                 self.assertEqual(s.get_profile('volume_current', lvol), 0)
-
-            # Modify one interface current
-            s.set_profile('volume_current', lvol=3, value=1)
-
-            print(s.volume_current_profile)
-
-            # Check values
-            for lvol in range(1, mvol):
-                if lvol < 3:
-                    self.assertEqual(s.get_profile('volume_current', lvol), 0)
-                else:
-                    self.assertEqual(s.get_profile('volume_current', lvol), 1)
+            else:
+                self.assertEqual(s.get_profile('volume_current', lvol), 1)
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """

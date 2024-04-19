@@ -163,7 +163,7 @@ jobs:
 
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
-      run: pip install -v ".[MPI,SPEC,VIS]"
+      run: pip install -v ".[MPI,SPEC]"
 
     - name: Verify that importing simsopt does not automatically initialize MPI
       run: ./tests/verify_MPI_not_initialized.py
