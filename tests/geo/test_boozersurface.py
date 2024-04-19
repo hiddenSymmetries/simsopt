@@ -60,8 +60,7 @@ class BoozerSurfaceTests(unittest.TestCase):
                                           stellsym=stellsym,
                                           optimize_G=optimize_G,
                                           vectorize=vectorize):
-                            self.subtest_boozer_penalty_constraints_gradient(
-                                surfacetype, stellsym, optimize_G, vectorize)
+                            self.subtest_boozer_penalty_constraints_gradient(surfacetype, stellsym, optimize_G, vectorize)
 
     def test_boozer_penalty_constraints_hessian(self):
         """
@@ -97,17 +96,13 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
             x = np.concatenate((x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
-        if vectorize:
-            f0, J0 = boozer_surface.boozer_penalty_constraints_vectorized(
-                x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
-        else:
-            f0, J0 = boozer_surface.boozer_penalty_constraints(
-                x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
+        f0, J0 = fun(x, derivatives=1, constraint_weight=weight, optimize_G=optimize_G)
         h = np.random.uniform(size=x.shape)-0.5
         Jex = J0@h
 
@@ -115,14 +110,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         epsilons = np.power(2., -np.asarray(range(7, 20)))
         print("###############################################################")
         for eps in epsilons:
-            if vectorize:
-                f1 = boozer_surface.boozer_penalty_constraints_vectorized(
-                    x + eps*h, derivatives=0, constraint_weight=weight,
-                    optimize_G=optimize_G)
-            else:
-                f1 = boozer_surface.boozer_penalty_constraints(
-                    x + eps*h, derivatives=0, constraint_weight=weight,
-                    optimize_G=optimize_G)
+            f1 = fun(x + eps*h, derivatives=0, constraint_weight=weight, optimize_G=optimize_G)
             Jfd = (f1-f0)/eps
             err = np.linalg.norm(Jfd-Jex)/np.linalg.norm(Jex)
             print(err/err_old, f0, f1)
@@ -146,18 +134,15 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         tf_target = 0.1
         boozer_surface = BoozerSurface(bs, s, tf, tf_target)
+        fun = boozer_surface.boozer_penalty_constraints_vectorized if vectorize else boozer_surface.boozer_penalty_constraints
 
         iota = -0.3
         x = np.concatenate((s.get_dofs(), [iota]))
         if optimize_G:
             x = np.concatenate(
                 (x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
-        if vectorize:
-            f0, J0, H0 = boozer_surface.boozer_penalty_constraints_vectorized(
-                x, derivatives=2, optimize_G=optimize_G)
-        else:
-            f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
-                x, derivatives=2, optimize_G=optimize_G)
+
+        f0, J0, H0 = fun(x, derivatives=2, optimize_G=optimize_G)
         h1 = np.random.uniform(size=x.shape)-0.5
         h2 = np.random.uniform(size=x.shape)-0.5
         d2f = h1 @ H0 @ h2
@@ -166,12 +151,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         epsilons = np.power(2., -np.asarray(range(10, 20)))
         print("###############################################################")
         for eps in epsilons:
-            if vectorize:
-                fp, Jp = boozer_surface.boozer_penalty_constraints_vectorized(
-                    x + eps*h1, derivatives=1, optimize_G=optimize_G)
-            else:
-                fp, Jp = boozer_surface.boozer_penalty_constraints(
-                    x + eps*h1, derivatives=1, optimize_G=optimize_G)
+            fp, Jp = fun(x + eps*h1, derivatives=1, optimize_G=optimize_G)
             d2f_fd = (Jp@h2-J0@h2)/eps
             err = np.abs(d2f_fd-d2f)/np.abs(d2f)
             print(err/err_old)
