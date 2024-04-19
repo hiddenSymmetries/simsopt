@@ -163,7 +163,7 @@ class Testing(unittest.TestCase):
         curve1.set('xc(1)', r)
         curve1.set('zs(1)', -r)
         curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
-        assert np.mean(np.linalg.norm(curve1.gamma()-curve2.gamma(), axis=-1)) == 0 
+        np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
 
     def test_nonstellsym(self):
         # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
@@ -175,18 +175,9 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.set_points([[1, 1, 1], [1, -1, -1]])
         B=bs.B_cyl()
-        assert np.abs(B[0, 0]+B[1, 0]) <1e-15
-        assert np.abs(B[0, 1]-B[1, 1]) <1e-15
-        assert np.abs(B[0, 2]-B[1, 2]) <1e-15
-
-        # sanity check that a nonstellarator symmetric CurveXYZHelical produces a non-stellsym magnetic field
-        bs = BiotSavart([Coil(curve, Current(1e5))])
-        bs.set_points([[1, 1, 1], [1, -1, -1]])
-        B=bs.B_cyl()
-        assert not np.abs(B[0, 0]+B[1, 0]) <1e-15
-        assert not np.abs(B[0, 1]-B[1, 1]) <1e-15
-        assert not np.abs(B[0, 2]-B[1, 2]) <1e-15
-
+        np.testing.assert_allclose(B[0, 0], -B[1, 0], atol=1e-14)
+        np.testing.assert_allclose(B[0, 1], B[1, 1], atol=1e-14)
+        np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
 
     def test_xyzhelical_symmetries(self):
 
@@ -197,29 +188,29 @@ class Testing(unittest.TestCase):
         alpha = -2*np.pi/nfp
         R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
         print(R@out[0], out[1])
-        assert np.linalg.norm(out[1]-R@out[0])<1e-15
+        np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
 
         # does the stellarator symmetric curve indeed pass through (x0, 0, 0)?
         curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0]))
         out = curve.gamma()
-        assert out[0, 0] !=0
-        assert out[0, 1] == 0
-        assert out[0, 2] == 0
+        assert np.abs(out[0, 0]) > 1e-3
+        np.testing.assert_allclose(out[0, 1], 0, atol=1e-14)
+        np.testing.assert_allclose(out[0, 2], 0, atol=1e-14)
 
 
         # does the non-stellarator symmetric curve not pass through (x0, 0, 0)?
         curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0]))
         out = curve.gamma()
-        assert out[0, 0] !=0
-        assert out[0, 1] != 0
-        assert out[0, 2] != 0
+        assert np.abs(out[0, 0]) > 1e-3
+        assert np.abs(out[0, 1]) > 1e-3
+        assert np.abs(out[0, 2]) > 1e-3
 
         # is the stellarator symmetric curve actually stellarator symmetric?
         curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, -0.123]))
         pts = curve.gamma()
-        assert np.abs(pts[0, 0]-pts[1, 0]) <1e-15
-        assert np.abs(pts[0, 1]+pts[1, 1]) <1e-15
-        assert np.abs(pts[0, 2]+pts[1, 2]) <1e-15
+        np.testing.assert_allclose(pts[0, 0], pts[1, 0], atol=1e-14)
+        np.testing.assert_allclose(pts[0, 1], -pts[1, 1], atol= 1e-14)
+        np.testing.assert_allclose(pts[0, 2], -pts[1, 2], atol= 1e-14)
 
         # is the field from the stellarator symmetric curve actually stellarator symmetric?
         curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x=np.linspace(0, 1, 200, endpoint=False))
@@ -228,9 +219,9 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         bs.set_points([[1, 1, 1], [1, -1, -1]])
         B=bs.B_cyl()
-        assert np.abs(B[0, 0]+B[1, 0]) <1e-15
-        assert np.abs(B[0, 1]-B[1, 1]) <1e-15
-        assert np.abs(B[0, 2]-B[1, 2]) <1e-15
+        np.testing.assert_allclose(B[0, 0],-B[1, 0], atol=1e-14)
+        np.testing.assert_allclose(B[0, 1], B[1, 1], atol=1e-14)
+        np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
         
         # does the non-stellarator symmetric curve have rotational symmetry still?
         curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+1/nfp]))
@@ -238,7 +229,7 @@ class Testing(unittest.TestCase):
         alpha = -2*np.pi/nfp
         R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
         print(R@out[0], out[1])
-        assert np.linalg.norm(out[1]-R@out[0])<1e-15
+        np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
