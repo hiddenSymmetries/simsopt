@@ -44,6 +44,7 @@ class QuadpointsTests(unittest.TestCase):
         Check that the different options for initializing the theta
         quadrature points behave as expected.
         """
+        
         for surface_type in surface_types:
             # Try specifying no arguments for theta:
             s = eval(surface_type + "()")
