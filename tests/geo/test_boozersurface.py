@@ -146,7 +146,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for optimize_G in [True, False]:
-                    for vectorize in [True]:
+                    for vectorize in [False]:
                         with self.subTest(surfacetype=surfacetype,
                                           stellsym=stellsym,
                                           optimize_G=optimize_G,

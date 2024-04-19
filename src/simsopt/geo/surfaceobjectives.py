@@ -386,7 +386,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
         if weight_inv_modB:
             drtil_dG = w[:, :, None] * dresidual_dG
         else:
-            drtil_dG = dresidual_dG.copy()
+            drtil_dG = dresidual_dG
 
         drtil_dG_flattened = drtil_dG.reshape((nphi*ntheta*3, 1))
         J = np.concatenate((drtil_dc_flattened, drtil_diota_flattened, drtil_dG_flattened), axis=1)
@@ -423,9 +423,9 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
         d2rtil_dcdiota = w[:, :, None, None] * d2residual_by_dcdiota + dw_dc[:, :, None, :] * dresidual_diota[..., None] 
         d2rtil_diotadiota = np.zeros(dresidual_diota.shape)
     else:
-        d2rtil_dcdc = d2residual_by_dcdc.copy()
-        d2rtil_dcdiota = d2residual_by_dcdiota.copy() 
-        d2rtil_diotadiota = d2residual_by_diotadiota.copy()
+        d2rtil_dcdc = d2residual_by_dcdc
+        d2rtil_dcdiota = d2residual_by_dcdiota 
+        d2rtil_diotadiota = d2residual_by_diotadiota
    
     d2rtil_dcdc_flattened = d2rtil_dcdc.reshape((nphi*ntheta*3, nsurfdofs, nsurfdofs))
     d2rtil_dcdiota_flattened = d2rtil_dcdiota.reshape((nphi*ntheta*3, nsurfdofs))
@@ -436,7 +436,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
         if weight_inv_modB:
             d2rtil_dcdG = dw_dc[:, :, None, :] * dresidual_dG[..., None] + w[:, :, None, None] * d2residual_by_dcdG 
         else:
-            d2rtil_dcdG = d2residual_by_dcdG.copy()
+            d2rtil_dcdG = d2residual_by_dcdG
 
         d2rtil_dGdG = np.zeros(dresidual_dG.shape)
         d2rtil_dcdG_flattened = d2rtil_dcdG.reshape((nphi*ntheta*3, nsurfdofs))
