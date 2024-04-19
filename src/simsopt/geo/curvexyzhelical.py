@@ -43,21 +43,25 @@ def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym):
 
 
 class CurveXYZHelical(JaxCurve):
-    r'''A curve representation for a helical coil that does not lie on a torus.  The coordinates of the curve are given by:
+    r'''A curve representation for a helical coil that does not lie on a torus.
+     The coordinates of the curve are given by:
+
         .. math::
-            \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} cos(2pi n_{\text{fp}} m \theta)\\
-            \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} sin(2pi n_{\text{fp}} m \theta)\\
-            x(\theta) &= \hat x(\theta)  \cos(2pi \theta) - \hat y(\theta)  \sin(2pi \theta)\\
-            y(\theta) &= \hat x(\theta)  \sin(2pi \theta) + \hat y(\theta)  \cos(2pi \theta)\\
-            z(\theta) &= \sum_{i=1}^{\text{order}} z_{s,m} sin(2pi n_{\text{fp}} \theta)
+            \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} \cos(2 \pi n_{\text{fp}} m \theta)\\
+            \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)\\
+            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta) - \hat y(\theta)  \sin(2 \pi \theta)\\
+            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta) + \hat y(\theta)  \cos(2 \pi \theta)\\
+            z(\theta) &= \sum_{m=1}^{\text{order}} z_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)
+
         if the coil is stellarator symmetric.  When the coil is not stellarator symmetric, the formulas above
         become
+
         .. math::
-            \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c, m} cos(2pi m \theta) +  x_{s, m} sin(2pi m \theta)\\
-            \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} y_{c, m} cos(2pi m \theta) +  y_{s, m} sin(2pi m \theta)\\
-            x(\theta) &= \hat x(\theta)  \cos(2pi \theta) - \hat y(\theta)  \sin(2pi \theta)\\
-            y(\theta) &= \hat x(\theta)  \sin(2pi \theta) + \hat y(\theta)  \cos(2pi \theta)\\
-            z(\theta) &= z_{c, 0} + \sum_{m=1}^{\text{order}} z_{c, m} cos(2pi \theta) + z_{s, m} sin(2pi \theta)
+            \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} \left[ x_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  x_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
+            \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} \left[ y_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  y_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
+            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta) - \hat y(\theta)  \sin(2 \pi \theta)\\
+            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta) + \hat y(\theta)  \cos(2 \pi \theta)\\
+            z(\theta) &= z_{c, 0} + \sum_{m=1}^{\text{order}} \left[ z_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) + z_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right]
         
         Args:
             quadpoints: number of grid points/resolution along the curve,
