@@ -54,6 +54,10 @@ jobs:
         set -ex
         which python
 
+    - uses: actions/checkout@v3
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+
     - name: apt-get stuff needed for libstell and vmec
       run: |
         sudo apt-get update
