@@ -7,17 +7,16 @@ __all__ = ['CurveXYZHelical']
 
 def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym):
     
+    theta, m = jnp.meshgrid(quadpoints, jnp.arange(order + 1), indexing='ij')
+
     if stellsym:
         xc = dofs[:order+1]
         ys = dofs[order+1:2*order+1]
         zs = dofs[2*order+1:]
         
-        theta, m = jnp.meshgrid(quadpoints, jnp.arange(order+1), indexing='ij')
         xhat = np.sum(xc[None, :] * jnp.cos(2 * jnp.pi * nfp*m*theta), axis=1)
         yhat = np.sum(ys[None, :] * jnp.sin(2 * jnp.pi * nfp*m[:, 1:]*theta[:, 1:]), axis=1)
         
-        x = jnp.cos(2*jnp.pi*quadpoints) * xhat - jnp.sin(2*jnp.pi*quadpoints) * yhat
-        y = jnp.sin(2*jnp.pi*quadpoints) * xhat + jnp.cos(2*jnp.pi*quadpoints) * yhat
         z = jnp.sum(zs[None, :] * jnp.sin(2*jnp.pi*nfp * m[:, 1:]*theta[:, 1:]), axis=1)
     else:
         xc = dofs[0        :   order+1]
@@ -27,13 +26,14 @@ def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym):
         zc = dofs[4*order+2: 5*order+3]
         zs = dofs[5*order+3:          ]
         
-        theta, m = jnp.meshgrid(quadpoints, jnp.arange(order+1), indexing='ij')
         xhat = np.sum(xc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(xs[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
         yhat = np.sum(yc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(ys[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
         
-        x = jnp.cos(2*jnp.pi*quadpoints) * xhat - jnp.sin(2*jnp.pi*quadpoints) * yhat
-        y = jnp.sin(2*jnp.pi*quadpoints) * xhat + jnp.cos(2*jnp.pi*quadpoints) * yhat
         z = np.sum(zc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(zs[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
+
+    angle = 2 * jnp.pi * quadpoints
+    x = jnp.cos(angle) * xhat - jnp.sin(angle) * yhat
+    y = jnp.sin(angle) * xhat + jnp.cos(angle) * yhat
 
     gamma = jnp.zeros((len(quadpoints),3))
     gamma = gamma.at[:, 0].add(x)

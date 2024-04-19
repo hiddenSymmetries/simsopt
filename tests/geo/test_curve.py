@@ -15,6 +15,7 @@ from simsopt.geo.curvexyzhelical import CurveXYZHelical
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data  
+from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
 
@@ -59,7 +60,6 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
     print("################################################################################")
 
 
-#def get_curve(curvetype, rotated, x=np.linspace(0, 1, 100, endpoint=False)):
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale = 0.01
@@ -170,7 +170,6 @@ class Testing(unittest.TestCase):
         # CurveXYZHelical curves.
         nfp = 3
         curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp)
-        from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
         current = Current(1e5)
         coils = coils_via_symmetries([curve], [current], 1, True)
         bs = BiotSavart(coils)
@@ -223,7 +222,6 @@ class Testing(unittest.TestCase):
         assert np.abs(pts[0, 2]+pts[1, 2]) <1e-15
 
         # is the field from the stellarator symmetric curve actually stellarator symmetric?
-        from simsopt.field import BiotSavart, Current, Coil
         curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x=np.linspace(0, 1, 200, endpoint=False))
         current = Current(1e5)
         coil = Coil(curve, current)
