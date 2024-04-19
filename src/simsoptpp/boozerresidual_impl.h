@@ -202,19 +202,19 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                 
                 MYIF(deriv > 1) {
                     // outer product d_rij0_dm (x) d_rij0_dm
-                    for(int m = 0; m < ndofs + 2; m++){
-                        simd_t drtilij0_dm(drtilij0[m]);
-                        simd_t drtilij1_dm(drtilij1[m]);
-                        simd_t drtilij2_dm(drtilij2[m]);
-                        for(int n = m; n < ndofs + 2; n+=simd_size){
-                            simd_t drtilij0_dn = xs::load_aligned(&drtilij0[n]);
-                            simd_t drtilij1_dn = xs::load_aligned(&drtilij1[n]);
-                            simd_t drtilij2_dn = xs::load_aligned(&drtilij2[n]);
+                    for(int m = 0; m < ndofs + 2; m+=simd_size){
+                        simd_t drtilij0_dm  = xs::load_aligned(&drtilij0[m]);
+                        simd_t drtilij1_dm  = xs::load_aligned(&drtilij1[m]);
+                        simd_t drtilij2_dm  = xs::load_aligned(&drtilij2[m]);
+                        for(int n = m; n < ndofs + 2; n++){
+                            simd_t drtilij0_dn(drtilij0[n]);
+                            simd_t drtilij1_dn(drtilij1[n]);
+                            simd_t drtilij2_dn(drtilij2[n]);
                             simd_t d2res_mn = drtilij0_dm * drtilij0_dn + drtilij1_dm * drtilij1_dn + drtilij2_dm * drtilij2_dn;
                         
                             int jjlimit = std::min(simd_size, ndofs+2-n);
                             for(int jj = 0; jj < jjlimit; jj++){
-                                d2res(m, n+jj) += d2res_mn[jj];
+                                d2res(m+jj, n) += d2res_mn[jj];
                             }
                         }
                     }
