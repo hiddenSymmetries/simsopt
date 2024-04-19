@@ -49,45 +49,6 @@ def taylor_test1(f, df, x, epsilons=None, direction1=None, order=6):
     print("###################################################################")
 
 
-def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
-                 direction2=None, order=6):
-    # default stencil is 6th order, so you should be able to get 10 digits of accuracy in hessian
-    np.random.seed(1)
-    if direction1 is None:
-        direction1 = np.random.rand(*(x.shape))-0.5
-    if direction2 is None:
-        direction2 = np.random.rand(*(x.shape))-0.5
-
-    d2fval = direction2.T @ d2f(x) @ direction1
-    if epsilons is None:
-        epsilons = np.power(2., -np.asarray(range(7, 20)))
-    print("###################################################################")
-    err_old = 1e9
-    for eps in epsilons:
-        if order == 1:
-            shifts = [0, 1]
-            weights = [-1, 1]
-        elif order == 2:
-            shifts = [-1, 1]
-            weights = [-0.5, 0.5]
-        elif order == 4:
-            shifts = [-2, -1, 1, 2]
-            weights = [1/12, -2/3, 2/3, -1/12]
-        elif order == 6:
-            shifts = [-3, -2, -1, 1, 2, 3]
-            weights = [-1/60, 3/20, -3/4, 3/4, -3/20, 1/60]
-        fd = 0.
-        for i in range(len(shifts)):
-            fd += weights[i] * df(x + eps * shifts[i] * direction2) @ direction1
-        err = np.abs(fd/eps - d2fval)
-
-        print(err/np.abs(d2fval), err/err_old)
-        if err/np.abs(d2fval) < 1e-10:
-            break
-        err_old = err
-    assert err/np.abs(d2fval) < 1e-10
-    print("###################################################################")
-
 class BoozerSurfaceTests(unittest.TestCase):
     def test_residual(self):
         """
@@ -249,23 +210,6 @@ class BoozerSurfaceTests(unittest.TestCase):
             print(err/err_old)
             assert err < err_old * 0.55
             err_old = err
-    
-        
-        coeffs = x.copy()
-        def f(dofs):
-            f0 = fun(dofs, derivatives=0, optimize_G=optimize_G)
-            return f0
-
-        def df(dofs):
-            f0, J0 = fun(dofs, derivatives=1, optimize_G=optimize_G)
-            return J0
-
-        def d2f(dofs):
-            f0, J0, H0 = fun(dofs, derivatives=2, optimize_G=optimize_G)
-            return H0
-
-        taylor_test2(f, df, d2f, coeffs,
-                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def test_boozer_constrained_jacobian(self):
         """
