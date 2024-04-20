@@ -121,11 +121,12 @@ jobs:
         pwd
         ls -l
     
-    # For some reason, installing mayavi. Therefore I install manually here.
-    - name: Install mayavi
+    # For some reason, installing mayavi later is causing issues. Therefore I install manually here.
+    - name: Install mayavi and PyQt5
       run: |
-        pip install mayavi
+        pip install mayavi PyQt5
         python -c "import mayavi; print('success')"
+        python -c "import PyQt5; print('success')"
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
