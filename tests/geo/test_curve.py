@@ -166,6 +166,8 @@ class Testing(unittest.TestCase):
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
     
     def test_nonstellsym(self):
+        # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
+        # CurveXYZHelical curves.
         for nfp in [1, 2, 3, 4, 5, 6]:
             for ntor in [1, 2, 3, 4, 5, 6]:
                 with self.subTest(nfp=nfp, ntor=ntor):
@@ -188,16 +190,14 @@ class Testing(unittest.TestCase):
         np.testing.assert_allclose(B[0, 1], B[1, 1], atol=1e-14)
         np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
     
-    def test_ntor(self):
-        # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
-        # CurveXYZHelical curves.
+    def test_xyzhelical_symmetries(self):
+        # checking various symmetries of the CurveXYZHelical representation
         for nfp in [1, 2, 3, 4, 5, 6]:
             for ntor in [1, 2, 3, 4, 5, 6]:
                 with self.subTest(nfp=nfp, ntor=ntor):
                     self.subtest_xyzhelical_symmetries(nfp, ntor)
     
     def subtest_xyzhelical_symmetries(self, nfp, ntor):
-        
         nfp_true = nfp // gcd(ntor, nfp)
         if nfp_true != nfp:
             return
