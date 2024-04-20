@@ -40,7 +40,6 @@ class BoozerSurface(Optimizable):
 
     where Newton is used to solve the first order necessary conditions for optimality.
     """
-    
     def __init__(self, biotsavart, surface, label, targetlabel):
         super().__init__(depends_on=[biotsavart])
         self.biotsavart = biotsavart
