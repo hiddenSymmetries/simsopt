@@ -12,8 +12,6 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include <chrono>
 
 
-
-
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 #include "boozerradialinterpolant.h"
