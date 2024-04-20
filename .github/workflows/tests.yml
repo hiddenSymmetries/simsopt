@@ -120,6 +120,12 @@ jobs:
         cd SPEC
         pwd
         ls -l
+    
+    # For some reason, installing mayavi. Therefore I install manually here.
+    - name: Install mayavi
+      run: |
+        pip install mayavi
+        python -c "import mayavi; print('success')"
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
