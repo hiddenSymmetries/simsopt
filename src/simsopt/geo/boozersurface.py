@@ -324,7 +324,7 @@ class BoozerSurface(Optimizable):
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
 
-        fun_name = self.boozer_penalty_constraints_vectorized else lambda x: self.boozer_penalty_constraints
+        fun_name = self.boozer_penalty_constraints_vectorized if vectorize else self.boozer_penalty_constraints
         fun = lambda x: fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
         
         res = minimize(
@@ -364,7 +364,7 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         
-        fun_name = self.boozer_penalty_constraints_vectorized else lambda x: self.boozer_penalty_constraints
+        fun_name = self.boozer_penalty_constraints_vectorized if vectorize else self.boozer_penalty_constraints
         val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
         
         norm = np.linalg.norm(dval)
