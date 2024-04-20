@@ -324,12 +324,9 @@ class BoozerSurface(Optimizable):
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
 
-        if vectorize:
-            fun = lambda x: self.boozer_penalty_constraints_vectorized(
-                x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
-        else:
-            fun = lambda x: self.boozer_penalty_constraints(
-                x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
+        fun_name = self.boozer_penalty_constraints_vectorized else lambda x: self.boozer_penalty_constraints
+        fun = lambda x: fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None)
+        
         res = minimize(
             fun, x, jac=True, method='L-BFGS-B',
             options={'maxiter': maxiter, 'ftol': tol, 'gtol': tol, 'maxcor': 200})
@@ -367,12 +364,9 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         
-        if vectorize:
-            val, dval, d2val = self.boozer_penalty_constraints_vectorized(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
-        else:
-            val, dval, d2val = self.boozer_penalty_constraints(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+        fun_name = self.boozer_penalty_constraints_vectorized else lambda x: self.boozer_penalty_constraints
+        val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+        
         norm = np.linalg.norm(dval)
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
@@ -380,13 +374,11 @@ class BoozerSurface(Optimizable):
             if norm < 1e-9:
                 dx += np.linalg.solve(d2val, dval - d2val@dx)
             x = x - dx
-            val, dval, d2val = self.boozer_penalty_constraints(
-                x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
+            val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval)
             i = i+1
 
-        r = self.boozer_penalty_constraints(
-            x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+        r = fun_name(x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
         res = {
             "residual": r, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None,
         }
