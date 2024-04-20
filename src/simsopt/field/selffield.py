@@ -60,27 +60,24 @@ def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
 def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
     # The factors of 2π in the next few lines come from the fact that simsopt
     # uses a curve parameter that goes up to 1 rather than 2π.
-    phi = quadpoints * 2 * np.pi
-    r_c = gamma
-    rc_prime = gammadash / 2 / np.pi
-    rc_prime_prime = gammadashdash / 4 / np.pi**2
+    phi = quadpoints * 2 * jnp.pi
+    rc = gamma
+    rc_prime = gammadash / 2 / jnp.pi
+    rc_prime_prime = gammadashdash / 4 / jnp.pi**2
     n_quad = phi.shape[0]
     dphi = 2 * jnp.pi / n_quad
 
     analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
 
-    integral_term = jnp.zeros((n_quad, 3))
-    for j in range(n_quad):
-        dr = r_c - r_c[j]
-        first_term = (
-            jnp.cross(rc_prime[j], dr) / ((jnp.sum(dr * dr, axis=1) + regularization) ** 1.5)[:, None]
-        )
-        cos_fac = 2 - 2 * jnp.cos(phi[j] - phi)
-        denominator2 = cos_fac * jnp.sum(rc_prime * rc_prime, axis=1) + regularization
-        factor2 = 0.5 * cos_fac / denominator2**1.5
-        second_term = jnp.cross(rc_prime_prime, rc_prime) * factor2[:, None]
-        integral_term += dphi * (first_term + second_term)
+    dr = rc[:, None] - rc[None, :]    
+    first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
+    cos_fac = 2 - 2 * jnp.cos(phi[None, :] - phi[:, None])
+    denominator2 = cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization
+    factor2 = 0.5 * cos_fac / denominator2**1.5
+    second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * factor2[:, :, None]
 
+    integral_term = dphi * jnp.sum(first_term + second_term, 1)
+    
     return current * Biot_savart_prefactor * (analytic_term + integral_term)
 
 
