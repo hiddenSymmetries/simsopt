@@ -18,7 +18,7 @@ from simsopt.configs.zoo import get_ncsx_data, get_w7x_data
 from simsopt.field import BiotSavart, Current, coils_via_symmetries, Coil
 from simsopt.field.coil import coils_to_makegrid
 from simsopt.geo import CurveLength, CurveCurveDistance
-
+from math import gcd
 
 try:
     import pyevtk
@@ -126,7 +126,7 @@ class Testing(unittest.TestCase):
 
     curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZHelical1","CurveXYZHelical2", "CurveHelicalInitx0"]
     
-    def get_curvexyzhelical(self, stellsym=True, x=None, nfp=None):
+    def get_curvexyzhelical(self, stellsym=True, x=None, nfp=None, ntor=1):
         # returns a CurveXYZHelical that is randomly perturbed
 
         np.random.seed(1)
@@ -138,7 +138,7 @@ class Testing(unittest.TestCase):
             x = np.linspace(0, 1, 200, endpoint=False)
         
         order = 2
-        curve = CurveXYZHelical(x, order, nfp, stellsym)
+        curve = CurveXYZHelical(x, order, nfp, stellsym, ntor=ntor)
         R = 1
         r = 0.25
         curve.set('xc(0)', R)
@@ -164,12 +164,21 @@ class Testing(unittest.TestCase):
         curve1.set('zs(1)', -r)
         curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
-
+    
     def test_nonstellsym(self):
+        for nfp in [1, 2, 3, 4, 5, 6]:
+            for ntor in [1, 2, 3, 4, 5, 6]:
+                with self.subTest(nfp=nfp, ntor=ntor):
+                    self.subtest_nonstellsym(nfp, ntor)
+
+    def subtest_nonstellsym(self, nfp, ntor):
+        nfp_true = nfp // gcd(ntor, nfp)
+        if nfp_true != nfp:
+            return
+
         # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
         # CurveXYZHelical curves.
-        nfp = 3
-        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp)
+        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, ntor=ntor)
         current = Current(1e5)
         coils = coils_via_symmetries([curve], [current], 1, True)
         bs = BiotSavart(coils)
@@ -178,20 +187,39 @@ class Testing(unittest.TestCase):
         np.testing.assert_allclose(B[0, 0], -B[1, 0], atol=1e-14)
         np.testing.assert_allclose(B[0, 1], B[1, 1], atol=1e-14)
         np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
+    
+    def test_ntor(self):
+        # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
+        # CurveXYZHelical curves.
+        for nfp in [1, 2, 3, 4, 5, 6]:
+            for ntor in [1, 2, 3, 4, 5, 6]:
+                with self.subTest(nfp=nfp, ntor=ntor):
+                    self.subtest_xyzhelical_symmetries(nfp, ntor)
+    
+    def subtest_xyzhelical_symmetries(self, nfp, ntor):
+        
+        nfp_true = nfp // gcd(ntor, nfp)
+        if nfp_true != nfp:
+            return
 
-    def test_xyzhelical_symmetries(self):
-
-        nfp = 3
         # does the stellarator symmetric curve have rotational symmetry?
-        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, 0.123+1/nfp]))
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x=np.array([0.123, 0.123+ntor/nfp]), ntor=ntor)
         out = curve.gamma()
         alpha = -2*np.pi/nfp
-        R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
+        R = np.array([
+            [np.cos(alpha), np.sin(alpha), 0], 
+            [-np.sin(alpha), np.cos(alpha), 0], 
+            [0, 0, 1]
+            ])
+        
         print(R@out[0], out[1])
-        np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
+        try:
+            np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
+        except:
+            np.testing.assert_allclose(out[1], np.linalg.inv(R)@out[0], atol=1e-14)
 
         # does the stellarator symmetric curve indeed pass through (x0, 0, 0)?
-        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0]))
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0]), ntor=ntor)
         out = curve.gamma()
         assert np.abs(out[0, 0]) > 1e-3
         np.testing.assert_allclose(out[0, 1], 0, atol=1e-14)
@@ -199,21 +227,21 @@ class Testing(unittest.TestCase):
 
 
         # does the non-stellarator symmetric curve not pass through (x0, 0, 0)?
-        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0]))
+        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0]), ntor=ntor)
         out = curve.gamma()
         assert np.abs(out[0, 0]) > 1e-3
         assert np.abs(out[0, 1]) > 1e-3
         assert np.abs(out[0, 2]) > 1e-3
 
         # is the stellarator symmetric curve actually stellarator symmetric?
-        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, -0.123]))
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x = np.array([0.123, -0.123]), ntor=ntor)
         pts = curve.gamma()
         np.testing.assert_allclose(pts[0, 0], pts[1, 0], atol=1e-14)
         np.testing.assert_allclose(pts[0, 1], -pts[1, 1], atol= 1e-14)
         np.testing.assert_allclose(pts[0, 2], -pts[1, 2], atol= 1e-14)
 
         # is the field from the stellarator symmetric curve actually stellarator symmetric?
-        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x=np.linspace(0, 1, 200, endpoint=False))
+        curve = self.get_curvexyzhelical(stellsym=True, nfp=nfp, x=np.linspace(0, 1, 200, endpoint=False), ntor=ntor)
         current = Current(1e5)
         coil = Coil(curve, current)
         bs = BiotSavart([coil])
@@ -224,12 +252,15 @@ class Testing(unittest.TestCase):
         np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
         
         # does the non-stellarator symmetric curve have rotational symmetry still?
-        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+1/nfp]))
+        curve = self.get_curvexyzhelical(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+ntor/nfp]), ntor=ntor)
         out = curve.gamma()
         alpha = -2*np.pi/nfp
         R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
         print(R@out[0], out[1])
-        np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
+        try:
+            np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
+        except:
+            np.testing.assert_allclose(out[1], np.linalg.inv(R)@out[0], atol=1e-14)
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])

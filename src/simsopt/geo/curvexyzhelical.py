@@ -1,11 +1,12 @@
 import jax.numpy as jnp
 import numpy as np
 from .curve import JaxCurve
+from math import gcd
 
 __all__ = ['CurveXYZHelical']
 
 
-def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym):
+def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
     
     theta, m = jnp.meshgrid(quadpoints, jnp.arange(order + 1), indexing='ij')
 
@@ -31,7 +32,7 @@ def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym):
         
         z = np.sum(zc[None, :] * jnp.cos(2*jnp.pi*nfp*m*theta), axis=1) + np.sum(zs[None, :] * jnp.sin(2*jnp.pi*nfp*m[:, 1:]*theta[:, 1:]), axis=1)
 
-    angle = 2 * jnp.pi * quadpoints
+    angle = 2 * jnp.pi * quadpoints * ntor
     x = jnp.cos(angle) * xhat - jnp.sin(angle) * yhat
     y = jnp.sin(angle) * xhat + jnp.cos(angle) * yhat
 
@@ -49,8 +50,8 @@ class CurveXYZHelical(JaxCurve):
         .. math::
             \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} \cos(2 \pi n_{\text{fp}} m \theta)\\
             \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)\\
-            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta) - \hat y(\theta)  \sin(2 \pi \theta)\\
-            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta) + \hat y(\theta)  \cos(2 \pi \theta)\\
+            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
+            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
             z(\theta) &= \sum_{m=1}^{\text{order}} z_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)
 
         if the coil is stellarator symmetric.  When the coil is not stellarator symmetric, the formulas above
@@ -59,26 +60,36 @@ class CurveXYZHelical(JaxCurve):
         .. math::
             \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} \left[ x_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  x_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
             \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} \left[ y_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  y_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
-            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta) - \hat y(\theta)  \sin(2 \pi \theta)\\
-            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta) + \hat y(\theta)  \cos(2 \pi \theta)\\
+            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
+            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
             z(\theta) &= z_{c, 0} + \sum_{m=1}^{\text{order}} \left[ z_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) + z_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right]
-        
+
         Args:
             quadpoints: number of grid points/resolution along the curve,
             order:  how many Fourier harmonics to include in the Fourier representation,
             nfp: discrete rotational symmetry number, 
-            stellsym: stellaratory symmetry if True, not stellarator symmetric otherwise.
+            stellsym: stellaratory symmetry if True, not stellarator symmetric otherwise,
+            ntor: the number of times the curve wraps toroidally before biting its tail. Note,
+                  it is assumed that nfp and ntor are coprime.  If they are not coprime,
+                  then then the curve actually has nfp_new:=nfp // gcd(nfp, ntor),
+                  and ntor_new:=ntor // gcd(nfp, ntor).  To avoid confusion,
+                  we assert that ntor and nfp are coprime at instatiation.
         '''
 
-    def __init__(self, quadpoints, order, nfp, stellsym, **kwargs):
+    def __init__(self, quadpoints, order, nfp, stellsym, ntor=1, **kwargs):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxXYZHelicalFouriercurve_pure(
-            dofs, points, order, nfp, stellsym)
+            dofs, points, order, nfp, stellsym, ntor)
         
+        nfp_true = nfp // gcd(nfp, ntor) 
+        if nfp != nfp_true:
+            raise Exception('nfp and ntor must be coprime')
+
         self.order = order
         self.nfp = nfp
         self.stellsym = stellsym
+        self.ntor = ntor
         self.coefficients = np.zeros(self.num_dofs())
         if "dofs" not in kwargs:
             if "x0" not in kwargs:
