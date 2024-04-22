@@ -22,7 +22,6 @@ jobs:
     env:
       OMPI_ALLOW_RUN_AS_ROOT: 1
       OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: 1
-      QT_QPA_PLATFORM: offscreen
 
     strategy:
       fail-fast: false
@@ -164,6 +163,8 @@ jobs:
       
     - name: Try installing mayavi from source
       run: |
+          pip uninstall opencv-python
+          pip install opencv-python-headless
           git clone https://github.com/enthought/mayavi.git
           cd mayavi
           pip install vtk>=8.1.2, PyQt5
