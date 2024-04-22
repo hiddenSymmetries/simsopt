@@ -165,9 +165,9 @@ class Testing(unittest.TestCase):
         curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
     
-    def test_trefoil(self):
-        r''' This test checks that a CurveXYZFourierSymmetries can represent a trefoil knot.
-        A parametric representation of a trefoil knot is given by:
+    def test_trefoil_nonstellsym(self):
+        r''' This test checks that a CurveXYZFourierSymmetries can represent a non-stellarator symmetric
+        trefoil knot.  A parametric representation of a trefoil knot is given by:
         
         .. math::
             x(t) &= sin(t) + 2sin(t) \\
@@ -184,7 +184,7 @@ class Testing(unittest.TestCase):
             y(t) &= xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t), \\
             z(t) &= -sin(nfp*t),
         
-        i.e., xs(1)=1, yc(0)=-2, yc(1)=1, zs(1)=-1.
+        i.e., The dofs are xs(1)=1, yc(0)=-2, yc(1)=1, zs(1)=-1, and zero otherwise.
         '''
 
         order = 1
@@ -203,6 +203,46 @@ class Testing(unittest.TestCase):
         curve.set('yc(1)', 1.)
         curve.set('zs(1)', -1.)
         np.testing.assert_allclose(curve.gamma(), XYZ, atol=1e-14)
+
+    def test_trefoil_stellsym(self):
+        r''' This test checks that a CurveXYZFourierSymmetries can represent a stellarator symmetric
+        trefoil knot.  A parametric representation of a trefoil knot is given by:
+        
+        .. math::
+            x(t) &= cos(t) - 2cos(t) \\
+            y(t) &=-sin(t) - 2sin(t) \\
+            z(t) &= -sin(3t)
+        
+        The above can be rewritten the CurveXYZFourierSymmetries representation, with
+        order = 1, nfp = 3, and ntor = 2:
+        
+        .. math::
+            xhat(t) &= -2 + cos(t)\\
+            yhat(t) &= -sin(t)\\ 
+            x(t) &= xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t), \\
+            y(t) &= xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t), \\
+            z(t) &= -sin(nfp*t),
+        
+        i.e., xc(0)=-2, xc(1)=1, ys(1)=-1, zs(1)=-1.
+        '''
+
+        order = 1
+        nfp = 3
+        ntor = 2
+        x = np.linspace(0, 1, 500, endpoint=False)
+        curve = CurveXYZFourierSymmetries(x, order, nfp, True, ntor=ntor)
+        
+        X = np.cos(2*np.pi * x) - 2 * np.cos(2*2*np.pi * x)
+        Y =-np.sin(2*np.pi * x) - 2 * np.sin(2*2*np.pi * x)
+        Z = -np.sin(3*2*np.pi*x)
+        XYZ = np.concatenate([X[:, None], Y[:, None], Z[:, None]], axis=1)
+        
+        curve.set('xc(0)', -2)
+        curve.set('xc(1)', 1)
+        curve.set('ys(1)', -1)
+        curve.set('zs(1)', -1)
+        np.testing.assert_allclose(curve.gamma(), XYZ, atol=1e-14)
+
 
     def test_nonstellsym(self):
         # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
