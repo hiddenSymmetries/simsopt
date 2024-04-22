@@ -167,6 +167,7 @@ jobs:
           cd mayavi
           pip install vtk>=8.1.2, PyQt5
           python setup.py install
+          export QT_QPA_PLATFORM=offscreen
 
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
