@@ -120,13 +120,6 @@ jobs:
         cd SPEC
         pwd
         ls -l
-    
-    # For some reason, installing mayavi later is causing issues. Therefore I install manually here.
-    - name: Install mayavi and PyQt5
-      run: |
-        pip install mayavi PyQt5
-        python -c "import mayavi; print('success')"
-        python -c "import PyQt5; print('success')"
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
@@ -167,6 +160,12 @@ jobs:
 
     - name: Try importing vmec module
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
+      
+    - name: Try installing mayavi from source
+      run: |
+          git clone git@github.com:enthought/mayavi.git
+          cd mayavi
+          pip install .
 
     - name: Install simsopt package
       # run: env CMAKE_BUILD_TYPE=Debug pip install -v .[MPI,SPEC]
