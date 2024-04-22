@@ -82,8 +82,7 @@ class CurveXYZFourierSymmetries(JaxCurve):
         pure = lambda dofs, points: jaxXYZFourierSymmetriescurve_pure(
             dofs, points, order, nfp, stellsym, ntor)
         
-        nfp_true = nfp // gcd(nfp, ntor) 
-        if nfp != nfp_true:
+        if gcd(ntor, nfp) != 1:
             raise Exception('nfp and ntor must be coprime')
 
         self.order = order

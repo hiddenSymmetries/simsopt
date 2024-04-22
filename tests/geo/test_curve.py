@@ -213,8 +213,7 @@ class Testing(unittest.TestCase):
                     self.subtest_nonstellsym(nfp, ntor)
 
     def subtest_nonstellsym(self, nfp, ntor):
-        nfp_true = nfp // gcd(ntor, nfp)
-        if nfp_true != nfp:
+        if gcd(ntor, nfp) != 1:
             return
 
         # this test checks that you can obtain a stellarator symmetric magnetic field from two non-stellarator symmetric
