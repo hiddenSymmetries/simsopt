@@ -165,8 +165,7 @@ jobs:
       run: |
           git clone https://github.com/enthought/mayavi.git
           cd mayavi
-          pip install -r requirements.txt
-          pip install PyQt5
+          pip install vtk>=8.1.2, PyQt5
           python setup.py install
 
     - name: Install simsopt package
