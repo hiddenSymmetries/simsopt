@@ -46,35 +46,44 @@ def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, nt
 class CurveXYZFourierSymmetries(JaxCurve):
     r'''A curve representation that allows for stellarator and discrete rotational symmetries.  This class can be used to
     represent a helical coil that does not lie on a torus.  The coordinates of the curve are given by:
+    
+    .. math::
+        x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
+        y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
+        z(\theta) &= \sum_{m=1}^{\text{order}} z_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)
 
-        .. math::
-            \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} \cos(2 \pi n_{\text{fp}} m \theta)\\
-            \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)\\
-            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
-            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
-            z(\theta) &= \sum_{m=1}^{\text{order}} z_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)
+    where
 
-        if the coil is stellarator symmetric.  When the coil is not stellarator symmetric, the formulas above
-        become
+    .. math::
+        \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} \cos(2 \pi n_{\text{fp}} m \theta)\\
+        \hat y(\theta) &=            \sum_{m=1}^{\text{order}} y_{s,m} \sin(2 \pi n_{\text{fp}} m \theta)\\
 
-        .. math::
-            \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} \left[ x_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  x_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
-            \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} \left[ y_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  y_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
-            x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
-            y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
-            z(\theta) &= z_{c, 0} + \sum_{m=1}^{\text{order}} \left[ z_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) + z_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right]
 
-        Args:
-            quadpoints: number of grid points/resolution along the curve,
-            order:  how many Fourier harmonics to include in the Fourier representation,
-            nfp: discrete rotational symmetry number, 
-            stellsym: stellaratory symmetry if True, not stellarator symmetric otherwise,
-            ntor: the number of times the curve wraps toroidally before biting its tail. Note,
-                  it is assumed that nfp and ntor are coprime.  If they are not coprime,
-                  then then the curve actually has nfp_new:=nfp // gcd(nfp, ntor),
-                  and ntor_new:=ntor // gcd(nfp, ntor).  To avoid confusion,
-                  we assert that ntor and nfp are coprime at instantiation.
-        '''
+    if the coil is stellarator symmetric.  When the coil is not stellarator symmetric, the formulas above
+    become
+
+    .. math::
+        x(\theta) &= \hat x(\theta)  \cos(2 \pi \theta n_{\text{tor}}) - \hat y(\theta)  \sin(2 \pi \theta n_{\text{tor}})\\
+        y(\theta) &= \hat x(\theta)  \sin(2 \pi \theta n_{\text{tor}}) + \hat y(\theta)  \cos(2 \pi \theta n_{\text{tor}})\\
+        z(\theta) &= z_{c, 0} + \sum_{m=1}^{\text{order}} \left[ z_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) + z_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right]
+
+    where
+    
+    .. math::
+        \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} \left[ x_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  x_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
+        \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} \left[ y_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  y_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
+
+    Args:
+        quadpoints: number of grid points/resolution along the curve,
+        order:  how many Fourier harmonics to include in the Fourier representation,
+        nfp: discrete rotational symmetry number, 
+        stellsym: stellaratory symmetry if True, not stellarator symmetric otherwise,
+        ntor: the number of times the curve wraps toroidally before biting its tail. Note,
+              it is assumed that nfp and ntor are coprime.  If they are not coprime,
+              then then the curve actually has nfp_new:=nfp // gcd(nfp, ntor),
+              and ntor_new:=ntor // gcd(nfp, ntor).  The operator `//` is integer division.
+              To avoid confusion, we assert that ntor and nfp are coprime at instantiation.
+    '''
 
     def __init__(self, quadpoints, order, nfp, stellsym, ntor=1, **kwargs):
         if isinstance(quadpoints, int):
