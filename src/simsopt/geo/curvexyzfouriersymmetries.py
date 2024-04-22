@@ -3,10 +3,10 @@ import numpy as np
 from .curve import JaxCurve
 from math import gcd
 
-__all__ = ['CurveXYZHelical']
+__all__ = ['CurveXYZFourierSymmetries']
 
 
-def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
+def jaxXYZFourierSymmetriescurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor):
     
     theta, m = jnp.meshgrid(quadpoints, jnp.arange(order + 1), indexing='ij')
 
@@ -43,9 +43,9 @@ def jaxXYZHelicalFouriercurve_pure(dofs, quadpoints, order, nfp, stellsym, ntor)
     return gamma
 
 
-class CurveXYZHelical(JaxCurve):
-    r'''A curve representation for a helical coil that does not lie on a torus.
-     The coordinates of the curve are given by:
+class CurveXYZFourierSymmetries(JaxCurve):
+    r'''A curve representation that allows for stellarator and discrete rotational symmetries.  This class can be used to
+    represent a helical coil that does not lie on a torus.  The coordinates of the curve are given by:
 
         .. math::
             \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} x_{c,m} \cos(2 \pi n_{\text{fp}} m \theta)\\
@@ -79,7 +79,7 @@ class CurveXYZHelical(JaxCurve):
     def __init__(self, quadpoints, order, nfp, stellsym, ntor=1, **kwargs):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxXYZHelicalFouriercurve_pure(
+        pure = lambda dofs, points: jaxXYZFourierSymmetriescurve_pure(
             dofs, points, order, nfp, stellsym, ntor)
         
         nfp_true = nfp // gcd(nfp, ntor) 
