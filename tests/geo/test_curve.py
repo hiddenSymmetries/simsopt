@@ -193,8 +193,8 @@ class Testing(unittest.TestCase):
             z(t) = -sin(nfp*t),
         
         where
-            xhat(t) &= sin(nfp*t),
-            yhat(t) &= -2 + cos(nfp*t),
+            xhat(t) = sin(nfp*t),
+            yhat(t) = -2 + cos(nfp*t),
 
         i.e., The dofs are xs(1)=1, yc(0)=-2, yc(1)=1, zs(1)=-1, and zero otherwise.
         '''
