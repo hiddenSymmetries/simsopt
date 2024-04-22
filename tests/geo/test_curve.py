@@ -81,6 +81,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveXYZFourierSymmetries(x, order, 2, True)
     elif curvetype == "CurveXYZFourierSymmetries2":
         curve = CurveXYZFourierSymmetries(x, order, 2, False)
+    elif curvetype == "CurveXYZFourierSymmetries3":
+        curve = CurveXYZFourierSymmetries(x, order, 2, False, ntor=3)
     else:
         assert False
     
@@ -112,6 +114,16 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve.set('zc(0)', 1)
         curve.set('zs(1)', r)
         dofs = curve.get_dofs()
+    elif curvetype == "CurveXYZFourierSymmetries3":
+        R = 1
+        r = 0.5
+        curve.set('xc(0)', R)
+        curve.set('xs(1)', -0.1*r)
+        curve.set('xc(1)', -r)
+        curve.set('zs(1)', -r)
+        curve.set('zc(0)', 1)
+        curve.set('zs(1)', r)
+        dofs = curve.get_dofs()
     else:
         assert False
 
@@ -124,7 +136,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1","CurveXYZFourierSymmetries2", "CurveHelicalInitx0"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1","CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0"]
     
     def get_curvexyzfouriersymmetries(self, stellsym=True, x=None, nfp=None, ntor=1):
         # returns a CurveXYZFourierSymmetries that is randomly perturbed
@@ -169,21 +181,21 @@ class Testing(unittest.TestCase):
         r''' This test checks that a CurveXYZFourierSymmetries can represent a non-stellarator symmetric
         trefoil knot.  A parametric representation of a trefoil knot is given by:
         
-        .. math::
-            x(t) &= sin(t) + 2sin(t) \\
-            y(t) &= cos(t) - 2cos(t) \\
-            z(t) &= -sin(3t)
+            x(t) = sin(t) + 2sin(t)
+            y(t) = cos(t) - 2cos(t)
+            z(t) = -sin(3t)
         
         The above can be rewritten the CurveXYZFourierSymmetries representation, with
         order = 1, nfp = 3, and ntor = 2:
         
-        .. math::
-            xhat(t) &= sin(nfp*t) \\
-            yhat(t) &= -2 + cos(nfp*t), \\ 
-            x(t) &= xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t), \\
-            y(t) &= xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t), \\
-            z(t) &= -sin(nfp*t),
+            x(t) = xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t),
+            y(t) = xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t),
+            z(t) = -sin(nfp*t),
         
+        where
+            xhat(t) &= sin(nfp*t),
+            yhat(t) &= -2 + cos(nfp*t),
+
         i.e., The dofs are xs(1)=1, yc(0)=-2, yc(1)=1, zs(1)=-1, and zero otherwise.
         '''
 
@@ -208,21 +220,22 @@ class Testing(unittest.TestCase):
         r''' This test checks that a CurveXYZFourierSymmetries can represent a stellarator symmetric
         trefoil knot.  A parametric representation of a trefoil knot is given by:
         
-        .. math::
-            x(t) &= cos(t) - 2cos(t) \\
-            y(t) &=-sin(t) - 2sin(t) \\
-            z(t) &= -sin(3t)
+            x(t) = cos(t) - 2cos(t),
+            y(t) =-sin(t) - 2sin(t),
+            z(t) = -sin(3t).
         
         The above can be rewritten the CurveXYZFourierSymmetries representation, with
         order = 1, nfp = 3, and ntor = 2:
         
-        .. math::
-            xhat(t) &= -2 + cos(t)\\
-            yhat(t) &= -sin(t)\\ 
-            x(t) &= xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t), \\
-            y(t) &= xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t), \\
-            z(t) &= -sin(nfp*t),
+            x(t) = xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t),
+            y(t) = xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t),
+            z(t) = -sin(nfp*t),
         
+        where
+
+            xhat(t) = -2 + cos(nfp*t)
+            yhat(t) = -sin(nfp*t)
+
         i.e., xc(0)=-2, xc(1)=1, ys(1)=-1, zs(1)=-1.
         '''
 
