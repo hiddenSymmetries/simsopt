@@ -276,13 +276,14 @@ class Testing(unittest.TestCase):
                     self.subtest_xyzhelical_symmetries(nfp, ntor)
     
     def subtest_xyzhelical_symmetries(self, nfp, ntor):
-        nfp_true = nfp // gcd(ntor, nfp)
-        if nfp_true != nfp:
+        if gcd(nfp, ntor) != 1 :
             return
 
         # does the stellarator symmetric curve have rotational symmetry?
         curve = self.get_curvexyzfouriersymmetries(stellsym=True, nfp=nfp, x=np.array([0.123, 0.123+1/nfp]), ntor=ntor)
         out = curve.gamma()
+        
+        # NOTE: the point at angle t+1/nfp is the point at angle t, but rotated by 2pi *(ntor/nfp) radians.
         alpha = 2*np.pi*ntor/nfp
         R = np.array([
             [np.cos(alpha), -np.sin(alpha), 0], 
@@ -327,6 +328,7 @@ class Testing(unittest.TestCase):
         np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
         
         # does the non-stellarator symmetric curve have rotational symmetry still?
+        # NOTE: the point at angle t+1/nfp is the point at angle t, but rotated by 2pi *(ntor/nfp) radians.
         curve = self.get_curvexyzfouriersymmetries(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+1./nfp]), ntor=ntor)
         out = curve.gamma()
         alpha = 2*np.pi*ntor/nfp

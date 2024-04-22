@@ -73,7 +73,7 @@ class CurveXYZFourierSymmetries(JaxCurve):
                   it is assumed that nfp and ntor are coprime.  If they are not coprime,
                   then then the curve actually has nfp_new:=nfp // gcd(nfp, ntor),
                   and ntor_new:=ntor // gcd(nfp, ntor).  To avoid confusion,
-                  we assert that ntor and nfp are coprime at instatiation.
+                  we assert that ntor and nfp are coprime at instantiation.
         '''
 
     def __init__(self, quadpoints, order, nfp, stellsym, ntor=1, **kwargs):
