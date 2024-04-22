@@ -168,18 +168,21 @@ class Testing(unittest.TestCase):
     def test_trefoil(self):
         r''' This test checks that a CurveXYZFourierSymmetries can represent a trefoil knot.
         A parametric representation of a trefoil knot is given by:
-        x(t) = sin(t) + 2sin(t)
-        y(t) = cos(t) - 2cos(t)
-        z(t) = -sin(3t)
+        
+        .. math::
+            x(t) &= sin(t) + 2sin(t) \\
+            y(t) &= cos(t) - 2cos(t) \\
+            z(t) &= -sin(3t)
         
         The above can be rewritten the CurveXYZFourierSymmetries representation, with
         order = 1, nfp = 3, and ntor = 2:
         
-        xhat(t) = sin(nfp*t)
-        yhat(t) = -2 + cos(nfp*t),
-        x(t) = xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t),
-        y(t) = xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t),
-        z(t) = -sin(nfp*t),
+        .. math::
+            xhat(t) &= sin(nfp*t) \\
+            yhat(t) &= -2 + cos(nfp*t), \\ 
+            x(t) &= xhat(t) * cos(ntor*t) - yhat(t) * sin(ntor*t), \\
+            y(t) &= xhat(t) * sin(ntor*t) + yhat(t) * cos(ntor*t), \\
+            z(t) &= -sin(nfp*t),
         
         i.e., xs(1)=1, yc(0)=-2, yc(1)=1, zs(1)=-1.
         '''
@@ -191,7 +194,7 @@ class Testing(unittest.TestCase):
         curve = CurveXYZFourierSymmetries(x, order, nfp, False, ntor=ntor)
         
         X = np.sin(2*np.pi * x) + 2 * np.sin(2*2*np.pi * x)
-        Y = np.cos(2*np.pi * x) - 2 * np.cos(2*2*np.pi*x)
+        Y = np.cos(2*np.pi * x) - 2 * np.cos(2*2*np.pi * x)
         Z = -np.sin(3*2*np.pi*x)
         XYZ = np.concatenate([X[:, None], Y[:, None], Z[:, None]], axis=1)
         
@@ -239,20 +242,17 @@ class Testing(unittest.TestCase):
             return
 
         # does the stellarator symmetric curve have rotational symmetry?
-        curve = self.get_curvexyzfouriersymmetries(stellsym=True, nfp=nfp, x=np.array([0.123, 0.123+ntor/nfp]), ntor=ntor)
+        curve = self.get_curvexyzfouriersymmetries(stellsym=True, nfp=nfp, x=np.array([0.123, 0.123+1/nfp]), ntor=ntor)
         out = curve.gamma()
-        alpha = -2*np.pi/nfp
+        alpha = 2*np.pi*ntor/nfp
         R = np.array([
-            [np.cos(alpha), np.sin(alpha), 0], 
-            [-np.sin(alpha), np.cos(alpha), 0], 
+            [np.cos(alpha), -np.sin(alpha), 0], 
+            [np.sin(alpha), np.cos(alpha), 0], 
             [0, 0, 1]
             ])
         
         print(R@out[0], out[1])
-        try:
-            np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
-        except:
-            np.testing.assert_allclose(out[1], np.linalg.inv(R)@out[0], atol=1e-14)
+        np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
 
         # does the stellarator symmetric curve indeed pass through (x0, 0, 0)?
         curve = self.get_curvexyzfouriersymmetries(stellsym=True, nfp=nfp, x = np.array([0]), ntor=ntor)
@@ -288,15 +288,16 @@ class Testing(unittest.TestCase):
         np.testing.assert_allclose(B[0, 2], B[1, 2], atol=1e-14)
         
         # does the non-stellarator symmetric curve have rotational symmetry still?
-        curve = self.get_curvexyzfouriersymmetries(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+ntor/nfp]), ntor=ntor)
+        curve = self.get_curvexyzfouriersymmetries(stellsym=False, nfp=nfp, x = np.array([0.123, 0.123+1./nfp]), ntor=ntor)
         out = curve.gamma()
-        alpha = -2*np.pi/nfp
-        R = np.array([[np.cos(alpha), np.sin(alpha), 0], [-np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]])
+        alpha = 2*np.pi*ntor/nfp
+        R = np.array([
+            [np.cos(alpha), -np.sin(alpha), 0], 
+            [np.sin(alpha), np.cos(alpha), 0], 
+            [0, 0, 1]
+            ])
         print(R@out[0], out[1])
-        try:
-            np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
-        except:
-            np.testing.assert_allclose(out[1], np.linalg.inv(R)@out[0], atol=1e-14)
+        np.testing.assert_allclose(out[1], R@out[0], atol=1e-14)
 
     def test_curve_helical_xyzfourier(self):
         x = np.asarray([0.6])
