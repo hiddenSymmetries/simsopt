@@ -150,7 +150,6 @@ class BoozerSurface(Optimizable):
         is much faster since it calls a vectorized implementation in cpp.
         """
 
-        # this is essentially the scalarize option in previous implementation. This should be merged in that case...
         assert derivatives in [0, 1, 2]
         if optimize_G:
             sdofs = dofs[:-2]
