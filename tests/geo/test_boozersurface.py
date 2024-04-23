@@ -398,7 +398,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         G = res['G']
         return np.concatenate([x, [iota, G]])
 
-
     def test_boozer_penalty_constraints_cpp_notcpp(self):
         """
         Test to verify cpp and python implementations of the BoozerLS objective return the same thing.
@@ -406,7 +405,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for weight_inv_modB in [False, True]:
-                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 6, 9), (False, 7, 8),(True, 3, 3), (False, 3, 3)]:
+                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 6, 9), (False, 7, 8), (True, 3, 3), (False, 3, 3)]:
                         with self.subTest(surfacetype=surfacetype,
                                           stellsym=stellsym,
                                           optimize_G=optimize_G,
@@ -434,7 +433,6 @@ class BoozerSurfaceTests(unittest.TestCase):
         elif ntheta == 2:
             thetas = [0.2432101234, 0.9832134]
 
-        
         s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta, thetas=thetas, phis=phis, mpol=3, ntor=3)
         s.fit_to_curve(ma, 0.1)
         s.x = s.x + np.random.rand(s.x.size)*1e-6
@@ -456,9 +454,8 @@ class BoozerSurfaceTests(unittest.TestCase):
         f1 = boozer_surface.boozer_penalty_constraints_vectorized(
             x, derivatives=0, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
         np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
-        #print(np.abs(f0-f1)/np.abs(f0))
+        print(np.abs(f0-f1)/np.abs(f0))
        
-
         # deriv = 1
         f0, J0 = boozer_surface.boozer_penalty_constraints(
             x, derivatives=1, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
@@ -470,8 +467,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         # check directional derivative
         h1 = np.random.rand(J0.size)-0.5
         np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
-        #print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
-
+        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1))
 
         # deriv = 2
         f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
@@ -487,8 +483,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         np.testing.assert_allclose(f0, f1, atol=1e-13, rtol=1e-13)
         np.testing.assert_allclose(J0@h1, J1@h1, atol=1e-13, rtol=1e-13)
         np.testing.assert_allclose((H0@h1)@h2, (H1@h1)@h2, atol=1e-13, rtol=1e-13)
-        #print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
-        
+        print(np.abs(f0-f1)/np.abs(f0), np.abs(J0@h1-J1@h1)/np.abs(J0@h1), np.abs((H0@h1)@h2-(H1@h1)@h2)/np.abs((H0@h1)@h2))
 
         def compute_differences(Ha, Hb):
             diff = np.abs(Ha.flatten() - Hb.flatten())
@@ -497,12 +492,12 @@ class BoozerSurfaceTests(unittest.TestCase):
             i1 = ij1[0][0]
             j1 = ij1[1][0]
 
-
             ij2 = np.where(rel_diff.reshape(Ha.shape) == np.max(rel_diff))
             i2 = ij2[0][0]
             j2 = ij2[1][0]
             print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
         compute_differences(H0, H1)
+
 
 if __name__ == "__main__":
     unittest.main()
