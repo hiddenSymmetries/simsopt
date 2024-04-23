@@ -473,7 +473,7 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
-#pragma omp for
+#pragma omp for 
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
             double phi  = 2*M_PI*quadpoints_phi[k1];
             double sinphi = sin(phi);
@@ -532,12 +532,16 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp critical
-        {
-            for(int i=0; i<num_dofs(); ++i) {
-                resptr[i] += resptr_private[i];
+#pragma omp for ordered
+    for( int t=0; t<omp_get_num_threads(); ++t )
+            {
+                #pragma omp ordered critical
+                {
+                    for(int i=0; i<num_dofs(); ++i) {
+                        resptr[i] += resptr_private[i];
+                    }
+                }
             }
-        }
     }
     return res;
 }
@@ -554,7 +558,7 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
-#pragma omp for
+#pragma omp for ordered
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
             double phi  = 2*M_PI*quadpoints_phi[k1];
             double sinphi = sin(phi);
@@ -606,12 +610,16 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp critical
-        {
-            for(int i=0; i<num_dofs(); ++i) {
-                resptr[i] += resptr_private[i];
+#pragma omp for ordered
+    for( int t=0; t<omp_get_num_threads(); ++t )
+            {
+                #pragma omp ordered critical
+                {
+                    for(int i=0; i<num_dofs(); ++i) {
+                        resptr[i] += resptr_private[i];
+                    }
+                }
             }
-        }
     }
     return res;
 }
@@ -741,12 +749,16 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp critical
-        {
-            for(int i=0; i<num_dofs(); ++i) {
-                resptr[i] += resptr_private[i];
+#pragma omp for ordered
+    for( int t=0; t<omp_get_num_threads(); ++t )
+            {
+                #pragma omp ordered critical
+                {
+                    for(int i=0; i<num_dofs(); ++i) {
+                        resptr[i] += resptr_private[i];
+                    }
+                }
             }
-        }
     }
     res *= 2*M_PI;
     return res;
@@ -819,12 +831,16 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp critical
-        {
-            for(int i=0; i<num_dofs(); ++i) {
-                resptr[i] += resptr_private[i];
+#pragma omp for ordered
+    for( int t=0; t<omp_get_num_threads(); ++t )
+            {
+                #pragma omp ordered critical
+                {
+                    for(int i=0; i<num_dofs(); ++i) {
+                        resptr[i] += resptr_private[i];
+                    }
+                }
             }
-        }
     }
     res *= 2*M_PI;
     return res;
@@ -1065,12 +1081,16 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-#pragma omp critical
-        {
-            for(int i=0; i<num_dofs(); ++i) {
-                resptr[i] += resptr_private[i];
+#pragma omp for ordered
+    for( int t=0; t<omp_get_num_threads(); ++t )
+            {
+                #pragma omp ordered critical
+                {
+                    for(int i=0; i<num_dofs(); ++i) {
+                        resptr[i] += resptr_private[i];
+                    }
+                }
             }
-        }
     }
     res *= 2*M_PI;
     return res;
@@ -1143,12 +1163,16 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                 }
             }
         }
-        #pragma omp critical
-        {
-            for(int i=0; i<num_dofs(); ++i) {
-                resptr[i] += resptr_private[i];
+#pragma omp for ordered
+    for( int t=0; t<omp_get_num_threads(); ++t )
+            {
+                #pragma omp ordered critical
+                {
+                    for(int i=0; i<num_dofs(); ++i) {
+                        resptr[i] += resptr_private[i];
+                    }
+                }
             }
-        }
     }
     res *= 2*M_PI;
     return res;
