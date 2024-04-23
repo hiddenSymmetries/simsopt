@@ -352,6 +352,52 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         # check that BoozerSurface.surface and label.surface are the same surfaces
         assert bs_regen.label.surface is bs_regen.surface
+    
+    def test_convergence_cpp_and_notcpp_same(self):
+        """
+        This unit test verifies that that the cpp and not cpp implementations converge to 
+        the same solutions
+        """
+        x_vec = self.subtest_convergence_cpp_and_notcpp_same(True)
+        x_nonvec = self.subtest_convergence_cpp_and_notcpp_same(False)
+        np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-14) 
+
+    def subtest_convergence_cpp_and_notcpp_same(self, vectorize):
+        """
+        compute a surface using either the vectorized or non-vectorized subroutines
+        """
+        curves, currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(curves, currents, ma.nfp, True)
+        current_sum = sum(abs(c.current.get_value()) for c in coils)
+        bs = BiotSavart(coils)
+
+        s = get_surface('SurfaceXYZTensorFourier', True, nfp=ma.nfp)
+        s.fit_to_curve(ma, 0.1)
+        iota = -0.4
+        
+        ar = Area(s)
+        ar_target = ar.J()
+        boozer_surface = BoozerSurface(bs, s, ar, ar_target)
+
+        G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
+        
+        # vectorized solution first
+        res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
+            tol=1e-10, maxiter=600, constraint_weight=100., iota=iota, G=G,
+            vectorize=vectorize)
+        print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
+
+        boozer_surface.recompute_bell()
+        res = boozer_surface.minimize_boozer_penalty_constraints_newton(
+            tol=1e-10, maxiter=20, constraint_weight=100.,
+            iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
+
+        assert res['success']
+        x = boozer_surface.surface.x.copy()
+        iota = res['iota']
+        G = res['G']
+        return np.concatenate([x, [iota, G]])
+
 
     def test_boozer_penalty_constraints_cpp_notcpp(self):
         """
