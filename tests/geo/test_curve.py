@@ -163,18 +163,34 @@ class Testing(unittest.TestCase):
 
         return curve
 
-    def test_curvehelical_is_curvexyzfouriersymmetries(self):
+    def test_curvexyzsymmetries_raisesexception(self):
+        # test ensures that an exception is raised when you try and create a curvexyzfouriersymmetries
+        # where gcd(ntor, nfp) != 1.
+        
+        order = 1
+        nfp = 1
+        ntor = 2
+        # nfp = 1 and ntor = 2 here, so it should work
+        curve = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
+        
+        with self.assertRaises(Exception):
+            order = 1
+            nfp = 2
+            ntor = 2
+            # nfp = 2 and ntor = 2 here, so an exception should be raised
+            curve = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
+    
+    def test_curvexyzsymmetries_is_curvexyzfouriersymmetries(self):
         # this test checks that both helical coil representations can produce the same helical curve on a torus
         order = 1
         nfp = 2
-        x = np.linspace(0, 1, 100, endpoint=False)
-        curve1 = CurveXYZFourierSymmetries(x, order, nfp, True)
+        curve1 = CurveXYZFourierSymmetries(100, order, nfp, True)
         R = 1
         r = 0.5
         curve1.set('xc(0)', R)
         curve1.set('xc(1)', r)
         curve1.set('zs(1)', -r)
-        curve2 = CurveHelical(x, order, nfp, 1, R, r, x0=np.zeros((2*order,)))
+        curve2 = CurveHelical(np.linspace(0, 1, 100, endpoint=False), order, nfp, 1, R, r, x0=np.zeros((2*order,)))
         np.testing.assert_allclose(curve1.gamma(), curve2.gamma(), atol=1e-14)
     
     def test_trefoil_nonstellsym(self):
