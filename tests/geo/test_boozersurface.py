@@ -405,14 +405,16 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype in surfacetypes_list:
             for stellsym in stellsym_list:
                 for weight_inv_modB in [False, True]:
-                    for (optimize_G, nphi, ntheta) in [(True, 1, 1), (False, 1, 1), (True, 2, 2), (False, 2, 1), (True, 6, 9), (False, 7, 8), (True, 3, 3), (False, 3, 3)]:
+                    for (optimize_G, nphi, ntheta, mpol, ntor) in [(True, 1, 1, 3, 3), (False, 1, 1, 13, 2), (True, 2, 2, 10, 3), (False, 2, 1, 3, 4), (True, 6, 9, 3, 3), (False, 7, 8, 3, 4), (True, 3, 3, 3, 3), (False, 3, 3, 3, 5)]:
                         with self.subTest(surfacetype=surfacetype,
                                           stellsym=stellsym,
                                           optimize_G=optimize_G,
-                                          weight_inv_modB=weight_inv_modB):
-                            self.subtest_boozer_penalty_constraints_cpp_notcpp(surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB)
+                                          weight_inv_modB=weight_inv_modB,
+                                          mpol=mpol,
+                                          ntor=ntor):
+                            self.subtest_boozer_penalty_constraints_cpp_notcpp(surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB, mpol, ntor)
 
-    def subtest_boozer_penalty_constraints_cpp_notcpp(self, surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB):
+    def subtest_boozer_penalty_constraints_cpp_notcpp(self, surfacetype, stellsym, optimize_G, nphi, ntheta, weight_inv_modB, mpol, ntor):
 
         np.random.seed(1)
         curves, currents, ma = get_ncsx_data()
@@ -433,7 +435,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         elif ntheta == 2:
             thetas = [0.2432101234, 0.9832134]
 
-        s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta, thetas=thetas, phis=phis, mpol=3, ntor=3)
+        s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta, thetas=thetas, phis=phis, mpol=mpol, ntor=ntor)
         s.fit_to_curve(ma, 0.1)
         s.x = s.x + np.random.rand(s.x.size)*1e-6
 
