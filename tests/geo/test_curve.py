@@ -172,15 +172,16 @@ class Testing(unittest.TestCase):
         ntor = 2
         # nfp = 1 and ntor = 2 here, so it should work
         curve = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
-        
+        print(curve.x)
+
         with self.assertRaises(Exception):
             order = 1
             nfp = 2
             ntor = 2
             # nfp = 2 and ntor = 2 here, so an exception should be raised
-            curve = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
-    
-    def test_curvexyzsymmetries_is_curvexyzfouriersymmetries(self):
+            _ = CurveXYZFourierSymmetries(100, order, nfp, True, ntor=ntor, x0=np.ones(3*order+1))
+
+    def test_curvehelical_is_curvexyzfouriersymmetries(self):
         # this test checks that both helical coil representations can produce the same helical curve on a torus
         order = 1
         nfp = 2
