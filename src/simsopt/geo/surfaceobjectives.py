@@ -309,7 +309,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
         G: a constant that is a function of the coil currents in vacuum field
         biotsavart: the Biot-Savart magnetic field
         derivatives: how many spatial derivatives of the residual to compute
-        weight_inv_modB: whether or not to weight the residual by :math:`\|\mathbf B\|`.  This 
+        weight_inv_modB: whether or not to weight the residual by :math:`1/\|\mathbf B\|`.  This 
                          is useful to activate so that the residual does not scale with the 
                          coil currents.
 
