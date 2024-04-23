@@ -293,7 +293,7 @@ def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_
     residual
 
     .. math::
-        G\mathbf B_\text{BS}(\mathbf x) - ||\mathbf B_\text{BS}(\mathbf x)||^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
+        G\mathbf B_\text{BS}(\mathbf x) - \|\mathbf B_\text{BS}(\mathbf x)\|^2  (\mathbf x_\varphi + \iota  \mathbf x_\theta)
 
     as well as the derivatives of this residual with respect to surface dofs,
     iota, and G.  In the above, :math:`\mathbf x` are points on the surface, :math:`\iota` is the
