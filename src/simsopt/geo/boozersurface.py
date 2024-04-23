@@ -377,8 +377,9 @@ class BoozerSurface(Optimizable):
             val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None)
             norm = np.linalg.norm(dval)
             i = i+1
-
-        r = fun_name(x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
+        
+        r = self.boozer_penalty_constraints(
+            x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
         res = {
             "residual": r, "jacobian": dval, "hessian": d2val, "iter": i, "success": norm <= tol, "G": None,
         }
