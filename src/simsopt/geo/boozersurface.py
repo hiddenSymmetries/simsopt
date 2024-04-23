@@ -73,7 +73,9 @@ class BoozerSurface(Optimizable):
 
         i.e. the least squares residual and optionally the gradient and the Hessian of :math:`J(x)`.
 
-        For ``weight_inv_modB=False``, the residuals are unweighted, and they are multiplied by 1/
+        If ``weight_inv_modB=True``, the Boozer residuals are weighted by the inverse of the field strength 
+        (i.e. multiplied by :math:`1/\|\mathbf B \|`), otherwise, they are unweighted (multiplied by 1).  Setting 
+        this to True is useful to prevent the least squares residual from scaling with the coil currents.
         """
 
         assert derivatives in [0, 1, 2]
@@ -147,7 +149,8 @@ class BoozerSurface(Optimizable):
     def boozer_penalty_constraints_vectorized(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False, weight_inv_modB=False):
         """
         This function returns the same thing as `boozer_penalty_constraints` when `scalarized=True`.  It
-        is much faster since it calls a vectorized implementation in cpp.
+        is much faster and uses less memory since it calls a vectorized implementation in cpp. This is
+        especially true when `derivatives=2`, i.e., when the Hessian is requested.
         """
 
         assert derivatives in [0, 1, 2]
