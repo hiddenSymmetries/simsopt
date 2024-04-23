@@ -31,7 +31,7 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
     }
     Array dummy = Array();
 
-    #pragma omp parallel for
+    #pragma omp parallel for ordered
     for(int i=0; i<num_coils; i++) {
         if(compute_dB)
             biot_savart_vjp_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],
@@ -77,7 +77,7 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
     bool compute_dB = res_grad_gamma.size() > 0;
     Array dummy = Array();
 
-    #pragma omp parallel for
+    #pragma omp parallel for ordered
     for(int i=0; i<num_coils; i++) {
         if(compute_dB)
             biot_savart_vjp_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],
@@ -112,7 +112,7 @@ void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas
     bool compute_dA = res_grad_gamma.size() > 0;
     Array dummy = Array();
 
-    #pragma omp parallel for
+    #pragma omp parallel for ordered
     for(int i=0; i<num_coils; i++) {
         if(compute_dA)
             biot_savart_vector_potential_vjp_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],

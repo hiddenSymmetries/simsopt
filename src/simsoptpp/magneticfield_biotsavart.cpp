@@ -41,7 +41,7 @@ void BiotSavart<T, Array>::compute(int derivatives) {
         currents[i] = this->coils[i]->current->get_value();
     }
 
-#pragma omp parallel for
+#pragma omp parallel for ordered
     for (int i = 0; i < ncoils; ++i) {
         Array& Bi = field_cache.get_or_create(fmt::format("B_{}", i), {npoints, 3});
         set_array_to_zero(Bi);
@@ -124,7 +124,7 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
         currents[i] = this->coils[i]->current->get_value();
     }
 
-#pragma omp parallel for
+#pragma omp parallel for ordered
     for (int i = 0; i < ncoils; ++i) {
         Array& Ai = field_cache.get_or_create(fmt::format("A_{}", i), {npoints, 3});
         set_array_to_zero(Ai);

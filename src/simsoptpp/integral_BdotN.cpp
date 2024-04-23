@@ -59,7 +59,7 @@ double integral_BdotN(PyArray& Bcoil, PyArray& Btarget, PyArray& n, std::string 
     double denominator_sum = 0.0;
     double mod_B_squared;
 
-    #pragma omp parallel for reduction(+:numerator_sum, denominator_sum)
+    #pragma omp parallel for ordered reduction(+:numerator_sum, denominator_sum)
     for(int i=0; i<nphi*ntheta; i++){
         double normN = std::sqrt(
             n_ptr[3 * i + 0] * n_ptr[3 * i + 0] 
