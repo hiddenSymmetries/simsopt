@@ -212,7 +212,7 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                             simd_t drtilij2_dn(drtilij2[n]);
                             simd_t d2res_mn = drtilij0_dm * drtilij0_dn + drtilij1_dm * drtilij1_dn + drtilij2_dm * drtilij2_dn;
                         
-                            int jjlimit = std::min(simd_size, ndofs+2-n);
+                            int jjlimit = std::min(simd_size, ndofs+2-m);
                             for(int jj = 0; jj < jjlimit; jj++){
                                 d2res(m+jj, n) += d2res_mn[jj];
                             }
