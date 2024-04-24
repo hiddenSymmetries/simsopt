@@ -284,9 +284,9 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=600, constraint_weight=100., iota=iota, G=G,
+            tol=1e-11, maxiter=700, constraint_weight=100., iota=iota, G=G,
             vectorize=vectorize)
-        print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
+        print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
