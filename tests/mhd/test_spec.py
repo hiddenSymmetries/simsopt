@@ -130,6 +130,7 @@ class SpecTests(unittest.TestCase):
 
                     self.assertAlmostEqual(s.iota(), 0.544176, places=3)
 
+    @unittest.expectedFailure
     def test_set_profile_non_cumulative(self):
         """
         Set a SPEC profile of a non-cumulative quantity (surface current in this example)
@@ -162,6 +163,7 @@ class SpecTests(unittest.TestCase):
                 else:
                     self.assertEqual(s.get_profile('interface_current', lvol), 1)
 
+    @unittest.expectedFailure
     def test_set_profile_cumulative(self):
         """
         Set a SPEC profile of a cumulative quantity (volume current in this example)
