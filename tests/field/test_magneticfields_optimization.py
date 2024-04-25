@@ -15,7 +15,7 @@ class Testing(unittest.TestCase):
 
     def test_circularcoil_current_optimization(self):
 
-        # test I,r0 optimization
+        # test optimization of I and r0
         coil = CircularCoil()
         x0 = np.random.rand(coil.dof_size)
         x0[1] = 0
@@ -24,7 +24,7 @@ class Testing(unittest.TestCase):
         x0[5] = 0
         x0[6] = 0
         coil.x = x0
-        coil.fix([1,2,3,5,6])
+        coil.fix([1, 2, 3, 5, 6])
 
         print('Initial coil radius: ', coil.x[0])
         print('Initial coil current: ', coil.x[1])
@@ -34,14 +34,15 @@ class Testing(unittest.TestCase):
 
         def get_I(c):
             return c.I
+
         def get_B(c):
             return c.B()[0][2]
 
         I_coil = make_optimizable(get_I, coil)
         B_coil = make_optimizable(get_B, coil)
 
-        Bmag = 1.2*2*np.pi/1.12345
-        prob = LeastSquaresProblem.from_tuples([(I_coil.J, 1.2e7, 2e6),(B_coil.J, Bmag, 1.0)])
+        Bmag = 1.2 * 2 * np.pi / 1.12345
+        prob = LeastSquaresProblem.from_tuples([(I_coil.J, 1.2e7, 2e6), (B_coil.J, Bmag, 1.0)])
 
         with ScratchDir("."):
             least_squares_serial_solve(prob)
@@ -60,14 +61,16 @@ class Testing(unittest.TestCase):
         x0[5] = 0
         x0[6] = 0
         coil.x = x0
-        coil.fix([0,4,5,6])
+        coil.fix([0, 4, 5, 6])
 
         print('Initial coil position: ', coil.x)
 
         def Bx(c):
             return c.B()[0][0]
+
         def By(c):
             return c.B()[0][1]
+
         def Bz(c):
             return c.B()[0][2]
 
@@ -75,8 +78,12 @@ class Testing(unittest.TestCase):
         By_coil = make_optimizable(By, coil)
         Bz_coil = make_optimizable(Bz, coil)
 
-        Bmag = 1.2*2*np.pi/1.12345
-        prob = LeastSquaresProblem.from_tuples([(Bx_coil.J, 0, 1.0),(By_coil.J, 0, 1.0),(Bz_coil.J, Bmag, 1.0)])
+        Bmag = 1.2 * 2 * np.pi / 1.12345
+        prob = LeastSquaresProblem.from_tuples(
+            [(Bx_coil.J, 0, 1.0),
+             (By_coil.J, 0, 1.0),
+             (Bz_coil.J, Bmag, 1.0)]
+        )
 
         points = np.array([[1, 1, 1]])
         coil.set_points(points)
@@ -101,7 +108,7 @@ class Testing(unittest.TestCase):
         x0[3] = 0
         x0[4] = 4.8
         coil.x = x0
-        coil.fix([0,1,2,3,4])
+        coil.fix([0, 1, 2, 3, 4])
 
         print('Initial coil normal: ', coil.x)
 
@@ -110,8 +117,10 @@ class Testing(unittest.TestCase):
 
         def Bx(c):
             return c.B()[0][0]
+
         def By(c):
             return c.B()[0][1]
+
         def Bz(c):
             return c.B()[0][2]
 
@@ -119,12 +128,15 @@ class Testing(unittest.TestCase):
         By_coil = make_optimizable(By, coil)
         Bz_coil = make_optimizable(Bz, coil)
 
-        Bmag = np.sqrt(2)/2*1.2*2*np.pi/1.12345
-        prob = LeastSquaresProblem.from_tuples([(Bx_coil.J, Bmag, 1.0),(By_coil.J, 0, 1.0),(Bz_coil.J, Bmag, 1.0)])
+        Bmag = np.sqrt(2) / 2 * 1.2 * 2 * np.pi / 1.12345
+        prob = LeastSquaresProblem.from_tuples(
+            [(Bx_coil.J, Bmag, 1.0),
+             (By_coil.J, 0, 1.0),
+             (Bz_coil.J, Bmag, 1.0)]
+        )
 
         with ScratchDir("."):
             least_squares_serial_solve(prob)
 
         print(' Final coil normal: ', coil.x)
-        assert np.allclose(coil.x, [0, np.pi/4], atol=1e-6)
-
+        assert np.allclose(coil.x, [0, np.pi / 4], atol=1e-6)

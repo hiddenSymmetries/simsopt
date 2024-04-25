@@ -372,10 +372,14 @@ class Testing(unittest.TestCase):
 
         field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
         field.set_points(points)
-        assert np.allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]])
+        np.testing.assert_allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]], rtol=1e-6)
         # test coil location
-        assert np.allclose(field.gamma(points=4), [[1.3575,1.456,2.789],[0.123,center[1]+radius*np.cos(-angle),center[2]-radius*np.sin(-angle)],
+        np.testing.assert_allclose(field.gamma(points=4), [[1.3575,1.456,2.789],[0.123,center[1]+radius*np.cos(-angle),center[2]-radius*np.sin(-angle)],
                                                   [-1.1115,1.456,2.789],[0.123,center[1]-radius*np.cos(-angle),center[2]+radius*np.sin(-angle)]])
+        with ScratchDir("."):
+            for close in [True, False]:
+                field.to_vtk('test', close=close)
+
 
     def test_circularcoil_Bfield_toroidal_arrangement(self):
         # This makes N_coils with centered at major radius R_m
