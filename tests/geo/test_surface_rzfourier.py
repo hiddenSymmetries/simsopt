@@ -712,7 +712,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             eq.indata.ntor = 4
             eq.indata.ftol_array[:2] = [1e-8, 1e-10]
 
-            # Try the case of elongation=1 with positive torsion:
+            # Try the case of elongation=1 with positive axis torsion:
             major_radius = 8.4
             minor_radius = 1.3
             elongation = 1.0
@@ -720,8 +720,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
             eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
             eq.run()
             np.testing.assert_array_less(0, eq.wout.iotaf)
+            np.testing.assert_allclose(eq.mean_iota(), 0.26990720954583547, rtol=1e-6)
 
-            # Try the case of zero torsion with rotating elongation:
+            # Try the case of zero axis torsion with rotating elongation:
             major_radius = 8.4
             minor_radius = 1.3
             elongation = 2.1
@@ -729,6 +730,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
             eq.run()
             np.testing.assert_array_less(0, eq.wout.iotaf)
+            np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
