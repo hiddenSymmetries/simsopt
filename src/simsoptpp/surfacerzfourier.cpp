@@ -558,7 +558,7 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
-#pragma omp for ordered
+#pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
             double phi  = 2*M_PI*quadpoints_phi[k1];
             double sinphi = sin(phi);
