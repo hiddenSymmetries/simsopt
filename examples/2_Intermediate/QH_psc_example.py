@@ -36,8 +36,8 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
-    ntheta = 32
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 8
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -111,7 +111,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 5, "out_dir": out_str, "random_initialization": True, "poff": poff} 
+kwargs_geo = {"Nx": 12, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo
 )

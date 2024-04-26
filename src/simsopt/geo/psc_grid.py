@@ -738,16 +738,20 @@ class PSCgrid:
                 term0[i, j] = (
                     BB_i[j, :]
                     ) @ self.plasma_unitnormals[j, :] / I_i
-                term1[i, j] = (
-                    self.dRi_dalphak[i, :, :] @ self.rotation_matrix[i, :, :].T
-                    @ BB_i[j, :]
-                    ) @ self.plasma_unitnormals[j, :] / I_i
-                term1[i + self.num_psc, j] = (
-                    self.dRi_ddeltak[i, :, :] @ BB_i[j, :]
-                    ) @ self.plasma_unitnormals[j, :] / I_i
+                # term1[i, j] = (
+                #     self.dRi_dalphak[i, :, :] @ self.rotation_matrix[i, :, :].T
+                #     @ BB_i[j, :]
+                #     ) @ self.plasma_unitnormals[j, :] / I_i
+                # term1[i + self.num_psc, j] = (
+                #     self.dRi_ddeltak[i, :, :] @ BB_i[j, :]
+                #     ) @ self.plasma_unitnormals[j, :] / I_i
                 term2[i, j] = ((
-                    self.dRi_dalphak[i, :, :].T @ self.plasma_points[j, :]
-                    ) @ dB_i[j, :, :]
+                    dB_i[j, :, :] @ self.dRi_dalphak[i, :, :].T @ self.plasma_points[j, :]
+                    )
+                    ) @ self.plasma_unitnormals[j, :] / I_i
+                term2[i + self.num_psc, j] = ((
+                    dB_i[j, :, :] @ self.dRi_ddeltak[i, :, :].T @ self.plasma_points[j, :]
+                    )
                     ) @ self.plasma_unitnormals[j, :] / I_i
                 # print(i, j, term2[i, j])
                 # print(dB_i[j, :, :])
@@ -755,14 +759,14 @@ class PSCgrid:
                 # print(self.plasma_points[j, :] @ dB_i[j, :, :]@ self.dRi_dalphak[i, :, :].T)
                 # print(self.plasma_unitnormals[j, :])
                 # exit()
-                term2[i + self.num_psc, j] = (((
-                    self.rotation_matrix[i, :, :] @ dB_i[j, :, :]
-                    ) @ self.plasma_points[j, :]
-                    ) @ self.dRi_ddeltak[i, :, :].T
-                    ) @ self.plasma_unitnormals[j, :] / I_i
+                # term2[i + self.num_psc, j] = (((
+                #     self.rotation_matrix[i, :, :] @ dB_i[j, :, :]
+                #     ) @ self.plasma_points[j, :]
+                #     ) @ self.dRi_ddeltak[i, :, :].T
+                #     ) @ self.plasma_unitnormals[j, :] / I_i
         print('A = ', term0.T, self.A_matrix)
         # exit()
-        print(term1[0, :].T, term2[0, :].T)
+        # print(term1[0, :].T, term2[0, :].T)
         # exit()
         return (term1 + term2) # .T
     

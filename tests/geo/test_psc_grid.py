@@ -40,7 +40,7 @@ class Testing(unittest.TestCase):
         A_deriv = psc_array.A_deriv()
         print(psc_array.I)
         psi_deriv = psc_array.psi_deriv()
-        epsilon = 1e-6
+        epsilon = 1e-4
         alphas_new = alphas
         alphas_new[0] += epsilon
         deltas_new = np.zeros(1)
@@ -67,7 +67,7 @@ class Testing(unittest.TestCase):
         # print(dB_dalpha.shape)
         # print(np.sum(dB_dalpha * psc_array.plasma_unitnormals, axis=-1), 
         #       dA_dalpha @ psc_array.I)
-        print(dA_dalpha, dA_dalpha_analytic[1, :].T)
+        print('dA, dA_analytic = ', dA_dalpha, dA_dalpha_analytic[1, :].T)
               #dA_dalpha_analytic[0, :, :].T, dA_dalpha_analytic[1, :, :].T, 
               #dA_dalpha_analytic[2, :, :].T, dA_dalpha_analytic[3, :, :].T)
         # print(dL_dalpha, dL_dalpha_analytic[:, 1, :])
