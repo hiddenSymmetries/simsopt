@@ -40,7 +40,7 @@ RUN python3 -m pip install wheel
 RUN python3 -m venv /venv/
 
 RUN /venv/bin/pip install -U pip
-RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml mpi4py jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake
+RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml mpi4py jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake desc-opt
 RUN /venv/bin/pip install git+https://github.com/zhucaoxiang/f90wrap
 ENV PATH="/venv/bin:${PATH}"
 
