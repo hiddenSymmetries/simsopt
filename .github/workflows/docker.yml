@@ -55,7 +55,7 @@ jobs:
 
       - name: Build and push for tag
         uses: docker/build-push-action@v3
-        if: startsWith(github.event.ref, 'refs/tags/v')
+        if: startsWith(github.event.ref, 'refs/tags/')
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
