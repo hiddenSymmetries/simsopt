@@ -5,12 +5,12 @@ on:
     branches: 
       - '**'
     tags: 
-      - v*
+      - '**'
   pull_request:
     branches:
       - master
     tags:
-      - v*
+      - '**'
 
 jobs:
   docker:
