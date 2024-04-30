@@ -117,16 +117,16 @@ Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& phi, double R)
                     auto dl2_x_ddelta = (sk * sdi + ck * sai * cdi) * (-skk * cdj + ckk * saj * sdj);
                     auto dl2_y_ddelta = 0.0;
                     auto dl2_z_ddelta = (sk * cdi - ck * sai * sdi) * (skk * sdj + ckk * saj * cdj);
-                    auto xxi = ck * cdi - sk * sai * sdi;
+                    auto xxi = ck * cdi + sk * sai * sdi;  // fixed minus sign on the last term here
                     auto xxj = xj + ckk * cdj + skk * saj * sdj;
                     auto yyi = sk * cai;
                     auto yyj = yj + skk * caj;
                     auto zzi = sk * sai * cdi - ck * sdi;
                     auto zzj = zj + skk * saj * cdj - ckk * sdj;
-                    auto xxi_dalpha = 0.0;
+                    auto xxi_dalpha = sk * cai * sdi; //0.0;
                     auto yyi_dalpha = -sk * sai;
                     auto zzi_dalpha = sk * cai * cdi;
-                    auto xxi_ddelta = -ck * sdi - sk * sai * cdi;
+                    auto xxi_ddelta = -ck * sdi + sk * sai * cdi;
                     auto yyi_ddelta = 0.0;
                     auto zzi_ddelta = -sk * sai * sdi - ck * cdi;
                     auto deriv_alpha = xxi_dalpha * (xxi - xxj) + yyi_dalpha * (yyi - yyj) + zzi_dalpha * (zzi - zzj);
@@ -398,4 +398,156 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
         }
     }
     return B_PSC * fac;
+}
+
+
+Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, Array& phi, double R)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    if(plasma_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("plasma_points needs to be in row-major storage order");
+    if(psc_currents.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("psc_currents needs to be in row-major storage order");
+          
+    // points shape should be (num_coils, 3)
+    // plasma_normal shape should be (num_plasma_points, 3)
+    // plasma_points should be (num_plasma_points, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_plasma_points = plasma_points.shape(0);
+    int num_phi = phi.shape(0);  // shape should be (num_phi)
+    
+    // this variable is the A matrix in the least-squares term so A * I = Bn
+    Array dB = xt::zeros<double>({num_coils * 2, num_plasma_points, 3});
+    double fac = 2.0e-7;
+    using namespace boost::math;
+    
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < num_plasma_points; ++i) {
+        auto xp = plasma_points(i, 0);
+        auto yp = plasma_points(i, 1);
+        auto zp = plasma_points(i, 2);
+        for(int j = 0; j < num_coils; j++) {
+            auto current = psc_currents(j);
+            auto cdj = cos(deltas(j));
+            auto caj = cos(alphas(j));
+            auto sdj = sin(deltas(j));
+            auto saj = sin(alphas(j));
+            auto Rxx = cdj;
+            auto Rxy = sdj * saj;
+            auto Rxz = sdj * caj;
+            auto Ryx = 0.0;
+            auto Ryy = caj;
+            auto Ryz = -saj;
+            auto Rzx = -sdj;
+            auto Rzy = cdj * saj;
+            auto Rzz = cdj * caj;
+            auto dRxx_dalpha = 0.0;
+            auto dRxy_dalpha = sdj * caj;
+            auto dRxz_dalpha = -sdj * saj;
+            auto dRyx_dalpha = 0.0;
+            auto dRyy_dalpha = -saj;
+            auto dRyz_dalpha = caj;
+            auto dRzx_dalpha = 0.0;
+            auto dRzy_dalpha = cdj * caj;
+            auto dRzz_dalpha = -cdj * saj;
+            auto dRxx_ddelta = -sdj;
+            auto dRxy_ddelta = cdj * saj;
+            auto dRxz_ddelta = cdj * caj;
+            auto dRyx_ddelta = 0.0;
+            auto dRyy_ddelta = 0.0;
+            auto dRyz_ddelta = 0.0;
+            auto dRzx_ddelta = -cdj;
+            auto dRzy_ddelta = -sdj * saj;
+            auto dRzz_ddelta = -sdj * caj;
+            auto Bx1 = 0.0;
+            auto By1 = 0.0;
+            auto Bz1 = 0.0;
+            auto Bx2 = 0.0;
+            auto By2 = 0.0;
+            auto Bz2 = 0.0;
+            auto Bx3 = 0.0;
+            auto By3 = 0.0;
+            auto Bz3 = 0.0;
+            auto Bx4 = 0.0;
+            auto By4 = 0.0;
+            auto Bz4 = 0.0;
+            auto Bx5 = 0.0;
+            auto By5 = 0.0;
+            auto Bz5 = 0.0;
+            for (int k = 0; k < num_phi; ++k) {
+                auto dlx = -R * sin(phi(k));
+                auto dly = R * cos(phi(k));
+                auto dlz = 0.0;
+                auto xk = points(j, 0) + R * cos(phi(k));
+                auto yk = points(j, 1) + R * sin(phi(k));
+                auto zk = points(j, 2);
+                auto xdiff = (xp - xk);
+                auto ydiff = (yp - yk);
+                auto zdiff = (zp - zk);
+                auto RTxdiff = (cdj * xp - sdj * zp - xk);
+                auto RTydiff = (sdj * saj * xp + caj * yp + cdj * saj * zp - yk);
+                auto RTzdiff = (sdj * caj * xp - saj * yp + cdj * caj * zp - zk);
+                auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
+                auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
+                auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
+//                 auto R_dot_dl_cross_RTdiff_x = Rxx * dl_cross_RTdiff_x + Rxy * dl_cross_RTdiff_y + Rxz * dl_cross_RTdiff_z;
+//                 auto R_dot_dl_cross_RTdiff_y = Ryx * dl_cross_RTdiff_x + Ryy * dl_cross_RTdiff_y + Ryz * dl_cross_RTdiff_z;
+//                 auto R_dot_dl_cross_RTdiff_z = Rzx * dl_cross_RTdiff_x + Rzy * dl_cross_RTdiff_y + Rzz * dl_cross_RTdiff_z;
+//                 auto dRdalpha_dot_dl_cross_RTdiff_x = dRxx_dalpha * dl_cross_RTdiff_x + dRxy_dalpha * dl_cross_RTdiff_y + dRxz_dalpha * dl_cross_RTdiff_z;
+//                 auto dRdalpha_dot_dl_cross_RTdiff_y = dRyx_dalpha * dl_cross_RTdiff_x + dRyy_dalpha * dl_cross_RTdiff_y + dRyz_dalpha * dl_cross_RTdiff_z;
+//                 auto dRdalpha_dot_dl_cross_RTdiff_z = dRzx_dalpha * dl_cross_RTdiff_x + dRzy_dalpha * dl_cross_RTdiff_y + dRzz_dalpha * dl_cross_RTdiff_z;
+                auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
+                auto denom3 = denom * denom * denom;
+                auto denom5 = denom3 * denom * denom;
+                // First derivative contribution of three
+                Bx1 += dl_cross_RTdiff_x / denom3;
+                By1 += dl_cross_RTdiff_y / denom3;
+                Bz1 += dl_cross_RTdiff_z / denom3;
+                // second derivative contribution
+                auto dR_dalphaT_x = sdj * caj * yp - sdj * saj * zp;
+                auto dR_dalphaT_y = -saj * yp - caj * zp;
+                auto dR_dalphaT_z = cdj * caj * yp - cdj * saj * zp;
+                auto dl_cross_dR_dalphaT_x = dly * dR_dalphaT_z - dlz * dR_dalphaT_y;
+                auto dl_cross_dR_dalphaT_y = dlz * dR_dalphaT_x - dlx * dR_dalphaT_z;
+                auto dl_cross_dR_dalphaT_z = dlx * dR_dalphaT_y - dly * dR_dalphaT_x;
+                Bx2 += dl_cross_dR_dalphaT_x / denom3;
+                By2 += dl_cross_dR_dalphaT_y / denom3;
+                Bz2 += dl_cross_dR_dalphaT_z / denom3;
+                Bx4 += dl_cross_dR_ddeltaT_x / denom3;
+                By4 += dl_cross_dR_ddeltaT_y / denom3;
+                Bz4 += dl_cross_dR_ddeltaT_z / denom3;
+                // third derivative contribution
+                auto RTxdiff_dot_dR_dalpha = RTxdiff * dR_dalphaT_x + RTydiff * dR_dalphaT_y + RTzdiff * dR_dalphaT_z;
+                auto RTxdiff_dot_dR_ddelta = RTxdiff * dR_ddeltaT_x + RTydiff * dR_ddeltaT_y + RTzdiff * dR_ddeltaT_z;
+                Bx3 += dl_cross_RTdiff_x * RTxdiff_dot_dR_dalpha / denom5;
+                By3 += dl_cross_RTdiff_y * RTxdiff_dot_dR_dalpha / denom5;
+                Bz3 += dl_cross_RTdiff_z * RTxdiff_dot_dR_dalpha / denom5;
+                Bx5 += dl_cross_RTdiff_x * RTxdiff_dot_dR_ddelta / denom5;
+                By5 += dl_cross_RTdiff_y * RTxdiff_dot_dR_ddelta / denom5;
+                Bz5 += dl_cross_RTdiff_z * RTxdiff_dot_dR_ddelta / denom5;
+            }
+            // rotate first contribution
+            dB(j, i, 0) += (dRxx_dalpha * Bx1 + dRxy_dalpha * By1 + dRxz_dalpha * Bz1) * current;
+            dB(j, i, 1) += (dRyx_dalpha * Bx1 + dRyy_dalpha * By1 + dRyz_dalpha * Bz1) * current;
+            dB(j, i, 2) += (dRzx_dalpha * Bx1 + dRzy_dalpha * By1 + dRzz_dalpha * Bz1) * current;
+            // rotate second and third contribution 
+            dB(j, i, 0) += (Rxx * (Bx2 + Bx3) + Rxy * (By2 + By3) + Rxz * (Bz2 + Bz3)) * current;
+            dB(j, i, 1) += (Ryx * (Bx2 + Bx3) + Ryy * (By2 + By3) + Ryz * (Bz2 + Bz3)) * current;
+            dB(j, i, 2) += (Rzx * (Bx2 + Bx3) + Rzy * (By2 + By3) + Rzz * (Bz2 + Bz3)) * current;
+            // repeat for delta derivative
+            dB(j + num_coils, i, 0) += (dRxx_ddelta * Bx1 + dRxy_ddelta * By1 + dRxz_ddelta * Bz1) * current;
+            dB(j + num_coils, i, 1) += (dRyx_ddelta * Bx1 + dRyy_ddelta * By1 + dRyz_ddelta * Bz1) * current;
+            dB(j + num_coils, i, 2) += (dRzx_ddelta * Bx1 + dRzy_ddelta * By1 + dRzz_ddelta * Bz1) * current;
+            dB(j + num_coils, i, 0) += (Rxx * (Bx4 + Bx5) + Rxy * (By4 + By5) + Rxz * (Bz4 + Bz5)) * current;
+            dB(j + num_coils, i, 1) += (Ryx * (Bx4 + Bx5) + Ryy * (By4 + By5) + Ryz * (Bz4 + Bz5)) * current;
+            dB(j + num_coils, i, 2) += (Rzx * (Bx4 + Bx5) + Rzy * (By4 + By5) + Rzz * (Bz4 + Bz5)) * current;
+        }
+    }
+    return dB * fac;
 }

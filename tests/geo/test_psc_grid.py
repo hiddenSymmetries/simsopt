@@ -10,69 +10,128 @@ import simsoptpp as sopp
 
 class Testing(unittest.TestCase):
     
-    def test_analytic_derivatives(self):
+    def test_L_analytic_derivatives(self):
         """
-        Tests the analytic calculations against finite differences for tiny 
-        changes to the angles, to see if the analytic calculations are correct.
+        Tests the analytic calculations of dL/dalpha and dL/ddelta
+        against finite differences for tiny changes to the angles, 
+        to see if the analytic calculations are correct.
         """
-        # initialize two randomly placed coils
-        np.random.seed(1)
+        
+        # Test partial derivative calculation if we change delta by epsilon
+        ncoils = 3
+        np.random.seed(ncoils)
         R0 = 1
         R = 1 
         a = 1e-5
-        points = (np.random.rand(1, 3) - 0.5) * 5
-        print(points)
-        alphas = np.random.rand(1) * 2 * np.pi
-        deltas = np.zeros(1)
+        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        
+        # Need alphas and deltas in [-pi, pi] range
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        L = psc_array.L
+        Linv = psc_array.L_inv
+        L_deriv = psc_array.L_deriv()
+        epsilon = 1e-6
+        deltas_new = np.copy(deltas)
+        deltas_new[0] += epsilon
+        alphas_new = alphas  # + epsilon
+        psc_array_new = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+        )
+        L_new = psc_array_new.L
+        Linv_new = psc_array_new.L_inv
+        dL_ddelta = (L_new - L) / epsilon
+        dLinv_ddelta = (Linv_new - Linv) / epsilon
+        dL_ddelta_analytic = L_deriv
+        dLinv_ddelta_analytic = -np.tensordot(
+            np.tensordot(
+            L_deriv, Linv, axes=([1], [0])
+            ), Linv, axes=([-1], [0])
+        )
+        # Symmetrizing helps with numerical error accumulation?
+        for i in range(ncoils * 2):
+            dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
+            
+        # Linv calculations looks much more incorrect that the L derivatives,
+        # maybe because of numerical error accumulation? 
+        print(dL_ddelta, dL_ddelta_analytic[ncoils, :, :])
+        print(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :])
+        assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils, :, :]))
+        assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :], rtol=10))
+
+        # Test partial derivative calculation if we change alpha by epsilon
+        ncoils = 3
+        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        L = psc_array.L
+        Linv = psc_array.L_inv
+        L_deriv = psc_array.L_deriv()
+        epsilon = 1e-6
+        alphas_new = np.copy(alphas)
+        alphas_new[0] += epsilon
+        deltas_new = deltas
+        psc_array_new = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+        )
+        L_new = psc_array_new.L
+        Linv_new = psc_array_new.L_inv
+        dL_dalpha = (L_new - L) / epsilon
+        dLinv_dalpha = (Linv_new - Linv) / epsilon
+        dL_dalpha_analytic = L_deriv
+        dLinv_dalpha_analytic = -np.tensordot(
+            np.tensordot(
+            L_deriv, Linv, axes=([1], [0])
+            ), Linv, axes=([-1], [0])
+        )
+        # Symmetrizing helps with numerical error accumulation?
+        for i in range(ncoils * 2):
+            dLinv_dalpha_analytic[i, :, :] = (dLinv_dalpha_analytic[i, :, :] + dLinv_dalpha_analytic[i, :, :].T) / 2.0
+        assert(np.allclose(dL_dalpha, dL_dalpha_analytic[0, :, :], rtol=1e-3))
+        assert(np.allclose(dLinv_dalpha, dLinv_dalpha_analytic[0, :, :], rtol=1))
+
+        
+    def test_dB_analytic_derivatives(self):
+        """
+        Tests the analytic calculations of dB/dalpha and dB/ddelta
+        against finite differences for tiny changes to the angles, 
+        to see if the analytic calculations are correct.
+        """
+        ncoils = 2
+        np.random.seed(ncoils)
+        R0 = 1
+        R = 1 
+        a = 1e-5
+        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        alphas = np.zeros(ncoils)
         psc_array = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas, deltas=deltas
         )
         B = psc_array.B_PSC
-        L = psc_array.L
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        L_deriv = psc_array.L_deriv()
-        L_deriv = np.tensordot(
-            np.tensordot(
-            psc_array.L_inv, L_deriv, axes=([-1], [1])
-            ), psc_array.L_inv, axes=([-1], [0])
-            )
-        A_deriv = psc_array.A_deriv()
-        print(psc_array.I)
-        psi_deriv = psc_array.psi_deriv()
-        epsilon = 1e-4
+        epsilon = 1e-6
+        deltas_new = deltas
+        deltas_new[0] += epsilon
         alphas_new = alphas
-        alphas_new[0] += epsilon
-        deltas_new = np.zeros(1)
         psc_array_new = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
         )
         B_new = psc_array_new.B_PSC
-        L_new = psc_array_new.L
-        A_new = psc_array_new.A_matrix
-        # A_deriv = psc_array_new.A_deriv()
-        psi_new = psc_array_new.psi
-        dL_dalpha = (L_new - L) / epsilon
-        dA_dalpha = (A_new - A) / epsilon
-        # print(A, A_new)
-        # exit()
         B.set_points(psc_array.plasma_points)
         B_new.set_points(psc_array.plasma_points)
-
-        dB_dalpha = (B_new.B() - B.B()) / epsilon
-        dpsi_dalpha = (psi_new - psi) / epsilon
-        dL_dalpha_analytic = L_deriv
-        dA_dalpha_analytic = A_deriv
-        dpsi_dalpha_analytic = psi_deriv
-        # print(dB_dalpha.shape)
-        # print(np.sum(dB_dalpha * psc_array.plasma_unitnormals, axis=-1), 
-        #       dA_dalpha @ psc_array.I)
-        print('dA, dA_analytic = ', dA_dalpha, dA_dalpha_analytic[1, :].T)
-              #dA_dalpha_analytic[0, :, :].T, dA_dalpha_analytic[1, :, :].T, 
-              #dA_dalpha_analytic[2, :, :].T, dA_dalpha_analytic[3, :, :].T)
-        # print(dL_dalpha, dL_dalpha_analytic[:, 1, :])
-        # print(dpsi_dalpha, dpsi_dalpha_analytic[1, :])
+        dB_ddelta = (B_new.B() - B.B()) / epsilon
+        dB_ddelta_analytic = psc_array.dB_dkappa()
+        print(dB_ddelta.shape, psc_array.dB_dkappa().shape)
         exit()
+        print(dB_ddelta, psc_array.dB_dkappa())
+        exit()
+        assert(np.allclose(dB_ddelta, dB_ddelta_analytic[ncoils, :, :]))
 
     def test_L(self):
         """

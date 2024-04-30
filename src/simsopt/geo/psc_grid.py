@@ -291,8 +291,8 @@ class PSCgrid:
         # Randomly initialize the coil orientations
         random_initialization = kwargs.pop("random_initialization", False)
         if random_initialization:
-            psc_grid.alphas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
-            psc_grid.deltas = np.random.rand(psc_grid.num_psc) * 2 * np.pi
+            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
+            psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
             psc_grid.coil_normals = np.array(
                 [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
                   -np.sin(psc_grid.alphas),
@@ -311,8 +311,9 @@ class PSCgrid:
                 np.logical_and(np.isclose(psc_grid.coil_normals, 0.0), 
                                np.copysign(1.0, psc_grid.coil_normals) < 0)
                 ] *= -1.0
-            deltas = np.arctan2(psc_grid.coil_normals[:, 0], psc_grid.coil_normals[:, 2])
-            alphas = -np.arcsin(psc_grid.coil_normals[:, 1])
+            deltas = np.arctan2(psc_grid.coil_normals[:, 0], psc_grid.coil_normals[:, 2])  #+ np.pi
+            alphas = -np.arctan2(psc_grid.coil_normals[:, 1] * np.cos(deltas), psc_grid.coil_normals[:, 2])
+            # alphas = -np.arcsin(psc_grid.coil_normals[:, 1])
             
         psc_grid.setup_full_grid()
         t2 = time.time()
@@ -683,7 +684,7 @@ class PSCgrid:
         t1 = time.time()
         grad_A2 = -self.A_matrix @ (np.tensordot(
             np.tensordot(
-            self.L_inv, self.L_deriv(), axes=([-1], [1])
+            self.L_deriv(), self.L_inv, axes=([1], [0])
             ), self.L_inv, axes=([-1], [0])
             ) @ self.psi_total)[:self.num_psc, :]
         Nsym_psc = grad_A2.shape[-1]
@@ -764,11 +765,34 @@ class PSCgrid:
                 #     ) @ self.plasma_points[j, :]
                 #     ) @ self.dRi_ddeltak[i, :, :].T
                 #     ) @ self.plasma_unitnormals[j, :] / I_i
-        print('A = ', term0.T, self.A_matrix)
+        # print('A = ', term0.T, self.A_matrix)
         # exit()
         # print(term1[0, :].T, term2[0, :].T)
         # exit()
         return (term1 + term2) # .T
+    
+    def dB_dkappa(self):
+        """
+        Should return gradient of the magnetic field at each point
+        Returns
+        -------
+            dB_dkappa: 3D numpy array, shape (2 * num_psc, num_psc, num_plasma_points) 
+                The gradient of the L matrix with respect to the PSC angles
+                alpha_i and delta_i. 
+        """
+        contig = np.ascontiguousarray
+        dB_dkappa = sopp.dB_dkappa(
+            contig(self.grid_xyz_all), 
+            contig(self.plasma_points),
+            contig(self.alphas_total), 
+            contig(self.deltas_total),
+            contig(self.I_all),
+            contig(self.phi),
+            self.R,
+        ) * self.dphi  # rescale because did a phi integral
+        
+        # symmetrize it?
+        return dB_dkappa
     
     def L_deriv(self):
         """
@@ -893,6 +917,8 @@ class PSCgrid:
                 The gradient of the Psi vector with respect to the PSC angles
                 alpha_i and delta_i. 
         """
+        
+        # Need to check is alphas and deltas are in [-pi, pi] and remap if not
         self.alphas = alphas
         self.deltas = deltas
         contig = np.ascontiguousarray
@@ -985,8 +1011,10 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
                 normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
-                deltas = np.arctan2(normals[:, 0], normals[:, 2])
-                alphas = -np.arcsin(normals[:, 1])
+                deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                alphas = np.arctan2(-normals[:, 1] * np.cos(deltas), normals[:, 2])
+                # alphas = -np.arcsin(normals[:, 1])
+                print(alphas, deltas)
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
                 q = q + 1
@@ -1010,8 +1038,9 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
                 normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
-                deltas = np.arctan2(normals[:, 0], normals[:, 2])
-                alphas = -np.arcsin(normals[:, 1])
+                deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
+                # alphas = -np.arcsin(normals[:, 1])
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
                 q = q + 1
