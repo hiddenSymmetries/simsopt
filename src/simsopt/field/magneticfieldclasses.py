@@ -406,6 +406,7 @@ class CircularCoil(MagneticField):
               -np.sin(phi) * np.sin(theta),
               np.cos(phi)]
         ])
+        return m
 
     def _rotmatinv(self):
         m    = self._rotmat()

@@ -577,7 +577,7 @@ Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
                 auto dlx = -R * sin(phi(k));
                 auto dly = R * cos(phi(k));
                 auto dlz = 0.0;
-                // multiply by R^T
+                // multiply by R^T and then subtract off coil coordinate
                 auto RTxdiff = (Rxx * x0 + Ryx * y0 + Rzx * z0) - R * cos(phi(k));
                 auto RTydiff = (Rxy * x0 + Ryy * y0 + Rzy * z0) - R * sin(phi(k));
                 auto RTzdiff = (Rxz * x0 + Ryz * y0 + Rzz * z0);
@@ -611,10 +611,7 @@ Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
                 By4 += dl_cross_dR_ddeltaT_y / denom3;
                 Bz4 += dl_cross_dR_ddeltaT_z / denom3;
                 // third derivative contribution
-                auto dR_dalpha_x = dRxx_dalpha * x0 + dRxy_dalpha * y0 + dRxz_dalpha * z0;
-                auto dR_dalpha_y = dRyx_dalpha * x0 + dRyy_dalpha * y0 + dRyz_dalpha * z0;
-                auto dR_dalpha_z = dRzx_dalpha * x0 + dRzy_dalpha * y0 + dRzz_dalpha * z0;
-                auto RTxdiff_dot_dR_dalpha = RTxdiff * dR_dalpha_x + RTydiff * dR_dalpha_y + RTzdiff * dR_dalpha_z;
+                auto RTxdiff_dot_dR_dalpha = RTxdiff * dR_dalphaT_x + RTydiff * dR_dalphaT_y + RTzdiff * dR_dalphaT_z;
                 auto RTxdiff_dot_dR_ddelta = RTxdiff * dR_ddeltaT_x + RTydiff * dR_ddeltaT_y + RTzdiff * dR_ddeltaT_z;
                 Bx3 += - 3.0 * dl_cross_RTdiff_x * RTxdiff_dot_dR_dalpha / denom5;
                 By3 += - 3.0 * dl_cross_RTdiff_y * RTxdiff_dot_dR_dalpha / denom5;

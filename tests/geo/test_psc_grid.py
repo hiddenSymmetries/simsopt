@@ -104,7 +104,7 @@ class Testing(unittest.TestCase):
         to see if the analytic calculations are correct.
         """
         
-        ncoils = 2
+        ncoils = 6
         np.random.seed(ncoils)
         R0 = 1
         R = 1 
@@ -132,15 +132,10 @@ class Testing(unittest.TestCase):
         # B_new.set_points(psc_array.plasma_points)
         dA_dalpha = (A_new - A) / epsilon
         dA_dkappa_analytic = psc_array.dA_dkappa()
-        print(dA_dalpha.shape, dA_dkappa_analytic.shape)
-        print(dA_dalpha[:, 0], dA_dkappa_analytic[0, :])
+        # print(dA_dalpha[:, 0], dA_dkappa_analytic[0, :])
+        assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[0, :])
         
-        ncoils = 2
-        np.random.seed(ncoils)
-        R0 = 1
-        R = 1 
-        a = 1e-5
-        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        # Repeat but changing delta instead of alpha
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
         alphas = np.zeros(ncoils)
         psc_array = PSCgrid.geo_setup_manual(
@@ -164,9 +159,8 @@ class Testing(unittest.TestCase):
         # B_new.set_points(psc_array.plasma_points)
         dA_ddelta = (A_new - A) / epsilon
         dA_dkappa_analytic = psc_array.dA_dkappa()
-        print(dA_ddelta.shape, dA_dkappa_analytic.shape)
-        print(dA_ddelta[:, 0], dA_dkappa_analytic[ncoils, :])
-        exit()
+        assert np.allclose(dA_ddelta[:, 0], dA_dkappa_analytic[ncoils, :])
+        # print(dA_ddelta[:, 0], dA_dkappa_analytic[ncoils, :])
 
     def test_L(self):
         """
@@ -182,7 +176,6 @@ class Testing(unittest.TestCase):
         from scipy.special import ellipk, ellipe
         
         np.random.seed(1)
-        exit()
         
         # initialize coaxial coils
         R0 = 4
@@ -275,8 +268,8 @@ class Testing(unittest.TestCase):
                             np.array([(np.random.rand(3) - 0.5) * 40, [0, 0, 0]]),
                             np.array([(np.random.rand(3) - 0.5) * 40, 
                                       (np.random.rand(3) - 0.5) * 40])]:
-                for alphas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
-                    for deltas in [np.zeros(2), np.random.rand(2) * 2 * np.pi]:
+                for alphas in [np.zeros(2), (np.random.rand(2) - 0.5) * 2 * np.pi]:
+                    for deltas in [np.zeros(2), (np.random.rand(2) - 0.5) * 2 * np.pi]:
                         for surf in [surf1]:
                             psc_array = PSCgrid.geo_setup_manual(
                                 points, R=R, a=a, alphas=alphas, deltas=deltas,
@@ -365,20 +358,17 @@ class Testing(unittest.TestCase):
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
                             # Robust test of all the B and Bn calculations from circular coils
-                            # print('here = ', psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, Bn_circular_coils * 1e10)
                             # print(psc_array.B_PSC.B()[-1] * 1e10, B_PSC[-1] * 1e10, B_circular_coils[-1] * 1e10, B_direct.B()[-1] * 1e10)
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_PSC * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct.B() * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct_all.B() * 1e10))
+                            print(alphas, deltas)
                             print('Bns = ', psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10)
-                            # print('disagreements = ', psc_array.Bn_PSC[np.logical_not(np.isclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10))] * 1e10)
-                            # print(Bn_PSC[np.logical_not(np.isclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10))] * 1e10)
-
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct_all * 1e10, atol=1e3))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_PSC * 1e10))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct.B() * 1e10))
+                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct_all.B() * 1e10))
         
         # Applying discrete symmetries to the coils wont work unless they dont intersect the symmetry planes
         for R in [0.1, 1]:

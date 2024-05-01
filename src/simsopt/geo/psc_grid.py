@@ -312,7 +312,9 @@ class PSCgrid:
                                np.copysign(1.0, psc_grid.coil_normals) < 0)
                 ] *= -1.0
             deltas = np.arctan2(psc_grid.coil_normals[:, 0], psc_grid.coil_normals[:, 2])  #+ np.pi
+            deltas[abs(deltas) == np.pi] = 0.0
             alphas = -np.arctan2(psc_grid.coil_normals[:, 1] * np.cos(deltas), psc_grid.coil_normals[:, 2])
+            alphas[abs(alphas) == np.pi] = 0.0
             # alphas = -np.arcsin(psc_grid.coil_normals[:, 1])
             
         psc_grid.setup_full_grid()
@@ -799,7 +801,7 @@ class PSCgrid:
             contig(self.plasma_points),
             contig(self.alphas_total), 
             contig(self.deltas_total),
-            contig(np.ones(self.I_all.shape)),
+            contig(self.plasma_unitnormals),
             contig(self.phi),
             self.R,
         ) * self.dphi   # rescale
@@ -932,6 +934,7 @@ class PSCgrid:
         # Need to check is alphas and deltas are in [-pi, pi] and remap if not
         self.alphas = alphas
         self.deltas = deltas
+        
         contig = np.ascontiguousarray
         self.coil_normals = np.array(
             [np.cos(alphas) * np.sin(deltas),
@@ -1023,9 +1026,10 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
                 normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
                 deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                deltas[abs(deltas) == np.pi] = 0.0
                 alphas = np.arctan2(-normals[:, 1] * np.cos(deltas), normals[:, 2])
-                # alphas = -np.arcsin(normals[:, 1])
-                print(alphas, deltas)
+                alphas[abs(alphas) == np.pi] = 0.0  # Can still have -0 terms
+                print('here = ', alphas, deltas)
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
                 q = q + 1
@@ -1050,7 +1054,9 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
                 normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
                 deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                deltas[abs(deltas) == np.pi] = 0.0
                 alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
+                alphas[abs(alphas) == np.pi] = 0.0
                 # alphas = -np.arcsin(normals[:, 1])
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
