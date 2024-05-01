@@ -103,6 +103,38 @@ class Testing(unittest.TestCase):
         against finite differences for tiny changes to the angles, 
         to see if the analytic calculations are correct.
         """
+        
+        ncoils = 2
+        np.random.seed(ncoils)
+        R0 = 1
+        R = 1 
+        a = 1e-5
+        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        deltas = np.zeros(ncoils)
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        A = psc_array.A_matrix
+        A_direct = psc_array.A_matrix_direct
+        assert np.allclose(A, A_direct)
+        # print(A, A_direct)
+        # exit()
+        epsilon = 1e-6
+        alphas_new = alphas
+        alphas_new[0] += epsilon
+        deltas_new = deltas
+        psc_array_new = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+        )
+        A_new = psc_array_new.A_matrix
+        # B.set_points(psc_array.plasma_points)
+        # B_new.set_points(psc_array.plasma_points)
+        dA_dalpha = (A_new - A) / epsilon
+        dA_dkappa_analytic = psc_array.dA_dkappa()
+        print(dA_dalpha.shape, dA_dkappa_analytic.shape)
+        print(dA_dalpha[:, 0], dA_dkappa_analytic[0, :])
+        
         ncoils = 2
         np.random.seed(ncoils)
         R0 = 1
@@ -112,26 +144,29 @@ class Testing(unittest.TestCase):
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
         alphas = np.zeros(ncoils)
         psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
+        points, R=R, a=a, alphas=alphas, deltas=deltas
         )
-        B = psc_array.B_PSC
+        A = psc_array.A_matrix
+        A_direct = psc_array.A_matrix_direct
+        # print(A, A_direct)
+        assert np.allclose(A, A_direct)
+        # print(A, A_direct)
+        # exit()
         epsilon = 1e-6
+        alphas_new = alphas
         deltas_new = deltas
         deltas_new[0] += epsilon
-        alphas_new = alphas
         psc_array_new = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
         )
-        B_new = psc_array_new.B_PSC
-        B.set_points(psc_array.plasma_points)
-        B_new.set_points(psc_array.plasma_points)
-        dB_ddelta = (B_new.B() - B.B()) / epsilon
-        dB_ddelta_analytic = psc_array.dB_dkappa()
-        print(dB_ddelta.shape, psc_array.dB_dkappa().shape)
+        A_new = psc_array_new.A_matrix
+        # B.set_points(psc_array.plasma_points)
+        # B_new.set_points(psc_array.plasma_points)
+        dA_ddelta = (A_new - A) / epsilon
+        dA_dkappa_analytic = psc_array.dA_dkappa()
+        print(dA_ddelta.shape, dA_dkappa_analytic.shape)
+        print(dA_ddelta[:, 0], dA_dkappa_analytic[ncoils, :])
         exit()
-        print(dB_ddelta, psc_array.dB_dkappa())
-        exit()
-        assert(np.allclose(dB_ddelta, dB_ddelta_analytic[ncoils, :, :]))
 
     def test_L(self):
         """

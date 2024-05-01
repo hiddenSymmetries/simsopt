@@ -203,7 +203,7 @@ class PSCgrid:
         Nnorms = np.ravel(np.sqrt(np.sum(psc_grid.plasma_boundary.normal() ** 2, axis=-1)))
         psc_grid.grid_normalization = np.sqrt(Nnorms / Ngrid)
         # integration over phi for L
-        N = 10
+        N = 100   # Need to reduce for speed
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         N = 40
@@ -511,6 +511,7 @@ class PSCgrid:
         # A_matrix has shape (num_plasma_points, num_coils)
         B_PSC = np.zeros((self.nphi * self.ntheta, 3))
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_psc))
+        A_matrix_direct = np.zeros((self.nphi * self.ntheta, self.num_psc))
         # Need to rotate and flip it
         nn = self.num_psc
         q = 0
@@ -530,6 +531,15 @@ class PSCgrid:
                     contig(self.plasma_unitnormals),
                     self.R,
                 )  # accounts for sign change of the currents
+                A_matrix_direct += sopp.A_matrix_direct(
+                    contig(xyz),
+                    contig(self.plasma_points),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.plasma_unitnormals),
+                    contig(self.phi),
+                    self.R,
+                ) # accounts for sign change of the currents
                 B_PSC += sopp.B_PSC(
                     contig(xyz),
                     contig(self.plasma_points),
@@ -540,6 +550,7 @@ class PSCgrid:
                 )
                 q = q + 1
         self.A_matrix = A_matrix
+        self.A_matrix_direct = A_matrix_direct * self.dphi 
         self.B_PSC_direct = B_PSC
         self.Bn_PSC = (A_matrix @ self.I).reshape(-1)
         currents = []
@@ -771,28 +782,28 @@ class PSCgrid:
         # exit()
         return (term1 + term2) # .T
     
-    def dB_dkappa(self):
+    def dA_dkappa(self):
         """
-        Should return gradient of the magnetic field at each point
+        Should return gradient of the A matrix evaluated at each point on the 
+        plasma boundary. This is a wrapper function for a faster c++ call.
+        
         Returns
         -------
-            dB_dkappa: 3D numpy array, shape (2 * num_psc, num_psc, num_plasma_points) 
-                The gradient of the L matrix with respect to the PSC angles
-                alpha_i and delta_i. 
+            dS_dkappa: 3D numpy array, shape (2 * num_psc, num_plasma_points, 3) 
+                The gradient of the A matrix evaluated on all the plasma 
+                points, with respect to the PSC angles alpha_i and delta_i. 
         """
         contig = np.ascontiguousarray
-        dB_dkappa = sopp.dB_dkappa(
+        dA_dkappa = sopp.dA_dkappa(
             contig(self.grid_xyz_all), 
             contig(self.plasma_points),
             contig(self.alphas_total), 
             contig(self.deltas_total),
-            contig(self.I_all),
+            contig(np.ones(self.I_all.shape)),
             contig(self.phi),
             self.R,
-        ) * self.dphi  # rescale because did a phi integral
-        
-        # symmetrize it?
-        return dB_dkappa
+        ) * self.dphi   # rescale
+        return dA_dkappa
     
     def L_deriv(self):
         """

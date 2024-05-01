@@ -28,4 +28,6 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
 // 
 // Array A_matrix(Array& plasma_surface_normals, Array& B, Array& alphas, Array& deltas);
 
-Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, Array& phi, double R);
+Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R);
+
+Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R);

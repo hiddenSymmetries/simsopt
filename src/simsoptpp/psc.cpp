@@ -371,6 +371,7 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
             auto nzx = -sdj;
             auto nzy = cdj * saj;
             auto nzz = cdj * caj;
+            // multiply by R^T
             auto x = x0 * nxx + y0 * nyx + z0 * nzx;
             auto y = x0 * nxy + y0 * nyy + z0 * nzy;
             auto z = x0 * nxz + y0 * nyz + z0 * nzz;
@@ -401,7 +402,7 @@ Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, A
 }
 
 
-Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, Array& phi, double R)
+Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -412,8 +413,92 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
           throw std::runtime_error("deltas needs to be in row-major storage order");
     if(plasma_points.layout() != xt::layout_type::row_major)
           throw std::runtime_error("plasma_points needs to be in row-major storage order");
-    if(psc_currents.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("psc_currents needs to be in row-major storage order");
+   
+    // points shape should be (num_coils, 3)
+    // plasma_normal shape should be (num_plasma_points, 3)
+    // plasma_points should be (num_plasma_points, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_plasma_points = plasma_points.shape(0);
+    int num_phi = phi.shape(0);  // shape should be (num_phi)
+    
+    // this variable is the A matrix in the least-squares term so A * I = Bn
+    Array A = xt::zeros<double>({num_plasma_points, num_coils});
+    double fac = 1.0e-7;
+    using namespace boost::math;
+    
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < num_plasma_points; ++i) {
+        auto xp = plasma_points(i, 0);
+        auto yp = plasma_points(i, 1);
+        auto zp = plasma_points(i, 2);
+        auto nx = plasma_normal(i, 0);
+        auto ny = plasma_normal(i, 1);
+        auto nz = plasma_normal(i, 2);
+        for(int j = 0; j < num_coils; j++) {
+            auto cdj = cos(deltas(j));
+            auto caj = cos(alphas(j));
+            auto sdj = sin(deltas(j));
+            auto saj = sin(alphas(j));
+            auto xk = points(j, 0);
+            auto yk = points(j, 1);
+            auto zk = points(j, 2);
+            auto x0 = xp - xk;
+            auto y0 = yp - yk;
+            auto z0 = zp - zk;
+            auto Rxx = cdj;
+            auto Rxy = sdj * saj;
+            auto Rxz = sdj * caj;
+            auto Ryx = 0.0;
+            auto Ryy = caj;
+            auto Ryz = -saj;
+            auto Rzx = -sdj;
+            auto Rzy = cdj * saj;
+            auto Rzz = cdj * caj;
+            auto Bx = 0.0;
+            auto By = 0.0;
+            auto Bz = 0.0;
+            for (int k = 0; k < num_phi; ++k) {
+                auto dlx = -R * sin(phi(k));
+                auto dly = R * cos(phi(k));
+                auto dlz = 0.0;
+                // multiply by R^T
+                auto RTxdiff = (Rxx * x0 + Ryx * y0 + Rzx * z0) - R * cos(phi(k));
+                auto RTydiff = (Rxy * x0 + Ryy * y0 + Rzy * z0) - R * sin(phi(k));
+                auto RTzdiff = (Rxz * x0 + Ryz * y0 + Rzz * z0);
+//                 auto RTxdiff = (cdj * xp - sdj * zp - xk);
+//                 auto RTydiff = (sdj * saj * xp + caj * yp + cdj * saj * zp - yk);
+//                 auto RTzdiff = (sdj * caj * xp - saj * yp + cdj * caj * zp - zk);
+                auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
+                auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
+                auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
+                auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
+                auto denom3 = denom * denom * denom;
+                Bx += dl_cross_RTdiff_x / denom3;
+                By += dl_cross_RTdiff_y / denom3;
+                Bz += dl_cross_RTdiff_z / denom3;
+            }
+            // rotate by R
+            A(i, j) = (Rxx * Bx + Rxy * By + Rxz * Bz) * nx + (Ryx * Bx + Ryy * By + Ryz * Bz) * ny + (Rzx * Bx + Rzy * By + Rzz * Bz) * nz;
+        }
+    }
+    return A * fac;
+}
+
+
+
+Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    if(plasma_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("plasma_points needs to be in row-major storage order");
+    if(plasma_normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("plasma_normal needs to be in row-major storage order");
           
     // points shape should be (num_coils, 3)
     // plasma_normal shape should be (num_plasma_points, 3)
@@ -423,8 +508,8 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
     int num_phi = phi.shape(0);  // shape should be (num_phi)
     
     // this variable is the A matrix in the least-squares term so A * I = Bn
-    Array dB = xt::zeros<double>({num_coils * 2, num_plasma_points, 3});
-    double fac = 2.0e-7;
+    Array dA = xt::zeros<double>({num_coils * 2, num_plasma_points});
+    double fac = 1.0e-7;
     using namespace boost::math;
     
     #pragma omp parallel for schedule(static)
@@ -432,12 +517,20 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
         auto xp = plasma_points(i, 0);
         auto yp = plasma_points(i, 1);
         auto zp = plasma_points(i, 2);
+        auto nx = plasma_normal(i, 0);
+        auto ny = plasma_normal(i, 1);
+        auto nz = plasma_normal(i, 2);
         for(int j = 0; j < num_coils; j++) {
-            auto current = psc_currents(j);
             auto cdj = cos(deltas(j));
             auto caj = cos(alphas(j));
             auto sdj = sin(deltas(j));
             auto saj = sin(alphas(j));
+            auto xk = points(j, 0);
+            auto yk = points(j, 1);
+            auto zk = points(j, 2);
+            auto x0 = xp - xk;
+            auto y0 = yp - yk;
+            auto z0 = zp - zk;
             auto Rxx = cdj;
             auto Rxy = sdj * saj;
             auto Rxz = sdj * caj;
@@ -452,7 +545,7 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
             auto dRxz_dalpha = -sdj * saj;
             auto dRyx_dalpha = 0.0;
             auto dRyy_dalpha = -saj;
-            auto dRyz_dalpha = caj;
+            auto dRyz_dalpha = -caj;
             auto dRzx_dalpha = 0.0;
             auto dRzy_dalpha = cdj * caj;
             auto dRzz_dalpha = -cdj * saj;
@@ -484,24 +577,13 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
                 auto dlx = -R * sin(phi(k));
                 auto dly = R * cos(phi(k));
                 auto dlz = 0.0;
-                auto xk = points(j, 0) + R * cos(phi(k));
-                auto yk = points(j, 1) + R * sin(phi(k));
-                auto zk = points(j, 2);
-                auto xdiff = (xp - xk);
-                auto ydiff = (yp - yk);
-                auto zdiff = (zp - zk);
-                auto RTxdiff = (cdj * xp - sdj * zp - xk);
-                auto RTydiff = (sdj * saj * xp + caj * yp + cdj * saj * zp - yk);
-                auto RTzdiff = (sdj * caj * xp - saj * yp + cdj * caj * zp - zk);
+                // multiply by R^T
+                auto RTxdiff = (Rxx * x0 + Ryx * y0 + Rzx * z0) - R * cos(phi(k));
+                auto RTydiff = (Rxy * x0 + Ryy * y0 + Rzy * z0) - R * sin(phi(k));
+                auto RTzdiff = (Rxz * x0 + Ryz * y0 + Rzz * z0);
                 auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
                 auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
                 auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
-//                 auto R_dot_dl_cross_RTdiff_x = Rxx * dl_cross_RTdiff_x + Rxy * dl_cross_RTdiff_y + Rxz * dl_cross_RTdiff_z;
-//                 auto R_dot_dl_cross_RTdiff_y = Ryx * dl_cross_RTdiff_x + Ryy * dl_cross_RTdiff_y + Ryz * dl_cross_RTdiff_z;
-//                 auto R_dot_dl_cross_RTdiff_z = Rzx * dl_cross_RTdiff_x + Rzy * dl_cross_RTdiff_y + Rzz * dl_cross_RTdiff_z;
-//                 auto dRdalpha_dot_dl_cross_RTdiff_x = dRxx_dalpha * dl_cross_RTdiff_x + dRxy_dalpha * dl_cross_RTdiff_y + dRxz_dalpha * dl_cross_RTdiff_z;
-//                 auto dRdalpha_dot_dl_cross_RTdiff_y = dRyx_dalpha * dl_cross_RTdiff_x + dRyy_dalpha * dl_cross_RTdiff_y + dRyz_dalpha * dl_cross_RTdiff_z;
-//                 auto dRdalpha_dot_dl_cross_RTdiff_z = dRzx_dalpha * dl_cross_RTdiff_x + dRzy_dalpha * dl_cross_RTdiff_y + dRzz_dalpha * dl_cross_RTdiff_z;
                 auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
                 auto denom3 = denom * denom * denom;
                 auto denom5 = denom3 * denom * denom;
@@ -509,13 +591,19 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
                 Bx1 += dl_cross_RTdiff_x / denom3;
                 By1 += dl_cross_RTdiff_y / denom3;
                 Bz1 += dl_cross_RTdiff_z / denom3;
-                // second derivative contribution
-                auto dR_dalphaT_x = sdj * caj * yp - sdj * saj * zp;
-                auto dR_dalphaT_y = -saj * yp - caj * zp;
-                auto dR_dalphaT_z = cdj * caj * yp - cdj * saj * zp;
+                // second derivative contribution (should be dRT/dalpha)
+                auto dR_dalphaT_x = dRxx_dalpha * x0 + dRyx_dalpha * y0 + dRzx_dalpha * z0;
+                auto dR_dalphaT_y = dRxy_dalpha * x0 + dRyy_dalpha * y0 + dRzy_dalpha * z0;
+                auto dR_dalphaT_z = dRxz_dalpha * x0 + dRyz_dalpha * y0 + dRzz_dalpha * z0;
+                auto dR_ddeltaT_x = dRxx_ddelta * x0 + dRyx_ddelta * y0 + dRzx_ddelta * z0;
+                auto dR_ddeltaT_y = dRxy_ddelta * x0 + dRyy_ddelta * y0 + dRzy_ddelta * z0;
+                auto dR_ddeltaT_z = dRxz_ddelta * x0 + dRyz_ddelta * y0 + dRzz_ddelta * z0;
                 auto dl_cross_dR_dalphaT_x = dly * dR_dalphaT_z - dlz * dR_dalphaT_y;
                 auto dl_cross_dR_dalphaT_y = dlz * dR_dalphaT_x - dlx * dR_dalphaT_z;
                 auto dl_cross_dR_dalphaT_z = dlx * dR_dalphaT_y - dly * dR_dalphaT_x;
+                auto dl_cross_dR_ddeltaT_x = dly * dR_ddeltaT_z - dlz * dR_ddeltaT_y;
+                auto dl_cross_dR_ddeltaT_y = dlz * dR_ddeltaT_x - dlx * dR_ddeltaT_z;
+                auto dl_cross_dR_ddeltaT_z = dlx * dR_ddeltaT_y - dly * dR_ddeltaT_x;
                 Bx2 += dl_cross_dR_dalphaT_x / denom3;
                 By2 += dl_cross_dR_dalphaT_y / denom3;
                 Bz2 += dl_cross_dR_dalphaT_z / denom3;
@@ -523,31 +611,34 @@ Array dB_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
                 By4 += dl_cross_dR_ddeltaT_y / denom3;
                 Bz4 += dl_cross_dR_ddeltaT_z / denom3;
                 // third derivative contribution
-                auto RTxdiff_dot_dR_dalpha = RTxdiff * dR_dalphaT_x + RTydiff * dR_dalphaT_y + RTzdiff * dR_dalphaT_z;
+                auto dR_dalpha_x = dRxx_dalpha * x0 + dRxy_dalpha * y0 + dRxz_dalpha * z0;
+                auto dR_dalpha_y = dRyx_dalpha * x0 + dRyy_dalpha * y0 + dRyz_dalpha * z0;
+                auto dR_dalpha_z = dRzx_dalpha * x0 + dRzy_dalpha * y0 + dRzz_dalpha * z0;
+                auto RTxdiff_dot_dR_dalpha = RTxdiff * dR_dalpha_x + RTydiff * dR_dalpha_y + RTzdiff * dR_dalpha_z;
                 auto RTxdiff_dot_dR_ddelta = RTxdiff * dR_ddeltaT_x + RTydiff * dR_ddeltaT_y + RTzdiff * dR_ddeltaT_z;
-                Bx3 += dl_cross_RTdiff_x * RTxdiff_dot_dR_dalpha / denom5;
-                By3 += dl_cross_RTdiff_y * RTxdiff_dot_dR_dalpha / denom5;
-                Bz3 += dl_cross_RTdiff_z * RTxdiff_dot_dR_dalpha / denom5;
-                Bx5 += dl_cross_RTdiff_x * RTxdiff_dot_dR_ddelta / denom5;
-                By5 += dl_cross_RTdiff_y * RTxdiff_dot_dR_ddelta / denom5;
-                Bz5 += dl_cross_RTdiff_z * RTxdiff_dot_dR_ddelta / denom5;
+                Bx3 += - 3.0 * dl_cross_RTdiff_x * RTxdiff_dot_dR_dalpha / denom5;
+                By3 += - 3.0 * dl_cross_RTdiff_y * RTxdiff_dot_dR_dalpha / denom5;
+                Bz3 += - 3.0 * dl_cross_RTdiff_z * RTxdiff_dot_dR_dalpha / denom5;
+                Bx5 += - 3.0 * dl_cross_RTdiff_x * RTxdiff_dot_dR_ddelta / denom5;
+                By5 += - 3.0 * dl_cross_RTdiff_y * RTxdiff_dot_dR_ddelta / denom5;
+                Bz5 += - 3.0 * dl_cross_RTdiff_z * RTxdiff_dot_dR_ddelta / denom5;
             }
-            // rotate first contribution
-            dB(j, i, 0) += (dRxx_dalpha * Bx1 + dRxy_dalpha * By1 + dRxz_dalpha * Bz1) * current;
-            dB(j, i, 1) += (dRyx_dalpha * Bx1 + dRyy_dalpha * By1 + dRyz_dalpha * Bz1) * current;
-            dB(j, i, 2) += (dRzx_dalpha * Bx1 + dRzy_dalpha * By1 + dRzz_dalpha * Bz1) * current;
-            // rotate second and third contribution 
-            dB(j, i, 0) += (Rxx * (Bx2 + Bx3) + Rxy * (By2 + By3) + Rxz * (Bz2 + Bz3)) * current;
-            dB(j, i, 1) += (Ryx * (Bx2 + Bx3) + Ryy * (By2 + By3) + Ryz * (Bz2 + Bz3)) * current;
-            dB(j, i, 2) += (Rzx * (Bx2 + Bx3) + Rzy * (By2 + By3) + Rzz * (Bz2 + Bz3)) * current;
+            // rotate first contribution by dR/dalpha
+            dA(j, i) += (dRxx_dalpha * Bx1 + dRxy_dalpha * By1 + dRxz_dalpha * Bz1) * nx;
+            dA(j, i) += (dRyx_dalpha * Bx1 + dRyy_dalpha * By1 + dRyz_dalpha * Bz1) * ny;
+            dA(j, i) += (dRzx_dalpha * Bx1 + dRzy_dalpha * By1 + dRzz_dalpha * Bz1) * nz;
+            // rotate second and third contribution by R
+            dA(j, i) += (Rxx * (Bx2 + Bx3) + Rxy * (By2 + By3) + Rxz * (Bz2 + Bz3)) * nx;
+            dA(j, i) += (Ryx * (Bx2 + Bx3) + Ryy * (By2 + By3) + Ryz * (Bz2 + Bz3)) * ny;
+            dA(j, i) += (Rzx * (Bx2 + Bx3) + Rzy * (By2 + By3) + Rzz * (Bz2 + Bz3)) * nz;
             // repeat for delta derivative
-            dB(j + num_coils, i, 0) += (dRxx_ddelta * Bx1 + dRxy_ddelta * By1 + dRxz_ddelta * Bz1) * current;
-            dB(j + num_coils, i, 1) += (dRyx_ddelta * Bx1 + dRyy_ddelta * By1 + dRyz_ddelta * Bz1) * current;
-            dB(j + num_coils, i, 2) += (dRzx_ddelta * Bx1 + dRzy_ddelta * By1 + dRzz_ddelta * Bz1) * current;
-            dB(j + num_coils, i, 0) += (Rxx * (Bx4 + Bx5) + Rxy * (By4 + By5) + Rxz * (Bz4 + Bz5)) * current;
-            dB(j + num_coils, i, 1) += (Ryx * (Bx4 + Bx5) + Ryy * (By4 + By5) + Ryz * (Bz4 + Bz5)) * current;
-            dB(j + num_coils, i, 2) += (Rzx * (Bx4 + Bx5) + Rzy * (By4 + By5) + Rzz * (Bz4 + Bz5)) * current;
+            dA(j + num_coils, i) += (dRxx_ddelta * Bx1 + dRxy_ddelta * By1 + dRxz_ddelta * Bz1) * nx;
+            dA(j + num_coils, i) += (dRyx_ddelta * Bx1 + dRyy_ddelta * By1 + dRyz_ddelta * Bz1) * ny;
+            dA(j + num_coils, i) += (dRzx_ddelta * Bx1 + dRzy_ddelta * By1 + dRzz_ddelta * Bz1) * nz;
+            dA(j + num_coils, i) += (Rxx * (Bx4 + Bx5) + Rxy * (By4 + By5) + Rxz * (Bz4 + Bz5)) * nx;
+            dA(j + num_coils, i) += (Ryx * (Bx4 + Bx5) + Ryy * (By4 + By5) + Ryz * (Bz4 + Bz5)) * ny;
+            dA(j + num_coils, i) += (Rzx * (Bx4 + Bx5) + Rzy * (By4 + By5) + Rzz * (Bz4 + Bz5)) * nz;
         }
     }
-    return dB * fac;
+    return dA * fac;
 }
