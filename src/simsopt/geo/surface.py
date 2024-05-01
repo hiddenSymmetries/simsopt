@@ -518,7 +518,7 @@ class Surface(Optimizable):
         Return the minor radius of the surface using the formula
 
         .. math::
-            R_{\text{minor}} &= \sqrt{ \overline{A} / \pi }
+            R_{\text{minor}} = \sqrt{ \overline{A} / \pi }
 
         where :math:`\overline{A}` is the average cross sectional area.
 
