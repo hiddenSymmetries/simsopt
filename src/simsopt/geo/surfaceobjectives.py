@@ -287,7 +287,7 @@ class PrincipalCurvature(Optimizable):
         return Derivative({self.surface: deriv})
 
 
-def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_inv_modB=False):
+def boozer_surface_residual(surface, iota, G, biotsavart, derivatives=0, weight_inv_modB=True):
     r"""
     For a given surface, this function computes the
     residual

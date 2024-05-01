@@ -52,7 +52,7 @@ class BoozerSurface(Optimizable):
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
 
-    def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, weight_inv_modB=False):
+    def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False, weight_inv_modB=True):
         r"""
         Define the residual
 
@@ -146,7 +146,7 @@ class BoozerSurface(Optimizable):
         d2val = J.T @ J + np.sum(r[:, None, None] * H, axis=0)
         return val, dval, d2val
 
-    def boozer_penalty_constraints_vectorized(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False, weight_inv_modB=False):
+    def boozer_penalty_constraints_vectorized(self, dofs, derivatives=0, constraint_weight=1., optimize_G=False, weight_inv_modB=True):
         """
         This function returns the same thing as `boozer_penalty_constraints` when `scalarized=True`.  It
         is much faster and uses less memory since it calls a vectorized implementation in cpp. This is
