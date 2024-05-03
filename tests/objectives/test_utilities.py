@@ -9,6 +9,7 @@ from simsopt.geo.curveobjectives import CurveLength, LpCurveTorsion
 from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty, MPIOptimizable
 from simsopt.geo import parameters
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
+from simsopt._core.util import parallel_loop_bounds
 parameters['jit'] = False
 try:
     from mpi4py import MPI
@@ -95,16 +96,19 @@ class UtilityObjectiveTesting(unittest.TestCase):
             return
         
         comm = MPI.COMM_WORLD
-        surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(comm.size)]
+        for size in [1, 2, 3, 4, 5]:
+            surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(size)]
        
-        equal_to = []
-        for i in range(comm.size):
-            x = np.zeros(surfaces[i].x.size)
-            x[:] = i
-            equal_to.append(x)
-            if comm.rank == i:
-                surfaces[i].x = x.copy()
+            equal_to = []
+            for i in range(size):
+                x = np.zeros(surfaces[i].x.size)
+                x[:] = i
+                equal_to.append(x)
+            
+            startidx, endidx = parallel_loop_bounds(comm, len(surfaces))
+            for idx in range(startidx, endidx):
+                surfaces[idx].x = equal_to[idx]
 
-        mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
-        for s, sx in zip(mpi_surfaces, equal_to):
-            np.testing.assert_allclose(s.x, sx, atol=1e-14)
+            mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
+            for s, sx in zip(mpi_surfaces, equal_to):
+                np.testing.assert_allclose(s.x, sx, atol=1e-14)
