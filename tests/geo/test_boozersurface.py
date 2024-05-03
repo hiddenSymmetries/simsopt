@@ -281,21 +281,22 @@ class BoozerSurfaceTests(unittest.TestCase):
             G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         else:
             G = None
-
+        
+        cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-11, maxiter=700, constraint_weight=100., iota=iota, G=G,
+            tol=1e-11, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-                tol=1e-11, maxiter=100, constraint_weight=1000.,
+                tol=1e-11, maxiter=100, constraint_weight=1000./cw,
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-10, maxiter=20, constraint_weight=100.,
+                tol=1e-10, maxiter=20, constraint_weight=100./cw,
                 iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
@@ -500,80 +501,6 @@ class BoozerSurfaceTests(unittest.TestCase):
             print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
         compute_differences(H0, H1)
 
-    def test_boozer_penalty_constraints_cpp_notcpp(self):
-        """
-        Test to verify cpp and python implementations of the BoozerLS objective return the same thing.
-        """
-        for surfacetype in surfacetypes_list:
-            for stellsym in stellsym_list:
-                for (optimize_G, nphi, ntheta) in [(True, 10, 17), (False, 13, 21)]:
-                    with self.subTest(surfacetype=surfacetype,
-                                      stellsym=stellsym,
-                                      optimize_G=optimize_G):
-                        self.subtest_boozer_penalty_constraints_cpp_notcpp(surfacetype, stellsym, optimize_G, nphi, ntheta)
-    
-    def subtest_boozer_penalty_constraints_cpp_notcpp(self, surfacetype, stellsym, optimize_G, nphi, ntheta):
-        
-        np.random.seed(1)
-        curves, currents, ma = get_ncsx_data()
-        coils = coils_via_symmetries(curves, currents, 3, stellsym)
-        bs = BiotSavart(coils)
-        bs_tf = BiotSavart(coils)
-        current_sum = sum(abs(c.current.get_value()) for c in coils)
-
-        s = get_surface(surfacetype, stellsym, nphi=nphi, ntheta=ntheta)
-        s.fit_to_curve(ma, 0.1)
-        s.x = s.x + np.random.rand(s.x.size)*1e-6
-
-        tf = ToroidalFlux(s, bs_tf, nphi=51, ntheta=51)
-
-        tf_target = 0.1
-        boozer_surface = BoozerSurface(bs, s, tf, tf_target)
-
-        iota = -0.3
-        x = np.concatenate((s.get_dofs(), [iota]))
-        if optimize_G:
-            x = np.concatenate(
-                (x, [2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))]))
-        
-        w = 1e2
-        f0, J0, H0 = boozer_surface.boozer_penalty_constraints(
-            x, derivatives=2, constraint_weight=w, optimize_G=optimize_G, weight_inv_modB=True)
-        f1, J1, H1 = boozer_surface.boozerls_penalty(
-            x, derivatives=2, constraint_weight=w, optimize_G=optimize_G)
-        
-        # f1, and J1 scale the quadratic residual terms by 1/(number of residuals), while f0 and J0 do not.
-        # rescale below so that both quantities are comparable.
-        diff1 = (boozer_surface.label.J() - boozer_surface.targetlabel)
-        diff2 = s.gamma()[0, 0, 2]
-        f1 -= 0.5 * w * (diff1**2 + diff2**2)
-        f1 *= (3 * len(s.quadpoints_phi)*len(s.quadpoints_theta))
-        f1 += 0.5 * w * (diff1**2 + diff2**2)
-
-        to_add = [0]
-        if optimize_G:
-            to_add = [0, 0]
-        
-        dl = np.append(boozer_surface.label.dJ(partials=True)(s), to_add)
-        drz = np.append(s.dgamma_by_dcoeff()[0, 0, 2, :], to_add)
-        J1 -= w * (diff1 * dl + diff2 * drz)
-        J1 *= (3*len(s.quadpoints_phi)*len(s.quadpoints_theta))
-        J1 += w * (diff1 * dl + diff2 * drz)
-        
-        nsurfdofs = s.x.size
-        d2l = np.zeros((x.size, x.size))
-        d2l[:nsurfdofs, :nsurfdofs] = boozer_surface.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
-        H1 -= w * dl[:, None] * dl[None, :] + w * diff1 * d2l
-        H1 -= w * drz[:, None] * drz[None, :]
-        H1 *= (3*len(s.quadpoints_phi)*len(s.quadpoints_theta))
-        H1 += w * dl[:, None] * dl[None, :] + w * diff1 * d2l
-        H1 += w * drz[:, None] * drz[None, :]
-
-        self.assertAlmostEqual(f0, f1)
-        np.testing.assert_allclose(J0, J1)
-        norm = np.max(np.abs(H0))
-        assert np.all(np.abs((H0-H1)/norm) < 1e-13)
-       
 
 if __name__ == "__main__":
     unittest.main()

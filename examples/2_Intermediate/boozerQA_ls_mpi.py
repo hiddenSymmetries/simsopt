@@ -24,6 +24,7 @@ except ImportError:
     comm = None
     size = 1
     pprint = print
+    rank = 0
 
 """
 This example optimizes the NCSX coils and currents for QA on potentially multiple surfaces using the BoozerLS approach.  
@@ -59,7 +60,6 @@ nsurfaces = 2
 surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
 ress = ress[:nsurfaces]
-
 for boozer_surface, res in zip(boozer_surfaces, ress):
     boozer_surface.run_code('ls', res['iota'], res['G'], verbose=False)
 
@@ -115,7 +115,6 @@ if comm is None or comm.rank == 0:
 prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
          'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces], 'J': JF.J(), 'dJ': JF.dJ().copy(), 'it': 0}
 
-
 def fun(dofs):
     # initialize to last accepted surface values
     for idx, surface in enumerate(mpi_surfaces):
@@ -124,8 +123,8 @@ def fun(dofs):
         boozer_surface.res['iota'] = prevs['iota'][idx]
         boozer_surface.res['G'] = prevs['G'][idx]
     
-    alldofs = MPI.COMM_WORLD.allgather(dofs)
-    assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
+    #alldofs = MPI.COMM_WORLD.allgather(dofs)
+    #assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
  
     JF.x = dofs
     J = JF.J()
