@@ -4,7 +4,6 @@ from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDista
 from simsopt._core import load
 from simsopt.objectives import MPIObjective, MPIOptimizable
 from simsopt.field import BiotSavart
-from simsopt.configs import get_ncsx_data
 from simsopt.objectives import QuadraticPenalty
 from scipy.optimize import minimize
 from simsopt.util import proc0_print
@@ -50,7 +49,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 proc0_print("Running 2_Intermediate/boozerQA_ls_mpi.py")
 proc0_print("================================")
 
-base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + f"ncsx_init.json")
+base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + "ncsx_init.json")
 nsurfaces = 2
 surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
@@ -104,7 +103,7 @@ base_currents[0].fix_all()
 
 boozer_surface.surface.to_vtk(OUT_DIR + f"surf_init_{rank}")
 if comm is None or comm.rank == 0:
-    curves_to_vtk(curves, OUT_DIR + f"curves_init")
+    curves_to_vtk(curves, OUT_DIR + "curves_init")
 
 # dictionary used to save the last accepted surface dofs in the line search, in case Newton's method fails
 prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
