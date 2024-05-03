@@ -382,16 +382,17 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         
+        cw = 3*s.quadpoints_phi.size * s.quadpoints_theta.size
         # vectorized solution first
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=600, constraint_weight=100., iota=iota, G=G,
+            tol=1e-10, maxiter=600, constraint_weight=100./cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-            tol=1e-10, maxiter=20, constraint_weight=100.,
-            iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
+            tol=1e-10, maxiter=20, constraint_weight=100./cw,
+            iota=res['iota'], G=res['G'], stab=0., vectorize=vectorize)
 
         assert res['success']
         x = boozer_surface.surface.x.copy()

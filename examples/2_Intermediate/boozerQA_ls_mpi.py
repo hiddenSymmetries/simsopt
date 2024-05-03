@@ -118,8 +118,8 @@ def fun(dofs):
         boozer_surface.res['iota'] = prevs['iota'][idx]
         boozer_surface.res['G'] = prevs['G'][idx]
     
-    #alldofs = MPI.COMM_WORLD.allgather(dofs)
-    #assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
+    alldofs = MPI.COMM_WORLD.allgather(dofs)
+    assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
  
     JF.x = dofs
     J = JF.J()
