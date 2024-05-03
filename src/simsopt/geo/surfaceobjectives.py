@@ -1016,12 +1016,6 @@ class BoozerResidual(Optimizable):
         Jtil = np.concatenate((J/np.sqrt(num_points), np.sqrt(self.constraint_weight) * dl[None, :]), axis=0)
         dJ_ds = Jtil.T@rtil
         
-        if booz_surf.res['type'] == 'lscons':
-            if booz_surf.surface.stellsym:
-                dJ_ds = np.concatenate((dJ_ds, [0.]))
-            else:
-                dJ_ds = np.concatenate((dJ_ds, [0., 0.]))
-
         adj = forward_backward(P, L, U, dJ_ds)
         
         adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
@@ -1096,13 +1090,7 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G):
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
     """
-
-    if booz_surf.res['type'] == 'lscons':
-        if booz_surf.surface.stellsym:
-            lm = lm[:-1]
-        else:
-            lm = lm[:-2]
-
+    
     surface = booz_surf.surface
     biotsavart = booz_surf.biotsavart
     nphi = surface.quadpoints_phi.size

@@ -119,6 +119,7 @@ class BoozerSurface(Optimizable):
         s.set_dofs(sdofs)
 
         boozer = boozer_surface_residual(s, iota, G, biotsavart, derivatives=derivatives, weight_inv_modB=weight_inv_modB)
+        # normalizing the residuals here
         boozer = tuple([b/np.sqrt(num_res) for b in boozer])
 
         r = boozer[0]
@@ -227,6 +228,7 @@ class BoozerSurface(Optimizable):
             val, dval, d2val = sopp.boozer_residual_ds2(G, iota, B, dB_dx, d2B_by_dXdX, xphi, xtheta, dx_dc, dxphi_dc, dxtheta_dc, weight_inv_modB)
             boozer = val, dval, d2val
         
+        # normalizing the residuals here
         boozer = tuple([b/num_res for b in boozer])
 
         lab = self.label.J()
