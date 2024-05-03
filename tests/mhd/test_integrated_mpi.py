@@ -190,7 +190,7 @@ class IntegratedTests(unittest.TestCase):
                                                         (residue2.J, 0, 1)])
                
                 # Solve for two nfevs to test if runs
-                least_squares_mpi_solve(prob, mpi=mpi, grad=grad, max_nfev=2)
+                least_squares_mpi_solve(prob, mpi=mpi, grad=grad, save_residuals=True, max_nfev=2)
                 
                 # No assertions, run is too short to complete, just testing if it does run
 
