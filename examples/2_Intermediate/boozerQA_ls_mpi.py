@@ -7,6 +7,7 @@ from simsopt.field import BiotSavart
 from simsopt.configs import get_ncsx_data
 from simsopt.objectives import QuadraticPenalty
 from scipy.optimize import minimize
+from simsopt.util import proc0_print
 import numpy as np
 import os
 try:
@@ -15,14 +16,9 @@ try:
     rank = comm.rank
     size = comm.size
     
-    def pprint(*args, **kwargs):
-        if comm.rank == 0:  # only print on rank 0
-            print(*args, **kwargs)
-
 except ImportError:
     comm = None
     size = 1
-    pprint = print
     rank = 0
 
 """
@@ -51,8 +47,8 @@ IN_DIR = "./inputs/input_ncsx/"
 OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-pprint("Running 2_Intermediate/boozerQA_ls_mpi.py")
-pprint("================================")
+proc0_print("Running 2_Intermediate/boozerQA_ls_mpi.py")
+proc0_print("================================")
 
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + f"ncsx_init.json")
 nsurfaces = 2
@@ -171,14 +167,14 @@ def callback(x):
     outstr += f"{'∫ κ^2 dl / ∫ dl':{width}}" + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
     outstr += "\n\n"
 
-    pprint(outstr)
+    proc0_print(outstr)
     prevs['it'] += 1
 
 
 dofs = JF.x
 callback(dofs)
 
-pprint("""
+proc0_print("""
 ################################################################################
 ### Run the optimization #######################################################
 ################################################################################
@@ -191,5 +187,5 @@ res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER},
 curves_to_vtk(curves, OUT_DIR + f"curves_opt")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
 
-pprint("End of 2_Intermediate/boozerQA_ls.py")
-pprint("================================")
+proc0_print("End of 2_Intermediate/boozerQA_ls.py")
+proc0_print("================================")
