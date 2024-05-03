@@ -3,9 +3,10 @@ import json
 
 import numpy as np
 
+from simsopt.geo import SurfaceXYZTensorFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveTorsion
-from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
+from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty, MPIOptimizable
 from simsopt.geo import parameters
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 parameters['jit'] = False
@@ -84,3 +85,26 @@ class UtilityObjectiveTesting(unittest.TestCase):
             Jmpi1 = MPIObjective(Js1subset, comm, needs_splitting=False)
             assert abs(Jmpi1.J() - sum(J.J() for J in Js)/n) < 1e-14
             assert np.sum(np.abs(Jmpi1.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
+
+    def test_mpi_optimizable(self):
+        """
+        This test checks that the `x` attribute of the surfaces is correctly communicated across the ranks.
+        """
+        if MPI is None:
+            print("skip test_mpi_optimizable")
+            return
+        
+        comm = MPI.COMM_WORLD
+        surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(comm.size)]
+       
+        equal_to = []
+        for i in range(comm.size):
+            x = np.zeros(surfaces[i].x.size)
+            x[:] = i
+            equal_to.append(x)
+            if comm.rank == i:
+                surfaces[i].x = x.copy()
+
+        mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
+        for s, sx in zip(mpi_surfaces, equal_to):
+            np.testing.assert_allclose(s.x, sx, atol=1e-14)
