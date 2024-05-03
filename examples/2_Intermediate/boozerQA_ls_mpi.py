@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier, BoozerSurface, curves_to_vtk, boozer_surface_residual, \
-    ToroidalFlux, Volume, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas, BoozerResidual, \
-    LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
+from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas,\
+        BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
 from simsopt._core import load
 from simsopt.objectives import MPIObjective, MPIOptimizable
-from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.field import BiotSavart
 from simsopt.configs import get_ncsx_data
 from simsopt.objectives import QuadraticPenalty
 from scipy.optimize import minimize
