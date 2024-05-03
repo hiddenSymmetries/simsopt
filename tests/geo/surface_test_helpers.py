@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from simsopt.configs import get_ncsx_data
 from simsopt.field import coils_via_symmetries, BiotSavart
-from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface
+from simsopt.geo import Volume, Area, ToroidalFlux, SurfaceXYZFourier, SurfaceRZFourier, SurfaceXYZTensorFourier, BoozerSurface, AspectRatio
 
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
@@ -74,12 +74,12 @@ def get_exact_surface(surface_type='SurfaceXYZFourier'):
     return s
 
 
-def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
+def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact'):
     """
     Returns a boozer surface that will be used in unit tests.
     """
 
-    assert label == "Volume" or label == "ToroidalFlux" or label == "Area"
+    assert label == "Volume" or label == "ToroidalFlux" or label == "Area" or label == "AspectRatio"
 
     base_curves, base_currents, ma = get_ncsx_data()
     coils = coils_via_symmetries(base_curves, base_currents, 3, True)
@@ -88,13 +88,18 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
     G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
-    mpol = 6
-    ntor = 6
+    mpol = 6 if boozer_type == 'exact' else 3
+    ntor = 6 if boozer_type == 'exact' else 3
     stellsym = True
     nfp = 3
+    
+    if boozer_type == 'exact':
+        phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+    elif boozer_type == 'ls':
+        phis = np.linspace(0, 1/nfp, 20, endpoint=False)
+        thetas = np.linspace(0, 1, 20, endpoint=False)
 
-    phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
-    thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
     s = SurfaceXYZTensorFourier(
         mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
     s.fit_to_curve(ma, 0.1, flip_theta=True)
@@ -110,10 +115,16 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None):
     elif label == "Area":
         lab = Area(s, nphi=nphi, ntheta=ntheta)
         lab_target = lab.J()
+    elif label == "AspectRatio":
+        lab = AspectRatio(s, nphi=nphi, ntheta=ntheta)
+        lab_target = lab.J()*0.9
 
     ## COMPUTE THE SURFACE
-    boozer_surface = BoozerSurface(bs, s, lab, lab_target)
-    res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
-    print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}")
+    cw = None if boozer_type == 'exact' else 100.
+    boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw)
+    boozer_surface.run_code(boozer_type, iota, G=G0, verbose=True)
+
+    #res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
+    #print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}")
 
     return bs, boozer_surface
