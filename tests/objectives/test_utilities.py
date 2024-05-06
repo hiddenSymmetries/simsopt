@@ -112,3 +112,8 @@ class UtilityObjectiveTesting(unittest.TestCase):
             mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
             for s, sx in zip(mpi_surfaces, equal_to):
                 np.testing.assert_allclose(s.x, sx, atol=1e-14)
+            
+            # this should raise an exception
+            mpi_surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(size)]
+            with self.assertRaises(Exception):
+                _ = MPIOptimizable(surfaces, ["y"], comm)
