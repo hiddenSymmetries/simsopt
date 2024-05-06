@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from simsopt.field.biotsavart import BiotSavart
 from simsopt.field.coil import coils_via_symmetries
-from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio, AspectRatio, BoozerResidual
+from simsopt.geo.surfaceobjectives import ToroidalFlux, QfmResidual, parameter_derivatives, Volume, PrincipalCurvature, MajorRadius, Iotas, NonQuasiSymmetricRatio, BoozerResidual
 from simsopt.configs.zoo import get_ncsx_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
 
