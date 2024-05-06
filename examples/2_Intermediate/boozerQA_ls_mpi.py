@@ -57,7 +57,7 @@ proc0_print("================================")
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + "ncsx_init.json")
 
 # you can optimize for QA on up to 10 surfaces, by changing nsurfaces below.
-nsurfaces = 3
+nsurfaces = 10
 assert nsurfaces <=10
 
 surfaces = surfaces[:nsurfaces]
@@ -110,9 +110,10 @@ JF = JnonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEI
 # let's fix the coil current
 base_currents[0].fix_all()
 
-boozer_surface.surface.to_vtk(OUT_DIR + f"surf_init_{rank}")
 if comm is None or comm.rank == 0:
     curves_to_vtk(curves, OUT_DIR + "curves_init")
+    for idx, surface in enumerate(mpi_surfaces):
+        surface.to_vtk(OUT_DIR + f"surf_init_{idx}")
 
 # dictionary used to save the last accepted surface dofs in the line search, in case Newton's method fails
 prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
@@ -195,8 +196,10 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 MAXITER = 50 if ci else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15, callback=callback)
-curves_to_vtk(curves, OUT_DIR + "curves_opt")
-boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
+if comm is None or comm.rank == 0:
+    curves_to_vtk(curves, OUT_DIR + "curves_opt")
+    for idx, surface in enumerate(mpi_surfaces):
+        surface.to_vtk(OUT_DIR + f"surf_opt_{idx}")
 
 proc0_print("End of 2_Intermediate/boozerQA_ls.py")
 proc0_print("================================")
