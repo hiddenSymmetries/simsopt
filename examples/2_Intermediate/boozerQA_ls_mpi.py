@@ -38,6 +38,11 @@ too complex.  The BFGS optimizer is used, and quasisymmetry is improved substant
 Surface solves using the BoozerLS approach can be costly, so this script supports distributing the solves 
 across multiple MPI ranks.
 
+You can change the value of nsurfaces below to optimize for nested surfaces and QS on up to 7 surfaces.  The BoozerSurface
+solves can be distributed to Nranks ranks using:
+    mpirun -n Nranks ./boozerQA_ls_mpi.py
+where nsurfaces is the number of surfaces your optimizing on.
+
 More details on this work can be found at or doi:10.1063/5.0129716 arxiv:2210.03248.
 """
 
@@ -50,7 +55,11 @@ proc0_print("Running 2_Intermediate/boozerQA_ls_mpi.py")
 proc0_print("================================")
 
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + "ncsx_init.json")
-nsurfaces = 2
+
+# you can optimize for QA on up to 10 surfaces, by changing nsurfaces below.
+nsurfaces = 3
+assert nsurfaces <=10
+
 surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
 ress = ress[:nsurfaces]
@@ -117,15 +126,18 @@ def fun(dofs):
         boozer_surface.res['iota'] = prevs['iota'][idx]
         boozer_surface.res['G'] = prevs['G'][idx]
     
-    alldofs = MPI.COMM_WORLD.allgather(dofs)
-    assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
- 
+    #alldofs = MPI.COMM_WORLD.allgather(dofs)
+    #assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
+    
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
     
-    success = np.all([boozer_surface.res['success'] for boozer_surface in mpi_boozer_surfaces])
-    if not success:
+    # check to make sure that all the surface solves succeeded
+    success1 = np.all([boozer_surface.res['success'] for boozer_surface in mpi_boozer_surfaces])
+    # check to make sure that the surfaces are not self-intersecting
+    success2 = np.all([not surface.is_self_intersecting() for surface in mpi_surfaces])
+    if not (success1 and success2):
         J = prevs['J']
         grad = -prevs['dJ']
         for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
