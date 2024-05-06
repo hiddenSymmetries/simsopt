@@ -38,7 +38,7 @@ too complex.  The BFGS optimizer is used, and quasisymmetry is improved substant
 Surface solves using the BoozerLS approach can be costly, so this script supports distributing the solves 
 across multiple MPI ranks.
 
-You can change the value of nsurfaces below to optimize for nested surfaces and QS on up to 7 surfaces.  The BoozerSurface
+You can change the value of nsurfaces below to optimize for nested surfaces and QS on up to 10 surfaces.  The BoozerSurface
 solves can be distributed to Nranks ranks using:
     mpirun -n Nranks ./boozerQA_ls_mpi.py
 where nsurfaces is the number of surfaces your optimizing on.
@@ -195,7 +195,7 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 MAXITER = 50 if ci else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15, callback=callback)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt")
+curves_to_vtk(curves, OUT_DIR + "curves_opt")
 boozer_surface.surface.to_vtk(OUT_DIR + "surf_opt")
 
 proc0_print("End of 2_Intermediate/boozerQA_ls.py")
