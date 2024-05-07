@@ -55,17 +55,24 @@ class BoozerSurface(Optimizable):
     
     def run_code(self, boozer_type, iota, G=None, verbose=True):
         """
-        Run the default solvers.
+        Run the default solvers, i.e., run Newton's method directly if you are computing a BoozerExact surface,
+        and run BFGS followed by Newton if you are computing a BoozerLS surface.
         """
         if not self.need_to_run_code:
             return
-
+        
+        # BoozerExact default solver
         if boozer_type == 'exact':
             res = self.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=40, iota=iota, G=G, verbose=verbose)
             return res
-
+        
+        # BoozerLS default solver
         elif boozer_type == 'ls':
-            # first try BFGS
+            # you need a label constraint for a BoozerLS surface
+            assert self.constraint_weight is not None
+
+            # first try BFGS.  You could also try L-BFGS by setting limited_memory=True, which might be faster.  However, BFGS appears
+            # to generally result in solutions closer to optimality.
             res = self.minimize_boozer_penalty_constraints_LBFGS(tol=1e-10, maxiter=1500, constraint_weight=self.constraint_weight, iota=iota, G=G, verbose=verbose, limited_memory=False)
             iota, G = res['iota'], res['G']
             
@@ -679,7 +686,7 @@ class BoozerSurface(Optimizable):
 
         label = self.label
         if G is None:
-            G = 2. * np.pi * np.sum(np.abs(self.biotsavart.coil_currents)) * (4 * np.pi * 10**(-7) / (2 * np.pi))
+            G = 2. * np.pi * np.sum(np.abs([c.current.get_value() for c in self.biotsavart.coils])) * (4 * np.pi * 10**(-7) / (2 * np.pi))
         x = np.concatenate((s.get_dofs(), [iota, G]))
         i = 0
         r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)

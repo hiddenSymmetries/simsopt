@@ -261,13 +261,16 @@ class MajorRadiusTests(unittest.TestCase):
         """
         for boozer_type in ['exact', 'ls']:
             for label in ["Volume", "ToroidalFlux"]:
-                with self.subTest(label=label, boozer_type=boozer_type):
-                    if boozer_type == 'ls' and label == 'ToroidalFlux':
-                        continue
-                    self.subtest_major_radius_surface_derivative(label, boozer_type)
+                for optimize_G in [True, False]:
+                    with self.subTest(label=label, boozer_type=boozer_type, optimize_G=optimize_G):
+                        if boozer_type == 'ls' and label == 'ToroidalFlux':
+                            continue
+                        if boozer_type == 'exact' and optimize_G is False:
+                            continue
+                        self.subtest_major_radius_surface_derivative(label, boozer_type, optimize_G)
 
-    def subtest_major_radius_surface_derivative(self, label, boozer_type):
-        bs, boozer_surface = get_boozer_surface(label=label, nphi=51, ntheta=51, boozer_type=boozer_type)
+    def subtest_major_radius_surface_derivative(self, label, boozer_type, optimize_G):
+        bs, boozer_surface = get_boozer_surface(label=label, nphi=51, ntheta=51, boozer_type=boozer_type, optimize_G=optimize_G)
         coeffs = bs.x
         mr = MajorRadius(boozer_surface)
 
@@ -290,17 +293,20 @@ class IotasTests(unittest.TestCase):
 
         for boozer_type in ['exact', 'ls']:
             for label in ["Volume", "ToroidalFlux"]:
-                if boozer_type == 'ls' and label == 'ToroidalFlux':
-                   continue
-                with self.subTest(label=label, boozer_type=boozer_type):
-                    self.subtest_iotas_derivative(label, boozer_type)
+                for optimize_G in [True, False]:
+                    if boozer_type == 'ls' and label == 'ToroidalFlux':
+                       continue
+                    if boozer_type == 'exact' and optimize_G is False:
+                        continue
+                    with self.subTest(label=label, boozer_type=boozer_type, optimize_G=optimize_G):
+                        self.subtest_iotas_derivative(label, boozer_type, optimize_G)
 
-    def subtest_iotas_derivative(self, label, boozer_type):
+    def subtest_iotas_derivative(self, label, boozer_type, optimize_G):
         """
         Taylor test for derivative of surface rotational transform wrt coil parameters
         """
 
-        bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type)
+        bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type, optimize_G=optimize_G)
         coeffs = bs.x
         io = Iotas(boozer_surface)
 
@@ -323,14 +329,17 @@ class NonQSRatioTests(unittest.TestCase):
         """
         for boozer_type in ['exact', 'ls']:
             for label in ["Volume", "ToroidalFlux"]:
-                if boozer_type == 'ls' and label == 'ToroidalFlux':
-                   continue
-                for axis in [False, True]:
-                    with self.subTest(label=label, axis=axis, boozer_type=boozer_type):
-                        self.subtest_nonQSratio_derivative(label, axis, boozer_type)
+                for optimize_G in [True, False]:
+                    if boozer_type == 'ls' and label == 'ToroidalFlux':
+                       continue
+                    if boozer_type == 'exact' and optimize_G is False:
+                        continue
+                    for axis in [False, True]:
+                        with self.subTest(label=label, axis=axis, boozer_type=boozer_type, optimize_G=optimize_G):
+                            self.subtest_nonQSratio_derivative(label, axis, boozer_type, optimize_G)
 
-    def subtest_nonQSratio_derivative(self, label, axis, boozer_type):
-        bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type)
+    def subtest_nonQSratio_derivative(self, label, axis, boozer_type, optimize_G):
+        bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type, optimize_G=optimize_G)
         coeffs = bs.x
         io = NonQuasiSymmetricRatio(boozer_surface, bs, quasi_poloidal=axis)
 
@@ -352,11 +361,12 @@ class BoozerResidualTests(unittest.TestCase):
         Taylor test for derivative of surface non QS ratio wrt coil parameters
         """
         for label in ["Volume"]:
-            with self.subTest(label=label):
-                self.subtest_boozerresidual_derivative(label)
+            for optimize_G in [True, False]:
+                with self.subTest(label=label, optimize_G=optimize_G):
+                    self.subtest_boozerresidual_derivative(label, optimize_G)
 
-    def subtest_boozerresidual_derivative(self, label):
-        bs, boozer_surface = get_boozer_surface(label=label, boozer_type='ls')
+    def subtest_boozerresidual_derivative(self, label, optimize_G):
+        bs, boozer_surface = get_boozer_surface(label=label, boozer_type='ls', optimize_G=optimize_G)
         coeffs = bs.x
         br = BoozerResidual(boozer_surface, bs)
 
