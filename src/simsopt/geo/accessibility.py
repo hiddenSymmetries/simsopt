@@ -601,7 +601,16 @@ class DirectedFacingPort(Optimizable):
     
 
 
+def min_xy_distance(gamma1, gamma2):
+    """
+    This function is used in a Python+Jax implementation of the curve-curve distance formula in xy plane.
+    """
+    g1 = gamma1[:,:2]
+    g2 = gamma2[:,:2]
 
+    dists = jnp.sqrt(jnp.sum((g1[:, None, :] - g2[None, :, :])**2, axis=2))
+
+    return jnp.min(dists)
 
 def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     """
@@ -672,6 +681,14 @@ class ProjectedCurveCurveDistance( Optimizable ):
         self.num_basecurves = len(base_curves)
         super().__init__(depends_on=base_curves + [curve])
 
+    def shortest_distance(self):
+        res = jnp.zeros((len(self.base_curves),))
+        gamma = self.curve.gamma()
+        for ii, c in enumerate(self.base_curves):
+            gamma2 = c.gamma()
+            res = res.at[ii].set( min_xy_distance(gamma, gamma2) )
+
+        return jnp.min(res)
 
     def J(self):
         res = 0
