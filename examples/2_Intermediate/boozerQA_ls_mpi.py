@@ -25,23 +25,32 @@ This example optimizes the NCSX coils and currents for QA on potentially multipl
 For a single surface, the objective is:
 
     J = ( \int_S B_nonQA**2 dS )/(\int_S B_QA dS)
+        + \int \int BoozerResidual(varphi, theta)^2 d\varphi d\theta
         + 0.5*(iota - iota_0)**2
         + 0.5*(major_radius - target_major_radius)**2
         + 0.5*max(\sum_{coils} CurveLength - CurveLengthTarget, 0)**2
+        + other coil regularization penalties on curvature, mean squared curvature,
+          coil-to-coil distance, and coil arclength.
 
-We first load a surface close to the magnetic axis, then optimize for QA on that surface.  
-The objective also includes penalty terms on the rotational transform, major radius,
-and total coil length.  The rotational transform and major radius penalty ensures that the surface's
-rotational transform and aspect ratio do not stray too far from the value in the initial configuration.
-There is also a penalty on the total coil length as a regularizer to prevent the coils from becoming
-too complex.  The BFGS optimizer is used, and quasisymmetry is improved substantially on the surface.
-Surface solves using the BoozerLS approach can be costly, so this script supports distributing the solves 
-across multiple MPI ranks.
+We first load surfaces in the NCSX equilibrium, then optimize for QA on them. 
+The first term the objective minimizes the deviation from quasi-axisymmetry on the loaded surfaces.
+The second term minimizes the Boozer residual on the surfaces, which pushes the optimizer to heal
+islands and generalized chaos.  It is typically a good idea to weight this penalty term to be ~ the
+same order of magnitude of the first term in the objective.
 
-You can change the value of nsurfaces below to optimize for nested surfaces and QS on up to 10 surfaces.  The BoozerSurface
-solves can be distributed to Nranks ranks using:
-    mpirun -n Nranks ./boozerQA_ls_mpi.py
-where nsurfaces is the number of surfaces your optimizing on.
+The objective also includes penalty terms on the rotational transform, major radius, total coil length, curvature,
+mean squared curvature, and coil arclength.  The rotational transform and major radius penalty ensures 
+that the surfaces' rotational transform and aspect ratio do not stray too far from the value in the initial configuration.
+There are also a few coil regularization penalties to prevent the coils from becoming too complex.  The BFGS 
+optimizer is used, and quasisymmetry is improved substantially on the surface.  Surface solves using the BoozerLS 
+approach can be costly, so this script supports distributing the solves across multiple MPI ranks.
+
+You can change the value of the variable `nsurfaces` below to optimize for nested surfaces and QS on up to 10 surfaces.  
+The BoozerSurface solves can be distributed to Nranks ranks using:
+    mpirun -np Nranks ./boozerQA_ls_mpi.py
+where `nsurfaces` is the number of surfaces your optimizing on.  For example, if you want one surface solve per rank,
+and nsurfaces=Nranks=2, then the proper call is:
+    mpirun -np 2 ./boozerQA_ls_mpi.py
 
 More details on this work can be found at or doi:10.1063/5.0129716 arxiv:2210.03248.
 """
@@ -57,7 +66,7 @@ proc0_print("================================")
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + "ncsx_init.json")
 
 # you can optimize for QA on up to 10 surfaces, by changing nsurfaces below.
-nsurfaces = 10
+nsurfaces = 2
 assert nsurfaces <=10
 
 surfaces = surfaces[:nsurfaces]
@@ -70,6 +79,7 @@ mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
 mpi_boozer_surfaces = MPIOptimizable(boozer_surfaces, ["res", "need_to_run_code"], comm)
 
 mrs = [MajorRadius(boozer_surface) for boozer_surface in boozer_surfaces]
+mrs_equality = [len(mrs)*QuadraticPenalty(mr, mr.J(), 'identity') if idx == len(mrs)-1 else 0*QuadraticPenalty(mr, mr.J(), 'identity') for idx, mr in enumerate(mrs)]
 iotas = [Iotas(boozer_surface) for boozer_surface in boozer_surfaces]
 nonQSs = [NonQuasiSymmetricRatio(boozer_surface, BiotSavart(coils)) for boozer_surface in boozer_surfaces]
 brs = [BoozerResidual(boozer_surface, BiotSavart(coils)) for boozer_surface in boozer_surfaces]
@@ -92,7 +102,7 @@ mean_iota = MPIObjective(iotas, comm, needs_splitting=True)
 Jiotas = QuadraticPenalty(mean_iota, IOTAS_TARGET, 'identity')
 JnonQSRatio = MPIObjective(nonQSs, comm, needs_splitting=True)
 JBoozerResidual = MPIObjective(brs, comm, needs_splitting=True)
-Jmajor_radius = MPIObjective([len(mrs)*QuadraticPenalty(mr, mr.J(), 'identity') if idx == 0 else 0*QuadraticPenalty(mr, mr.J(), 'identity') for idx, mr in enumerate(mrs)], comm, needs_splitting=True)
+Jmajor_radius = MPIObjective(mrs_equality, comm, needs_splitting=True)
 
 ls = [CurveLength(c) for c in base_curves]
 Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max')
@@ -110,7 +120,7 @@ JF = JnonQSRatio + RES_WEIGHT * JBoozerResidual + IOTAS_WEIGHT * Jiotas + MR_WEI
 # let's fix the coil current
 base_currents[0].fix_all()
 
-if comm is None or comm.rank == 0:
+if comm is None or rank == 0:
     curves_to_vtk(curves, OUT_DIR + "curves_init")
     for idx, surface in enumerate(mpi_surfaces):
         surface.to_vtk(OUT_DIR + f"surf_init_{idx}")
@@ -196,7 +206,7 @@ ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 MAXITER = 50 if ci else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15, callback=callback)
-if comm is None or comm.rank == 0:
+if comm is None or rank == 0:
     curves_to_vtk(curves, OUT_DIR + "curves_opt")
     for idx, surface in enumerate(mpi_surfaces):
         surface.to_vtk(OUT_DIR + f"surf_opt_{idx}")
