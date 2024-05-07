@@ -122,7 +122,8 @@ base_currents[0].fix_all()
 
 if comm is None or rank == 0:
     curves_to_vtk(curves, OUT_DIR + "curves_init")
-    for idx, surface in enumerate(mpi_surfaces):
+for idx, surface in enumerate(mpi_surfaces):
+    if comm is None or rank == 0:
         surface.to_vtk(OUT_DIR + f"surf_init_{idx}")
 
 # dictionary used to save the last accepted surface dofs in the line search, in case Newton's method fails
@@ -137,8 +138,10 @@ def fun(dofs):
         boozer_surface.res['iota'] = prevs['iota'][idx]
         boozer_surface.res['G'] = prevs['G'][idx]
     
-    #alldofs = MPI.COMM_WORLD.allgather(dofs)
-    #assert np.all(np.norm(alldofs[0]-d) == 0 for d in alldofs)
+    # this check makes sure that all ranks have exactly the same dofs
+    if comm is not None:
+        alldofs = comm.allgather(dofs)
+        assert np.all(np.all(alldofs[0]-d == 0) for d in alldofs)
     
     JF.x = dofs
     J = JF.J()
@@ -208,7 +211,8 @@ MAXITER = 50 if ci else 1e3
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15, callback=callback)
 if comm is None or rank == 0:
     curves_to_vtk(curves, OUT_DIR + "curves_opt")
-    for idx, surface in enumerate(mpi_surfaces):
+for idx, surface in enumerate(mpi_surfaces):
+    if comm is None or rank == 0:
         surface.to_vtk(OUT_DIR + f"surf_opt_{idx}")
 
 proc0_print("End of 2_Intermediate/boozerQA_ls.py")
