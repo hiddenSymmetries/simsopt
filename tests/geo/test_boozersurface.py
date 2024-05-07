@@ -359,21 +359,25 @@ class BoozerSurfaceTests(unittest.TestCase):
         This unit test verifies that the run_code portion of the BoozerSurface class is working as expected
         """
         bs, boozer_surface = get_boozer_surface(boozer_type='ls')
-        boozer_surface.run_code('ls', boozer_surface.res['iota'], boozer_surface.res['G'], verbose=False)
+        boozer_surface.run_code('ls', boozer_surface.res['iota'], G=boozer_surface.res['G'], verbose=False)
         
         # this second time should not actually run
-        boozer_surface.run_code('ls', boozer_surface.res['iota'], boozer_surface.res['G'], verbose=False)
+        boozer_surface.run_code('ls', boozer_surface.res['iota'], G=boozer_surface.res['G'], verbose=False)
         
         bs, boozer_surface = get_boozer_surface(boozer_type='exact')
-        boozer_surface.run_code('exact', boozer_surface.res['iota'], boozer_surface.res['G'], verbose=False)
+        boozer_surface.run_code('exact', boozer_surface.res['iota'], G=boozer_surface.res['G'], verbose=False)
         
         # this second time should not actually run
-        boozer_surface.run_code('exact', boozer_surface.res['iota'], boozer_surface.res['G'], verbose=False)
+        boozer_surface.run_code('exact', boozer_surface.res['iota'], G=boozer_surface.res['G'], verbose=False)
        
+        boozer_surface.need_to_run_code=True
+        # run without providing value of G
+        boozer_surface.run_code('exact', boozer_surface.res['iota'], verbose=True)
+        
         boozer_surface.need_to_run_code=True
         # this should raise an exception
         with self.assertRaises(Exception):
-            boozer_surface.run_code('', boozer_surface.res['iota'], boozer_surface.res['G'], verbose=False)
+            boozer_surface.run_code('', boozer_surface.res['iota'], G=boozer_surface.res['G'], verbose=False)
     
     def test_convergence_cpp_and_notcpp_same(self):
         """

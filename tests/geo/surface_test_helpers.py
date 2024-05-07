@@ -74,7 +74,7 @@ def get_exact_surface(surface_type='SurfaceXYZFourier'):
     return s
 
 
-def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact'):
+def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact', optimize_G=True):
     """
     Returns a boozer surface that will be used in unit tests.
     """
@@ -85,7 +85,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     coils = coils_via_symmetries(base_curves, base_currents, 3, True)
     bs = BiotSavart(coils)
     current_sum = sum(abs(c.current.get_value()) for c in coils)
-    G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
+    G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi)) if optimize_G else None
 
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
     mpol = 6 if boozer_type == 'exact' else 3
