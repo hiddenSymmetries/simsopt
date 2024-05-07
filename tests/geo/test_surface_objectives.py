@@ -379,7 +379,7 @@ class LabelTests(unittest.TestCase):
                 self.subtest_label_derivative1(label)
 
     def subtest_label_derivative1(self, label):
-        bs, boozer_surface = get_boozer_surface(label=label)
+        bs, boozer_surface = get_boozer_surface(label=label, nphi=13, ntheta=14)
         surface = boozer_surface.surface
         label = boozer_surface.label
         coeffs = surface.x
