@@ -608,9 +608,12 @@ def min_xy_distance(gamma1, gamma2):
     g1 = gamma1[:,:2]
     g2 = gamma2[:,:2]
 
-    dists = jnp.sqrt(jnp.sum((g1[:, None, :] - g2[None, :, :])**2, axis=2))
-
-    return jnp.min(dists)
+    ind = np.where(g2[2,:]>0)[0]
+    if len(ind)==0: # Then the curve is behind the port - ignore this
+        return np.nan
+    else:
+        dists = np.sqrt(np.sum((g1[:, None, :] - g2[None, ind, :])**2, axis=2))
+        return np.min(dists)
 
 def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     """
@@ -633,6 +636,19 @@ def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
 
     alen = l1norm[:, None] * l2norm[None, :]
     return jnp.sum(alen * f * jnp.maximum(minimum_distance-dists, 0)**2)/(g1.shape[0])
+
+def min_zphi_distance(gamma1, gamma2):
+    local_project = lambda x: project(x, gamma1)
+
+    g1 = local_project(gamma1)[:,1:]
+    g2 = local_project(gamma2)[:,1:]
+
+    ind = np.where(g2[0,:]>0)[0]
+    if len(ind)==0:
+        return np.nan
+    else:
+        dists = np.sqrt(np.sum((g1[:, None, :] - g2[None, ind, :])**2, axis=2))
+        return np.min(dists)
 
 def cc_zphi_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     local_project = lambda x: project(x, gamma1)
@@ -682,13 +698,16 @@ class ProjectedCurveCurveDistance( Optimizable ):
         super().__init__(depends_on=base_curves + [curve])
 
     def shortest_distance(self):
-        res = jnp.zeros((len(self.base_curves),))
+        res = np.zeros((len(self.base_curves),))
         gamma = self.curve.gamma()
         for ii, c in enumerate(self.base_curves):
             gamma2 = c.gamma()
-            res = res.at[ii].set( min_xy_distance(gamma, gamma2) )
+            if self.projection=='xy':
+                res[ii] = min_xy_distance(gamma, gamma2)
+            elif self.projection=='zphi':
+                res[ii] = min_zphi_distance(gamma, gamma2)
 
-        return jnp.min(res)
+        return np.min(res[~np.isnan(res)])
 
     def J(self):
         res = 0
