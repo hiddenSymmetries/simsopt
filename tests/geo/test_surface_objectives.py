@@ -407,7 +407,7 @@ class LabelTests(unittest.TestCase):
             return label.dJ(partials=True)(surface)
 
         taylor_test1(f, df, coeffs,
-                     epsilons=np.power(2., -np.asarray(range(13, 19))))
+                     epsilons=np.power(2., -np.asarray(range(12, 18))))
 
     def test_label_surface_derivative2(self):
         for label in ["Volume", "ToroidalFlux", "Area", "AspectRatio"]:
