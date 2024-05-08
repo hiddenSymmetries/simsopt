@@ -385,11 +385,15 @@ class BoozerResidualTests(unittest.TestCase):
 class LabelTests(unittest.TestCase):
     def test_label_surface_derivative1(self):
         for label in ["Volume", "ToroidalFlux", "Area", "AspectRatio"]:
-            with self.subTest(label=label):
-                self.subtest_label_derivative1(label)
+            for stellsym in stellsym_list:
+                for nphi, ntheta in [(13, 14), (None, None), (13, None), (None, 14)]:
+                    with self.subTest(label=label, stellsym=stellsym, converge=stellsym):
+                        # don't converge the BoozerSurface when stellsym=False because it takes a long time
+                        # for a unit test
+                        self.subtest_label_derivative1(label, stellsym=stellsym, converge=stellsym, nphi=nphi, ntheta=ntheta)
 
-    def subtest_label_derivative1(self, label):
-        bs, boozer_surface = get_boozer_surface(label=label, nphi=13, ntheta=14)
+    def subtest_label_derivative1(self, label, stellsym, converge, nphi, ntheta):
+        bs, boozer_surface = get_boozer_surface(label=label, nphi=nphi, ntheta=ntheta, converge=converge, stellsym=stellsym)
         surface = boozer_surface.surface
         label = boozer_surface.label
         coeffs = surface.x
@@ -406,7 +410,7 @@ class LabelTests(unittest.TestCase):
                      epsilons=np.power(2., -np.asarray(range(13, 19))))
 
     def test_label_surface_derivative2(self):
-        for label in ["Volume", "ToroidalFlux", "Area"]:
+        for label in ["Volume", "ToroidalFlux", "Area", "AspectRatio"]:
             with self.subTest(label=label):
                 self.subtest_label_derivative2(label)
 

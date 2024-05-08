@@ -74,7 +74,7 @@ def get_exact_surface(surface_type='SurfaceXYZFourier'):
     return s
 
 
-def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact', optimize_G=True):
+def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact', optimize_G=True, converge=True, stellsym=True):
     """
     Returns a boozer surface that will be used in unit tests.
     """
@@ -90,7 +90,6 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
     mpol = 6 if boozer_type == 'exact' else 3
     ntor = 6 if boozer_type == 'exact' else 3
-    stellsym = True
     nfp = 3
     
     if boozer_type == 'exact':
@@ -122,9 +121,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     ## COMPUTE THE SURFACE
     cw = None if boozer_type == 'exact' else 100.
     boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw)
-    boozer_surface.run_code(boozer_type, iota, G=G0, verbose=True)
-
-    #res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
-    #print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}")
+    if converge:
+        boozer_surface.run_code(boozer_type, iota, G=G0, verbose=True)
 
     return bs, boozer_surface
