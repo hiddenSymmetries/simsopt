@@ -7,11 +7,11 @@ from simsopt.objectives import SquaredFlux
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
-def surf_torus_221():
-    surf = SurfaceRZFourier(nfp=2, mpol=1, ntor=0)
-    surf.set_rc(0, 0, 2)
-    surf.set_rc(1, 0, 1)
-    surf.set_zs(1, 0, 1)
+def surf_torus(nfp, rmaj, rmin):
+    surf = SurfaceRZFourier(nfp=nfp, mpol=1, ntor=0)
+    surf.set_rc(0, 0, rmaj)
+    surf.set_rc(1, 0, rmin)
+    surf.set_zs(1, 0, rmin)
     return surf
 
 class Testing(unittest.TestCase):
@@ -84,7 +84,7 @@ class Testing(unittest.TestCase):
 
             # Set up a wireframe on an ideal torus
             nPhi = 2*i
-            test_wf = ToroidalWireframe(surf_torus_221(), nPhi, 4)
+            test_wf = ToroidalWireframe(surf_torus(2,2,1), nPhi, 4)
             test_wf.currents[-test_wf.nPolSegments:] = curr/(2*nPhi*test_wf.nfp)
             self.assertTrue(test_wf.check_constraints())
 
@@ -124,7 +124,7 @@ class Testing(unittest.TestCase):
         # Set up the wireframe
         nPhi = 4
         nTheta = 6
-        test_wf = ToroidalWireframe(surf_torus_221(), nPhi, nTheta)
+        test_wf = ToroidalWireframe(surf_torus(2,2,1), nPhi, nTheta)
 
         # Currents satisfying the constraints
         test_wf.currents[-test_wf.nPolSegments:] = -cur_pol/(2*nPhi*test_wf.nfp)
@@ -161,7 +161,7 @@ class Testing(unittest.TestCase):
         cur_tor = 2e6
 
         # Surface on which wireframe is constructed
-        surf = surf_torus_221()
+        surf = surf_torus(2,2,1)
 
         # Set up the wireframe
         nPhi = 4
@@ -192,7 +192,47 @@ class Testing(unittest.TestCase):
         #print('    Enclosed toroidal current: %.8e' % (amploop_curr))
         #print('                    (expected: %.8e)' % (cur_tor))
         assert np.allclose(amploop_curr, cur_tor)
+
+    def test_toroidal_wireframe_add_tfcoil_currents(self):
+        '''
+        Verifies the functionality of the add_tfcoil_currents method with an
+        Amperian loop.
+        '''
  
+        cur_pol = 1e6
+
+        # Surface on which wireframe is constructed
+        surf = surf_torus(2,2,1)
+
+        # Set up the wireframe
+        nPhi = 12
+        nTheta = 4
+        test_wf = ToroidalWireframe(surf, nPhi, nTheta, \
+                                    constraint_tol=cur_pol*1e-12)
+
+        test_wf.set_poloidal_current(-cur_pol)
+
+        # Amperian loop through which poloidal current flows
+        amploop = CurveXYZFourier(10, 1)
+        amploop.set('xc(1)', surf.get_rc(0,0))
+        amploop.set('ys(1)', surf.get_rc(0,0))
+
+        for n_tf in [2, 4, 6]:
+
+            test_wf.currents[:] = 0
+            test_wf.add_tfcoil_currents(n_tf, -cur_pol/(n_tf*2*test_wf.nfp))
+
+            # Make sure the constraints are fulfilled
+            self.assertTrue(test_wf.check_constraints())
+
+            # Calculate the field from the wireframe
+            field_wf = WireframeField(test_wf)
+
+            # Verify correctness of field along Amperian loop
+            amploop_curr = enclosed_current(amploop, field_wf, 200)
+            assert np.allclose(amploop_curr, cur_pol)
+
+
     def test_toroidal_wireframe_squared_flux(self):
         '''
         Verifies that the squared flux on a plasma boundary calculated through

@@ -338,13 +338,35 @@ class ToroidalWireframe(object):
              'matrix_row': matrix_row, \
              'constant': constant}
 
-    def remove_constraint(self, name):
+        if self.implicits_updated:
+            ctype = self.constraints[name]['type']
+            if ctype == 'segment' or ctype == 'implicit_segment':
+                self.implicits_updated = False
 
-        if isinstance(name, str):
+    def remove_constraint(self, names):
+        """
+        Remove a constraint from the wireframe's set of constraints.
+
+        Parameters
+        ----------
+            names: string or list of strings
+                Name(s) of the constraints to be removed
+        """
+
+        if isinstance(names, str):
+            names = [names]
+
+        for name in names:
+
+            if name not in self.constraints:
+                raise ValueError('Constraint %s does not exist' % (name))
+
+            if self.implicits_updated:
+                ctype = self.constraints[name]['type']
+                if ctype == 'segment' or ctype == 'implicit_segment':
+                    self.implicits_updated = False
+
             del self.constraints[name]
-        else:
-            for item in name:
-                del self.constraints[item]
 
     def add_poloidal_current_constraint(self, current):
         """
@@ -484,7 +506,9 @@ class ToroidalWireframe(object):
 
         if not implicit:
             # Remove implicit constraints on requested segments if they exist
-            self.set_segments_free(segments)
+            for i in segments:
+                if 'implicit_segment_%d' % (i) in self.constraints:
+                    self.remove_segment_constraint(i)
             name = 'segment'
         else:
             name = 'implicit_segment'
@@ -496,8 +520,6 @@ class ToroidalWireframe(object):
 
             self.add_constraint(name + '_%d' % (segments[i]), name, \
                                 matrix_row, 0)
-
-        self.implicits_updated = False
 
     def remove_segment_constraints(self, segments, implicit=False):
         """
@@ -529,8 +551,6 @@ class ToroidalWireframe(object):
         for i in range(len(segments)):
     
             self.remove_constraint(name + '_%d' % (segments[i]))
-
-        self.implicits_updated = False
 
     def set_segments_constrained(self, segments, implicit=False):
         """
@@ -688,8 +708,6 @@ class ToroidalWireframe(object):
             elif 'implicit_segment_%d' % (segments[i]) in self.constraints:
                 self.remove_constraint('implicit_segment_%d' % (segments[i]))
 
-        self.implicits_updated = False
-
     def free_all_segments(self):
         """
         Remove any existing constraints that restrict individual segments to
@@ -701,13 +719,16 @@ class ToroidalWireframe(object):
             or self.constraints[constr]['type'] == 'implicit_segment':
                 self.remove_constraint(constr)
 
-        self.implicits_updated = False
-
     def update_implicit_constraints(self):
         """
         Determines which segments are are implicitly constrained due to all
         connected segments on one or both ends being constrained.
         """
+
+        # Clear out existing implicit constraints (they may no longer be needed)
+        for constr in list(self.constraints.keys()):
+            if self.constraints[constr]['type'] == 'implicit_segment':
+                self.remove_constraint(constr)
 
         node_sum = np.zeros((self.nNodes))
 
@@ -1159,7 +1180,7 @@ class ToroidalWireframe(object):
             raise ValueError('n_tf must not exceed the wireframe nPhi')
 
         # Indices in the toroidal dimension where current loops are to be added
-        tf_inds = np.floor(np.linspace(0, self.nPhi, n_tf, endpoint=False) \
+        tf_inds = np.ceil(np.linspace(0, self.nPhi, n_tf, endpoint=False) \
                               + 0.5*self.nPhi/n_tf)
 
         tf_currents = np.zeros(self.nSegments)
@@ -1186,7 +1207,7 @@ class ToroidalWireframe(object):
         if valid:
             self.currents[:] = new_currents[:]
         else:
-            raise RuntimeError('Constraints not met for desired currents')
+            raise ValueError('Constraints not met for desired currents')
 
     def make_plot_3d(self, ax=None, engine='mayavi', to_show='all', \
                      active_tol=1e-12, tube_radius=0.01, **kwargs):
