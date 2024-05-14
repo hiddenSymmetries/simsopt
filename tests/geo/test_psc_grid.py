@@ -10,6 +10,77 @@ import simsoptpp as sopp
 
 class Testing(unittest.TestCase):
     
+    def test_psi_analytic_derivatives(self):
+        """
+        Tests the analytic calculations of dpsi/dalpha and dpsi/ddelta
+        against finite differences for tiny changes to the angles, 
+        to see if the analytic calculations are correct.
+        """
+        
+        # Test partial derivative calculation if we change delta by epsilon
+        ncoils = 3
+        np.random.seed(ncoils)
+        R0 = 1
+        R = 1 
+        a = 1e-5
+        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        
+        # Need alphas and deltas in [-pi, pi] range
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        psi = psc_array.psi
+        psi_deriv = psc_array.psi_deriv()
+        epsilon = 1e-6
+        deltas_new = np.copy(deltas)
+        deltas_new[0] += epsilon
+        alphas_new = alphas  # + epsilon
+        psc_array_new = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+        )
+        psi_new = psc_array_new.psi
+        dpsi_ddelta = (psi_new - psi) / epsilon
+        dpsi_ddelta_analytic = psi_deriv
+
+        # Linv calculations looks much more incorrect that the L derivatives,
+        # maybe because of numerical error accumulation? 
+        # print(dpsi_ddelta, dpsi_ddelta_analytic)
+        assert(np.allclose(dpsi_ddelta[0], dpsi_ddelta_analytic[ncoils], rtol=1e-3))
+
+        # # Test partial derivative calculation if we change alpha by epsilon
+        ncoils = 3
+        np.random.seed(ncoils)
+        R = 1 
+        a = 1e-5
+        points = (np.random.rand(ncoils, 3) - 0.5) * 5
+        
+        # Need alphas and deltas in [-pi, pi] range
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas
+        )
+        psi = psc_array.psi
+        psi_deriv = psc_array.psi_deriv()
+        epsilon = 1e-6
+        alphas_new = np.copy(alphas)
+        alphas_new[0] += epsilon
+        deltas_new = deltas  # + epsilon
+        psc_array_new = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+        )
+        psi_new = psc_array_new.psi
+        dpsi_dalpha = (psi_new - psi) / epsilon
+        dpsi_dalpha_analytic = psi_deriv
+
+        # Linv calculations looks much more incorrect that the L derivatives,
+        # maybe because of numerical error accumulation? 
+        # print(dpsi_dalpha, dpsi_dalpha_analytic, dpsi_dalpha_analytic[0])
+        assert(np.isclose(dpsi_dalpha[0], dpsi_dalpha_analytic[0], rtol=1e-3))
+
+    
     def test_L_analytic_derivatives(self):
         """
         Tests the analytic calculations of dL/dalpha and dL/ddelta
@@ -57,8 +128,8 @@ class Testing(unittest.TestCase):
             
         # Linv calculations looks much more incorrect that the L derivatives,
         # maybe because of numerical error accumulation? 
-        print(dL_ddelta, dL_ddelta_analytic[ncoils, :, :])
-        print(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :])
+        # print(dL_ddelta, dL_ddelta_analytic[ncoils, :, :])
+        # print(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :])
         assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils, :, :]))
         assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :], rtol=10))
 
@@ -387,7 +458,7 @@ class Testing(unittest.TestCase):
                                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
                             )
                             L = psc_array.L
-                            print(psc_array.nfp, psc_array.stell_list, psc_array.I)
+                            # print(psc_array.nfp, psc_array.stell_list, psc_array.I)
 
                             # Below is not true once coils are added from discrete symmetries!
                             # assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))

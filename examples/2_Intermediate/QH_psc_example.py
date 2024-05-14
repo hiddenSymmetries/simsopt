@@ -82,6 +82,9 @@ s_outer.to_vtk(out_str + 'outer_surf')
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s, out_dir)
+currents = np.array([coil.current.get_value() for coil in coils])
+currents = currents[:len(currents) // (2 * s.nfp)]
+print(np.shape(base_curves), np.shape(currents), currents)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -113,7 +116,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 # Finally, initialize the psc class
 kwargs_geo = {"Nx": 12, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
-    s, np.zeros(Bnormal.shape), bs, s_inner, s_outer,  **kwargs_geo
+    s, np.zeros(Bnormal.shape), bs, currents, base_curves, s_inner, s_outer,  **kwargs_geo
 )
 
 # Plot initial errors from only the PSCs, and then together with the TF coils

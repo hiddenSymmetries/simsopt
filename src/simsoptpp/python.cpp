@@ -68,6 +68,9 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("A_matrix_direct" , &A_matrix_direct);
     m.def("B_PSC" , &B_PSC);
     m.def("dA_dkappa" , &dA_dkappa);
+    m.def("dpsi_dkappa" , &dpsi_dkappa);
+    m.def("psi_check" , &psi_check);
+    m.def("B_TF" , &B_TF);
     
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

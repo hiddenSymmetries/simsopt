@@ -127,6 +127,8 @@ class PSCgrid:
         plasma_boundary : Surface,
         Bn,
         B_TF,
+        I_TF,
+        curves_TF,
         inner_toroidal_surface: Surface, 
         outer_toroidal_surface: Surface,
         **kwargs,
@@ -185,6 +187,11 @@ class PSCgrid:
             raise ValueError('The magnetic field from the energized coils '
                 ' must be passed as a BiotSavart object.'
         )
+        psc_grid.dl_TF = np.array([base_curve.gammadash() for base_curve in curves_TF])
+        psc_grid.gamma_TF = np.array([base_curve.gamma() for base_curve in curves_TF])
+        if len(curves_TF) != len(I_TF):
+            raise ValueError('Number of TF curves and TF currents does not match')
+        
         # psc_grid.B_TF = B_TF
         # Many big calls to B_TF.B() so make an interpolated object
         psc_grid.plasma_boundary = plasma_boundary.to_RZFourier()
@@ -248,13 +255,18 @@ class PSCgrid:
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
         psc_grid.rho = np.linspace(0, psc_grid.R, N, endpoint=False)
         psc_grid.drho = psc_grid.rho[1] - psc_grid.rho[0]
+        Rho, Phi = np.meshgrid(psc_grid.rho, psc_grid.phi, indexing='ij')
+        psc_grid.Rho = np.ravel(Rho)
+        psc_grid.Phi = np.ravel(Phi)
+        
+        
 
         # psc_grid.pm_phi = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
         pointsToVTK('psc_grid',
                     contig(psc_grid.grid_xyz[:, 0]),
                     contig(psc_grid.grid_xyz[:, 1]),
                     contig(psc_grid.grid_xyz[:, 2]))
-        print('Number of PSC locations = ', len(psc_grid.grid_xyz))
+        # print('Number of PSC locations = ', len(psc_grid.grid_xyz))
         
         # Order of the coils. For unit tests, needs > 400
         psc_grid.ppp = kwargs.pop("ppp", 100)
@@ -264,6 +276,7 @@ class PSCgrid:
         
         # Initialize the coil orientations parallel to the B field. 
         psc_grid.B_TF = B_TF
+        psc_grid.I_TF = I_TF
         # n = 40  # tried 20 here and then there are small errors in f_B 
         # degree = 3
         # R = psc_grid.R
@@ -364,12 +377,15 @@ class PSCgrid:
         psc_grid.out_dir = kwargs.pop("out_dir", '')
         
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
-        N = 1000  # decrease if not doing unit tests
+        N = 400  # decrease if not doing unit tests
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         psc_grid.rho = np.linspace(0, R, N, endpoint=False)
         psc_grid.drho = psc_grid.rho[1] - psc_grid.rho[0]
         psc_grid.flux_phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        Rho, Phi = np.meshgrid(psc_grid.rho, psc_grid.phi, indexing='ij')
+        psc_grid.Rho = np.ravel(Rho)
+        psc_grid.Phi = np.ravel(Phi)
     
         # initialize default plasma boundary
         input_name = 'input.LandremanPaul2021_QA_lowres'
@@ -410,16 +426,17 @@ class PSCgrid:
         R1 = 0.65
         order = 4
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
-        total_current = 1e3
+        total_current = 1e6
         base_curves = create_equally_spaced_curves(
             ncoils, psc_grid.plasma_boundary.nfp, 
             stellsym=psc_grid.plasma_boundary.stellsym, 
             R0=R0, R1=R1, order=order, numquadpoints=32
         )
-        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
+        I_TF_total = total_current
         total_current = Current(total_current)
         total_current.fix_all()
-        base_currents += [total_current - sum(base_currents)]
+        # base_currents += [total_current - sum(base_currents)]
         default_coils = coils_via_symmetries(
             base_curves, base_currents, 
             psc_grid.plasma_boundary.nfp, 
@@ -429,7 +446,10 @@ class PSCgrid:
         for i in range(ncoils):
             base_curves[i].fix_all()
             
+        psc_grid.dl_TF = np.array([base_curve.gammadash() for base_curve in base_curves])
+        psc_grid.gamma_TF = np.array([base_curve.gamma() for base_curve in base_curves])
         B_TF = kwargs.pop("B_TF", BiotSavart(default_coils))
+        psc_grid.I_TF = np.array(kwargs.pop("I_TF", [I_TF_total / ncoils for _ in range(ncoils)]))
         
         # Order of the coils. For unit tests, needs > 400
         psc_grid.ppp = kwargs.pop("ppp", 1000)
@@ -665,7 +685,7 @@ class PSCgrid:
         )
         self.b_opt = (Bn_TF + Bn_target) * self.grid_normalization
         
-    def least_squares(self, kappas):
+    def least_squares(self, kappas, verbose=False):
         alphas = kappas[:len(kappas) // 2]
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
@@ -674,7 +694,8 @@ class PSCgrid:
         # for i in range(len(kappas)):
         #     outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
         # outstr += "\n"
-        print(outstr)
+        if verbose:
+            print(outstr)
         return BdotN2
     
     def least_squares_jacobian(self, kappas):
@@ -830,86 +851,120 @@ class PSCgrid:
         for i in range(L_deriv.shape[0]):
             L_deriv[i, :, :] = (L_deriv[i, :, :] + L_deriv[i, :, :].T)
         return L_deriv * self.mu0 * self.R * self.Nt ** 2
-        
+    
+    
     def psi_deriv(self):
         """
-        Should return gradient of the Psi vector that satisfies 
+        Should return gradient of the inductance matrix L that satisfies 
         L^(-1) * Psi = I for the PSC arrays.
-        This is currently written in slow form with for loops but can be
-        vectorized.
         Returns
         -------
-            grad_Psi: 3D numpy array, shape (2 * num_psc, num_psc) 
-                The gradient of the Psi vector with respect to the PSC angles
+            grad_L: 3D numpy array, shape (2 * num_psc, num_psc, num_plasma_points) 
+                The gradient of the L matrix with respect to the PSC angles
                 alpha_i and delta_i. 
         """
         contig = np.ascontiguousarray
+        # Array dpsi_dkappa(Array& I_TF, Array& points, Array& evaluation_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R)
+
+        # mu/4pi factpr already included in the function
+        # but need to rescale by drho * dphi ** 2
+        # Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, 
+        # Array& PSC_points, Array& evaluation_points, Array& alphas, 
+        # Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R)
         
-        # Define derivatives of the normal vectors with respect to the angles
-        coil_normals_dalpha = np.array(
-            [-np.sin(self.alphas) * np.sin(self.deltas),
-              -np.cos(self.alphas),
-              -np.sin(self.alphas) * np.cos(self.deltas)]
-        ).T
-        coil_normals_ddelta = np.array(
-            [np.cos(self.alphas) * np.cos(self.deltas),
-             np.zeros(len(self.alphas)),
-             -np.cos(self.alphas) * np.sin(self.deltas)]
-        ).T
+        psi_deriv = sopp.dpsi_dkappa(
+            contig(self.I_TF),
+            contig(self.dl_TF),
+            contig(self.gamma_TF),
+            contig(self.grid_xyz),
+            contig(self.alphas), 
+            contig(self.deltas),
+            contig(self.coil_normals),
+            contig(self.Rho),
+            contig(self.Phi),
+            self.R,
+        ) * self.dphi * self.drho * (1.0 / self.gamma_TF.shape[1])
+        return psi_deriv
         
-        # First gradient terms have unchanged integrand except normal vectors
-        # have been differentiated with respect to the angles
-        psi_deriv1 = np.zeros((2 * self.num_psc, self.num_psc))
-        N = len(self.rho)
-        Nflux = len(self.flux_phi)
-        psi_deriv1[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
-            contig(self.B_TF.B().reshape(
-                len(self.alphas), N, Nflux, 3
-            )),
-            contig(self.rho),
-            contig(coil_normals_dalpha)
-        ))
-        psi_deriv1[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
-            contig(self.B_TF.B().reshape(
-                len(self.alphas), N, Nflux, 3
-            )),
-            contig(self.rho),
-            contig(coil_normals_ddelta)
-        ))
+    # def psi_deriv(self):
+    #     """
+    #     Should return gradient of the Psi vector that satisfies 
+    #     L^(-1) * Psi = I for the PSC arrays.
+    #     This is currently written in slow form with for loops but can be
+    #     vectorized.
+    #     Returns
+    #     -------
+    #         grad_Psi: 3D numpy array, shape (2 * num_psc, num_psc) 
+    #             The gradient of the Psi vector with respect to the PSC angles
+    #             alpha_i and delta_i. 
+    #     """
+    #     contig = np.ascontiguousarray
         
-        # Need to define the integration points to do the 
-        # next derivative term. 
-        psi_deriv2 = np.zeros((2 * self.num_psc, self.num_psc))
-        Rho, Phi = np.meshgrid(self.rho, self.flux_phi, indexing='ij')
-        X = np.outer(self.grid_xyz[:, 0], np.ones(Rho.shape)) + np.outer(np.ones(self.num_psc), Rho * np.cos(Phi))
-        Y = np.outer(self.grid_xyz[:, 1], np.ones(Rho.shape)) + np.outer(np.ones(self.num_psc), Rho * np.sin(Phi))
-        Z = np.outer(self.grid_xyz[:, 2], np.ones(Rho.shape))
-        X = np.ravel(X)
-        Y = np.ravel(Y)
-        Z = np.ravel(Z)
-        coil_points_int = np.array([X, Y, Z]).T
-        coil_points_int = coil_points_int.reshape(-1, 3)
-        dB = np.transpose(self.B_TF.dB_by_dX(), [0, 2, 1])
-        dRi_dalphak = np.outer(np.ones(N * Nflux), self.dRi_dalphak).reshape(coil_points_int.shape[0], 3, 3)
-        dBdot = np.zeros((coil_points_int.shape[0], 3))
-        for i in range(coil_points_int.shape[0]):
-            dBdot[i, :] = (dRi_dalphak[i, :, :] @ dB[i, :, :]) @ coil_points_int[i, :]
-        psi_deriv2[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
-            contig(dBdot.reshape(
-                len(self.alphas), N, Nflux, 3
-            )),
-            contig(self.rho),
-            contig(self.coil_normals)
-        ))
-        psi_deriv2[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
-            contig(dBdot.reshape(
-                len(self.alphas), N, Nflux, 3
-            )),
-            contig(self.rho),
-            contig(self.coil_normals)
-        ))
-        # Rescale dPsi by the grid spacing from the integral
-        return (psi_deriv1 + psi_deriv2) * self.dphi * self.drho
+    #     # Define derivatives of the normal vectors with respect to the angles
+    #     coil_normals_dalpha = np.array(
+    #         [-np.sin(self.alphas) * np.sin(self.deltas),
+    #           -np.cos(self.alphas),
+    #           -np.sin(self.alphas) * np.cos(self.deltas)]
+    #     ).T
+    #     coil_normals_ddelta = np.array(
+    #         [np.cos(self.alphas) * np.cos(self.deltas),
+    #          np.zeros(len(self.alphas)),
+    #          -np.cos(self.alphas) * np.sin(self.deltas)]
+    #     ).T
+        
+    #     # First gradient terms have unchanged integrand except normal vectors
+    #     # have been differentiated with respect to the angles
+    #     psi_deriv1 = np.zeros((2 * self.num_psc, self.num_psc))
+    #     N = len(self.rho)
+    #     Nflux = len(self.flux_phi)
+    #     psi_deriv1[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
+    #         contig(self.B_TF.B().reshape(
+    #             len(self.alphas), N, Nflux, 3
+    #         )),
+    #         contig(self.rho),
+    #         contig(coil_normals_dalpha)
+    #     ))
+    #     psi_deriv1[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
+    #         contig(self.B_TF.B().reshape(
+    #             len(self.alphas), N, Nflux, 3
+    #         )),
+    #         contig(self.rho),
+    #         contig(coil_normals_ddelta)
+    #     ))
+        
+    #     # Need to define the integration points to do the 
+    #     # next derivative term. 
+    #     psi_deriv2 = np.zeros((2 * self.num_psc, self.num_psc))
+    #     Rho, Phi = np.meshgrid(self.rho, self.flux_phi, indexing='ij')
+    #     X = np.outer(self.grid_xyz[:, 0], np.ones(Rho.shape)) + np.outer(np.ones(self.num_psc), Rho * np.cos(Phi))
+    #     Y = np.outer(self.grid_xyz[:, 1], np.ones(Rho.shape)) + np.outer(np.ones(self.num_psc), Rho * np.sin(Phi))
+    #     Z = np.outer(self.grid_xyz[:, 2], np.ones(Rho.shape))
+    #     X = np.ravel(X)
+    #     Y = np.ravel(Y)
+    #     Z = np.ravel(Z)
+    #     coil_points_int = np.array([X, Y, Z]).T
+    #     coil_points_int = coil_points_int.reshape(-1, 3)
+    #     dB = np.transpose(self.B_TF.dB_by_dX(), [0, 2, 1])
+    #     dRi_dalphak = np.outer(np.ones(N * Nflux), self.dRi_dalphak).reshape(coil_points_int.shape[0], 3, 3)
+    #     dBdot = np.zeros((coil_points_int.shape[0], 3))
+    #     for i in range(coil_points_int.shape[0]):
+    #         dBdot[i, :] = (dRi_dalphak[i, :, :] @ dB[i, :, :]) @ coil_points_int[i, :]
+    #     psi_deriv2[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
+    #         contig(dBdot.reshape(
+    #             len(self.alphas), N, Nflux, 3
+    #         )),
+    #         contig(self.rho),
+    #         contig(self.coil_normals)
+    #     ))
+    #     psi_deriv2[:len(self.alphas), :len(self.alphas)] = np.diag(sopp.flux_integration(
+    #         contig(dBdot.reshape(
+    #             len(self.alphas), N, Nflux, 3
+    #         )),
+    #         contig(self.rho),
+    #         contig(self.coil_normals)
+    #     ))
+    #     # Rescale dPsi by the grid spacing from the integral
+    #     return (psi_deriv1 + psi_deriv2) * self.dphi * self.drho
     
     def setup_orientations(self, alphas, deltas):
         """
@@ -949,6 +1004,7 @@ class PSCgrid:
         # Update all the rotation matrices and their derivatives
         self.update_rotation_matrices()
         
+        t1 = time.time()
         # Update the flux grid with the new normal vectors
         flux_grid = sopp.flux_xyz(
             contig(self.grid_xyz), 
@@ -958,12 +1014,21 @@ class PSCgrid:
             contig(self.flux_phi), 
             contig(self.coil_normals)
         )
+        self.flux_grid = flux_grid
         self.B_TF.set_points(contig(np.array(flux_grid).reshape(-1, 3)))
-        # t2 = time.time()
-        # print('Flux set points time = ', t2 - t1)
+        
+        # Only works if using the TF field as expected,
+        # i.e. not doing the unit test with two coils computing the flux from each other
+        # self.B_TF2 = sopp.B_TF(
+        #     contig(self.I_TF),
+        #     contig(self.dl_TF),
+        #     contig(self.gamma_TF),
+        #     contig(np.array(flux_grid).reshape(-1, 3)),
+        #     ) * (1.0 / self.gamma_TF.shape[1])
+        # assert np.allclose(self.B_TF.B(), B_TF2, rtol=1e-2)
+
         N = len(self.rho)
         Nflux = len(self.flux_phi)
-        # t1 = time.time()
         
         # Update the flux values through the newly rotated coils
         self.psi = sopp.flux_integration(
@@ -972,8 +1037,23 @@ class PSCgrid:
             contig(self.coil_normals)
         )
         self.psi *= self.dphi * self.drho
+
+        # Should test if this is faster since doesnt precompute flux_grid
+        # self.psi = sopp.psi_check(
+        #     contig(self.I_TF),
+        #     contig(self.dl_TF),
+        #     contig(self.gamma_TF),
+        #     contig(self.grid_xyz),
+        #     contig(self.alphas), 
+        #     contig(self.deltas),
+        #     contig(self.coil_normals),
+        #     contig(self.Rho),
+        #     contig(self.Phi),
+        #     self.R,
+        # ) * self.dphi * self.drho * (1.0 / self.gamma_TF.shape[1])
+        # assert np.allclose(self.psi, psi2)
         
-        # t2 = time.time()
+        t2 = time.time()
         # print('Flux integration time = ', t2 - t1)
         # t1 = time.time()        
         
