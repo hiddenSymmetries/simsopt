@@ -720,15 +720,22 @@ def vmec_splines(vmec):
     """
     vmec.run()
     results = Struct()
-    if vmec.wout.lasym:
-        raise ValueError("vmec_splines is not yet set up for non-stellarator-symmetric cases.")
-
     rmnc = []
     zmns = []
     lmns = []
     d_rmnc_d_s = []
     d_zmns_d_s = []
     d_lmns_d_s = []
+
+    # for stellarator non-symmetric configs
+    rmns = []
+    zmnc = []
+    lmnc = []
+    d_rmns_d_s = []
+    d_zmnc_d_s = []
+    d_lmnc_d_s = []
+
+    
     for jmn in range(vmec.wout.mnmax):
         rmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.rmnc[jmn, :]))
         zmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.zmns[jmn, :]))
@@ -736,7 +743,24 @@ def vmec_splines(vmec):
         d_rmnc_d_s.append(rmnc[-1].derivative())
         d_zmns_d_s.append(zmns[-1].derivative())
         d_lmns_d_s.append(lmns[-1].derivative())
+        if vmec.wout.lasym:
+            # stellarator non-symmetric
+            rmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.rmns[jmn, :]))
+            zmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.zmnc[jmn, :]))
+            lmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.lmnc[jmn, 1:]))
+            d_rmns_d_s.append(rmns[-1].derivative())
+            d_zmnc_d_s.append(zmnc[-1].derivative())
+            d_lmnc_d_s.append(lmnc[-1].derivative())
+        else:
+            # if stellarator symmetric, set modes to zero
+            rmns.append(InterpolatedUnivariateSpline([0,1], [0, 0], k=1))
+            zmnc.append(InterpolatedUnivariateSpline([0,1], [0, 0], k=1))
+            lmnc.append(InterpolatedUnivariateSpline([0,1], [0, 0], k=1))
+            d_rmns_d_s.append(rmns[-1].derivative())
+            d_zmnc_d_s.append(zmnc[-1].derivative())
+            d_lmnc_d_s.append(lmnc[-1].derivative())
 
+    # nyquist quantities
     gmnc = []
     bmnc = []
     bsupumnc = []
@@ -747,6 +771,20 @@ def vmec_splines(vmec):
     d_bmnc_d_s = []
     d_bsupumnc_d_s = []
     d_bsupvmnc_d_s = []
+
+    # for stellarator non-symmetric configs
+    gmns = []
+    bmns = []
+    bsupumns = []
+    bsupvmns = []
+    bsubsmnc = []
+    bsubumns = []
+    bsubvmns = []
+    d_bmns_d_s = []
+    d_bsupumns_d_s = []
+    d_bsupvmns_d_s = []
+
+    
     for jmn in range(vmec.wout.mnmax_nyq):
         gmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.gmnc[jmn, 1:]))
         bmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bmnc[jmn, 1:]))
@@ -759,7 +797,34 @@ def vmec_splines(vmec):
         d_bmnc_d_s.append(bmnc[-1].derivative())
         d_bsupumnc_d_s.append(bsupumnc[-1].derivative())
         d_bsupvmnc_d_s.append(bsupvmnc[-1].derivative())
+        if vmec.wout.lasym:
+            # stellarator non-symmetric
+            gmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.gmns[jmn, 1:]))
+            bmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bmns[jmn, 1:]))
+            bsupumns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsupumns[jmn, 1:]))
+            bsupvmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsupvmns[jmn, 1:]))
+            # Note that bsubsmns is on the full mesh, unlike the other components:
+            bsubsmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.bsubsmnc[jmn, :]))
+            bsubumns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubumns[jmn, 1:]))
+            bsubvmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubvmns[jmn, 1:]))
+            d_bmns_d_s.append(bmns[-1].derivative())
+            d_bsupumns_d_s.append(bsupumns[-1].derivative())
+            d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
+        else:
+            # if stellarator symmetric, set modes to zero
+            gmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            bmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            bsupumns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            bsupvmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            # Note that bsubsmns is on the full mesh, unlike the other components:
+            bsubsmnc.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            bsubumns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            bsubvmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
+            d_bmns_d_s.append(bmns[-1].derivative())
+            d_bsupumns_d_s.append(bsupumns[-1].derivative())
+            d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
 
+        
     # Handle 1d profiles:
     results.pressure = InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.pres[1:])
     results.d_pressure_d_s = results.pressure.derivative()
@@ -775,6 +840,11 @@ def vmec_splines(vmec):
     variables = ['rmnc', 'zmns', 'lmns', 'd_rmnc_d_s', 'd_zmns_d_s', 'd_lmns_d_s',
                  'gmnc', 'bmnc', 'd_bmnc_d_s', 'bsupumnc', 'bsupvmnc', 'd_bsupumnc_d_s', 'd_bsupvmnc_d_s',
                  'bsubsmns', 'bsubumnc', 'bsubvmnc']
+    # stellarator non-symmetric
+    variables = variables + \
+        ['rmns', 'zmnc', 'lmnc', 'd_rmns_d_s', 'd_zmnc_d_s', 'd_lmnc_d_s',
+         'gmns', 'bmns', 'd_bmns_d_s', 'bsupumns', 'bsupvmns', 'd_bsupumns_d_s', 'd_bsupvmns_d_s',
+         'bsubsmnc', 'bsubumns', 'bsubvmns']
     for v in variables:
         results.__setattr__(v, eval(v))
 
@@ -983,7 +1053,8 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle)
     d_R_d_theta_vmec = -np.einsum('ij,jikl->ikl', rmnc, msinangle)
     d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle)
-
+    
+    
     Z = np.einsum('ij,jikl->ikl', zmns, sinangle)
     d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle)
     d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
@@ -1332,7 +1403,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         variables = ['modB', 'B_sup_theta_pest', 'B_sup_phi', 'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_psi',
                      'B_cross_kappa_dot_grad_alpha', 'B_cross_kappa_dot_grad_psi',
                      'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
-                     'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22']
+                     'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22', 'X', 'Y', 'Z', 'grad_s_X', 'grad_s_Y', 'grad_s_Z']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))
