@@ -314,7 +314,9 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.315
-        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+        print('Total current = ', total_current)
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
+                                                   R0=R0, R1=R1, order=order, numquadpoints=16)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()

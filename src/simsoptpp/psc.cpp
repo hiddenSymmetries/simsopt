@@ -827,7 +827,17 @@ Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, A
     int num_evaluation_points = PSC_points.shape(0);
     int num_phi_TF = gamma_TF.shape(1);
     int num_integration_points = rho.shape(0);
-    
+    double* points_ptr = &(PSC_points(0, 0));
+    double* normals_ptr = &(coil_normals(0, 0));
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    // Shared pointers over indices other than kk can cause memory issues
+    double* rho_ptr = &(rho(0));
+    double* phi_ptr = &(phi(0));
+    double* I_ptr = &(I_TF(0));
+    double* gamma_ptr = &(gamma_TF(0, 0, 0));
+    double* dl_ptr = &(dl_TF(0, 0, 0));
+        
     // this variable is the A matrix in the least-squares term so A * I = Bn
     Array psi = xt::zeros<double>({num_PSC_coils});
     double fac = 1.0e-7;
@@ -836,64 +846,70 @@ Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, A
     // loop over all the PSC coils
     #pragma omp parallel for schedule(static)
     for (int kk = 0; kk < num_PSC_coils; ++kk) {
-        auto xkk = PSC_points(kk, 0);
-        auto ykk = PSC_points(kk, 1);
-        auto zkk = PSC_points(kk, 2);
-        auto cdj = cos(deltas(kk));
-        auto caj = cos(alphas(kk));
-        auto sdj = sin(deltas(kk));
-        auto saj = sin(alphas(kk));
+        auto xkk = points_ptr[3 * kk];
+        auto ykk = points_ptr[3 * kk + 1];
+        auto zkk = points_ptr[3 * kk + 2];
+        auto cdj = cos(deltas_ptr[kk]);
+        auto caj = cos(alphas_ptr[kk]);
+        auto sdj = sin(deltas_ptr[kk]);
+        auto saj = sin(alphas_ptr[kk]);
         // same normal for all these evaluation points so need an extra loop over all the PSCs
-        auto nx = coil_normals(kk, 0);
-        auto ny = coil_normals(kk, 1);
-        auto nz = coil_normals(kk, 2);
+        auto nx = normals_ptr[3 * kk];
+        auto ny = normals_ptr[3 * kk + 1];
+        auto nz = normals_ptr[3 * kk + 2];
         auto Rxx = cdj;
         auto Rxy = sdj * saj;
-        auto Rxz = sdj * caj;
-        auto Ryx = 0.0;
         auto Ryy = caj;
-        auto Ryz = -saj;
         auto Rzx = -sdj;
         auto Rzy = cdj * saj;
-        auto Rzz = cdj * caj;
         auto Bx = 0.0;
         auto By = 0.0;
         auto Bz = 0.0;
         // Do the integral over the PSC cross section
         for (int i = 0; i < num_integration_points; ++i) {
             // evaluation points here should be the points on a PSC coil cross section
-            auto rho_i = rho(i);  // needed for integrating over the disk
-            auto phi_i = phi(i);
+            auto rho_i = rho_ptr[i];  // needed for integrating over the disk
+            auto phi_i = phi_ptr[i];
             auto x0 = rho_i * cos(phi_i);
             auto y0 = rho_i * sin(phi_i);
+            // z0 = 0 here
+            auto xi = (Rxx * x0 + Rxy * y0) + xkk;
+            auto yi = (Ryy * y0) + ykk;
+            auto zi = (Rzx * x0 + Rzy * y0) + zkk;
             // loop here is over all the TF coils
             for(int j = 0; j < num_TF_coils; j++) {
-                auto I_j = I_TF(j);
+                auto I_j = I_ptr[j];
                 auto int_fac = rho_i * I_j;
-                // Do Biot Savart over each TF coil
+                auto Bx_temp = 0.0;
+                auto By_temp = 0.0;
+                auto Bz_temp = 0.0;
+                // Do Biot Savart over each TF coil - can probably downsample
                 for (int k = 0; k < num_phi_TF; ++k) {
-                    auto xk = gamma_TF(j, k, 0);
-                    auto yk = gamma_TF(j, k, 1);
-                    auto zk = gamma_TF(j, k, 2);
-                    auto dlx = dl_TF(j, k, 0);
-                    auto dly = dl_TF(j, k, 1);
-                    auto dlz = dl_TF(j, k, 2);
+                    auto xk = gamma_ptr[(j * num_phi_TF + k) * 3];
+                    auto yk = gamma_ptr[(j * num_phi_TF + k) * 3 + 1];
+                    auto zk = gamma_ptr[(j * num_phi_TF + k) * 3 + 2];
+                    auto dlx = dl_ptr[(j * num_phi_TF + k) * 3];
+                    auto dly = dl_ptr[(j * num_phi_TF + k) * 3 + 1];
+                    auto dlz = dl_ptr[(j * num_phi_TF + k) * 3 + 2];
                     // multiply by R (not R^T!) and then subtract off coil coordinate
-                    auto RTxdiff = (Rxx * x0 + Rxy * y0) + xkk - xk; // z0 = 0 here
-                    auto RTydiff = (Ryx * x0 + Ryy * y0) + ykk - yk;
-                    auto RTzdiff = (Rzx * x0 + Rzy * y0) + zkk - zk;
+                    auto RTxdiff = xi - xk; 
+                    auto RTydiff = yi - yk;
+                    auto RTzdiff = zi - zk;
                     auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
                     auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
                     auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
                     auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
                     auto denom3 = denom * denom * denom;
-                    Bx += int_fac * dl_cross_RTdiff_x / denom3;
-                    By += int_fac * dl_cross_RTdiff_y / denom3;
-                    Bz += int_fac * dl_cross_RTdiff_z / denom3;
+                    Bx_temp += dl_cross_RTdiff_x / denom3;
+                    By_temp += dl_cross_RTdiff_y / denom3;
+                    Bz_temp += dl_cross_RTdiff_z / denom3;
                 }
+                Bx += int_fac * Bx_temp;
+                By += int_fac * By_temp;
+                Bz += int_fac * Bz_temp;
             }
         }
-        psi(kk) = (Bx * nx + By * ny + Bz * nz);
+        psi(kk) = Bx * nx + By * ny + Bz * nz;
     }
     return psi * fac;
 }

@@ -83,8 +83,8 @@ s_outer.to_vtk(out_str + 'outer_surf')
 # initialize the coils
 base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s, out_dir)
 currents = np.array([coil.current.get_value() for coil in coils])
-currents = currents[:len(currents) // (2 * s.nfp)]
-print(np.shape(base_curves), np.shape(currents), currents)
+# currents = currents[:len(currents) // (2 * s.nfp)]
+print(np.shape(curves), np.shape(currents), currents)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -114,10 +114,11 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 12, "out_dir": out_str, "random_initialization": True, "poff": poff} 
+kwargs_geo = {"Nx": 5, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
-    s, np.zeros(Bnormal.shape), bs, currents, base_curves, s_inner, s_outer,  **kwargs_geo
+    s, np.zeros(Bnormal.shape), bs, currents, curves, s_inner, s_outer,  **kwargs_geo
 )
+print('Number of PSC locations = ', len(psc_array.grid_xyz))
 
 # Plot initial errors from only the PSCs, and then together with the TF coils
 make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
@@ -143,17 +144,18 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 from scipy.optimize import minimize
 print('beginning optimization: ')
-options = {"disp": True, "maxiter": 1000}
-# x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
-x0 = psc_array.kappas
-x_opt = minimize(psc_array.least_squares, x0, 
-                 # jac=psc_array.least_squares_jacobian, 
+options = {"disp": True, "maxiter": 1000}  #, "bounds": [(0, 2 * np.pi) for i in range(psc_array.num_psc)]}
+x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
+# x0 = psc_array.kappas
+x_opt = minimize(psc_array.least_squares, x0, args=(True,),
+                 method='L-BFGS-B',
+                 jac=psc_array.least_squares_jacobian, 
                  tol=1e-20, options=options)
 psc_array.setup_curves()
 psc_array.plot_curves('final_')
 # Check that direct Bn calculation agrees with optimization calculation
-fB = SquaredFlux(s, psc_array.B_PSC_all + bs, np.zeros((nphi, ntheta))).J()
+fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((nphi, ntheta))).J()
 print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
-make_Bnormal_plots(psc_array.B_PSC_all, s_plot, out_dir, "PSC_final", B_axis)
-make_Bnormal_plots(bs + psc_array.B_PSC_all, s_plot, out_dir, "PSC_and_TF_final", B_axis)
+make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "PSC_final", B_axis)
+make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
 print('end')
