@@ -74,12 +74,15 @@ def get_exact_surface(surface_type='SurfaceXYZFourier'):
     return s
 
 
-def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact', optimize_G=True, converge=True, stellsym=True):
+def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exact', optimize_G=True, converge=True, stellsym=True, weight_inv_modB=False):
     """
     Returns a boozer surface that will be used in unit tests.
     """
 
     assert label == "Volume" or label == "ToroidalFlux" or label == "Area" or label == "AspectRatio"
+    
+    if boozer_type == 'exact':
+        assert weight_inv_modB == False
 
     base_curves, base_currents, ma = get_ncsx_data()
     coils = coils_via_symmetries(base_curves, base_currents, 3, True)
@@ -120,8 +123,8 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
 
     ## COMPUTE THE SURFACE
     cw = None if boozer_type == 'exact' else 100.
-    boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw)
+    boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw, options={'weight_inv_modB':weight_inv_modB})
     if converge:
-        boozer_surface.run_code(boozer_type, iota, G=G0, verbose=True)
+        boozer_surface.run_code(iota, G=G0)
 
     return bs, boozer_surface
