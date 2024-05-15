@@ -76,6 +76,14 @@ simsopt.geo.curvexyzfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.curvexyzfouriersymmetries module
+--------------------------------------------
+
+.. automodule:: simsopt.geo.curvexyzfouriersymmetries
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.finitebuild module
 ------------------------------
 
