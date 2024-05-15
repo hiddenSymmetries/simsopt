@@ -659,7 +659,7 @@ class MajorRadius(Optimizable):
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
-            res = self.boozer_surface.run_code(res['type'], res['iota'], G=res['G'])
+            res = self.boozer_surface.run_code(res['iota'], G=res['G'])
 
         surface = self.surface
         self._J = surface.major_radius()
@@ -747,7 +747,7 @@ class NonQuasiSymmetricRatio(Optimizable):
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
-            res = self.boozer_surface.run_code(res['type'], res['iota'], G=res['G'])
+            res = self.boozer_surface.run_code(res['iota'], G=res['G'])
 
         self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
         axis = self.axis
@@ -905,13 +905,14 @@ class Iotas(Optimizable):
 
     def recompute_bell(self, parent=None):
         self._J = None
+        self._dJ = None
         self._dJ_by_dcoefficients = None
         self._dJ_by_dcoilcurrents = None
 
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
-            res = self.boozer_surface.run_code(res['type'], res['iota'], G=res['G'])
+            res = self.boozer_surface.run_code(res['iota'], G=res['G'])
 
         self._J = self.boozer_surface.res['iota']
 
@@ -993,7 +994,7 @@ class BoozerResidual(Optimizable):
     def compute(self):
         if self.boozer_surface.need_to_run_code:
             res = self.boozer_surface.res
-            res = self.boozer_surface.run_code(res['type'], res['iota'], G=res['G'])
+            res = self.boozer_surface.run_code(res['iota'], G=res['G'])
 
         self.surface.set_dofs(self.in_surface.get_dofs())
         self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
@@ -1006,7 +1007,7 @@ class BoozerResidual(Optimizable):
         surface = self.surface
         iota = self.boozer_surface.res['iota']
         G = self.boozer_surface.res['G']
-        r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1, weight_inv_modB=True)
+        r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1, weight_inv_modB=res['weight_inv_modB'])
         rtil = np.concatenate((r/np.sqrt(num_points), [np.sqrt(self.constraint_weight)*(self.boozer_surface.label.J()-self.boozer_surface.targetlabel)]))
         self._J = 0.5*np.sum(rtil**2)
         
@@ -1035,10 +1036,11 @@ class BoozerResidual(Optimizable):
         """
         
         surface = self.surface
+        res = self.boozer_surface.res
         nphi = self.surface.quadpoints_phi.size
         ntheta = self.surface.quadpoints_theta.size
         num_points = 3 * nphi * ntheta
-        r, r_dB = boozer_surface_residual_dB(surface, self.boozer_surface.res['iota'], self.boozer_surface.res['G'], self.biotsavart, derivatives=0, weight_inv_modB=True)
+        r, r_dB = boozer_surface_residual_dB(surface, self.boozer_surface.res['iota'], self.boozer_surface.res['G'], self.biotsavart, derivatives=0, weight_inv_modB=res['weight_inv_modB'])
 
         r /= np.sqrt(num_points)
         r_dB /= np.sqrt(num_points)
@@ -1086,7 +1088,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     return lm_times_dres_dcoils+lm_times_dlabel_dcoils
 
 
-def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G):
+def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G, weight_inv_modB=True):
     """
     For a given surface with points x on it, this function computes the
     vector-Jacobian product of \lm^T * dlsqgrad_dcoils, \lm^T * dlsqgrad_dcurrents:
@@ -1096,14 +1098,14 @@ def boozer_surface_dlsqgrad_dcoils_vjp(lm, booz_surf, iota, G):
     G is known for exact boozer surfaces, so if G=None is passed, then that
     value is used instead.
     """
-    
+   
     surface = booz_surf.surface
     biotsavart = booz_surf.biotsavart
     nphi = surface.quadpoints_phi.size
     ntheta = surface.quadpoints_theta.size
     num_points = 3 * nphi * ntheta
     # r, dr_dB, J, d2residual_dsurfacedB, d2residual_dsurfacedgradB
-    boozer = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=1, weight_inv_modB=True)
+    boozer = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=1, weight_inv_modB=weight_inv_modB)
     r = boozer[0]/np.sqrt(num_points)
     dr_dB = boozer[1].reshape((-1, 3, 3))/np.sqrt(num_points)
     dr_ds = boozer[2]/np.sqrt(num_points)
