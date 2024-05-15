@@ -338,8 +338,10 @@ class CircularPort(object):
         out_r = self.ir + self.thick + gap
         out_r2 = out_r * out_r
 
-        in_axial_bounds = np.logical_and(l_proj >= self.l0 - gap, \
-                                         l_proj <= self.l1 + gap)
+        lStart = np.min([self.l0, self.l1])
+        lStop  = np.max([self.l0, self.l1])
+        in_axial_bounds = np.logical_and(l_proj >= lStart - gap, \
+                                         l_proj <= lStop  + gap)
         in_radial_bounds = r2 <= out_r2
 
         return np.logical_and(in_axial_bounds, in_radial_bounds)
@@ -386,7 +388,7 @@ class CircularPort(object):
 
                 ports.append(CircularPort(ox=oxi, oy=-oyi, oz=-ozi, \
                     ax=-axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
-                    l0=self.l0, l1=self.l1))
+                    l0=-self.l1, l1=-self.l0))
 
             if i > 0:
 
@@ -588,8 +590,10 @@ class RectangularPort(object):
                                             + (zarr - self.oz) * self.hz
         
 
-        in_axial_bounds = np.logical_and(l_proj >= self.l0 - gap, \
-                                         l_proj <= self.l1 + gap)
+        lStart = np.min([self.l0, self.l1])
+        lStop  = np.max([self.l0, self.l1])
+        in_axial_bounds = np.logical_and(l_proj >= lStart - gap, \
+                                         l_proj <= lStop  + gap)
         in_cross_section = \
             np.logical_and(np.abs(w_proj) < 0.5*self.iw + self.thick + gap, \
                            np.abs(h_proj) < 0.5*self.ih + self.thick + gap)
@@ -647,7 +651,7 @@ class RectangularPort(object):
                 ports.append(RectangularPort(ox=oxi, oy=-oyi, oz=-ozi, \
                     ax=-axi, ay=ayi, az=azi, wx=-wxi, wy=wyi, wz=wzi, \
                     hx=-hxi, hy=hyi, hz=hzi, iw=self.iw, ih=self.ih, \
-                    thick=self.thick, l0=self.l0, l1=self.l1))
+                    thick=self.thick, l0=-self.l1, l1=-self.l0))
 
             if i > 0:
 
