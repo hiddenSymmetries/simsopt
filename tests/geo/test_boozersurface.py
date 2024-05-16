@@ -584,7 +584,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         lab_target = 0.1
         
         with self.assertRaises(Exception):
-            boozer_surface = BoozerSurface(bs, s, lab, lab_target)
+            _ = BoozerSurface(bs, s, lab, lab_target)
 
 
 if __name__ == "__main__":
