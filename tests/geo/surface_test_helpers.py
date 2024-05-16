@@ -123,7 +123,11 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
 
     ## COMPUTE THE SURFACE
     cw = None if boozer_type == 'exact' else 100.
-    boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw, options={'weight_inv_modB':weight_inv_modB})
+    if weight_inv_modB:
+        boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw)
+    else:
+        boozer_surface = BoozerSurface(bs, s, lab, lab_target, constraint_weight=cw, options={'weight_inv_modB':False})
+
     if converge:
         boozer_surface.run_code(iota, G=G0)
 

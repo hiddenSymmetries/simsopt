@@ -4,6 +4,7 @@ import numpy as np
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier
 from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
 from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_giuliani_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
@@ -521,6 +522,69 @@ class BoozerSurfaceTests(unittest.TestCase):
             j2 = ij2[1][0]
             print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
         compute_differences(H0, H1)
+
+    def test_boozer_surface_quadpoints(self):
+        """ 
+        this unit test checks that the quadpoints mask for stellarator symmetric Boozer Surfaces are correctly initialized
+        """
+        for idx in range(4):
+            with self.subTest(idx=idx):
+                self.subtest_boozer_surface_quadpoints(idx)
+    
+    def subtest_boozer_surface_quadpoints(self, idx):
+        mpol = 6
+        ntor = 6
+        nfp = 3
+        
+        if idx == 0:
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+            mask_true = np.ones((phis.size, thetas.size), dtype=bool)
+            mask_true[:, mpol+1:] = False
+            mask_true[ntor+1:, 0] = False
+        elif idx == 1:
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 0.5, mpol+1, endpoint=False)
+            mask_true = np.ones((phis.size, thetas.size), dtype=bool)
+            mask_true[ntor+1:, 0] = False
+        elif idx == 2:
+            phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+            mask_true = np.ones((phis.size, thetas.size), dtype=bool)
+            mask_true[0, mpol+1:] = False
+        elif idx == 3:
+            phis = np.linspace(0, 1., 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1., 2*mpol+1, endpoint=False)
+
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=True, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+
+        if idx < 3: # the first three quadrature point sets should pass without issue.
+            mask = s.get_stellsym_mask()
+            assert np.all(mask == mask_true)
+        else:
+            with self.assertRaises(Exception):
+                mask = s.get_stellsym_mask()
+
+    def test_boozer_surface_type_assert(self):
+        """
+        this unit test checks that an exception is raised if a SurfaceRZFourier is passed to a BoozerSurface
+        """
+        mpol = 6
+        ntor = 6
+        nfp = 3
+        phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceRZFourier(mpol=mpol, ntor=ntor, stellsym=True, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        
+        base_curves, base_currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(base_curves, base_currents, 3, True)
+        bs = BiotSavart(coils)
+        
+        lab = Area(s)
+        lab_target = 0.1
+        
+        with self.assertRaises(Exception):
+            boozer_surface = BoozerSurface(bs, s, lab, lab_target)
 
 
 if __name__ == "__main__":
