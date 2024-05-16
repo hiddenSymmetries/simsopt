@@ -61,7 +61,7 @@ OUT_DIR = "./output/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 proc0_print("Running 2_Intermediate/boozerQA_ls_mpi.py")
-proc0_print("================================")
+proc0_print("=========================================")
 
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + "ncsx_init.json")
 
@@ -216,4 +216,4 @@ for idx, surface in enumerate(mpi_surfaces):
         surface.to_vtk(OUT_DIR + f"surf_opt_{idx}")
 
 proc0_print("End of 2_Intermediate/boozerQA_ls.py")
-proc0_print("================================")
+proc0_print("====================================")

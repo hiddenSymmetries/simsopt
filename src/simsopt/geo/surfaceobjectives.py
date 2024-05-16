@@ -1007,7 +1007,7 @@ class BoozerResidual(Optimizable):
         surface = self.surface
         iota = self.boozer_surface.res['iota']
         G = self.boozer_surface.res['G']
-        r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1, weight_inv_modB=res['weight_inv_modB'])
+        r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1, weight_inv_modB=self.boozer_surface.res['weight_inv_modB'])
         rtil = np.concatenate((r/np.sqrt(num_points), [np.sqrt(self.constraint_weight)*(self.boozer_surface.label.J()-self.boozer_surface.targetlabel)]))
         self._J = 0.5*np.sum(rtil**2)
         
