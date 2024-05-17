@@ -18,7 +18,7 @@ __all__ = ['Area', 'Volume', 'ToroidalFlux', 'PrincipalCurvature',
 
 class AspectRatio(Optimizable):
     """
-    Wrapper class for surface area label.
+    Wrapper class for surface aspect ratio.
     """
 
     def __init__(self, surface, range=None, nphi=None, ntheta=None):
@@ -46,7 +46,7 @@ class AspectRatio(Optimizable):
 
     def J(self):
         """
-        Compute the area of a surface.
+        Compute the aspect ratio of a surface.
         """
         return self.surface.aspect_ratio()
 

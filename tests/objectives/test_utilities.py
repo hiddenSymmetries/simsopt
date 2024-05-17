@@ -63,10 +63,8 @@ class UtilityObjectiveTesting(unittest.TestCase):
         with self.assertRaises(Exception):
             self.subtest_quadratic_penalty(curve, J.J()+0.1, 'NotInList')
 
+    @unittest.skipIf(MPI is None, "mpi4py not found")
     def test_mpi_objective(self):
-        if MPI is None:
-            print("skip test_mpi_objective")
-            return
         comm = MPI.COMM_WORLD
 
         c = self.create_curve()
@@ -87,13 +85,11 @@ class UtilityObjectiveTesting(unittest.TestCase):
             assert abs(Jmpi1.J() - sum(J.J() for J in Js)/n) < 1e-14
             assert np.sum(np.abs(Jmpi1.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
 
+    @unittest.skipIf(MPI is None, "mpi4py not found")
     def test_mpi_optimizable(self):
         """
         This test checks that the `x` attribute of the surfaces is correctly communicated across the ranks.
         """
-        if MPI is None:
-            print("skip test_mpi_optimizable")
-            return
         
         comm = MPI.COMM_WORLD
         for size in [1, 2, 3, 4, 5]:

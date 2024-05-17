@@ -1,26 +1,6 @@
-#!/usr/bin/env python3
-from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas,\
-        BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
-from simsopt._core import load
-from simsopt.objectives import MPIObjective, MPIOptimizable
-from simsopt.field import BiotSavart
-from simsopt.objectives import QuadraticPenalty
-from scipy.optimize import minimize
-from simsopt.util import proc0_print
-import numpy as np
-import os
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    rank = comm.rank
-    size = comm.size
-    
-except ImportError:
-    comm = None
-    size = 1
-    rank = 0
+#!/usr/bin/env python
 
-"""
+r"""
 This example optimizes the NCSX coils and currents for QA on potentially multiple surfaces using the BoozerLS approach.  
 For a single surface, the objective is:
 
@@ -52,8 +32,32 @@ where `nsurfaces` is the number of surfaces your optimizing on.  For example, if
 and nsurfaces=Nranks=2, then the proper call is:
     mpirun -np 2 ./boozerQA_ls_mpi.py
 
-More details on this work can be found at or doi:10.1063/5.0129716 arxiv:2210.03248.
+More details on this work can be found at
+A Giuliani et al, "Direct stellarator coil optimization for nested magnetic surfaces with precise
+quasi-symmetry", Physics of Plasmas 30, 042511 (2023) doi:10.1063/5.0129716
+or arxiv:2210.03248.
 """
+
+import os
+import numpy as np
+from scipy.optimize import minimize
+from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas,\
+        BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
+from simsopt._core import load
+from simsopt.objectives import MPIObjective, MPIOptimizable
+from simsopt.field import BiotSavart
+from simsopt.objectives import QuadraticPenalty
+from simsopt.util import proc0_print, in_github_actions
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.rank
+    size = comm.size
+    
+except ImportError:
+    comm = None
+    size = 1
+    rank = 0
 
 # Directory for output
 IN_DIR = "./inputs/input_ncsx/"
@@ -67,7 +71,7 @@ base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = loa
 
 # you can optimize for QA on up to 10 surfaces, by changing nsurfaces below.
 nsurfaces = 2
-assert nsurfaces <=10
+assert nsurfaces <= 10
 
 surfaces = surfaces[:nsurfaces]
 boozer_surfaces = boozer_surfaces[:nsurfaces]
@@ -205,8 +209,7 @@ proc0_print("""
 ################################################################################
 """)
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 1e3
+MAXITER = 50 if in_github_actions else 1e3
 
 res = minimize(fun, dofs, jac=True, method='BFGS', options={'maxiter': MAXITER}, tol=1e-15, callback=callback)
 if comm is None or rank == 0:
@@ -215,5 +218,5 @@ for idx, surface in enumerate(mpi_surfaces):
     if comm is None or rank == 0:
         surface.to_vtk(OUT_DIR + f"surf_opt_{idx}")
 
-proc0_print("End of 2_Intermediate/boozerQA_ls.py")
-proc0_print("====================================")
+proc0_print("End of 2_Intermediate/boozerQA_ls_mpi.py")
+proc0_print("========================================")
