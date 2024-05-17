@@ -79,7 +79,7 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     Returns a boozer surface that will be used in unit tests.
     """
 
-    assert label == "Volume" or label == "ToroidalFlux" or label == "Area" or label == "AspectRatio"
+    assert label in ["Volume", "ToroidalFlux", "Area", "AspectRatio"]
     
     if boozer_type == 'exact':
         assert weight_inv_modB == False
