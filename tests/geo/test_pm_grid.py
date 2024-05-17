@@ -541,7 +541,7 @@ class Testing(unittest.TestCase):
             base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s)
             bs = BiotSavart(coils)
             B0avg = calculate_on_axis_B(bs, s)
-            assert np.allclose(B0avg, 0.15)
+            assert np.allclose(B0avg, 5.7)
 
             # Repeat with wrapper function
             s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)

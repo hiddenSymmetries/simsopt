@@ -2,7 +2,7 @@
 r"""
 This example script optimizes a set of relatively simple toroidal field coils
 and passive superconducting coils (PSCs)
-for a reactor-scale version of the precise-QH stellarator from 
+for an ARIES-CS reactor-scale version of the precise-QH stellarator from 
 Landreman and Paul. 
 
 The script should be run as:
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from simsopt.field import BiotSavart
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.geo.psc_grid import PSCgrid
 from simsopt.objectives import SquaredFlux
@@ -83,8 +83,6 @@ s_outer.to_vtk(out_str + 'outer_surf')
 # initialize the coils
 base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s, out_dir)
 currents = np.array([coil.current.get_value() for coil in coils])
-# currents = currents[:len(currents) // (2 * s.nfp)]
-print(np.shape(curves), np.shape(currents), currents)
 
 # Set up BiotSavart fields
 bs = BiotSavart(coils)
@@ -103,6 +101,9 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # optimize the currents in the TF coils and plot results
+# fix all the coil shapes so only the currents are optimized
+# for i in range(ncoils):
+#     base_curves[i].fix_all()
 # bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
@@ -114,15 +115,22 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 5, "out_dir": out_str, "random_initialization": True, "poff": poff} 
+kwargs_geo = {"Nx": 14, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
-    s, np.zeros(Bnormal.shape), bs, currents, curves, s_inner, s_outer,  **kwargs_geo
+    s, coils, s_inner, s_outer,  **kwargs_geo
 )
 print('Number of PSC locations = ', len(psc_array.grid_xyz))
 
+currents = []
+for i in range(psc_array.num_psc):
+    currents.append(Current(psc_array.I[i]))
+all_coils = coils_via_symmetries(
+    psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
+)
+B_PSC = BiotSavart(all_coils)
 # Plot initial errors from only the PSCs, and then together with the TF coils
-make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
-make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
+make_Bnormal_plots(B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
+make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 
 # Check SquaredFlux values using different ways to calculate it
 x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
@@ -133,12 +141,12 @@ bs.set_points(s.gamma().reshape(-1, 3))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('fB only TF direct = ', np.sum(Bnormal.reshape(-1) ** 2 * psc_array.grid_normalization ** 2
                                     ) / (2 * B_axis ** 2 * s.area()))
-make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
-fB = SquaredFlux(s, psc_array.B_PSC, np.zeros((nphi, ntheta))).J()
+make_Bnormal_plots(B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
+fB = SquaredFlux(s, B_PSC, np.zeros((nphi, ntheta))).J()
 print(fB/ (B_axis ** 2 * s.area()))
-fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((nphi, ntheta))).J()
+fB = SquaredFlux(s, B_PSC + bs, np.zeros((nphi, ntheta))).J()
 print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
-fB = SquaredFlux(s, psc_array.B_PSC, -Bnormal).J()
+fB = SquaredFlux(s, B_PSC, -Bnormal).J()
 print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
 # Actually do the minimization now
@@ -146,13 +154,14 @@ from scipy.optimize import minimize
 print('beginning optimization: ')
 options = {"disp": True, "maxiter": 1000}  #, "bounds": [(0, 2 * np.pi) for i in range(psc_array.num_psc)]}
 x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
-# x0 = psc_array.kappas
-x_opt = minimize(psc_array.least_squares, x0, args=(True,),
+verbose = True
+x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                  method='L-BFGS-B',
                  jac=psc_array.least_squares_jacobian, 
                  tol=1e-20, options=options)
 psc_array.setup_curves()
 psc_array.plot_curves('final_')
+
 # Check that direct Bn calculation agrees with optimization calculation
 fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((nphi, ntheta))).J()
 print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))

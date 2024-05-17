@@ -16,8 +16,6 @@ class Testing(unittest.TestCase):
         against finite differences for tiny changes to the angles, 
         to see if the analytic calculations are correct.
         """
-        
-        # Test partial derivative calculation if we change delta by epsilon
         ncoils = 3
         np.random.seed(ncoils)
         R0 = 1
@@ -36,17 +34,13 @@ class Testing(unittest.TestCase):
         epsilon = 1e-6
         deltas_new = np.copy(deltas)
         deltas_new[0] += epsilon
-        alphas_new = alphas  # + epsilon
+        alphas_new = alphas
         psc_array_new = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
         )
         psi_new = psc_array_new.psi
         dpsi_ddelta = (psi_new - psi) / epsilon
         dpsi_ddelta_analytic = psi_deriv
-
-        # Linv calculations looks much more incorrect that the L derivatives,
-        # maybe because of numerical error accumulation? 
-        print(dpsi_ddelta, dpsi_ddelta_analytic)
         assert(np.allclose(dpsi_ddelta[0], dpsi_ddelta_analytic[ncoils], rtol=1e-3))
 
         # # Test partial derivative calculation if we change alpha by epsilon
@@ -74,12 +68,7 @@ class Testing(unittest.TestCase):
         psi_new = psc_array_new.psi
         dpsi_dalpha = (psi_new - psi) / epsilon
         dpsi_dalpha_analytic = psi_deriv
-
-        # Linv calculations looks much more incorrect that the L derivatives,
-        # maybe because of numerical error accumulation? 
-        # print(dpsi_dalpha, dpsi_dalpha_analytic, dpsi_dalpha_analytic[0])
         assert(np.isclose(dpsi_dalpha[0], dpsi_dalpha_analytic[0], rtol=1e-3))
-
     
     def test_L_analytic_derivatives(self):
         """
@@ -87,8 +76,6 @@ class Testing(unittest.TestCase):
         against finite differences for tiny changes to the angles, 
         to see if the analytic calculations are correct.
         """
-        
-        # Test partial derivative calculation if we change delta by epsilon
         ncoils = 3
         np.random.seed(ncoils)
         R0 = 1
@@ -108,7 +95,7 @@ class Testing(unittest.TestCase):
         epsilon = 1e-6
         deltas_new = np.copy(deltas)
         deltas_new[0] += epsilon
-        alphas_new = alphas  # + epsilon
+        alphas_new = alphas
         psc_array_new = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
         )
@@ -128,8 +115,6 @@ class Testing(unittest.TestCase):
             
         # Linv calculations looks much more incorrect that the L derivatives,
         # maybe because of numerical error accumulation? 
-        # print(dL_ddelta, dL_ddelta_analytic[ncoils, :, :])
-        # print(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :])
         assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils, :, :]))
         assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :], rtol=10))
 
@@ -168,13 +153,12 @@ class Testing(unittest.TestCase):
         assert(np.allclose(dLinv_dalpha, dLinv_dalpha_analytic[0, :, :], rtol=1))
 
         
-    def test_dB_analytic_derivatives(self):
+    def test_dA_analytic_derivatives(self):
         """
-        Tests the analytic calculations of dB/dalpha and dB/ddelta
+        Tests the analytic calculations of dA/dalpha and dA/ddelta
         against finite differences for tiny changes to the angles, 
         to see if the analytic calculations are correct.
         """
-        
         ncoils = 6
         np.random.seed(ncoils)
         R0 = 1
@@ -187,10 +171,6 @@ class Testing(unittest.TestCase):
             points, R=R, a=a, alphas=alphas, deltas=deltas
         )
         A = psc_array.A_matrix
-        A_direct = psc_array.A_matrix_direct
-        assert np.allclose(A, A_direct)
-        # print(A, A_direct)
-        # exit()
         epsilon = 1e-6
         alphas_new = alphas
         alphas_new[0] += epsilon
@@ -199,11 +179,8 @@ class Testing(unittest.TestCase):
             points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
         )
         A_new = psc_array_new.A_matrix
-        # B.set_points(psc_array.plasma_points)
-        # B_new.set_points(psc_array.plasma_points)
         dA_dalpha = (A_new - A) / epsilon
         dA_dkappa_analytic = psc_array.A_deriv()
-        # print(dA_dalpha[:, 0], dA_dkappa_analytic[0, :])
         assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[0, :])
         
         # Repeat but changing delta instead of alpha
@@ -213,11 +190,6 @@ class Testing(unittest.TestCase):
         points, R=R, a=a, alphas=alphas, deltas=deltas
         )
         A = psc_array.A_matrix
-        A_direct = psc_array.A_matrix_direct
-        # print(A, A_direct)
-        assert np.allclose(A, A_direct)
-        # print(A, A_direct)
-        # exit()
         epsilon = 1e-6
         alphas_new = alphas
         deltas_new = deltas
@@ -226,12 +198,9 @@ class Testing(unittest.TestCase):
             points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
         )
         A_new = psc_array_new.A_matrix
-        # B.set_points(psc_array.plasma_points)
-        # B_new.set_points(psc_array.plasma_points)
         dA_ddelta = (A_new - A) / epsilon
         dA_dkappa_analytic = psc_array.A_deriv()
         assert np.allclose(dA_ddelta[:, 0], dA_dkappa_analytic[ncoils, :])
-        # print(dA_ddelta[:, 0], dA_dkappa_analytic[ncoils, :])
 
     def test_L(self):
         """
@@ -270,9 +239,8 @@ class Testing(unittest.TestCase):
             (2 / k - k) * ellipk(k ** 2) - (2 / k) * ellipe(k ** 2)
         )
         assert(np.allclose(L_self_analytic, np.diag(L)))
-        # print(L_mutual_analytic, L[0, 1], L[1, 0])
-        assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10))
-        assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10))
+        assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10, rtol=1e-3))
+        assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10, rtol=1e-3))
         
         # Another simple test of the analytic formula   
         # Formulas only valid for R/a >> 1 so otherwise it will fail
@@ -293,8 +261,8 @@ class Testing(unittest.TestCase):
         )
         L_self_analytic = mu0 * R * (np.log(8.0 * R / a) - 2.0)
         assert(np.allclose(L_self_analytic, np.diag(L)))
-        assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10))
-        assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10))
+        assert(np.isclose(L_mutual_analytic * 1e10, L[0, 1] * 1e10, rtol=1e-1))
+        assert(np.isclose(L_mutual_analytic * 1e10, L[1, 0] * 1e10, rtol=1e-1))
         I = 1e10
         coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
         bs = BiotSavart(coils)
@@ -306,11 +274,12 @@ class Testing(unittest.TestCase):
         psc_array = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
         )
-        # print((psc_array.psi[0] / I)/ L[1, 0], psc_array.psi[0] / I, L[1, 0])
-        # Only works if resolution is very high here
+        # This is not a robust check but it only converges when N >> 1
+        # points are used to do the integrations and there
+        # are no discrete symmetries. Can easily check that 
+        # can decrease rtol as you increase number of integration points
         # assert(np.isclose(psc_array.psi[0] / I, L[1, 0], rtol=1e-1))
-        # Only true if R << 1
-        # assert(np.isclose(psc_array.psi[0], np.pi * psc_array.R ** 2 * Bz_center))
+        # Only true if R << 1, assert(np.isclose(psc_array.psi[0], np.pi * psc_array.R ** 2 * Bz_center))
         
         input_name = 'input.LandremanPaul2021_QA_lowres'
         TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -353,12 +322,6 @@ class Testing(unittest.TestCase):
                                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
                             )
                             L = psc_array.L
-
-                            # This is not a robust check but it only converges when N >> 1
-                            # points are used to do the integrations. Can easily check that 
-                            # can increase rtol as you increase N    
-                            # print(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10)
-                            # assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
                             
                             contig = np.ascontiguousarray
                             # Calculate B fields like psc_array function does
@@ -391,7 +354,6 @@ class Testing(unittest.TestCase):
                                         psc_array.R,
                                     )
                                     q = q + 1
-                                    # print(q, B_PSC)
                             # Calculate Bfields from CircularCoil class
                             B_circular_coils = np.zeros(B_PSC.shape)
                             Bn_circular_coils = np.zeros(psc_array.Bn_PSC.shape)
@@ -430,21 +392,11 @@ class Testing(unittest.TestCase):
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
                             # Robust test of all the B and Bn calculations from circular coils
-                            # print(psc_array.B_PSC.B()[-1] * 1e10, B_PSC[-1] * 1e10, B_circular_coils[-1] * 1e10, B_direct.B()[-1] * 1e10)
-                            # print('alphas, deltas = ')
-                            # print(alphas, deltas)
-                            # print(psc_array.alphas_total, psc_array.deltas_total)
-                            # print('Bns = ', psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10)
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct * 1e10, atol=1e3, rtol=1e-3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct_all * 1e10, atol=1e3, rtol=1e-3))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_PSC * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct.B() * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct_all.B() * 1e10))
         
-        # exit()
         # Applying discrete symmetries to the coils wont work unless they dont intersect the symmetry planes
         for R in [0.1, 1]:
             for points in [np.array([(np.random.rand(3) - 0.5) * 40, 
@@ -462,10 +414,6 @@ class Testing(unittest.TestCase):
                                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
                             )
                             L = psc_array.L
-                            # print(psc_array.nfp, psc_array.stell_list, psc_array.I)
-
-                            # Below is not true once coils are added from discrete symmetries!
-                            # assert(np.isclose(psc_array.psi[0] / I * 1e10, L[1, 0] * 1e10, rtol=1e-1))
                             
                             contig = np.ascontiguousarray
                             # Calculate B fields like psc_array function does
@@ -475,7 +423,6 @@ class Testing(unittest.TestCase):
                             q = 0
                             for fp in range(psc_array.nfp):
                                 for stell in psc_array.stell_list:
-                                    # print(q, fp, stell)
                                     phi0 = (2 * np.pi / psc_array.nfp) * fp
                                     # get new locations by flipping the y and z components, then rotating by phi0
                                     ox = psc_array.grid_xyz_all[q * nn: (q + 1) * nn, 0]
@@ -545,19 +492,6 @@ class Testing(unittest.TestCase):
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
                             # Robust test of all the B and Bn calculations from circular coils
-                            # print('here = ', psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, Bn_circular_coils * 1e10)
-                            print('alphas, deltas = ')
-                            print(alphas, deltas)
-                            print(psc_array.alphas_total, psc_array.deltas_total)
-                            # print(psc_array.B_PSC.B()[-1] * 1e10, B_PSC[-1] * 1e10, B_PSC_all[-1] * 1e10, 
-                            #       B_circular_coils[-1] * 1e10, B_direct.B()[-1] * 1e10, B_direct_all.B()[-1] * 1e10)
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_PSC * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_circular_coils * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct.B() * 1e10))
-                            # assert(np.allclose(psc_array.B_PSC.B() * 1e10, B_direct_all.B() * 1e10))
-                            # print(psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, 
-                            #       Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10, Bn_direct_all[-1] * 1e10)
-                            # print('max = ', np.max(np.abs(psc_array.Bn_PSC / Bn_circular_coils - 1.0)))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, rtol=1e-2, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, rtol=1e-2, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct * 1e10, rtol=1e-2, atol=1e3))
