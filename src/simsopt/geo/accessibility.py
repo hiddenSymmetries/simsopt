@@ -530,7 +530,7 @@ def zphi_enclosed_area(gamma, gammadash, pts):
     gdcyl = local_project(gammadash)
 
     dpts = jnp.append(jnp.diff(pts), 1+pts[0]-pts[-1])
-    return jnp.sum( dpts/2.0*(gcyl[:,1]*gdcyl[:,2]) )
+    return jnp.sum( dpts/4.0*(gcyl[:,1]*gdcyl[:,2] + gcyl[:,2]*gdcyl[:,1]) )
 
 
 class ProjectedEnclosedArea( Optimizable ):
