@@ -65,11 +65,8 @@ class PortTests(unittest.TestCase):
 
         # Verify that the above properties are upheld under toroidal and
         # stellarator-symmetric repetitions
-        pStl = PortSet(ports=[p])
-        pStl.repeat_via_symmetries(nfp, True)
-        pTor = PortSet(ports=[p])
-        pTor.repeat_via_symmetries(nfp, False)
-
+        pStl = p.repeat_via_symmetries(nfp, True)
+        pTor = p.repeat_via_symmetries(nfp, False)
 
         for i in range(nfp):
 
@@ -180,10 +177,8 @@ class PortTests(unittest.TestCase):
 
         # Verify that the above properties are upheld under toroidal and
         # stellarator-symmetric repetitions
-        pStl = PortSet(ports=[p])
-        pStl.repeat_via_symmetries(nfp, True)
-        pTor = PortSet(ports=[p])
-        pTor.repeat_via_symmetries(nfp, False)
+        pStl = p.repeat_via_symmetries(nfp, True)
+        pTor = p.repeat_via_symmetries(nfp, False)
 
         for i in range(nfp):
 
@@ -209,6 +204,87 @@ class PortTests(unittest.TestCase):
             self.check_points(pStl, gap, X_in_i, -Y_in_i, X_thk_i, -Y_thk_i, \
                               X_gap_i, -Y_gap_i, X_out_i, -Y_out_i, \
                               -Z_mid, -Z_gap, -Z_out)
+
+    def test_port_sets(self):
+        """
+        Consistency checks for methods related to port set creation
+        """
+
+        # General parameters
+        nfp = 3
+        Rmaj = 10 
+        [ax, ay, az] = [0, 0, 1]
+        [l0, l1] = [0, 1]
+        gap = 0.1
+        thk = 0.1
+
+        # Circular port parameters
+        phiPort_c = 20*np.pi/180.
+        [oxc, oyc, ozc] = [Rmaj*np.cos(phiPort_c), Rmaj*np.sin(phiPort_c), 0]
+        ir = 1
+
+        # Baseline circular port
+        pCirc = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
+                             ir=ir, thick=thk, l0=l0, l1=l1)
+
+        # Rectangular port parameters
+        phiPort_r = 40*np.pi/180.
+        [oxr, oyr, ozr] = [Rmaj*np.cos(phiPort_r), Rmaj*np.sin(phiPort_r), 0]
+        [wx, wy, wz] = [1, 0, 0]
+        [hx, hy, hz] = [0, 1, 0]
+        iw = ir
+        ih = 2*ir
+
+        # Baseline rectangular port
+        pRect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
+                                wx=wx, wy=wy, wz=wz, hx=hx, hy=hy, hz=hz, \
+                                iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
+
+        # Test points in a torus that intersects the ports
+        phiAx = np.linspace(0, 2*np.pi, 72, endpoint=False)
+        rAx = np.linspace(Rmaj-ir, Rmaj+ir, 8)
+        zAx = np.linspace(-0.5*l1, 0.5*l1, 6)
+        [Phi_test, R_test, Z_test] =  np.meshgrid(phiAx, rAx, zAx)
+        X_test = R_test*np.cos(Phi_test)
+        Y_test = R_test*np.sin(Phi_test)
+
+        # Verify that colliding points calculated for ports individually
+        # are the same as the colliding points for a PortSet of the two ports
+        coll_circ = pCirc.collides(X_test, Y_test, Z_test, gap=gap)
+        coll_rect = pRect.collides(X_test, Y_test, Z_test, gap=gap)
+        coll_CR = np.logical_or(coll_circ, coll_rect)
+        pBoth = pCirc + pRect
+        self.assertEqual(pBoth.nPorts, 2)
+        coll_both = pBoth.collides(X_test, Y_test, Z_test, gap=gap)
+        self.assertTrue(np.all(coll_CR == coll_both))
+
+        # Adding the same point twice should produce the same collisions
+        pDoubleCirc = pCirc + pCirc
+        coll_doub_circ = pDoubleCirc.collides(X_test, Y_test, Z_test, gap=gap)
+        self.assertEqual(pDoubleCirc.nPorts, 2)
+        self.assertEqual(len(pDoubleCirc.ports), 2)
+        self.assertTrue(np.all(coll_doub_circ == coll_circ))
+
+        # Compare different approaches to symmetry repetition
+        pCircSym = pCirc.repeat_via_symmetries(nfp, True)
+        pRectSym = pRect.repeat_via_symmetries(nfp, True)
+        pCombSym = pCircSym + pRectSym
+        pBothSym = pBoth.repeat_via_symmetries(nfp, True)
+        self.assertEqual(len(pCircSym.ports), 6)
+        self.assertEqual(pCircSym.nPorts, 6)
+        self.assertEqual(len(pRectSym.ports), 6)
+        self.assertEqual(pRectSym.nPorts, 6)
+        self.assertEqual(len(pCombSym.ports), 12)
+        self.assertEqual(pCombSym.nPorts, 12)
+        self.assertEqual(len(pBothSym.ports), 12)
+        self.assertEqual(pBothSym.nPorts, 12)
+        coll_circ_sym = pCircSym.collides(X_test, Y_test, Z_test, gap=gap)
+        coll_rect_sym = pRectSym.collides(X_test, Y_test, Z_test, gap=gap)
+        coll_cr_sym = np.logical_or(coll_circ_sym, coll_rect_sym)
+        coll_comb_sym = pCombSym.collides(X_test, Y_test, Z_test, gap=gap)
+        coll_both_sym = pBothSym.collides(X_test, Y_test, Z_test, gap=gap)
+        self.assertTrue(np.all(coll_comb_sym == coll_both_sym))
+        self.assertTrue(np.all(coll_cr_sym == coll_both_sym))
  
     def check_points(self, p, gap, X_in, Y_in, X_thk, Y_thk, X_gap, Y_gap, \
                      X_out, Y_out, Z_mid, Z_gap, Z_out):

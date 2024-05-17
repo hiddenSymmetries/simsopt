@@ -5,6 +5,7 @@ Functions for checking for collisions with ports and other obstacles.
 """
 
 import numpy as np
+from abc import ABC, abstractmethod
 
 __all__ = ['PortSet', 'CircularPort', 'RectangularPort']
 
@@ -84,6 +85,23 @@ class PortSet(object):
         for port in ports:
             self.ports.append(port)
             self.nPorts = self.nPorts + 1
+
+    def __add__(self, p):
+        """
+        Allow new port sets to be built with the "+" operator
+        """
+
+        if isinstance(p, PortSet):
+            return PortSet(ports=(self.ports + p.ports))
+
+        elif isinstance(p, RectangularPort) or isinstance(p, CircularPort):
+            p_out = PortSet(ports=self.ports)
+            p_out.add_ports([p])
+            return p_out
+
+        else:
+            raise ValueError('Addition with PortSet class instances is only ' \
+                             'supported for Port and PortSet class instances.')
 
     def load_circular_ports_from_file(self, file):
         """
@@ -199,8 +217,8 @@ class PortSet(object):
 
     def repeat_via_symmetries(self, nfp, stell_sym):
         """
-        Adds ports that are equivalent to the existing ports to uphold
-        toroidal and/or stellarator symmetry.
+        Creates a new set that contains the ports in the initial set plus 
+        additional equivalent ports the remaining field periods/half-periods.
 
         Parameters
         ----------
@@ -209,13 +227,21 @@ class PortSet(object):
             stell_sym: logical
                 If true, stellarator symmetry will be assumed and equivalent
                 ports will be created for every half-period
+
+        Returns
+        -------
+            ports_out: PortSet class instance
+                A set of all the symmetric ports, including the ones represented
+                by the calling PortSet class instance
         """
 
-        for i in range(self.nPorts):
-            newPorts = self.ports[i].repeat_via_symmetries(nfp, stell_sym, \
-                                                           include_self=False)
-            self.ports = self.ports + newPorts
-            self.nPorts += len(newPorts)
+        ports_out = PortSet()
+
+        for port in self.ports:
+
+            ports_out += port.repeat_via_symmetries(nfp, stell_sym)
+
+        return ports_out
 
     def plot(self, nEdges=100, **kwargs):
         """
@@ -248,7 +274,50 @@ class PortSet(object):
 
         return surfs
 
-class CircularPort(object):
+class Port(ABC):
+    """
+    Abstract base class for ports
+    """
+
+    @abstractmethod
+    def collides(self):
+        """
+        Determines if the user input point(s) collide with the port, with an
+        optional gap spacing enforced around the port's exterior.
+        """
+        pass
+
+    @abstractmethod
+    def repeat_via_symmetries(self):
+        """
+        Returns a PortSet class instance containing the calling Port class
+        instances as well ports with parameters transformed to equivalent
+        locations in other periods (and half-periods if stellarator symmetry
+        is assumed).
+        """
+        pass
+
+    @abstractmethod
+    def plot(self):
+        """
+        Returns handle to a three-dimensional plot with a visual depiction
+        of the port.
+        """
+        pass
+
+    def __add__(self, p):
+
+        if isinstance(p, Port):
+            return PortSet(ports=[self, p])
+
+        elif isinstance(p, PortSet):
+            return PortSet(ports=([self] + p.ports))
+
+        else:
+            raise ValueError('Addition with Port class instances is only ' \
+                             'supported for Port and PortSet class instances.')
+
+class CircularPort(Port):
     """
     Class representing a port with cylindrical geometry; specifically, with
     a circular cross section.
@@ -360,13 +429,13 @@ class CircularPort(object):
                 ports will be created for every half-period
             include_self: logical (optional)
                 If true, the port instance calling this method will be included
-                in the returned list of ports (see below). Default is True.
+                in the returned set of ports (see below). Default is True.
 
         Returns
         -------
-            ports: list of CircularPort class instances
-                The equivalent ports, including the calling instance if 
-                include_self == True.
+            ports: PortSet class instance
+                A set of all the symmetric ports, including the one represented
+                by the calling Port class instance if `include_self`==True.
         """
 
         dphi = 2.*np.pi/nfp
@@ -396,7 +465,7 @@ class CircularPort(object):
                     ax=axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
                     l0=self.l0, l1=self.l1))
 
-        return ports
+        return PortSet(ports=ports)
 
     def plot(self, nEdges=100, **kwargs):
         """
@@ -475,7 +544,7 @@ class CircularPort(object):
         mesh_source = mlab.pipeline.triangular_mesh_source(x, y, z, triangles)
         return mlab.pipeline.surface(mesh_source, **kwargs)
 
-class RectangularPort(object):
+class RectangularPort(Port):
     """
     Class representing a port with a rectangular cross-section.
     """
@@ -618,9 +687,9 @@ class RectangularPort(object):
 
         Returns
         -------
-            ports: list of RectangularPort class instances
-                The equivalent ports, including the calling instance if 
-                include_self == True.
+            ports: PortSet class instance
+                PortSet containing the equivalent ports, including the one
+                represented by the calling instance if include_self == True.
         """
 
         dphi = 2.*np.pi/nfp
@@ -660,7 +729,7 @@ class RectangularPort(object):
                     hx=hxi, hy=hyi, hz=hzi, iw=self.iw, ih=self.ih, \
                     thick=self.thick, l0=self.l0, l1=self.l1))
 
-        return ports
+        return PortSet(ports=ports)
 
     def plot(self, **kwargs):
         """
