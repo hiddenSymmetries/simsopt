@@ -43,7 +43,7 @@ else:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 1.0  # PSC grid will be offset ~ 1 m from the plasma surface
+poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
 coff = 1.0  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
@@ -104,7 +104,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-# bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -115,7 +115,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 14, "out_dir": out_str, "random_initialization": True, "poff": poff} 
+kwargs_geo = {"Nx": 10, "out_dir": out_str, "random_initialization": True, "poff": poff} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
@@ -152,19 +152,31 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 from scipy.optimize import minimize
 print('beginning optimization: ')
-options = {"disp": True, "maxiter": 1000}  #, "bounds": [(0, 2 * np.pi) for i in range(psc_array.num_psc)]}
-x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
+opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
+options = {"disp": True}  #, "maxiter": 100}
+# print(opt_bounds)
+# x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
 verbose = True
 x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                  method='L-BFGS-B',
+                 # bounds=opt_bounds,
                  jac=psc_array.least_squares_jacobian, 
-                 tol=1e-20, options=options)
+                 options=options,
+                 # tol=1e-10,
+                 )
 psc_array.setup_curves()
 psc_array.plot_curves('final_')
+currents = []
+for i in range(psc_array.num_psc):
+    currents.append(Current(psc_array.I[i]))
+all_coils = coils_via_symmetries(
+    psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
+)
+B_PSC = BiotSavart(all_coils)
 
 # Check that direct Bn calculation agrees with optimization calculation
-fB = SquaredFlux(s, psc_array.B_PSC + bs, np.zeros((nphi, ntheta))).J()
+fB = SquaredFlux(s, B_PSC + bs, np.zeros((nphi, ntheta))).J()
 print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
-make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "PSC_final", B_axis)
-make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
+make_Bnormal_plots(B_PSC, s_plot, out_dir, "PSC_final", B_axis)
+make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
 print('end')

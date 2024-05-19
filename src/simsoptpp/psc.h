@@ -10,14 +10,14 @@
 #include <tuple>  // c++ tuples
 #include <string> // for string class
 #include <iostream>
+#include <stdio.h>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
 
-Array L_matrix(Array& points, Array& alphas, Array& deltas, double R);
+Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
 
-Array L_deriv(Array& points, Array& alphas, Array& deltas, double R);
-// 
-// Array TF_fluxes(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& I, Array& normal, double R);
+Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
+
 Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal);
 
 Array flux_integration(Array& B, Array& rho, Array& normal);
@@ -25,8 +25,6 @@ Array flux_integration(Array& B, Array& rho, Array& normal);
 Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R);
 
 Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R);
-// 
-// Array A_matrix(Array& plasma_surface_normals, Array& B, Array& alphas, Array& deltas);
 
 Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R);
 

@@ -28,6 +28,15 @@ class PSCgrid:
 
     def __init__(self):
         self.mu0 = 4 * np.pi * 1e-7
+        # Define a set of quadrature points and weights for the N point
+        # Gaussian quadrature rule
+        num_quad = 10
+        (quad_points_phi, 
+          self.quad_weights_phi) = np.polynomial.legendre.leggauss(num_quad)
+        self.quad_points_phi = quad_points_phi * np.pi + np.pi
+        # self.quad_points_phi = np.linspace(0, 2 * np.pi, num_quad)
+        # self.quad_weights_phi = np.ones(num_quad)
+        # self.quad_dphi = self.quad_points_phi[1] - self.quad_points_phi[0]
 
     def _setup_uniform_grid(self):
         """
@@ -336,7 +345,7 @@ class PSCgrid:
         # discrete symmetries (stellarator and field-period symmetries)
         psc_grid.setup_full_grid()
         t2 = time.time()
-        print('Initialize grid time = ', t2 - t1)
+        # print('Initialize grid time = ', t2 - t1)
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
@@ -344,7 +353,7 @@ class PSCgrid:
         # Initialize all of the fields, currents, inductances, for all the PSCs
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         t2 = time.time()
-        print('Geo setup time = ', t2 - t1)
+        # print('Geo setup time = ', t2 - t1)
         
         # Initialize CurvePlanarFourier objects for the PSCs, mostly for
         # plotting purposes
@@ -600,7 +609,7 @@ class PSCgrid:
         # can fail from numerical error accumulation on low currents PSC 
         # assert np.allclose(self.I, I_test, rtol=1e-2)
         t2 = time.time()
-        print('Linv time = ', t2 - t1)
+        # print('Linv time = ', t2 - t1)
         
         contig = np.ascontiguousarray
         # A_matrix has shape (num_plasma_points, num_coils)
@@ -771,7 +780,7 @@ class PSCgrid:
         Bn_TF = np.sum(
             self.B_TF.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1
         )
-        self.b_opt = (Bn_TF + Bn_plasma) * self.grid_normalization
+        self.b_opt = (Bn_TF + Bn_plasma)  # * self.grid_normalization
         
     def least_squares(self, kappas, verbose=False):
         """
@@ -797,11 +806,13 @@ class PSCgrid:
         alphas = kappas[:len(kappas) // 2]
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
-        BdotN2 = 0.5 * np.sum((self.Bn_PSC * self.grid_normalization + self.b_opt) ** 2) / self.normalization
+        # Ax_b = self.Bn_PSC * self.grid_normalization + self.b_opt
+        Ax_b = self.Bn_PSC + self.b_opt
+        BdotN2 = 0.5 * Ax_b.T @ Ax_b / self.normalization
         outstr = f"Normalized f_B = {BdotN2:.3e} "
         # for i in range(len(kappas)):
             # outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
-        outstr += "\n"
+        # outstr += "\n"
         if verbose:
             print(outstr)
         return BdotN2
@@ -830,37 +841,39 @@ class PSCgrid:
         self.setup_orientations(alphas, deltas)
         # Two factors of grid normalization since it is not added to the gradients
         # A has shape (num_plasma_points)
-        Ax_b = (self.Bn_PSC * self.grid_normalization + self.b_opt) * self.grid_normalization / self.normalization
-        t1 = time.time()
-        A_deriv = self.A_deriv().T
+        Ax_b = (self.Bn_PSC + self.b_opt) / self.normalization
+        # Ax_b = (self.Bn_PSC * self.grid_normalization + self.b_opt) / self.normalization
+        # t1 = time.time()
+        A_deriv = self.A_deriv()
         Linv = self.L_inv[:self.num_psc, :self.num_psc]
         Lpsi = Linv @ self.psi
         grad_alpha1 = A_deriv[:, :self.num_psc] * Lpsi
         grad_delta1 = A_deriv[:, self.num_psc:] * Lpsi
         # Should be shape (num_plasma_points, 2 * num_psc)
         grad_kappa1 = np.hstack((grad_alpha1, grad_delta1))
-        t2 = time.time()
-        print('grad_A1 time = ', t2 - t1)
-        t1 = time.time()
+        # t2 = time.time()
+        # print('grad_A1 time = ', t2 - t1)
+        # t1 = time.time()
         L_deriv = self.L_deriv()
-        t2 = time.time()
-        print('L_deriv time = ', t2 - t1)
-        t1 = time.time()
-        grad_kappa2 = -self.A_matrix @ ((
-            self.L_deriv() @ Linv @ Linv
-            ) @ self.psi).T
-        t2 = time.time()
-        print('grad_A2 time = ', t2 - t1, grad_kappa2.shape)
-        t1 = time.time()
+        grad_kappa2 = -self.A_matrix @ (L_deriv @ Linv @ Linv @ self.psi).T
+        # t2 = time.time()
+        # print('grad_A2 time = ', t2 - t1, grad_kappa2.shape)
+        # t1 = time.time()
         psi_deriv = self.psi_deriv()
+        
+        # Should be * or @ below for Linv with psi_deriv?
+        # Really should be psi_deriv is shape(num_psc, 2 * num_psc) and then @
+        # but dpsi_dalpha_i gives a delta function on the coil flux that corresponds
+        # to coil i
         grad_alpha3 = self.A_matrix @ (Linv * psi_deriv[:self.num_psc])
         grad_delta3 = self.A_matrix @ (Linv * psi_deriv[self.num_psc:])
         grad_kappa3 = np.hstack((grad_alpha3, grad_delta3))
-        t2 = time.time()
-        print('grad_A3 time = ', t2 - t1, grad_alpha3.shape, grad_kappa3.shape)
+        # t2 = time.time()
+        # print('grad_A3 time = ', t2 - t1, grad_alpha3.shape, grad_kappa3.shape)
         # if verbose:
             # print('Jacobian = ', Ax_b @ (grad_kappa1 + grad_kappa2 + grad_kappa3))
-        jac = Ax_b @ (grad_kappa1 + grad_kappa2 + grad_kappa3)
+        # minus sign in front because I = -Linv @ psi
+        jac = -Ax_b.T @ (grad_kappa1 + grad_kappa2 + grad_kappa3)
         return jac
     
     def A_deriv(self):
@@ -884,7 +897,7 @@ class PSCgrid:
             contig(self.phi),
             self.R,
         ) * self.dphi   # rescale
-        return dA_dkappa
+        return dA_dkappa.T
     
     def L_deriv(self):
         """
@@ -898,14 +911,15 @@ class PSCgrid:
         """
         contig = np.ascontiguousarray
         L_deriv = sopp.L_deriv(
-            contig(self.grid_xyz), 
+            contig(self.grid_xyz / self.R), 
             contig(self.alphas), 
             contig(self.deltas),
-            self.R,
-        ) / (4 * np.pi)  # * self.dphi ** 2 
+            contig(self.quad_points_phi),
+            contig(self.quad_weights_phi)
+        ) / (4 * np.pi) # * self.quad_dphi ** 2 / (np.pi ** 2)
         
         # symmetrize it
-        L_deriv += np.transpose(L_deriv, axes=[0, 2, 1])
+        L_deriv = (L_deriv + np.transpose(L_deriv, axes=[0, 2, 1]))
         # if keeping track of the number of coil turns, need factor
         # of Nt ** 2 below as well
         return L_deriv * self.mu0 * self.R   
@@ -972,7 +986,6 @@ class PSCgrid:
                            np.copysign(1.0, self.coil_normals) < 0)
             ] *= -1.0
         
-        t1 = time.time()
         # Update the flux grid with the new normal vectors
         flux_grid = sopp.flux_xyz(
             contig(self.grid_xyz), 
@@ -980,10 +993,11 @@ class PSCgrid:
             contig(deltas), 
             contig(self.rho), 
             contig(self.phi), 
-            contig(self.coil_normals)
+            contig(self.coil_normals),
         )
-        self.flux_grid = flux_grid
-        self.B_TF.set_points(contig(np.array(flux_grid).reshape(-1, 3)))
+        self.flux_grid = np.array(flux_grid).reshape(-1, 3)
+        self.B_TF.set_points(contig(self.flux_grid))
+        t1 = time.time()
         
         # Only works if using the TF field as expected,
         # i.e. not doing the unit test with two coils computing the flux from each other
@@ -995,35 +1009,14 @@ class PSCgrid:
         #     ) * (1.0 / self.gamma_TF.shape[1])
         # assert np.allclose(self.B_TF.B(), B_TF2, rtol=1e-2)
         N = len(self.rho)
-        
         # # Update the flux values through the newly rotated coils
         self.psi = sopp.flux_integration(
             contig(self.B_TF.B().reshape(len(alphas), N, N, 3)),
             contig(self.rho),
-            contig(self.coil_normals)
+            contig(self.coil_normals),
         )
         self.psi *= self.dphi * self.drho
         t2 = time.time()
-        print('Flux1 time = ', t2 - t1)
-        # t1 = time.time()        
-
-        # Should test if this is faster since doesnt precompute flux_grid
-        # psi2 = sopp.psi_check(
-        #     contig(self.I_TF),
-        #     contig(self.dl_TF),
-        #     contig(self.gamma_TF),
-        #     contig(self.grid_xyz),
-        #     contig(self.alphas), 
-        #     contig(self.deltas),
-        #     contig(self.coil_normals),
-        #     contig(self.Rho),
-        #     contig(self.Phi),
-        #     self.R
-        # ) * self.dphi * self.drho * (1.0 / self.gamma_TF.shape[1])
-        # print('psi = ', self.psi, psi2)
-        # assert np.allclose(self.psi, psi2)
-        
-        # t2 = time.time()
         # print('Flux2 time = ', t2 - t1)
         t1 = time.time()        
         
@@ -1031,14 +1024,14 @@ class PSCgrid:
         self.update_alphas_deltas()
         # Recompute the inductance matrices with the newly rotated coils
         L_total = sopp.L_matrix(
-            contig(self.grid_xyz_all), 
+            contig(self.grid_xyz_all / self.R), 
             contig(self.alphas_total), 
             contig(self.deltas_total),
-            self.R,
-        ) / (4 * np.pi)  #* self.dphi ** 2 / (4 * np.pi)
+            contig(self.quad_points_phi),
+            contig(self.quad_weights_phi)
+        ) / (4 * np.pi)  # * self.quad_dphi ** 2 / (np.pi ** 2)
         t2 = time.time()
-        print('L calculation time = ', t2 - t1)
-        t1 = time.time()        
+        # print('L calculation time = ', t2 - t1)
         L_total = (L_total + L_total.T)
         # Add in self-inductances
         np.fill_diagonal(L_total, np.log(8.0 * self.R / self.a) - 2.0)
@@ -1046,14 +1039,12 @@ class PSCgrid:
         # if keeping track of the number of coil turns, need factor
         # of Nt ** 2 below as well
         self.L = L_total * self.mu0 * self.R
-        t2 = time.time()
-        print('L scale time = ', t2 - t1)
         
         # Calculate the PSC B fields
         t1 = time.time()
         self.setup_currents_and_fields()
         t2 = time.time()
-        print('Setup fields time = ', t2 - t1)
+        # print('Setup fields time = ', t2 - t1)
         
     def setup_full_grid(self):
         """
