@@ -36,15 +36,15 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
-    qphi = nphi * 8
+    qphi = nphi * 4
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
 poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 1.0  # PSC grid will be initialized between 1 m and 2 m from plasma
+coff = 1.2  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
@@ -104,7 +104,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+# bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -152,18 +152,48 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 from scipy.optimize import minimize
 print('beginning optimization: ')
-opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
-options = {"disp": True}  #, "maxiter": 100}
+# opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
+# options = {"disp": True}  #, "maxiter": 100}
 # print(opt_bounds)
 # x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
 verbose = True
-x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
-                 method='L-BFGS-B',
-                 # bounds=opt_bounds,
-                 jac=psc_array.least_squares_jacobian, 
-                 options=options,
-                 # tol=1e-10,
-                 )
+
+# Run STLSQ with BFGS in the loop
+kwargs_manual = {
+                 "out_dir": out_str, 
+                 "plasma_boundary" : s,
+                 "coils_TF" : coils
+                 }
+I_threshold = 1e4
+STLSQ_max_iters = 2
+for k in range(STLSQ_max_iters):
+    print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
+    x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
+    x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
+                     method='L-BFGS-B',
+                     # bounds=opt_bounds,
+                     jac=psc_array.least_squares_jacobian, 
+                     options=options,
+                     tol=1e-10,
+                     )
+    I = psc_array.I
+    small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
+    grid_xyz = psc_array.grid_xyz
+    alphas = psc_array.alphas
+    deltas = psc_array.deltas
+    if len(small_I_inds) > 0:
+        grid_xyz = grid_xyz[small_I_inds, :]
+        alphas = alphas[small_I_inds]
+        deltas = deltas[small_I_inds]
+    kwargs_manual["alphas"] = alphas
+    kwargs_manual["deltas"] = deltas
+    # Initialize new PSC array with coils only at the remaining locations
+    # with initial orientations from the solve using BFGS
+    psc_array = PSCgrid.geo_setup_manual(
+        grid_xyz, psc_array.R, **kwargs_manual
+    )
+    
+# psc_array.setup_orientations(x_opt.x[:len(x_opt) // 2], x_opt.x[len(x_opt) // 2:])
 psc_array.setup_curves()
 psc_array.plot_curves('final_')
 currents = []

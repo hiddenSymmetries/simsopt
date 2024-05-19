@@ -110,7 +110,7 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     ncoils = len(base_curves)
 
     # Weight on the curve lengths in the objective function:
-    LENGTH_WEIGHT = 1e-1
+    LENGTH_WEIGHT = 1
 
     # Threshold and weight for the coil-to-coil distance penalty in the objective function:
     CC_THRESHOLD = 0.1
@@ -305,7 +305,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
             base_curves[i].fix_all()
     elif config_flag == 'qh':
         # generate planar TF coils
-        ncoils = 4
+        ncoils = 2
         R0 = s.get_rc(0, 0)
         R1 = s.get_rc(1, 0) * 4
         order = 2
@@ -316,7 +316,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753
         print('Total current = ', total_current)
         base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
-                                                   R0=R0, R1=R1, order=order, numquadpoints=16)
+                                                   R0=R0, R1=R1, order=order, numquadpoints=64)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
         total_current = Current(total_current)
         total_current.fix_all()

@@ -453,7 +453,7 @@ class PSCgrid:
                                      (np.random.rand(
                                          psc_grid.num_psc) - 0.5) * 2 * np.pi
         )
-        N = 100  # Number of integrations points along each PSC curve
+        N = 20  # Must be larger for some unit tests to converge
         psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         psc_grid.rho = np.linspace(0, R, N, endpoint=False)
@@ -640,7 +640,7 @@ class PSCgrid:
                 # )
                 q = q + 1
         self.A_matrix = A_matrix
-        self.Bn_PSC = (A_matrix @ self.I).reshape(-1)
+        self.Bn_PSC = (A_matrix @ self.I).reshape(-1) * self.grid_normalization
         # self.B_PSC = B_PSC
         # currents = []
         # for i in range(self.num_psc):
@@ -780,7 +780,7 @@ class PSCgrid:
         Bn_TF = np.sum(
             self.B_TF.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1
         )
-        self.b_opt = (Bn_TF + Bn_plasma)  # * self.grid_normalization
+        self.b_opt = (Bn_TF + Bn_plasma) * self.grid_normalization
         
     def least_squares(self, kappas, verbose=False):
         """
@@ -806,7 +806,6 @@ class PSCgrid:
         alphas = kappas[:len(kappas) // 2]
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
-        # Ax_b = self.Bn_PSC * self.grid_normalization + self.b_opt
         Ax_b = self.Bn_PSC + self.b_opt
         BdotN2 = 0.5 * Ax_b.T @ Ax_b / self.normalization
         outstr = f"Normalized f_B = {BdotN2:.3e} "
