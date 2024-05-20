@@ -15,7 +15,7 @@ from simsopt.geo.framedcurve import FramedCurveCentroid
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance', 'FramedCurveTwist']
+           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance', 'FramedCurveTwist', 'MinCurveCurveDistance']
 
 
 @jit
@@ -721,3 +721,69 @@ class FramedCurveTwist(Optimizable):
             grad += self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
 
         return grad 
+
+
+
+def max_distance_pure(g1, g2, dmax, p):
+    """
+    This returns 0 if all points of g1 have at least one point of g2 at a distance smaller or equal to dmax
+    Otherwise, returns the sum of |g2-g1_i|-dmax where only points further than dmax are considered.
+    The minimum distance between a point g1_i and g2 is obtained using the p-norm, with p < -1.
+    """
+    dists = jnp.sqrt(jnp.sum( (g1[:, None, :] - g2[None, :, :])**2, axis=2))
+
+    # Estimate min of dists using p-norm. The minimum is taken along the axis=1. mindists is then an array of length g1.size, where mindists[i]=min_j(|g1[i]-g2[j]|)
+    mindists = jnp.sum(dists**p, axis=1)**(1./p)
+
+
+    # We now evaluate if any of mindists is larger than dmax. If yes, we add the value of (mindists[i]-dmax)**2 to the output. 
+    # We normalize by the number of quadrature points along the first curve g1.
+    return jnp.sum(jnp.maximum(mindists-dmax, 0)**2) / g1.shape[0]
+
+
+class MinCurveCurveDistance(Optimizable):
+    """
+    This class can be used to constrain a curve to remain close
+    to another curve.
+    """
+    def __init__(self, curve1, curve2, maximum_distance, p=-10):
+        self.curve1 = curve1
+        self.curve2 = curve2
+        self.maximum_distance = maximum_distance
+
+        self.J_jax = lambda g1, g2: max_distance_pure(g1, g2, self.maximum_distance, p)
+        self.this_grad_0 = jit(lambda g1, g2: grad(self.J_jax, argnums=0)(g1, g2))
+        self.this_grad_1 = jit(lambda g1, g2: grad(self.J_jax, argnums=1)(g1, g2))
+
+        Optimizable.__init__(self, depends_on=[curve1, curve2])
+
+    def max_distance(self):
+        """
+        returns the distance the most isolated point of curve1 to curve2
+        """
+        g1 = self.curve1.gamma()
+        g2 = self.curve2.gamma()
+
+        # Evaluate all distances
+        dists = np.sqrt(np.sum( (g1[:, None, :] - g2[None, :, :])**2, axis=2))
+
+        # Find all min distances
+        mindists = np.min(dists, axis=1)
+
+        return np.max(mindists)
+
+    def J(self):
+        g1 = self.curve1.gamma()
+        g2 = self.curve2.gamma()
+
+        return self.J_jax( g1, g2 )
+    
+    @derivative_dec
+    def dJ(self):
+        g1 = self.curve1.gamma()
+        g2 = self.curve2.gamma()
+
+        grad0 = self.this_grad_0(g1, g2)
+        grad1 = self.this_grad_1(g1, g2)
+
+        return self.curve1.dgamma_by_dcoeff_vjp( grad0 ) + self.curve2.dgamma_by_dcoeff_vjp( grad1 )

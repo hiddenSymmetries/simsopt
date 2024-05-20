@@ -12,7 +12,7 @@ from .jit import jit
 from .._core.derivative import derivative_dec
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_windowpane_curves', 'Curve2D', 'CurveCWSFourier', 'create_equally_spaced_planar_curves']
+__all__ = ['Curve', 'JaxCurve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_oriented_curves', 'Curve2D', 'CurveCWSFourier', 'create_equally_spaced_planar_curves']
 
 @jit
 def incremental_arclength_pure(d1gamma):
@@ -884,7 +884,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         curves.append(curve)
     return curves
 
-def create_equally_spaced_windowpane_curves( ncurves, nfp, R0, R1, Z0, order, numquadpoints=None ):
+def create_equally_spaced_oriented_curves( ncurves, nfp, R0, R1, Z0, order, numquadpoints=None ):
     if numquadpoints is None:
         numquadpoints = 15 * order
 

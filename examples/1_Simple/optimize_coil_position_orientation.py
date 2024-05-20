@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 
-from simsopt.geo import SurfaceRZFourier, create_equally_spaced_windowpane_curves, \
+from simsopt.geo import SurfaceRZFourier, create_equally_spaced_oriented_curves, \
     CurveLength, curves_to_vtk, create_equally_spaced_curves
 from simsopt.field import Current, coils_via_symmetries, BiotSavart
 from simsopt.objectives import SquaredFlux
@@ -58,7 +58,7 @@ s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, n
 
 # Create the initial coils:
 base_tf_curves = create_equally_spaced_curves(n_tf_coils, s.nfp, stellsym=True, R0=R0, R1=R1, order=2)
-base_wp_curves = create_equally_spaced_windowpane_curves(n_wp_coils, s.nfp, True, R0=(R0+R1)*1.01, R1=R1/10, Z0=0, order=2)
+base_wp_curves = create_equally_spaced_oriented_curves(n_wp_coils, s.nfp, R0=(R0+R1)*1.01, R1=R1/10, Z0=0, order=2)
 
 # We scale the currents so that dofs have all the same order of magnitude
 base_tf_currents = [ScaledCurrent(Current(1.0), 1e5) for i in range(n_tf_coils)]
@@ -71,10 +71,10 @@ for c in base_tf_curves:
 # We also fix the wp coils geometry, but keep their position and orientation unfixed
 for c in base_wp_curves:
     c.fix_all()
-    for xyz in ['x','y','z']:
-        c.unfix(f'{xyz}0')
+    for xyz in ['x0','y0','z0']:
+        c.unfix( xyz )
     for ypr in ['yaw', 'pitch', 'roll']:
-        c.unfix(f'{ypr}')
+        c.unfix( ypr )
 
 # We unfix all currents
 for c in base_tf_currents:
@@ -87,6 +87,7 @@ for c in base_wp_currents:
 # of the currents:
 base_tf_currents[0].fix_all()
 
+# Generate full array of coils using symmetries
 tf_coils = coils_via_symmetries(base_tf_curves, base_tf_currents, s.nfp, True)
 wp_coils = coils_via_symmetries(base_wp_curves, base_wp_currents, s.nfp, True)
 coils = tf_coils + wp_coils
