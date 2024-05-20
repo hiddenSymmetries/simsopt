@@ -10,7 +10,6 @@
 #include <tuple>  // c++ tuples
 #include <string> // for string class
 #include <iostream>
-#include <stdio.h>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
 

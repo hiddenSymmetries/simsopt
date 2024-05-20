@@ -867,7 +867,7 @@ Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas
             A(i, j) = Bx_rot * nx + By_rot * ny + Bz_rot * nz;
         }
     }
-    return A * fac;
+    return A;
 }
 
 Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R)
@@ -983,7 +983,6 @@ Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array&
     
     // this variable is the A matrix in the least-squares term so A * I = Bn
     Array A = xt::zeros<double>({num_plasma_points, num_coils});
-    double fac = 1.0e-7;
     using namespace boost::math;
     
     #pragma omp parallel for schedule(static)
@@ -1041,7 +1040,7 @@ Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array&
             A(i, j) = (Rxx * Bx + Rxy * By + Rxz * Bz) * nx + (Ryx * Bx + Ryy * By + Ryz * Bz) * ny + (Rzx * Bx + Rzy * By + Rzz * Bz) * nz;
         }
     }
-    return A * fac;
+    return A;
 }
 
 
@@ -1069,7 +1068,6 @@ Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
     
     // this variable is the A matrix in the least-squares term so A * I = Bn
     Array dA = xt::zeros<double>({num_coils * 2, num_plasma_points});
-    double fac = 1.0e-7;
     using namespace boost::math;
     
     #pragma omp parallel for schedule(static)
@@ -1197,7 +1195,7 @@ Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
             dA(j + num_coils, i) += (Rzx * (Bx4 + Bx5) + Rzy * (By4 + By5) + Rzz * (Bz4 + Bz5)) * nz;
         }
     }
-    return dA * fac;
+    return dA;
 }
 
 

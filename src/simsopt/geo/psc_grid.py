@@ -28,6 +28,7 @@ class PSCgrid:
 
     def __init__(self):
         self.mu0 = 4 * np.pi * 1e-7
+        self.fac = 1e-7
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
         num_quad = 10
@@ -69,8 +70,8 @@ class PSCgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = Nmin / 4.0
-        self.a = self.R / 100.0  # Hard-coded aspect ratio of 100 right now
+        self.R = Nmin / 4.0  # , self.poff / 4.0)
+        self.a = self.R / 10.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
               ' is at least 2R away from the next coil'
@@ -106,10 +107,15 @@ class PSCgrid:
                 for j in range(Ny):
                     for k in range(Nz):
                         phi = np.arctan2(Y[i, j, k], X[i, j, k])
-                        phi2 = np.arctan2(self.R, X[i, j, k])
+                        if self.nfp == 4:
+                            phi2 = np.arctan2(self.R, X[i, j, k])
+                        elif self.nfp == 2:
+                            phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
                         # Add a little factor to avoid phi = pi / n_p degrees 
                         # exactly, which can intersect with a symmetrized
                         # coil if not careful 
+                        # print(phi2)
+                        # exit()
                         if phi >= (np.pi / self.nfp - phi2) or phi < 0.0:
                             inds.append(int(i * Ny * Nz + j * Nz + k))
             good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
@@ -622,7 +628,7 @@ class PSCgrid:
             for stell in self.stell_list:
                 xyz = self.grid_xyz_all[q * nn: (q + 1) * nn, :]
                 t1 = time.time()
-                A_matrix += sopp.A_matrix(
+                A_matrix += 2 * sopp.A_matrix(
                     contig(xyz),
                     contig(self.plasma_points),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
@@ -640,7 +646,7 @@ class PSCgrid:
                 # )
                 q = q + 1
         self.A_matrix = A_matrix
-        self.Bn_PSC = (A_matrix @ self.I).reshape(-1) * self.grid_normalization
+        self.Bn_PSC = (A_matrix @ self.I).reshape(-1) 
         # self.B_PSC = B_PSC
         # currents = []
         # for i in range(self.num_psc):
@@ -780,7 +786,7 @@ class PSCgrid:
         Bn_TF = np.sum(
             self.B_TF.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1
         )
-        self.b_opt = (Bn_TF + Bn_plasma) * self.grid_normalization
+        self.b_opt = (Bn_TF + Bn_plasma) / self.fac
         
     def least_squares(self, kappas, verbose=False):
         """
@@ -806,14 +812,14 @@ class PSCgrid:
         alphas = kappas[:len(kappas) // 2]
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
-        Ax_b = self.Bn_PSC + self.b_opt
-        BdotN2 = 0.5 * Ax_b.T @ Ax_b / self.normalization
-        outstr = f"Normalized f_B = {BdotN2:.3e} "
+        Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
+        BdotN2 = 0.5 * Ax_b.T @ Ax_b / self.normalization * self.fac ** 2
+        # outstr = f"Normalized f_B = {BdotN2:.3e} "
         # for i in range(len(kappas)):
-            # outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
+        #     outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
         # outstr += "\n"
-        if verbose:
-            print(outstr)
+        # if verbose:
+        #     print(outstr)
         return BdotN2
     
     def least_squares_jacobian(self, kappas, verbose=False):
@@ -839,9 +845,7 @@ class PSCgrid:
         deltas = kappas[len(kappas) // 2:]
         self.setup_orientations(alphas, deltas)
         # Two factors of grid normalization since it is not added to the gradients
-        # A has shape (num_plasma_points)
-        Ax_b = (self.Bn_PSC + self.b_opt) / self.normalization
-        # Ax_b = (self.Bn_PSC * self.grid_normalization + self.b_opt) / self.normalization
+        Ax_b = (self.Bn_PSC + self.b_opt) / self.normalization * self.grid_normalization
         # t1 = time.time()
         A_deriv = self.A_deriv()
         Linv = self.L_inv[:self.num_psc, :self.num_psc]
@@ -915,7 +919,7 @@ class PSCgrid:
             contig(self.deltas),
             contig(self.quad_points_phi),
             contig(self.quad_weights_phi)
-        ) / (4 * np.pi) # * self.quad_dphi ** 2 / (np.pi ** 2)
+        ) / (4 * np.pi) 
         
         # symmetrize it
         L_deriv = (L_deriv + np.transpose(L_deriv, axes=[0, 2, 1]))
