@@ -85,8 +85,6 @@ class BoozerSurface(Optimizable):
         # set the default options now
         if 'verbose' not in options:
             options['verbose'] = True
-        if 'G' not in options:
-            options['G'] = None
         
         # default solver options for the BoozerExact and BoozerLS solvers
         if self.boozer_type == 'exact':
@@ -120,7 +118,7 @@ class BoozerSurface(Optimizable):
         Args:
             boozer_type: either 'exact' or 'ls', to indicate whether a BoozerExact or a BoozerLS surface is to be computed.
             iota: guess for value of rotational transform on the surface,
-            G: guess for value of G on surface, defaults to None.
+            G: guess for value of G on surface, defaults to None.  Note that if None is used, then the coil currents must be fixed.
             options: dictionary of solver options. If keyword is not specified, then a default 
                     value is used.  Possible keywords are:
                     `verbose`: display convergence information
@@ -134,6 +132,10 @@ class BoozerSurface(Optimizable):
         if not self.need_to_run_code:
             return
         
+        # for coil optimizations, the gradient calculations of the objective assume that the coil currents are fixed when G is None.
+        if G is None:
+            assert np.all([c.current.dofs.all_fixed() for c in self.biotsavart.coils])
+
         # BoozerExact default solver
         if self.boozer_type == 'exact':
             res = self.solve_residual_equation_exactly_newton(iota=iota, G=G, tol=self.options['newton_tol'], maxiter=self.options['newton_maxiter'], verbose=self.options['verbose'])
