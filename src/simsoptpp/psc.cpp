@@ -351,7 +351,190 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
     return dpsi * fac;
 }
 
+Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R)
+{     
+    // points shape should be (num_coils, 3)
+    // plasma_normal shape should be (num_plasma_points, 3)
+    // plasma_points should be (num_plasma_points, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_plasma_points = plasma_points.shape(0);
+    
+    // this variable is the A matrix in the least-squares term so A * I = Bn
+    Array A = xt::zeros<double>({num_plasma_points, num_coils});
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    double R2 = R * R;
+    double fac = 2.0e-7;
+    using namespace boost::math;
+    
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* points_ptr = &(points(0, 0));
+    double* plasma_points_ptr = &(plasma_points(0, 0));
+    double* plasma_normal_ptr = &(plasma_normal(0, 0));
+    
+    #pragma omp parallel for schedule(static)
+    for(int j = 0; j < num_coils; j += simd_size) {
+        auto point_j = Vec3dSimd();
+        int klimit = std::min(simd_size, num_coils - j);
+        simd_t aj, dj;
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_j[d][k] = points_ptr[3 * (j + k) + d];
+            }
+            aj[k] = alphas_ptr[j + k];
+            dj[k] = deltas_ptr[j + k];
+        }
+        simd_t cdj = xsimd::cos(dj);
+        simd_t caj = xsimd::cos(aj);
+        simd_t sdj = xsimd::sin(dj);
+        simd_t saj = xsimd::sin(aj);
+        for (int i = 0; i < num_plasma_points; i++) {
+            auto xp = Vec3dSimd(plasma_points_ptr[3 * i], \
+                                plasma_points_ptr[3 * i + 1], \
+                                plasma_points_ptr[3 * i + 2]);
+            auto np = Vec3dSimd(plasma_normal_ptr[3 * i], \
+                                plasma_normal_ptr[3 * i + 1], \
+                                plasma_normal_ptr[3 * i + 2]);
+            Vec3dSimd x0 = xp - point_j;
+            simd_t nxx = cdj;
+            simd_t nxy = sdj * saj;
+            simd_t nxz = sdj * caj;
+            simd_t nyx = ((simd_t) 0.0);
+            simd_t nyy = caj;
+            simd_t nyz = -saj;
+            simd_t nzx = -sdj;
+            simd_t nzy = cdj * saj;
+            simd_t nzz = cdj * caj;
+            auto x0rot = Vec3dSimd(x0.x * nxx + x0.y * nyx + x0.z * nzx, \
+                                   x0.x * nxy + x0.y * nyy + x0.z * nzy, \
+                                   x0.x * nxz + x0.y * nyz + x0.z * nzz);
+            simd_t x = x0rot.x;
+            simd_t y = x0rot.y;
+            simd_t z = x0rot.z;
+            simd_t rho2 = x * x + y * y;
+            simd_t r2 = rho2 + z * z;
+            simd_t rho = xsimd::sqrt(rho2);
+            simd_t R2_r2 = R2 + r2;
+            simd_t gamma2 = R2_r2 - 2.0 * R * rho;
+            simd_t beta2 = R2_r2 + 2.0 * R * rho;
+            simd_t beta = xsimd::sqrt(beta2);
+            auto k2 = 1.0 - gamma2 / beta2;
+            simd_t beta_gamma2 = beta * gamma2;
+            auto k = sqrt(k2);
+            auto ellipe = ellint_2(k);
+            auto ellipk = ellint_1(k);
+            simd_t Eplus = R2_r2 * ellipe - gamma2 * ellipk;
+            simd_t Eminus = (R2 - r2) * ellipe + gamma2 * ellipk;
+            auto B = Vec3dSimd(x * z * Eplus / (rho2 * beta_gamma2), \
+                               y * z * Eplus / (rho2 * beta_gamma2), \
+                               Eminus / beta_gamma2);
+            // Need to rotate the vector
+            auto B_rot = Vec3dSimd(B.x * nxx + B.y * nxy + B.z * nxz, \
+                                   B.x * nyx + B.y * nyy + B.z * nyz, \
+                                   B.x * nzx + B.y * nzy + B.z * nzz);
+            simd_t inner_prod = inner(B_rot, np);
+            for(int kk = 0; kk < klimit; kk++){
+                A(i, j) += inner_prod[kk];
+            }
+        }
+    }
+    return A;
+}
+
 #else
+
+Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    if(plasma_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("plasma_points needs to be in row-major storage order");
+    if(plasma_normal.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("plasma_normal needs to be in row-major storage order");
+          
+    // points shape should be (num_coils, 3)
+    // plasma_normal shape should be (num_plasma_points, 3)
+    // plasma_points should be (num_plasma_points, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_plasma_points = plasma_points.shape(0);
+    
+    // this variable is the A matrix in the least-squares term so A * I = Bn
+    Array A = xt::zeros<double>({num_plasma_points, num_coils});
+    double R2 = R * R;
+    double fac = 2.0e-7;
+    using namespace boost::math;
+    
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* points_ptr = &(points(0, 0));
+    double* plasma_points_ptr = &(plasma_points(0, 0));
+    double* plasma_normal_ptr = &(plasma_normal(0, 0));
+    
+    #pragma omp parallel for schedule(static)
+    for(int j = 0; j < num_coils; j++) {
+        auto cdj = cos(deltas_ptr[j]);
+        auto caj = cos(alphas_ptr[j]);
+        auto sdj = sin(deltas_ptr[j]);
+        auto saj = sin(alphas_ptr[j]);
+        auto xj = points_ptr[3 * j];
+        auto yj = points_ptr[3 * j + 1];
+        auto zj = points_ptr[3 * j + 2];
+        for (int i = 0; i < num_plasma_points; ++i) {
+            auto xp = plasma_points_ptr[3 * i];
+            auto yp = plasma_points_ptr[3 * i + 1];
+            auto zp = plasma_points_ptr[3 * i + 2];
+            auto nx = plasma_normal_ptr[3 * i];
+            auto ny = plasma_normal_ptr[3 * i + 1];
+            auto nz = plasma_normal_ptr[3 * i + 2];
+            auto x0 = (xp - xj);
+            auto y0 = (yp - yj);
+            auto z0 = (zp - zj);
+            auto nxx = cdj;
+            auto nxy = sdj * saj;
+            auto nxz = sdj * caj;
+            auto nyx = 0.0;
+            auto nyy = caj;
+            auto nyz = -saj;
+            auto nzx = -sdj;
+            auto nzy = cdj * saj;
+            auto nzz = cdj * caj;
+            auto x = x0 * nxx + y0 * nyx + z0 * nzx;
+            auto y = x0 * nxy + y0 * nyy + z0 * nzy;
+            auto z = x0 * nxz + y0 * nyz + z0 * nzz;
+            auto rho2 = x * x + y * y;
+            auto r2 = rho2 + z * z;
+            auto rho = sqrt(rho2);
+            auto R2_r2 = R2 + r2;
+            auto gamma2 = R2_r2 - 2.0 * R * rho;
+            auto beta2 = R2_r2 + 2.0 * R * rho;
+            auto beta = sqrt(beta2);
+            auto k2 = 1.0 - gamma2 / beta2;
+            auto beta_gamma2 = beta * gamma2;
+            auto k = sqrt(k2);
+            auto ellipe = ellint_2(k);
+            auto ellipk = ellint_1(k);
+            auto Eplus = R2_r2 * ellipe - gamma2 * ellipk;
+            auto Eminus = (R2 - r2) * ellipe + gamma2 * ellipk;
+            auto Bx = x * z * Eplus / (rho2 * beta_gamma2);
+            auto By = y * z * Eplus / (rho2 * beta_gamma2);
+            auto Bz = Eminus / beta_gamma2;
+            // Need to rotate the vector
+            auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
+            auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
+            auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
+            A(i, j) = Bx_rot * nx + By_rot * ny + Bz_rot * nz;
+        }
+    }
+    return A;
+}
+
+
+// Todo: write your own C++ code for ellipe/ellipk so we can XSIMD it...? 
 
 Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R)
 {
@@ -778,96 +961,6 @@ Array flux_integration(Array& B, Array& rho, Array& normal)
         Psi(j) = integral;
     }
     return Psi;
-}
-
-Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R)
-{
-    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
-    if(points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("points needs to be in row-major storage order");
-    if(alphas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("alphas needs to be in row-major storage order");
-    if(deltas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("deltas needs to be in row-major storage order");
-    if(plasma_points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("plasma_points needs to be in row-major storage order");
-    if(plasma_normal.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("plasma_normal needs to be in row-major storage order");
-          
-    // points shape should be (num_coils, 3)
-    // plasma_normal shape should be (num_plasma_points, 3)
-    // plasma_points should be (num_plasma_points, 3)
-    int num_coils = alphas.shape(0);  // shape should be (num_coils)
-    int num_plasma_points = plasma_points.shape(0);
-    
-    // this variable is the A matrix in the least-squares term so A * I = Bn
-    Array A = xt::zeros<double>({num_plasma_points, num_coils});
-    double R2 = R * R;
-    double fac = 2.0e-7;
-    using namespace boost::math;
-    
-    double* alphas_ptr = &(alphas(0));
-    double* deltas_ptr = &(deltas(0));
-    double* points_ptr = &(points(0, 0));
-    double* plasma_points_ptr = &(plasma_points(0, 0));
-    double* plasma_normal_ptr = &(plasma_normal(0, 0));
-    
-    #pragma omp parallel for schedule(static)
-    for(int j = 0; j < num_coils; j++) {
-        auto cdj = cos(deltas_ptr[j]);
-        auto caj = cos(alphas_ptr[j]);
-        auto sdj = sin(deltas_ptr[j]);
-        auto saj = sin(alphas_ptr[j]);
-        auto xj = points_ptr[3 * j];
-        auto yj = points_ptr[3 * j + 1];
-        auto zj = points_ptr[3 * j + 2];
-        for (int i = 0; i < num_plasma_points; ++i) {
-            auto xp = plasma_points_ptr[3 * i];
-            auto yp = plasma_points_ptr[3 * i + 1];
-            auto zp = plasma_points_ptr[3 * i + 2];
-            auto nx = plasma_normal_ptr[3 * i];
-            auto ny = plasma_normal_ptr[3 * i + 1];
-            auto nz = plasma_normal_ptr[3 * i + 2];
-            auto x0 = (xp - xj);
-            auto y0 = (yp - yj);
-            auto z0 = (zp - zj);
-            auto nxx = cdj;
-            auto nxy = sdj * saj;
-            auto nxz = sdj * caj;
-            auto nyx = 0.0;
-            auto nyy = caj;
-            auto nyz = -saj;
-            auto nzx = -sdj;
-            auto nzy = cdj * saj;
-            auto nzz = cdj * caj;
-            auto x = x0 * nxx + y0 * nyx + z0 * nzx;
-            auto y = x0 * nxy + y0 * nyy + z0 * nzy;
-            auto z = x0 * nxz + y0 * nyz + z0 * nzz;
-            auto rho2 = x * x + y * y;
-            auto r2 = rho2 + z * z;
-            auto rho = sqrt(rho2);
-            auto R2_r2 = R2 + r2;
-            auto gamma2 = R2_r2 - 2.0 * R * rho;
-            auto beta2 = R2_r2 + 2.0 * R * rho;
-            auto beta = sqrt(beta2);
-            auto k2 = 1.0 - gamma2 / beta2;
-            auto beta_gamma2 = beta * gamma2;
-            auto k = sqrt(k2);
-            auto ellipe = ellint_2(k);
-            auto ellipk = ellint_1(k);
-            auto Eplus = R2_r2 * ellipe - gamma2 * ellipk;
-            auto Eminus = (R2 - r2) * ellipe + gamma2 * ellipk;
-            auto Bx = x * z * Eplus / (rho2 * beta_gamma2);
-            auto By = y * z * Eplus / (rho2 * beta_gamma2);
-            auto Bz = Eminus / beta_gamma2;
-            // Need to rotate the vector
-            auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
-            auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
-            auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
-            A(i, j) = Bx_rot * nx + By_rot * ny + Bz_rot * nz;
-        }
-    }
-    return A;
 }
 
 Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R)

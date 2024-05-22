@@ -613,6 +613,7 @@ class WPgrid:
         # Need to rotate and flip it
         nn = self.num_wp
         q = 0
+        t1 = time.time()
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 xyz = self.grid_xyz_all[q * nn: (q + 1) * nn, :]
@@ -629,7 +630,7 @@ class WPgrid:
                 #     xyz, 
                 #     self.alphas_total[q * nn: (q + 1) * nn],
                 #     self.deltas_total[q * nn: (q + 1) * nn])
-                A_matrix += 2 * sopp.A_matrix(
+                A_matrix += sopp.A_matrix(
                     contig(xyz),
                     contig(self.plasma_points),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
@@ -640,8 +641,10 @@ class WPgrid:
                 q = q + 1
                 # print(A_matrix2, A_matrix)
                 # assert np.allclose(A_matrix2, A_matrix)
+        t2 = time.time()
+        print('Time = ',t2 - t1)
         self.A_matrix = A_matrix
-        self.Bn_WP = (A_matrix @ self.I * 1e6).reshape(-1) # missing factor of fac
+        self.Bn_WP = 2 * (A_matrix @ self.I * 1e6).reshape(-1) # missing factor of fac
     
     def setup_curves(self):
         """ 
