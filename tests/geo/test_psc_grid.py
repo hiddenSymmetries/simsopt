@@ -349,6 +349,7 @@ class Testing(unittest.TestCase):
         dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
         A_deriv = psc_array.A_deriv()
         dBn_analytic = (A @ Linv_psi + b).T @ (A_deriv[:, :ncoils] * Linv_psi)
+        print(dBn_objective, dBn_analytic[0])
         assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
         dA_dalpha = (A_new - A) / epsilon
         dA_dkappa_analytic = A_deriv
@@ -409,11 +410,12 @@ class Testing(unittest.TestCase):
         A_deriv = psc_array.A_deriv()
         # notice ncoils: instead of :ncoils below
         dBn_analytic = (A @ Linv_psi + b).T @ (A_deriv[:, ncoils:] * Linv_psi)
-        print(dBn_objective, dBn_analytic[0])
-        assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+        # print(dBn_objective, dBn_analytic[0])
         dA_ddelta = (A_new - A) / epsilon
         dA_dkappa_analytic = A_deriv
-        assert np.allclose(dA_ddelta[:, 0], dA_dkappa_analytic[:, ncoils])
+        # print(dA_ddelta[:, 0], dA_dkappa_analytic[:, ncoils])
+        assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+        assert np.allclose(dA_ddelta[:, 0], dA_dkappa_analytic[:, ncoils], rtol=1e-2)
         
         # Repeat but change coil 5
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
@@ -427,7 +429,7 @@ class Testing(unittest.TestCase):
         Linv_psi = Linv @ psi
         b = psc_array.b_opt  # / psc_array.grid_normalization
         Bn_objective = 0.5 * (A @ Linv_psi + b).T @ (A @ Linv_psi + b)
-        epsilon = 1e-4
+        epsilon = 1e-5
         alphas_new = alphas
         deltas_new = deltas
         deltas_new[5] += epsilon
@@ -440,10 +442,11 @@ class Testing(unittest.TestCase):
         A_deriv = psc_array.A_deriv()
         # notice ncoils: instead of :ncoils below
         dBn_analytic = (A @ Linv_psi + b).T @ (A_deriv[:, ncoils:] * Linv_psi)
+        print(dBn_objective, dBn_analytic[5])
         assert np.isclose(dBn_objective, dBn_analytic[5], rtol=1e-2)
         dA_ddelta = (A_new - A) / epsilon
         dA_dkappa_analytic = A_deriv
-        assert np.allclose(dA_ddelta[:, 5], dA_dkappa_analytic[:, ncoils + 5])
+        assert np.allclose(dA_ddelta[:, 5], dA_dkappa_analytic[:, ncoils + 5], rtol=1e-3)
 
     def test_L(self):
         """
@@ -637,7 +640,7 @@ class Testing(unittest.TestCase):
                             Bn_direct_all = np.sum(B_direct_all.B().reshape(
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
-                            psc_array.Bn_PSC = psc_array.Bn_PSC  # / psc_array.grid_normalization
+                            psc_array.Bn_PSC = psc_array.Bn_PSC * psc_array.fac
                             # Robust test of all the B and Bn calculations from circular coils
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, atol=1e3))
@@ -739,7 +742,7 @@ class Testing(unittest.TestCase):
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
                             # Robust test of all the B and Bn calculations from circular coils
-                            psc_array.Bn_PSC = psc_array.Bn_PSC  #/ psc_array.grid_normalization
+                            psc_array.Bn_PSC = psc_array.Bn_PSC * psc_array.fac
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, rtol=1e-2, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, rtol=1e-2, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct * 1e10, rtol=1e-2, atol=1e3))

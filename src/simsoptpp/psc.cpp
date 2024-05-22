@@ -1045,7 +1045,7 @@ Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array&
 
 
 
-Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R)
+Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& int_points, Array& int_weights, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -1064,7 +1064,7 @@ Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
     // plasma_points should be (num_plasma_points, 3)
     int num_coils = alphas.shape(0);  // shape should be (num_coils)
     int num_plasma_points = plasma_points.shape(0);
-    int num_phi = phi.shape(0);  // shape should be (num_phi)
+    int num_phi = int_points.shape(0);  // shape should be (num_phi)
     
     // this variable is the A matrix in the least-squares term so A * I = Bn
     Array dA = xt::zeros<double>({num_coils * 2, num_plasma_points});
@@ -1132,18 +1132,19 @@ Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& delta
             auto By5 = 0.0;
             auto Bz5 = 0.0;
             for (int k = 0; k < num_phi; ++k) {
-                auto dlx = -R * sin(phi(k));
-                auto dly = R * cos(phi(k));
+                auto weight = int_weights(k);
+                auto dlx = -R * sin(int_points(k));
+                auto dly = R * cos(int_points(k));
                 auto dlz = 0.0;
                 // multiply by R^T and then subtract off coil coordinate
-                auto RTxdiff = (Rxx * x0 + Ryx * y0 + Rzx * z0) - R * cos(phi(k));
-                auto RTydiff = (Rxy * x0 + Ryy * y0 + Rzy * z0) - R * sin(phi(k));
+                auto RTxdiff = (Rxx * x0 + Ryx * y0 + Rzx * z0) - R * cos(int_points(k));
+                auto RTydiff = (Rxy * x0 + Ryy * y0 + Rzy * z0) - R * sin(int_points(k));
                 auto RTzdiff = (Rxz * x0 + Ryz * y0 + Rzz * z0);
                 auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
                 auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
                 auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
                 auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
-                auto denom3 = denom * denom * denom;
+                auto denom3 = denom * denom * denom / weight;  // notice weight factor
                 auto denom5 = denom3 * denom * denom;
                 // First derivative contribution of three
                 Bx1 += dl_cross_RTdiff_x / denom3;

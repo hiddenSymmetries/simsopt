@@ -155,7 +155,7 @@ else:
     quadpoints_theta = np.linspace(0, 1, ntheta * 2, endpoint=True)
 
 poff = 0.2  # WP grid will be offset 'poff' meters from the plasma surface
-coff = 0.3  # WP grid will be initialized between 1 m and 2 m from plasma
+coff = 0.1  # WP grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QA_lowres'
@@ -227,7 +227,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the wp class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, 
+kwargs_geo = {"Nx": 12, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 wp_array = WPgrid.geo_setup_between_toroidal_surfaces(
@@ -267,11 +267,11 @@ print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
 
 # Actually do the minimization now
 print('beginning optimization: ')
-opt_bounds = [(0, 2 * np.pi) for i in range(wp_array.num_wp * 2)]
+opt_bounds = [(-np.pi, np.pi) for i in range(wp_array.num_wp * 2)]
 for i in range(wp_array.num_wp):
     opt_bounds.append((None, None))
 opt_bounds = tuple(opt_bounds)
-options = {"disp": True, "maxiter": 200, "eps": 1e-4}
+options = {"disp": True, "maxiter": 500, "iprint": 101}  #, "maxls": 1000}
 # print(opt_bounds)
 # x0 = np.random.rand(2 * wp_array.num_wp) * 2 * np.pi
 verbose = True
@@ -289,15 +289,37 @@ kwargs_manual = {
 #     print('Number of WPs = ', len(x0) // 4, ' in iteration ', k)
 
 # x0 = np.ravel(np.array([wp_array.I]))
-x0 = np.ravel(np.array([wp_array.alphas, wp_array.I]))
+# x0 = np.ravel(np.array([wp_array.alphas, wp_array.I]))
+# x0 = np.ravel(np.array([np.zeros(wp_array.num_wp), wp_array.deltas, wp_array.I]))
+# x0 = np.ravel(np.array([np.zeros(wp_array.num_wp), np.zeros(wp_array.num_wp), wp_array.I]))
+
+x0 = np.zeros(x0.shape)
+
+import scipy.optimize as opt
+# x_opt = opt.dual_annealing(wp_array.least_squares, bounds=[[-100,100], [-100,100], [-1e6, 1e6]])
 x_opt = minimize(wp_array.least_squares, x0, args=(verbose,),
-                 method='L-BFGS-B',
-                 # method='BFGS',
-                 # bounds=opt_bounds,
-                 jac=wp_array.least_squares_jacobian, 
-                 options=options,
-                 tol=1e-20,
-                 )
+                    method='L-BFGS-B',  # okay with I only
+                    # method='SLSQP',  # best so far with all variables
+                    # method='Nelder-Mead',
+                    # method='Powell',  # okay
+                    # method='CG',
+                    # method='trust-constr',
+                    # method='trust-exact',
+                    # method='Newton-CG',
+                    # method='trust-krylov',
+                  # method='BFGS',
+                   # bounds=opt_bounds,
+                    # jac=wp_array.least_squares_jacobian,
+                    # jac='3-point',
+                  # jac='cs',
+                  options=options,
+                  tol=1e-20,
+                  )
+
+from matplotlib import pyplot as plt
+plt.figure()
+plt.semilogy(wp_array.BdotN2_list)
+plt.show()
 # print(x_opt.message)
 # print(x_opt.jac)
 # print(x_opt.hess_inv)
@@ -321,10 +343,10 @@ x_opt = minimize(wp_array.least_squares, x0, args=(verbose,),
     #     grid_xyz, wp_array.R, **kwargs_manual
     # )
     
-wp_array.I = x_opt.x
-# ind3 = len(x_opt.x) // 3
-# wp_array.I = x_opt.x[2 * ind3:]
-# wp_array.setup_orientations(x_opt.x[:ind3], x_opt.x[ind3:2 * ind3])
+# wp_array.I = x_opt.x
+ind3 = len(x_opt.x) // 3
+wp_array.I = x_opt.x[2 * ind3:] * 1e6
+wp_array.setup_orientations(x_opt.x[:ind3], x_opt.x[ind3:2 * ind3])
 wp_array.setup_curves()
 wp_array.plot_curves('final_')
 currents = []
