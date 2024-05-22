@@ -11,7 +11,17 @@
 #include <string> // for string class
 #include <iostream>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include "simdhelpers.h"
+#include "vec3dsimd.h"
 typedef xt::pyarray<double> Array;
+
+double Ellint1AGM(double k);
+
+double Ellint2AGM(double k);
+
+simd_t Ellint1AGM_simd(simd_t k);
+
+simd_t Ellint2AGM_simd(simd_t k);
 
 Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
 
@@ -22,6 +32,7 @@ Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& p
 Array flux_integration(Array& B, Array& rho, Array& normal);
 
 Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R);
+Array A_matrix_simd(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R);
 
 Array B_PSC(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& psc_currents, double R);
 

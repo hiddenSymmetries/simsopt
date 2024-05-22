@@ -847,7 +847,7 @@ def curves_to_vtk(curves, filename, close=False, scalar_data=None):
         for i in range(len(scalar_data)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i]] = scalar_data[i]
         coil_data = np.ascontiguousarray(coil_data)
-        polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data, 'I': coil_data})
+        polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data, 'I': coil_data, 'I_mag': np.abs(coil_data)})
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """

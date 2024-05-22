@@ -231,7 +231,7 @@ class WPgrid:
         wp_grid.Bn_plasma = Bn_plasma
         
         # Get geometric data for initializing the WPs
-        N = 20  # Number of integration points for integrals over WP coils
+        N = 200  # Number of integration points for integrals over WP coils
         wp_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
         wp_grid.dphi = wp_grid.phi[1] - wp_grid.phi[0]
         Nx = kwargs.pop("Nx", 10)
@@ -310,6 +310,7 @@ class WPgrid:
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
         wp_grid.normalization = B_axis ** 2 * wp_grid.plasma_boundary.area()
+        wp_grid.fac2_norm = wp_grid.fac ** 2 / wp_grid.normalization
         wp_grid.B_TF = B_TF
 
         # Random or B_TF aligned initialization of the coil orientations
@@ -355,7 +356,7 @@ class WPgrid:
         # Initialize curve objects corresponding to each WP coil for 
         # plotting in 3D
         # Initialize all of the fields, currents, inductances, for all the WPs
-        wp_grid.I = np.ones(len(wp_grid.alphas)) * 1e4
+        wp_grid.I = np.zeros(len(wp_grid.alphas))
         wp_grid.setup_orientations(wp_grid.alphas, wp_grid.deltas)
         
         # Initialize CurvePlanarFourier objects for the WPs, mostly for
@@ -560,6 +561,7 @@ class WPgrid:
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
         wp_grid.normalization = B_axis ** 2 * wp_grid.plasma_boundary.area()
+        wp_grid.fac2_norm = wp_grid.fac ** 2 / wp_grid.normalization
         wp_grid.B_TF = B_TF
         
         # Order of the coils. For unit tests, needs > 400
@@ -579,7 +581,7 @@ class WPgrid:
         # Initialize curve objects corresponding to each WP coil for 
         # plotting in 3D
         wp_grid.setup_full_grid()
-        wp_grid.I = np.ones(len(wp_grid.alphas)) * 1e4
+        wp_grid.I = np.zeros(len(wp_grid.alphas))
         wp_grid.setup_orientations(wp_grid.alphas, wp_grid.deltas)
         
         # Initialize CurvePlanarFourier objects for the WPs, mostly for
@@ -609,16 +611,14 @@ class WPgrid:
         # A_matrix has shape (num_plasma_points, num_coils)
         # B_WP = np.zeros((self.nphi * self.ntheta, 3))
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_wp))
-        A_matrix2 = np.zeros((self.nphi * self.ntheta, self.num_wp))
+        # A_matrix2 = np.zeros((self.nphi * self.ntheta, self.num_wp))
         # Need to rotate and flip it
         nn = self.num_wp
         q = 0
-        t1 = time.time()
         for fp in range(self.nfp):
             for stell in self.stell_list:
-                xyz = self.grid_xyz_all[q * nn: (q + 1) * nn, :]
-                # A_matrix += sopp.A_matrix_direct(
-                #     contig(xyz),
+                # A_matrix2 += sopp.A_matrix_direct(
+                #     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                 #     contig(self.plasma_points),
                 #     contig(self.alphas_total[q * nn: (q + 1) * nn]),
                 #     contig(self.deltas_total[q * nn: (q + 1) * nn]),
@@ -626,25 +626,37 @@ class WPgrid:
                 #     contig(self.phi),
                 #     self.R,
                 # ) * self.dphi # missing factor of mu0
-                # A_matrix += self.python_A_matrix(
-                #     xyz, 
+                # A_matrix2 += self.python_A_matrix(
+                #     self.grid_xyz_all[q * nn: (q + 1) * nn, :], 
                 #     self.alphas_total[q * nn: (q + 1) * nn],
                 #     self.deltas_total[q * nn: (q + 1) * nn])
+                # t1 = time.time()
                 A_matrix += sopp.A_matrix(
-                    contig(xyz),
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     contig(self.plasma_points),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
                     contig(self.deltas_total[q * nn: (q + 1) * nn]),
                     contig(self.plasma_unitnormals),
                     self.R,
                 )  # missing factor of fac, factor of 2 from the analytic expression
-                q = q + 1
+                # t2 = time.time()
+                # print('Time1 = ',t2 - t1)
+                # t1 = time.time()
+                # A_matrix += 2 * sopp.A_matrix_simd(
+                #     contig(xyz),
+                #     contig(self.plasma_points),
+                #     contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                #     contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                #     contig(self.plasma_unitnormals),
+                #     self.R,
+                # )  # 
+                # t2 = time.time()
+                # print('Time2 = ',t2 - t1)
                 # print(A_matrix2, A_matrix)
                 # assert np.allclose(A_matrix2, A_matrix)
-        t2 = time.time()
-        print('Time = ',t2 - t1)
-        self.A_matrix = A_matrix
-        self.Bn_WP = 2 * (A_matrix @ self.I * 1e6).reshape(-1) # missing factor of fac
+                q = q + 1
+        self.A_matrix = 2.0 * A_matrix
+        self.Bn_WP = (self.A_matrix @ self.I * 1e6).reshape(-1) # missing factor of fac
     
     def setup_curves(self):
         """ 
@@ -735,6 +747,16 @@ class WPgrid:
                 q = q + 1
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_wp_curves", close=True, scalar_data=self.I_all)
         contig = np.ascontiguousarray
+        q = 0
+        nn = self.num_wp
+        self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                phi0 = (2 * np.pi / self.nfp) * fp
+                # get new normal vectors by flipping the x component, then rotating by phi0
+                self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
+                self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
+                self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
         if isinstance(self.B_TF, InterpolatedField):
             self.B_TF.set_points(self.grid_xyz_all)
             B = self.B_TF.B()
@@ -796,14 +818,16 @@ class WPgrid:
                 array of kappas.
 
         """
+        # t1 = time.time()
         ind3 = len(kappa_I) // 3
-        alphas = kappa_I[:ind3]
-        deltas = kappa_I[ind3:2 * ind3]
-        self.I = kappa_I[2 * ind3:]
-        self.setup_orientations(alphas, deltas)
+        ind3_2 = 2 * ind3
+        self.I = kappa_I[ind3_2:]
+        self.setup_orientations(kappa_I[:ind3], kappa_I[ind3:ind3_2])
         Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization 
-        BdotN2 = 0.5 * Ax_b.T @ Ax_b / self.normalization * self.fac ** 2
+        BdotN2 = 0.5 * Ax_b.T @ Ax_b * self.fac2_norm
         self.BdotN2_list.append(BdotN2)
+        # t2 = time.time()
+        # print('obj time = ', t2 - t1)
         return BdotN2
     
     def python_A_matrix(self, points, alphas, deltas):
@@ -893,25 +917,21 @@ class WPgrid:
                 with the array of kappas.
 
         """
+        t1 = time.time()
         ind3 = len(kappa_I) // 3
-        alphas = kappa_I[:ind3]
-        deltas = kappa_I[ind3:2 * ind3]
-        self.I = kappa_I[2 * ind3:]
-        # alphas = kappa_I[:len(kappa_I) // 2]
-        # self.I = kappa_I[len(kappa_I) // 2:]
-        self.setup_orientations(alphas, deltas)
+        ind3_2 = 2 * ind3
+        self.I = kappa_I[ind3_2:]
+        self.setup_orientations(kappa_I[:ind3], kappa_I[ind3:ind3_2])
         Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization
-        A_deriv = self.A_deriv()  # missing factor of fac
-        grad_alpha1 = A_deriv[:, :self.num_wp] * self.I * 1e6
-        grad_delta1 = A_deriv[:, self.num_wp:] * self.I * 1e6
-        
+        grad_alpha_delta = self.A_deriv() * np.hstack((self.I, self.I))
         grad_I = self.A_matrix
         # Should be shape (num_plasma_points, 3 * num_wp)
-        grad_kappa = np.hstack((grad_alpha1, grad_delta1))
-        grad = np.hstack((grad_kappa, grad_I))
+        # grad_kappa = np.hstack((grad_alpha1, grad_delta1))
+        grad = np.hstack((grad_alpha_delta, grad_I)) * 1.0e6
         grad = self.grid_normalization[:, None] * grad
         jac = Ax_b.T @ grad
-        return jac * self.fac ** 2 / self.normalization 
+        t2 = time.time()
+        return jac * self.fac2_norm
     
     def A_deriv(self):
         """
@@ -925,17 +945,23 @@ class WPgrid:
                 points, with respect to the WP angles alpha_i and delta_i. 
         """
         contig = np.ascontiguousarray
-        dA_dkappa = sopp.dA_dkappa(
-            contig(self.grid_xyz), 
-            contig(self.plasma_points),
-            contig(self.alphas), 
-            contig(self.deltas),
-            contig(self.plasma_unitnormals),
-            contig(self.quad_points_phi),
-            contig(self.quad_weights_phi),
-            self.R,
-        ) * np.pi   # rescale by pi for gauss-leg quadrature
-        return dA_dkappa.T
+        nn = self.num_wp
+        dA_dkappa = np.zeros((len(self.plasma_points), 2 * self.num_wp))
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                dA_dkappa += sopp.dA_dkappa(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                    contig(self.plasma_points),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.plasma_unitnormals),
+                    contig(self.quad_points_phi),
+                    contig(self.quad_weights_phi),
+                    self.R,
+                )
+                q = q + 1
+        return dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
     
     def setup_orientations(self, alphas, deltas):
         """
@@ -961,25 +987,25 @@ class WPgrid:
         self.alphas = alphas
         self.deltas = deltas
         
-        contig = np.ascontiguousarray
-        self.coil_normals = np.array(
-            [np.cos(alphas) * np.sin(deltas),
-              -np.sin(alphas),
-              np.cos(alphas) * np.cos(deltas)]
-        ).T
+        # contig = np.ascontiguousarray
+        # self.coil_normals = np.array(
+        #     [np.cos(alphas) * np.sin(deltas),
+        #       -np.sin(alphas),
+        #       np.cos(alphas) * np.cos(deltas)]
+        # ).T
         # deal with -0 terms in the normals, which screw up the arctan2 calculations
-        self.coil_normals[
-            np.logical_and(np.isclose(self.coil_normals, 0.0), 
-                           np.copysign(1.0, self.coil_normals) < 0)
-            ] *= -1.0
+        # self.coil_normals[
+        #     np.logical_and(np.isclose(self.coil_normals, 0.0), 
+        #                    np.copysign(1.0, self.coil_normals) < 0)
+        #     ] *= -1.0
                 
         # Apply discrete symmetries to the alphas and deltas and coordinates
         self.update_alphas_deltas()
         
         # Calculate the WP B fields
-        t1 = time.time()
+        # t1 = time.time()
         self.setup_currents_and_fields()
-        t2 = time.time()
+        # t2 = time.time()
         # print('Setup fields time = ', t2 - t1)
         
     def setup_full_grid(self):
@@ -1012,16 +1038,16 @@ class WPgrid:
         nn = self.num_wp
         self.alphas_total = np.zeros(nn * self.symmetry)
         self.deltas_total = np.zeros(nn * self.symmetry)
-        self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
+        # self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 phi0 = (2 * np.pi / self.nfp) * fp
                 # get new normal vectors by flipping the x component, then rotating by phi0
-                self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
-                self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
-                self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
-                normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
+                # self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
+                # self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
+                # self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
+                # normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
                 # normals = self.coil_normals
                 # get new deltas by flipping sign of deltas, then rotation alpha by phi0
                 # deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi

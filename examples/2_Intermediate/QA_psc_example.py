@@ -289,6 +289,10 @@ for k in range(STLSQ_max_iters):
                      options=options,
                      tol=1e-10,
                      )
+    from matplotlib import pyplot as plt
+    plt.figure()
+    plt.semilogy(psc_array.BdotN2_list)
+    plt.show()
     I = psc_array.I
     small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
     grid_xyz = psc_array.grid_xyz

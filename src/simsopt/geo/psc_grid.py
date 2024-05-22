@@ -29,9 +29,10 @@ class PSCgrid:
     def __init__(self):
         self.mu0 = 4 * np.pi * 1e-7
         self.fac = 1e-7
+        self.BdotN2_list = []
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
-        num_quad = 100
+        num_quad = 80
         (quad_points_phi, 
           self.quad_weights_phi) = np.polynomial.legendre.leggauss(num_quad)
         self.quad_points_phi = quad_points_phi * np.pi + np.pi
@@ -626,10 +627,8 @@ class PSCgrid:
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
-                xyz = self.grid_xyz_all[q * nn: (q + 1) * nn, :]
-                t1 = time.time()
-                A_matrix += 2 * sopp.A_matrix(
-                    contig(xyz),
+                A_matrix += sopp.A_matrix(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     contig(self.plasma_points),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
                     contig(self.deltas_total[q * nn: (q + 1) * nn]),
@@ -637,8 +636,8 @@ class PSCgrid:
                     self.R,
                 )  # accounts for sign change of the currents
                 q = q + 1
-        self.A_matrix = A_matrix
-        self.Bn_PSC = (A_matrix @ self.I).reshape(-1) 
+        self.A_matrix = 2 * A_matrix
+        self.Bn_PSC = (self.A_matrix @ self.I).reshape(-1) 
     
     def setup_curves(self):
         """ 
@@ -804,6 +803,7 @@ class PSCgrid:
         # outstr += "\n"
         # if verbose:
         #     print(outstr)
+        self.BdotN2_list.append(BdotN2)
         return BdotN2
     
     def least_squares_jacobian(self, kappas, verbose=False):
@@ -870,22 +870,28 @@ class PSCgrid:
         
         Returns
         -------
-            dS_dkappa: 3D numpy array, shape (2 * num_psc, num_plasma_points, 3) 
+            dS_dkappa: 3D numpy array, shape (2 * num_wp, num_plasma_points, 3) 
                 The gradient of the A matrix evaluated on all the plasma 
-                points, with respect to the PSC angles alpha_i and delta_i. 
+                points, with respect to the WP angles alpha_i and delta_i. 
         """
         contig = np.ascontiguousarray
-        dA_dkappa = sopp.dA_dkappa(
-            contig(self.grid_xyz), 
-            contig(self.plasma_points),
-            contig(self.alphas), 
-            contig(self.deltas),
-            contig(self.plasma_unitnormals),
-            contig(self.quad_points_phi),
-            contig(self.quad_weights_phi),
-            self.R,
-        ) * np.pi  # rescale
-        return dA_dkappa.T
+        nn = self.num_psc
+        dA_dkappa = np.zeros((len(self.plasma_points), 2 * self.num_psc))
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                dA_dkappa += sopp.dA_dkappa(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                    contig(self.plasma_points),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.plasma_unitnormals),
+                    contig(self.quad_points_phi),
+                    contig(self.quad_weights_phi),
+                    self.R,
+                )
+                q = q + 1
+        return dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
     
     def L_deriv(self):
         """
@@ -898,20 +904,25 @@ class PSCgrid:
                 alpha_i and delta_i. 
         """
         contig = np.ascontiguousarray
-        L_deriv = sopp.L_deriv(
-            contig(self.grid_xyz / self.R), 
-            contig(self.alphas), 
-            contig(self.deltas),
-            contig(self.quad_points_phi),
-            contig(self.quad_weights_phi)
-        ) / (4 * np.pi) 
+        nn = self.num_psc
+        L_deriv = np.zeros((2 * self.num_psc, self.num_psc, self.num_psc))
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                L_deriv += sopp.L_deriv(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :] / self.R), 
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.quad_points_phi),
+                    contig(self.quad_weights_phi)
+                )
+                q = q + 1
         
         # symmetrize it
         L_deriv = (L_deriv + np.transpose(L_deriv, axes=[0, 2, 1]))
         # if keeping track of the number of coil turns, need factor
         # of Nt ** 2 below as well
-        return L_deriv * self.mu0 * self.R   
-    
+        return L_deriv * self.mu0 * self.R / (4 * np.pi) 
     
     def psi_deriv(self):
         """
@@ -919,24 +930,30 @@ class PSCgrid:
         L^(-1) * Psi = I for the PSC arrays.
         Returns
         -------
-            grad_L: 3D numpy array, shape (2 * num_psc, num_psc, num_plasma_points) 
+            grad_psi: 1D numpy array, shape (2 * num_psc) 
                 The gradient of the L matrix with respect to the PSC angles
                 alpha_i and delta_i. 
         """
-        contig = np.ascontiguousarray        
-        psi_deriv = sopp.dpsi_dkappa(
-            contig(self.I_TF),
-            contig(self.dl_TF),
-            contig(self.gamma_TF),
-            contig(self.grid_xyz),
-            contig(self.alphas), 
-            contig(self.deltas),
-            contig(self.coil_normals),
-            contig(self.Rho),
-            contig(self.Phi),
-            self.R,
-        ) * self.dphi * self.drho * (1.0 / self.gamma_TF.shape[1])
-        return psi_deriv
+        contig = np.ascontiguousarray
+        nn = self.num_psc
+        psi_deriv = np.zeros(2 * self.num_psc)
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                psi_deriv = sopp.dpsi_dkappa(
+                    contig(self.I_TF),
+                    contig(self.dl_TF),
+                    contig(self.gamma_TF),
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.coil_normals_all[q * nn: (q + 1) * nn, :]),
+                    contig(self.Rho),
+                    contig(self.Phi),
+                    self.R,
+                )
+                q = q + 1
+        return psi_deriv * self.dphi * self.drho * (1.0 / self.gamma_TF.shape[1])
     
     def setup_orientations(self, alphas, deltas):
         """

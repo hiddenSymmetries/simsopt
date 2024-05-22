@@ -138,6 +138,36 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     return bs
 
 
+def initialize_coils_qa(TEST_DIR, s, out_dir=''):
+    from simsopt.geo import create_equally_spaced_curves
+    from simsopt.field import Current, coils_via_symmetries
+    from simsopt.geo import curves_to_vtk
+    # generate planar TF coils
+    ncoils = 1
+    R0 = 1.0
+    R1 = 0.6
+    order = 5
+
+    # qa needs to be scaled to 0.1 T on-axis magnetic field strength
+    from simsopt.mhd.vmec import Vmec
+    vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
+    base_currents[0].fix_all()
+    # total_current = Current(total_current)
+    # total_current.fix_all()
+    # base_currents += [total_current - sum(base_currents)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # fix all the coil shapes so only the currents are optimized
+    # for i in range(ncoils):
+    #     base_curves[i].fix_all()
+    # Initialize the coil curves and save the data to vtk
+    curves = [c.curve for c in coils]
+    curves_to_vtk(curves, out_dir / "curves_init")
+    return base_curves, curves, coils
+
+
 np.random.seed(1)  # set a seed so that the same WPs are initialized each time
 
 # Set some parameters -- if doing CI, lower the resolution
@@ -147,7 +177,7 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 2
@@ -192,7 +222,7 @@ s_inner.to_vtk(out_str + 'inner_surf')
 s_outer.to_vtk(out_str + 'outer_surf')
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('qa_psc', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils_qa(TEST_DIR, s, out_dir)
 currents = np.array([coil.current.get_value() for coil in coils])
 print('Currents = ', currents)
 
@@ -227,7 +257,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the wp class
-kwargs_geo = {"Nx": 12, "out_dir": out_str, 
+kwargs_geo = {"Nx": 10, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 wp_array = WPgrid.geo_setup_between_toroidal_surfaces(
@@ -247,7 +277,6 @@ make_Bnormal_plots(B_WP, s_plot, out_dir, "biot_savart_WP_initial", B_axis)
 make_Bnormal_plots(bs + B_WP, s_plot, out_dir, "WP_and_TF_initial", B_axis)
 
 # Check SquaredFlux values using different ways to calculate it
-x0 = np.ravel(np.array([wp_array.alphas, wp_array.deltas, wp_array.I]))
 fB = SquaredFlux(s, bs, np.zeros((nphi, ntheta))).J()
 print('fB only TF coils = ', fB / (B_axis ** 2 * s.area()))
 bs.set_points(s.gamma().reshape(-1, 3))
@@ -271,9 +300,8 @@ opt_bounds = [(-np.pi, np.pi) for i in range(wp_array.num_wp * 2)]
 for i in range(wp_array.num_wp):
     opt_bounds.append((None, None))
 opt_bounds = tuple(opt_bounds)
-options = {"disp": True, "maxiter": 500, "iprint": 101}  #, "maxls": 1000}
+options = {"disp": True, "maxiter": 300, "iprint": 101}  #, "maxls": 100}
 # print(opt_bounds)
-# x0 = np.random.rand(2 * wp_array.num_wp) * 2 * np.pi
 verbose = True
 
 # Run STLSQ with BFGS in the loop
@@ -282,43 +310,59 @@ kwargs_manual = {
                  "plasma_boundary" : s,
                  "coils_TF" : coils
                  }
-# I_threshold = 0.0
-# STLSQ_max_iters = 10
-# for k in range(STLSQ_max_iters):
-#     x0 = np.ravel(np.array([wp_array.alphas, wp_array.deltas, wp_array.I]))
-#     print('Number of WPs = ', len(x0) // 4, ' in iteration ', k)
+t1 = time.time()
+I_threshold = 1e4
+STLSQ_max_iters = 10
+BdotN2_list = []
+num_wps = []
+for k in range(STLSQ_max_iters):
+    x0 = np.ravel(np.array([wp_array.alphas, wp_array.deltas, wp_array.I]))
+    print('Number of WPs = ', len(x0) // 3, ' in iteration ', k)
+    num_wps.append(len(x0) // 3)
+    x_opt = minimize(wp_array.least_squares, x0, args=(verbose,),
+                     method='L-BFGS-B',  
+                     # bounds=opt_bounds,
+                     jac=wp_array.least_squares_jacobian,
+                     options=options,
+                     tol=1e-20,
+                     )
+    if len(BdotN2_list) > 0:
+        BdotN2_list = np.hstack((BdotN2_list, wp_array.BdotN2_list))
+        print(BdotN2_list.shape)
+    else:
+        BdotN2_list = np.array(wp_array.BdotN2_list)
+    I = wp_array.I * 1.0e6  # rescale to MA
+    big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold))
+    grid_xyz = wp_array.grid_xyz
+    alphas = wp_array.alphas
+    deltas = wp_array.deltas
+    if len(big_I_inds) != wp_array.num_wp:
+        grid_xyz = grid_xyz[big_I_inds, :]
+        alphas = alphas[big_I_inds]
+        deltas = deltas[big_I_inds]
+    else:
+        print('STLSQ converged, breaking out of loop')
+        break
+    kwargs_manual["alphas"] = alphas
+    kwargs_manual["deltas"] = deltas
+    # Initialize new PSC array with coils only at the remaining locations
+    # with initial orientations from the solve using BFGS
+    wp_array = WPgrid.geo_setup_manual(
+        grid_xyz, wp_array.R, **kwargs_manual
+    )
+BdotN2_list = np.ravel(BdotN2_list)
 
-# x0 = np.ravel(np.array([wp_array.I]))
-# x0 = np.ravel(np.array([wp_array.alphas, wp_array.I]))
-# x0 = np.ravel(np.array([np.zeros(wp_array.num_wp), wp_array.deltas, wp_array.I]))
-# x0 = np.ravel(np.array([np.zeros(wp_array.num_wp), np.zeros(wp_array.num_wp), wp_array.I]))
+t2 = time.time()
+print('Opt time = ', t2-t1)
 
-x0 = np.zeros(x0.shape)
-
-import scipy.optimize as opt
-# x_opt = opt.dual_annealing(wp_array.least_squares, bounds=[[-100,100], [-100,100], [-1e6, 1e6]])
-x_opt = minimize(wp_array.least_squares, x0, args=(verbose,),
-                    method='L-BFGS-B',  # okay with I only
-                    # method='SLSQP',  # best so far with all variables
-                    # method='Nelder-Mead',
-                    # method='Powell',  # okay
-                    # method='CG',
-                    # method='trust-constr',
-                    # method='trust-exact',
-                    # method='Newton-CG',
-                    # method='trust-krylov',
-                  # method='BFGS',
-                   # bounds=opt_bounds,
-                    # jac=wp_array.least_squares_jacobian,
-                    # jac='3-point',
-                  # jac='cs',
-                  options=options,
-                  tol=1e-20,
-                  )
-
+print(x_opt.x)
+# print(BdotN2_list)
 from matplotlib import pyplot as plt
 plt.figure()
-plt.semilogy(wp_array.BdotN2_list)
+plt.subplot(1, 2, 1)
+plt.semilogy(BdotN2_list)
+plt.subplot(1, 2, 2)
+plt.plot(num_wps)
 plt.show()
 # print(x_opt.message)
 # print(x_opt.jac)
