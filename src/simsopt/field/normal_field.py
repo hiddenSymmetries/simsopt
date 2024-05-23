@@ -14,11 +14,17 @@ except ImportError as e:
 
 __all__ = ['NormalField']
 
-
 class NormalField(Optimizable):
     r"""
     ``NormalField`` represents the magnetic field normal to a toroidal surface, for example the
     computational boundary of SPEC free-boundary.
+
+    It consists a surface (the computational boundary), and a set of Fourier harmonics that describe
+    the normal component of an externally provided field. 
+
+    The Fourier harmonics are the degees of freedom, the computational boundary is kept fixed. 
+    The normal field should not be normalized to unit area, i.e. it is the 
+    fourier components of B.(\grad\theta \times \nabla\zeta) on the surface.
 
     Args:
         nfp: The number of field period
@@ -37,7 +43,7 @@ class NormalField(Optimizable):
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
-                 vns=None, vnc=None):
+                 vns=None, vnc=None, computational_boundary=None):
 
         self.nfp = nfp
         self.stellsym = stellsym
@@ -47,44 +53,51 @@ class NormalField(Optimizable):
         if vns is None:
             vns = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
 
-        if vnc is None and not stellsym:
+        if not self.stellsym and vnc is None:
             vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
+        
+        if computational_boundary is None:
+            computational_boundary = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor)
+        computational_boundary.fix_all()
+        self.computational_boundary = computational_boundary
 
         if self.stellsym:
             self.ndof = self.ntor + self.mpol * (2 * self.ntor + 1)
         else:
             self.ndof = 2 * (self.ntor + self.mpol * (2 * self.ntor + 1)) + 1
-
-        # Pack in a single array
-        dofs = np.zeros((self.ndof,))
-
-        # Populate dofs array
-        vns_shape = vns.shape
-        input_mpol = int(vns_shape[0]-1)
-        input_ntor = int((vns_shape[1]-1)/2)
-        for mm in range(0, self.mpol+1):
-            for nn in range(-self.ntor, self.ntor+1):
-                if mm == 0 and nn < 0: continue
-                if mm > input_mpol: continue
-                if nn > input_ntor: continue
-
-                if not (mm == 0 and nn == 0):
-                    ii = self.get_index_in_dofs(mm, nn, even=False)
-                    dofs[ii] = vns[mm, input_ntor+nn]
-
-                if not self.stellsym:
-                    ii = self.get_index_in_dofs(mm, nn, even=True)
-                    dofs[ii] = vnc[mm, input_ntor+nn]
+        
+        self._vns = vns
+        self._vnc = vnc
+        
+        dofs = self.get_dofs()
 
         Optimizable.__init__(
             self,
             x0=dofs,
             names=self._make_names())
+    
+    @property
+    def vns(self):
+        return self._vns
+    
+    @vns.setter
+    def vns(self):
+        raise AttributeError('change Vns using set_vns() or set_vns_asarray()')
+    
+    @property
+    def vnc(self):
+        return self._vnc
+    
+    @vnc.setter
+    def vnc(self):
+        raise AttributeError('change Vnc using set_vnc() or set_vnc_asarray()')
 
     @classmethod
     def from_spec(cls, filename):
         """
         Initialize using the harmonics in SPEC input file
+        WARNING: A normal field initialized with this method will 
+        not have a computational boundary
         """
 
         # Test if py_spec is available
@@ -114,6 +127,60 @@ class NormalField(Optimizable):
 
         return normal_field
 
+    @classmethod
+    def from_spec_object(cls, spec):
+        """
+        Initialize using the simsopt SPEC object's attributes
+        """
+        if not spec.freebound:
+            raise ValueError('The given SPEC object is not free-boundary')
+        boundary_dict = {'specrc': spec.inputlist.rbc,
+                         'speczs': spec.inputlist.zbs}
+        if not spec.stellsym: 
+            boundary_dict.append({'specrs': spec.inputlist.rbs,
+                                  'speczc': spec.inputlist.zbc})
+        computational_boundary = spec._specarrays_to_surfRZFourier(boundary_dict)
+        
+        # Grab all the attributes from the SPEC object into an input dictionary
+        input_dict = {'nfp': spec.nfp,
+                      'stellsym': spec.stellsym,
+                      'mpol': spec.mpol,
+                      'ntor': spec.ntor,
+                      'vns': spec.inputlist.vns,
+                      'computational_boundary': computational_boundary}
+        if not spec.stellsym:
+            input_dict.append({'vnc': spec.inputlist.vnc})
+
+        normal_field = cls(**input_dict)
+
+        return normal_field
+    
+    def get_dofs(self):
+        """
+        get DOFs from vns and vnc
+        """
+        # Pack in a single array
+        dofs = np.zeros((self.ndof,))
+
+        # Populate dofs array
+        vns_shape = self.vns.shape
+        input_mpol = int(vns_shape[0]-1)
+        input_ntor = int((vns_shape[1]-1)/2)
+        for mm in range(0, self.mpol+1):
+            for nn in range(-self.ntor, self.ntor+1):
+                if mm == 0 and nn < 0: continue
+                if mm > input_mpol: continue
+                if nn > input_ntor: continue
+
+                if not (mm == 0 and nn == 0):
+                    ii = self.get_index_in_dofs(mm, nn, even=False)
+                    dofs[ii] = self.vns[mm, input_ntor+nn]
+
+                if not self.stellsym:
+                    ii = self.get_index_in_dofs(mm, nn, even=True)
+                    dofs[ii] = self.vnc[mm, input_ntor+nn]
+        return dofs
+    
     def get_index_in_dofs(self, m, n, mpol=None, ntor=None, even=False):
         """
         Returns position of mode (m,n) in dofs array
@@ -162,7 +229,9 @@ class NormalField(Optimizable):
     def set_vns(self, m, n, value):
         self.check_mn(m, n)
         ii = self.get_index_in_dofs(m, n)
-        self.local_full_x[ii] = value
+        tmp = self.local_full_x
+        tmp[ii] = value
+        self.local_full_x = tmp
 
     def get_vnc(self, m, n):
         self.check_mn(m, n)
@@ -178,7 +247,9 @@ class NormalField(Optimizable):
         if self.stellsym:
             raise ValueError('Stellarator symmetric has no vnc')
         else:
-            self.local_full_x[ii] = value
+            tmp = self.local_full_x
+            tmp[ii] = value
+            self.local_full_x = tmp
 
     def check_mn(self, m, n):
         if m < 0 or m > self.mpol:
@@ -193,10 +264,10 @@ class NormalField(Optimizable):
         Form a list of names of the ``vns``, ``vnc``
         """
         if self.stellsym:
-            names = self._make_names_helper(False)
+            names = self._make_names_helper(even=False)
         else:
-            names = np.append(self._make_names_helper(False),
-                              self._make_names_helper(True))
+            names = np.append(self._make_names_helper(even=False),
+                              self._make_names_helper(even=True))
 
         return names
 
@@ -287,3 +358,131 @@ class NormalField(Optimizable):
                     fn(f'vns({m},{n})')
                 if not self.stellsym:
                     fn(f'vnc({m},{n})')
+
+    def get_vns_asarray(self, mpol=None, ntor=None):
+        """
+        Return the vns as a single array
+        """
+        if mpol == None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor == None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        vns = np.zeros((mpol + 1, 2 * ntor + 1))
+        for mm in range(0, mpol + 1):
+            for nn in range(-ntor, ntor + 1):
+                if mm == 0 and nn <= 0: continue
+                vns[mm, ntor + nn] = self.get_vns(mm, nn)
+
+        return vns
+    
+    def get_vnc_asarray(self, mpol=None, ntor=None):
+        """
+        Return the vnc as a single array
+        """
+        if mpol == None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor == None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        vnc = np.zeros((mpol + 1, 2 * ntor + 1))
+        for mm in range(0, mpol + 1):
+            for nn in range(-ntor, ntor + 1):
+                if mm == 0 and nn < 0: continue
+                vnc[mm, ntor + nn] = self.get_vnc(mm, nn)
+
+        return vnc
+    
+    def get_vns_vnc_asarray(self, mpol, ntor):
+        """
+        Return the vns and vnc as two arrays single array
+        """
+        if mpol == None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor == None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+        
+        vns = self.get_vns_asarray(mpol, ntor)
+        vnc = self.get_vnc_asarray(mpol, ntor)
+        return vns, vnc
+    
+    def set_vns_asarray(self, vns, mpol=None, ntor=None):
+        """
+        Set the vns from a single array
+        """
+        if mpol == None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor == None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        for mm in range(0, mpol + 1):
+            for nn in range(-ntor, ntor + 1):
+                if mm == 0 and nn <= 0: continue
+                self.set_vns(mm, nn, vns[mm, ntor + nn])
+
+    def set_vnc_asarray(self, vnc, mpol=None, ntor=None):
+        """
+        Set the vnc from a single array
+        """
+        if mpol == None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor == None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        for mm in range(0, mpol + 1):
+            for nn in range(-ntor, ntor + 1):
+                if mm == 0 and nn < 0: continue
+                self.set_vnc(mm, nn, vnc[mm, ntor + nn])
+    
+    def set_vns_vnc_asarray(self, vns, vnc, mpol=None, ntor=None):
+        """
+        Set the vns and vnc from two single arrays
+        """
+        if mpol == None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor == None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        self.set_vns_asarray(vns, mpol, ntor)
+ 
+    def get_real_space_field(self):
+        """
+        Fourier transform the field and get the real-space values of the normal component of the externally
+        provided field on the computational boundary. 
+        The returned array will be of size specified by the computational boudary's SurfaceRZFourier quadpoints. 
+        """
+        vns, vnc = self.get_vns_vnc_asarray(mpol=self.mpol, ntor=self.ntor)
+        BdotN_unnormalized = self.computational_boundary.inverse_fourier_transform_field(vns, vnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
+        normal_field_real_space = -1 * BdotN_unnormalized / np.linalg.norm(self.computational_boundary.normal(), axis=-1)
+        return normal_field_real_space
+
