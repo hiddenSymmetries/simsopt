@@ -514,7 +514,7 @@ class PSCgrid:
         base_curves = create_equally_spaced_curves(
             ncoils, psc_grid.plasma_boundary.nfp, 
             stellsym=psc_grid.plasma_boundary.stellsym, 
-            R0=R0, R1=R1, order=order, numquadpoints=32
+            R0=R0, R1=R1, order=order, numquadpoints=128
         )
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
         I_TF_total = total_current
@@ -870,7 +870,7 @@ class PSCgrid:
         
         Returns
         -------
-            dS_dkappa: 3D numpy array, shape (2 * num_wp, num_plasma_points, 3) 
+            A_deriv: 2D numpy array, shape (num_plasma_points, 2 * num_wp) 
                 The gradient of the A matrix evaluated on all the plasma 
                 points, with respect to the WP angles alpha_i and delta_i. 
         """
