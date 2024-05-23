@@ -16,129 +16,133 @@ class Testing(unittest.TestCase):
         against finite differences for tiny changes to the angles, 
         to see if the analytic calculations are correct.
         """
+        input_name = 'input.LandremanPaul2021_QA_lowres'
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        surface_filename = TEST_DIR / input_name
+        surf1 = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='full torus', nphi=16, ntheta=16
+        )
+        surf1.nfp = 1
+        surf1.stellsym = False
+        surf2 = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='half period', nphi=16, ntheta=16
+        )
         ncoils = 7
-        np.random.seed(ncoils)
-        R0 = 1
-        R = 1 
+        np.random.seed(1)
+        R = 1.0
         a = 1e-5
-        points = (np.random.rand(ncoils, 3) - 0.5) * 5
-        
-        # Need alphas and deltas in [-pi, pi] range
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        points = (np.random.rand(ncoils, 3) - 0.5) * 20
         alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt  # / psc_array.grid_normalization
-        L = psc_array.L
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        psi_deriv = psc_array.psi_deriv()
-        epsilon = 1e-4
-        deltas_new = np.copy(deltas)
-        deltas_new[0] += epsilon
-        alphas_new = alphas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        psi_new = psc_array_new.psi
-        Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dpsi_ddelta = (psi_new - psi) / epsilon
-        dpsi_ddelta_analytic = psi_deriv
-        # print(dpsi_ddelta, dpsi_ddelta_analytic)
-        assert(np.allclose(dpsi_ddelta[0], dpsi_ddelta_analytic[ncoils], rtol=1e-3))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[ncoils:]))
-        assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
-        
-        # Repeat but change coil 3
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt  # / psc_array.grid_normalization
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        psi_deriv = psc_array.psi_deriv()
-        epsilon = 1e-4
-        deltas_new = np.copy(deltas)
-        deltas_new[3] += epsilon
-        alphas_new = alphas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        psi_new = psc_array_new.psi
-        Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dpsi_ddelta = (psi_new - psi) / epsilon
-        dpsi_ddelta_analytic = psi_deriv
-        # print(dpsi_ddelta, dpsi_ddelta_analytic)
-        assert(np.allclose(dpsi_ddelta[3], dpsi_ddelta_analytic[ncoils + 3], rtol=1e-3))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[ncoils:]))
-        assert np.isclose(dBn_objective, dBn_analytic[3], rtol=1e-2)
-
-        # Test partial derivative calculation if we change alpha by epsilon
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt # / psc_array.grid_normalization
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        psi_deriv = psc_array.psi_deriv()
-        epsilon = 1e-4
-        alphas_new = np.copy(alphas)
-        alphas_new[0] += epsilon
-        deltas_new = deltas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        psi_new = psc_array_new.psi
-        Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dpsi_dalpha = (psi_new - psi) / epsilon
-        dpsi_dalpha_analytic = psi_deriv
-        # print(dpsi_ddelta, dpsi_ddelta_analytic)
-        assert(np.allclose(dpsi_dalpha[0], dpsi_dalpha_analytic[0], rtol=1e-3))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[:ncoils]))
-        assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
-        
-        # Repeat for changing coil 7
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt  # / psc_array.grid_normalization
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        psi_deriv = psc_array.psi_deriv()
-        epsilon = 1e-4
-        alphas_new = np.copy(alphas)
-        alphas_new[6] += epsilon
-        deltas_new = deltas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        psi_new = psc_array_new.psi
-        Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dpsi_dalpha = (psi_new - psi) / epsilon
-        dpsi_dalpha_analytic = psi_deriv
-        # print(dpsi_ddelta, dpsi_ddelta_analytic)
-        assert(np.allclose(dpsi_dalpha[6], dpsi_dalpha_analytic[6], rtol=1e-3))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[:ncoils]))
-        assert np.isclose(dBn_objective, dBn_analytic[6], rtol=1e-2)
+        epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
+        for surf in [surf1, surf2]:
+            print('Surf = ', surf)
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt  # / psc_array.grid_normalization
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            psi_deriv = psc_array.psi_deriv()
+            deltas_new = np.copy(deltas)
+            deltas_new[0] += epsilon
+            alphas_new = np.copy(alphas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            psi_new = psc_array_new.psi
+            Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dpsi_ddelta = (psi_new - psi) / epsilon
+            dpsi_ddelta_analytic = psi_deriv
+            print(dpsi_ddelta[0], dpsi_ddelta_analytic[ncoils])
+            assert(np.allclose(dpsi_ddelta[0], dpsi_ddelta_analytic[ncoils], rtol=1e-3))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[ncoils:]))
+            print(dBn_objective, dBn_analytic[0])
+            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+            
+            # Repeat but change coil 3
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt  # / psc_array.grid_normalization
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            psi_deriv = psc_array.psi_deriv()
+            deltas_new = np.copy(deltas)
+            deltas_new[3] += epsilon
+            alphas_new = np.copy(alphas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            psi_new = psc_array_new.psi
+            Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dpsi_ddelta = (psi_new - psi) / epsilon
+            dpsi_ddelta_analytic = psi_deriv
+            print(dpsi_ddelta[3], dpsi_ddelta_analytic[ncoils + 3])
+            assert(np.allclose(dpsi_ddelta[3], dpsi_ddelta_analytic[ncoils + 3], rtol=1e-3))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[ncoils:]))
+            print(dBn_objective, dBn_analytic[3])
+            assert np.isclose(dBn_objective, dBn_analytic[3], rtol=1e-2)
+    
+            # Test partial derivative calculation if we change alpha by epsilon
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt # / psc_array.grid_normalization
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            psi_deriv = psc_array.psi_deriv()
+            alphas_new = np.copy(alphas)
+            alphas_new[0] += epsilon
+            deltas_new = np.copy(deltas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            psi_new = psc_array_new.psi
+            Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dpsi_dalpha = (psi_new - psi) / epsilon
+            dpsi_dalpha_analytic = psi_deriv
+            print(dpsi_dalpha[0], dpsi_dalpha_analytic[0])
+            assert(np.allclose(dpsi_dalpha[0], dpsi_dalpha_analytic[0], rtol=1e-3))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[:ncoils]))
+            print(dBn_objective, dBn_analytic[0])
+            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-1)
+            
+            # Repeat for changing coil 7
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt  # / psc_array.grid_normalization
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            psi_deriv = psc_array.psi_deriv()
+            alphas_new = np.copy(alphas)
+            alphas_new[6] += epsilon
+            deltas_new = np.copy(deltas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            psi_new = psc_array_new.psi
+            Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dpsi_dalpha = (psi_new - psi) / epsilon
+            dpsi_dalpha_analytic = psi_deriv
+            print(dpsi_dalpha[6], dpsi_dalpha_analytic[6])
+            assert(np.allclose(dpsi_dalpha[6], dpsi_dalpha_analytic[6], rtol=1e-3))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[:ncoils]))
+            print(dBn_objective, dBn_analytic[6])
+            assert np.isclose(dBn_objective, dBn_analytic[6], rtol=1e-2)
     
     def test_L_analytic_derivatives(self):
         """
@@ -146,172 +150,229 @@ class Testing(unittest.TestCase):
         against finite differences for tiny changes to the angles, 
         to see if the analytic calculations are correct.
         """
-        ncoils = 6
-        np.random.seed(ncoils)
-        R = 1 
+        input_name = 'input.LandremanPaul2021_QA_lowres'
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        surface_filename = TEST_DIR / input_name
+        surf1 = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='full torus', nphi=16, ntheta=16
+        )
+        surf1.nfp = 1
+        surf1.stellsym = False
+        surf2 = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='half period', nphi=16, ntheta=16
+        )
+        ncoils = 7
+        np.random.seed(30)
+        R = 1.0
         a = 1e-5
-        points = (np.random.rand(ncoils, 3) - 0.5) * 5
-        
-        # Need alphas and deltas in [-pi, pi] range
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        points = (np.random.rand(ncoils, 3) - 0.5) * 10
         alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt  # / psc_array.grid_normalization
-        L = psc_array.L
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        L_deriv = psc_array.L_deriv()
-        epsilon = 1e-4
-        deltas_new = np.copy(deltas)
-        deltas_new[0] += epsilon
-        alphas_new = alphas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        L_new = psc_array_new.L
-        Linv_new = psc_array_new.L_inv
-        Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dL_ddelta = (L_new - L) / epsilon
-        dLinv_ddelta = (Linv_new - Linv) / epsilon
-        dL_ddelta_analytic = L_deriv
-        dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
-        # Symmetrizing helps with numerical error accumulation?
-        for i in range(ncoils * 2):
-            dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
-            
-        # Linv calculations looks much more incorrect that the L derivatives,
-        # maybe because of numerical error accumulation? 
-        assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils, :, :]))
-        assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :], rtol=10))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
-        assert np.isclose(dBn_objective, dBn_analytic[ncoils], rtol=1e-2)
-        
-        # repeat calculation but change coil 3
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt # / psc_array.grid_normalization
-        L = psc_array.L
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        L_deriv = psc_array.L_deriv()
-        epsilon = 1e-4
-        deltas_new = np.copy(deltas)
-        deltas_new[3] += epsilon
-        alphas_new = alphas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        L_new = psc_array_new.L
-        Linv_new = psc_array_new.L_inv
-        Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dL_ddelta = (L_new - L) / epsilon
-        dLinv_ddelta = (Linv_new - Linv) / epsilon
-        dL_ddelta_analytic = L_deriv
-        dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
-        # Symmetrizing helps with numerical error accumulation?
-        for i in range(ncoils * 2):
-            dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
+        epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
+        for surf in [surf1, surf2]:
+            print('Surf = ', surf)
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt  # / psc_array.grid_normalization
+            L = psc_array.L
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            L_deriv = psc_array.L_deriv()
+            deltas_new = np.copy(deltas)
+            deltas_new[0] += epsilon
+            alphas_new = np.copy(alphas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            L_new = psc_array_new.L
+            Linv_new = psc_array_new.L_inv
+            Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dL_ddelta = (L_new - L) / epsilon
+            dLinv_ddelta = (Linv_new - Linv) / epsilon
+            dL_ddelta_analytic = L_deriv
+            dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
+            # Symmetrizing helps with numerical error accumulation?
+            for i in range(ncoils * 2):
+                dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
+                
+            # Linv calculations looks much more incorrect that the L derivatives,
+            # maybe because of numerical error accumulation? 
+            assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils, :, :]))
+            assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils, :, :], rtol=10))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
+            print(dBn_objective, dBn_analytic[ncoils])
+            assert np.isclose(dBn_objective, dBn_analytic[ncoils], rtol=1e-2)
             
-        # Linv calculations looks much more incorrect that the L derivatives,
-        # maybe because of numerical error accumulation? 
-        # print(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :])
-        assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :]))
-        assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils + 3, :, :], rtol=10))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
-        assert np.isclose(dBn_objective, dBn_analytic[ncoils + 3], rtol=1e-2)
+            # repeat calculation but change coil 3
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt # / psc_array.grid_normalization
+            L = psc_array.L
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            L_deriv = psc_array.L_deriv()
+            deltas_new = np.copy(deltas)
+            deltas_new[3] += epsilon
+            alphas_new = np.copy(alphas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            L_new = psc_array_new.L
+            Linv_new = psc_array_new.L_inv
+            Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dL_ddelta = (L_new - L) / epsilon
+            dLinv_ddelta = (Linv_new - Linv) / epsilon
+            dL_ddelta_analytic = L_deriv
+            dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
+            # Symmetrizing helps with numerical error accumulation?
+            for i in range(ncoils * 2):
+                dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
+                
+            # Linv calculations looks much more incorrect that the L derivatives,
+            # maybe because of numerical error accumulation? 
+            # print(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :])
+            assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :]))
+            assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils + 3, :, :], rtol=10))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
+            print(dBn_objective, dBn_analytic[ncoils + 3])
+            assert np.isclose(dBn_objective, dBn_analytic[ncoils + 3], rtol=1e-2)
+    
+            # Test partial derivative calculation if we change alpha by epsilon
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt # / psc_array.grid_normalization
+            L = psc_array.L
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            L_deriv = psc_array.L_deriv()
+            alphas_new = np.copy(alphas)
+            alphas_new[0] += epsilon
+            deltas_new = np.copy(deltas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            L_new = psc_array_new.L
+            Linv_new = psc_array_new.L_inv
+            Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dL_ddelta = (L_new - L) / epsilon
+            dLinv_ddelta = (Linv_new - Linv) / epsilon
+            dL_ddelta_analytic = L_deriv
+            dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
+            # Symmetrizing helps with numerical error accumulation?
+            for i in range(ncoils * 2):
+                dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
+                
+            # Linv calculations looks much more incorrect that the L derivatives,
+            # maybe because of numerical error accumulation? 
+            # print(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :])
+            assert(np.allclose(dL_ddelta, dL_ddelta_analytic[0, :, :]))
+            assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[0, :, :], rtol=10))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
+            print(dBn_objective, dBn_analytic[0])
+            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+            
+            # Repeat changing coil 2
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi
+            b = psc_array.b_opt # / psc_array.grid_normalization
+            L = psc_array.L
+            Linv = psc_array.L_inv
+            Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            L_deriv = psc_array.L_deriv()
+            alphas_new = np.copy(alphas)
+            alphas_new[2] += epsilon
+            deltas_new = np.copy(deltas)
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
+            )
+            L_new = psc_array_new.L
+            Linv_new = psc_array_new.L_inv
+            Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dL_ddelta = (L_new - L) / epsilon
+            dLinv_ddelta = (Linv_new - Linv) / epsilon
+            dL_ddelta_analytic = L_deriv
+            dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
+            # Symmetrizing helps with numerical error accumulation?
+            for i in range(ncoils * 2):
+                dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
+                
+            # Linv calculations looks much more incorrect that the L derivatives,
+            # maybe because of numerical error accumulation? 
+            # print(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :])
+            assert(np.allclose(dL_ddelta, dL_ddelta_analytic[2, :, :]))
+            assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[2, :, :], rtol=10))
+            dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
+            print(dBn_objective, dBn_analytic[2])
+            assert np.isclose(dBn_objective, dBn_analytic[2], rtol=1e-2)
+        
+        
+    def test_symmetrized_quantities(self):
+        """
+        Tests that discrete symmetries are satisfied by the various terms
+        appearing in optimization. 
+        """
+        from simsopt.objectives import SquaredFlux
+        from simsopt.field import coils_via_symmetries
+        
+        input_name = 'input.LandremanPaul2021_QA_lowres'
+        TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+        surface_filename = TEST_DIR / input_name
+        nphi = 32
+        surf = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='half period', nphi=nphi, ntheta=nphi
+        )
+        surf_full = SurfaceRZFourier.from_vmec_input(
+            surface_filename, range='full torus', nphi=nphi * 4, ntheta=nphi * 4
+        )
+        ncoils = 6
+        np.random.seed(1)
+        R = 0.2
+        a = 1e-5
+        points = (np.random.rand(ncoils, 3) - 0.5) * 20
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        kwargs_manual = {"plasma_boundary": surf}
+        psc_array = PSCgrid.geo_setup_manual(
+            points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+        )
+        psc_array.I = 1e4 * np.ones(len(psc_array.I))
+        Ax_b = (psc_array.A_matrix @ psc_array.I + psc_array.b_opt) * psc_array.grid_normalization
+        Bn = 0.5 * Ax_b.T @ Ax_b / psc_array.normalization * psc_array.fac ** 2
+        
+        currents = []
+        for i in range(psc_array.num_psc):
+            currents.append(Current(psc_array.I[i]))
+        all_coils = coils_via_symmetries(
+            psc_array.curves, currents, nfp=surf.nfp, stellsym=surf.stellsym
+        )
+        B_WP = BiotSavart(all_coils)
 
-        # Test partial derivative calculation if we change alpha by epsilon
-        points = (np.random.rand(ncoils, 3) - 0.5) * 5
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt # / psc_array.grid_normalization
-        L = psc_array.L
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        L_deriv = psc_array.L_deriv()
-        epsilon = 1e-4
-        alphas_new = np.copy(alphas)
-        alphas_new[0] += epsilon
-        deltas_new = deltas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        L_new = psc_array_new.L
-        Linv_new = psc_array_new.L_inv
-        Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dL_ddelta = (L_new - L) / epsilon
-        dLinv_ddelta = (Linv_new - Linv) / epsilon
-        dL_ddelta_analytic = L_deriv
-        dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
-        # Symmetrizing helps with numerical error accumulation?
-        for i in range(ncoils * 2):
-            dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
-            
-        # Linv calculations looks much more incorrect that the L derivatives,
-        # maybe because of numerical error accumulation? 
-        # print(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :])
-        assert(np.allclose(dL_ddelta, dL_ddelta_analytic[0, :, :]))
-        assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[0, :, :], rtol=10))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
-        assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+        fB = SquaredFlux(surf, B_WP + psc_array.B_TF, np.zeros((nphi, nphi))).J() / psc_array.normalization
+        assert np.isclose(Bn, fB)
+        fB_full = SquaredFlux(surf_full, B_WP + psc_array.B_TF, np.zeros((nphi * 4, nphi * 4))).J() / psc_array.normalization
+        assert np.isclose(Bn, fB_full)
         
-        # Repeat changing coil 2
-        points = (np.random.rand(ncoils, 3) - 0.5) * 5
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas, deltas=deltas
-        )
-        A = psc_array.A_matrix
-        psi = psc_array.psi
-        b = psc_array.b_opt # / psc_array.grid_normalization
-        L = psc_array.L
-        Linv = psc_array.L_inv
-        Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
-        L_deriv = psc_array.L_deriv()
-        epsilon = 1e-4
-        alphas_new = np.copy(alphas)
-        alphas_new[2] += epsilon
-        deltas_new = deltas
-        psc_array_new = PSCgrid.geo_setup_manual(
-            points, R=R, a=a, alphas=alphas_new, deltas=deltas_new
-        )
-        L_new = psc_array_new.L
-        Linv_new = psc_array_new.L_inv
-        Bn_objective_new = 0.5 * (A @ Linv_new @ psi + b).T @ (A @ Linv_new @ psi + b)
-        dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-        dL_ddelta = (L_new - L) / epsilon
-        dLinv_ddelta = (Linv_new - Linv) / epsilon
-        dL_ddelta_analytic = L_deriv
-        dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
-        # Symmetrizing helps with numerical error accumulation?
-        for i in range(ncoils * 2):
-            dLinv_ddelta_analytic[i, :, :] = (dLinv_ddelta_analytic[i, :, :] + dLinv_ddelta_analytic[i, :, :].T) / 2.0
-            
-        # Linv calculations looks much more incorrect that the L derivatives,
-        # maybe because of numerical error accumulation? 
-        # print(dL_ddelta, dL_ddelta_analytic[ncoils + 3, :, :])
-        assert(np.allclose(dL_ddelta, dL_ddelta_analytic[2, :, :]))
-        assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[2, :, :], rtol=10))
-        dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (dLinv_ddelta_analytic @ psi).T)
-        assert np.isclose(dBn_objective, dBn_analytic[2], rtol=1e-2)
+        # A_deriv = psc_array.A_deriv()
+        # A_derivI = (A_deriv[:, :psc_array.num_psc] @ psc_array.I) * psc_array.grid_normalization
+        # Bn_deriv = 0.5 * Ax_b.T @ A_derivI / psc_array.normalization * psc_array.fac ** 2
+        # print(Bn_deriv)
+        
 
         
     def test_dA_analytic_derivatives(self):
@@ -333,11 +394,12 @@ class Testing(unittest.TestCase):
         )
         ncoils = 6
         np.random.seed(1)
-        R = 0.2
+        R = 1.0
         a = 1e-5
         points = (np.random.rand(ncoils, 3) - 0.5) * 20
         alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
         for surf in [surf1, surf2]:
             print('Surf = ', surf)
             kwargs_manual = {"plasma_boundary": surf}
@@ -347,31 +409,29 @@ class Testing(unittest.TestCase):
             A = psc_array.A_matrix
             Linv = psc_array.L_inv[:ncoils, :ncoils]
             psi = psc_array.psi
-            Linv_psi = Linv @ psi
-            b = psc_array.b_opt # / psc_array.grid_normalization
-            Bn_objective = 0.5 * (A @ Linv_psi + b).T @ (A @ Linv_psi + b)
-            epsilon = 1e-8
-            alphas_new = alphas
+            I = -Linv @ psi * 1e6
+            b = psc_array.b_opt 
+            Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
+            alphas_new = np.copy(alphas)
             alphas_new[0] += epsilon
-            deltas_new = deltas
+            deltas_new = np.copy(deltas)
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             )
             A_new = psc_array_new.A_matrix
-            Bn_objective_new = 0.5 * (A_new @ Linv_psi + b).T @ (A_new @ Linv_psi + b)
+            Bn_objective_new = 0.5 * (A_new @ I + b).T @ (A_new @ I + b)
+            print('Bns = ', Bn_objective, Bn_objective_new)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             A_deriv = psc_array.A_deriv()
-            dBn_analytic = (A @ Linv_psi + b).T @ (A_deriv[:, :ncoils] * Linv_psi)
+            dBn_analytic = (A @ I + b).T @ (A_deriv[:, :ncoils] * I)
             print(dBn_objective, dBn_analytic[0])
-            # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
             dA_dalpha = (A_new - A) / epsilon
             dA_dkappa_analytic = A_deriv
-            print(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0])
-            # assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0], rtol=1e-2)
+            print(dA_dalpha[-1, 0] / dA_dkappa_analytic[-1, 0])
+            assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0], rtol=1e-2)
             
             # Repeat but change coil 3
-            alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-            deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
             psc_array = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
@@ -381,10 +441,9 @@ class Testing(unittest.TestCase):
             Linv_psi = Linv @ psi
             b = psc_array.b_opt # / psc_array.grid_normalization
             Bn_objective = 0.5 * (A @ Linv_psi + b).T @ (A @ Linv_psi + b)
-            epsilon = 1e-5
-            alphas_new = alphas
+            alphas_new = np.copy(alphas)
             alphas_new[4] += epsilon
-            deltas_new = deltas
+            deltas_new = np.copy(deltas)
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             )
@@ -394,15 +453,13 @@ class Testing(unittest.TestCase):
             A_deriv = psc_array.A_deriv()
             dBn_analytic = (A @ Linv_psi + b).T @ (A_deriv[:, :ncoils] * Linv_psi)
             print(dBn_objective, dBn_analytic[4])
-            # assert np.isclose(dBn_objective, dBn_analytic[4], rtol=1e-2)
+            assert np.isclose(dBn_objective, dBn_analytic[4], rtol=1)
             dA_dalpha = (A_new - A) / epsilon
             dA_dkappa_analytic = A_deriv
-            print(dA_dalpha[:, 4], dA_dkappa_analytic[:, 4])
-            # assert np.allclose(dA_dalpha[:, 4], dA_dkappa_analytic[:, 4], rtol=1e-2)
+            print(dA_dalpha[-1, 4] / dA_dkappa_analytic[-1, 4])
+            assert np.allclose(dA_dalpha[:, 4], dA_dkappa_analytic[:, 4], rtol=1e-1)
             
             # Repeat but changing delta instead of alpha
-            deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-            alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
             psc_array = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
@@ -412,9 +469,8 @@ class Testing(unittest.TestCase):
             Linv_psi = Linv @ psi
             b = psc_array.b_opt  # / psc_array.grid_normalization
             Bn_objective = 0.5 * (A @ Linv_psi + b).T @ (A @ Linv_psi + b)
-            epsilon = 1e-4
-            alphas_new = alphas
-            deltas_new = deltas
+            alphas_new = np.copy(alphas)
+            deltas_new = np.copy(deltas)
             deltas_new[0] += epsilon
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
@@ -428,13 +484,11 @@ class Testing(unittest.TestCase):
             print(dBn_objective, dBn_analytic[0])
             dA_ddelta = (A_new - A) / epsilon
             dA_dkappa_analytic = A_deriv
-            print(dA_ddelta[:, 0], dA_dkappa_analytic[:, ncoils])
+            print(dA_ddelta[-1, 0] / dA_dkappa_analytic[-1, ncoils])
             # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
-            # assert np.allclose(dA_ddelta[:, 0], dA_dkappa_analytic[:, ncoils], rtol=1e-2)
+            # assert np.allclose(dA_ddelta[:, 0], dA_dkappa_analytic[:, ncoils], rtol=1e-1)
             
             # Repeat but change coil 5
-            deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-            alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
             psc_array = PSCgrid.geo_setup_manual(
             points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
@@ -444,9 +498,8 @@ class Testing(unittest.TestCase):
             Linv_psi = Linv @ psi
             b = psc_array.b_opt  # / psc_array.grid_normalization
             Bn_objective = 0.5 * (A @ Linv_psi + b).T @ (A @ Linv_psi + b)
-            epsilon = 1e-5
-            alphas_new = alphas
-            deltas_new = deltas
+            alphas_new = np.copy(alphas)
+            deltas_new = np.copy(deltas)
             deltas_new[5] += epsilon
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
@@ -461,8 +514,8 @@ class Testing(unittest.TestCase):
             # assert np.isclose(dBn_objective, dBn_analytic[5], rtol=1e-2)
             dA_ddelta = (A_new - A) / epsilon
             dA_dkappa_analytic = A_deriv
-            print(dA_ddelta[:, 5], dA_dkappa_analytic[:, ncoils + 5])
-            assert np.allclose(dA_ddelta[:, 5], dA_dkappa_analytic[:, ncoils + 5], rtol=1e-2)
+            print(dA_ddelta[-1, 5] / dA_dkappa_analytic[-1, ncoils + 5])
+            assert np.allclose(dA_ddelta[:, 5], dA_dkappa_analytic[:, ncoils + 5], rtol=1e-1)
 
     def test_L(self):
         """

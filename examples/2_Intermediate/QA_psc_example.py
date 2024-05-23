@@ -227,7 +227,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 5, "out_dir": out_str, 
+kwargs_geo = {"Nx": 4, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(

@@ -68,7 +68,7 @@ class WPgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = min(Nmin / 4.0, self.poff / 4.0)
+        self.R = min(Nmin / 2.0, self.poff / 4.0)
         self.a = self.R / 10.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -631,7 +631,7 @@ class WPgrid:
                 #     self.alphas_total[q * nn: (q + 1) * nn],
                 #     self.deltas_total[q * nn: (q + 1) * nn])
                 # t1 = time.time()
-                A_matrix += sopp.A_matrix(
+                A_matrix += sopp.A_matrix_simd(
                     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     contig(self.plasma_points),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
@@ -818,7 +818,7 @@ class WPgrid:
                 array of kappas.
 
         """
-        # t1 = time.time()
+        t1 = time.time()
         ind3 = len(kappa_I) // 3
         ind3_2 = 2 * ind3
         self.I = kappa_I[ind3_2:]
@@ -826,8 +826,8 @@ class WPgrid:
         Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization 
         BdotN2 = 0.5 * Ax_b.T @ Ax_b * self.fac2_norm
         self.BdotN2_list.append(BdotN2)
-        # t2 = time.time()
-        # print('obj time = ', t2 - t1)
+        t2 = time.time()
+        print('obj time = ', t2 - t1)
         return BdotN2
     
     def python_A_matrix(self, points, alphas, deltas):
@@ -923,7 +923,10 @@ class WPgrid:
         self.I = kappa_I[ind3_2:]
         self.setup_orientations(kappa_I[:ind3], kappa_I[ind3:ind3_2])
         Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization
+        t1_grad = time.time()
         grad_alpha_delta = self.A_deriv() * np.hstack((self.I, self.I))
+        t2_grad = time.time()
+        print('Aderiv time = ', t2_grad - t1_grad)
         grad_I = self.A_matrix
         # Should be shape (num_plasma_points, 3 * num_wp)
         # grad_kappa = np.hstack((grad_alpha1, grad_delta1))
@@ -931,6 +934,7 @@ class WPgrid:
         grad = self.grid_normalization[:, None] * grad
         jac = Ax_b.T @ grad
         t2 = time.time()
+        print('jac time = ', t2 - t1)
         return jac * self.fac2_norm
     
     def A_deriv(self):
@@ -950,7 +954,7 @@ class WPgrid:
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
-                dA_dkappa += sopp.dA_dkappa(
+                dA = sopp.dA_dkappa_simd(
                     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     contig(self.plasma_points),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
@@ -960,6 +964,8 @@ class WPgrid:
                     contig(self.quad_weights_phi),
                     self.R,
                 )
+                dA_dkappa[:, :self.num_wp] += dA[:, :self.num_wp] * (-1) ** fp
+                dA_dkappa[:, self.num_wp:] += dA[:, self.num_wp:] * (-1) ** fp * stell
                 q = q + 1
         return dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
     

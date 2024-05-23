@@ -70,6 +70,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("A_matrix_direct" , &A_matrix_direct);
     m.def("B_PSC" , &B_PSC);
     m.def("dA_dkappa" , &dA_dkappa);
+    m.def("dA_dkappa_simd" , &dA_dkappa_simd);
     m.def("dpsi_dkappa" , &dpsi_dkappa);
     m.def("psi_check" , &psi_check);
     m.def("B_TF" , &B_TF);

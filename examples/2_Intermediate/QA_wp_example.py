@@ -57,15 +57,15 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     ncoils = len(base_curves)
 
     # Weight on the curve lengths in the objective function:
-    LENGTH_WEIGHT = 1e-4
+    LENGTH_WEIGHT = 1e1
 
     # Threshold and weight for the coil-to-coil distance penalty in the objective function:
     CC_THRESHOLD = 0.2
     CC_WEIGHT = 1e1
 
     # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-    CS_THRESHOLD = 0.5
-    CS_WEIGHT = 1
+    CS_THRESHOLD = 2.0
+    CS_WEIGHT = 1e-2
 
     # Threshold and weight for the curvature penalty in the objective function:
     CURVATURE_THRESHOLD = 10
@@ -144,14 +144,14 @@ def initialize_coils_qa(TEST_DIR, s, out_dir=''):
     from simsopt.geo import curves_to_vtk
     # generate planar TF coils
     ncoils = 1
-    R0 = 1.0
-    R1 = 0.6
+    R0 = s.get_rc(0, 0)
+    R1 = s.get_rc(1, 0) * 4
     order = 5
 
     # qa needs to be scaled to 0.1 T on-axis magnetic field strength
     from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131
+    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131 * 6
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
     base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
     base_currents[0].fix_all()
@@ -184,11 +184,11 @@ else:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 2, endpoint=True)
 
-poff = 0.2  # WP grid will be offset 'poff' meters from the plasma surface
-coff = 0.1  # WP grid will be initialized between 1 m and 2 m from plasma
+poff = 1.0  # WP grid will be offset 'poff' meters from the plasma surface
+coff = 1.2  # WP grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
-input_name = 'input.LandremanPaul2021_QA_lowres'
+input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 range_param = 'half period'
@@ -246,7 +246,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-# bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -300,7 +300,7 @@ opt_bounds = [(-np.pi, np.pi) for i in range(wp_array.num_wp * 2)]
 for i in range(wp_array.num_wp):
     opt_bounds.append((None, None))
 opt_bounds = tuple(opt_bounds)
-options = {"disp": True, "maxiter": 300, "iprint": 101}  #, "maxls": 100}
+options = {"disp": True, "maxiter": 500, "iprint": 101}  #, "maxls": 100}
 # print(opt_bounds)
 verbose = True
 
@@ -311,7 +311,7 @@ kwargs_manual = {
                  "coils_TF" : coils
                  }
 t1 = time.time()
-I_threshold = 1e4
+I_threshold = 5e5
 STLSQ_max_iters = 10
 BdotN2_list = []
 num_wps = []
