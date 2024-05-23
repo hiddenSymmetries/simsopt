@@ -1205,21 +1205,6 @@ class Spec(Optimizable):
         self.run()
         return self.results.transform.fiota[1, 0]
     
-    def replace_normal_field_with_coils(self, filename=None, TARGET_LENGTH=3000):
-        """
-        replace the daddy normal_field with a CoilNormalField instance that
-        inherits its' degrees of freedom from a CoilSet. 
-        
-        A filename can be given in which the coils are specified (standard
-        JSON format used by calling Optimizable.to_json() on a CoilSet instance)
-        [NOT IMPLEMENTED YET]
-        """
-        if filename is not None:
-            raise NotImplementedError('filename not supported yet')
-        
-        coil_normal_field = CoilNormalField.from_spec_object(self, optimize_coils=True, TARGET_LENGTH=TARGET_LENGTH)
-        self.normal_field = coil_normal_field
-        
     def array_translator(self, array=None, style='spec'):
         """
         Returns a SpecFourierArray object to help transforming between

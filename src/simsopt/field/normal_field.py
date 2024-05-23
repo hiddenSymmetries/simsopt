@@ -57,6 +57,7 @@ class NormalField(Optimizable):
             vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
         
         if computational_boundary is None:
+            from simsopt.geo import SurfaceRZFourier
             computational_boundary = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor)
         computational_boundary.fix_all()
         self.computational_boundary = computational_boundary
@@ -363,12 +364,12 @@ class NormalField(Optimizable):
         """
         Return the vns as a single array
         """
-        if mpol == None:
+        if mpol is None:
             mpol = self.mpol
         elif mpol > self.mpol:
             raise ValueError('mpol out of bound')
 
-        if ntor == None: 
+        if ntor is None: 
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
@@ -385,12 +386,12 @@ class NormalField(Optimizable):
         """
         Return the vnc as a single array
         """
-        if mpol == None:
+        if mpol is None:
             mpol = self.mpol
         elif mpol > self.mpol:
             raise ValueError('mpol out of bound')
 
-        if ntor == None: 
+        if ntor is None: 
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
@@ -407,12 +408,12 @@ class NormalField(Optimizable):
         """
         Return the vns and vnc as two arrays single array
         """
-        if mpol == None:
+        if mpol is None:
             mpol = self.mpol
         elif mpol > self.mpol:
             raise ValueError('mpol out of bound')
 
-        if ntor == None: 
+        if ntor is None: 
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
@@ -425,12 +426,12 @@ class NormalField(Optimizable):
         """
         Set the vns from a single array
         """
-        if mpol == None:
+        if mpol is None:
             mpol = self.mpol
         elif mpol > self.mpol:
             raise ValueError('mpol out of bound')
 
-        if ntor == None: 
+        if ntor is None: 
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
@@ -444,12 +445,12 @@ class NormalField(Optimizable):
         """
         Set the vnc from a single array
         """
-        if mpol == None:
+        if mpol is None:
             mpol = self.mpol
         elif mpol > self.mpol:
             raise ValueError('mpol out of bound')
 
-        if ntor == None: 
+        if ntor is None: 
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
@@ -463,12 +464,12 @@ class NormalField(Optimizable):
         """
         Set the vns and vnc from two single arrays
         """
-        if mpol == None:
+        if mpol is None:
             mpol = self.mpol
         elif mpol > self.mpol:
             raise ValueError('mpol out of bound')
 
-        if ntor == None: 
+        if ntor is None: 
             ntor = self.ntor
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
