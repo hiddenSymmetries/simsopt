@@ -27,6 +27,8 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
 
 Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
 
+Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
+
 Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal);
 
 Array flux_integration(Array& B, Array& rho, Array& normal);

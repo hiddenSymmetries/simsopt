@@ -11,7 +11,7 @@ import time
 from scipy.linalg import inv
 
 __all__ = ['WPgrid']
-
+contig = np.ascontiguousarray
 
 class WPgrid:
     r"""
@@ -68,7 +68,7 @@ class WPgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = min(Nmin / 2.0, self.poff / 4.0)
+        self.R = min(Nmin / 2.0, self.poff / 2.5)
         self.a = self.R / 10.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -120,7 +120,6 @@ class WPgrid:
             self.xyz_uniform = self.xyz_uniform[good_inds, :]
 
         # Save uniform grid before we start chopping off parts.
-        contig = np.ascontiguousarray
         pointsToVTK('uniform_grid', contig(self.xyz_uniform[:, 0]),
                     contig(self.xyz_uniform[:, 1]), contig(self.xyz_uniform[:, 2]))
 
@@ -253,7 +252,6 @@ class WPgrid:
         
         t1 = time.time()
         # Use the geometric info to initialize a grid of WPs
-        contig = np.ascontiguousarray
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
         wp_grid._setup_uniform_grid()
@@ -606,8 +604,6 @@ class WPgrid:
         the WP coils touching/intersecting, in which case it will be
         VERY ill-conditioned! 
         """
-        
-        contig = np.ascontiguousarray
         # A_matrix has shape (num_plasma_points, num_coils)
         # B_WP = np.zeros((self.nphi * self.ntheta, 3))
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_wp))
@@ -615,6 +611,7 @@ class WPgrid:
         # Need to rotate and flip it
         nn = self.num_wp
         q = 0
+        # t1 = time.time()
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 # A_matrix2 += sopp.A_matrix_direct(
@@ -630,7 +627,6 @@ class WPgrid:
                 #     self.grid_xyz_all[q * nn: (q + 1) * nn, :], 
                 #     self.alphas_total[q * nn: (q + 1) * nn],
                 #     self.deltas_total[q * nn: (q + 1) * nn])
-                # t1 = time.time()
                 A_matrix += sopp.A_matrix_simd(
                     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     contig(self.plasma_points),
@@ -642,7 +638,7 @@ class WPgrid:
                 # t2 = time.time()
                 # print('Time1 = ',t2 - t1)
                 # t1 = time.time()
-                # A_matrix += 2 * sopp.A_matrix_simd(
+                # A_matrix += sopp.A_matrix_simd(
                 #     contig(xyz),
                 #     contig(self.plasma_points),
                 #     contig(self.alphas_total[q * nn: (q + 1) * nn]),
@@ -650,13 +646,14 @@ class WPgrid:
                 #     contig(self.plasma_unitnormals),
                 #     self.R,
                 # )  # 
-                # t2 = time.time()
-                # print('Time2 = ',t2 - t1)
                 # print(A_matrix2, A_matrix)
                 # assert np.allclose(A_matrix2, A_matrix)
                 q = q + 1
+        # t2 = time.time()
+        # print('A_matrix time2 = ',t2 - t1)
         self.A_matrix = 2.0 * A_matrix
         self.Bn_WP = (self.A_matrix @ self.I * 1e6).reshape(-1) # missing factor of fac
+        self.Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization
     
     def setup_curves(self):
         """ 
@@ -712,7 +709,6 @@ class WPgrid:
         from simsopt.field import InterpolatedField, Current, coils_via_symmetries
         
         curves_to_vtk(self.curves, self.out_dir + "wp_curves", close=True, scalar_data=self.I)
-        contig = np.ascontiguousarray
         if isinstance(self.B_TF, InterpolatedField):
             self.B_TF.set_points(self.grid_xyz)
             B = self.B_TF.B()
@@ -746,7 +742,6 @@ class WPgrid:
                 self.I_all[q * self.num_wp:(q + 1) * self.num_wp] = self.I * stell
                 q = q + 1
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_wp_curves", close=True, scalar_data=self.I_all)
-        contig = np.ascontiguousarray
         q = 0
         nn = self.num_wp
         self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
@@ -819,15 +814,13 @@ class WPgrid:
 
         """
         t1 = time.time()
-        ind3 = len(kappa_I) // 3
-        ind3_2 = 2 * ind3
-        self.I = kappa_I[ind3_2:]
-        self.setup_orientations(kappa_I[:ind3], kappa_I[ind3:ind3_2])
-        Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization 
-        BdotN2 = 0.5 * Ax_b.T @ Ax_b * self.fac2_norm
+        self.I = kappa_I[-self.num_wp:]
+        self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])
+        self.setup_currents_and_fields()
+        BdotN2 = 0.5 * self.Ax_b.T @ self.Ax_b * self.fac2_norm
         self.BdotN2_list.append(BdotN2)
         t2 = time.time()
-        print('obj time = ', t2 - t1)
+        # print('obj time = ', t2 - t1)
         return BdotN2
     
     def python_A_matrix(self, points, alphas, deltas):
@@ -918,24 +911,19 @@ class WPgrid:
 
         """
         t1 = time.time()
-        ind3 = len(kappa_I) // 3
-        ind3_2 = 2 * ind3
-        self.I = kappa_I[ind3_2:]
-        self.setup_orientations(kappa_I[:ind3], kappa_I[ind3:ind3_2])
-        Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization
-        t1_grad = time.time()
-        grad_alpha_delta = self.A_deriv() * np.hstack((self.I, self.I))
-        t2_grad = time.time()
-        print('Aderiv time = ', t2_grad - t1_grad)
-        grad_I = self.A_matrix
-        # Should be shape (num_plasma_points, 3 * num_wp)
-        # grad_kappa = np.hstack((grad_alpha1, grad_delta1))
-        grad = np.hstack((grad_alpha_delta, grad_I)) * 1.0e6
-        grad = self.grid_normalization[:, None] * grad
-        jac = Ax_b.T @ grad
+        # ind3 = len(kappa_I) // 3
+        # ind3_2 = 2 * ind3
+        self.I = kappa_I[-self.num_wp:]
+        self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])
+        self.setup_currents_and_fields()
+        grad = self.grid_normalization[:, None] * np.hstack(
+            (self.A_deriv() * np.hstack((self.I, self.I)), self.A_matrix)
+        ) * 1.0e6
+        # jac = self.Ax_b.T @ grad
         t2 = time.time()
-        print('jac time = ', t2 - t1)
-        return jac * self.fac2_norm
+        # print('jac time = ', t2 - t1)
+        print('exact jac = ', (self.Ax_b.T @ grad) * self.fac2_norm)
+        return (self.Ax_b.T @ grad) * self.fac2_norm
     
     def A_deriv(self):
         """
@@ -948,7 +936,6 @@ class WPgrid:
                 The gradient of the A matrix evaluated on all the plasma 
                 points, with respect to the WP angles alpha_i and delta_i. 
         """
-        contig = np.ascontiguousarray
         nn = self.num_wp
         dA_dkappa = np.zeros((len(self.plasma_points), 2 * self.num_wp))
         q = 0
@@ -993,7 +980,6 @@ class WPgrid:
         self.alphas = alphas
         self.deltas = deltas
         
-        # contig = np.ascontiguousarray
         # self.coil_normals = np.array(
         #     [np.cos(alphas) * np.sin(deltas),
         #       -np.sin(alphas),
@@ -1010,7 +996,7 @@ class WPgrid:
         
         # Calculate the WP B fields
         # t1 = time.time()
-        self.setup_currents_and_fields()
+        # self.setup_currents_and_fields()
         # t2 = time.time()
         # print('Setup fields time = ', t2 - t1)
         

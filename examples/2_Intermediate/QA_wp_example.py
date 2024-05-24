@@ -246,7 +246,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
+# bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -257,7 +257,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the wp class
-kwargs_geo = {"Nx": 10, "out_dir": out_str, 
+kwargs_geo = {"Nx": 4, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 wp_array = WPgrid.geo_setup_between_toroidal_surfaces(
@@ -310,8 +310,17 @@ kwargs_manual = {
                  "plasma_boundary" : s,
                  "coils_TF" : coils
                  }
+
+from scipy.optimize import approx_fprime, check_grad
+# from scipy.optimize import lbfgsb
+def callback(x):
+    print('exact: ', wp_array.least_squares(x))
+    print('approx: ', approx_fprime(x, wp_array.least_squares, 1E-8))
+    print('-----')
+    print(check_grad(wp_array.least_squares, wp_array.least_squares_jacobian, x) / np.linalg.norm(wp_array.least_squares_jacobian(x)))
+    
 t1 = time.time()
-I_threshold = 5e5
+I_threshold = 5e6
 STLSQ_max_iters = 10
 BdotN2_list = []
 num_wps = []
@@ -322,7 +331,8 @@ for k in range(STLSQ_max_iters):
     x_opt = minimize(wp_array.least_squares, x0, args=(verbose,),
                      method='L-BFGS-B',  
                      # bounds=opt_bounds,
-                     jac=wp_array.least_squares_jacobian,
+                       jac=wp_array.least_squares_jacobian,
+                      callback=callback,
                      options=options,
                      tol=1e-20,
                      )

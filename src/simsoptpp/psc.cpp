@@ -95,108 +95,6 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
     return L * M_PI * M_PI;
 }
 
-// Calculate the inductance matrix needed for the PSC forward problem
-Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights)
-{
-    // points shape should be (num_coils, 3)
-    int num_coils = alphas.shape(0);  // shape should be (num_coils)
-    int num_quad = int_points.shape(0);
-    Array L_deriv = xt::zeros<double>({2 * num_coils, num_coils, num_coils});
-    
-    // initialize pointers to the beginning of alphas, deltas, points
-    double* points_ptr = &(points(0, 0));
-    double* alphas_ptr = &(alphas(0));
-    double* deltas_ptr = &(deltas(0));
-    double* weight_ptr = &(int_weights(0));
-    double* int_point_ptr = &(int_points(0));    
-    constexpr int simd_size = xsimd::simd_type<double>::size;
-    
-    // Loop through the the PSC array
-    #pragma omp parallel for schedule(static)
-    for(int i = 0; i < num_coils; i += simd_size) {
-        int klimit = std::min(simd_size, num_coils - i);
-        auto point_i = Vec3dSimd();
-        simd_t ai, di;
-        for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_i[d][k] = points_ptr[3 * (i + k) + d];
-            }
-            ai[k] = alphas_ptr[i + k];
-            di[k] = deltas_ptr[i + k];
-        }
-        simd_t cai = xsimd::cos(ai);
-        simd_t sai = xsimd::sin(ai);
-        simd_t cdi = xsimd::cos(di);
-        simd_t sdi = xsimd::sin(di);
-    	// Loop through all j > i coils
-        for (int j = 0; j < num_coils; ++j) {
-            auto point_j = Vec3dSimd(points_ptr[3 * j] - point_i.x, \
-                                     points_ptr[3 * j + 1] - point_i.y, \
-                                     points_ptr[3 * j + 2] - point_i.z);
-            simd_t aj = ((simd_t) alphas_ptr[j]);
-            simd_t dj = ((simd_t) deltas_ptr[j]);
-            simd_t caj = xsimd::cos(aj);
-            simd_t saj = xsimd::sin(aj);
-            simd_t cdj = xsimd::cos(dj);
-            simd_t sdj = xsimd::sin(dj);
-            simd_t integrand1 = ((simd_t) 0.0);
-            simd_t integrand2 = ((simd_t) 0.0);
-            for (int k = 0; k < num_quad; ++k) {
-                simd_t pk = ((simd_t) int_point_ptr[k]);
-                simd_t ck = xsimd::cos(pk);
-                simd_t sk = xsimd::sin(pk);
-                for (int kk = 0; kk < num_quad; ++kk) {
-                    simd_t pkk = ((simd_t) int_point_ptr[kk]);
-                    simd_t weight = ((simd_t) (weight_ptr[k] * weight_ptr[kk]));
-                    simd_t ckk = xsimd::cos(pkk);
-                    simd_t skk = xsimd::sin(pkk);
-                    auto dl2 = Vec3dSimd((-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj), \
-                                         (ck * cai) * (ckk * caj), \
-                                         (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj));
-                    // dkappa of the numerator
-                    auto dl2_dalpha = Vec3dSimd((ck * cai * sdi) * (-skk * cdj + ckk * saj * sdj), \
-                                                -(ck * sai) * (ckk * caj), \
-                                                (ck * cai * cdi) * (skk * sdj + ckk * saj * cdj));
-                    auto dl2_ddelta = Vec3dSimd((sk * sdi + ck * sai * cdi) * (-skk * cdj + ckk * saj * sdj), \
-                                                ((simd_t) 0.0), \
-                                                (sk * cdi - ck * sai * sdi) * (skk * sdj + ckk * saj * cdj));
-                    auto xxi = Vec3dSimd(ck * cdi + sk * sai * sdi, \
-                                         sk * cai, \
-                                         sk * sai * cdi - ck * sdi);
-                    auto xxj = Vec3dSimd(point_j.x + ckk * cdj + skk * saj * sdj, \
-                                         point_j.y + skk * caj, \
-                                         point_j.z + skk * saj * cdj - ckk * sdj);
-                    auto xxi_dalpha = Vec3dSimd(sk * cai * sdi, \
-                                                -sk * sai, \
-                                                sk * cai * cdi);
-                    auto xxi_ddelta = Vec3dSimd(-ck * sdi + sk * sai * cdi, \
-                                                ((simd_t) 0.0), \
-                                                -sk * sai * sdi - ck * cdi);
-                    Vec3dSimd p2 = xxi - xxj;
-                    simd_t deriv_alpha = inner(xxi_dalpha, p2);
-                    simd_t deriv_delta = inner(xxi_ddelta, p2);
-                    simd_t rmag_2 = normsq(p2);
-                    simd_t rmag_inv = rsqrt(rmag_2);
-                    simd_t denom3 = rmag_inv * rmag_inv * rmag_inv;
-                    // First term in the derivative
-                    integrand1 += weight * (dl2_dalpha.x + dl2_dalpha.y + dl2_dalpha.z) * rmag_inv;
-                    integrand2 += weight * (dl2_ddelta.x + dl2_ddelta.y + dl2_ddelta.z) * rmag_inv;
-                    // Second term in the derivative
-                    integrand1 -= weight * (dl2.x + dl2.y + dl2.z) * deriv_alpha * denom3;
-                    integrand2 -= weight * (dl2.x + dl2.y + dl2.z) * deriv_delta * denom3;
-                }
-            }
-            for(int k = 0; k < klimit; k++){
-                if ((i + k) != j) {
-                    L_deriv(i + k, i + k, j) = integrand1[k];
-                    L_deriv(i + k + num_coils, i + k, j) = integrand2[k];
-                }
-            }
-        }
-    }
-    return L_deriv * M_PI * M_PI;
-}
-
 Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
@@ -235,7 +133,6 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
     double* I_ptr = &(I_TF(0));
     double* gamma_ptr = &(gamma_TF(0, 0, 0));
     double* dl_ptr = &(dl_TF(0, 0, 0));
-    double fac = 1.0e-7;
     
     // loop over all the PSC coils
     #pragma omp parallel for schedule(static)
@@ -346,7 +243,7 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
             dpsi(kk + k + num_PSC_coils) += inner_prod3[k];
         }
     }
-    return dpsi * fac;
+    return dpsi;
 }
 
 double Ellint2AGM(double k) {
@@ -450,7 +347,6 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
     double* I_ptr = &(I_TF(0));
     double* gamma_ptr = &(gamma_TF(0, 0, 0));
     double* dl_ptr = &(dl_TF(0, 0, 0));
-    double fac = 1.0e-7;
     
     // loop over all the PSC coils
     #pragma omp parallel for schedule(static)
@@ -575,7 +471,7 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
         dpsi(kk + num_PSC_coils) = dRxz_ddelta * Bx1 + dRyz_ddelta * By1 + dRzz_ddelta * Bz1;  // * nz;
         dpsi(kk + num_PSC_coils) += Bx3 * nx + By3 * ny + Bz3 * nz;
     }
-    return dpsi * fac;
+    return dpsi;
 }
 
 // Calculate the inductance matrix needed for the PSC forward problem
@@ -652,6 +548,111 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
         }
     }
     return L * M_PI * M_PI; // M_PI ** 2 factor from Gauss Quadrature [-1, 1] to [0, 2*pi]
+}
+
+
+#endif
+
+// Calculate the inductance matrix needed for the PSC forward problem
+Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights)
+{
+    // points shape should be (num_coils, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_quad = int_points.shape(0);
+    Array L_deriv = xt::zeros<double>({2 * num_coils, num_coils, num_coils});
+    
+    // initialize pointers to the beginning of alphas, deltas, points
+    double* points_ptr = &(points(0, 0));
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* weight_ptr = &(int_weights(0));
+    double* int_point_ptr = &(int_points(0));    
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    
+    // Loop through the the PSC array
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_coils; i += simd_size) {
+        int klimit = std::min(simd_size, num_coils - i);
+        auto point_i = Vec3dSimd();
+        simd_t ai, di;
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_i[d][k] = points_ptr[3 * (i + k) + d];
+            }
+            ai[k] = alphas_ptr[i + k];
+            di[k] = deltas_ptr[i + k];
+        }
+        simd_t cai = xsimd::cos(ai);
+        simd_t sai = xsimd::sin(ai);
+        simd_t cdi = xsimd::cos(di);
+        simd_t sdi = xsimd::sin(di);
+    	// Loop through all j > i coils
+        for (int j = 0; j < num_coils; ++j) {
+            auto point_j = Vec3dSimd(points_ptr[3 * j] - point_i.x, \
+                                     points_ptr[3 * j + 1] - point_i.y, \
+                                     points_ptr[3 * j + 2] - point_i.z);
+            simd_t aj = ((simd_t) alphas_ptr[j]);
+            simd_t dj = ((simd_t) deltas_ptr[j]);
+            simd_t caj = xsimd::cos(aj);
+            simd_t saj = xsimd::sin(aj);
+            simd_t cdj = xsimd::cos(dj);
+            simd_t sdj = xsimd::sin(dj);
+            simd_t integrand1 = ((simd_t) 0.0);
+            simd_t integrand2 = ((simd_t) 0.0);
+            for (int k = 0; k < num_quad; ++k) {
+                simd_t pk = ((simd_t) int_point_ptr[k]);
+                simd_t ck = xsimd::cos(pk);
+                simd_t sk = xsimd::sin(pk);
+                for (int kk = 0; kk < num_quad; ++kk) {
+                    simd_t pkk = ((simd_t) int_point_ptr[kk]);
+                    simd_t weight = ((simd_t) (weight_ptr[k] * weight_ptr[kk]));
+                    simd_t ckk = xsimd::cos(pkk);
+                    simd_t skk = xsimd::sin(pkk);
+                    auto dl2 = Vec3dSimd((-sk * cdi + ck * sai * sdi) * (-skk * cdj + ckk * saj * sdj), \
+                                         (ck * cai) * (ckk * caj), \
+                                         (sk * sdi + ck * sai * cdi) * (skk * sdj + ckk * saj * cdj));
+                    // dkappa of the numerator
+                    auto dl2_dalpha = Vec3dSimd((ck * cai * sdi) * (-skk * cdj + ckk * saj * sdj), \
+                                                -(ck * sai) * (ckk * caj), \
+                                                (ck * cai * cdi) * (skk * sdj + ckk * saj * cdj));
+                    auto dl2_ddelta = Vec3dSimd((sk * sdi + ck * sai * cdi) * (-skk * cdj + ckk * saj * sdj), \
+                                                ((simd_t) 0.0), \
+                                                (sk * cdi - ck * sai * sdi) * (skk * sdj + ckk * saj * cdj));
+                    auto xxi = Vec3dSimd(ck * cdi + sk * sai * sdi, \
+                                         sk * cai, \
+                                         sk * sai * cdi - ck * sdi);
+                    auto xxj = Vec3dSimd(point_j.x + ckk * cdj + skk * saj * sdj, \
+                                         point_j.y + skk * caj, \
+                                         point_j.z + skk * saj * cdj - ckk * sdj);
+                    auto xxi_dalpha = Vec3dSimd(sk * cai * sdi, \
+                                                -sk * sai, \
+                                                sk * cai * cdi);
+                    auto xxi_ddelta = Vec3dSimd(-ck * sdi + sk * sai * cdi, \
+                                                ((simd_t) 0.0), \
+                                                -sk * sai * sdi - ck * cdi);
+                    Vec3dSimd p2 = xxi - xxj;
+                    simd_t deriv_alpha = inner(xxi_dalpha, p2);
+                    simd_t deriv_delta = inner(xxi_ddelta, p2);
+                    simd_t rmag_2 = normsq(p2);
+                    simd_t rmag_inv = rsqrt(rmag_2);
+                    simd_t denom3 = rmag_inv * rmag_inv * rmag_inv;
+                    // First term in the derivative
+                    integrand1 += weight * (dl2_dalpha.x + dl2_dalpha.y + dl2_dalpha.z) * rmag_inv;
+                    integrand2 += weight * (dl2_ddelta.x + dl2_ddelta.y + dl2_ddelta.z) * rmag_inv;
+                    // Second term in the derivative
+                    integrand1 -= weight * (dl2.x + dl2.y + dl2.z) * deriv_alpha * denom3;
+                    integrand2 -= weight * (dl2.x + dl2.y + dl2.z) * deriv_delta * denom3;
+                }
+            }
+            for(int k = 0; k < klimit; k++){
+                if ((i + k) != j) {
+                    L_deriv(i + k, i + k, j) = integrand1[k];
+                    L_deriv(i + k + num_coils, i + k, j) = integrand2[k];
+                }
+            }
+        }
+    }
+    return L_deriv * M_PI * M_PI;
 }
 
 // Calculate the inductance matrix needed for the PSC forward problem
@@ -744,9 +745,6 @@ Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& int_points, Ar
     }
     return L_deriv * M_PI * M_PI;
 }
-
-
-#endif
 
 Array dA_dkappa(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& int_points, Array& int_weights, double R)
 {         
@@ -953,11 +951,13 @@ Array dA_dkappa_simd(Array& points, Array& plasma_points, Array& alphas, Array& 
             for (int k = 0; k < num_phi; ++k) {
                 simd_t weight = ((simd_t) int_weights_ptr[k]);
                 simd_t pk = ((simd_t) int_points_ptr[k]);
-                auto dl = Vec3dSimd(-R * xsimd::sin(pk), \
-                                    R * xsimd::cos(pk), \
+                simd_t Rsk = R * xsimd::sin(pk);
+                simd_t Rck = R * xsimd::cos(pk);
+                auto dl = Vec3dSimd(-Rsk, \
+                                    Rck, \
                                     (simd_t) 0.0);
-                auto RTdiff = Vec3dSimd((Rxx * x0 + Rzx * z0) - R * xsimd::cos(pk), \
-                                        (Rxy * x0 + Ryy * y0 + Rzy * z0) - R * xsimd::sin(pk), \
+                auto RTdiff = Vec3dSimd((Rxx * x0 + Rzx * z0) - Rck, \
+                                        (Rxy * x0 + Ryy * y0 + Rzy * z0) - Rsk, \
                                         (Rxz * x0 + Ryz * y0 + Rzz * z0));     
                 // multiply by R^T and then subtract off coil coordinate
                 auto dl_cross_RTdiff = cross(dl, RTdiff);

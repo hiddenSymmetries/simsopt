@@ -216,7 +216,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
+# bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -227,7 +227,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, 
+kwargs_geo = {"Nx": 8, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
@@ -266,7 +266,7 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 print('beginning optimization: ')
 opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
-options = {"disp": True, "maxiter": 100}
+options = {"disp": True, "maxiter": 100, "iprint": 101}
 # print(opt_bounds)
 # x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
 verbose = True
@@ -277,41 +277,53 @@ kwargs_manual = {
                  "plasma_boundary" : s,
                  "coils_TF" : coils
                  }
-I_threshold = 0.0
-STLSQ_max_iters = 10
-for k in range(STLSQ_max_iters):
-    x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
-    print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
-    x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
-                     method='L-BFGS-B',
-                     # bounds=opt_bounds,
-                     jac=psc_array.least_squares_jacobian, 
-                     options=options,
-                     tol=1e-10,
-                     )
-    from matplotlib import pyplot as plt
-    plt.figure()
-    plt.semilogy(psc_array.BdotN2_list)
-    plt.show()
-    I = psc_array.I
-    small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
-    grid_xyz = psc_array.grid_xyz
-    alphas = psc_array.alphas
-    deltas = psc_array.deltas
-    if len(small_I_inds) > 0:
-        grid_xyz = grid_xyz[small_I_inds, :]
-        alphas = alphas[small_I_inds]
-        deltas = deltas[small_I_inds]
-    else:
-        print('STLSQ converged, breaking out of loop')
-        break
-    kwargs_manual["alphas"] = alphas
-    kwargs_manual["deltas"] = deltas
-    # Initialize new PSC array with coils only at the remaining locations
-    # with initial orientations from the solve using BFGS
-    psc_array = PSCgrid.geo_setup_manual(
-        grid_xyz, psc_array.R, **kwargs_manual
-    )
+
+from scipy.optimize import approx_fprime, check_grad
+# from scipy.optimize import lbfgsb
+def callback(x):
+    print('exact: ', psc_array.least_squares(x))
+    print('approx: ', approx_fprime(x, psc_array.least_squares, 1E-3))
+    print('-----')
+    print(check_grad(psc_array.least_squares, psc_array.least_squares_jacobian, x) / np.linalg.norm(psc_array.least_squares_jacobian(x)))
+    
+
+# I_threshold = 0.0
+# STLSQ_max_iters = 10
+# for k in range(STLSQ_max_iters):
+    # x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
+    # print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
+x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
+                 method='L-BFGS-B',
+                 # bounds=opt_bounds,
+                 # jac=None,
+                    # jac=psc_array.least_squares_jacobian, 
+                 options=options,
+                 tol=1e-10,
+                 # callback=callback
+                 )
+from matplotlib import pyplot as plt
+plt.figure()
+plt.semilogy(psc_array.BdotN2_list)
+plt.show()
+    # I = psc_array.I
+    # small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
+    # grid_xyz = psc_array.grid_xyz
+    # alphas = psc_array.alphas
+    # deltas = psc_array.deltas
+    # if len(small_I_inds) > 0:
+    #     grid_xyz = grid_xyz[small_I_inds, :]
+    #     alphas = alphas[small_I_inds]
+    #     deltas = deltas[small_I_inds]
+    # else:
+    #     print('STLSQ converged, breaking out of loop')
+    #     break
+    # kwargs_manual["alphas"] = alphas
+    # kwargs_manual["deltas"] = deltas
+    # # Initialize new PSC array with coils only at the remaining locations
+    # # with initial orientations from the solve using BFGS
+    # psc_array = PSCgrid.geo_setup_manual(
+    #     grid_xyz, psc_array.R, **kwargs_manual
+    # )
     
 # psc_array.setup_orientations(x_opt.x[:len(x_opt) // 2], x_opt.x[len(x_opt) // 2:])
 psc_array.setup_curves()

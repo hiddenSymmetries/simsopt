@@ -63,6 +63,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     // Functions below are implemented for PSC optimization
     m.def("L_matrix" , &L_matrix);
     m.def("L_deriv" , &L_deriv);
+    m.def("L_deriv_simd" , &L_deriv_simd);
     m.def("flux_xyz" , &flux_xyz);
     m.def("flux_integration" , &flux_integration);
     m.def("A_matrix" , &A_matrix);
