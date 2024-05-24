@@ -868,8 +868,8 @@ class Surface(Optimizable):
             - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
                 (these are zero if the surface is stellarator symmetric)
         """
-        assert field.shape[0]!= self.quadpoints_phi.size,"Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
-        assert field.shape[1] != self.quadpoints_theta.size,"Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        assert field.shape[0] == self.quadpoints_phi.size,"Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        assert field.shape[1] == self.quadpoints_theta.size,"Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
         stellsym = kwargs.pop('stellsym', self.stellsym)
         if mpol is None:
             try: mpol = self.mpol
