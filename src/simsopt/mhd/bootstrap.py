@@ -170,7 +170,7 @@ def compute_trapped_fraction(modB, sqrtg):
     return Bmin, Bmax, epsilon, fsa_B2, fsa_1overB, f_t
 
 
-def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota=None,
+def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, helicity_m=1, s=None, G=None, R=None, iota=None,
                  epsilon=None, f_t=None, psi_edge=None, nfp=None,
                  geom=None, plot=False):
     r"""
@@ -205,8 +205,8 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
     same set of flux surfaces.
 
     If you provide a :obj:`RedlGeomBoozer` object for ``geom``, then
-    it is not necessary to specify the argument ``helicity_n`` here,
-    in which case ``helicity_n`` will be taken from ``geom``.
+    it is not necessary to specify the argument ``helicity_n`` or ``helicity_m`` here,
+    in which case ``helicity_n`` will be taken from ``geom`` and ``helicity_m`` will default to 1.
 
     Args:
         ne: A :obj:`~simsopt.mhd.profiles.Profile` object with the electron density profile.
@@ -215,7 +215,10 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object with the profile of the average
             impurity charge :math:`Z_{eff}`. Or, a single number can be provided if this profile is constant.
             Or, if ``None``, Zeff = 1 will be used.
-        helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical symmetry.
+        helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical and quasi-poloidal symmetry.
+            This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
+            and bootstrap current from the tokamak expressions to quasi-helical symmetry.
+        helicity_m: 0 for quasi-poloidal, or 1 for quasi-helical and quasi-axisymmetry (defaults to 1).
             This quantity is used to apply the quasisymmetry isomorphism to map the collisionality
             and bootstrap current from the tokamak expressions to quasi-helical symmetry.
         s: A 1D array of values of normalized toroidal flux.
@@ -258,7 +261,7 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
 
     if helicity_n is None:
         helicity_n = geom.helicity_n
-
+        
     helicity_N = nfp * helicity_n
     if Zeff is None:
         Zeff = ProfilePolynomial(1.0)
@@ -294,7 +297,7 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
     logging.debug(f'ln Lambda_ii: {ln_Lambda_ii}')
 
     # Eq (18b)-(18c) in Sauter:
-    geometry_factor = abs(R / (iota - helicity_N))
+    geometry_factor = abs(R / (helicity_m*iota - helicity_N))
     nu_e = geometry_factor * (6.921e-18) * ne_s * Zeff_s * ln_Lambda_e \
         / (Te_s * Te_s * (epsilon ** 1.5))
     nu_i = geometry_factor * (4.90e-18) * ni_s * (Zeff_s ** 4) * ln_Lambda_ii \
@@ -355,9 +358,9 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         / (1 + 0.004 * nu_i * nu_i * (f_t ** 6))
 
     # Factor of ELEMENTARY_CHARGE is included below to convert temperatures from eV to J
-    dnds_term = -G * ELEMENTARY_CHARGE * (ne_s * Te_s + ni_s * Ti_s) * L31 * (d_ne_d_s / ne_s) / (psi_edge * (iota - helicity_N))
-    dTeds_term = -G * ELEMENTARY_CHARGE * pe_s * (L31 + L32) * (d_Te_d_s / Te_s) / (psi_edge * (iota - helicity_N))
-    dTids_term = -G * ELEMENTARY_CHARGE * pi_s * (L31 + L34 * alpha) * (d_Ti_d_s / Ti_s) / (psi_edge * (iota - helicity_N))
+    dnds_term = -G * ELEMENTARY_CHARGE * (ne_s * Te_s + ni_s * Ti_s) * L31 * (d_ne_d_s / ne_s) / (psi_edge * (helicity_m*iota - helicity_N))
+    dTeds_term = -G * ELEMENTARY_CHARGE * pe_s * (L31 + L32) * (d_Te_d_s / Te_s) / (psi_edge * (helicity_m*iota - helicity_N))
+    dTids_term = -G * ELEMENTARY_CHARGE * pi_s * (L31 + L34 * alpha) * (d_Ti_d_s / Ti_s) / (psi_edge * (helicity_m*iota - helicity_N))
     jdotB = dnds_term + dTeds_term + dTids_term
 
     details = Struct()
@@ -528,15 +531,18 @@ class RedlGeomBoozer(Optimizable):
             to use for the bootstrap current calculation.
         helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical symmetry.
             This quantity is used to discard symmetry-breaking :math:`B_{mn}` harmonics.
+        helicity_m: 0 for quasi-poloidal symmetry, or 1 for quasi-helical and quasi-axisymmetry (defaults to 1).
+            This quantity is used to discard symmetry-breaking :math:`B_{mn}` harmonics.
         ntheta: Number of grid points in the poloidal angle for evaluating geometric quantities in the Redl formulae.
         plot: Make a plot of many of the quantities computed.
     """
 
-    def __init__(self, booz, surfaces, helicity_n, ntheta=64, plot=False):
+    def __init__(self, booz, surfaces, helicity_n, helicity_m=1, ntheta=64, plot=False):
         booz.register(surfaces)
         self.booz = booz
         self.surfaces = surfaces
         self.helicity_n = helicity_n
+        self.helicity_m = helicity_m
         self.ntheta = ntheta
         self.plot = plot
         super().__init__(depends_on=[booz])
@@ -587,7 +593,7 @@ class RedlGeomBoozer(Optimizable):
             sqrtg = np.zeros((ntheta, ns))
             s, theta = np.meshgrid(surfaces, theta1d)
             for jmn in range(booz.bx.mnboz):
-                if booz.bx.xm_b[jmn] * self.helicity_n * nfp == booz.bx.xn_b[jmn]:
+                if booz.bx.xm_b[jmn] * self.helicity_n * nfp == booz.bx.xn_b[jmn] * self.helicity_m:
                     # modB += cos(m * theta) * bmnc:
                     modB += np.cos(booz.bx.xm_b[jmn] * theta) \
                         * np.kron(np.ones((ntheta, 1)), bmnc_b[jmn, None, :])
@@ -659,9 +665,10 @@ class VmecRedlBootstrapMismatch(Optimizable):
         Zeff: A :obj:`~simsopt.mhd.profiles.Profile` object representing the :math:`Z_{eff}` profile.
             A single number can also be provided, in which case a constant :math:`Z_{eff}` profile will be used.
         helicity_n: 0 for quasi-axisymmetry, or +/- 1 for quasi-helical symmetry.
+        helicity_m: 1 for quasi-axisymmetry and quasi-helical symmetry, 0 for quasi-poloidal symmetry.
     """
 
-    def __init__(self, geom, ne, Te, Ti, Zeff, helicity_n, logfile=None):
+    def __init__(self, geom, ne, Te, Ti, Zeff, helicity_n, helicity_m=1, logfile=None):
         if not isinstance(Zeff, Profile):
             # If we get here then Zeff is presumably a number. Convert it to a constant profile.
             Zeff = ProfilePolynomial([Zeff])
@@ -671,6 +678,7 @@ class VmecRedlBootstrapMismatch(Optimizable):
         self.Ti = Ti
         self.Zeff = Zeff
         self.helicity_n = helicity_n
+        self.helicity_m = helicity_m
         self.iteration = 0
         self.logfile = logfile
 
@@ -711,6 +719,7 @@ class VmecRedlBootstrapMismatch(Optimizable):
                                      self.Ti,
                                      self.Zeff,
                                      self.helicity_n,
+                                     helicity_m=self.helicity_m,
                                      geom=self.geom)
         # Interpolate vmec's <J dot B> profile from the full grid to the desired surfaces:
         vmec = self.geom.vmec
