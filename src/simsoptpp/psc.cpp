@@ -553,6 +553,54 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
 
 #endif
 
+Array coil_forces(Array& points, Array& B, Array& alphas, Array& deltas, Array& int_points, Array& int_weights) {
+    double* B_ptr = &(B(0, 0));
+    double* points_ptr = &(points(0, 0));
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* weight_ptr = &(int_weights(0));
+    double* int_point_ptr = &(int_points(0));  
+    int num_quad = int_points.shape(0);
+    int num_coils = alphas.shape(0);
+    Array F = xt::zeros<double>({num_coils, 3});
+    
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_coils; i++) {
+        auto Fx = 0.0;
+        auto Fy = 0.0;
+        auto Fz = 0.0;
+        auto xi = points_ptr[3 * i];
+        auto yi = points_ptr[3 * i + 1];
+        auto zi = points_ptr[3 * i + 2];
+        auto cai = cos(alphas_ptr[i]);
+        auto sai = sin(alphas_ptr[i]);
+        auto cdi = cos(deltas_ptr[i]);
+        auto sdi = sin(deltas_ptr[i]);
+        for (int k = 0; k < num_quad; ++k) {
+            auto Bx = B_ptr[3 * i * num_quad + 3 * k];
+            auto By = B_ptr[3 * i * num_quad + 3 * k + 1];
+            auto Bz = B_ptr[3 * i * num_quad + 3 * k + 2];
+            auto pk = int_point_ptr[k];
+            auto ck = cos(pk);
+            auto sk = sin(pk);
+            auto weight = weight_ptr[k];
+            auto dl_x = -sk * cdi + ck * sai * sdi;
+            auto dl_y = ck * cai;
+            auto dl_z = sk * sdi + ck * sai * cdi;
+            auto dl_cross_B_x = dl_y * Bz - By * dl_z;
+            auto dl_cross_B_y = dl_z * Bx - dl_x * Bz;
+            auto dl_cross_B_z = dl_x * By - dl_y * Bx;
+            Fx += dl_cross_B_x * weight;
+            Fy += dl_cross_B_y * weight;
+            Fz += dl_cross_B_z * weight;
+        }
+        F(i, 0) = Fx;
+        F(i, 1) = Fy;
+        F(i, 2) = Fz;
+    }
+}
+
+
 // Calculate the inductance matrix needed for the PSC forward problem
 Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights)
 {
@@ -1209,7 +1257,7 @@ Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas
 
 
 
-Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal)
+Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
     if(points.layout() != xt::layout_type::row_major)
@@ -1222,11 +1270,8 @@ Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& p
           throw std::runtime_error("rho needs to be in row-major storage order");
     if(phi.layout() != xt::layout_type::row_major)
           throw std::runtime_error("phi needs to be in row-major storage order");
-    if(normal.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("normal needs to be in row-major storage order");
           
     // points shape should be (num_coils, 3)
-    // normal shape should be (num_coils, 3)
     int num_coils = alphas.shape(0);  // shape should be (num_coils)
     int num_phi = phi.shape(0);  // shape should be (num_phi)
     int num_rho = rho.shape(0);  // shape should be (num_rho)

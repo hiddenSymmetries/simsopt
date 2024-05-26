@@ -8,7 +8,6 @@ from . import Surface
 import simsoptpp as sopp
 from simsopt.field import BiotSavart
 import time
-from scipy.linalg import inv
 
 __all__ = ['WPgrid']
 contig = np.ascontiguousarray
@@ -105,15 +104,13 @@ class WPgrid:
                 for j in range(Ny):
                     for k in range(Nz):
                         phi = np.arctan2(Y[i, j, k], X[i, j, k])
-                        if self.nfp == 4:
-                            phi2 = np.arctan2(self.R, X[i, j, k])
-                        elif self.nfp == 2:
-                            phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
+                        # if self.nfp == 4:
+                            # phi2 = np.arctan2(self.R, X[i, j, k])
+                        # elif self.nfp == 2:
+                        phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
                         # Add a little factor to avoid phi = pi / n_p degrees 
                         # exactly, which can intersect with a symmetrized
                         # coil if not careful 
-                        # print(phi2)
-                        # exit()
                         if phi >= (np.pi / self.nfp - phi2) or phi < 0.0:
                             inds.append(int(i * Ny * Nz + j * Nz + k))
             good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
@@ -283,6 +280,9 @@ class WPgrid:
         # if accuracy is not paramount
         interpolated_field = kwargs.pop("interpolated_field", False)
         B_TF = BiotSavart(coils_TF)
+        
+        # If using interpolated field, remember it better cover all the
+        # PSC coils! 
         if interpolated_field:
             n = 40  # tried 20 here and then there are small errors in f_B 
             degree = 3
@@ -605,28 +605,13 @@ class WPgrid:
         VERY ill-conditioned! 
         """
         # A_matrix has shape (num_plasma_points, num_coils)
-        # B_WP = np.zeros((self.nphi * self.ntheta, 3))
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_wp))
-        # A_matrix2 = np.zeros((self.nphi * self.ntheta, self.num_wp))
         # Need to rotate and flip it
         nn = self.num_wp
         q = 0
         # t1 = time.time()
         for fp in range(self.nfp):
             for stell in self.stell_list:
-                # A_matrix2 += sopp.A_matrix_direct(
-                #     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
-                #     contig(self.plasma_points),
-                #     contig(self.alphas_total[q * nn: (q + 1) * nn]),
-                #     contig(self.deltas_total[q * nn: (q + 1) * nn]),
-                #     contig(self.plasma_unitnormals),
-                #     contig(self.phi),
-                #     self.R,
-                # ) * self.dphi # missing factor of mu0
-                # A_matrix2 += self.python_A_matrix(
-                #     self.grid_xyz_all[q * nn: (q + 1) * nn, :], 
-                #     self.alphas_total[q * nn: (q + 1) * nn],
-                #     self.deltas_total[q * nn: (q + 1) * nn])
                 A_matrix += sopp.A_matrix_simd(
                     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     contig(self.plasma_points),
@@ -634,25 +619,12 @@ class WPgrid:
                     contig(self.deltas_total[q * nn: (q + 1) * nn]),
                     contig(self.plasma_unitnormals),
                     self.R,
-                )  # missing factor of fac, factor of 2 from the analytic expression
-                # t2 = time.time()
-                # print('Time1 = ',t2 - t1)
-                # t1 = time.time()
-                # A_matrix += sopp.A_matrix_simd(
-                #     contig(xyz),
-                #     contig(self.plasma_points),
-                #     contig(self.alphas_total[q * nn: (q + 1) * nn]),
-                #     contig(self.deltas_total[q * nn: (q + 1) * nn]),
-                #     contig(self.plasma_unitnormals),
-                #     self.R,
-                # )  # 
-                # print(A_matrix2, A_matrix)
-                # assert np.allclose(A_matrix2, A_matrix)
+                ) 
                 q = q + 1
         # t2 = time.time()
         # print('A_matrix time2 = ',t2 - t1)
-        self.A_matrix = 2.0 * A_matrix
-        self.Bn_WP = (self.A_matrix @ self.I * 1e6).reshape(-1) # missing factor of fac
+        self.A_matrix = 2.0 * A_matrix  # Add factor of 2 from the analytic expression
+        self.Bn_WP = self.A_matrix @ self.I * 1e6 # missing factor of fac
         self.Ax_b = (self.Bn_WP + self.b_opt) * self.grid_normalization
     
     def setup_curves(self):
@@ -820,76 +792,8 @@ class WPgrid:
         BdotN2 = 0.5 * self.Ax_b.T @ self.Ax_b * self.fac2_norm
         self.BdotN2_list.append(BdotN2)
         t2 = time.time()
-        # print('obj time = ', t2 - t1)
+        print('obj time = ', t2 - t1)
         return BdotN2
-    
-    def python_A_matrix(self, points, alphas, deltas):
-        import scipy.special as ss
-        
-        num_coils = alphas.shape[0]
-        num_plasma_points = self.plasma_points.shape[0]
-        A = np.zeros((num_plasma_points, num_coils))
-        R = self.R
-        R2 = self.R * self.R
-        deltas_ptr = deltas
-        alphas_ptr = alphas
-        points_ptr = points 
-        plasma_points_ptr = self.plasma_points
-        plasma_normal_ptr = self.plasma_unitnormals
-        
-        for j in range(num_coils):
-            cdj = np.cos(deltas_ptr[j])
-            caj = np.cos(alphas_ptr[j])
-            sdj = np.sin(deltas_ptr[j])
-            saj = np.sin(alphas_ptr[j])
-            xj = points_ptr[j, 0]
-            yj = points_ptr[j, 1]
-            zj = points_ptr[j, 2]
-            for i in range(num_plasma_points):
-                xp = plasma_points_ptr[i, 0]
-                yp = plasma_points_ptr[i, 1]
-                zp = plasma_points_ptr[i, 2]
-                nx = plasma_normal_ptr[i, 0]
-                ny = plasma_normal_ptr[i, 1]
-                nz = plasma_normal_ptr[i, 2]
-                x0 = (xp - xj)
-                y0 = (yp - yj)
-                z0 = (zp - zj)
-                nxx = cdj
-                nxy = sdj * saj
-                nxz = sdj * caj
-                nyx = 0.0
-                nyy = caj
-                nyz = -saj
-                nzx = -sdj
-                nzy = cdj * saj
-                nzz = cdj * caj
-                x = x0 * nxx + y0 * nyx + z0 * nzx
-                y = x0 * nxy + y0 * nyy + z0 * nzy
-                z = x0 * nxz + y0 * nyz + z0 * nzz
-                rho2 = x * x + y * y
-                r2 = rho2 + z * z
-                rho = np.sqrt(rho2)
-                R2_r2 = R2 + r2
-                gamma2 = R2_r2 - 2.0 * R * rho
-                beta2 = R2_r2 + 2.0 * R * rho
-                beta = np.sqrt(beta2)
-                k2 = 1.0 - gamma2 / beta2
-                beta_gamma2 = beta * gamma2
-                k = np.sqrt(k2)
-                ellipe = ss.ellipe(k ** 2)
-                ellipk = ss.ellipk(k ** 2)
-                Eplus = R2_r2 * ellipe - gamma2 * ellipk
-                Eminus = (R2 - r2) * ellipe + gamma2 * ellipk
-                Bx = x * z * Eplus / (rho2 * beta_gamma2)
-                By = y * z * Eplus / (rho2 * beta_gamma2)
-                Bz = Eminus / beta_gamma2
-                # Need to rotate the vector
-                Bx_rot = Bx * nxx + By * nxy + Bz * nxz
-                By_rot = Bx * nyx + By * nyy + Bz * nyz
-                Bz_rot = Bx * nzx + By * nzy + Bz * nzz
-                A[i, j] = Bx_rot * nx + By_rot * ny + Bz_rot * nz
-        return 2.0 * A
     
     def least_squares_jacobian(self, kappa_I, verbose=False):
         """
@@ -911,18 +815,15 @@ class WPgrid:
 
         """
         t1 = time.time()
-        # ind3 = len(kappa_I) // 3
-        # ind3_2 = 2 * ind3
         self.I = kappa_I[-self.num_wp:]
         self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])
         self.setup_currents_and_fields()
         grad = self.grid_normalization[:, None] * np.hstack(
             (self.A_deriv() * np.hstack((self.I, self.I)), self.A_matrix)
         ) * 1.0e6
-        # jac = self.Ax_b.T @ grad
         t2 = time.time()
-        # print('jac time = ', t2 - t1)
-        print('exact jac = ', (self.Ax_b.T @ grad) * self.fac2_norm)
+        print('jac time = ', t2 - t1)
+        # print('exact jac = ', (self.Ax_b.T @ grad) * self.fac2_norm)
         return (self.Ax_b.T @ grad) * self.fac2_norm
     
     def A_deriv(self):

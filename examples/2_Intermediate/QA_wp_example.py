@@ -177,7 +177,7 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 2
@@ -257,7 +257,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the wp class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, 
+kwargs_geo = {"Nx": 8, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 wp_array = WPgrid.geo_setup_between_toroidal_surfaces(
@@ -332,7 +332,7 @@ for k in range(STLSQ_max_iters):
                      method='L-BFGS-B',  
                      # bounds=opt_bounds,
                        jac=wp_array.least_squares_jacobian,
-                      callback=callback,
+                      # callback=callback,
                      options=options,
                      tol=1e-20,
                      )

@@ -29,7 +29,7 @@ Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& int_points, Ar
 
 Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
 
-Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi, Array& normal);
+Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi);
 
 Array flux_integration(Array& B, Array& rho, Array& normal);
 
@@ -49,3 +49,5 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
 Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R);
 
 Array B_TF(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points);
+
+Array coil_forces(Array& points, Array& B, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
