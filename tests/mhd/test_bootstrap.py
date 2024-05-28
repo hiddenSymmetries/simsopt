@@ -1,7 +1,10 @@
 import unittest
 import logging
 import os
+
 import numpy as np
+from monty.tempfile import ScratchDir
+
 from simsopt.mhd.bootstrap import compute_trapped_fraction, \
     j_dot_B_Redl, RedlGeomVmec, RedlGeomBoozer, VmecRedlBootstrapMismatch
 from simsopt.mhd.profiles import ProfilePolynomial
@@ -12,12 +15,12 @@ from . import TEST_DIR
 
 try:
     import booz_xform
-except ImportError as e:
+except ImportError:
     booz_xform = None
 
 try:
     import vmec as vmec_extension
-except ImportError as e:
+except ImportError:
     vmec_extension = None
 
 logger = logging.getLogger(__name__)
@@ -817,24 +820,25 @@ class BootstrapTests(unittest.TestCase):
         Zeff = 1
         helicity_n = 0
         filename = os.path.join(TEST_DIR, 'input.ITERModel')
-        vmec = Vmec(filename)
-        # Resolution 1:
-        vmec.indata.ns_array[:3] = [13, 25, 0]
-        vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
-        vmec.indata.niter_array[:3] = [500, 2000, 0]
-        geom1 = RedlGeomVmec(vmec, nphi=3)
-        obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_n,
-                                         logfile='testVmecRedlBootstrapMismatch.log')
-        obj1J = obj1.J()
-        # Resolution 2:
-        vmec.indata.ns_array[:3] = [13, 25, 51]
-        vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 1e-15]
-        vmec.indata.niter_array[:3] = [500, 800, 2000]
-        vmec.need_to_run_code = True
-        geom2 = RedlGeomVmec(vmec, nphi=3)
-        obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
-        obj2J = obj2.J()
-        rel_diff = (obj1J - obj2J) / (0.5 * (obj1J + obj2J))
-        logging.info(f'resolution1: {obj1J:.4e}  resolution2: {obj2J:.4e}  rel diff: {rel_diff}')
-        np.testing.assert_allclose(obj1J, obj2J, rtol=0.003)
-        self.assertNotEqual(obj1J, obj2J)  # There should be some small difference
+        with ScratchDir("."):
+            vmec = Vmec(filename)
+            # Resolution 1:
+            vmec.indata.ns_array[:3] = [13, 25, 0]
+            vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 0]
+            vmec.indata.niter_array[:3] = [500, 2000, 0]
+            geom1 = RedlGeomVmec(vmec, nphi=3)
+            obj1 = VmecRedlBootstrapMismatch(geom1, ne, Te, Ti, Zeff, helicity_n,
+                                             logfile='testVmecRedlBootstrapMismatch.log')
+            obj1J = obj1.J()
+            # Resolution 2:
+            vmec.indata.ns_array[:3] = [13, 25, 51]
+            vmec.indata.ftol_array[:3] = [1e-20, 1e-15, 1e-15]
+            vmec.indata.niter_array[:3] = [500, 800, 2000]
+            vmec.need_to_run_code = True
+            geom2 = RedlGeomVmec(vmec, nphi=3)
+            obj2 = VmecRedlBootstrapMismatch(geom2, ne, Te, Ti, Zeff, helicity_n)
+            obj2J = obj2.J()
+            rel_diff = (obj1J - obj2J) / (0.5 * (obj1J + obj2J))
+            logging.info(f'resolution1: {obj1J:.4e}  resolution2: {obj2J:.4e}  rel diff: {rel_diff}')
+            np.testing.assert_allclose(obj1J, obj2J, rtol=0.003)
+            self.assertNotEqual(obj1J, obj2J)  # There should be some small difference

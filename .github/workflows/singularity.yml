@@ -26,7 +26,7 @@ jobs:
     steps:
 
       - name: Check out code for the container build
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: eWaterCycle/setup-singularity@v7
         with:
           singularity-version: 3.8.3

@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 Provides json emitting and parsing functionality that can handle graphs.
@@ -13,13 +13,13 @@ import json
 import os
 import pathlib
 import types
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from enum import Enum
 from importlib import import_module
 from inspect import getfullargspec
 from uuid import UUID
-import numpy as np
 
+import numpy as np
 
 try:
     import jax

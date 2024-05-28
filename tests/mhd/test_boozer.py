@@ -1,21 +1,23 @@
 import unittest
-import numpy as np
 import os
 import logging
+
+import numpy as np
+from monty.tempfile import ScratchDir
 from scipy.io import netcdf_file
 try:
     import booz_xform
-except ImportError as e:
+except ImportError:
     booz_xform = None 
 
 try:
     import vmec
-except ImportError as e:
+except ImportError:
     vmec = None 
 
 try:
     from mpi4py import MPI
-except ImportError as e:
+except ImportError:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
@@ -116,95 +118,94 @@ class QuasisymmetryTests(unittest.TestCase):
         b1 = Boozer(None)
         self.assertEqual(b1.s, set())
         # Try registering a single surface:
-        qs11 = Quasisymmetry(b1, 0.5, 1, 1)
+        Quasisymmetry(b1, 0.5, 1, 1)
         self.assertEqual(b1.s, {0.5})
         # Register another surface:
-        qs12 = Quasisymmetry(b1, 0.75, 1, 0)
+        Quasisymmetry(b1, 0.75, 1, 0)
         self.assertEqual(b1.s, {0.5, 0.75})
         # Register the same surface:
-        qs13 = Quasisymmetry(b1, 0.75, 1, 0)
+        Quasisymmetry(b1, 0.75, 1, 0)
         self.assertEqual(b1.s, {0.5, 0.75})
         # Register two surfaces:
-        qs14 = Quasisymmetry(b1, [0.1, 0.2], 1, 0)
+        Quasisymmetry(b1, [0.1, 0.2], 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.5, 0.75})
         # Register two surfaces, with a copy:
-        qs15 = Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
+        Quasisymmetry(b1, {0.2, 0.3}, 1, 0)
         self.assertEqual(b1.s, {0.1, 0.2, 0.3, 0.5, 0.75})
 
     @unittest.skipIf((booz_xform is None) or (vmec is None),
                      "vmec or booz_xform python package not found")
     def test_boozer_circular_tokamak(self):
-        v = Vmec(os.path.join(TEST_DIR, "input.circular_tokamak"))
-        b = Boozer(v, mpol=48, ntor=0)
+        with ScratchDir("."):
+            v = Vmec(os.path.join(TEST_DIR, "input.circular_tokamak"))
+            b = Boozer(v, mpol=48, ntor=0)
 
-        # Register a QA target at s = 0.5:
-        qs1 = Quasisymmetry(b, 0.5, 1, 0)
-        self.assertEqual(b._calls, 0)
-        self.assertEqual(b.s, {0.5})
-        residuals1 = qs1.J()
-        self.assertEqual(b._calls, 1)
-        # The residuals should be empty because axisymmetry implies QA
-        self.assertEqual(len(residuals1), 0)
-        # The VMEC config has 17 full-grid surfaces, so 16 half-grid
-        # surfaces, so s=0.5 is close to the half-grid surface 7:
-        np.testing.assert_allclose(b.bx.compute_surfs, [7])
-        self.assertEqual(b.s_to_index, {0.5: 0})
+            # Register a QA target at s = 0.5:
+            qs1 = Quasisymmetry(b, 0.5, 1, 0)
+            self.assertEqual(b._calls, 0)
+            self.assertEqual(b.s, {0.5})
+            residuals1 = qs1.J()
+            self.assertEqual(b._calls, 1)
+            # The residuals should be empty because axisymmetry implies QA
+            self.assertEqual(len(residuals1), 0)
+            # The VMEC config has 17 full-grid surfaces, so 16 half-grid
+            # surfaces, so s=0.5 is close to the half-grid surface 7:
+            np.testing.assert_allclose(b.bx.compute_surfs, [7])
+            self.assertEqual(b.s_to_index, {0.5: 0})
 
-        # Register a QP target at s = 1:
-        qs2 = Quasisymmetry(b, 1.0, 0, 1)
-        self.assertEqual(b._calls, 1)
-        self.assertEqual(b.s, {0.5, 1.0})
-        residuals2 = qs2.J()
-        self.assertEqual(b._calls, 2)
-        np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
-        self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1})
-        # Evaluating qs1 again should not cause booz_xform to run:
-        residuals1 = qs1.J()
-        self.assertEqual(b._calls, 2)        
-        self.assertEqual(len(residuals1), 0)
-        # All the modes except m=0 should contribute to the qs2 residuals:
-        bmnc = b.bx.bmnc_b
-        np.testing.assert_allclose(bmnc[1:, 1] / bmnc[0, 1], residuals2)
+            # Register a QP target at s = 1:
+            qs2 = Quasisymmetry(b, 1.0, 0, 1)
+            self.assertEqual(b._calls, 1)
+            self.assertEqual(b.s, {0.5, 1.0})
+            residuals2 = qs2.J()
+            self.assertEqual(b._calls, 2)
+            np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
+            self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1})
+            # Evaluating qs1 again should not cause booz_xform to run:
+            residuals1 = qs1.J()
+            self.assertEqual(b._calls, 2)
+            self.assertEqual(len(residuals1), 0)
+            # All the modes except m=0 should contribute to the qs2 residuals:
+            bmnc = b.bx.bmnc_b
+            np.testing.assert_allclose(bmnc[1:, 1] / bmnc[0, 1], residuals2)
 
-        # Register a QH target on the same pair of surfaces:
-        qs3 = Quasisymmetry(b, [0.5, 1.0], 1, 1)
-        residuals3 = qs3.J()
-        np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
-        self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1})
-        # All modes except m=0 should contribute to the residuals:
-        residuals3a = bmnc[1:, 0] / bmnc[0, 0]
-        residuals3b = bmnc[1:, 1] / bmnc[0, 1]
-        np.testing.assert_allclose(np.concatenate((residuals3a, residuals3b)),
-                                   residuals3)
+            # Register a QH target on the same pair of surfaces:
+            qs3 = Quasisymmetry(b, [0.5, 1.0], 1, 1)
+            residuals3 = qs3.J()
+            np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
+            self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1})
+            # All modes except m=0 should contribute to the residuals:
+            residuals3a = bmnc[1:, 0] / bmnc[0, 0]
+            residuals3b = bmnc[1:, 1] / bmnc[0, 1]
+            np.testing.assert_allclose(np.concatenate((residuals3a, residuals3b)),
+                                       residuals3)
 
-        # Register a target on a surface very close to a previously
-        # registered surface:
-        # Register a QP target at s = 1:
-        s = 0.9999
-        qs4 = Quasisymmetry(b, s, 0, 1)
-        self.assertEqual(b.s, {0.5, s, 1.0})
-        residuals4 = qs4.J()
-        np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
-        self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1, s: 1})
+            # Register a target on a surface very close to a previously
+            # registered surface:
+            # Register a QP target at s = 1:
+            s = 0.9999
+            Quasisymmetry(b, s, 0, 1).J()
+            self.assertEqual(b.s, {0.5, s, 1.0})
+            np.testing.assert_allclose(b.bx.compute_surfs, [7, 15])
+            self.assertEqual(b.s_to_index, {0.5: 0, 1.0: 1, s: 1})
 
-        # Compare to reference boozmn*.nc file
-        f = netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
-                        mmap=False)
-        bmnc_ref = f.variables["bmnc_b"][()].transpose()
-        atol = 1e-12
-        rtol = 1e-12
-        np.testing.assert_allclose(bmnc[:, 0], bmnc_ref[:, 7],
-                                   atol=atol, rtol=rtol)
-        np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, 15],
-                                   atol=atol, rtol=rtol)
+            # Compare to reference boozmn*.nc file
+            f = netcdf_file(os.path.join(TEST_DIR, "boozmn_circular_tokamak.nc"),
+                            mmap=False)
+            bmnc_ref = f.variables["bmnc_b"][()].transpose()
+            atol = 1e-12
+            rtol = 1e-12
+            np.testing.assert_allclose(bmnc[:, 0], bmnc_ref[:, 7],
+                                       atol=atol, rtol=rtol)
+            np.testing.assert_allclose(bmnc[:, 1], bmnc_ref[:, 15],
+                                       atol=atol, rtol=rtol)
 
     @unittest.skipIf((booz_xform is None) or (vmec is None),
                      "vmec or booz_xform python package not found")
     def test_boozer_li383(self):
         v = Vmec(os.path.join(TEST_DIR, "wout_li383_low_res_reference.nc"))
         b = Boozer(v, mpol=32, ntor=16)
-        qs1 = Quasisymmetry(b, [0.0, 1.0], 1, 0)
-        residuals = qs1.J()
+        Quasisymmetry(b, [0.0, 1.0], 1, 0).J()
         np.testing.assert_allclose(b.bx.compute_surfs, [0, 14])
         self.assertEqual(b.s_to_index, {0.0: 0, 1.0: 1})
         bmnc = b.bx.bmnc_b

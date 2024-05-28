@@ -8,7 +8,6 @@ and work with the permanent magnet branch of SIMSOPT.
 """
 __all__ = ['FocusData', 'FocusPlasmaBnormal', 'stell_point_transform', 'stell_vector_transform']
 import numpy as np
-import sys
 from simsopt.geo import Surface
 
 FOCUS_PLASMAFILE_NHEADER_TOP = 1
@@ -110,13 +109,20 @@ class FocusData(object):
 
     Args:
         filename: a FOCUS file
+        keep_Ic_zeros: (optional) if True, all dipoles in the file will be 
+            retained in the data structure irrespective of the value of their
+            Ic parameter. If False, only magnets with Ic == 1 will be imported.
+            Default is False.
+        downsample: (optional) if set to integer value n, the initialization
+            method will only load every nth magnet from the file. If 1, all
+            magnets will be loaded. Default is 1.
     """
     propNames = ['type', 'symm', 'coilname', 'ox', 'oy', 'oz', 'Ic', 'M_0', \
                  'pho', 'Lc', 'mp', 'mt', 'op']
 
     float_inds = [3, 4, 5, 7, 8, 10, 11]
 
-    def __init__(self, filename, downsample=1):
+    def __init__(self, filename, keep_Ic_zeros=False, downsample=1):
 
         self.nMagnets = 0
         self.nPol = 0
@@ -124,13 +130,13 @@ class FocusData(object):
         # initialize to # of mandatory properties ('op' is currently optional)
         self.nProps = len(FocusData.propNames) - 1
 
-        self.read_from_file(filename, downsample)
+        self.read_from_file(filename, keep_Ic_zeros, downsample)
 
-    def read_from_file(self, filename, downsample):
+    def read_from_file(self, filename, keep_Ic_zeros, downsample):
 
         with open(str(filename), 'r') as focusfile: 
             # Ignore the first line in the file
-            line1 = focusfile.readline()
+            focusfile.readline()
 
             # Record the number of magnets and the momentq
             line2data = [int(number) for number in \
@@ -158,7 +164,7 @@ class FocusData(object):
             self.op = np.zeros(self.nMagnets)
 
             # Ignore the third line in the file
-            line3 = focusfile.readline()
+            focusfile.readline()
 
             # Read the data for each magnet from the file
             count = 0
@@ -188,7 +194,7 @@ class FocusData(object):
                 if i == 0:
                     if len(linedata) > self.nProps:
                         try:
-                            testnum = np.double(linedata[12])
+                            _ = np.double(linedata[12])
                             self.has_op = True
                             self.nProps = self.nProps + 1
                         except:
@@ -222,8 +228,11 @@ class FocusData(object):
         inds_total = np.arange(self.nMagnets)
         inds_downsampled = inds_total[::downsample]
 
-        # also remove any dipoles where the diagnostic ports should be
-        nonzero_inds = np.intersect1d(np.ravel(np.where(self.Ic == 1.0)), inds_downsampled) 
+        # if desired, remove dipoles where Ic=0 (e.g. diagnostic port locations)
+        if keep_Ic_zeros:
+            nonzero_inds = inds_downsampled
+        else:
+            nonzero_inds = np.intersect1d(np.ravel(np.where(self.Ic == 1.0)), inds_downsampled) 
         self.ox = self.ox[nonzero_inds]
         self.oy = self.oy[nonzero_inds]
         self.oz = self.oz[nonzero_inds]

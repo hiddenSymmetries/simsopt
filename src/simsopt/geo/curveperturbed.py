@@ -1,6 +1,10 @@
+from dataclasses import dataclass
+
 import numpy as np
 from sympy import Symbol, lambdify, exp
-from .._core.json import GSONable, GSONDecoder
+
+from .._core.json import GSONable
+from .._core.util import RealArray
 
 import simsoptpp as sopp
 from simsopt.geo.curve import Curve
@@ -8,63 +12,71 @@ from simsopt.geo.curve import Curve
 __all__ = ['GaussianSampler', 'PerturbationSample', 'CurvePerturbed']
 
 
+@dataclass
 class GaussianSampler(GSONable):
+    r"""
+    Generate a periodic gaussian process on the interval [0, 1] on a given list of quadrature points.
+    The process has standard deviation ``sigma`` a correlation length scale ``length_scale``.
+    Large values of ``length_scale`` correspond to smooth processes, small values result in highly oscillatory
+    functions.
+    Also has the ability to sample the derivatives of the function.
 
-    def __init__(self, points, sigma, length_scale, n_derivs=1):
-        r"""
-        Generate a periodic gaussian process on the interval [0, 1] on a given list of quadrature points.
-        The process has standard deviation ``sigma`` a correlation length scale ``length_scale``. 
-        Large values of ``length_scale`` correspond to smooth processes, small values result in highly oscillatory
-        functions.
-        Also has the ability to sample the derivatives of the function.
+    We consider the kernel
 
-        We consider the kernel
+    .. math::
 
-        .. math::
+        \kappa(d) = \sigma^2 \exp(-d^2/l^2)
 
-            \kappa(d) = \sigma^2 \exp(-d^2/l^2)
+    and then consider a Gaussian process with covariance
 
-        and then consider a Gaussian process with covariance
+    .. math::
 
-        .. math::
+        Cov(X(s), X(t)) = \sum_{i=-\infty}^\infty \sigma^2 \exp(-(s-t+i)^2/l^2)
 
-            Cov(X(s), X(t)) = \sum_{i=-\infty}^\infty \sigma^2 \exp(-(s-t+i)^2/l^2)
+    the sum is used to make the kernel periodic and in practice the infinite sum is truncated.
 
-        the sum is used to make the kernel periodic and in practice the infinite sum is truncated.
+    Args:
+        points: the quadrature points along which the perturbation should be computed.
+        sigma: standard deviation of the underlying gaussian process
+               (measure for the magnitude of the perturbation).
+        length_scale: length scale of the underlying gaussian process
+                      (measure for the smoothness of the perturbation).
+        n_derivs: number of derivatives of the gaussian process to sample.
+    """
 
-        Args:
-            points: the quadrature points along which the perturbation should be computed.
-            sigma: standard deviation of the underlying gaussian process
-                   (measure for the magnitude of the perturbation).
-            length_scale: length scale of the underlying gaussian process
-                          (measure for the smoothness of the perturbation).
-            n_derivs: number of derivatives of the gaussian process to sample.
-        """
-        self.points = points
-        self.sigma = sigma
-        self.length_scale = length_scale
+    points: RealArray
+    sigma: float
+    length_scale: float
+    n_derivs: int = 1
+
+    def __post_init__(self):
         xs = self.points
         n = len(xs)
-        self.n_derivs = n_derivs
-        cov_mat = np.zeros((n*(n_derivs+1), n*(n_derivs+1)))
+        cov_mat = np.zeros((n*(self.n_derivs+1), n*(self.n_derivs+1)))
 
         def kernel(x, y):
-            return sum((sigma**2)*exp(-(x-y+i)**2/(length_scale**2)) for i in range(-5, 6))
+            return sum((self.sigma**2)*exp(-(x-y+i)**2/(self.length_scale**2)) for i in range(-5, 6))
 
         XX, YY = np.meshgrid(xs, xs, indexing='ij')
         x = Symbol("x")
         y = Symbol("y")
         f = kernel(x, y)
-        for ii in range(n_derivs+1):
-            for jj in range(n_derivs+1):
+        for ii in range(self.n_derivs+1):
+            for jj in range(self.n_derivs+1):
                 if ii + jj == 0:
                     lam = lambdify((x, y), f, "numpy")
                 else:
                     lam = lambdify((x, y), f.diff(*(ii * [x] + jj * [y])), "numpy")
                 cov_mat[(ii*n):((ii+1)*n), (jj*n):((jj+1)*n)] = lam(XX, YY)
 
-        from scipy.linalg import sqrtm
-        self.L = np.real(sqrtm(cov_mat))
+        # we need to compute the sqrt of the covariance matrix. we used to do this using scipy.linalg.sqrtm,
+        # but it seems sometime between scipy 1.11.1 and 1.11.2 that function broke/changed behaviour.
+        # So we use a LDLT decomposition instead. See als https://github.com/hiddenSymmetries/simsopt/issues/349
+        # from scipy.linalg import sqrtm, ldl
+        # self.L = np.real(sqrtm(cov_mat))
+        from scipy.linalg import ldl
+        lu, d, _ = ldl(cov_mat)
+        self.L = lu @ np.sqrt(np.maximum(d, 0))
 
     def draw_sample(self, randomgen=None):
         """

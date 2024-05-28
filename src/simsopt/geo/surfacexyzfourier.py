@@ -3,7 +3,6 @@ import numpy as np
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
-from .._core.json import GSONDecoder
 
 __all__ = ['SurfaceXYZFourier']
 

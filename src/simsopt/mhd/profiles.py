@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides classes to handle radial profiles of density,
@@ -15,7 +15,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 import numbers
 
 from .._core.optimizable import Optimizable
-from .._core.types import RealArray
+from .._core.descriptor import PositiveInteger
 
 __all__ = ['Profile', 'ProfilePolynomial', 'ProfileScaled', 'ProfileSpline',
            'ProfilePressure', 'ProfileSpec']
@@ -205,6 +205,8 @@ class ProfileSpline(Profile):
         f: A 1d array with the y coordinates for the spline.
         degree: The polynomial degree of the spline. Must be in ``[1, 2, 3, 4, 5]``.
     """
+
+    degree = PositiveInteger()
 
     def __init__(self, s, f, degree=3):
         self.s = s

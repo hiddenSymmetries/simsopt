@@ -25,15 +25,12 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.objectives import Weight
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.field import BiotSavart
-from simsopt.field import Current, coils_via_symmetries
-from simsopt.geo import CurveLength, CurveCurveDistance, \
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+from simsopt.field import BiotSavart, Current, coils_via_symmetries
+from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
+                         CurveLength, CurveCurveDistance, MeanSquaredCurvature,
+                         LpCurveCurvature, CurveSurfaceDistance)
+from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -70,8 +67,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -170,7 +166,7 @@ print("""
 ################################################################################
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_short")
+curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 
@@ -181,7 +177,7 @@ s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
 dofs = res.x
 LENGTH_WEIGHT *= 0.1
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt_long")
+curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
 

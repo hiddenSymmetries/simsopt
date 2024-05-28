@@ -3,7 +3,6 @@ import numpy as np
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
-from .._core.json import GSONDecoder
 
 __all__ = ['SurfaceXYZTensorFourier']
 
@@ -160,10 +159,12 @@ class SurfaceXYZTensorFourier(sopp.SurfaceXYZTensorFourier, Surface):
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[:, mpol+1:] = False
             mask[ntor+1:, 0] = False
-        if npsame(phis, np.linspace(0, 1/self.nfp, 2*ntor+1, endpoint=False)) and \
+        elif npsame(phis, np.linspace(0, 1/self.nfp, 2*ntor+1, endpoint=False)) and \
                 npsame(thetas, np.linspace(0, 0.5, mpol+1, endpoint=False)):
             mask[ntor+1:, 0] = False
-        if npsame(phis, np.linspace(0, 1/(2*self.nfp), ntor+1, endpoint=False)) and \
+        elif npsame(phis, np.linspace(0, 1/(2*self.nfp), ntor+1, endpoint=False)) and \
                 npsame(thetas, np.linspace(0, 1, 2*mpol+1, endpoint=False)):
             mask[0, mpol+1:] = False
+        else:
+            raise Exception('Stellarator symmetric BoozerExact surfaces require a specific set of quadrature points on the surface.  See the SurfaceXYZTensorFourier.get_stellsym_mask() docstring for more information.')
         return mask
