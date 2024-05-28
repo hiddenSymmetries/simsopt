@@ -28,10 +28,12 @@ class WPgrid:
     def __init__(self):
         self.mu0 = 4 * np.pi * 1e-7
         self.fac = 1e-7
+        self.fac2 = 1e-14
         self.BdotN2_list = []
+        self.force_list = []
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
-        num_quad = 20
+        num_quad = 10
         (quad_points_phi, 
           self.quad_weights_phi) = np.polynomial.legendre.leggauss(num_quad)
         self.quad_points_phi = quad_points_phi * np.pi + np.pi
@@ -67,7 +69,7 @@ class WPgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = min(Nmin / 2.0, self.poff / 2.5)
+        self.R = Nmin / 3.0  # min(Nmin / 2.0, self.poff / 2.5)
         self.a = self.R / 10.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -345,6 +347,8 @@ class WPgrid:
             )
             wp_grid.alphas[abs(wp_grid.alphas) == np.pi] = 0.0
             
+        wp_grid.lambda_F = kwargs.pop("lambda_F", 1.0)
+            
         # Generate all the locations of the WP coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
         wp_grid.setup_full_grid()
@@ -564,6 +568,8 @@ class WPgrid:
         
         # Order of the coils. For unit tests, needs > 400
         wp_grid.ppp = kwargs.pop("ppp", 1000)
+        
+        wp_grid.lambda_F = kwargs.pop("lambda_F", 1.0)
 
         wp_grid.coil_normals = np.array(
             [np.cos(wp_grid.alphas) * np.sin(wp_grid.deltas),
@@ -579,7 +585,7 @@ class WPgrid:
         # Initialize curve objects corresponding to each WP coil for 
         # plotting in 3D
         wp_grid.setup_full_grid()
-        wp_grid.I = np.zeros(len(wp_grid.alphas))
+        wp_grid.I = kwargs.pop("I", np.zeros(len(wp_grid.alphas)))
         wp_grid.setup_orientations(wp_grid.alphas, wp_grid.deltas)
         
         # Initialize CurvePlanarFourier objects for the WPs, mostly for
@@ -680,6 +686,11 @@ class WPgrid:
         from . import curves_to_vtk
         from simsopt.field import InterpolatedField, Current, coils_via_symmetries
         
+        b_F, A_F = self.coil_forces()
+        F_TF = self.I[:, None] * b_F * 1e6 * self.fac 
+        A_F = self.I[:, None, None] * A_F * 1e6 
+        F_PSC = np.tensordot(A_F, self.I * 1e6, axes=([1], [0])) * self.fac ** 2
+        
         curves_to_vtk(self.curves, self.out_dir + "wp_curves", close=True, scalar_data=self.I)
         if isinstance(self.B_TF, InterpolatedField):
             self.B_TF.set_points(self.grid_xyz)
@@ -692,6 +703,12 @@ class WPgrid:
                                     contig(self.coil_normals[:, 1]),
                                     contig(self.coil_normals[:, 2])),
                               "I": contig(self.I),
+                              "forces_TF": (contig(F_TF[:, 0]), 
+                                        contig(F_TF[:, 1]),
+                                        contig(F_TF[:, 2])),
+                              "forces_PSC": (contig(F_PSC[:, 0]), 
+                                        contig(F_PSC[:, 1]),
+                                        contig(F_PSC[:, 2])),
                               "B_TF": (contig(B[:, 0]), 
                                         contig(B[:, 1]),
                                         contig(B[:, 2])),
@@ -708,9 +725,14 @@ class WPgrid:
                               },
             )
         q = 0
+        F_TF_all = np.zeros((self.num_wp * self.symmetry, 3))
+        F_PSC_all = np.zeros((self.num_wp * self.symmetry, 3))
+        
         self.I_all = np.zeros(self.num_wp * self.symmetry)
         for fp in range(self.nfp):
             for stell in self.stell_list:
+                F_PSC_all[q * self.num_wp:(q + 1) * self.num_wp] = F_PSC * stell
+                F_TF_all[q * self.num_wp:(q + 1) * self.num_wp] = F_TF * stell
                 self.I_all[q * self.num_wp:(q + 1) * self.num_wp] = self.I * stell
                 q = q + 1
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_wp_curves", close=True, scalar_data=self.I_all)
@@ -735,6 +757,12 @@ class WPgrid:
                                     contig(self.coil_normals_all[:, 1]),
                                     contig(self.coil_normals_all[:, 2])),
                               "I": contig(self.I_all),
+                              "forces_TF": (contig(F_TF_all[:, 0]), 
+                                        contig(F_TF_all[:, 1]),
+                                        contig(F_TF_all[:, 2])),
+                              "forces_PSC": (contig(F_PSC_all[:, 0]), 
+                                        contig(F_PSC_all[:, 1]),
+                                        contig(F_PSC_all[:, 2])),
                               "B_TF": (contig(B[:, 0]), 
                                        contig(B[:, 1]),
                                        contig(B[:, 2])),
@@ -785,15 +813,20 @@ class WPgrid:
                 array of kappas.
 
         """
-        t1 = time.time()
+        # t1 = time.time()
         self.I = kappa_I[-self.num_wp:]
-        self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])
+        self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])  # self.alphas, self.deltas)
         self.setup_currents_and_fields()
         BdotN2 = 0.5 * self.Ax_b.T @ self.Ax_b * self.fac2_norm
+        # b_F, A_F = self.coil_forces()
+        # b_F = self.I[:, None] * b_F * 1e6 / self.fac
+        # A_F = self.I[:, None, None] * A_F * 1e6
+        # force = 0.5 * np.linalg.norm(np.tensordot(A_F, self.I * 1e6, axes=([1], [0])) + b_F) * self.fac2
         self.BdotN2_list.append(BdotN2)
-        t2 = time.time()
-        print('obj time = ', t2 - t1)
-        return BdotN2
+        # self.force_list.append(force)
+        # t2 = time.time()
+        # print('force time = ', t2 - t1)
+        return BdotN2 # + self.lambda_F * force
     
     def least_squares_jacobian(self, kappa_I, verbose=False):
         """
@@ -816,13 +849,14 @@ class WPgrid:
         """
         t1 = time.time()
         self.I = kappa_I[-self.num_wp:]
-        self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])
+        self.setup_orientations(kappa_I[:self.num_wp], kappa_I[self.num_wp:-self.num_wp])  # self.alphas, self.deltas)
         self.setup_currents_and_fields()
         grad = self.grid_normalization[:, None] * np.hstack(
             (self.A_deriv() * np.hstack((self.I, self.I)), self.A_matrix)
+            # (np.zeros((len(self.plasma_points), self.num_wp * 2)), self.A_matrix)
         ) * 1.0e6
         t2 = time.time()
-        print('jac time = ', t2 - t1)
+        # print('jac time = ', t2 - t1)
         # print('exact jac = ', (self.Ax_b.T @ grad) * self.fac2_norm)
         return (self.Ax_b.T @ grad) * self.fac2_norm
     
@@ -936,31 +970,64 @@ class WPgrid:
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 phi0 = (2 * np.pi / self.nfp) * fp
-                # get new normal vectors by flipping the x component, then rotating by phi0
-                # self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
-                # self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
-                # self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
-                # normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
-                # normals = self.coil_normals
-                # get new deltas by flipping sign of deltas, then rotation alpha by phi0
-                # deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
-                # deltas[abs(deltas) == np.pi] = 0.0
-                # if fp == 0 and stell == 1:
-                #     shift_deltas = self.deltas - deltas  # +- pi
-                # deltas += shift_deltas
-                # alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
-                # alphas = -np.arcsin(normals[:, 1])
-                # alphas[abs(alphas) == np.pi] = 0.0
-                # if fp == 0 and stell == 1:
-                #     shift_alphas = self.alphas - alphas  # +- pi
-                # alphas += shift_alphas
                 alphas = self.alphas * (-1) ** fp
                 deltas = self.deltas * stell * (-1) ** fp
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
-                # print(fp, stell)
-                # print(self.alphas, self.deltas)
-                # print(alphas, deltas)
                 q = q + 1
-        # print(self.alphas_total)
-                
+
+    def coil_forces(self):
+        """
+        """
+        rho = self.R * np.ones(1)
+        coils_grid_orig = sopp.flux_xyz(
+            contig(self.grid_xyz_all), 
+            contig(self.alphas_total),
+            contig(self.deltas_total), 
+            contig(rho), 
+            contig(self.quad_points_phi), 
+        )
+        coils_grid = coils_grid_orig.reshape(-1, 3)
+        
+        # Need to remove the ith coil and then sum over j != i
+        self.B_TF.set_points(contig(coils_grid))
+        B = self.B_TF.B().reshape(-1, 3)
+        coils_grid = coils_grid_orig.reshape(coils_grid_orig.shape[0], -1, 3)
+        A_matrix = np.zeros((self.num_wp, self.num_wp, coils_grid.shape[1], 3))
+        F_TF = np.zeros((self.num_wp, 3))
+        F_PSC = np.zeros((self.num_wp, self.num_wp, 3))
+        nn = self.num_wp
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                F_TF += sopp.coil_forces(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                    contig(B),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.quad_points_phi),
+                    contig(self.quad_weights_phi),
+                )
+                A_matrix = 2 * sopp.coil_forces_A_matrix(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                    contig(coils_grid[q * nn: (q + 1) * nn, :, :]),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    self.R,
+                )  # accounts for sign change of the currents (does it?)
+        #         q = q + 1
+        # self.A_matrix = 2 * A_matrix  
+        # F_PSC = np.zeros((self.num_wp, self.num_wp, 3))
+        # for fp in range(self.nfp):
+        #     for stell in self.stell_list:
+                F_PSC += sopp.coil_forces_matrix(
+                    contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                    contig(A_matrix),
+                    contig(self.alphas_total[q * nn: (q + 1) * nn]),
+                    contig(self.deltas_total[q * nn: (q + 1) * nn]),
+                    contig(self.quad_points_phi),
+                    contig(self.quad_weights_phi),
+                ) * 0.5  # Not sure why this factor of 0.5 is needed
+                q = q + 1
+
+        return F_TF, F_PSC

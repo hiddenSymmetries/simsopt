@@ -177,7 +177,7 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 2
@@ -257,8 +257,9 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the wp class
-kwargs_geo = {"Nx": 8, "out_dir": out_str, 
-              "random_initialization": True, "poff": poff,}
+kwargs_geo = {"Nx": 12, "out_dir": out_str, 
+              "random_initialization": True, "poff": poff,
+              "lambda_F": 1e-10}
               # "interpolated_field": True} 
 wp_array = WPgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
@@ -300,7 +301,7 @@ opt_bounds = [(-np.pi, np.pi) for i in range(wp_array.num_wp * 2)]
 for i in range(wp_array.num_wp):
     opt_bounds.append((None, None))
 opt_bounds = tuple(opt_bounds)
-options = {"disp": True, "maxiter": 500, "iprint": 101}  #, "maxls": 100}
+options = {"disp": True, "maxiter": 5000, "iprint": 101}  #, "maxls": 100}
 # print(opt_bounds)
 verbose = True
 
@@ -320,7 +321,7 @@ def callback(x):
     print(check_grad(wp_array.least_squares, wp_array.least_squares_jacobian, x) / np.linalg.norm(wp_array.least_squares_jacobian(x)))
     
 t1 = time.time()
-I_threshold = 5e6
+I_threshold = 0.0  # 5e6
 STLSQ_max_iters = 10
 BdotN2_list = []
 num_wps = []
@@ -331,7 +332,7 @@ for k in range(STLSQ_max_iters):
     x_opt = minimize(wp_array.least_squares, x0, args=(verbose,),
                      method='L-BFGS-B',  
                      # bounds=opt_bounds,
-                       jac=wp_array.least_squares_jacobian,
+                        jac=wp_array.least_squares_jacobian,
                       # callback=callback,
                      options=options,
                      tol=1e-20,

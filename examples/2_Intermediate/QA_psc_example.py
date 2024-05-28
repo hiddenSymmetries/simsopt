@@ -57,7 +57,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     ncoils = len(base_curves)
 
     # Weight on the curve lengths in the objective function:
-    LENGTH_WEIGHT = 1e-4
+    LENGTH_WEIGHT = 1
 
     # Threshold and weight for the coil-to-coil distance penalty in the objective function:
     CC_THRESHOLD = 0.2
@@ -69,7 +69,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
 
     # Threshold and weight for the curvature penalty in the objective function:
     CURVATURE_THRESHOLD = 10
-    CURVATURE_WEIGHT = 1e-10
+    CURVATURE_WEIGHT = 1e-9
 
     # Threshold and weight for the mean squared curvature penalty in the objective function:
     MSC_THRESHOLD = 10
@@ -147,18 +147,18 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 4
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 0.25  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 0.3  # PSC grid will be initialized between 1 m and 2 m from plasma
+poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
+coff = 4.0  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
-input_name = 'input.LandremanPaul2021_QA_lowres'
+input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 range_param = 'half period'
@@ -191,8 +191,38 @@ out_dir.mkdir(parents=True, exist_ok=True)
 s_inner.to_vtk(out_str + 'inner_surf')
 s_outer.to_vtk(out_str + 'outer_surf')
 
+
+def initialize_coils_qa(TEST_DIR, s, out_dir=''):
+    from simsopt.geo import create_equally_spaced_curves
+    from simsopt.field import Current, coils_via_symmetries
+    from simsopt.geo import curves_to_vtk
+    # generate planar TF coils
+    ncoils = 1
+    R0 = s.get_rc(0, 0)
+    R1 = s.get_rc(1, 0) * 4
+    order = 5
+
+    # qa needs to be scaled to 0.1 T on-axis magnetic field strength
+    from simsopt.mhd.vmec import Vmec
+    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 7.131 * 6
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
+    base_currents[0].fix_all()
+    # total_current = Current(total_current)
+    # total_current.fix_all()
+    # base_currents += [total_current - sum(base_currents)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # fix all the coil shapes so only the currents are optimized
+    # for i in range(ncoils):
+    #     base_curves[i].fix_all()
+    # Initialize the coil curves and save the data to vtk
+    curves = [c.curve for c in coils]
+    curves_to_vtk(curves, out_dir / "curves_init")
+    return base_curves, curves, coils
+
 # initialize the coils
-base_curves, curves, coils = initialize_coils('qa_psc', TEST_DIR, s, out_dir)
+base_curves, curves, coils = initialize_coils_qa(TEST_DIR, s, out_dir)
 currents = np.array([coil.current.get_value() for coil in coils])
 print('Currents = ', currents)
 
@@ -216,7 +246,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-# bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -227,7 +257,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 8, "out_dir": out_str, 
+kwargs_geo = {"Nx": 6, "out_dir": out_str, 
               "random_initialization": True, "poff": poff,}
               # "interpolated_field": True} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
@@ -266,9 +296,8 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 print('beginning optimization: ')
 opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
-options = {"disp": True, "maxiter": 100, "iprint": 101}
+options = {"disp": True, "maxiter": 1000, "iprint": 101}
 # print(opt_bounds)
-# x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
 verbose = True
 
 # Run STLSQ with BFGS in the loop
@@ -292,13 +321,15 @@ def callback(x):
 # for k in range(STLSQ_max_iters):
     # x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
     # print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
+x0 = (np.random.rand(2 * psc_array.num_psc) - 0.5) * 2 * np.pi
 x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
-                 method='L-BFGS-B',
+                  # method='L-BFGS-B',
+                  method='SLSQP',
                  # bounds=opt_bounds,
                  # jac=None,
-                    # jac=psc_array.least_squares_jacobian, 
+                    jac=psc_array.least_squares_jacobian, 
                  options=options,
-                 tol=1e-10,
+                 tol=1e-20,
                  # callback=callback
                  )
 from matplotlib import pyplot as plt

@@ -27,7 +27,7 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
 
 Array L_deriv(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
 
-Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
+Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights, int num_unique_psc, int stellsym, int nfp);
 
 Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi);
 
@@ -51,3 +51,7 @@ Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, A
 Array B_TF(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points);
 
 Array coil_forces(Array& points, Array& B, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);
+
+Array coil_forces_A_matrix(Array& points, Array& coil_points, Array& alphas, Array& deltas, double R);
+
+Array coil_forces_matrix(Array& points, Array& A, Array& alphas, Array& deltas, Array& int_points, Array& int_weights);

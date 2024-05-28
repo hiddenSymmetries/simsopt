@@ -76,6 +76,8 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("psi_check" , &psi_check);
     m.def("B_TF" , &B_TF);
     m.def("coil_forces" , &coil_forces);
+    m.def("coil_forces_A_matrix" , &coil_forces_A_matrix);
+    m.def("coil_forces_matrix" , &coil_forces_matrix);
     m.def("Ellint1AGM" , &Ellint1AGM);
     m.def("Ellint2AGM" , &Ellint2AGM);
     

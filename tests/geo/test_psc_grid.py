@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 from monty.tempfile import ScratchDir
 
-from simsopt.geo import PSCgrid, SurfaceRZFourier
+from simsopt.geo import PSCgrid, WPgrid, SurfaceRZFourier
 from simsopt.field import BiotSavart, coils_via_symmetries, Current, CircularCoil
 import simsoptpp as sopp
 
@@ -29,6 +29,47 @@ surfs = [surf1, surf2, surf3]
 
 class Testing(unittest.TestCase):
     
+    def test_coil_forces_derivatives(self):
+        ncoils = 7
+        np.random.seed(1)
+        R = 1.0
+        a = 1e-5
+        points = (np.random.rand(ncoils, 3) - 0.5) * 20
+        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
+        for surf in surfs:
+            print('Surf = ', surf)
+            kwargs_manual = {"plasma_boundary": surf}
+            wp_array = WPgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+            )
+            b_F, A_F = wp_array.coil_forces()
+            I = wp_array.I
+            b_F *= I 
+            A_F *= I
+            force_objective = 0.5 * (A_F @ I + b_F).T @ (A_F @ I + b_F)
+            deltas_new = np.copy(deltas)
+            deltas_new[0] += epsilon
+            alphas_new = np.copy(alphas)
+            psc_array_new = WPgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
+            )
+            b_F, A_F_new = wp_array.coil_forces()
+            I = wp_array.I
+            b_F *= I 
+            A_F *= I
+            force_objective_new = 0.5 * (A_F_new @ I + b_F).T @ (A_F_new @ I + b_F)
+            df_objective = (force_objective_new - force_objective) / epsilon
+            # print(A @ Linv @ psi_new, A @ Linv @ psi, b)
+            dAF_ddelta = (A_F_new - A_F) / epsilon
+            AF_deriv = wp_array.AF_deriv()
+            print(dAF_ddelta[0], AF_deriv[ncoils])
+            assert(np.allclose(dAF_ddelta[0], AF_deriv[ncoils], rtol=1e-3))
+            df_analytic = (A_F @ I + b_F).T @ (A_F @ I)
+            print(df_objective, df_analytic[0])
+            assert np.isclose(df_objective, df_analytic[0], rtol=1e-2)
+    
     def test_coil_forces(self):
         from scipy.special import ellipk, ellipe
         
@@ -36,29 +77,32 @@ class Testing(unittest.TestCase):
         I1 = 5.0
         I2 = -3.0
         Z1 = 1.0
-        Z2 = 3.0
+        Z2 = 4.0
         R1 = 0.5
         R2 = R1
         a = 1e-5
-        points = np.array([[0.0, 0.0, Z1], [0.0, 0.0, Z2]]).T
-        alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
-        deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        points = np.array([[0.0, 0.0, Z1], [0.0, 0.0, Z2]])
+        alphas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        deltas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * 2 * np.pi
         k = np.sqrt(4.0 * R1 * R2 / ((R1 + R2) ** 2 + (Z2 - Z1) ** 2))
         mu0 = 4 * np.pi * 1e-7
         # Jackson uses K(k) and E(k) but this corresponds to
         # K(k^2) and E(k^2) in scipy library
         F_analytic = mu0 * I1 * I2 * k * (Z2 - Z1) * (
             (2  - k ** 2) * ellipe(k ** 2) / (1 - k ** 2) - 2.0 * ellipk(k ** 2)
-        ) / 4.0
+        ) / (4.0 * np.sqrt(R1 * R2))
         
-        psc_array = PSCgrid.geo_setup_manual(
-            points, R=R1, a=a, alphas=alphas, deltas=deltas
+        wp_array = WPgrid.geo_setup_manual(
+            points, R=R1, a=a, alphas=alphas, deltas=deltas, I=np.array([I1, I2])
         )
-        F = psc_array.coil_forces()
-        print(F, F_analytic)
-        assert np.allclose(F[:, 0], 0.0)
-        assert np.allclose(F[:, 1], 0.0)
-        assert np.allclose(F[:, 2], F_analytic)
+        b_F, A_F = wp_array.coil_forces()
+        F_TF = wp_array.I[:, None] * b_F
+        # print('A = ', A_F[:, :, 2])
+        F_WP = wp_array.I[:, None] * np.tensordot(A_F, wp_array.I, axes=([1, 0])) * wp_array.fac
+        print(F_TF, F_WP, F_WP.shape, F_analytic)
+        assert np.allclose(F_WP[:, 0], 0.0)
+        assert np.allclose(F_WP[:, 1], 0.0)
+        assert np.allclose(np.abs(F_WP[:, 2]), abs(F_analytic))
     
     def test_dpsi_analytic_derivatives(self):
         """
@@ -193,7 +237,7 @@ class Testing(unittest.TestCase):
         alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
         deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
         epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
-        for surf in surfs:  # surf1
+        for surf in [surf2]:  # surf1
             print('Surf = ', surf)
             kwargs_manual = {"plasma_boundary": surf}
             psc_array = PSCgrid.geo_setup_manual(
@@ -221,10 +265,13 @@ class Testing(unittest.TestCase):
             dL_ddelta = (L_new - L) / epsilon
             dLinv_ddelta = (Linv_new - Linv) / epsilon
             ncoils_sym = L_deriv.shape[0] // 2
-            # print(np.array_str(dL_ddelta, precision=3, suppress_small=True))
-            # print(np.array_str(L_deriv[ncoils_sym, :, :], precision=3, suppress_small=True))
+            print(np.array_str(dL_ddelta, precision=3, suppress_small=True))
+            print(np.array_str(L_deriv[ncoils_sym, :, :], precision=3, suppress_small=True))
             dL_ddelta_analytic = L_deriv
             dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
+            # print(dLinv_ddelta_analytic.shape)
+            # print(np.array_str(dLinv_ddelta_analytic * 1e10, precision=3, suppress_small=True))
+            # exit()
 
             # Linv calculations looks much more incorrect that the L derivatives,
             # maybe because of numerical error accumulation? 

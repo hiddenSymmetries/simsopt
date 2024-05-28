@@ -182,7 +182,9 @@ pm_opt.m = np.ravel(m_history[:, :, min_ind])
 # Print effective permanent magnet volume
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
-M_max = B_max / mu0 
+M_max = B_max / mu0
+print(pm_opt.m_maxima)
+exit()
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))

@@ -36,7 +36,7 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 4
@@ -104,7 +104,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-# bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -115,7 +115,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10, "out_dir": out_str, "random_initialization": True} 
+kwargs_geo = {"Nx": 4, "out_dir": out_str, "random_initialization": True} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
@@ -171,10 +171,14 @@ for k in range(STLSQ_max_iters):
     x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                      method='L-BFGS-B',
                      # bounds=opt_bounds,
-                     # jac=psc_array.least_squares_jacobian, 
+                      # jac=psc_array.least_squares_jacobian, 
                      options=options,
                      tol=1e-10,
                      )
+    from matplotlib import pyplot as plt
+    plt.figure()
+    plt.semilogy(psc_array.BdotN2_list)
+    plt.show()
     I = psc_array.I
     small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
     grid_xyz = psc_array.grid_xyz

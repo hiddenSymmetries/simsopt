@@ -598,11 +598,62 @@ Array coil_forces(Array& points, Array& B, Array& alphas, Array& deltas, Array& 
         F(i, 1) = Fy;
         F(i, 2) = Fz;
     }
+    return F * M_PI;
+}
+
+Array coil_forces_matrix(Array& points, Array& A, Array& alphas, Array& deltas, Array& int_points, Array& int_weights) {
+    double* A_ptr = &(A(0, 0, 0, 0));
+    double* points_ptr = &(points(0, 0));
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* weight_ptr = &(int_weights(0));
+    double* int_point_ptr = &(int_points(0));  
+    int num_quad = int_points.shape(0);
+    int num_coils = alphas.shape(0);
+    Array F = xt::zeros<double>({num_coils, num_coils, 3});
+    
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_coils; i++) {
+        auto xi = points_ptr[3 * i];
+        auto yi = points_ptr[3 * i + 1];
+        auto zi = points_ptr[3 * i + 2];
+        auto cai = cos(alphas_ptr[i]);
+        auto sai = sin(alphas_ptr[i]);
+        auto cdi = cos(deltas_ptr[i]);
+        auto sdi = sin(deltas_ptr[i]);
+        for(int j = 0; j < num_coils; j++) {
+            auto Fx = 0.0;
+            auto Fy = 0.0;
+            auto Fz = 0.0;
+            for (int k = 0; k < num_quad; ++k) {
+                auto Ax = A(i, j, k, 0);
+                auto Ay = A(i, j, k, 1);
+                auto Az = A(i, j, k, 2);
+                auto pk = int_point_ptr[k];
+                auto ck = cos(pk);
+                auto sk = sin(pk);
+                auto weight = weight_ptr[k];
+                auto dl_x = -sk * cdi + ck * sai * sdi;
+                auto dl_y = ck * cai;
+                auto dl_z = sk * sdi + ck * sai * cdi;
+                auto dl_cross_B_x = dl_y * Az - Ay * dl_z;
+                auto dl_cross_B_y = dl_z * Ax - dl_x * Az;
+                auto dl_cross_B_z = dl_x * Ay - dl_y * Ax;
+                Fx += dl_cross_B_x * weight;
+                Fy += dl_cross_B_y * weight;
+                Fz += dl_cross_B_z * weight;
+            }
+            F(i, j, 0) = Fx;
+            F(i, j, 1) = Fy;
+            F(i, j, 2) = Fz;
+        }
+    }
+    return F * M_PI;
 }
 
 
 // Calculate the inductance matrix needed for the PSC forward problem
-Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights)
+Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights, int num_unique_psc, int stellsym, int nfp)
 {
     // points shape should be (num_coils, 3)
     int num_coils = alphas.shape(0);  // shape should be (num_coils)
@@ -618,6 +669,8 @@ Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_point
     constexpr int simd_size = xsimd::simd_type<double>::size;
     
     // Loop through the the PSC array
+//     auto start = std::chrono::steady_clock::now();
+
     #pragma omp parallel for schedule(static)
     for(int i = 0; i < num_coils; i += simd_size) {
         int klimit = std::min(simd_size, num_coils - i);
@@ -696,10 +749,51 @@ Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_point
                 if ((i + k) != j) {
                     L_deriv(i + k, i + k, j) = integrand1[k];
                     L_deriv(i + k + num_coils, i + k, j) = integrand2[k];
+                    // Add the transpose
+                    L_deriv(i + k, j, i + k) = integrand1[k];
+                    L_deriv(i + k + num_coils, j, i + k) = integrand2[k];
                 }
             }
         }
     }
+//     auto end = std::chrono::steady_clock::now();
+  
+    // Store the time difference between start and end
+//     auto diff = end - start;
+//     std::cout << std::chrono::duration<double, std::milli>(diff).count() << " ms" << std::endl;
+    
+//     auto start2 = std::chrono::steady_clock::now();
+
+    // now add in discrete symmetry contributions
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_unique_psc; i += simd_size) {
+        int klimit = std::min(simd_size, num_unique_psc - i);
+        for (int j = 0; j < num_coils; ++j) {
+            for (int jj = j + 1; jj < num_coils; ++jj) {
+                for(int k = 0; k < klimit; k++){
+                    int q = 1;
+                    for (int fp = 0; fp < nfp; fp++) {
+                        for (int stell = 1; stell > -2; stell -= 2) {
+                            if ((fp > 0) || stell != 1) {
+                                L_deriv(i + k, j, jj) += L_deriv(i + k + q * num_unique_psc, \
+                                                                 j, jj) * pow(-1, fp);
+                                L_deriv(i + k, jj, j) = L_deriv(i + k, j, jj);           
+                                L_deriv(num_coils + i + k, j, jj) += L_deriv(num_coils + i + k + q * num_unique_psc, \
+                                                                             j, jj) * pow(-1, fp) * stell;
+                                L_deriv(num_coils + i + k, jj, j) = L_deriv(num_coils + i + k, j, jj);
+                                q += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+//     auto end2 = std::chrono::steady_clock::now();
+  
+    // Store the time difference between start and end
+//     auto diff2 = end2 - start2;
+//     std::cout << std::chrono::duration<double, std::milli>(diff2).count() << " milliseconds" << std::endl;
     return L_deriv * M_PI * M_PI;
 }
 
@@ -1008,15 +1102,13 @@ Array dA_dkappa_simd(Array& points, Array& plasma_points, Array& alphas, Array& 
                                         (Rxy * x0 + Ryy * y0 + Rzy * z0) - Rsk, \
                                         (Rxz * x0 + Ryz * y0 + Rzz * z0));     
                 // multiply by R^T and then subtract off coil coordinate
-                auto dl_cross_RTdiff = cross(dl, RTdiff);
+                Vec3dSimd dl_cross_RTdiff = cross(dl, RTdiff);
                 simd_t rmag_2 = normsq(RTdiff);
                 simd_t denom = rsqrt(rmag_2);
                 simd_t denom3 = denom * denom * denom * weight;  // notice weight factor
                 simd_t denom5 = denom3 * denom * denom * (-3.0);
                 // First derivative contribution of three
-                B1.x += dl_cross_RTdiff.x * denom3;
-                B1.y += dl_cross_RTdiff.y * denom3;
-                B1.z += dl_cross_RTdiff.z * denom3;
+                B1 += dl_cross_RTdiff * denom3;
                 // second derivative contribution (should be dRT/dalpha)
                 auto dR_dalphaT = Vec3dSimd((simd_t) 0.0, \
                                             dRxy_dalpha * x0 + dRyy_dalpha * y0 + dRzy_dalpha * z0, \
@@ -1026,23 +1118,15 @@ Array dA_dkappa_simd(Array& points, Array& plasma_points, Array& alphas, Array& 
                                             dRxz_ddelta * x0 + dRzz_ddelta * z0);
                 auto dl_cross_dR_dalphaT = cross(dl, dR_dalphaT);
                 auto dl_cross_dR_ddeltaT = cross(dl, dR_ddeltaT);
-                B2.x += dl_cross_dR_dalphaT.x * denom3;
-                B2.y += dl_cross_dR_dalphaT.y * denom3;
-                B2.z += dl_cross_dR_dalphaT.z * denom3;
-                B4.x += dl_cross_dR_ddeltaT.x * denom3;
-                B4.y += dl_cross_dR_ddeltaT.y * denom3;
-                B4.z += dl_cross_dR_ddeltaT.z * denom3;
+                B2 += dl_cross_dR_dalphaT * denom3;
+                B4 += dl_cross_dR_ddeltaT * denom3;
                 // third derivative contribution
                 simd_t RTdiff_dot_dR_dalpha = inner(RTdiff, dR_dalphaT);
                 simd_t prefac_alpha = RTdiff_dot_dR_dalpha * denom5;
                 simd_t RTdiff_dot_dR_ddelta = inner(RTdiff, dR_ddeltaT);
                 simd_t prefac_delta = RTdiff_dot_dR_ddelta * denom5;
-                B2.x += dl_cross_RTdiff.x * prefac_alpha;
-                B2.y += dl_cross_RTdiff.y * prefac_alpha;
-                B2.z += dl_cross_RTdiff.z * prefac_alpha;
-                B4.x += dl_cross_RTdiff.x * prefac_delta;
-                B4.y += dl_cross_RTdiff.y * prefac_delta;
-                B4.z += dl_cross_RTdiff.z * prefac_delta;
+                B2 += dl_cross_RTdiff * prefac_alpha;
+                B4 += dl_cross_RTdiff * prefac_delta;
             }
             // rotate first contribution by dR/dalpha
             simd_t Bx1 = B1.x;
@@ -1250,6 +1334,95 @@ Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas
             auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
             auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
             A(i, j) = Bx_rot * nx + By_rot * ny + Bz_rot * nz;
+        }
+    }
+    return A;
+}
+
+
+Array coil_forces_A_matrix(Array& points, Array& coil_points, Array& alphas, Array& deltas, double R)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    if(coil_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("coil_points needs to be in row-major storage order");
+          
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    
+    // coil_points shape is (num_coils, num_coil_points, 3)
+    int num_coil_points = coil_points.shape(1);
+    
+    // this variable is the A matrix in the least-squares term so A * I = Bn
+    Array A = xt::zeros<double>({num_coils, num_coils, num_coil_points, 3});
+    double R2 = R * R;
+    using namespace boost::math;
+    
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* points_ptr = &(points(0, 0));
+    double* coil_points_ptr = &(coil_points(0, 0, 0));
+    
+    #pragma omp parallel for schedule(static)
+    for(int j = 0; j < num_coils; j++) {
+        auto cdj = cos(deltas_ptr[j]);
+        auto caj = cos(alphas_ptr[j]);
+        auto sdj = sin(deltas_ptr[j]);
+        auto saj = sin(alphas_ptr[j]);
+        auto xj = points_ptr[3 * j];
+        auto yj = points_ptr[3 * j + 1];
+        auto zj = points_ptr[3 * j + 2];
+        for (int i = 0; i < num_coils; ++i) {
+            if (j != i) {
+                for (int k = 0; k < num_coil_points; ++k) {
+                    auto xp = coil_points(i, k, 0);  // [3 * i * num_coil_points + 3 * k];
+                    auto yp = coil_points(i, k, 1);
+                    auto zp = coil_points(i, k, 2);
+                    auto x0 = (xp - xj);
+                    auto y0 = (yp - yj);
+                    auto z0 = (zp - zj);
+                    auto nxx = cdj;
+                    auto nxy = sdj * saj;
+                    auto nxz = sdj * caj;
+                    auto nyx = 0.0;
+                    auto nyy = caj;
+                    auto nyz = -saj;
+                    auto nzx = -sdj;
+                    auto nzy = cdj * saj;
+                    auto nzz = cdj * caj;
+                    auto x = x0 * nxx + y0 * nyx + z0 * nzx;
+                    auto y = x0 * nxy + y0 * nyy + z0 * nzy;
+                    auto z = x0 * nxz + y0 * nyz + z0 * nzz;
+                    auto rho2 = x * x + y * y;
+                    auto r2 = rho2 + z * z;
+                    auto rho = sqrt(rho2);
+                    auto R2_r2 = R2 + r2;
+                    auto gamma2 = R2_r2 - 2.0 * R * rho;
+                    auto beta2 = R2_r2 + 2.0 * R * rho;
+                    auto beta = sqrt(beta2);
+                    auto k2 = 1.0 - gamma2 / beta2;
+                    auto beta_gamma2 = beta * gamma2;
+                    auto kk = sqrt(k2);
+                    auto ellipe = ellint_2(kk);
+                    auto ellipk = ellint_1(kk);
+                    auto Eplus = R2_r2 * ellipe - gamma2 * ellipk;
+                    auto Eminus = (R2 - r2) * ellipe + gamma2 * ellipk;
+                    auto Bx = x * z * Eplus / (rho2 * beta_gamma2);
+                    auto By = y * z * Eplus / (rho2 * beta_gamma2);
+                    auto Bz = Eminus / beta_gamma2;
+                    // Need to rotate the vector
+                    auto Bx_rot = Bx * nxx + By * nxy + Bz * nxz;
+                    auto By_rot = Bx * nyx + By * nyy + Bz * nyz;
+                    auto Bz_rot = Bx * nzx + By * nzy + Bz * nzz;
+                    A(i, j, k, 0) = Bx_rot;
+                    A(i, j, k, 1) = By_rot;
+                    A(i, j, k, 2) = Bz_rot;
+                }
+            }
         }
     }
     return A;
