@@ -3,7 +3,6 @@ import unittest
 
 from monty.tempfile import ScratchDir
 
-from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo import parameters

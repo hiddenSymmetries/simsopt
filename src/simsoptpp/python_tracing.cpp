@@ -17,6 +17,14 @@ void init_tracing(py::module_ &m){
     py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");
     py::class_<IterationStoppingCriterion, shared_ptr<IterationStoppingCriterion>, StoppingCriterion>(m, "IterationStoppingCriterion")
         .def(py::init<int>());
+    py::class_<MinRStoppingCriterion, shared_ptr<MinRStoppingCriterion>, StoppingCriterion>(m, "MinRStoppingCriterion")
+        .def(py::init<double>());
+    py::class_<MinZStoppingCriterion, shared_ptr<MinZStoppingCriterion>, StoppingCriterion>(m, "MinZStoppingCriterion")
+        .def(py::init<double>());
+    py::class_<MaxRStoppingCriterion, shared_ptr<MaxRStoppingCriterion>, StoppingCriterion>(m, "MaxRStoppingCriterion")
+        .def(py::init<double>());
+    py::class_<MaxZStoppingCriterion, shared_ptr<MaxZStoppingCriterion>, StoppingCriterion>(m, "MaxZStoppingCriterion")
+        .def(py::init<double>());
     py::class_<MaxToroidalFluxStoppingCriterion, shared_ptr<MaxToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MaxToroidalFluxStoppingCriterion")
         .def(py::init<double>());
     py::class_<MinToroidalFluxStoppingCriterion, shared_ptr<MinToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MinToroidalFluxStoppingCriterion")

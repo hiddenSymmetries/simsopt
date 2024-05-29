@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides routines for interacting with the
@@ -300,27 +300,27 @@ class VirtualCasing:
             f.createDimension('xyz', 3)
 
             src_ntheta = f.createVariable('src_ntheta', 'i', tuple())
-            src_ntheta.assignValue(self.src_ntheta)
+            src_ntheta.data[()] = self.src_ntheta
             src_ntheta.description = 'Number of grid points in the poloidal angle theta for source B field and surface shape'
             src_ntheta.units = 'Dimensionless'
 
             trgt_ntheta = f.createVariable('trgt_ntheta', 'i', tuple())
-            trgt_ntheta.assignValue(self.trgt_ntheta)
+            trgt_ntheta.data[()] = self.trgt_ntheta
             trgt_ntheta.description = 'Number of grid points in the poloidal angle theta for resulting B_external'
             trgt_ntheta.units = 'Dimensionless'
 
             src_nphi = f.createVariable('src_nphi', 'i', tuple())
-            src_nphi.assignValue(self.src_nphi)
+            src_nphi.data[()] = self.src_nphi
             src_nphi.description = 'Number of grid points in the toroidal angle phi for source B field and surface shape'
             src_nphi.units = 'Dimensionless'
 
             trgt_nphi = f.createVariable('trgt_nphi', 'i', tuple())
-            trgt_nphi.assignValue(self.trgt_nphi)
+            trgt_nphi.data[()] = self.trgt_nphi
             trgt_nphi.description = 'Number of grid points in the toroidal angle phi for resulting B_external'
             trgt_nphi.units = 'Dimensionless'
 
             nfp = f.createVariable('nfp', 'i', tuple())
-            nfp.assignValue(self.nfp)
+            nfp.data[()] = self.nfp
             nfp.description = 'Periodicity in toroidal direction'
             nfp.units = 'Dimensionless'
 

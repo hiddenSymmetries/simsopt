@@ -173,29 +173,36 @@ class Derivative:
 
         Args:
             optim: An Optimizable object
+            as_derivative: if True return as a Derivative object, else return as an numpy array. The keys
+                           of the returned Derivative dictionary can include `optim`, the ancestors of `optim`
+                           or Optimizables that share DOFs with ancestors of `optim`.
         """
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
-        
-        if as_derivative: 
-            derivs = []
+        derivs = []
+
+        if as_derivative:
             keys = []
+
             for k in optim.unique_dof_lineage:
-                local_derivs = np.zeros(k.local_full_dof_size)
                 for opt in k.dofs.dep_opts():
-                    local_derivs += self.data[opt]  # return the full derivative here, including the derivatives of fixed dofs
-                    keys.append(opt)
-                derivs.append(local_derivs)
+
+                    # the next if-statament is there to avoid the dictionary from accumulating 
+                    # empty values e.g. if there are no local DOFs to opt, then self.data[opt] 
+                    # returns np.array([]).
+
+                    if opt.local_full_dof_size > 0:
+                        derivs.append(self.data[opt])
+                        keys.append(opt)
+
             return Derivative({k: d for k, d in zip(keys, derivs)})
+
         else:
-            derivs = []
-            keys = []
             for k in optim.unique_dof_lineage:
                 if np.any(k.dofs_free_status):
                     local_derivs = np.zeros(k.local_dof_size)
                     for opt in k.dofs.dep_opts():
-                        local_derivs += self.data[opt][opt.local_dofs_free_status]  # filter out the derivatives of fixed dofs
-                        keys.append(opt)
+                        local_derivs += self.data[opt][opt.local_dofs_free_status]
                     derivs.append(local_derivs)
             return np.concatenate(derivs)
 

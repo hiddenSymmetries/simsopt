@@ -64,6 +64,46 @@ class MinToroidalFluxStoppingCriterion : public StoppingCriterion{
         };
 };
 
+class MinZStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_z;
+    public:
+        MinZStoppingCriterion(double crit_z) : crit_z(crit_z) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return z<=crit_z;
+        };
+};
+
+class MaxZStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_z;
+    public:
+        MaxZStoppingCriterion(double crit_z) : crit_z(crit_z) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return z>=crit_z;
+        };
+};
+
+class MinRStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_r;
+    public:
+        MinRStoppingCriterion(double crit_r) : crit_r(crit_r) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return std::sqrt(x*x+y*y)<=crit_r;            
+        };
+};
+
+class MaxRStoppingCriterion : public StoppingCriterion{
+    private:
+        double crit_r;
+    public:
+        MaxRStoppingCriterion(double crit_r) : crit_r(crit_r) {};
+        bool operator()(int iter, double t, double x, double y, double z) override {
+            return std::sqrt(x*x+y*y)>=crit_r;            
+        };
+};
+
 class IterationStoppingCriterion : public StoppingCriterion{
     private:
         int max_iter;

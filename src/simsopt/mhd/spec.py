@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides a class that handles the SPEC equilibrium code.
@@ -798,7 +798,7 @@ class Spec(Optimizable):
             si.zac[0:mn] = self.axis['zac']
 
         # Set initial guess
-        if not self.initial_guess is None:        
+        if self.initial_guess is not None:        
             # Set all modes to zero
             spec.allglobal.mmrzrz[:] = 0
             spec.allglobal.nnrzrz[:] = 0
@@ -939,7 +939,7 @@ class Spec(Optimizable):
             spec.allglobal.broadcast_inputs()
             logger.debug('About to call preset')
             spec.preset()
-            logger.debug(f'About to call init_outfile')
+            logger.debug('About to call init_outfile')
             spec.sphdf5.init_outfile()
             logger.debug('About to call mirror_input_to_outfile')
             spec.sphdf5.mirror_input_to_outfile()
@@ -948,7 +948,7 @@ class Spec(Optimizable):
                 spec.allglobal.wrtend()
             logger.debug('About to call init_convergence_output')
             spec.sphdf5.init_convergence_output()
-            logger.debug(f'About to call spec')
+            logger.debug('About to call spec')
             spec.spec()
             logger.debug('About to call diagnostics')
             spec.final_diagnostics()
@@ -1109,13 +1109,14 @@ class Residue(Optimizable):
         """
         Run Spec if needed, find the periodic field line, and return the residue
         """
+        if self.need_to_run_code:
+            self.spec.run()
+        
         if not self.mpi.proc0_groups:
             logger.info(
                 "This proc is skipping Residue.J() since it is not a group leader.")
-            return
-
-        if self.need_to_run_code:
-            self.spec.run()
+            return 0.0
+        else:
             specb = pyoculus.problems.SPECBfield(self.spec.results, self.vol)
             # Set nrestart=0 because otherwise the random guesses in
             # pyoculus can cause examples/tests to be

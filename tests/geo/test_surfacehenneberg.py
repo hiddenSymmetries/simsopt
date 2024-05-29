@@ -19,11 +19,10 @@ except:
 
 try:
     import vmec
-    vmec_found = True
 except ImportError:
-    vmec_found = False
+    vmec = None
 
-if (MPI is not None) and vmec_found:
+if (MPI is not None) and vmec is not None:
     from simsopt.mhd.vmec import Vmec
 else:
     Vmec = None
@@ -102,12 +101,6 @@ class SurfaceHennebergTests(unittest.TestCase):
         """
         surf = SurfaceHenneberg(nfp=1, alpha_fac=1, mmax=2, nmax=1)
         # Order of elements:
-        names_correct = ['R0nH(0)', 'R0nH(1)',
-                         'Z0nH(1)',
-                         'bn(0)', 'bn(1)',
-                         'rhomn(0,1)',
-                         'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)',
-                         'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)']
         surf.fixed_range(20, 20, True)
         np.testing.assert_equal(surf.local_dofs_free_status, [False]*12)
         surf.fixed_range(20, 20, False)
