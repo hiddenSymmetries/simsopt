@@ -42,11 +42,11 @@ import os
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas,\
-        BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
+        BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation, SurfaceXYZTensorFourier, Volume, BoozerSurface
 from simsopt._core import load
 from simsopt.objectives import MPIObjective, MPIOptimizable
 from simsopt.field import BiotSavart
-from simsopt.objectives import QuadraticPenalty
+from simsopt.objectives import QuadraticPenalty, Zero
 from simsopt.util import proc0_print, in_github_actions
 try:
     from mpi4py import MPI
@@ -69,6 +69,32 @@ proc0_print("=========================================")
 
 base_curves, base_currents, coils, curves, surfaces, boozer_surfaces, ress = load(IN_DIR + "ncsx_init.json")
 
+if rank == 0:
+    mpol = 6
+    ntor = 6
+    stellsym = True
+    nfp = 3
+    
+    phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+    thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+    s = SurfaceXYZTensorFourier(
+        mpol=mpol, ntor=ntor, stellsym=stellsym, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+    s.x = surfaces[0].x
+    
+    # Use a volume surface label
+    vol = Volume(s)
+    vol_target = vol.J()
+    bs = BiotSavart(coils)
+
+    ## compute the surface
+    boozer_surface = BoozerSurface(bs, s, vol, vol_target)
+    res = boozer_surface.run_code(ress[0]['iota'], G=ress[0]['G'])
+    
+    surfaces[0] = s
+    boozer_surfaces[0] = boozer_surface
+    ress[0]['iota'] = boozer_surface.res['iota']
+    ress[0]['G'] = boozer_surface.res['G']
+
 # you can optimize for QA on up to 10 surfaces, by changing nsurfaces below.
 nsurfaces = 2
 assert nsurfaces <= 10
@@ -83,10 +109,10 @@ mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
 mpi_boozer_surfaces = MPIOptimizable(boozer_surfaces, ["res", "need_to_run_code"], comm)
 
 mrs = [MajorRadius(boozer_surface) for boozer_surface in boozer_surfaces]
-mrs_equality = [len(mrs)*QuadraticPenalty(mr, mr.J(), 'identity') if idx == len(mrs)-1 else 0*QuadraticPenalty(mr, mr.J(), 'identity') for idx, mr in enumerate(mrs)]
+mrs_equality = [len(mrs)*QuadraticPenalty(mr, mr.J(), 'identity') if idx == len(mrs)-1 else Zero() for idx, mr in enumerate(mrs)]
 iotas = [Iotas(boozer_surface) for boozer_surface in boozer_surfaces]
 nonQSs = [NonQuasiSymmetricRatio(boozer_surface, BiotSavart(coils)) for boozer_surface in boozer_surfaces]
-brs = [BoozerResidual(boozer_surface, BiotSavart(coils)) for boozer_surface in boozer_surfaces]
+brs = [BoozerResidual(boozer_surface, BiotSavart(coils)) if boozer_surface.boozer_type == "ls" else Zero() for boozer_surface in boozer_surfaces]
 
 MIN_DIST_THRESHOLD = 0.15
 KAPPA_THRESHOLD = 15.
@@ -194,6 +220,7 @@ def callback(x):
     outstr += f"{'coil length sum':{width}} {sum(J.J() for J in ls):.3f} \n"
     outstr += f"{'max κ':{width}}" + ', '.join([f'{np.max(c.kappa()):.6f}' for c in base_curves]) + "\n"
     outstr += f"{'∫ κ^2 dl / ∫ dl':{width}}" + ', '.join([f'{Jmsc.J():.6f}' for Jmsc in msc_list]) + "\n"
+    outstr += f"{'boozer type':{width}}" + ', '.join([boozer_surface.boozer_type for boozer_surface in mpi_boozer_surfaces]) + "\n"
     outstr += "\n\n"
 
     proc0_print(outstr)

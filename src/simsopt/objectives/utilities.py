@@ -5,7 +5,7 @@ import scipy
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 
-__all__ = ['MPIOptimizable', 'MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
+__all__ = ['MPIOptimizable', 'MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward', 'Zero']
 
 
 def forward_backward(P, L, U, rhs, iterative_refinement=False):
@@ -204,3 +204,12 @@ class Weight(object):
     def __imul__(self, alpha):
         self.value *= alpha
         return self
+
+
+class Zero(Optimizable):
+    def J(self):
+        return 0.
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative()
