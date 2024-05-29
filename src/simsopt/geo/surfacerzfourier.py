@@ -637,6 +637,43 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
+    def make_rotating_ellipse(self, major_radius, minor_radius, elongation, torsion=0):
+        """
+        Set the surface shape to be a rotating ellipse with the given
+        parameters.
+
+        Values of ``elongation`` larger than 1 will result in the elliptical
+        cross-section at :math:`\phi=0` being taller than it is wide.
+        Values of ``elongation`` less than 1 will result in the elliptical
+        cross-section at :math:`\phi=0` being wider than it is tall.
+
+        The sign convention is such that both the rotating elongation and
+        positive ``torsion`` will contribute positively to iota according to
+        VMEC's sign convention.
+
+        Args:
+            major_radius: Average major radius of the surface.
+            minor_radius: Average minor radius of the surface.
+            elongation: Elongation of the elliptical cross-section.
+            torsion: Value to use for the (m,n)=(0,1) mode of RC and -ZS, which
+                controls the torsion of the magnetic axis.
+        """
+
+        self.local_full_x = np.zeros_like(self.local_full_x)
+        self.set_rc(0, 0, major_radius)
+        self.set_rc(0, 1, torsion)
+        self.set_zs(0, 1, -torsion)
+
+        sqrt_elong = np.sqrt(elongation)
+        amplitude = 0.5 * minor_radius * (1 / sqrt_elong - sqrt_elong)
+        self.set_rc(1, 1, amplitude)
+        self.set_zs(1, 1, -amplitude)
+
+        amplitude = 0.5 * minor_radius * (1 / sqrt_elong + sqrt_elong)
+        self.set_rc(1, 0, amplitude)
+        self.set_zs(1, 0, amplitude)
+
+
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
