@@ -33,6 +33,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                                abs_step: float = 1.0e-7,
                                rel_step: float = 0.0,
                                diff_method: str = "forward",
+                               save_residuals: bool = False,
                                **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -52,6 +53,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
              ``"forward"``. If ``"centered"``, centered finite differences will
              be used. If ``"forward"``, one-sided finite differences will
              be used. Else, error is raised.
+        save_residuals: Whether to save the residuals at each iteration.
+             This can be useful for debugging, although the file can become large.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -62,7 +65,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
 
     datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     objective_file = open(f"simsopt_{datestr}.dat", 'w')
-    residuals_file = open(f"residuals_{datestr}.dat", 'w')
+    if save_residuals:
+        residuals_file = open(f"residuals_{datestr}.dat", 'w')
 
     nevals = 0
     start_time = time()
@@ -105,15 +109,16 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                 objective_file.write(f",x({j})")
             objective_file.write(",objective_function\n")
 
-            residuals_file.write(
-                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
-            residuals_file.write("function_evaluation,seconds")
-            for j in range(ndofs):
-                residuals_file.write(f",x({j})")
-            residuals_file.write(",objective_function")
-            for j in range(len(residuals)):
-                residuals_file.write(f",F({j})")
-            residuals_file.write("\n")
+            if save_residuals:
+                residuals_file.write(
+                    f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
+                residuals_file.write("function_evaluation,seconds")
+                for j in range(ndofs):
+                    residuals_file.write(f",x({j})")
+                residuals_file.write(",objective_function")
+                for j in range(len(residuals)):
+                    residuals_file.write(f",F({j})")
+                residuals_file.write("\n")
 
         elapsed_t = time() - start_time
         objective_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
@@ -123,14 +128,15 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         objective_file.write("\n")
         objective_file.flush()
 
-        residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
-        for xj in x:
-            residuals_file.write(f",{xj:24.16e}")
-        residuals_file.write(f",{objective_val:24.16e}")
-        for fj in residuals:
-            residuals_file.write(f",{fj:24.16e}")
-        residuals_file.write("\n")
-        residuals_file.flush()
+        if save_residuals:
+            residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
+            for xj in x:
+                residuals_file.write(f",{xj:24.16e}")
+            residuals_file.write(f",{objective_val:24.16e}")
+            for fj in residuals:
+                residuals_file.write(f",{fj:24.16e}")
+            residuals_file.write("\n")
+            residuals_file.flush()
 
         nevals += 1
         return residuals
@@ -154,7 +160,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
 
     datalogging_started = False
     objective_file.close()
-    residuals_file.close()
+    if save_residuals:
+        residuals_file.close()
     logger.info("Completed solve.")
 
     prob.x = result.x

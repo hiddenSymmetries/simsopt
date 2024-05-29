@@ -10,6 +10,13 @@ from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectr
 from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
 
+try:
+    import vmec
+except ImportError:
+    vmec = None
+
+from simsopt.mhd import Vmec
+
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 stellsym_list = [True, False]
@@ -630,6 +637,100 @@ class SurfaceRZFourierTests(unittest.TestCase):
             self.assertAlmostEqual(s2.volume(), surf_objs[1].volume())
             self.assertAlmostEqual(s2.area(), surf_objs[1].area())
             self.assertIs(surf_objs[0].dofs, surf_objs[1].dofs)
+
+    def test_make_rotating_ellipse(self):
+        major_radius = 8.4
+        minor_radius = 2.3
+        elongation = 2.7
+        torsion = 0.6
+        nfp = 3
+        sqrt_elong = np.sqrt(elongation)
+        surf = SurfaceRZFourier.from_nphi_ntheta(ntor=2, mpol=3, nphi=2, ntheta=4, range="field period", nfp=nfp)
+        surf.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+
+        xyz = surf.gamma()
+        R = np.sqrt(xyz[:, :, 0]**2 + xyz[:, :, 1]**2)
+        Z = xyz[:, :, 2]
+
+        # Check phi=0 plane:
+        np.testing.assert_allclose(
+            R[0, :],
+            [major_radius + torsion + minor_radius / sqrt_elong,
+             major_radius + torsion,
+             major_radius + torsion - minor_radius / sqrt_elong,
+             major_radius + torsion]
+        )
+        np.testing.assert_allclose(
+            Z[0, :],
+            [0,
+             minor_radius * sqrt_elong,
+             0,
+             -minor_radius * sqrt_elong],
+            atol=1e-14,
+        )
+
+        # Check phi=pi/nfp plane:
+        np.testing.assert_allclose(
+            R[1, :],
+            [major_radius - torsion + minor_radius * sqrt_elong,
+             major_radius - torsion,
+             major_radius - torsion - minor_radius * sqrt_elong,
+             major_radius - torsion]
+        )
+        np.testing.assert_allclose(
+            Z[1, :],
+            [0,
+             minor_radius / sqrt_elong,
+             0,
+             -minor_radius / sqrt_elong],
+            atol=1e-14,
+        )
+
+        # Now make the same surface shape with more quadpoints:
+        surf = SurfaceRZFourier.from_nphi_ntheta(ntor=1, mpol=1, nphi=64, ntheta=65, range="field period", nfp=nfp)
+        surf.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+        np.testing.assert_allclose(surf.major_radius(), major_radius)
+        np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+        np.testing.assert_allclose(surf.aspect_ratio(), major_radius / minor_radius)
+
+        # Check that the cross-sectional area is correct at every phi:
+        gamma = surf.gamma()
+        R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+        gammadash2 = surf.gammadash2()
+        dZdtheta = gammadash2[:, :, 2]
+        dtheta = surf.quadpoints_theta[1] - surf.quadpoints_theta[0]
+        area_vs_phi = np.abs(np.sum(R * dZdtheta, axis=1) * dtheta)
+        np.testing.assert_allclose(area_vs_phi, np.pi * minor_radius**2)
+
+    @unittest.skipIf(vmec is None, "vmec python extension is not installed")
+    def test_make_rotating_ellipse_iota(self):
+        """make_rotating_ellipse() should give positive iota."""
+        filename = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
+        with ScratchDir("."):
+            eq = Vmec(filename)
+            eq.indata.mpol = 4  # Lower resolution to expedite test
+            eq.indata.ntor = 4
+            eq.indata.ftol_array[:2] = [1e-8, 1e-10]
+
+            # Try the case of elongation=1 with positive axis torsion:
+            major_radius = 8.4
+            minor_radius = 1.3
+            elongation = 1.0
+            torsion = 0.9
+            eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+            eq.run()
+            np.testing.assert_array_less(0, eq.wout.iotaf)
+            np.testing.assert_allclose(eq.mean_iota(), 0.26990720954583547, rtol=1e-6)
+
+            # Try the case of zero axis torsion with rotating elongation:
+            major_radius = 8.4
+            minor_radius = 1.3
+            elongation = 2.1
+            torsion = 0.0
+            eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+            eq.run()
+            np.testing.assert_array_less(0, eq.wout.iotaf)
+            np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
 
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
