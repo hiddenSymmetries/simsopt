@@ -1422,19 +1422,34 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertTrue((sum_obj.dJ(partials=True)(adder_orig) == sum_obj.dJ()).all())
         self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
 
-    def test_shared_dofs_as_derivative(self):
-        quadA = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+    def test_as_derivative1(self):
+        # this test checks that you can restrict the Derivative dictionary
+        # to the proper subset of Optimizables when as_derivative=True
+
+        optA = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
                                         fixed=[False, False, True])
-        quadA_shared_dofs = OptClassSharedDOFs(dofs=quadA.dofs)
+        optA_shared_dofs = OptClassSharedDOFs(dofs=optA.dofs)
         
-        quadB = OptClassSharedDOFs(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
+        optB = OptClassSharedDOFs(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
                                         fixed=[False, False, True])
-        sum_quad = quadA + quadA_shared_dofs + quadB
-        deriv = sum_quad.dJ(partials=True)(sum_quad, as_derivative=True)
+        sum_opt = optA + optA_shared_dofs + optB
+        deriv = sum_opt.dJ(partials=True)(sum_opt, as_derivative=True)
         
-        np.testing.assert_allclose(deriv(quadA), quadA.dJ()*2, atol=1e-14)
-        np.testing.assert_allclose(deriv(quadA_shared_dofs), quadA.dJ()*2, atol=1e-14)
-        np.testing.assert_allclose(deriv(sum_quad), np.concatenate((quadA.dJ()*2, quadB.dJ())), atol=1e-14)
+        # restrict to optA 
+        np.testing.assert_allclose(deriv(optA), optA.dJ()*2, atol=1e-14)
+        # restrict to optA_shared_dofs
+        np.testing.assert_allclose(deriv(optA_shared_dofs), optA.dJ()*2, atol=1e-14)
+        # restrict to sum_opt
+        np.testing.assert_allclose(deriv(sum_opt), np.concatenate((optA.dJ()*2, optB.dJ())), atol=1e-14)
+
+    def test_as_derivative2(self):
+        # this test checks that when you sum a Derivative dictionary generated using as_derivative=True,
+        # to another that things work as expected when some DOFs are fixed.
+
+        opt = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        deriv = opt.dJ(partials=True)(opt, as_derivative=True) + opt.dJ(partials=True)
+        np.testing.assert_allclose(deriv(opt), opt.dJ()*2, atol=1e-14)
 
     def test_load_save(self):
         import tempfile
