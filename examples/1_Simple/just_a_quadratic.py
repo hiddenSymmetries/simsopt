@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import logging
 from simsopt.objectives.functions import Identity
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve

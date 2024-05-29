@@ -199,13 +199,12 @@ class ProfilesTests(unittest.TestCase):
         nD = ProfileScaled(ne, 0.55)
         nT = ProfileScaled(ne, 0.45)
         TD = ProfilePolynomial(12.0e3 * np.array([1.0, -1.0]))
-        TT = TD
         # Try zero profiles:
         with self.assertRaises(ValueError):
-            pressure = ProfilePressure()
+            ProfilePressure()
         with self.assertRaises(ValueError):
-            pressure = ProfilePressure(ne)
+            ProfilePressure(ne)
         with self.assertRaises(ValueError):
-            pressure = ProfilePressure(ne, Te, nD)
+            ProfilePressure(ne, Te, nD)
         with self.assertRaises(ValueError):
-            pressure = ProfilePressure(ne, Te, nD, TD, nT)
+            ProfilePressure(ne, Te, nD, TD, nT)

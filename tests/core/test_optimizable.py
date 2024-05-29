@@ -2,14 +2,26 @@ import unittest
 import re
 import json
 
+try:
+    import matplotlib
+except ImportError:
+    matplotlib = None
+try:
+    import networkx
+except ImportError:
+    networkx = None
+try:
+    import pygraphviz
+except ImportError:
+    pygraphviz = None
+
 import numpy as np
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
-from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable, \
     ScaledOptimizable, OptimizableSum, load, save
 from simsopt.objectives.functions import Identity, Rosenbrock, TestObject1, \
-    TestObject2, Beale
+    Beale
 from simsopt.objectives.functions import Adder as FAdder
 
 
@@ -1115,6 +1127,8 @@ class OptimizableTests(unittest.TestCase):
         ancestors = test_obj2._get_ancestors()
         self.assertEqual(len(ancestors), 4)
 
+    @unittest.skipIf(matplotlib is None or pygraphviz is None or networkx is None,
+                     "Plotting libraries are missing")
     def test_plot(self):
         """
         Verify that a DAG can be plotted.
@@ -1125,19 +1139,6 @@ class OptimizableTests(unittest.TestCase):
         function.
         """
         show = False
-
-        try:
-            import matplotlib
-        except ImportError:
-            return
-        try:
-            import networkx
-        except ImportError:
-            return
-        try:
-            import pygraphviz
-        except ImportError:
-            return
 
         # optimizable with no parents
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
@@ -1364,6 +1365,18 @@ class OptClassSharedDOFs(Optimizable):
         return Derivative({self: self.local_full_x})
 
 
+class OptClassSharedDOFsQuadratic(Optimizable):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def J(self):
+        return sum(self.x)
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative({self: self.local_full_x})
+
+
 class TestOptimizableSharedDOFs(unittest.TestCase):
     """
     Test the DOFs sharing for the Optimizable classes
@@ -1392,17 +1405,17 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
 
         adder_orig.fix("x")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11, 12]
         adder_shared_dofs.x = [11]
 
         adder_orig.unfix("z")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11]
         adder_shared_dofs.x = [11, 12]
 
         adder_shared_dofs.unfix_all()
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11, 12]
         adder_orig.x = [11, 12, 13]
 
@@ -1420,6 +1433,20 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertTrue((adder_orig.dJ()*2 == sum_obj.dJ()).all())
         self.assertTrue((sum_obj.dJ(partials=True)(adder_orig) == sum_obj.dJ()).all())
         self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
+
+    def test_shared_dofs_as_derivative(self):
+        quadA = OptClassSharedDOFsQuadratic(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        quadA_shared_dofs = OptClassSharedDOFsQuadratic(dofs=quadA.dofs)
+        
+        quadB = OptClassSharedDOFsQuadratic(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
+                                        fixed=[False, False, True])
+        sum_quad = quadA + quadA_shared_dofs + quadB
+        deriv = sum_quad.dJ(partials=True)(sum_quad, as_derivative=True)
+        
+        np.testing.assert_allclose(deriv(quadA), quadA.dJ()*2, atol=1e-14)
+        np.testing.assert_allclose(deriv(quadA_shared_dofs), quadA.dJ()*2, atol=1e-14)
+        np.testing.assert_allclose(deriv(sum_quad), np.concatenate((quadA.dJ()*2, quadB.dJ())), atol=1e-14)
 
     def test_load_save(self):
         import tempfile

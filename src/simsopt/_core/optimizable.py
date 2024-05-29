@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 Provides graph based Optimizable class, whose instances can be used to
@@ -1289,7 +1289,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Upper bounds of the free DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
     @upper_bounds.setter
