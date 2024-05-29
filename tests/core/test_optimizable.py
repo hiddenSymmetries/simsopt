@@ -1365,18 +1365,6 @@ class OptClassSharedDOFs(Optimizable):
         return Derivative({self: self.local_full_x})
 
 
-class OptClassSharedDOFsQuadratic(Optimizable):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def J(self):
-        return sum(self.x)
-
-    @derivative_dec
-    def dJ(self):
-        return Derivative({self: self.local_full_x})
-
-
 class TestOptimizableSharedDOFs(unittest.TestCase):
     """
     Test the DOFs sharing for the Optimizable classes
@@ -1435,11 +1423,11 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
 
     def test_shared_dofs_as_derivative(self):
-        quadA = OptClassSharedDOFsQuadratic(x0=[1, 2, 3], names=["x", "y", "z"],
+        quadA = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
                                         fixed=[False, False, True])
-        quadA_shared_dofs = OptClassSharedDOFsQuadratic(dofs=quadA.dofs)
+        quadA_shared_dofs = OptClassSharedDOFs(dofs=quadA.dofs)
         
-        quadB = OptClassSharedDOFsQuadratic(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
+        quadB = OptClassSharedDOFs(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
                                         fixed=[False, False, True])
         sum_quad = quadA + quadA_shared_dofs + quadB
         deriv = sum_quad.dJ(partials=True)(sum_quad, as_derivative=True)
