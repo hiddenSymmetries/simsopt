@@ -755,7 +755,7 @@ class Vmec(Optimizable):
                 try:
                     os.remove(filename)
                 except FileNotFoundError:
-                    logger.debug('Tried to delete the file {filename} but it was not found')
+                    logger.debug(f"Tried to delete the file {filename} but it was not found")
                     
             self.files_to_delete = []
 
