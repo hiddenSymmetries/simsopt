@@ -173,9 +173,12 @@ class Derivative:
 
         Args:
             optim: An Optimizable object
-            as_derivative: if True return as a Derivative object, else return as an numpy array. The keys
+            as_derivative: if True return as a Derivative object. The keys
                            of the returned Derivative dictionary can include `optim`, the ancestors of `optim`
-                           or Optimizables that share DOFs with ancestors of `optim`.
+                           or Optimizables that share DOFs with ancestors of `optim`.  The values are numpy arrays
+                           corresponding to the derivatives with respect to all degrees of freedom, both free and fixed.
+                           If False, return as a numpy array.  The entries of the array correspond only to free
+                           DOFs, and fixed ones are removed out.
         """
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(optim, Optimizable)
@@ -186,11 +189,9 @@ class Derivative:
 
             for k in optim.unique_dof_lineage:
                 for opt in k.dofs.dep_opts():
-
                     # the next if-statament is there to avoid the dictionary from accumulating 
                     # empty values e.g. if there are no local DOFs to opt, then self.data[opt] 
                     # returns np.array([]).
-
                     if opt.local_full_dof_size > 0:
                         derivs.append(self.data[opt])
                         keys.append(opt)
