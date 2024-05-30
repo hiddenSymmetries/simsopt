@@ -31,7 +31,7 @@ Array L_deriv_simd(Array& points, Array& alphas, Array& deltas, Array& int_point
 
 Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& phi);
 
-Array flux_integration(Array& B, Array& rho, Array& normal);
+Array flux_integration(Array& B, Array& rho, Array& normal, Array& int_weights);
 
 Array A_matrix(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R);
 Array A_matrix_simd(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, double R);
@@ -44,7 +44,9 @@ Array dA_dkappa_simd(Array& points, Array& plasma_points, Array& alphas, Array& 
 
 Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array& deltas, Array& plasma_normal, Array& phi, double R);
 
-Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R);
+// Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R);
+
+Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R);
 
 Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R);
 

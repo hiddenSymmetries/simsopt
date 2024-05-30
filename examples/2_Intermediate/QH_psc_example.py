@@ -36,14 +36,14 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 4
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
+poff = 2.0  # PSC grid will be offset 'poff' meters from the plasma surface
 coff = 0.5  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
@@ -104,7 +104,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+# bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -112,10 +112,11 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 
 # check after-optimization average on-axis magnetic field strength
 B_axis = calculate_on_axis_B(bs, s)
+B_axis = 1.0  # Don't rescale
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, "random_initialization": True} 
+kwargs_geo = {"Nx": 5, "out_dir": out_str, "initialization": "random"} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
@@ -131,6 +132,14 @@ B_PSC = BiotSavart(all_coils)
 # Plot initial errors from only the PSCs, and then together with the TF coils
 make_Bnormal_plots(B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
 make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
+
+from simsopt.field import BiotSavart, InterpolatedField
+Bn = psc_array.Bn_PSC.reshape(nphi, ntheta)[:, :, None] * 1e-7
+pointData = {"B_N": Bn}
+s.to_vtk(out_dir / "direct_Bn_PSC", extra_data=pointData)
+Bn = psc_array.b_opt.reshape(nphi, ntheta)[:, :, None] * 1e-7
+pointData = {"B_N": Bn}
+s.to_vtk(out_dir / "direct_Bn_TF", extra_data=pointData)
 
 # Check SquaredFlux values using different ways to calculate it
 x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
@@ -171,7 +180,7 @@ for k in range(STLSQ_max_iters):
     x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                      method='L-BFGS-B',
                      # bounds=opt_bounds,
-                      # jac=psc_array.least_squares_jacobian, 
+                        # jac=psc_array.least_squares_jacobian, 
                      options=options,
                      tol=1e-10,
                      )

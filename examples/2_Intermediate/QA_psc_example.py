@@ -117,7 +117,6 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     """)
     f = fun
     dofs = JF.x
-    np.random.seed(1)
     h = np.random.uniform(size=dofs.shape)
 
     J0, dJ0 = f(dofs)
@@ -138,7 +137,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     return bs
 
 
-np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
+# np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:
@@ -147,15 +146,15 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 128  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 4
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 4.0  # PSC grid will be initialized between 1 m and 2 m from plasma
+poff = 0.2  # PSC grid will be offset 'poff' meters from the plasma surface
+coff = 1.0  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
@@ -199,7 +198,7 @@ def initialize_coils_qa(TEST_DIR, s, out_dir=''):
     # generate planar TF coils
     ncoils = 1
     R0 = s.get_rc(0, 0)
-    R1 = s.get_rc(1, 0) * 4
+    R1 = s.get_rc(1, 0) * 5
     order = 5
 
     # qa needs to be scaled to 0.1 T on-axis magnetic field strength
@@ -246,7 +245,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
+# bs = coil_optimization_QA(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -257,8 +256,8 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 6, "out_dir": out_str, 
-              "random_initialization": True, "poff": poff,}
+kwargs_geo = {"Nx": 20, "out_dir": out_str, 
+              "initialization": "plasma", "poff": poff,}
               # "interpolated_field": True} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
@@ -280,7 +279,7 @@ make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
 fB = SquaredFlux(s, bs, np.zeros((nphi, ntheta))).J()
 print('fB only TF coils = ', fB / (B_axis ** 2 * s.area()))
-psc_array.least_squares(np.zeros(x0.shape))
+# psc_array.least_squares(np.zeros(x0.shape))
 bs.set_points(s.gamma().reshape(-1, 3))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('fB only TF direct = ', np.sum(Bnormal.reshape(-1) ** 2 * psc_array.grid_normalization ** 2
@@ -295,8 +294,9 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
 # Actually do the minimization now
 print('beginning optimization: ')
-opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
-options = {"disp": True, "maxiter": 1000, "iprint": 101}
+# opt_bounds = tuple([(-100, 100) for i in range(psc_array.num_psc * 2)])
+opt_bounds = tuple([(-np.pi, np.pi) for i in range(psc_array.num_psc * 2)])
+options = {"disp": True, "maxiter": 80, "iprint": 101}
 # print(opt_bounds)
 verbose = True
 
@@ -307,35 +307,92 @@ kwargs_manual = {
                  "coils_TF" : coils
                  }
 
-from scipy.optimize import approx_fprime, check_grad
+from scipy.optimize import approx_fprime, check_grad, basinhopping, dual_annealing, direct, differential_evolution, OptimizeResult
 # from scipy.optimize import lbfgsb
 def callback(x):
-    print('exact: ', psc_array.least_squares(x))
-    print('approx: ', approx_fprime(x, psc_array.least_squares, 1E-3))
-    print('-----')
-    print(check_grad(psc_array.least_squares, psc_array.least_squares_jacobian, x) / np.linalg.norm(psc_array.least_squares_jacobian(x)))
+    print('fB: ', psc_array.least_squares(x))
+    # print('approx: ', approx_fprime(x, psc_array.least_squares, 1E-3))
+    # print('-----')
+    # print(check_grad(psc_array.least_squares, psc_array.least_squares_jacobian, x) / np.linalg.norm(psc_array.least_squares_jacobian(x)))
     
+def callback_annealing(x, f, context):
+    print('fB: ', psc_array.least_squares(x))
+    return (context == 100)
+
+def callback_DE(x, convergence):
+    print('fB: ', psc_array.least_squares(x))
+    return False
+
+def callback_direct(x):
+    print('fB: ', psc_array.least_squares(np.array(x)))
 
 # I_threshold = 0.0
 # STLSQ_max_iters = 10
 # for k in range(STLSQ_max_iters):
     # x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
     # print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
-x0 = (np.random.rand(2 * psc_array.num_psc) - 0.5) * 2 * np.pi
+# x0 = (np.random.rand(2 * psc_array.num_psc) - 0.5) * 2 * np.pi
+x0 = np.zeros(x0.shape)
+# print('Dual annealing: ')
+# t1 = time.time()
+# x_opt = dual_annealing(psc_array.least_squares, opt_bounds, callback=callback_annealing, maxiter=100)
+# t2 = time.time()
+# print('Dual annealing time: ', t2 - t1)
+
+# t1 = time.time()
+# print('Basin hopping: ')
+# x_opt = basinhopping(psc_array.least_squares, x0, niter=2, callback=callback_annealing)
+# t2 = time.time()
+# print('Basin hopping time: ', t2 - t1)
+
+# t1 = time.time()
+# print('DIRECT: ')
+# x_opt = direct(psc_array.least_squares, opt_bounds, maxiter=1000, callback=callback_direct)
+# t2 = time.time()
+# print('DIRECT time: ', t2 - t1)
+
+# t1 = time.time()
+# print('DE: ')
+# x_opt = differential_evolution(psc_array.least_squares, opt_bounds, maxiter=20, callback=callback_DE)
+# t2 = time.time()
+# print('DE time: ', t2 - t1)
+
+t1 = time.time()
+print('L-BFGS-B: ')
+# x0 = (np.random.rand(2 * psc_array.num_psc) - 0.5) * 2 * np.pi
+exit()
 x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
-                  # method='L-BFGS-B',
-                  method='SLSQP',
-                 # bounds=opt_bounds,
-                 # jac=None,
-                    jac=psc_array.least_squares_jacobian, 
-                 options=options,
-                 tol=1e-20,
-                 # callback=callback
-                 )
+                   method='L-BFGS-B',
+                  # method='SLSQP',
+                  # bounds=opt_bounds,
+                  # jac=None,
+                    # jac=psc_array.least_squares_jacobian, 
+                  options=options,
+                  tol=1e-20,  # Needed 1e-20 instead of 1e-20 to e.g. to converge on single PSC example! 
+                  # callback=callback
+                  )
+t2 = time.time()
+print('L-BFGS-B time: ', t2 - t1)
+
+# t1 = time.time()
+# print('L-BFGS-B FD: ')
+# # x0 = (np.random.rand(2 * psc_array.num_psc) - 0.5) * 2 * np.pi
+# x0 = np.zeros(x0.shape)
+# x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
+#                     # method='L-BFGS-B',
+#                    method='SLSQP',
+#                   # bounds=opt_bounds,
+#                   # jac=None,
+#                     # jac=psc_array.least_squares_jacobian, 
+#                   options=options,
+#                   # callback=callback
+#                   )
+# t2 = time.time()
+# print('L-BFGS-B FD time: ', t2 - t1)
 from matplotlib import pyplot as plt
 plt.figure()
 plt.semilogy(psc_array.BdotN2_list)
-plt.show()
+# plt.show()
     # I = psc_array.I
     # small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
     # grid_xyz = psc_array.grid_xyz
@@ -373,4 +430,41 @@ print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
 make_Bnormal_plots(B_PSC, s_plot, out_dir, "PSC_final", B_axis)
 make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
 print('end')
+
+N = 20
+alphas = np.linspace(-np.pi, np.pi, N)
+deltas = np.linspace(-np.pi, np.pi, N)
+fB = np.zeros((N, N))
+for i in range(N):
+    for j in range(N):
+        if len(psc_array.alphas[1:]) > 1:
+            alphas_i = np.hstack((alphas[i], psc_array.alphas[1:]))
+            deltas_j = np.hstack((deltas[j], psc_array.deltas[1:]))
+        else:
+            alphas_i = alphas[i]
+            deltas_j = deltas[j]
+
+        kappas = np.hstack((alphas_i, deltas_j))
+        fB[i, j] = psc_array.least_squares(kappas)
+plt.figure()
+plt.contourf(alphas, deltas, fB.T) # np.log10(fB.T))
+plt.xlabel(r'$\alpha$')
+plt.ylabel(r'$\delta$')
+# plt.legend([r'$\log(f_B)$'])
+plt.colorbar()
+
+if len(psc_array.alphas[1:]) > 1:
+    fB = np.zeros((N, N))
+    for i in range(N):
+        for j in range(N):
+            alphas_i = np.hstack((alphas[i], np.hstack((alphas[j], psc_array.alphas[2:]))))
+            kappas = np.hstack((alphas_i, psc_array.deltas))
+            fB[i, j] = psc_array.least_squares(kappas)
+    plt.figure()
+    plt.contourf(alphas, deltas, fB.T) # np.log10(fB.T))
+    plt.xlabel(r'$\alpha$')
+    plt.ylabel(r'$\delta$')
+    # plt.legend([r'$\log(f_B)$'])
+    plt.colorbar()
+plt.show()
 
