@@ -195,6 +195,54 @@ class SpecTests(unittest.TestCase):
                     self.assertEqual(s.get_profile('volume_current', lvol), 0)
                 else:
                     self.assertEqual(s.get_profile('volume_current', lvol), 1)
+    
+    def test_freeboundary_default(self):
+        """
+        test the default freeboundary file, and re-set if Picard
+        iteration fails
+        """
+        from simsopt._core.util import ObjectiveFailure
+
+        with ScratchDir("."):
+            s = Spec.default_freeboundary(copy_to_pwd=True)
+            startingboundary = np.copy(s.inputlist.bns) 
+            # run sucessfully as default should be converged
+            s.run()
+            # ask to generate guess, not enough freeboundary iterations
+            s.inputlist.linitialize = 2
+            s.inputlist.lautoinitbn = 1
+            s.inputlist.mfreeits = 2
+            s.recompute_bell()
+            try: 
+                s.run()
+            except ObjectiveFailure:
+                self.assertTrue(np.alltrue(s.inputlist.bns == startingboundary))
+            else: 
+                raise ValueError("ObjectiveFailure not raised")
+            # give enough freeboundary iterations, let ir run successfully 
+            s.inputlist.mfreeits = 10
+            s.recompute_bell()
+            s.run()
+
+    def test_array_translator(self):
+        """
+        Test the array_translator method to convert a SPEC style array to simsopt style array.
+        """
+        spec = Spec()
+        array = spec.inputlist.rbc
+        translator = spec.array_translator(array)
+        translator2 = spec.array_translator(array, style='spec')
+        translator3 = spec.array_translator(translator.as_simsopt, style='simsopt')
+        #assert that translator.as_spec i
+
+        self.assertTrue(np.alltrue(array == translator.as_spec))
+        self.assertTrue(np.alltrue(array == translator2.as_spec))
+        self.assertTrue(np.alltrue(array == translator3.as_spec))
+        self.assertTrue(np.alltrue(translator.as_simsopt == translator2.as_simsopt))
+        self.assertTrue(np.alltrue(translator2.as_simsopt == translator3.as_simsopt))
+        # test that the shape of the array is correct:
+        self.assertEqual(translator2.as_simsopt.shape, (spec.inputlist.ntor+1, (2*spec.inputlist.mpol)+1))
+
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """

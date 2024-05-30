@@ -252,12 +252,20 @@ class Spec(Optimizable):
                          external_dof_setter=Spec.set_dofs)
         
     @classmethod
-    def default_freeboundary(cls):
+    def default_freeboundary(cls, copy_to_pwd, verbose=True):
         """
         Create a default freeboundary SPEC object
+        Args:
+            copy_to_pwd: boolean, if True, the default input file will be copied to the current working directory. Has to be set True as free-boundary SPEC can only handle files in the current working directory.
+            verbose: boolean, if True, print statements will be printed
         """
-        return cls(filename=os.path.join(os.path.dirname(__file__), 'defaults_freebound.sp'))
-    
+        import shutil, os
+        filename = 'defaults_freebound.sp'
+        if verbose: 
+            print(f'Copying {os.path.join(os.path.dirname(__file__), filename)} to {os.getcwd()}/{filename}')
+        shutil.copy(os.path.join(os.path.dirname(__file__), filename), os.getcwd()) 
+        return cls(filename=filename, verbose=verbose)
+
     @classmethod
     def default_fixedboundary(cls):
         """
