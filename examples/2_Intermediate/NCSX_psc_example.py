@@ -6,9 +6,9 @@ for an ARIES-CS reactor-scale version of the precise-QH stellarator from
 Landreman and Paul. 
 
 The script should be run as:
-    mpirun -n 1 python QH_psc_example.py
+    mpirun -n 1 python NCSX_psc_example.py
 on a cluster machine but 
-    python QH_psc_example.py
+    python NCSX_psc_example.py
 is sufficient on other machines. Note that this code does not use MPI, but is 
 parallelized via OpenMP, so will run substantially
 faster on multi-core machines (make sure that all the cores
@@ -43,15 +43,15 @@ else:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 2.0  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 0.5  # PSC grid will be initialized between 1 m and 2 m from plasma
+poff = 0.2  # PSC grid will be offset 'poff' meters from the plasma surface
+coff = 0.3  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
-input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
+input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 surface_filename = TEST_DIR / input_name
 range_param = 'half period'
-s = SurfaceRZFourier.from_vmec_input(
+s = SurfaceRZFourier.from_wout(
     surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
 )
 # Print major and minor radius
@@ -60,11 +60,11 @@ print('s.r = ', s.get_rc(1, 0))
 
 # Make inner and outer toroidal surfaces very high resolution,
 # which helps to initialize coils precisely between the surfaces. 
-s_inner = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
+s_inner = SurfaceRZFourier.from_wout(
+    surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
 )
-s_outer = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
+s_outer = SurfaceRZFourier.from_wout(
+    surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
 )
 
 # Make the inner and outer surfaces by extending the plasma surface
@@ -72,8 +72,8 @@ s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
 # Make the output directory
-out_str = "QH_psc_output/"
-out_dir = Path("QH_psc_output")
+out_str = "NCSX_psc_output/"
+out_dir = Path("NCSX_psc_output")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # Save the inner and outer surfaces for debugging purposes
@@ -81,7 +81,39 @@ s_inner.to_vtk(out_str + 'inner_surf')
 s_outer.to_vtk(out_str + 'outer_surf')
 
 # initialize the coils
-base_curves, curves, coils = initialize_coils('qh', TEST_DIR, s, out_dir)
+
+def initialize_coils_NCSX():
+    """
+    Initializes NCSX coils
+    """
+    from simsopt.geo import create_equally_spaced_curves
+    from simsopt.field import Current, coils_via_symmetries
+    from simsopt.geo import curves_to_vtk
+
+    # generate planar TF coils
+    ncoils = 2
+    R0 = 1.5
+    R1 = 0.9
+    order = 5
+
+    from simsopt.mhd.vmec import Vmec
+    total_current = Vmec(surface_filename).external_current() / (2 * s.nfp) / 7.131 * 6.5
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+    total_current = Current(total_current)
+    total_current.fix_all()
+    base_currents += [total_current - sum(base_currents)]
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # fix all the coil shapes so only the currents are optimized
+    # for i in range(ncoils):
+    #     base_curves[i].fix_all()
+
+    # Initialize the coil curves and save the data to vtk
+    curves = [c.curve for c in coils]
+    curves_to_vtk(curves, out_dir / "curves_init")
+    return base_curves, curves, coils
+
+base_curves, curves, coils = initialize_coils_NCSX()
 currents = np.array([coil.current.get_value() for coil in coils])
 
 # Set up BiotSavart fields
@@ -91,7 +123,7 @@ bs = BiotSavart(coils)
 calculate_on_axis_B(bs, s)
 
 # Make high resolution, full torus version of the plasma boundary for plotting
-s_plot = SurfaceRZFourier.from_vmec_input(
+s_plot = SurfaceRZFourier.from_wout(
     surface_filename, 
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
@@ -116,8 +148,8 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, "initialization": "random",
-               "plasma_boundary_full": s_plot} 
+kwargs_geo = {"Nx": 6, "out_dir": out_str, "initialization": "random",
+              "plasma_boundary_full": s_plot} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
@@ -158,7 +190,7 @@ print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
 fB = SquaredFlux(s, B_PSC, -Bnormal).J()
 print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
-exit()
+# exit()
 # Actually do the minimization now
 from scipy.optimize import minimize
 print('beginning optimization: ')
