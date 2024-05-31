@@ -137,7 +137,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     return bs
 
 
-# np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
+np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
 
 # Set some parameters -- if doing CI, lower the resolution
 if in_github_actions:

@@ -112,11 +112,12 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized")
 
 # check after-optimization average on-axis magnetic field strength
 B_axis = calculate_on_axis_B(bs, s)
-B_axis = 1.0  # Don't rescale
+# B_axis = 1.0  # Don't rescale
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 5, "out_dir": out_str, "initialization": "random"} 
+kwargs_geo = {"Nx": 4, "out_dir": out_str, "initialization": "random",
+              "plasma_boundary_full": s_plot} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
@@ -134,10 +135,10 @@ make_Bnormal_plots(B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
 make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 
 from simsopt.field import BiotSavart, InterpolatedField
-Bn = psc_array.Bn_PSC.reshape(nphi, ntheta)[:, :, None] * 1e-7
+Bn = psc_array.Bn_PSC_full.reshape(qphi, 4 * ntheta)[:, :, None] * 1e-7 / B_axis
 pointData = {"B_N": Bn}
-s.to_vtk(out_dir / "direct_Bn_PSC", extra_data=pointData)
-Bn = psc_array.b_opt.reshape(nphi, ntheta)[:, :, None] * 1e-7
+s_plot.to_vtk(out_dir / "direct_Bn_PSC", extra_data=pointData)
+Bn = psc_array.b_opt.reshape(nphi, ntheta)[:, :, None] * 1e-7 / B_axis
 pointData = {"B_N": Bn}
 s.to_vtk(out_dir / "direct_Bn_TF", extra_data=pointData)
 
@@ -157,6 +158,7 @@ print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
 fB = SquaredFlux(s, B_PSC, -Bnormal).J()
 print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
+exit()
 # Actually do the minimization now
 from scipy.optimize import minimize
 print('beginning optimization: ')

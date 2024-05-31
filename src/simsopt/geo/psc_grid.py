@@ -235,6 +235,7 @@ class PSCgrid:
         if not np.allclose(Bn_plasma.shape, (psc_grid.nphi, psc_grid.ntheta)): 
             raise ValueError('Plasma magnetic field surface data is incorrect shape.')
         psc_grid.Bn_plasma = Bn_plasma
+        psc_grid.plasma_boundary_full = kwargs.pop("plasma_boundary_full", psc_grid.plasma_boundary)
         
         # Get geometric data for initializing the PSCs
         N = 20  # Number of integration points for integrals over PSC coils
@@ -672,6 +673,7 @@ class PSCgrid:
         # print('max flux in each PSC = ', np.max(np.abs(self.L @ self.I_all + self.psi_total / self.fac)))
         self.setup_A_matrix()
         self.Bn_PSC = (self.A_matrix @ self.I).reshape(-1)   # * self.fac
+        self.Bn_PSC_full = (self.A_matrix_full @ self.I_all).reshape(-1)
         # print('Bn = ', self.Bn_PSC)
         
     def setup_A_matrix(self):
@@ -679,6 +681,7 @@ class PSCgrid:
         """
         # A_matrix has shape (num_plasma_points, num_coils)
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_psc))
+        # A_matrix_full = np.zeros((self.nphi * self.ntheta * self.symmetry, self.num_psc * self.symmetry))
         # Need to rotate and flip it
         nn = self.num_psc
         q = 0
@@ -691,8 +694,25 @@ class PSCgrid:
                     contig(self.deltas_total[q * nn: (q + 1) * nn]),
                     self.plasma_unitnormals,
                     self.R,
-                )  # * stell  # * (-1) ** fp # accounts for sign change of the currents (does it?)
+                ) # * stell * (-1) ** fp # accounts for sign change of the currents (does it?)
                 q = q + 1
+                
+        # grid_xyz_all is definitely right, alphas_total/deltas_total may be suss,
+        # otherwise the error in the discrete symmetries must be in psi! 
+        self.A_matrix_full = 2.0 * sopp.A_matrix_simd(
+            contig(self.grid_xyz_all),
+            contig(self.plasma_boundary_full.gamma().reshape(-1, 3)),
+            contig(self.alphas_total),
+            contig(self.deltas_total),
+            contig(self.plasma_boundary_full.unitnormal().reshape(-1, 3)),
+            self.R,
+        )
+        # q = 0
+        # for fp in range(self.nfp):
+        #     for stell in self.stell_list:
+        #         phi0 = (2 * np.pi / self.nfp) * fp 
+        #         self.A_matrix_full[:, q*self.num_psc:(q+1)*self.num_psc] *= stell  #* (-1.0) ** fp
+        #         q += 1
         self.A_matrix = 2 * A_matrix  
     
     def setup_curves(self):
@@ -1247,7 +1267,7 @@ class PSCgrid:
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
-                self.psi_total[q * self.num_psc:(q + 1) * self.num_psc] = self.psi  # * stell * (-1) ** fp
+                self.psi_total[q * self.num_psc:(q + 1) * self.num_psc] = self.psi   #* stell  #* (-1) ** fp
                 q = q + 1
         # t2 = time.time()
         # print('psi integration time = ', t2 - t1)
@@ -1299,24 +1319,26 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
-                # normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
+                normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
                 # # normals = self.coil_normals
                 # # get new deltas by flipping sign of deltas, then rotation alpha by phi0
-                # deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
-                # deltas[abs(deltas) == np.pi] = 0.0
-                # if fp == 0 and stell == 1:
-                #     shift_deltas = self.deltas - deltas  # +- pi
-                # deltas += shift_deltas
-                # alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
-                # # alphas = -np.arcsin(normals[:, 1])
-                # alphas[abs(alphas) == np.pi] = 0.0
-                # if fp == 0 and stell == 1:
-                #     shift_alphas = self.alphas - alphas  # +- pi
-                # alphas += shift_alphas
+                deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                
+                ####### Add back in lines once done debugging on QH ##########################
+                deltas[abs(deltas) == np.pi] = 0.0
+                if fp == 0 and stell == 1:
+                    shift_deltas = self.deltas - deltas  # +- pi
+                deltas += shift_deltas
+                alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
+                alphas[abs(alphas) == np.pi] = 0.0
+                if fp == 0 and stell == 1:
+                    shift_alphas = self.alphas - alphas  # +- pi
+                alphas += shift_alphas
                 # self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 # self.deltas_total[nn * q: nn * (q + 1)] = deltas
-                alphas = self.alphas * (-1) ** fp
-                deltas = self.deltas * stell * (-1) ** fp
+                # alphas2 = self.alphas * (-1) ** fp
+                # deltas2 = self.deltas * stell * (-1) ** fp
+                # print(q, fp, stell, alphas, deltas)
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
                 q = q + 1
