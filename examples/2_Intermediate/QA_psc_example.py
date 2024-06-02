@@ -153,8 +153,8 @@ else:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 0.2  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 1.0  # PSC grid will be initialized between 1 m and 2 m from plasma
+poff = 0  # PSC grid will be offset 'poff' meters from the plasma surface
+coff = 0.5  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'

@@ -459,32 +459,32 @@ class Testing(unittest.TestCase):
                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
             A = psc_array.A_matrix
-            A_full = psc_array.A_matrix_full
-            Linv = psc_array.L_inv  # [:ncoils, :ncoils]
+            Linv = psc_array.L_inv
             psi = psc_array.psi_total
-            I = -Linv @ psi
+            I = (-Linv @ psi)[:psc_array.num_psc]
             b = psc_array.b_opt * psc_array.fac
-            Bn_objective = 0.5 * ((A_full @ I)[:len(b)] + b).T @ ((A_full @ I)[:len(b)] + b)
+            Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
             alphas_new = np.copy(alphas)
-            alphas_new[0] += epsilon
+            # alphas_new[0] += epsilon
             deltas_new = np.copy(deltas)
+            deltas_new[0] += epsilon
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             )
             A_new = psc_array_new.A_matrix
-            A_new_full = psc_array_new.A_matrix_full
-            Bn_objective_new = 0.5 * ((A_new_full @ I)[:len(b)] + b).T @ ((A_new_full @ I)[:len(b)] + b)
+            # A_new_full = psc_array_new.A_matrix_full
+            Bn_objective_new = 0.5 * (A_new @ I + b).T @ (A_new @ I + b)
             # print('Bns = ', Bn_objective, Bn_objective_new)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             A_deriv = psc_array.A_deriv()
-            ncoils_sym = psc_array.num_psc * psc_array.symmetry
-            dBn_analytic = ((A_full @ I)[:len(b)] + b).T @ (A_deriv[:, :ncoils_sym] * I)
+            dBn_analytic = (A @ I + b).T @ (A_deriv[:, ncoils:] * I)
             print(dBn_objective, dBn_analytic[0])
             # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
-            dA_dalpha = (A_new_full - A_full) / epsilon
+            dA_dalpha = (A_new - A) / epsilon
             dA_dkappa_analytic = A_deriv
             # print(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0])
-            print(dA_dalpha[0, :], dA_dkappa_analytic[0, :])
+            # print('dA0 = ', dA_dalpha[0, :], dA_dkappa_analytic[0, :])
+            print('dA0 = ', dA_dalpha[-1, 0], dA_dkappa_analytic[-1, ncoils])
             # assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0], rtol=1)
             
             # Repeat but change coil 3
@@ -750,8 +750,11 @@ class Testing(unittest.TestCase):
                             Bn_direct_all = np.sum(B_direct_all.B().reshape(
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
+                            
                             psc_array.Bn_PSC = psc_array.Bn_PSC * psc_array.fac
-                            print(psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10)
+                            print(psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, 
+                                  Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10,
+                                  Bn_direct_all[-1] * 1e10)
                             # Robust test of all the B and Bn calculations from circular coils
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, atol=1e3))
@@ -759,18 +762,20 @@ class Testing(unittest.TestCase):
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct_all * 1e10, atol=1e3, rtol=1e-3))
         
         # Applying discrete symmetries to the coils wont work unless they dont intersect the symmetry planes
-        for R in [0.1, 1]:
-            for points in [np.array([(np.random.rand(3) - 0.5) * 40, 
-                                      (np.random.rand(3) - 0.5) * 40])]:
+        for R in [0.1]:
+            for points in [np.array([[1, 2, -1], [-1, -1, 3]])]:
                 for alphas in [np.zeros(2), (np.random.rand(2) - 0.5) * 2 * np.pi]:
                     for deltas in [np.zeros(2), (np.random.rand(2) - 0.5) * 2 * np.pi]:
+                        print(R, points, alphas, deltas)
                         for surf in surfs[1:]:
                             psc_array = PSCgrid.geo_setup_manual(
                                 points, R=R, a=a, alphas=alphas, deltas=deltas,
                             )
-                            coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
-                            bs = BiotSavart(coils)
-                            kwargs = {"B_TF": bs, "ppp": 2000, "plasma_boundary": surf}
+                            # coils = coils_via_symmetries([psc_array.curves[1]], [Current(I)], nfp=1, stellsym=False)
+                            # bs = BiotSavart(coils)
+                            # kwargs = {"B_TF": bs, "ppp": 2000, "plasma_boundary": surf}
+                            kwargs = {"plasma_boundary": surf}
+
                             psc_array = PSCgrid.geo_setup_manual(
                                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs
                             )
@@ -818,11 +823,12 @@ class Testing(unittest.TestCase):
                             # Calculate Bfields from CircularCoil class
                             B_circular_coils = np.zeros(B_PSC.shape)
                             Bn_circular_coils = np.zeros(psc_array.Bn_PSC.shape)
+                            print(surf)
                             for i in range(psc_array.alphas_total.shape[0]):
                                 PSC = CircularCoil(
                                     psc_array.R, 
                                     psc_array.grid_xyz_all[i, :], 
-                                    -psc_array.I_all[i] * np.sign(psc_array.I_all[i]), 
+                                    psc_array.I_all[i], # * np.sign(psc_array.I_all[i]), 
                                     psc_array.coil_normals_all[i, :]
                                 )
                                 PSC.set_points(psc_array.plasma_points)
@@ -836,6 +842,8 @@ class Testing(unittest.TestCase):
                             coils = coils_via_symmetries(
                                 psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
                             )
+                            currents_total = [coil.current.get_value() for coil in coils]
+                            # print(currents_total)
                             B_direct = BiotSavart(coils)
                             B_direct.set_points(psc_array.plasma_points)
                             Bn_direct = np.sum(B_direct.B().reshape(
@@ -843,17 +851,27 @@ class Testing(unittest.TestCase):
                             # Calculate Bfields from direct BiotSavart, using all the coils manually defined
                             currents = []
                             for i in range(psc_array.num_psc * psc_array.symmetry):
-                                currents.append(Current(psc_array.I_all[i]))
+                                currents.append(Current(psc_array.I_all_with_sign_flips[i]))
                             all_coils = coils_via_symmetries(
                                 psc_array.all_curves, currents, nfp=1, stellsym=False
                             )
+                            currents_total = [coil.current.get_value() for coil in all_coils]
+                            curves_total = [coil.curve for coil in all_coils]
+                            
+                            from simsopt.geo import curves_to_vtk
+
+                            curves_to_vtk(curves_total, "direct_curves", close=True, scalar_data=currents_total)
+                            # print(currents_total)
                             B_direct_all = BiotSavart(all_coils)
                             B_direct_all.set_points(psc_array.plasma_points)
                             Bn_direct_all = np.sum(B_direct_all.B().reshape(
                                 -1, 3) * psc_array.plasma_boundary.unitnormal().reshape(-1, 3), axis=-1)
                             
-                            # Robust test of all the B and Bn calculations from circular coils
                             psc_array.Bn_PSC = psc_array.Bn_PSC * psc_array.fac
+                            # Robust test of all the B and Bn calculations from circular coils
+                            print(psc_array.Bn_PSC[-1] * 1e10, Bn_PSC[-1] * 1e10, 
+                                  Bn_circular_coils[-1] * 1e10, Bn_direct[-1] * 1e10,
+                                  Bn_direct_all[-1] * 1e10)
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_PSC * 1e10, rtol=1e-2, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_circular_coils * 1e10, rtol=1e-2, atol=1e3))
                             assert(np.allclose(psc_array.Bn_PSC * 1e10, Bn_direct * 1e10, rtol=1e-2, atol=1e3))

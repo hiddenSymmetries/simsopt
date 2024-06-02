@@ -116,7 +116,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, "initialization": "random",
+kwargs_geo = {"Nx": 10, "out_dir": out_str, "initialization": "random",
                "plasma_boundary_full": s_plot} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
@@ -134,13 +134,24 @@ B_PSC = BiotSavart(all_coils)
 make_Bnormal_plots(B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
 make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_initial", B_axis)
 
+currents = []
+for i in range(psc_array.num_psc * psc_array.symmetry):
+    currents.append(Current(psc_array.I_all_with_sign_flips[i]))
+
+all_coils = coils_via_symmetries(
+    psc_array.all_curves, currents, nfp=1, stellsym=False
+)
+B_PSC = BiotSavart(all_coils)
+# Plot initial errors from only the PSCs, and then together with the TF coils
+make_Bnormal_plots(B_PSC, s_plot, out_dir, "biot_savart_PSC_direct", B_axis)
+
 from simsopt.field import BiotSavart, InterpolatedField
 Bn = psc_array.Bn_PSC_full.reshape(qphi, 4 * ntheta)[:, :, None] * 1e-7 / B_axis
 pointData = {"B_N": Bn}
 s_plot.to_vtk(out_dir / "direct_Bn_PSC", extra_data=pointData)
-Bn = psc_array.b_opt.reshape(nphi, ntheta)[:, :, None] * 1e-7 / B_axis
-pointData = {"B_N": Bn}
-s.to_vtk(out_dir / "direct_Bn_TF", extra_data=pointData)
+# Bn = psc_array.b_opt.reshape(nphi, ntheta)[:, :, None] * 1e-7 / B_axis
+# pointData = {"B_N": Bn}
+# s.to_vtk(out_dir / "direct_Bn_TF", extra_data=pointData)
 
 # Check SquaredFlux values using different ways to calculate it
 x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
@@ -158,7 +169,7 @@ print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
 fB = SquaredFlux(s, B_PSC, -Bnormal).J()
 print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
-exit()
+# exit()
 # Actually do the minimization now
 from scipy.optimize import minimize
 print('beginning optimization: ')

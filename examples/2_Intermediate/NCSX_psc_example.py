@@ -93,7 +93,7 @@ def initialize_coils_NCSX():
     # generate planar TF coils
     ncoils = 2
     R0 = 1.5
-    R1 = 0.9
+    R1 = 1.1
     order = 5
 
     from simsopt.mhd.vmec import Vmec
@@ -105,8 +105,8 @@ def initialize_coils_NCSX():
     base_currents += [total_current - sum(base_currents)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
     # fix all the coil shapes so only the currents are optimized
-    # for i in range(ncoils):
-    #     base_curves[i].fix_all()
+    for i in range(ncoils):
+        base_curves[i].fix_all()
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
@@ -136,7 +136,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-# bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization(s, bs, base_curves, curves, out_dir)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -195,7 +195,7 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 from scipy.optimize import minimize
 print('beginning optimization: ')
 opt_bounds = tuple([(0, 2 * np.pi) for i in range(psc_array.num_psc * 2)])
-options = {"disp": True, "maxiter": 100}
+options = {"disp": True, "maxiter": 50}
 # print(opt_bounds)
 # x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
 verbose = True

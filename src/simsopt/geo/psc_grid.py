@@ -75,7 +75,7 @@ class PSCgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = Nmin / 4.0  #, self.poff / 2.5)  # self.dx / 2.0 #
+        self.R = Nmin / 3.0  #, self.poff / 2.5)  # self.dx / 2.0 #
         self.a = self.R / 100.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -671,7 +671,17 @@ class PSCgrid:
 
         # self.I = -self.L_inv[:self.num_psc, :self.num_psc] @ self.psi / self.fac
         self.I_all = -self.L_inv @ self.psi_total / self.fac
+        # print('psi = ', self.psi_total)
+        # print('I = ', self.I_all)
         self.I = self.I_all[:self.num_psc]
+        
+        self.I_all_with_sign_flips = np.zeros(self.I_all.shape)
+        q = 0
+        nn = self.num_psc
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                self.I_all_with_sign_flips[q * nn: (q + 1) * nn] = self.I_all[q * nn: (q + 1) * nn] * stell
+                q += 1
         # print(self.L[:self.num_psc, :self.num_psc] @ self.I, self.psi / self.fac)
         # print(self.L @ self.I_all, self.psi_total / self.fac)
         # print('I_all = ', self.I_all)
@@ -680,14 +690,13 @@ class PSCgrid:
         self.setup_A_matrix()
         self.Bn_PSC = (self.A_matrix @ self.I).reshape(-1)   # * self.fac
         self.Bn_PSC_full = (self.A_matrix_full @ self.I_all).reshape(-1)
-        # print('Bn = ', self.Bn_PSC)
         
     def setup_A_matrix(self):
         """
         """
         # A_matrix has shape (num_plasma_points, num_coils)
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_psc))
-        # A_matrix_full = np.zeros((self.nphi * self.ntheta * self.symmetry, self.num_psc * self.symmetry))
+        A_matrix_full = np.zeros((self.nphi * self.ntheta * self.symmetry, self.num_psc * self.symmetry))
         # Need to rotate and flip it
         nn = self.num_psc
         q = 0
@@ -703,7 +712,6 @@ class PSCgrid:
                 ) # * stell * (-1) ** fp # accounts for sign change of the currents (does it?)
                 q = q + 1
                 
-        # grid_xyz_all is definitely right, alphas_total/deltas_total may be suss,
         self.A_matrix_full = 2.0 * sopp.A_matrix_simd(
             contig(self.grid_xyz_all),
             contig(self.plasma_boundary_full.gamma().reshape(-1, 3)),
@@ -813,7 +821,7 @@ class PSCgrid:
                                     contig(self.coil_normals[:, 2])),
                               },
             )
-        curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all)
+        curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all_with_sign_flips)
         # if isinstance(self.B_TF, InterpolatedField):
         self.B_TF.set_points(self.grid_xyz_all)
         B = self.B_TF.B()
@@ -825,11 +833,11 @@ class PSCgrid:
                                 contig(self.coil_normals_all[:, 1]),
                                 contig(self.coil_normals_all[:, 2])),
                           "psi": contig(self.psi_total),
-                          "I": contig(self.I_all),
+                          "I": contig(self.I_all_with_sign_flips),
                           "B_TF": (contig(B[:, 0]), 
                                    contig(B[:, 1]),
                                    contig(B[:, 2])),
-                          "-LI(=psi)": contig(-self.L @ self.I_all * self.fac),
+                          # "-LI(=psi)": contig(-self.L @ self.I_all * self.fac),
                           },
         )
         # else:
@@ -1027,6 +1035,8 @@ class PSCgrid:
                 dA = sopp.dA_dkappa_simd(
                     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
                     self.plasma_points,
+                    # contig(self.alphas),
+                    # contig(self.deltas),
                     contig(self.alphas_total[q * nn: (q + 1) * nn]),
                     contig(self.deltas_total[q * nn: (q + 1) * nn]),
                     self.plasma_unitnormals,
@@ -1034,30 +1044,29 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 )
-                # fac_alpha = np.cos(self.alphas + self.alphas_total[q * nn: (q + 1) * nn])
-                # print(q, fp, stell, self.alphas_total[q * nn: (q + 1) * nn], self.alphas, 
-                #       self.alphas + self.alphas_total[q * nn: (q + 1) * nn], fac_alpha)
-                dA_dkappa[:, :self.num_psc] += dA[:, :self.num_psc]  #* self.alphas_total[q * nn: (q + 1) * nn] / self.alphas #* (-1) ** fp
-                dA_dkappa[:, self.num_psc:] += dA[:, self.num_psc:]  #* self.deltas_total[q * nn: (q + 1) * nn] / self.deltas
-                # print(fp, stell, dA[0, 0], self.grid_xyz_all[q * nn: q * nn + 1, :])
-                # print(self.plasma_points[0, :], 
-                #       self.alphas_total[q * nn: q * nn + 1],
-                #       self.deltas_total[q * nn: q * nn + 1],
-                #       self.plasma_unitnormals[0, :],
-                #       )
+                dA_dkappa[:, :self.num_psc] += dA[:, :self.num_psc] * self.aaprime_aa[q * nn: (q + 1) * nn]
+                # Factor of stell too for the currents flipping???
+                dA_dkappa[:, self.num_psc:] += dA[:, self.num_psc:] * self.ddprime_dd[q * nn: (q + 1) * nn]
                 q = q + 1
-        dA = sopp.dA_dkappa_simd(
-            contig(self.grid_xyz_all),
-            self.plasma_points,
-            contig(self.alphas_total),
-            contig(self.deltas_total),
-            self.plasma_unitnormals,
-            self.quad_points_phi,
-            self.quad_weights,
-            self.R,
-        )
-        print('dA = ', dA[0, :])
-        return dA * np.pi # dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
+        # dA = sopp.dA_dkappa_simd(
+        #     contig(self.grid_xyz_all),
+        #     self.plasma_points,
+        #     contig(self.alphas_total),
+        #     contig(self.deltas_total),
+        #     self.plasma_unitnormals,
+        #     self.quad_points_phi,
+        #     self.quad_weights,
+        #     self.R,
+        # )
+        # dA_sym = np.zeros(dA_dkappa.shape)
+        # q = 0
+        # for fp in range(self.nfp):
+        #     for stell in self.stell_list:
+        #         dA_sym += dA[:, q * nn: (q + 1) * nn] 
+        #         q += 1
+        # print('dA = ', dA[0, :])
+        # print(dA_dkappa.shape)
+        return dA_dkappa * np.pi # dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
     
     def L_deriv(self):
         """
@@ -1173,10 +1182,10 @@ class PSCgrid:
                 alpha_i and delta_i. 
         """
         nn = self.num_psc
-        psi_deriv = np.zeros(2 * self.num_psc)
-        q = 0
-        # for fp in range(self.nfp):
-        #     for stell in self.stell_list:
+        # psi_deriv = np.zeros(2 * self.num_psc)
+        # q = 0
+        # # for fp in range(self.nfp):
+        # #     for stell in self.stell_list:
         psi_deriv = sopp.dpsi_dkappa(
             contig(self.I_TF),
             contig(self.dl_TF),
@@ -1194,14 +1203,35 @@ class PSCgrid:
         # dpsi/dkappa depends implicity on how kappa got changed! 
         nsym = self.symmetry
         if nsym > 1:
+            q = 0
             ncoils_sym = self.num_psc * nsym
             for fp in range(self.nfp):
                 # phi0 = (2 * np.pi / self.nfp) * fp
                 for stell in self.stell_list:
-                    psi_deriv[q * self.num_psc:(q + 1) * self.num_psc] *= self.alphas_total[q * self.num_psc:(q + 1) * self.num_psc] / self.alphas
-                    psi_deriv[q * self.num_psc + ncoils_sym:ncoils_sym + (q + 1) * self.num_psc] *= self.deltas_total[q * self.num_psc:(q + 1) * self.num_psc] / self.deltas
+                    psi_deriv[q * self.num_psc:(q + 1) * self.num_psc] *= self.aaprime_aa[q * self.num_psc:(q + 1) * self.num_psc]
+                    psi_deriv[q * self.num_psc + ncoils_sym:ncoils_sym + (q + 1) * self.num_psc] *= self.ddprime_dd[q * self.num_psc:(q + 1) * self.num_psc]
                     q = q + 1
         # print('psi_deriv = ', psi_deriv)
+        
+        # psi_deriv = np.zeros(2 * self.num_psc)
+        # q = 0
+        # for fp in range(self.nfp):
+        #     for stell in self.stell_list:
+        #         psi_deriv += sopp.dpsi_dkappa(
+        #             contig(self.I_TF),
+        #             contig(self.dl_TF),
+        #             contig(self.gamma_TF),
+        #             contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+        #             contig(self.alphas_total[q * nn: (q + 1) * nn]),
+        #             contig(self.deltas_total[q * nn: (q + 1) * nn]),
+        #             contig(self.coil_normals_all[q * nn: (q + 1) * nn, :]),
+        #             contig(self.quad_points_rho),
+        #             contig(self.quad_points_phi),
+        #             self.quad_weights,
+        #             self.R,
+        #         ) * np.array([self.aaprime_aa, self.ddprime_dd])
+        #         q += 1
+    
         return psi_deriv * (1.0 / self.gamma_TF.shape[1])
     
     def setup_orientations(self, alphas, deltas):
@@ -1261,7 +1291,7 @@ class PSCgrid:
         # if keeping track of the number of coil turns, need factor
         # of Nt ** 2 below as well
         self.L = L_total * self.R  #* self.fac
-        
+        # print('L = ', self.L)
         # Calculate the PSC B fields
         # t1 = time.time()
         # t2 = time.time()
@@ -1302,6 +1332,8 @@ class PSCgrid:
         self.psi = self.psi_total[:self.num_psc]
         
         # Looks like don't flip psi is correct! (tested on QH)
+        # This is because B(x, -y, -z) -> [-Bx, By, Bz] and same for the
+        # coil normal, so the dot product remains unchanged!
         # self.psi_total = np.zeros(self.num_psc * self.symmetry)
         # q = 0
         # for fp in range(self.nfp):
@@ -1350,6 +1382,8 @@ class PSCgrid:
         nn = self.num_psc
         self.alphas_total = np.zeros(nn * self.symmetry)
         self.deltas_total = np.zeros(nn * self.symmetry)
+        self.ddprime_dd = np.zeros(nn * self.symmetry)
+        self.aaprime_aa = np.zeros(nn * self.symmetry)
         self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
         q = 0
         for fp in range(self.nfp):
@@ -1359,22 +1393,22 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
-                # normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
-                # # normals = self.coil_normals
-                # # get new deltas by flipping sign of deltas, then rotation alpha by phi0
-                # deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
+                # normals = self.coil_normals
+                # get new deltas by flipping sign of deltas, then rotation alpha by phi0
+                deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
                 
-                ####### Add back in lines once done debugging on QH ##########################
-                # deltas[abs(deltas) == np.pi] = 0.0
-                # if fp == 0 and stell == 1:
-                #     shift_deltas = self.deltas - deltas  # +- pi
-                # deltas += shift_deltas
-                # alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
-                # alphas[abs(alphas) == np.pi] = 0.0
-                # if fp == 0 and stell == 1:
-                #     shift_alphas = self.alphas - alphas  # +- pi
-                # alphas += shift_alphas
-                # print(q, fp, stell, alphas, deltas)
+                ###### Add back in lines once done debugging on QH ##########################
+                deltas[abs(deltas) == np.pi] = 0.0
+                if fp == 0 and stell == 1:
+                    shift_deltas = self.deltas - deltas  # +- pi
+                deltas += shift_deltas
+                alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
+                alphas[abs(alphas) == np.pi] = 0.0
+                if fp == 0 and stell == 1:
+                    shift_alphas = self.alphas - alphas  # +- pi
+                alphas += shift_alphas
+                print(q, fp, stell, alphas, deltas)
                 # self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 # self.deltas_total[nn * q: nn * (q + 1)] = deltas
                 # alphas2 = -np.arcsin(np.sin(phi0) * stell * np.cos(
@@ -1393,9 +1427,20 @@ class PSCgrid:
                 if fp == 0 and stell == 1:
                     shift_alphas = self.alphas - alphas  # +- pi
                 alphas += shift_alphas
-                # print(q, fp, stell, alphas, deltas)
+                print(q, fp, stell, alphas, deltas)
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
+                x = self.alphas_total[:nn]
+                y = self.deltas_total[:nn]
+                z = phi0
+                secy = 1.0 / np.cos(y)
+                ddprime_dd = (secy * np.sin(z) * np.tan(x) * np.tan(y) + stell * np.cos(z) * (
+                    1.0 + np.tan(y) ** 2)) / (1.0 + (secy * np.sin(z) * np.tan(x) + stell * np.cos(z) * np.tan(y)) ** 2)
+                self.ddprime_dd[nn * q: nn * (q + 1)] = ddprime_dd
+                aaprime_aa = (np.sin(x) * np.sin(y) * np.sin(z) - stell * np.cos(x) * np.cos(z) 
+                              )/np.sqrt(1 - (np.sin(x) * np.cos(z) + stell * np.cos(x) * np.sin(y) * np.sin(z)) ** 2)
+                self.aaprime_aa[nn * q: nn * (q + 1)] = aaprime_aa
+                # print(q, fp, stell, self.ddprime_dd[nn * q: nn * (q + 1)])
                 q = q + 1
         self.alphas_total = contig(self.alphas_total)
         self.deltas_total = contig(self.deltas_total)
