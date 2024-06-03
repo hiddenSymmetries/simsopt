@@ -32,12 +32,12 @@ surf4 = SurfaceRZFourier.from_wout(
     surface_filename, range='half period', nphi=16, ntheta=16
 )
 surfs = [surf1, surf2, surf3, surf4]
-ncoils = 2
-np.random.seed(10)
-R = 0.1
+ncoils = 13
+np.random.seed(24)
+R = 0.05
 a = 1e-5
 points = (np.random.rand(ncoils, 3) - 0.5) * 3
-points[:, -1] = 0.5
+points[:, -1] = 0.4
 alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
 deltas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
 epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
@@ -132,11 +132,11 @@ class Testing(unittest.TestCase):
                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
             A = psc_array.A_matrix
-            A_full = psc_array.A_matrix_full
-            psi = psc_array.psi_total / psc_array.fac
+            psi = psc_array.psi / psc_array.fac
             b = psc_array.b_opt # * psc_array.fac
-            Linv = psc_array.L_inv # / psc_array.fac
-            Bn_objective = 0.5 * ((A_full @ (Linv @ psi))[:len(b)] + b).T @ ((A_full @ (Linv @ psi))[:len(b)] + b)
+            Linv = psc_array.L_inv[:psc_array.num_psc, :psc_array.num_psc] # / psc_array.fac
+            I = (-Linv @ psi)
+            Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
             # Bn_objective = 0.5 * (A @ (Linv @ psi)[:psc_array.num_psc] + b).T @ (A @ (Linv @ psi)[:psc_array.num_psc] + b)
             # print('Lpsi = ', Linv @ psi)
             # print('A_matrix = ', A[0, :])
@@ -148,25 +148,25 @@ class Testing(unittest.TestCase):
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             )
-            psi_new = psc_array_new.psi_total / psc_array.fac
+            psi_new = psc_array_new.psi / psc_array.fac
+            I_new = (-Linv @ psi_new)
             # print(psi)
             # print(psi - psi_new)
             # print(psi, psi_new)
             # Bn_objective_new = 0.5 * (A @ (Linv @ psi_new)[:psc_array.num_psc] + b).T @ (A @ (Linv @ psi_new)[:psc_array.num_psc] + b)
-            Bn_objective_new = 0.5 * ((A_full @ (Linv @ psi_new))[:len(b)] + b).T @ ((A_full @ (Linv @ psi_new))[:len(b)] + b)
+            Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             # print(Bn_objective, Bn_objective_new)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             # print(A @ Linv @ psi_new, A, Linv, psi, psi_new)
             # print(b)
-            dpsi_ddelta = (psi_new - psi) / epsilon
+            dpsi_ddelta = (psc_array_new.psi - psc_array.psi) / epsilon  / psc_array.fac
             psi_deriv = psc_array.psi_deriv()  # * 1e-7
             print('dpsi = ', dpsi_ddelta[0], psi_deriv[ncoils])
             # print(psi_deriv)
-            # assert(np.allclose(dpsi_ddelta[0], psi_deriv[ncoils], rtol=1e-3))
-            ncoils_sym = psc_array.num_psc * psc_array.symmetry
-            dBn_analytic = (A @ (Linv @ psi)[:psc_array.num_psc] + b).T @ (A @ (Linv * psi_deriv[ncoils_sym:])[:psc_array.num_psc, :])
+            assert(np.allclose(dpsi_ddelta[0], psi_deriv[ncoils], rtol=1e-3))
+            dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[ncoils:]))
             print(dBn_objective, dBn_analytic[0])
-            # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
             
             # Repeat but change coil 3
             # psc_array = PSCgrid.geo_setup_manual(
@@ -218,30 +218,33 @@ class Testing(unittest.TestCase):
             # print(dBn_objective, dBn_analytic[0])
             # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-1)
             
-            # # Repeat for changing coil 7
+            # Repeat for changing coil 7
             # psc_array = PSCgrid.geo_setup_manual(
             #     points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             # )
             # A = psc_array.A_matrix
-            # psi = psc_array.psi
+            # psi = psc_array.psi / psc_array.fac
             # Linv = psc_array.L_inv[:psc_array.num_psc, :psc_array.num_psc]
-            # Bn_objective = 0.5 * (A @ Linv @ psi + b).T @ (A @ Linv @ psi + b)
+            # I = (-Linv @ psi)
+            # Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
             # alphas_new = np.copy(alphas)
-            # alphas_new[6] += epsilon
+            # alphas_new[3] += epsilon
             # deltas_new = np.copy(deltas)
             # psc_array_new = PSCgrid.geo_setup_manual(
             #     points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             # )
-            # psi_new = psc_array_new.psi
-            # Bn_objective_new = 0.5 * (A @ Linv @ psi_new + b).T @ (A @ Linv @ psi_new + b)
+            # psi_new = psc_array_new.psi / psc_array.fac
+            # I_new = (-Linv @ psi_new)
+            # Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             # dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
-            # dpsi_dalpha = (psi_new - psi) / epsilon
-            # psi_deriv = psc_array.psi_deriv() * 1e-7
-            # print(dpsi_dalpha[6], psi_deriv[6])
-            # assert(np.allclose(dpsi_dalpha[6], psi_deriv[6], rtol=1e-3))
-            # dBn_analytic = (A @ Linv @ psi + b).T @ (A @ (Linv * psi_deriv[:ncoils]))
-            # print(dBn_objective, dBn_analytic[6])
-            # assert np.isclose(dBn_objective, dBn_analytic[6], rtol=1e-2)
+            # dpsi_dalpha = (psi_new - psi) / epsilon 
+
+            # psi_deriv = psc_array.psi_deriv() # * 1e-7
+            # print(dpsi_dalpha[3], psi_deriv[3])
+            # # assert(np.allclose(dpsi_dalpha[6], psi_deriv[6], rtol=1e-3))
+            # dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[:ncoils]))
+            # print(dBn_objective, dBn_analytic[3])
+            # assert np.isclose(dBn_objective, dBn_analytic[3], rtol=1e-2)
     
     def test_L_analytic_derivatives(self):
         """
@@ -256,11 +259,11 @@ class Testing(unittest.TestCase):
                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
             A = psc_array.A_matrix
-            psi = psc_array.psi_total
+            psi = psc_array.psi_total 
             b = psc_array.b_opt * psc_array.fac
             L = psc_array.L
             Linv = psc_array.L_inv
-            I = (Linv @ psi)[:psc_array.num_psc]
+            I = (-Linv @ psi)[:psc_array.num_psc]
             Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
             L_deriv = psc_array.L_deriv()
             deltas_new = np.copy(deltas)
@@ -271,14 +274,15 @@ class Testing(unittest.TestCase):
             )
             L_new = psc_array_new.L
             Linv_new = psc_array_new.L_inv
-            I_new = (Linv_new @ psi)[:psc_array.num_psc]
+            I_new = (-Linv_new @ psi)[:psc_array.num_psc]
             Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             dL_ddelta = (L_new - L) / epsilon
             dLinv_ddelta = (Linv_new - Linv) / epsilon
             ncoils_sym = L_deriv.shape[0] // 2
-            print(np.array_str(dL_ddelta, precision=4))
-            print(np.array_str(L_deriv[ncoils_sym, :, :], precision=4))
+            # print(np.array_str(dL_ddelta*1e7, precision=4, suppress_small=True))
+            # print(np.array_str(L_deriv[ncoils_sym, :, :]*1e7, precision=4, suppress_small=True))
+            # print(np.array_str(L_deriv[ncoils_sym, :, :], precision=4))
             # print(np.array_str(dL_ddelta / L_deriv[ncoils_sym, :, :], precision=4, suppress_small=True))
 
             dL_ddelta_analytic = L_deriv
@@ -289,10 +293,10 @@ class Testing(unittest.TestCase):
 
             # Linv calculations looks much more incorrect that the L derivatives,
             # maybe because of numerical error accumulation? 
-            # print(np.array_str(dL_ddelta/ dL_ddelta_analytic[ncoils_sym, :, :], precision=4, suppress_small=True))
+            print(np.max(np.abs(dL_ddelta - dL_ddelta_analytic[ncoils_sym, :, :])))
             assert(np.allclose(dL_ddelta, dL_ddelta_analytic[ncoils_sym, :, :], rtol=1e-1))
             assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[ncoils_sym, :, :], rtol=10))
-            dBn_analytic = (A @ I + b).T @ (A @ (dLinv_ddelta_analytic @ psi)[:, :psc_array.num_psc].T)
+            dBn_analytic = (A @ I + b).T @ (-A @ (dLinv_ddelta_analytic @ psi)[:, :psc_array.num_psc].T)
             print(dBn_objective, dBn_analytic[ncoils_sym])
             assert np.isclose(dBn_objective, dBn_analytic[ncoils_sym], rtol=1e-1)
             
@@ -365,18 +369,18 @@ class Testing(unittest.TestCase):
             # )
             # L = psc_array.L
             # Linv = psc_array.L_inv
-            # I = (Linv @ psi)[:psc_array.num_psc]
+            # I = (-Linv @ psi)[:psc_array.num_psc]
             # Bn_objective_new = 0.5 * (A @ I + b).T @ (A @ I + b)
             # L_deriv = psc_array.L_deriv()
             # alphas_new = np.copy(alphas)
-            # alphas_new[2] += epsilon
+            # alphas_new[1] += epsilon
             # deltas_new = np.copy(deltas)
             # psc_array_new = PSCgrid.geo_setup_manual(
             #     points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             # )
             # L_new = psc_array_new.L
             # Linv_new = psc_array_new.L_inv
-            # I_new = (Linv_new @ psi)[:psc_array.num_psc]
+            # I_new = (-Linv @ psi)[:psc_array.num_psc]
             # Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             # dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             # dL_ddelta = (L_new - L) / epsilon
@@ -384,13 +388,14 @@ class Testing(unittest.TestCase):
             # dL_ddelta_analytic = L_deriv
             # dLinv_ddelta_analytic = -L_deriv @ Linv @ Linv
                 
-            # # print(np.array_str(dL_ddelta, precision=3, suppress_small=True))
-            # # print(np.array_str(L_deriv[2, :, :], precision=3, suppress_small=True))
-            # assert(np.allclose(dL_ddelta, dL_ddelta_analytic[2, :, :], rtol=1e-2))
+            # print(np.array_str(dL_ddelta*1e7, precision=3, suppress_small=True))
+            # print(np.array_str(L_deriv[1, :, :]*1e7, precision=3, suppress_small=True))
+            # # print(np.max(np.abs(dL_ddelta - dL_ddelta_analytic[ncoils_sym, :, :])))
+            # assert(np.allclose(dL_ddelta, dL_ddelta_analytic[1, :, :], rtol=1e-2))
             # # assert(np.allclose(dLinv_ddelta, dLinv_ddelta_analytic[2, :, :], rtol=10))
-            # dBn_analytic = (A @ I + b).T @ (A @ (dLinv_ddelta_analytic @ psi)[:, :psc_array.num_psc].T)
-            # print(dBn_objective, dBn_analytic[2])
-            # assert np.isclose(dBn_objective, dBn_analytic[2], rtol=1e-2)
+            # dBn_analytic = (A @ I + b).T @ (-A @ (dLinv_ddelta_analytic @ psi)[:, :psc_array.num_psc].T)
+            # print(dBn_objective, dBn_analytic[1])
+            # assert np.isclose(dBn_objective, dBn_analytic[1], rtol=1e-2)
         
         
     def test_symmetrized_quantities(self):
@@ -472,6 +477,7 @@ class Testing(unittest.TestCase):
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             )
             A_new = psc_array_new.A_matrix
+            
             # A_new_full = psc_array_new.A_matrix_full
             Bn_objective_new = 0.5 * (A_new @ I + b).T @ (A_new @ I + b)
             # print('Bns = ', Bn_objective, Bn_objective_new)
@@ -479,23 +485,23 @@ class Testing(unittest.TestCase):
             A_deriv = psc_array.A_deriv()
             dBn_analytic = (A @ I + b).T @ (A_deriv[:, ncoils:] * I)
             print(dBn_objective, dBn_analytic[0])
-            # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-1)
             dA_dalpha = (A_new - A) / epsilon
             dA_dkappa_analytic = A_deriv
-            # print(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0])
-            # print('dA0 = ', dA_dalpha[0, :], dA_dkappa_analytic[0, :])
-            print('dA0 = ', dA_dalpha[-1, 0], dA_dkappa_analytic[-1, ncoils])
-            # assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[:, 0], rtol=1)
+            # print(dA_dalpha[:, 0], dA_dkappa_analytic[:, ncoils])
+            print('dA0 = ', np.max(np.abs(dA_dalpha[:, 0] / dA_dkappa_analytic[:, ncoils])))
+            # print('dA0 = ', dA_dalpha[-1, 0], dA_dkappa_analytic[-1, ncoils])
+            assert np.allclose(dA_dalpha[:, 0], dA_dkappa_analytic[:, ncoils], rtol=1)
             
             # Repeat but change coil 3
             # psc_array = PSCgrid.geo_setup_manual(
             #     points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             # )
             # A = psc_array.A_matrix
-            # Linv = psc_array.L_inv[:ncoils, :ncoils]
-            # psi = psc_array.psi
-            # Linv_psi = Linv @ psi
-            # Bn_objective = 0.5 * (A @ Linv_psi + b).T @ (A @ Linv_psi + b)
+            # Linv = psc_array.L_inv
+            # psi = psc_array.psi_total
+            # I = (-Linv @ psi)[:psc_array.num_psc]
+            # Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
             # alphas_new = np.copy(alphas)
             # alphas_new[4] += epsilon
             # deltas_new = np.copy(deltas)
@@ -503,16 +509,27 @@ class Testing(unittest.TestCase):
             #     points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             # )
             # A_new = psc_array_new.A_matrix
-            # Bn_objective_new = 0.5 * (A_new @ Linv_psi + b).T @ (A_new @ Linv_psi + b)
+            # dd = psc_array_new.deltas - psc_array.deltas
+            # ddprime = psc_array_new.deltas_total - psc_array.deltas_total
+            # aaprime = psc_array_new.alphas_total - psc_array.alphas_total
+            # # print('dd, ddprime = ', dd, ddprime, ddprime / epsilon)
+            # # print('a = ', psc_array.alphas_total)
+            # # print('a_new = ', psc_array_new.alphas_total)
+            # # print('aaprime = ', aaprime / epsilon, psc_array.aaprime_aa)
+            # # print('aaprime_dd = ', psc_array.aaprime_dd)
+            # # print('ddprime_aa = ', psc_array.ddprime_aa)
+            # # print('aaprime_dd = ', psc_array.aaprime_dd)
+            # # print('aaprime_dd = ', psc_array.aaprime_dd)
+            # Bn_objective_new = 0.5 * (A_new @ I + b).T @ (A_new @ I + b)
             # dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             # A_deriv = psc_array.A_deriv()
-            # dBn_analytic = (A @ Linv_psi + b).T @ (A_deriv[:, :ncoils] * Linv_psi)
+            # dBn_analytic = (A @ I + b).T @ (A_deriv[:, :ncoils] * I)
             # print(dBn_objective, dBn_analytic[4])
-            # assert np.isclose(dBn_objective, dBn_analytic[4], rtol=1)
+            # assert np.isclose(dBn_objective, dBn_analytic[4], rtol=1e-2)
             # dA_dalpha = (A_new - A) / epsilon
             # dA_dkappa_analytic = A_deriv
-            # print(dA_dalpha[-1, 4] / dA_dkappa_analytic[-1, 4])
-            # assert np.allclose(dA_dalpha[:, 4], dA_dkappa_analytic[:, 4], rtol=1e-1)
+            # # print(dA_dalpha[:, 4] / dA_dkappa_analytic[:, 4])
+            # assert np.allclose(dA_dalpha[:, 4], dA_dkappa_analytic[:, 4], rtol=1)
             
             # # Repeat but changing delta instead of alpha
             # psc_array = PSCgrid.geo_setup_manual(
