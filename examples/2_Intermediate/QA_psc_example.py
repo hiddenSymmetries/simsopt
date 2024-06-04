@@ -146,14 +146,14 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 128  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 4
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
-poff = 0  # PSC grid will be offset 'poff' meters from the plasma surface
+poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
 coff = 0.5  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
@@ -256,7 +256,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 20, "out_dir": out_str, 
+kwargs_geo = {"Nx": 4, "out_dir": out_str, 
               "initialization": "plasma", "poff": poff,}
               # "interpolated_field": True} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
@@ -311,9 +311,10 @@ from scipy.optimize import approx_fprime, check_grad, basinhopping, dual_anneali
 # from scipy.optimize import lbfgsb
 def callback(x):
     print('fB: ', psc_array.least_squares(x))
-    # print('approx: ', approx_fprime(x, psc_array.least_squares, 1E-3))
-    # print('-----')
-    # print(check_grad(psc_array.least_squares, psc_array.least_squares_jacobian, x) / np.linalg.norm(psc_array.least_squares_jacobian(x)))
+    print('approx: ', approx_fprime(x, psc_array.least_squares, 1E-3))
+    print('exact: ', psc_array.least_squares_jacobian(x))
+    print('-----')
+    print(check_grad(psc_array.least_squares, psc_array.least_squares_jacobian, x) / np.linalg.norm(psc_array.least_squares_jacobian(x)))
     
 def callback_annealing(x, f, context):
     print('fB: ', psc_array.least_squares(x))
@@ -360,16 +361,16 @@ x0 = np.zeros(x0.shape)
 t1 = time.time()
 print('L-BFGS-B: ')
 # x0 = (np.random.rand(2 * psc_array.num_psc) - 0.5) * 2 * np.pi
-exit()
+# exit()
 x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                    method='L-BFGS-B',
                   # method='SLSQP',
                   # bounds=opt_bounds,
                   # jac=None,
-                    # jac=psc_array.least_squares_jacobian, 
+                    jac=psc_array.least_squares_jacobian, 
                   options=options,
                   tol=1e-20,  # Needed 1e-20 instead of 1e-20 to e.g. to converge on single PSC example! 
-                  # callback=callback
+                    callback=callback
                   )
 t2 = time.time()
 print('L-BFGS-B time: ', t2 - t1)

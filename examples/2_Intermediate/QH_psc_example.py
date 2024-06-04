@@ -116,7 +116,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10, "out_dir": out_str, "initialization": "random",
+kwargs_geo = {"Nx": 4, "out_dir": out_str, "initialization": "random",
                "plasma_boundary_full": s_plot} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
@@ -169,6 +169,15 @@ print('fB with both, before opt = ', fB / (B_axis ** 2 * s.area()))
 fB = SquaredFlux(s, B_PSC, -Bnormal).J()
 print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
+from scipy.optimize import approx_fprime, check_grad, basinhopping, dual_annealing, direct, differential_evolution, OptimizeResult
+# from scipy.optimize import lbfgsb
+def callback(x):
+    print('fB: ', psc_array.least_squares(x))
+    print('approx: ', approx_fprime(x, psc_array.least_squares, 1E-3))
+    print('exact: ', psc_array.least_squares_jacobian(x))
+    print('-----')
+    print(check_grad(psc_array.least_squares, psc_array.least_squares_jacobian, x) / np.linalg.norm(psc_array.least_squares_jacobian(x)))
+
 # exit()
 # Actually do the minimization now
 from scipy.optimize import minimize
@@ -196,6 +205,7 @@ for k in range(STLSQ_max_iters):
                         # jac=psc_array.least_squares_jacobian, 
                      options=options,
                      tol=1e-10,
+                     callback=callback
                      )
     from matplotlib import pyplot as plt
     plt.figure()

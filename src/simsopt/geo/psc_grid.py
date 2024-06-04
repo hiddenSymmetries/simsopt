@@ -75,7 +75,7 @@ class PSCgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = Nmin / 3.0  #, self.poff / 2.5)  # self.dx / 2.0 #
+        self.R = Nmin / 4.0  #, self.poff / 2.5)  # self.dx / 2.0 #
         self.a = self.R / 100.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -327,7 +327,7 @@ class PSCgrid:
         initialization = kwargs.pop("initialization", "TF")
         if initialization == "random":
             # Randomly initialize the coil orientations
-            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
+            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * np.pi
             psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
             psc_grid.coil_normals = np.array(
                 [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
@@ -381,6 +381,22 @@ class PSCgrid:
             np.logical_and(np.isclose(psc_grid.coil_normals, 0.0), 
                            np.copysign(1.0, psc_grid.coil_normals) < 0)
             ] *= -1.0
+            
+        # Check if the grid intersects a symmetry plane -- oops!
+        phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
+        phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
+        phi_dev = np.arctan2(psc_grid.R, psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2)
+        inds = []
+        for i in range(psc_grid.nfp):
+            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+            if len(conflicts) > 0:
+                inds.append(conflicts[0])
+        if len(inds) > 0:
+            print('bad indices = ', inds)
+            raise ValueError('The PSC coils are initialized such that they may intersect with '
+                             'a discrete symmetry plane, preventing the proper symmetrization '
+                             'of the coils under stellarator and field-period symmetries. '
+                             'Please reinitialize the coils.')
             
         # Generate all the locations of the PSC coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
@@ -553,8 +569,15 @@ class PSCgrid:
         phi_dev = np.arctan2(psc_grid.R, psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2)
         inds = []
         for i in range(psc_grid.nfp):
-            inds.append(np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev)))
-        print('inds = ', inds)
+            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+            if len(conflicts) > 0:
+                inds.append(conflicts[0])
+        if len(inds) > 0:
+            print('bad indices = ', inds)
+            raise ValueError('The PSC coils are initialized such that they may intersect with '
+                             'a discrete symmetry plane, preventing the proper symmetrization '
+                             'of the coils under stellarator and field-period symmetries. '
+                             'Please reinitialize the coils.')
         
         # generate planar TF coils
         ncoils = 4
@@ -966,7 +989,7 @@ class PSCgrid:
         # print('grad_A1 time = ', t2 - t1)
         
         # Analytic calculation too expensive
-        L_deriv = self.L_deriv()  # / self.fac
+        L_deriv = self.L_deriv()   # / self.fac
         # L_deriv = (self.L - self.L_prev) / (kappas - self.kappas_prev)
         # t1 = time.time()
         Linv2 = -(self.L_inv ** 2 @ self.psi_total)  # @ self.L_inv
@@ -1012,9 +1035,9 @@ class PSCgrid:
         # print(grad_kappa1.shape, grad_kappa2.shape, grad_kappa3.shape)
         # grad = grad_kappa1 + grad_kappa2 + grad_kappa3
         # print(self.Bn_PSC, self.b_opt)
-        # print('grads = ',  (Ax_b.T @ grad_kappa1) * self.fac2_norm,  
-        #       Ax_b.T @ grad_kappa2* self.fac2_norm,
-        #       Ax_b.T @ grad_kappa3* self.fac2_norm)
+        print('grads = ',  (Ax_b.T @ grad_kappa1) * self.fac2_norm,  
+              Ax_b.T @ grad_kappa2* self.fac2_norm,
+              Ax_b.T @ grad_kappa3* self.fac2_norm)
         # t2 = time.time()
         # print('grad_A3 time = ', t2 - t1, grad_alpha3.shape, grad_kappa3.shape)
         # if verbose:
@@ -1054,8 +1077,10 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 )
+                # print(q, fp, dA[0, :] * np.pi, self.aaprime_aa[q * nn: (q + 1) * nn], self.ddprime_dd[q * nn: (q + 1) * nn])
                 dA_dkappa[:, :nn] += dA[:, :nn] * self.aaprime_aa[q * nn: (q + 1) * nn] + dA[:, nn:] * self.ddprime_aa[q * nn: (q + 1) * nn]
                 dA_dkappa[:, nn:] += dA[:, nn:] * self.ddprime_dd[q * nn: (q + 1) * nn] + dA[:, :nn] * self.aaprime_dd[q * nn: (q + 1) * nn]
+                # print(dA_dkappa[0, :] * np.pi)
                 q = q + 1
         return dA_dkappa * np.pi # dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
     
@@ -1242,6 +1267,7 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 ) 
+                # print(q, fp, stell, dpsi / (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0))
                 psi_deriv[:nn] += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
                 psi_deriv[nn:] += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 q += 1
@@ -1343,6 +1369,7 @@ class PSCgrid:
             self.quad_weights
         )
         self.psi = self.psi_total[:self.num_psc]
+        # print('psi = ', self.psi_total)
         
         # Looks like don't flip psi is correct! (tested on QH)
         # This is because B(x, -y, -z) -> [-Bx, By, Bz] and same for the
@@ -1408,46 +1435,77 @@ class PSCgrid:
                 self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
                 self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
-                # normals = self.coil_normals_all[q * nn: (q + 1) * nn, :]
-                # normals = self.coil_normals
+                normals = self.coil_normals_all[nn * q: nn * (q + 1), :]
+                normals[
+                    np.logical_and(np.isclose(normals, 0.0), 
+                                   np.copysign(1.0, normals) < 0)
+                    ] *= -1.0
+                self.coil_normals_all[q * nn: (q + 1) * nn, :] = normals
+                
                 # get new deltas by flipping sign of deltas, then rotation alpha by phi0
-                # deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
+                deltas = np.arctan2(normals[:, 0], normals[:, 2]) # + np.pi
                 
                 ###### Add back in lines once done debugging on QH ##########################
                 # deltas[abs(deltas) == np.pi] = 0.0
                 # if fp == 0 and stell == 1:
-                #     shift_deltas = self.deltas - deltas  # +- pi
+                    # shift_deltas = self.deltas - deltas  # +- pi
                 # deltas += shift_deltas
                 # alphas = -np.arctan2(normals[:, 1] * np.cos(deltas), normals[:, 2])
                 # alphas[abs(alphas) == np.pi] = 0.0
                 # if fp == 0 and stell == 1:
-                #     shift_alphas = self.alphas - alphas  # +- pi
+                    # shift_alphas = self.alphas - alphas  # +- pi
                 # alphas += shift_alphas
+                alphas = -np.arcsin(normals[:, 1])
                 # print(q, fp, stell, alphas, deltas)
                 # self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 # self.deltas_total[nn * q: nn * (q + 1)] = deltas
                 # alphas2 = -np.arcsin(np.sin(phi0) * stell * np.cos(
                 #     self.alphas) * np.sin(self.deltas) - np.cos(phi0) * np.sin(self.alphas))  #(self.alphas + phi0)  # * stell
-                deltas = np.arctan2(np.cos(phi0) * stell * np.cos(
-                    self.alphas) * np.sin(self.deltas) + np.sin(phi0) * np.sin(self.alphas),
-                    np.cos(self.alphas) * np.cos(self.deltas))
+                # print(np.cos(phi0), np.cos(self.alphas), np.sin(self.deltas), np.sin(phi0), np.sin(self.alphas), np.cos(
+                #      self.alphas), np.sin(self.deltas))
+                # deltas = np.arctan2(np.cos(phi0) * stell * np.cos(
+                #     self.alphas) * np.sin(self.deltas) + np.sin(phi0) * np.sin(self.alphas),
+                #     np.cos(self.alphas) * np.cos(self.deltas))
                 
                 # Fix the orientation
-                deltas[abs(deltas) == np.pi] = 0.0
-                if fp == 0 and stell == 1:
-                    shift_deltas = self.deltas - deltas
-                deltas += shift_deltas
+                # deltas[abs(deltas) == np.pi] = 0.0
+                # if fp == 0 and stell == 1:
+                #     shift_deltas = self.deltas - deltas
+                # deltas += shift_deltas
                 # alphas = -np.arcsin(np.sin(phi0) * stell * np.cos(
                 #       self.alphas) * np.sin(self.deltas) - np.cos(phi0) * np.sin(self.alphas))
-                alphas = -np.arctan2(np.cos(deltas) * (np.sin(phi0) * stell * np.cos(
-                    self.alphas) * np.sin(self.deltas) - np.cos(phi0) * np.sin(self.alphas)),
-                    np.cos(self.alphas) * np.cos(self.deltas))
+            
+                # deal with -0 terms in the normals, which screw up the arctan2 calculations
+                # psc_grid.coil_normals[
+                #     np.logical_and(np.isclose(psc_grid.coil_normals, 0.0), 
+                #                    np.copysign(1.0, psc_grid.coil_normals) < 0)
+                #     ] *= -1.0
+                
+                
+                
+                ###### Still having minus sign issues everywhere because of alpha, delta, coil_normals
+                # conversions and other weirdnesses. 
+                ###### Probably the aaprime_aa, etc. are fine since they will be consistent with
+                # alphas and deltas if use the arctan for delta and arcsin for alpha. Just need
+                # to make these calculations consistent with the coil_normals now?
+                # alphas = -np.arctan2(np.cos(deltas) * (np.sin(phi0) * stell * np.cos(
+                #     self.alphas) * np.sin(self.deltas) - np.cos(phi0) * np.sin(self.alphas)),
+                #     np.cos(self.alphas) * np.cos(self.deltas))
+                
                 # Fix the orientation
-                alphas[abs(alphas) == np.pi] = 0.0
-                if fp == 0 and stell == 1:
-                    shift_alphas = self.alphas - alphas
-                alphas += shift_alphas
+                # alphas[abs(alphas) == np.pi] = 0.0
+                # if fp == 0 and stell == 1:
+                #     shift_alphas = self.alphas - alphas
+                # alphas += shift_alphas
                 # print(q, fp, stell, alphas, deltas)
+                # self.coil_normals_all[nn * q: nn * (q + 1), :]
+                cc = np.array(
+                    [np.cos(alphas) * np.sin(deltas),
+                      -np.sin(alphas),
+                      np.cos(alphas) * np.cos(deltas)]
+                ).T
+                # print(cc, self.coil_normals_all[nn * q: nn * (q + 1), :])
+                assert np.allclose(cc, self.coil_normals_all[nn * q: nn * (q + 1), :])
                 
                 self.alphas_total[nn * q: nn * (q + 1)] = alphas
                 self.deltas_total[nn * q: nn * (q + 1)] = deltas
@@ -1464,15 +1522,18 @@ class PSCgrid:
                 self.ddprime_dd[nn * q: nn * (q + 1)] = ddprime_dd
                 self.ddprime_aa[nn * q: nn * (q + 1)] = ddprime_aa
                 
-                # Need to choose the branch with arcsin in -pi/2 < arcsin(x) < pi / 2 or -1 < x < 1
-                xx = (np.sin(x) * np.cos(z) - stell * np.cos(x) * np.sin(y) * np.sin(z)) ** 2
+                # Need to choose the branch with arcsin in -pi/2 < arcsnp.sin(x) * np.cos(z) - stell * np.cos(x) * np.sin(y) * np.sin(z)in(x) < pi / 2 or -1 < x < 1
+                xx = (np.sin(x) * np.cos(z) - stell * np.cos(x) * np.sin(y) * np.sin(z))
+                # print(self.coil_normals_all[nn * q: nn * (q + 1), :], self.coil_normals)
+                # xt = np.cos(deltas) * (np.sin(z) * np.cos(x) * np.sin(y) - stell * np.cos(z) * np.sin(x)) / (np.cos(x) * np.cos(y))
+                # aaprime_aa = -(-xt * np.tan(deltas) * ddprime_aa + xt * np.tan(x) + np.cos(deltas) * (-np.sin(z) * np.sin(y) * np.sin(x) - stell * np.cos(z) * np.cos(x)) / (np.cos(x) * np.cos(y))) / (1 + xt ** 2)
+                # print(-xt * np.tan(deltas) * ddprime_aa / (1 + xt ** 2), xt * np.tan(x) / (1 + xt ** 2), np.cos(deltas) * (-np.sin(z) * np.sin(y) * np.sin(x) + stell * np.cos(z) * np.cos(x)) / (np.cos(x) * np.cos(y)) / (1 + xt ** 2))
                 aaprime_aa = (np.sin(x) * np.sin(y) * np.sin(z) * stell + np.cos(x) * np.cos(z) 
-                              ) / np.sqrt(1 - xx)  #* np.sign(alphas)
-                # print(q, fp, stell, alphas, self.alphas)
+                                ) / np.sqrt(1 - xx ** 2) #* np.sign(xx)
+                # print(q, fp, stell, alphas, deltas)
                 aaprime_dd = -stell * (np.cos(x) * np.cos(y) * np.sin(z)) / np.sqrt(1.0 - (np.cos(z) * np.sin(x) - stell * np.cos(x) * np.sin(y) * np.sin(z)) ** 2)
                 self.aaprime_aa[nn * q: nn * (q + 1)] = aaprime_aa
                 self.aaprime_dd[nn * q: nn * (q + 1)] = aaprime_dd
-                # print(q, fp, stell, self.ddprime_dd[nn * q: nn * (q + 1)])
                 # print(q, fp, stell, ddprime_dd, ddprime_aa, aaprime_aa, aaprime_dd)
                 q = q + 1
         self.alphas_total = contig(self.alphas_total)
