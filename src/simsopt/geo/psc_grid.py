@@ -75,7 +75,7 @@ class PSCgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = Nmin / 4.0  #, self.poff / 2.5)  # self.dx / 2.0 #
+        self.R = Nmin / 3.0  #, self.poff / 2.5)  # self.dx / 2.0 #
         self.a = self.R / 100.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -115,7 +115,7 @@ class PSCgrid:
                         # if self.nfp == 4:
                             # phi2 = np.arctan2(self.R / 2.0, X[i, j, k])
                         # elif self.nfp == 2:
-                        phi2 = np.arctan2(self.R / 2.0, self.plasma_boundary.get_rc(0, 0))
+                        phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
                         # Add a little factor to avoid phi = pi / n_p degrees 
                         # exactly, which can intersect with a symmetrized
                         # coil if not careful 
@@ -357,24 +357,18 @@ class PSCgrid:
                 
             psc_grid.deltas = np.arctan2(psc_grid.coil_normals[:, 0], 
                                          psc_grid.coil_normals[:, 2])
-            psc_grid.deltas[abs(psc_grid.deltas) == np.pi] = 0.0
-            psc_grid.alphas = -np.arctan2(
-                psc_grid.coil_normals[:, 1] * np.cos(psc_grid.deltas), 
-                psc_grid.coil_normals[:, 2]
-            )
-            psc_grid.alphas[abs(psc_grid.alphas) == np.pi] = 0.0
+            # psc_grid.deltas[abs(psc_grid.deltas) == np.pi] = 0.0
+            psc_grid.alphas = -np.arcsin(psc_grid.coil_normals[:, 1])
+            # psc_grid.alphas[abs(psc_grid.alphas) == np.pi] = 0.0
         elif initialization == "TF":
             # determine the alphas and deltas from these normal vectors
             B = B_TF.B()
             psc_grid.coil_normals = (B.T / np.sqrt(np.sum(B ** 2, axis=-1))).T
             psc_grid.deltas = np.arctan2(psc_grid.coil_normals[:, 0], 
                                          psc_grid.coil_normals[:, 2])
-            psc_grid.deltas[abs(psc_grid.deltas) == np.pi] = 0.0
-            psc_grid.alphas = -np.arctan2(
-                psc_grid.coil_normals[:, 1] * np.cos(psc_grid.deltas), 
-                psc_grid.coil_normals[:, 2]
-            )
-            psc_grid.alphas[abs(psc_grid.alphas) == np.pi] = 0.0
+            # psc_grid.deltas[abs(psc_grid.deltas) == np.pi] = 0.0
+            psc_grid.alphas =  -np.arcsin(psc_grid.coil_normals[:, 1]) 
+            # psc_grid.alphas[abs(psc_grid.alphas) == np.pi] = 0.0
             
         # deal with -0 terms in the normals, which screw up the arctan2 calculations
         psc_grid.coil_normals[
@@ -509,7 +503,7 @@ class PSCgrid:
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
         psc_grid.alphas = kwargs.pop("alphas", 
                                      (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
+                                         psc_grid.num_psc) - 0.5) * np.pi
         )
         psc_grid.deltas = kwargs.pop("deltas", 
                                      (np.random.rand(
@@ -566,7 +560,7 @@ class PSCgrid:
         # Check if the grid intersects a symmetry plane -- oops!
         phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
         phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
-        phi_dev = np.arctan2(psc_grid.R, psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2)
+        phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
         inds = []
         for i in range(psc_grid.nfp):
             conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
@@ -927,8 +921,6 @@ class PSCgrid:
         self.update_psi()
         self.setup_currents_and_fields()
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
-        # print(self.Bn_PSC, self.I, self.)
-        # print(self.Bn_PSC, self.b_opt, self.I[0], self.psi[0], self.L_inv[0, 1])
         BdotN2 = 0.5 * Ax_b.T @ Ax_b * self.fac2_norm
         # t2 = time.time()
         # print('setup currents time = ', t2 - t1)
@@ -972,7 +964,7 @@ class PSCgrid:
         # t2 = time.time()
         # print('Setup time = ', t2 - t1)
         # Two factors of grid normalization since it is not added to the gradients
-        t1 = time.time()
+        # t1 = time.time()
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
         A_deriv = self.A_deriv() 
         # I = -Linv @ self.psi
@@ -985,7 +977,7 @@ class PSCgrid:
         # print(A_deriv, self.A_matrix, Lpsi, Linv, self.psi)
         # Should be shape (num_plasma_points, 2 * num_psc)
         grad_kappa1 = self.grid_normalization[:, None] * np.hstack((grad_alpha1, grad_delta1)) 
-        t2 = time.time()
+        # t2 = time.time()
         # print('grad_A1 time = ', t2 - t1)
         
         # Analytic calculation too expensive
@@ -1035,9 +1027,9 @@ class PSCgrid:
         # print(grad_kappa1.shape, grad_kappa2.shape, grad_kappa3.shape)
         # grad = grad_kappa1 + grad_kappa2 + grad_kappa3
         # print(self.Bn_PSC, self.b_opt)
-        print('grads = ',  (Ax_b.T @ grad_kappa1) * self.fac2_norm,  
-              Ax_b.T @ grad_kappa2* self.fac2_norm,
-              Ax_b.T @ grad_kappa3* self.fac2_norm)
+        # print('grads = ',  (Ax_b.T @ grad_kappa1) * self.fac2_norm,  
+              # Ax_b.T @ grad_kappa2* self.fac2_norm,
+              # Ax_b.T @ grad_kappa3* self.fac2_norm)
         # t2 = time.time()
         # print('grad_A3 time = ', t2 - t1, grad_alpha3.shape, grad_kappa3.shape)
         # if verbose:
@@ -1077,12 +1069,10 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 )
-                # print(q, fp, dA[0, :] * np.pi, self.aaprime_aa[q * nn: (q + 1) * nn], self.ddprime_dd[q * nn: (q + 1) * nn])
                 dA_dkappa[:, :nn] += dA[:, :nn] * self.aaprime_aa[q * nn: (q + 1) * nn] + dA[:, nn:] * self.ddprime_aa[q * nn: (q + 1) * nn]
                 dA_dkappa[:, nn:] += dA[:, nn:] * self.ddprime_dd[q * nn: (q + 1) * nn] + dA[:, :nn] * self.aaprime_dd[q * nn: (q + 1) * nn]
-                # print(dA_dkappa[0, :] * np.pi)
                 q = q + 1
-        return dA_dkappa * np.pi # dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
+        return dA_dkappa * np.pi # rescale by pi for gauss-leg quadrature
     
     def L_deriv(self):
         """

@@ -367,7 +367,7 @@ x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                   # method='SLSQP',
                   # bounds=opt_bounds,
                   # jac=None,
-                    jac=psc_array.least_squares_jacobian, 
+                    # jac=psc_array.least_squares_jacobian, 
                   options=options,
                   tol=1e-20,  # Needed 1e-20 instead of 1e-20 to e.g. to converge on single PSC example! 
                     callback=callback

@@ -148,7 +148,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 3, "out_dir": out_str, "initialization": "plasma",
+kwargs_geo = {"Nx": 8, "out_dir": out_str, "initialization": "plasma",
               "plasma_boundary_full": s_plot} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
@@ -224,10 +224,10 @@ for k in range(STLSQ_max_iters):
     x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
                      method='L-BFGS-B',
                      # bounds=opt_bounds,
-                        # jac=psc_array.least_squares_jacobian, 
+                        jac=psc_array.least_squares_jacobian, 
                      options=options,
                      tol=1e-10,
-                     callback=callback
+                     # callback=callback
                      )
     from matplotlib import pyplot as plt
     plt.figure()
