@@ -80,6 +80,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("coil_forces_matrix" , &coil_forces_matrix);
     m.def("Ellint1AGM" , &Ellint1AGM);
     m.def("Ellint2AGM" , &Ellint2AGM);
+    m.def("update_alphas_deltas" , &update_alphas_deltas);
     
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);

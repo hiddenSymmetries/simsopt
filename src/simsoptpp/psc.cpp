@@ -1,4 +1,5 @@
 #include "psc.h"
+#include <tuple>
 
 #if defined(USE_XSIMD)
 // Calculate the inductance matrix needed for the PSC forward problem
@@ -575,6 +576,56 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
 
 
 #endif
+
+std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas(Array& coil_normals, int nfp, int stellsym) {
+    int num_coils = coil_normals.shape(0);  // shape should be (num_coils)
+    int nsym = num_coils * nfp * (stellsym + 1);
+    Array coil_normals_all = xt::zeros<double>({nsym, 3});
+    Array alphas_all = xt::zeros<double>({nsym});
+    Array deltas_all = xt::zeros<double>({nsym});
+    Array aaprime_aa = xt::zeros<double>({nsym});
+    Array aaprime_dd = xt::zeros<double>({nsym});
+    Array ddprime_dd = xt::zeros<double>({nsym});
+    Array ddprime_aa = xt::zeros<double>({nsym});
+    double* coil_normals_ptr = &(coil_normals(0, 0));
+    #pragma omp parallel for schedule(static)
+    for (int n = 0; n < num_coils; n++) {
+        int q = 0;
+        for (int fp = 0; fp < nfp; fp++) {
+            auto phi0 = (2 * M_PI / (double) nfp) * fp;
+            auto sinz = sin(phi0);
+            auto cosz = cos(phi0);
+            // stellsym = 0 if not stellarator symmetric, 1 if stellarator symmetric
+            for (int stell = 1; stell > -stellsym - 1; stell -= 2) {
+                coil_normals_all(num_coils * q + n, 0) = coil_normals_ptr[3 * n] * cosz * stell - coil_normals_ptr[3 * n + 1] * sinz;
+                coil_normals_all(num_coils * q + n, 1) = coil_normals_ptr[3 * n] * sinz * stell + coil_normals_ptr[3 * n + 1] * cosz;
+                coil_normals_all(num_coils * q + n, 2) = coil_normals_ptr[3 * n + 2];
+                deltas_all(num_coils * q + n) = atan2(coil_normals_all(num_coils * q + n, 0), \
+                                                          coil_normals_all(num_coils * q + n, 2));
+                alphas_all(num_coils * q + n) = -asin(coil_normals_all(num_coils * q + n, 1));
+                auto x = alphas_all(n);
+                auto y = deltas_all(n);
+                auto cosy = cos(y);
+                auto secy = 1.0 / cosy;
+                auto siny = sin(y);
+                auto tany = tan(y);
+                auto sinx = sin(x);
+                auto tanx = tan(x);
+                auto cosx = cos(x);
+                ddprime_dd(num_coils * q + n) = (secy * sinz * tanx * tany + stell * cosz * ( \
+                    1.0 + tany * tany)) / (1.0 + (secy * sinz * tanx + stell * cosz * tany) * (secy * sinz * tanx + stell * cosz * tany));
+                ddprime_aa(num_coils * q + n) = (secy * sinz * (1.0 + tanx * tanx) \
+                    ) / (1.0 + secy * secy * sinz * sinz * tanx * tanx + stell * 2.0 * cosz * secy * sinz * tanx * tany + cosz * cosz * tany * tany);
+                aaprime_aa(num_coils * q + n) = (sinx * siny * sinz * stell + cosx * cosz \ 
+                    ) / sqrt(1.0 - (sinx * cosz - stell * cosx * siny * sinz) * (sinx * cosz - stell * cosx * siny * sinz));
+                aaprime_dd(num_coils * q + n) = -stell * (cosx * cosy * sinz) /  \
+                    sqrt(1.0 - (cosz * sinx - stell * cosx * siny * sinz) * (cosz * sinx - stell * cosx * siny * sinz));
+                q = q + 1;
+            }
+        }
+    }
+    return std::make_tuple(coil_normals_all, alphas_all, deltas_all, aaprime_aa, aaprime_dd, ddprime_dd, ddprime_aa);
+}
 
 Array coil_forces(Array& points, Array& B, Array& alphas, Array& deltas, Array& int_points, Array& int_weights) {
     double* B_ptr = &(B(0, 0));
