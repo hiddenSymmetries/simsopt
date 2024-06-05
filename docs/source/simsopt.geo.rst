@@ -84,9 +84,9 @@ simsopt.geo.curvexyzfourier module
    :undoc-members:
    :show-inheritance:
 
-simsopt.geo.curvecws module
+simsopt.geo.curvecwsfourier module
 ----------------------------------
-.. automodule:: simsopt.geo.curvecws
+.. automodule:: simsopt.geo.curvecwsfourier
    :members:
    :undoc-members:
    :show-inheritance:
