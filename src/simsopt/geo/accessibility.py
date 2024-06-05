@@ -503,34 +503,46 @@ class VerticalPortDiscrete( Optimizable ):
         return vertical_access( self.gamma_surf, gamma_curves, self.phi_ind, self.theta_ind, self.dmax )
 
 
+def PolyArea(x,y):
+    # Showlace formula, using https://stackoverflow.com/a/30408825
+    shifty = jnp.roll(y,1)
+    shiftx = jnp.roll(x,1)
+    return 0.5*jnp.abs(jnp.dot(x,shifty)-jnp.dot(y,shiftx))
 
-def xy_enclosed_area( gamma, gammadash, pts ):
+def xy_enclosed_area( gamma ):
+    """
+    Returns enclosed area in XY plane
+    """
 
-    #alen = jnp.linalg.norm(gammadash, axis=1)
-    dpts = jnp.append(jnp.diff(pts), 1+pts[0]-pts[-1])
-    return jnp.sum( dpts*(gamma[:,0]*gammadash[:,1]) ) 
-    #return 1./2. * jnp.mean( alen*(gamma[:,0]*gammadash[:,1]-gamma[:,1]*gammadash[:,0]) ) 
+    x = gamma[:,0]
+    y = gamma[:,1]
+    return PolyArea(x,y)
 
 def project(x, gamma):
     centroid = jnp.mean(gamma.reshape((-1,3)), axis=0)
     phic = jnp.arctan2(centroid[1], centroid[0])
-    unit_normal = jnp.array([jnp.cos(phic), jnp.sin(phic), jnp.zeros(phic.shape)])
-    unit_tangent = jnp.array([-jnp.sin(phic), jnp.cos(phic), jnp.zeros(phic.shape)])
-    unit_z = jnp.array([jnp.zeros(phic.shape),jnp.zeros(phic.shape),jnp.ones(phic.shape)])
+    unit_normal = jnp.array([jnp.cos(phic), jnp.sin(phic), jnp.zeros(phic.shape)]) #er
+    unit_tangent = jnp.array([-jnp.sin(phic), jnp.cos(phic), jnp.zeros(phic.shape)]) #ephi
+    unit_z = jnp.array([jnp.zeros(phic.shape),jnp.zeros(phic.shape),jnp.ones(phic.shape)]) #ez
 
+    #                 r           phi         z
     M = jnp.array([unit_normal,unit_tangent,unit_z]).transpose()
     invM = jnp.linalg.inv(M)
     
-    return jnp.einsum('ij,...j->...i',invM,x-centroid)
+    return jnp.einsum('ij,...j->...i',invM,x-centroid)  # return phi, r, z coords
 
-def zphi_enclosed_area(gamma, gammadash, pts):
+def zphi_enclosed_area(gamma): 
+    """
+    Returns enclosed area in Z-phi plane
+    """
     local_project = lambda x: project(x, gamma)
 
     gcyl = local_project(gamma)
-    gdcyl = local_project(gammadash)
 
-    dpts = jnp.append(jnp.diff(pts), 1+pts[0]-pts[-1])
-    return jnp.sum( dpts/4.0*(gcyl[:,1]*gdcyl[:,2] + gcyl[:,2]*gdcyl[:,1]) )
+    x = gcyl[:,1]
+    y = gcyl[:,2]
+
+    return PolyArea(x,y)
 
 
 class ProjectedEnclosedArea( Optimizable ):
@@ -539,31 +551,25 @@ class ProjectedEnclosedArea( Optimizable ):
         self.projection = projection
 
         if self.projection=='xy':
-            self.J_jax = jit(lambda gamma, gammadash: xy_enclosed_area(gamma, gammadash, self.curve.quadpoints ))
+            self.J_jax = jit(lambda gamma: xy_enclosed_area(gamma))
         elif self.projection=='zphi':
-            self.J_jax = jit(lambda gamma, gammadash: zphi_enclosed_area(gamma, gammadash, self.curve.quadpoints ))
+            self.J_jax = jit(lambda gamma: zphi_enclosed_area(gamma))
             
-        self.thisgrad0 = jit(lambda gamma, gammadash: grad(self.J_jax, argnums=0)(gamma, gammadash))
-        self.thisgrad1 = jit(lambda gamma, gammadash: grad(self.J_jax, argnums=1)(gamma, gammadash))
+        self.thisgrad0 = jit(lambda gamma: grad(self.J_jax, argnums=0)(gamma))
 
         super().__init__(depends_on=[curve])
 
 
     def J(self):
         gamma = self.curve.gamma()
-        gammadash = self.curve.gammadash()
-        return self.J_jax(gamma, gammadash)
+        return self.J_jax(gamma)
     
     @derivative_dec
     def dJ(self):
         gamma = self.curve.gamma()
-        gammadash = self.curve.gammadash()
-        grad0 = self.thisgrad0(gamma, gammadash)
-        grad1 = self.thisgrad1(gamma, gammadash)
+        grad0 = self.thisgrad0(gamma)
 
-        dcurve = self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1)
-
+        dcurve = self.curve.dgamma_by_dcoeff_vjp(grad0)
         return dcurve
 
 
@@ -608,7 +614,7 @@ def min_xy_distance(gamma1, gamma2):
     g1 = gamma1[:,:2]
     g2 = gamma2[:,:2]
 
-    ind = np.where(g2[2,:]>0)[0]
+    ind = np.where(gamma2[:,2]>0)[0]
     if len(ind)==0: # Then the curve is behind the port - ignore this
         return np.nan
     else:
@@ -635,15 +641,18 @@ def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     l2norm = jnp.linalg.norm(l2, axis=1) 
 
     alen = l1norm[:, None] * l2norm[None, :]
-    return jnp.sum(alen * f * jnp.maximum(minimum_distance-dists, 0)**2)/(g1.shape[0])
+    return jnp.sum(alen * f * jnp.maximum(minimum_distance-dists, 0)**2)
 
 def min_zphi_distance(gamma1, gamma2):
     local_project = lambda x: project(x, gamma1)
 
-    g1 = local_project(gamma1)[:,1:]
-    g2 = local_project(gamma2)[:,1:]
+    g1 = local_project(gamma1)
+    g2 = local_project(gamma2)
+    ind = np.where(g2[:,1]>0)[0]
 
-    ind = np.where(g2[0,:]>0)[0]
+    g1 = g1.at[:,1].set(0)
+    g2 = g2.at[:,1].set(0)
+
     if len(ind)==0:
         return np.nan
     else:
