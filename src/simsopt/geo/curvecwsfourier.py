@@ -26,7 +26,7 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
         order: The order of the Fourier series.
         nfp: The number of field periods.
         stellsym: The stellarator symmetry of the winding surface.
-        dofs: The dofs of the curve. If not provided, the dofs are initialized to zero.+
+        dofs: The dofs of the curve. If not provided, the dofs are initialized to zero. Not working yet - dofs must be defined outside of the constructor using `set_dofs` method.
     """
 
     def __init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym, dofs=None):
