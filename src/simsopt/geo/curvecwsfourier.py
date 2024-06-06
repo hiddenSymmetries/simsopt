@@ -18,6 +18,8 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
     where :math:`t \in [0, 1]` is the curve parameter, and :math:`\theta` and :math:`\phi` are the poloidal and toroidal angles
     respectively. The curve is parameterized to a winding surface of type ``SurfaceRZFourier``.
 
+    Note that for :math:`m=0` we skip the :math:m=0` term for the sin terms.
+
     Args:
         mpol: The number of poloidal modes of the winding surface.
         ntor: The number of toroidal modes of the winding surface.
