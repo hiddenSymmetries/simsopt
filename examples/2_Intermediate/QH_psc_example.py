@@ -215,6 +215,7 @@ kwargs_geo = {"Nx": 13, "out_dir": out_str, "poff": poff,
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
+L_orig = psc_array.L
 print('Number of PSC locations = ', len(psc_array.grid_xyz))
 
 currents = []
@@ -341,6 +342,8 @@ for k in range(STLSQ_max_iters):
         grid_xyz, psc_array.R, **kwargs_manual
     )
 BdotN2_list = np.ravel(BdotN2_list)
+L_final = psc_array.L
+print('L1, L2 = ', L_orig, L_final)
     
 from matplotlib import pyplot as plt
 plt.figure()
@@ -420,10 +423,10 @@ if vmec_flag:
 
 
     # set fieldline tracer parameters
-    nfieldlines = 10
+    nfieldlines = 8
     tmax_fl = 10000
 
-    R0 = np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
+    R0 = np.linspace(16.5, 17.5, nfieldlines)  # np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
     Z0 = np.zeros(nfieldlines)
     phis = [(i / 4) * (2 * np.pi / s_plot.nfp) for i in range(4)]
     print(rrange, zrange, phirange)
@@ -438,7 +441,7 @@ if vmec_flag:
         bsh, R0, Z0, tmax=tmax_fl, tol=1e-20, comm=comm,
         phis=phis,
         # phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(10000)])
+        stopping_criteria=[IterationStoppingCriterion(50000)])
     t2 = time.time()
     proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
     # make the poincare plots

@@ -44,7 +44,7 @@ else:
     quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
 
 poff = 0.2  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 0.3  # PSC grid will be initialized between 1 m and 2 m from plasma
+coff = 0.6  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
@@ -61,10 +61,10 @@ print('s.r = ', s.get_rc(1, 0))
 # Make inner and outer toroidal surfaces very high resolution,
 # which helps to initialize coils precisely between the surfaces. 
 s_inner = SurfaceRZFourier.from_wout(
-    surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
+    surface_filename, range=range_param, nphi=nphi * 2, ntheta=ntheta * 2
 )
 s_outer = SurfaceRZFourier.from_wout(
-    surface_filename, range=range_param, nphi=nphi, ntheta=ntheta
+    surface_filename, range=range_param, nphi=nphi * 2, ntheta=ntheta * 2
 )
 
 # Make the inner and outer surfaces by extending the plasma surface
@@ -93,7 +93,7 @@ def initialize_coils_NCSX():
     # generate planar TF coils
     ncoils = 2
     R0 = 1.5
-    R1 = 1.2
+    R1 = 1.4
     order = 5
 
     from simsopt.mhd.vmec import Vmec
@@ -148,7 +148,9 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 8, "out_dir": out_str, "initialization": "plasma",
+kwargs_geo = {"Nx": 12, "out_dir": out_str, 
+              # "initialization": "plasma",
+              "poff": poff,
               "plasma_boundary_full": s_plot} 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
@@ -198,16 +200,8 @@ from scipy.optimize import minimize
 
 
 print('beginning optimization: ')
-eps = 1e-5
-opt_bounds1 = tuple([(-np.pi / 2.0 + eps, np.pi / 2.0 - eps) for i in range(psc_array.num_psc)])
-opt_bounds2 = tuple([(-np.pi + eps, np.pi - eps) for i in range(psc_array.num_psc)])
-# print(opt_bounds1, opt_bounds2)
-opt_bounds = np.vstack((opt_bounds1, opt_bounds2))
-opt_bounds = tuple(map(tuple, opt_bounds))
-# print(opt_bounds)
-options = {"disp": True, "maxiter": 50}
-# print(opt_bounds)
-# x0 = np.random.rand(2 * psc_array.num_psc) * 2 * np.pi
+eps = 1e-6
+options = {"disp": True, "maxiter": 40}
 verbose = True
 
 # Run STLSQ with BFGS in the loop
@@ -238,32 +232,44 @@ def callback_annealing(x, f, context):
 # print('Dual annealing time: ', t2 - t1)
 
 # x0 = np.zeros(2 * psc_array.num_psc)  # np.hstack(((np.random.rand(psc_array.num_psc) - 0.5) * np.pi, (np.random.rand(psc_array.num_psc) - 0.5) * 2 * np.pi))
-I_threshold = 0.0
+I_threshold = 5e4
+I_threshold_scaling = 1.6
 STLSQ_max_iters = 10
+BdotN2_list = []
+num_pscs = []
 for k in range(STLSQ_max_iters):
-    # x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
+    x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
+    num_pscs.append(len(x0) // 2)
     print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
-    x_opt = minimize(psc_array.least_squares, x0, args=(verbose,),
+    print('I_threshold = ', I_threshold * I_threshold_scaling)
+    opt_bounds1 = tuple([(-np.pi / 2.0 + eps, np.pi / 2.0 - eps) for i in range(psc_array.num_psc)])
+    opt_bounds2 = tuple([(-np.pi + eps, np.pi - eps) for i in range(psc_array.num_psc)])
+    opt_bounds = np.vstack((opt_bounds1, opt_bounds2))
+    opt_bounds = tuple(map(tuple, opt_bounds))
+    x_opt = minimize(psc_array.least_squares, 
+                     x0, 
+                     args=(verbose,),
                      method='L-BFGS-B',
-                      bounds=opt_bounds,
-                        jac=psc_array.least_squares_jacobian, 
+                     bounds=opt_bounds,
+                     jac=psc_array.least_squares_jacobian, 
                      options=options,
-                     tol=1e-10,
+                     tol=1e-20,
                       # callback=callback
                      )
-    from matplotlib import pyplot as plt
-    plt.figure()
-    plt.semilogy(psc_array.BdotN2_list)
-    plt.show()
     I = psc_array.I
-    small_I_inds = np.ravel(np.where(np.abs(I) < I_threshold))
     grid_xyz = psc_array.grid_xyz
     alphas = psc_array.alphas
     deltas = psc_array.deltas
-    if len(small_I_inds) > 0:
-        grid_xyz = grid_xyz[small_I_inds, :]
-        alphas = alphas[small_I_inds]
-        deltas = deltas[small_I_inds]
+    if len(BdotN2_list) > 0:
+        print(BdotN2_list, np.array(psc_array.BdotN2_list))
+        BdotN2_list = np.hstack((BdotN2_list, np.array(psc_array.BdotN2_list)))
+    else:
+        BdotN2_list = np.array(psc_array.BdotN2_list)
+    big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold * I_threshold_scaling))
+    if len(big_I_inds) != psc_array.num_psc:
+        grid_xyz = grid_xyz[big_I_inds, :]
+        alphas = alphas[big_I_inds]
+        deltas = deltas[big_I_inds]
     else:
         print('STLSQ converged, breaking out of loop')
         break
@@ -274,6 +280,14 @@ for k in range(STLSQ_max_iters):
     psc_array = PSCgrid.geo_setup_manual(
         grid_xyz, psc_array.R, **kwargs_manual
     )
+BdotN2_list = np.ravel(BdotN2_list)
+    
+from matplotlib import pyplot as plt
+plt.figure()
+plt.subplot(1, 2, 1)
+plt.semilogy(BdotN2_list)
+plt.subplot(1, 2, 2)
+plt.plot(num_pscs)
     
 # psc_array.setup_orientations(x_opt.x[:len(x_opt) // 2], x_opt.x[len(x_opt) // 2:])
 psc_array.setup_curves()
@@ -327,5 +341,5 @@ make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
 #     plt.ylabel(r'$\delta$')
 #     # plt.legend([r'$\log(f_B)$'])
 #     plt.colorbar()
-# plt.show()
+plt.show()
 print('end')

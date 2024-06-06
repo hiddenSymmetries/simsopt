@@ -32,17 +32,12 @@ class PSCgrid:
         self.BdotN2_list = []
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
-        num_quad = 20  # 20 required for unit tests to pass
+        num_quad = 10  # 20 required for unit tests to pass
         (quad_points_phi, 
          quad_weights) = np.polynomial.legendre.leggauss(num_quad)
         self.quad_points_phi = contig(quad_points_phi * np.pi + np.pi)
         self.quad_weights = contig(quad_weights)
         self.quad_points_rho = contig(quad_points_phi * 0.5 + 0.5)
-        # rho = quad_points_phi * 0.5 + 0.5
-        # self.Rho, self.Phi = np.meshgrid(rho, self.quad_points_phi, indexing='ij')
-        # self.quad_points_phi = np.linspace(0, 2 * np.pi, num_quad)
-        # self.quad_weights = np.ones(num_quad)
-        # self.quad_dphi = self.quad_points_phi[1] - self.quad_points_phi[0]
 
     def _setup_uniform_grid(self):
         """
@@ -75,7 +70,12 @@ class PSCgrid:
         
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
-        self.R = self.poff / 2.5  # self.dx / 2.0 #
+        if self.plasma_boundary.nfp == 2:
+            self.R = Nmin / 2.5 
+        elif self.plasma_boundary.nfp == 3:
+            self.R = min(Nmin / 2.0, self.poff / 3.0)
+        else:
+            self.R = self.poff / 2.5
         self.a = self.R / 100.0  # Hard-coded aspect ratio of 100 right now
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
@@ -112,10 +112,12 @@ class PSCgrid:
                 for j in range(Ny):
                     for k in range(Nz):
                         phi = np.arctan2(Y[i, j, k], X[i, j, k])
-                        # if self.nfp == 4:
-                            # phi2 = np.arctan2(self.R / 2.0, X[i, j, k])
-                        # elif self.nfp == 2:
-                        phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
+                        if self.nfp == 4:
+                            phi2 = np.arctan2(self.R, X[i, j, k])
+                        elif self.nfp == 3:
+                            phi2 = np.arctan2(Y[i, j, k] + self.R, X[i, j, k] - self.R) - phi
+                        elif self.nfp == 2:
+                            phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
                         # Add a little factor to avoid phi = pi / n_p degrees 
                         # exactly, which can intersect with a symmetrized
                         # coil if not careful 
@@ -372,7 +374,7 @@ class PSCgrid:
         # Check if the grid intersects a symmetry plane -- oops!
         phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
         phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
-        phi_dev = np.arctan2(psc_grid.R, psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2)
+        phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
         inds = []
         for i in range(psc_grid.nfp):
             conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
@@ -384,6 +386,14 @@ class PSCgrid:
                              'a discrete symmetry plane, preventing the proper symmetrization '
                              'of the coils under stellarator and field-period symmetries. '
                              'Please reinitialize the coils.')
+        for i in range(psc_grid.num_psc):
+            for j in range(i + 1, psc_grid.num_psc):
+                dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
+                conflict_bool = (dij < 2.0 * psc_grid.R)
+                if conflict_bool:
+                    print('bad indices = ', i, j, dij)
+                    raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                                     'of another PSC coil. Please reinitialize the coils.')
             
         # Generate all the locations of the PSC coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
@@ -674,52 +684,16 @@ class PSCgrid:
         the PSC coils touching/intersecting, in which case it will be
         VERY ill-conditioned! 
         """
-        
-        # t1 = time.time()
-        # print(np.max(np.abs(I_test/self.I)), np.argmax(np.abs(I_test/self.I)))
-        # print(I_test[np.argmax(np.abs(I_test/self.I))])
-        # can fail from numerical error accumulation on low currents PSC 
-        # assert np.allclose(self.I, I_test, rtol=1e-2)
-        # t2 = time.time()
-        # print('Linv time = ', t2 - t1)
-        # t1 = time.time()
         self.L_inv = np.linalg.inv(self.L)
-        # self.L_inv = np.linalg.pinv(self.L, rcond=1e-5, hermitian=True)
-        # t2 = time.time()
-        # print('inv time = ', t2-t1)
-
-        # self.I = -self.L_inv[:self.num_psc, :self.num_psc] @ self.psi / self.fac
         self.I_all = -self.L_inv @ self.psi_total / self.fac
-        # print('psi = ', self.psi_total)
-        # print('I = ', self.I_all)
-        
-        # Agrees with self.I
-        # I_test = -self.L_inv[:, :self.num_psc] @ self.psi / self.fac
         self.I = self.I_all[:self.num_psc]
-        
-        self.I_all_with_sign_flips = np.zeros(self.I_all.shape)
-        q = 0
-        nn = self.num_psc
-        for fp in range(self.nfp):
-            for stell in self.stell_list:
-                self.I_all_with_sign_flips[q * nn: (q + 1) * nn] = self.I_all[q * nn: (q + 1) * nn] * stell
-                q += 1
-        # print(self.L[:self.num_psc, :self.num_psc] @ self.I, self.psi / self.fac)
-        # print(self.L @ self.I_all, self.psi_total / self.fac)
-        # print('I_all = ', self.I_all)
-        # print('L_all = ', self.L)
-        # print('max flux in each PSC = ', np.max(np.abs(self.L @ self.I_all + self.psi_total / self.fac)))
         self.setup_A_matrix()
-        self.Bn_PSC = (self.A_matrix @ self.I).reshape(-1)   # * self.fac
-        # self.Bn_PSC_full = (self.A_matrix_full @ self.I_all).reshape(-1)
+        self.Bn_PSC = (self.A_matrix @ self.I).reshape(-1)
         
     def setup_A_matrix(self):
         """
         """
-        # A_matrix has shape (num_plasma_points, num_coils)
         A_matrix = np.zeros((self.nphi * self.ntheta, self.num_psc))
-        # A_matrix_full = np.zeros((self.nphi * self.ntheta * self.symmetry, self.num_psc * self.symmetry))
-        # Need to rotate and flip it
         nn = self.num_psc
         q = 0
         for fp in range(self.nfp):
@@ -731,36 +705,9 @@ class PSCgrid:
                     contig(self.deltas_total[q * nn: (q + 1) * nn]),
                     self.plasma_unitnormals,
                     self.R,
-                ) # * stell * (-1) ** fp # accounts for sign change of the currents (does it?)
+                ) # accounts for sign change of the currents
                 q = q + 1
-                
-        # self.A_matrix_full = 2.0 * sopp.A_matrix_simd(
-        #     contig(self.grid_xyz_all),
-        #     contig(self.plasma_boundary_full.gamma().reshape(-1, 3)),
-        #     contig(self.alphas_total),
-        #     contig(self.deltas_total),
-        #     contig(self.plasma_boundary_full.unitnormal().reshape(-1, 3)),
-        #     self.R,
-        # )
-        # print('A_full = ', self.A_matrix_full[0, :])
-        # q = 0
-        # for fp in range(self.nfp):
-        #     for stell in self.stell_list:
-        #         phi0 = (2 * np.pi / self.nfp) * fp 
-        #         self.A_matrix_full[:, q*self.num_psc:(q+1)*self.num_psc] *= stell  #* (-1.0) ** fp
-        #         q += 1
         self.A_matrix = 2 * A_matrix  
-        
-        
-        ######## Things that appear to be correct:
-        # 1. psi does not need factors for discrete symmetries. That means the PSC currents don't flip either
-        # 2. A_matrix is correctly symmetrized WITHOUT multiplying it by any factors since
-        #    A_matrix @ I agrees with A_matrix_full @ I_all. Moreover, A_matrix_full @ I_all
-        #    produces correctly symmetrized Paraview plots as far as I can tell. 
-        
-        # Note below line fails is plasma_boundary_full is passed as kwarg and != plasma_boundary
-        # print((self.A_matrix @ self.I) / ( self.A_matrix_full[:len(self.plasma_points), :] @ self.I_all))
-        # assert np.allclose(self.A_matrix @ self.I, self.A_matrix_full[:len(self.plasma_points), :] @ self.I_all, rtol=1e-2)
     
     def setup_curves(self):
         """ 
@@ -782,8 +729,6 @@ class PSCgrid:
             sdelta2 = np.sin(delta2)
             dofs = np.zeros(10)
             dofs[0] = self.R
-            # dofs[1] = 0.0
-            # dofs[2] = 0.0
             # Conversion from Euler angles in 3-2-1 body sequence to 
             # quaternions: 
             # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
@@ -813,38 +758,34 @@ class PSCgrid:
         """
         from pyevtk.hl import pointsToVTK
         from . import curves_to_vtk
-        from simsopt.field import InterpolatedField, Current, coils_via_symmetries
         
         curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
-        if isinstance(self.B_TF, InterpolatedField):
-            self.B_TF.set_points(self.grid_xyz)
-            B = self.B_TF.B()
-            pointsToVTK(self.out_dir + 'curve_centers', 
-                        contig(self.grid_xyz[:, 0]),
-                        contig(self.grid_xyz[:, 1]), 
-                        contig(self.grid_xyz[:, 2]),
-                        data={"n": (contig(self.coil_normals[:, 0]), 
-                                    contig(self.coil_normals[:, 1]),
-                                    contig(self.coil_normals[:, 2])),
-                              "psi": contig(self.psi),
-                              "I": contig(self.I),
-                              "B_TF": (contig(B[:, 0]), 
-                                        contig(B[:, 1]),
-                                        contig(B[:, 2])),
-                              },
-            )
-        else:
-            pointsToVTK(self.out_dir + 'curve_centers', 
-                        contig(self.grid_xyz[:, 0]),
-                        contig(self.grid_xyz[:, 1]), 
-                        contig(self.grid_xyz[:, 2]),
-                        data={"n": (contig(self.coil_normals[:, 0]), 
-                                    contig(self.coil_normals[:, 1]),
-                                    contig(self.coil_normals[:, 2])),
-                              },
-            )
+        self.B_TF.set_points(self.grid_xyz)
+        B = self.B_TF.B()
+        pointsToVTK(self.out_dir + 'curve_centers', 
+                    contig(self.grid_xyz[:, 0]),
+                    contig(self.grid_xyz[:, 1]), 
+                    contig(self.grid_xyz[:, 2]),
+                    data={"n": (contig(self.coil_normals[:, 0]), 
+                                contig(self.coil_normals[:, 1]),
+                                contig(self.coil_normals[:, 2])),
+                          "psi": contig(self.psi),
+                          "I": contig(self.I),
+                          "B_TF": (contig(B[:, 0]), 
+                                    contig(B[:, 1]),
+                                    contig(B[:, 2])),
+                          },
+        )
+        
+        # Repeat for the whole torus
+        self.I_all_with_sign_flips = np.zeros(self.I_all.shape)
+        q = 0
+        nn = self.num_psc
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                self.I_all_with_sign_flips[q * nn: (q + 1) * nn] = self.I_all[q * nn: (q + 1) * nn] * stell
+                q += 1
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all_with_sign_flips)
-        # if isinstance(self.B_TF, InterpolatedField):
         self.B_TF.set_points(self.grid_xyz_all)
         B = self.B_TF.B()
         pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
@@ -859,19 +800,8 @@ class PSCgrid:
                           "B_TF": (contig(B[:, 0]), 
                                    contig(B[:, 1]),
                                    contig(B[:, 2])),
-                          # "-LI(=psi)": contig(-self.L @ self.I_all * self.fac),
                           },
         )
-        # else:
-        #     pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
-        #                 contig(self.grid_xyz_all[:, 0]),
-        #                 contig(self.grid_xyz_all[:, 1]), 
-        #                 contig(self.grid_xyz_all[:, 2]),
-        #                 data={"n": (contig(self.coil_normals_all[:, 0]), 
-        #                             contig(self.coil_normals_all[:, 1]),
-        #                             contig(self.coil_normals_all[:, 2])),
-        #                       },
-        #     )
         
     def b_vector(self):
         """
@@ -907,29 +837,11 @@ class PSCgrid:
                 array of kappas.
 
         """
-        t1 = time.time()
         self.setup_orientations(kappas[:self.num_psc], kappas[self.num_psc:])
-        t2 = time.time()
-        print('setup = ', t2 - t1)
-        t1 = time.time()
-
         self.update_psi()
-        t2 = time.time()
-        print('setup psi = ', t2 - t1)
-
-        t1 = time.time()
-
         self.setup_currents_and_fields()
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
         BdotN2 = 0.5 * Ax_b.T @ Ax_b * self.fac2_norm
-        t2 = time.time()
-        print('setup currents time = ', t2 - t1)
-        # outstr = f"Normalized f_B = {BdotN2:.3e} "
-        # for i in range(len(kappas)):
-        #     outstr += f"kappas[{i:d}] = {kappas[i]:.2e} "
-        # outstr += "\n"
-        # if verbose:
-        #     print(outstr)
         self.BdotN2_list.append(BdotN2)
         return BdotN2
     
@@ -952,83 +864,21 @@ class PSCgrid:
                 with the array of kappas.
 
         """
-        # t1_fin = time.time()
-        # alphas = kappas[:len(kappas) // 2]
-        # deltas = kappas[len(kappas) // 2:]
-        # print('alphas_old, deltas_old = ', self.alphas, self.deltas)
-        # print(alphas, deltas)
-        # t1 = time.time()
         self.setup_orientations(kappas[:self.num_psc], kappas[self.num_psc:])
         self.update_psi()
         self.setup_currents_and_fields()
-        # t2 = time.time()
-        # print('Setup time = ', t2 - t1)
-        # Two factors of grid normalization since it is not added to the gradients
-        # t1 = time.time()
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
         A_deriv = self.A_deriv() 
-        # I = -Linv @ self.psi
-        # print('Linv = ', Linv[0, 2])
-        # print('psi = ', self.psi[0])
-        # print('I = ', self.I[0])
-        # print('Bn = ', self.Bn_PSC[0], self.b_opt[0])
         grad_alpha1 = A_deriv[:, :self.num_psc] * self.I
         grad_delta1 = A_deriv[:, self.num_psc:] * self.I
-        # print(A_deriv, self.A_matrix, Lpsi, Linv, self.psi)
-        # Should be shape (num_plasma_points, 2 * num_psc)
         grad_kappa1 = self.grid_normalization[:, None] * np.hstack((grad_alpha1, grad_delta1)) 
-        # t2 = time.time()
-        # print('grad_A1 time = ', t2 - t1)
-        
-        # Analytic calculation too expensive and its on the level of numerical noise so ignore it!
-        # t1 = time.time()
-        # L_deriv = self.L_deriv()   # / self.fac
-        # Linv2 = -(self.L_inv ** 2 @ self.psi_total)  # @ self.L_inv
-        # ncoil_sym = L_deriv.shape[1]
-        # I_deriv1 = L_deriv[:self.num_psc, :self.num_psc, :] @ Linv2
-        # I_deriv2 = L_deriv[ncoil_sym:ncoil_sym + self.num_psc, :self.num_psc, :] @ Linv2
-        # I_deriv = np.hstack((I_deriv1, I_deriv2))
-        # grad_kappa2 = self.grid_normalization[:, None] * (self.A_matrix @ I_deriv)  #/ self.fac
-        # t2 = time.time()
-        # print('Linv_deriv time = ', t2 - t1)
-        # t1 = time.time()
-        psi_deriv = self.psi_deriv()  # / self.fac
+        psi_deriv = self.psi_deriv()
         Linv = self.L_inv[:self.num_psc, :self.num_psc]
-
-        # Should be * or @ below for Linv with psi_deriv?
-        # Really should be psi_deriv is shape(num_psc, 2 * num_psc) and then @
-        # but dpsi_dalpha_i gives a delta function on the coil flux that corresponds
-        # to coil i
-        # print(psi_deriv.shape)
-        I_deriv2 = -Linv * psi_deriv[:self.num_psc]   # / self.fac   # ** 2
-        I_deriv3 = -Linv * psi_deriv[self.num_psc:]    # / self.fac   # ** 2
-        grad_alpha3 = self.A_matrix @ I_deriv2  # / self.fac ** 2
-        grad_delta3 = self.A_matrix @ I_deriv3  #/ self.fac ** 2
+        I_deriv2 = -Linv * psi_deriv[:self.num_psc]
+        I_deriv3 = -Linv * psi_deriv[self.num_psc:]
+        grad_alpha3 = self.A_matrix @ I_deriv2
+        grad_delta3 = self.A_matrix @ I_deriv3
         grad_kappa3 = self.grid_normalization[:, None] * np.hstack((grad_alpha3, grad_delta3))
-        # t2 = time.time()
-        # print('grad_psi time = ', t2 - t1)
-        # missing mu0 fac
-        # print(grad_kappa1.shape, grad_kappa2.shape, grad_kappa3.shape)
-        # grad = grad_kappa1 + grad_kappa2 + grad_kappa3
-        # print(self.Bn_PSC, self.b_opt)
-        # print('grads = ',  (Ax_b.T @ grad_kappa1) * self.fac2_norm,  
-        #         Ax_b.T @ grad_kappa2* self.fac2_norm,
-        #         Ax_b.T @ grad_kappa3* self.fac2_norm)
-        # print('grads = ', np.max(np.abs((Ax_b.T @ grad_kappa1) * self.fac2_norm)),  
-               # np.max(np.abs((Ax_b.T @ grad_kappa2) * self.fac2_norm)),  
-               # np.max(np.abs((Ax_b.T @ grad_kappa3) * self.fac2_norm)))  
-        # t2 = time.time()
-        # print('grad_A3 time = ', t2 - t1, grad_alpha3.shape, grad_kappa3.shape)
-        # if verbose:
-            # print('Jacobian = ', Ax_b @ (grad_kappa1 + grad_kappa2 + grad_kappa3))
-        # minus sign in front because I = -Linv @ psi
-        # jac = (Ax_b.T @ (grad_kappa1 + grad_kappa2 + grad_kappa3)) * self.fac2_norm 
-        # jac = (Ax_b.T @ (grad_kappa1 + grad_kappa3)) * self.fac2_norm 
-        # print(jac * self.fac2_norm)
-        # print('exact jac = ', jac * self.fac2_norm)
-        # exit()
-        # t2_fin = time.time()
-        # print('Total jac time = ', t2_fin - t1_fin)
         return (Ax_b.T @ (grad_kappa1 + grad_kappa3)) * self.fac2_norm 
     
     def A_deriv(self):
@@ -1072,11 +922,6 @@ class PSCgrid:
                 The gradient of the L matrix with respect to the PSC angles
                 alpha_i and delta_i. 
         """
-        # nn = self.num_psc
-        # L_deriv = np.zeros((2 * self.num_psc, self.num_psc, self.num_psc))
-        # q = 0
-        # for fp in range(self.nfp):
-        #     for stell in self.stell_list:
         t1 = time.time()
         L_deriv = sopp.L_deriv_simd(
             self.grid_xyz_all_normalized, 
@@ -1088,100 +933,25 @@ class PSCgrid:
             self.stellsym,  # These  last few params are defunct in the function
             self.nfp
         )  
-        t2 = time.time()
-        # print('L_deriv call = ', t2 - t1)
-        # t1 = time.time()
         nsym = self.symmetry
         L_deriv_copy = np.zeros(L_deriv.shape)
         
-        # Extra work required to impose the symmetries correctly -- only works for nfp == 2
+        # Extra work required to impose the symmetries correctly
         nn = self.num_psc
         ncoils_sym = nn * nsym
-        # print(L_deriv.shape, ncoils_sym)
-        # dL_dkappa = np.zeros((2 * nn, ncoils_sym, ncoils_sym))
         if nsym > 1:
             q = 0
             for fp in range(self.nfp):
                 for stell in self.stell_list:
-                    # print(q, fp, stell, L_deriv[ncoils_sym:ncoils_sym + nn, :, :] )
-                    # dL = sopp.L_deriv_simd(
-                    #     self.grid_xyz_all_normalized[q * nn: (q + 1) * nn, :], 
-                    #     self.alphas_total[q * nn: (q + 1) * nn],
-                    #     self.deltas_total[q * nn: (q + 1) * nn],
-                    #     self.quad_points_phi,
-                    #     self.quad_weights,
-                    #     self.num_psc,
-                    #     self.stellsym, 
-                    #     self.nfp
-                    # )  
-                    # print(q, fp, stell, self.aaprime_aa[q * nn: (q + 1) * nn], self.ddprime_aa[q * nn: (q + 1) * nn], 
-                          # self.aaprime_dd[q * nn: (q + 1) * nn], self.ddprime_dd[q * nn: (q + 1) * nn])
                     L_deriv_copy[:nn, :, :] += L_deriv[q * nn:(q + 1) * nn, :, :] * self.aaprime_aa[q * nn: (q + 1) * nn, None, None] + L_deriv[ncoils_sym + q * nn:ncoils_sym + (q + 1) * nn, :, :] * self.ddprime_aa[q * nn: (q + 1) * nn, None, None]
                     L_deriv_copy[ncoils_sym:ncoils_sym + nn, :, :] += L_deriv[q * nn:(q + 1) * nn, :, :] * self.aaprime_dd[q * nn: (q + 1) * nn, None, None] + L_deriv[ncoils_sym + q * nn:ncoils_sym + (q + 1) * nn, :, :] * self.ddprime_dd[q * nn: (q + 1) * nn, None, None]
-                    # print(q, fp, stell, L_deriv_copy[:nn, :, :], L_deriv_copy[ncoils_sym:ncoils_sym + nn, :, :])
                     q = q + 1
         else:
             L_deriv_copy = L_deriv
             
         # symmetrize it
-        # print(L_deriv_copy[ncoils_sym:ncoils_sym + nn, :, :], )
-        # print(L_deriv_copy[:nn, :, :])
         L_deriv = (L_deriv_copy + np.transpose(L_deriv_copy, axes=[0, 2, 1]))
-
-        # t2 = time.time()
-        # print('L_deriv reshape = ', t2 - t1)
-        # if keeping track of the number of coil turns, need factor
-        # of Nt ** 2 below as well
-        return L_deriv * self.R  # * self.fac
-    
-    # def coil_forces(self):
-    #     """
-    #     """
-    #     rho = self.R * np.ones(1)
-    #     coils_grid_orig = sopp.flux_xyz(
-    #         self.grid_xyz_all, 
-    #         self.alphas_total,
-    #         self.deltas_total, 
-    #         contig(rho), 
-    #         self.quad_points_phi, 
-    #     )
-    #     coils_grid = coils_grid_orig.reshape(-1, 3)
-    #     self.B_TF.set_points(contig(coils_grid))
-    #     B = self.B_TF.B().reshape(-1, 3)
-    #     F_TF = sopp.coil_forces(
-    #         self.grid_xyz_all,
-    #         contig(B),
-    #         self.alphas_total, 
-    #         self.deltas_total,
-    #         self.quad_points_phi,
-    #         self.quad_weights,
-    #     )
-        
-    #     # Need to remove the ith coil and then sum over j != i
-    #     coils_grid = coils_grid_orig.reshape(self.num_psc, -1, 3)
-    #     A_matrix = np.zeros((self.num_psc, self.num_psc, coils_grid.shape[1], 3))
-    #     nn = self.num_psc
-    #     q = 0
-    #     for fp in range(self.nfp):
-    #         for stell in self.stell_list:
-    #             A_matrix += sopp.coil_forces_A_matrix(
-    #                 contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
-    #                 contig(coils_grid),
-    #                 contig(self.alphas_total[q * nn: (q + 1) * nn]),
-    #                 contig(self.deltas_total[q * nn: (q + 1) * nn]),
-    #                 self.R,
-    #             )  # accounts for sign change of the currents (does it?)
-    #             q = q + 1
-    #     self.A_matrix = 2 * A_matrix  
-    #     F_PSC = sopp.coil_forces_matrix(
-    #         contig(self.grid_xyz),
-    #         contig(self.A_matrix),
-    #         contig(self.alphas), 
-    #         contig(self.deltas),  # total here?
-    #         self.quad_points_phi,
-    #         self.quad_weights,
-    #     )
-    #     return F_TF, F_PSC
+        return L_deriv * self.R
     
     def psi_deriv(self):
         """
@@ -1194,40 +964,6 @@ class PSCgrid:
                 alpha_i and delta_i. 
         """
         nn = self.num_psc
-        # psi_deriv = np.zeros(2 * self.num_psc)
-        # q = 0
-        # # for fp in range(self.nfp):
-        # #     for stell in self.stell_list:
-        # psi_deriv = sopp.dpsi_dkappa(
-        #     contig(self.I_TF),
-        #     contig(self.dl_TF),
-        #     contig(self.gamma_TF),
-        #     contig(self.grid_xyz_all),  #_all[q * nn: (q + 1) * nn, :]),
-        #     contig(self.alphas_total),  # _total[q * nn: (q + 1) * nn]),
-        #     contig(self.deltas_total),  #_total[q * nn: (q + 1) * nn]),
-        #     contig(self.coil_normals_all),  # _all[q * nn: (q + 1) * nn, :]),
-        #     contig(self.quad_points_rho),
-        #     contig(self.quad_points_phi),
-        #     self.quad_weights,
-        #     self.R,
-        # )
-        
-        # # dpsi/dkappa depends implicity on how kappa got changed! 
-        # dpsi_dkappa = np.zeros(psi_deriv.shape)
-        # nsym = self.symmetry
-        # if nsym > 1:
-        #     q = 0
-        #     ncoils_sym = nn * nsym
-        #     for fp in range(self.nfp):
-        #         # phi0 = (2 * np.pi / self.nfp) * fp
-        #         for stell in self.stell_list:
-        #             dpsi_dkappa[q * nn:(q + 1) * nn] += psi_deriv[q * nn: (q + 1) * nn] * self.aaprime_aa[q * nn:(q + 1) * nn
-        #                                                         ] + psi_deriv[q * nn + ncoils_sym:ncoils_sym + (q + 1) * nn] * self.ddprime_aa[q * nn:(q + 1) * nn
-        #             dpsi_dkappa[q * nn + ncoils_sym:ncoils_sym + (q + 1) * nn] += psi_deriv[q * nn: (q + 1) * nn] * self.aaprime_dd[q * nn:(q + 1) * nn
-        #                                                         ] + psi_deriv[q * nn + ncoils_sym:ncoils_sym + (q + 1) * nn] * self.ddprime_dd[q * nn:(q + 1) * nn]
-        #             q = q + 1
-        # print('psi_deriv = ', psi_deriv)
-        
         psi_deriv = np.zeros(2 * nn)
         q = 0
         for fp in range(self.nfp):
@@ -1288,8 +1024,6 @@ class PSCgrid:
         # Apply discrete symmetries to the alphas and deltas and coordinates
         self.update_alphas_deltas()
         
-        # self.update_psi()
-
         # Recompute the inductance matrices with the newly rotated coils
         L_total = sopp.L_matrix(
             self.grid_xyz_all_normalized, 
@@ -1297,24 +1031,19 @@ class PSCgrid:
             self.deltas_total,
             self.quad_points_phi,
             self.quad_weights
-        ) # * self.quad_dphi ** 2 / (np.pi ** 2)
-        t2 = time.time()
-        # print('L calculation time = ', t2 - t1)
+        )
         L_total = (L_total + L_total.T)
         # Add in self-inductances
         np.fill_diagonal(L_total, (np.log(8.0 * self.R / self.a) - 2.0) * 4 * np.pi)
         # rescale inductance
         # if keeping track of the number of coil turns, need factor
         # of Nt ** 2 below as well
-        self.L = L_total * self.R  #* self.fac
-        # print('L = ', self.L)
-        # Calculate the PSC B fields
-        # t1 = time.time()
-        # t2 = time.time()
-        # print('Setup fields time = ', t2 - t1)
+        self.L = L_total * self.R
         
     def update_psi(self):
-        # Update the flux grid with the new normal vectors
+        """
+        Update the flux grid with the new normal vectors.
+        """
         flux_grid = sopp.flux_xyz(
             contig(self.grid_xyz_all), 
             contig(self.alphas_total),
@@ -1324,21 +1053,8 @@ class PSCgrid:
         )
         self.flux_grid = np.array(flux_grid).reshape(-1, 3)
         self.B_TF.set_points(contig(self.flux_grid))
-
-        # t1 = time.time()
-        
-        # Only works if using the TF field as expected,
-        # i.e. not doing the unit test with two coils computing the flux from each other
-        # self.B_TF2 = sopp.B_TF(
-        #     contig(self.I_TF),
-        #     contig(self.dl_TF),
-        #     contig(self.gamma_TF),
-        #     contig(np.array(flux_grid).reshape(-1, 3)),
-        #     ) * (1.0 / self.gamma_TF.shape[1])
-        # assert np.allclose(self.B_TF.B(), B_TF2, rtol=1e-2)
         N = len(self.quad_points_rho)
         # # Update the flux values through the newly rotated coils
-        # t1 = time.time()
         self.psi_total = sopp.flux_integration(
             contig(self.B_TF.B().reshape(len(self.alphas_total), N, N, 3)),
             contig(self.quad_points_rho),
@@ -1346,26 +1062,6 @@ class PSCgrid:
             self.quad_weights
         )
         self.psi = self.psi_total[:self.num_psc]
-        # print('psi = ', self.psi_total)
-        
-        # Looks like don't flip psi is correct! (tested on QH)
-        # This is because B(x, -y, -z) -> [-Bx, By, Bz] and same for the
-        # coil normal, so the dot product remains unchanged!
-        # self.psi_total = np.zeros(self.num_psc * self.symmetry)
-        # q = 0
-        # for fp in range(self.nfp):
-        #     for stell in self.stell_list:
-        #         self.psi_total[q * self.num_psc:(q + 1) * self.num_psc] *= stell  #* (-1) ** fp
-        #         q = q + 1
-        # print('psi_total = ', self.psi_total)
-        # t2 = time.time()
-        # print('psi integration time = ', t2 - t1)
-        # print('B_TF at flux grid = ', self.B_TF.B().reshape(len(alphas), N, N, 3))
-
-        # self.psi *= self.dphi * self.drho   # * 100
-        # t2 = time.time()
-        # print('Flux2 time = ', t2 - t1)
-        # t1 = time.time()        
         
     def setup_full_grid(self):
         """
@@ -1396,59 +1092,15 @@ class PSCgrid:
         for all the PSC coils. This is required whenever the alpha_i
         and delta_i angles change.
         """
-        nn = self.num_psc
-        # (self.coil_normals_all, self.alphas_total, self.deltas_total, 
-        #  self.aaprime_aa, self.aaprime_dd, self.ddprime_dd, self.ddprime_aa
-        #  ) = sopp.update_alphas_deltas(
-        #      contig(self.coil_normals), 
-        #      contig(self.alphas), 
-        #      contig(self.deltas), 
-        #      self.nfp, 
-        #      int(self.stellsym)
-        # )
-        self.alphas_total = np.zeros(nn * self.symmetry)
-        self.deltas_total = np.zeros(nn * self.symmetry)
-        self.ddprime_dd = np.zeros(nn * self.symmetry)
-        self.aaprime_aa = np.zeros(nn * self.symmetry)
-        self.aaprime_dd = np.zeros(nn * self.symmetry)
-        self.ddprime_aa = np.zeros(nn * self.symmetry)
-        self.coil_normals_all = np.zeros((nn * self.symmetry, 3))
-        q = 0
-        for fp in range(self.nfp):
-            for stell in self.stell_list:
-                phi0 = (2 * np.pi / self.nfp) * fp
-                # get new normal vectors by flipping the x component, then rotating by phi0
-                self.coil_normals_all[nn * q: nn * (q + 1), 0] = self.coil_normals[:, 0] * np.cos(phi0) * stell - self.coil_normals[:, 1] * np.sin(phi0) 
-                self.coil_normals_all[nn * q: nn * (q + 1), 1] = self.coil_normals[:, 0] * np.sin(phi0) * stell + self.coil_normals[:, 1] * np.cos(phi0) 
-                self.coil_normals_all[nn * q: nn * (q + 1), 2] = self.coil_normals[:, 2]
-                normals = self.coil_normals_all[nn * q: nn * (q + 1), :]
-                # normals[
-                #     np.logical_and(np.isclose(normals, 0.0), 
-                #                    np.copysign(1.0, normals) < 0)
-                #     ] *= -1.0
-                # self.coil_normals_all[q * nn: (q + 1) * nn, :] = normals
-                deltas = np.arctan2(normals[:, 0], normals[:, 2])
-                alphas = -np.arcsin(normals[:, 1])
-                cc = np.array(
-                    [np.cos(alphas) * np.sin(deltas),
-                      -np.sin(alphas),
-                      np.cos(alphas) * np.cos(deltas)]
-                ).T
-                assert np.allclose(cc, self.coil_normals_all[nn * q: nn * (q + 1), :])
-                self.alphas_total[nn * q: nn * (q + 1)] = alphas
-                self.deltas_total[nn * q: nn * (q + 1)] = deltas
-                x = self.alphas_total[:nn]
-                y = self.deltas_total[:nn]
-                z = phi0
-                secy = 1.0 / np.cos(y)
-                self.ddprime_dd[nn * q: nn * (q + 1)] = (secy * np.sin(z) * np.tan(x) * np.tan(y) + stell * np.cos(z) * (
-                    1.0 + np.tan(y) ** 2)) / (1.0 + (secy * np.sin(z) * np.tan(x) + stell * np.cos(z) * np.tan(y)) ** 2)
-                self.ddprime_aa[nn * q: nn * (q + 1)] = (secy * np.sin(z) * (1 + np.tan(x) ** 2)
-                              ) / (1 + secy ** 2  * np.sin(z) ** 2 * np.tan(x) ** 2 + stell * 2.0 * np.cos(z) * secy * np.sin(z) * np.tan(x) * np.tan(y) + np.cos(z) ** 2 * np.tan(y) ** 2)
-                self.aaprime_aa[nn * q: nn * (q + 1)] = (np.sin(x) * np.sin(y) * np.sin(z) * stell + np.cos(x) * np.cos(z) 
-                                ) / np.sqrt(1 - (np.sin(x) * np.cos(z) - stell * np.cos(x) * np.sin(y) * np.sin(z)) ** 2) 
-                self.aaprime_dd[nn * q: nn * (q + 1)] = -stell * (np.cos(x) * np.cos(y) * np.sin(z)) / np.sqrt(1.0 - (np.cos(z) * np.sin(x) - stell * np.cos(x) * np.sin(y) * np.sin(z)) ** 2)
-                q = q + 1
+        # Made this unnecessarily fast xsimd calculation for setting the 
+        # variables from the discrete symmetries
+        (self.coil_normals_all, self.alphas_total, self.deltas_total, 
+          self.aaprime_aa, self.aaprime_dd, self.ddprime_dd, self.ddprime_aa
+          ) = sopp.update_alphas_deltas_xsimd(
+              contig(self.coil_normals), 
+              self.nfp, 
+              int(self.stellsym)
+        )
         self.alphas_total = contig(self.alphas_total)
         self.deltas_total = contig(self.deltas_total)
         self.coil_normals_all = contig(self.coil_normals_all)

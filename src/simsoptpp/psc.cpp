@@ -588,40 +588,132 @@ std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas
     Array ddprime_dd = xt::zeros<double>({nsym});
     Array ddprime_aa = xt::zeros<double>({nsym});
     double* coil_normals_ptr = &(coil_normals(0, 0));
+    double* alphas_ptr = &(alphas_all(0));
+    double* deltas_ptr = &(deltas_all(0));
+    double* aap_aa_ptr = &(aaprime_aa(0));
+    double* aap_dd_ptr = &(aaprime_dd(0));
+    double* ddp_aa_ptr = &(ddprime_aa(0));
+    double* ddp_dd_ptr = &(ddprime_dd(0));
+    double* coil_normals_all_ptr = &(coil_normals_all(0, 0));
     #pragma omp parallel for schedule(static)
     for (int n = 0; n < num_coils; n++) {
         int q = 0;
+        int n3 = 3 * n;
         for (int fp = 0; fp < nfp; fp++) {
-            auto phi0 = (2 * M_PI / (double) nfp) * fp;
+            auto phi0 = (2.0 * M_PI / (double) nfp) * fp;
             auto sinz = sin(phi0);
             auto cosz = cos(phi0);
             // stellsym = 0 if not stellarator symmetric, 1 if stellarator symmetric
             for (int stell = 1; stell > -stellsym - 1; stell -= 2) {
-                coil_normals_all(num_coils * q + n, 0) = coil_normals_ptr[3 * n] * cosz * stell - coil_normals_ptr[3 * n + 1] * sinz;
-                coil_normals_all(num_coils * q + n, 1) = coil_normals_ptr[3 * n] * sinz * stell + coil_normals_ptr[3 * n + 1] * cosz;
-                coil_normals_all(num_coils * q + n, 2) = coil_normals_ptr[3 * n + 2];
-                deltas_all(num_coils * q + n) = atan2(coil_normals_all(num_coils * q + n, 0), \
-                                                          coil_normals_all(num_coils * q + n, 2));
-                alphas_all(num_coils * q + n) = -asin(coil_normals_all(num_coils * q + n, 1));
-                auto x = alphas_all(n);
-                auto y = deltas_all(n);
+                int nn = (num_coils * q + n);
+                int nn3 = 3 * nn;
+                coil_normals_all_ptr[nn3] = coil_normals_ptr[n3] * cosz * stell - coil_normals_ptr[n3 + 1] * sinz;
+                coil_normals_all_ptr[nn3 + 1] = coil_normals_ptr[n3] * sinz * stell + coil_normals_ptr[n3 + 1] * cosz;
+                coil_normals_all_ptr[nn3 + 2] = coil_normals_ptr[n3 + 2];
+                deltas_ptr[nn] = atan2(coil_normals_all_ptr[nn3], \
+                                       coil_normals_all_ptr[nn3 + 2]);
+                alphas_ptr[nn] = -asin(coil_normals_all_ptr[nn3 + 1]);
+                auto x = alphas_ptr[n];
+                auto y = deltas_ptr[n];
                 auto cosy = cos(y);
                 auto secy = 1.0 / cosy;
                 auto siny = sin(y);
                 auto tany = tan(y);
+                auto tany2 = tany * tany;
                 auto sinx = sin(x);
                 auto tanx = tan(x);
+                auto tanx2 = tanx * tanx;
                 auto cosx = cos(x);
-                ddprime_dd(num_coils * q + n) = (secy * sinz * tanx * tany + stell * cosz * ( \
-                    1.0 + tany * tany)) / (1.0 + (secy * sinz * tanx + stell * cosz * tany) * (secy * sinz * tanx + stell * cosz * tany));
-                ddprime_aa(num_coils * q + n) = (secy * sinz * (1.0 + tanx * tanx) \
-                    ) / (1.0 + secy * secy * sinz * sinz * tanx * tanx + stell * 2.0 * cosz * secy * sinz * tanx * tany + cosz * cosz * tany * tany);
-                aaprime_aa(num_coils * q + n) = (sinx * siny * sinz * stell + cosx * cosz \ 
-                    ) / sqrt(1.0 - (sinx * cosz - stell * cosx * siny * sinz) * (sinx * cosz - stell * cosx * siny * sinz));
-                aaprime_dd(num_coils * q + n) = -stell * (cosx * cosy * sinz) /  \
-                    sqrt(1.0 - (cosz * sinx - stell * cosx * siny * sinz) * (cosz * sinx - stell * cosx * siny * sinz));
+                auto d1 = (secy * sinz * tanx + stell * cosz * tany);
+                auto d12 = 1.0 / (1.0 + d1 * d1);
+                auto secy_sinz = secy * sinz;
+                ddp_dd_ptr[nn] = (secy_sinz * tanx * tany + stell * cosz * (1.0 + tany2)) * d12;
+                ddp_aa_ptr[nn] = (secy_sinz * (1.0 + tanx2)) * d12;
+                auto c0 = (sinx * cosz - stell * cosx * siny * sinz);
+                auto c2 = 1.0 / sqrt(1.0 - c0 * c0);
+                aap_aa_ptr[nn] = (sinx * siny * sinz * stell + cosx * cosz) * c2;
+                aap_dd_ptr[nn] = -stell * (cosx * cosy * sinz) * c2;
                 q = q + 1;
             }
+        }
+    }
+    return std::make_tuple(coil_normals_all, alphas_all, deltas_all, aaprime_aa, aaprime_dd, ddprime_dd, ddprime_aa);
+}
+
+std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas_xsimd(Array& coil_normals, int nfp, int stellsym) {
+    int num_coils = coil_normals.shape(0);  // shape should be (num_coils)
+    int nsym = num_coils * nfp * (stellsym + 1);
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    Array coil_normals_all = xt::zeros<double>({nsym, 3});
+    Array alphas_all = xt::zeros<double>({nsym});
+    Array deltas_all = xt::zeros<double>({nsym});
+    Array aaprime_aa = xt::zeros<double>({nsym});
+    Array aaprime_dd = xt::zeros<double>({nsym});
+    Array ddprime_dd = xt::zeros<double>({nsym});
+    Array ddprime_aa = xt::zeros<double>({nsym});
+    double* coil_normals_ptr = &(coil_normals(0, 0));
+    double* alphas_ptr = &(alphas_all(0));
+    double* deltas_ptr = &(deltas_all(0));
+    double* aap_aa_ptr = &(aaprime_aa(0));
+    double* aap_dd_ptr = &(aaprime_dd(0));
+    double* ddp_aa_ptr = &(ddprime_aa(0));
+    double* ddp_dd_ptr = &(ddprime_dd(0));
+    double* coil_normals_all_ptr = &(coil_normals_all(0, 0));
+    int q = 0;
+    for (int fp = 0; fp < nfp; fp++) {
+        simd_t phi0 = ((simd_t) (2.0 * M_PI / (double) nfp) * fp);
+        simd_t sinz = xsimd::sin(phi0);
+        simd_t cosz = xsimd::cos(phi0);
+        for (int stell = 1; stell > -stellsym - 1; stell -= 2) {
+            #pragma omp parallel for schedule(static)
+            for (int n = 0; n < num_coils; n += simd_size) {
+                int klimit = std::min(simd_size, num_coils - n);
+                auto normals = Vec3dSimd();
+                simd_t x, y;
+                for(int k = 0; k < klimit; k++){
+                    int nk3 = 3 * (n + k);
+                    normals[0][k] = (coil_normals_ptr[nk3] * cosz * stell - coil_normals_ptr[nk3 + 1] * sinz)[k];
+                    normals[1][k] = (coil_normals_ptr[nk3] * sinz * stell + coil_normals_ptr[nk3 + 1] * cosz)[k];
+                    normals[2][k] = coil_normals_ptr[nk3 + 2];
+                    x[k] = alphas_ptr[n + k];
+                    y[k] = deltas_ptr[n + k];
+                }
+                simd_t one = (simd_t) 1.0;
+                simd_t cosy = xsimd::cos(y);
+                simd_t secy = one / cosy;
+                simd_t siny = xsimd::sin(y);
+                simd_t tany = xsimd::tan(y);
+                simd_t tany2 = tany * tany;
+                simd_t sinx = xsimd::sin(x);
+                simd_t tanx = xsimd::tan(x);
+                simd_t tanx2 = tanx * tanx;
+                simd_t cosx = xsimd::cos(x);
+                simd_t d1 = (simd_t) (secy * sinz * tanx + stell * cosz * tany);
+                simd_t d12 = (simd_t) (one / (one + d1 * d1));
+                simd_t secy_sinz = secy * sinz;
+                simd_t c0 = (sinx * cosz - stell * cosx * siny * sinz);
+                simd_t c2 = one / sqrt(one - c0 * c0);
+                simd_t deltas = xsimd::atan2(normals.x, normals.z);
+                simd_t alphas = -xsimd::asin(normals.y);
+                simd_t aaprime_aa = (sinx * siny * sinz * stell + cosx * cosz) * c2;
+                simd_t aaprime_dd = -stell * (cosx * cosy * sinz) * c2;
+                simd_t ddprime_dd = (secy_sinz * tanx * tany + stell * cosz * (one + tany2)) * d12;
+                simd_t ddprime_aa = (secy_sinz * (one + tanx2)) * d12;
+                for(int k = 0; k < klimit; k++){
+                    int nnk = num_coils * q + n + k;
+                    int nnk3 = 3 * nnk;
+                    aap_aa_ptr[nnk] = aaprime_aa[k];
+                    aap_dd_ptr[nnk] = aaprime_dd[k];
+                    ddp_dd_ptr[nnk] = ddprime_dd[k];
+                    ddp_aa_ptr[nnk] = ddprime_aa[k];
+                    deltas_ptr[nnk] = deltas[k];
+                    alphas_ptr[nnk] = alphas[k];
+                    coil_normals_all_ptr[nnk3] = normals.x[k];
+                    coil_normals_all_ptr[nnk3 + 1] = normals.y[k];
+                    coil_normals_all_ptr[nnk3 + 2] = normals.z[k];
+                }
+            }
+            q = q + 1;
         }
     }
     return std::make_tuple(coil_normals_all, alphas_all, deltas_all, aaprime_aa, aaprime_dd, ddprime_dd, ddprime_aa);
