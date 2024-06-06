@@ -13,7 +13,20 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
 
     .. math::
         \theta(t) &= theta_{l} t + \sum_{m=0}^{\text{order}} theta_{c,m}\cos(m t) + \sum_{m=1}^{\text{order}} theta_{s,m}\sin(m t) \\
-        \theta(t) &= phi_{l} t + \sum_{m=0}^{\text{order}} phi_{c,m}\cos(m t) + \sum_{m=1}^{\text{order}} phi_{s,m}\sin(m t) \\
+        \phi(t) &= phi_{l} t + \sum_{m=0}^{\text{order}} phi_{c,m}\cos(m t) + \sum_{m=1}^{\text{order}} phi_{s,m}\sin(m t) \\
+    
+    where :math:`t \in [0, 1]` is the curve parameter, and :math:`\theta` and :math:`\phi` are the poloidal and toroidal angles
+    respectively. The curve is parameterized to a winding surface of type ``SurfaceRZFourier``.
+
+    Args:
+        mpol: The number of poloidal modes of the winding surface.
+        ntor: The number of toroidal modes of the winding surface.
+        idofs: The dofs of the winding surface.
+        quadpoints: The number of quadrature points to use for the curve.
+        order: The order of the Fourier series.
+        nfp: The number of field periods.
+        stellsym: The stellarator symmetry of the winding surface.
+        dofs: The dofs of the curve. If not provided, the dofs are initialized to zero.+
     """
 
     def __init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym, dofs=None):
