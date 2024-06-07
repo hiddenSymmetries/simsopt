@@ -8,7 +8,6 @@ Rogerio Jorge, April 2023
 """
 import os
 import glob
-import time
 import numpy as np
 from mpi4py import MPI
 from pathlib import Path
@@ -21,7 +20,7 @@ from simsopt._core.finite_difference import MPIFiniteDifference
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.objectives import SquaredFlux, QuadraticPenalty, LeastSquaresProblem
 from simsopt.geo import (CurveLength, CurveCurveDistance, MeanSquaredCurvature, CurveCWSFourier, SurfaceRZFourier,
-                         LpCurveCurvature, ArclengthVariation, curves_to_vtk, create_equally_spaced_curves)
+                         LpCurveCurvature, ArclengthVariation, curves_to_vtk)
 parent_path = str(Path(__file__).parent.resolve())
 ##########################################################################################
 ############## Input parameters
@@ -174,7 +173,7 @@ J_ALS = ARCLENGTH_WEIGHT * sum(Jals)
 J_LENGTH_PENALTY = LENGTH_CON_WEIGHT * sum([QuadraticPenalty(Jls[i], LENGTH_THRESHOLD, f="max") for i in range(len(base_curves))])
 JF = Jf + J_CC + J_LENGTH_PENALTY + J_CURVATURE + J_ALS + J_MSC  # + J_LENGTH
 ##########################################################################################
-pprint(f'  Starting optimization')
+pprint('  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
@@ -341,7 +340,7 @@ for max_mode in max_modes:
     bs.save(os.path.join(coils_results_path, f"biot_savart_opt_maxmode{max_mode}.json"))
     vmec.write_input(os.path.join(this_path, f'input.maxmode{max_mode}'))
 bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
-vmec.write_input(os.path.join(this_path, f'input.final'))
+vmec.write_input(os.path.join(this_path, 'input.final'))
 pprint(f"  Aspect ratio after optimization: {vmec.aspect()}")
 pprint(f"  Mean iota after optimization: {vmec.mean_iota()}")
 pprint(f"  Quasisymmetry objective after optimization: {qs.total()}")

@@ -4,7 +4,6 @@ from scipy.optimize import minimize
 from simsopt.geo import curves_to_vtk
 from simsopt.geo import SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
 from simsopt._core.derivative import Derivative
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import (
