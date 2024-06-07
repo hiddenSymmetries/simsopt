@@ -39,9 +39,9 @@ else:
     nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
-    qphi = nphi * 4
+    qphi = nphi * 2
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
-    quadpoints_theta = np.linspace(0, 1, ntheta * 4, endpoint=True)
+    quadpoints_theta = np.linspace(0, 1, ntheta * 2, endpoint=True)
 
 poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
 coff = 0.7  # PSC grid will be initialized between 1 m and 2 m from plasma
@@ -61,10 +61,10 @@ print('s.r = ', s.get_rc(1, 0))
 # Make inner and outer toroidal surfaces very high resolution,
 # which helps to initialize coils precisely between the surfaces. 
 s_inner = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range=range_param, nphi=nphi * 8, ntheta=ntheta * 8
+    surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
 )
 s_outer = SurfaceRZFourier.from_vmec_input(
-    surface_filename, range=range_param, nphi=nphi * 8, ntheta=ntheta * 84
+    surface_filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4
 )
 
 # Make the inner and outer surfaces by extending the plasma surface
@@ -96,6 +96,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
+s_plot.save(filename=out_dir / 'plasma_boundary.json')
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
@@ -317,6 +318,24 @@ for k in range(STLSQ_max_iters):
                      tol=1e-20,
                      # callback=callback
                      )
+    psc_array.setup_curves()
+    psc_array.plot_curves('final_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc) + '_')
+    currents = []
+    for i in range(psc_array.num_psc):
+        currents.append(Current(psc_array.I[i]))
+    all_coils = coils_via_symmetries(
+        psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
+    )
+    B_PSC = BiotSavart(all_coils)
+
+    # Check that direct Bn calculation agrees with optimization calculation
+    fB = SquaredFlux(s, B_PSC + bs, np.zeros((nphi, ntheta))).J()
+    print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
+    make_Bnormal_plots(B_PSC, s_plot, out_dir, 'PSC_final_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc), B_axis)
+    make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, 'PSC_and_TF_final_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc), B_axis)
+    B_tot = (bs + B_PSC)
+    fname = 'B_total_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc) + '.json'
+    b_json_str = B_tot.save(filename=out_dir / fname)
     I = psc_array.I
     grid_xyz = psc_array.grid_xyz
     alphas = psc_array.alphas
@@ -351,102 +370,15 @@ plt.subplot(1, 2, 1)
 plt.semilogy(BdotN2_list)
 plt.subplot(1, 2, 2)
 plt.plot(num_pscs)
-    
-# psc_array.setup_orientations(x_opt.x[:len(x_opt) // 2], x_opt.x[len(x_opt) // 2:])
-psc_array.setup_curves()
-psc_array.plot_curves('final_')
-currents = []
-for i in range(psc_array.num_psc):
-    currents.append(Current(psc_array.I[i]))
-all_coils = coils_via_symmetries(
-    psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
-)
-B_PSC = BiotSavart(all_coils)
 
-# Check that direct Bn calculation agrees with optimization calculation
-fB = SquaredFlux(s, B_PSC + bs, np.zeros((nphi, ntheta))).J()
-print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
-make_Bnormal_plots(B_PSC, s_plot, out_dir, "PSC_final", B_axis)
-make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
-
-# Optionally make a QFM and pass it to VMEC
-# This is worthless unless plasma
-# surface is at least 64 x 64 resolution.
-vmec_flag = True 
-if vmec_flag:
-    from simsopt.mhd.vmec import Vmec
-    from simsopt.util.mpi import MpiPartition
-    from simsopt.util import comm_world
-    mpi = MpiPartition(ngroups=4)
-    comm = comm_world
-
-    # # Make the QFM surfaces
-    # t1 = time.time()
-    # Bfield = bs + B_PSC
-    # Bfield.set_points(s_plot.gamma().reshape((-1, 3)))
-    # qfm_surf = make_qfm(s_plot, Bfield)
-    # qfm_surf = qfm_surf.surface
-    # t2 = time.time()
-    # print("Making the QFM surface took ", t2 - t1, " s")
-
-    # # Run VMEC with new QFM surface
-    # t1 = time.time()
-
-    # ### Always use the QA VMEC file and just change the boundary
-    # vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
-    # equil = Vmec(vmec_input, mpi)
-    # equil.boundary = qfm_surf
-    # equil.run()
-    
-    from simsopt.field.magneticfieldclasses import InterpolatedField
-
-    out_dir = Path(out_dir)
-    n = 20
-    rs = np.linalg.norm(s_plot.gamma()[:, :, 0:2], axis=2)
-    zs = s_plot.gamma()[:, :, 2]
-    rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
-    rrange = (np.min(rs), np.max(rs), n)
-    phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
-    zrange = (0, np.max(zs), n // 2)
-    degree = 2  # 2 is sufficient sometimes
-    bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    B_PSC.set_points(s_plot.gamma().reshape((-1, 3)))
-    bsh = InterpolatedField(
-        bs + B_PSC, degree, rrange, phirange, zrange, True, nfp=s_plot.nfp, stellsym=s_plot.stellsym
-    )
-    bsh.set_points(s_plot.gamma().reshape((-1, 3)))
-    from simsopt.field.tracing import compute_fieldlines, \
-        plot_poincare_data, \
-        IterationStoppingCriterion, SurfaceClassifier, \
-        LevelsetStoppingCriterion
-    from simsopt.util import proc0_print
-
-
-    # set fieldline tracer parameters
-    nfieldlines = 8
-    tmax_fl = 10000
-
-    R0 = np.linspace(16.5, 17.5, nfieldlines)  # np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
-    Z0 = np.zeros(nfieldlines)
-    phis = [(i / 4) * (2 * np.pi / s_plot.nfp) for i in range(4)]
-    print(rrange, zrange, phirange)
-    print(R0, Z0)
-
-    t1 = time.time()
-    # compute the fieldlines from the initial locations specified above
-    sc_fieldline = SurfaceClassifier(s_plot, h=0.03, p=2)
-    sc_fieldline.to_vtk(str(out_dir) + 'levelset', h=0.02)
-
-    fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-        bsh, R0, Z0, tmax=tmax_fl, tol=1e-20, comm=comm,
-        phis=phis,
-        # phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        stopping_criteria=[IterationStoppingCriterion(50000)])
-    t2 = time.time()
-    proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)
-    # make the poincare plots
-    if comm is None or comm.rank == 0:
-        plot_poincare_data(fieldlines_phi_hits, phis, out_dir / 'poincare_fieldline.png', dpi=100, surf=s_plot)
+# # Make the QFM surfaces
+t1 = time.time()
+B_tot.set_points(s_plot.gamma().reshape((-1, 3)))
+qfm_surf = make_qfm(s_plot, B_tot)
+qfm_surf = qfm_surf.surface
+t2 = time.time()
+print("Making the QFM surface took ", t2 - t1, " s")
+qfm_surf.save(out_dir / 'qfm_surf.json')
 
 plt.show()
 # t_end = time.time()

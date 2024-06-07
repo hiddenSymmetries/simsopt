@@ -232,16 +232,17 @@ def callback_annealing(x, f, context):
 # print('Dual annealing time: ', t2 - t1)
 
 # x0 = np.zeros(2 * psc_array.num_psc)  # np.hstack(((np.random.rand(psc_array.num_psc) - 0.5) * np.pi, (np.random.rand(psc_array.num_psc) - 0.5) * 2 * np.pi))
-I_threshold = 5e4
-I_threshold_scaling = 1.6
+I_threshold = 6e4
+I_threshold_scaling = 1.1
 STLSQ_max_iters = 10
 BdotN2_list = []
 num_pscs = []
 for k in range(STLSQ_max_iters):
+    I_threshold *= I_threshold_scaling
     x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
     num_pscs.append(len(x0) // 2)
     print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
-    print('I_threshold = ', I_threshold * I_threshold_scaling)
+    print('I_threshold = ', I_threshold)
     opt_bounds1 = tuple([(-np.pi / 2.0 + eps, np.pi / 2.0 - eps) for i in range(psc_array.num_psc)])
     opt_bounds2 = tuple([(-np.pi + eps, np.pi - eps) for i in range(psc_array.num_psc)])
     opt_bounds = np.vstack((opt_bounds1, opt_bounds2))
@@ -256,6 +257,21 @@ for k in range(STLSQ_max_iters):
                      tol=1e-20,
                       # callback=callback
                      )
+    psc_array.setup_curves()
+    psc_array.plot_curves('final_Ithresh_{0:.3e}_'.format(I_threshold))
+    currents = []
+    for i in range(psc_array.num_psc):
+        currents.append(Current(psc_array.I[i]))
+    all_coils = coils_via_symmetries(
+        psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
+    )
+    B_PSC = BiotSavart(all_coils)
+
+    # Check that direct Bn calculation agrees with optimization calculation
+    fB = SquaredFlux(s, B_PSC + bs, np.zeros((nphi, ntheta))).J()
+    print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
+    make_Bnormal_plots(B_PSC, s_plot, out_dir, 'PSC_final_Ithresh_{0:.3e}'.format(I_threshold), B_axis)
+    make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, 'PSC_and_TF_final_Ithresh_{0:.3e}'.format(I_threshold), B_axis)
     I = psc_array.I
     grid_xyz = psc_array.grid_xyz
     alphas = psc_array.alphas
@@ -265,7 +281,7 @@ for k in range(STLSQ_max_iters):
         BdotN2_list = np.hstack((BdotN2_list, np.array(psc_array.BdotN2_list)))
     else:
         BdotN2_list = np.array(psc_array.BdotN2_list)
-    big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold * I_threshold_scaling))
+    big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold))
     if len(big_I_inds) != psc_array.num_psc:
         grid_xyz = grid_xyz[big_I_inds, :]
         alphas = alphas[big_I_inds]
@@ -290,21 +306,6 @@ plt.subplot(1, 2, 2)
 plt.plot(num_pscs)
     
 # psc_array.setup_orientations(x_opt.x[:len(x_opt) // 2], x_opt.x[len(x_opt) // 2:])
-psc_array.setup_curves()
-psc_array.plot_curves('final_')
-currents = []
-for i in range(psc_array.num_psc):
-    currents.append(Current(psc_array.I[i]))
-all_coils = coils_via_symmetries(
-    psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
-)
-B_PSC = BiotSavart(all_coils)
-
-# Check that direct Bn calculation agrees with optimization calculation
-fB = SquaredFlux(s, B_PSC + bs, np.zeros((nphi, ntheta))).J()
-print('fB with both, after opt = ', fB / (B_axis ** 2 * s.area()))
-make_Bnormal_plots(B_PSC, s_plot, out_dir, "PSC_final", B_axis)
-make_Bnormal_plots(bs + B_PSC, s_plot, out_dir, "PSC_and_TF_final", B_axis)
 
 # N = 20
 # alphas = np.linspace(-np.pi, np.pi, N)

@@ -32,7 +32,7 @@ class PSCgrid:
         self.BdotN2_list = []
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
-        num_quad = 10  # 20 required for unit tests to pass
+        num_quad = 8  # 20 required for unit tests to pass
         (quad_points_phi, 
          quad_weights) = np.polynomial.legendre.leggauss(num_quad)
         self.quad_points_phi = contig(quad_points_phi * np.pi + np.pi)
