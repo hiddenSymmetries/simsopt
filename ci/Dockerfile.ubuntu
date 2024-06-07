@@ -55,7 +55,7 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
 
 RUN /venv/bin/pip install h5py pyoculus py_spec
 RUN /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
-RUN /venv/bin/pip install mayavi
+# RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
 RUN /venv/bin/pip install  git+https://github.com/rogeriojorge/pyQIC
