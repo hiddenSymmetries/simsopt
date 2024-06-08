@@ -76,7 +76,11 @@ class PSCgrid:
             self.R = min(Nmin / 2.0, self.poff / 3.0)
         else:
             self.R = self.poff / 2.5
-        self.a = self.R / 100.0  # Hard-coded aspect ratio of 100 right now
+            
+        # Note that aspect ratio of 0.1 has ~twice as large currents
+        # as aspect ratio of 0.01
+        self.a = self.R / 10.0  # Hard-coded aspect ratio
+        
         print('Major radius of the coils is R = ', self.R)
         print('Coils are spaced so that every coil of radius R '
               ' is at least 2R away from the next coil'
@@ -501,7 +505,7 @@ class PSCgrid:
         # Initialize geometric information of the PSC array
         psc_grid.grid_xyz = np.array(points, dtype=float)
         psc_grid.R = R
-        psc_grid.a = kwargs.pop("a", R / 100.0)
+        psc_grid.a = kwargs.pop("a", R / 10.0)
         psc_grid.out_dir = kwargs.pop("out_dir", '')
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
         psc_grid.alphas = kwargs.pop("alphas", 

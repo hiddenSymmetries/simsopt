@@ -36,7 +36,7 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 4
@@ -82,7 +82,133 @@ s_outer.to_vtk(out_str + 'outer_surf')
 
 # initialize the coils
 
+def coil_optimization_NCSX(s, bs, base_curves, curves):
+    from scipy.optimize import minimize
+    from simsopt.geo import CurveLength, CurveCurveDistance, \
+        MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
+    from simsopt.objectives import QuadraticPenalty
+    from simsopt.geo import curves_to_vtk
+    from simsopt.objectives import SquaredFlux
+
+    nphi = len(s.quadpoints_phi)
+    ntheta = len(s.quadpoints_theta)
+    ncoils = len(base_curves)
+
+    # Weight on the curve lengths in the objective function:
+    LENGTH_WEIGHT = 4e-2
+
+    # Threshold and weight for the coil-to-coil distance penalty in the objective function:
+    CC_THRESHOLD = 0.4
+    CC_WEIGHT = 1e3
+
+    # Threshold and weight for the coil-to-surface distance penalty in the objective function:
+    CS_THRESHOLD = 1.0
+    CS_WEIGHT = 1e2
+
+    # Threshold and weight for the curvature penalty in the objective function:
+    CURVATURE_THRESHOLD = 1e-3
+    CURVATURE_WEIGHT = 1e-2
+
+    # Threshold and weight for the mean squared curvature penalty in the objective function:
+    MSC_THRESHOLD = 1e-3
+    MSC_WEIGHT = 1e-2
+
+    MAXITER = 1000  # number of iterations for minimize
+
+    # Define the objective function:
+    Jf = SquaredFlux(s, bs)
+    Jls = [CurveLength(c) for c in base_curves]
+    Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
+    Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
+    Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
+    Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
+
+    # Form the total objective function.
+    JF = Jf \
+        + LENGTH_WEIGHT * sum(Jls) \
+        + CC_WEIGHT * Jccdist \
+        + CS_WEIGHT * Jcsdist \
+        + CURVATURE_WEIGHT * sum(Jcs) \
+        + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
+
+    def fun(dofs):
+        """ Function for coil optimization grabbed from stage_two_optimization.py """
+        JF.x = dofs
+        J = JF.J()
+        grad = JF.dJ()
+        jf = Jf.J()
+        BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+        outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+        cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+        kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+        msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+        outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+        outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+        outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+        print(outstr)
+        return J, grad
+
+    print("""
+    ################################################################################
+    ### Perform a Taylor test ######################################################
+    ################################################################################
+    """)
+    f = fun
+    dofs = JF.x
+    # np.random.seed(1)
+    h = np.random.uniform(size=dofs.shape)
+
+    J0, dJ0 = f(dofs)
+    dJh = sum(dJ0 * h)
+    for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+        J1, _ = f(dofs + eps*h)
+        J2, _ = f(dofs - eps*h)
+        print("err", (J1-J2)/(2*eps) - dJh)
+
+    print("""
+    ################################################################################
+    ### Run the optimisation #######################################################
+    ################################################################################
+    """)
+    minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
+    curves_to_vtk(curves, out_dir / "curves_opt")
+    bs.set_points(s.gamma().reshape((-1, 3)))
+    return bs
+
 def initialize_coils_NCSX():
+    """
+    Initializes NCSX coils
+    """
+    from simsopt.geo import create_equally_spaced_curves
+    from simsopt.field import Current, coils_via_symmetries
+    from simsopt.geo import curves_to_vtk
+
+    # generate planar TF coils
+    ncoils = 1
+    R0 = 1.5
+    R1 = 1.2  # 1.4
+    order = 5
+
+    from simsopt.mhd.vmec import Vmec
+    total_current = Vmec(surface_filename).external_current() / (2 * s.nfp) / 7.131 * 6.5
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
+    # base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+    base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
+    # total_current = Current(total_current)
+    # total_current.fix_all()
+    # base_currents += [total_current - sum(base_currents)]
+    base_currents[0].fix_all()
+    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # fix all the coil shapes so only the currents are optimized
+    # for i in range(ncoils):
+    #     base_curves[i].fix_all()
+
+    # Initialize the coil curves and save the data to vtk
+    curves = [c.curve for c in coils]
+    curves_to_vtk(curves, out_dir / "curves_init")
+    return base_curves, curves, coils
+
+def initialize_TFcoils_NCSX():
     """
     Initializes NCSX coils
     """
@@ -100,9 +226,11 @@ def initialize_coils_NCSX():
     total_current = Vmec(surface_filename).external_current() / (2 * s.nfp) / 7.131 * 6.5
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
     base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils-1)]
+    # base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
     total_current = Current(total_current)
     total_current.fix_all()
     base_currents += [total_current - sum(base_currents)]
+    # base_currents[0].fix_all()
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
     # fix all the coil shapes so only the currents are optimized
     for i in range(ncoils):
@@ -136,7 +264,7 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 # fix all the coil shapes so only the currents are optimized
 # for i in range(ncoils):
 #     base_curves[i].fix_all()
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
+bs = coil_optimization_NCSX(s, bs, base_curves, curves)
 curves_to_vtk(curves, out_dir / "TF_coils", close=True)
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
@@ -232,8 +360,8 @@ def callback_annealing(x, f, context):
 # print('Dual annealing time: ', t2 - t1)
 
 # x0 = np.zeros(2 * psc_array.num_psc)  # np.hstack(((np.random.rand(psc_array.num_psc) - 0.5) * np.pi, (np.random.rand(psc_array.num_psc) - 0.5) * 2 * np.pi))
-I_threshold = 6e4
-I_threshold_scaling = 1.1
+I_threshold = 4e3
+I_threshold_scaling = 1.2
 STLSQ_max_iters = 10
 BdotN2_list = []
 num_pscs = []
