@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from pathlib import Path
 from scipy.optimize import minimize
 from simsopt.geo import curves_to_vtk
 from simsopt.geo import SurfaceRZFourier
@@ -29,8 +30,9 @@ CURVATURE_WEIGHT = 0.01
 MSC_THRESHOLD = 6
 MSC_WEIGHT = 0.01
 
-# SURFACE INPUT FILES FOR TESTING
-wout = "/Users/rogeriojorge/local/vmec_equilibria/NCSX/li383_1.4m/wout_li383_1.4m.nc"
+# File for the desired boundary magnetic surface:
+TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 MAXITER = 200
 minor_radius_factor_cws = 1.9
@@ -46,8 +48,8 @@ ntor = 1
 JACOBIAN_THRESHOLD = 100
 
 # CREATE SURFACES
-s = SurfaceRZFourier.from_wout(wout, range="half period", ntheta=ntheta, nphi=nphi)
-s_full = SurfaceRZFourier.from_wout(wout, range="full torus", ntheta=ntheta, nphi=int(nphi*2*s.nfp))
+s = SurfaceRZFourier.from_vmec_input(filename, range="half period", ntheta=ntheta, nphi=nphi)
+s_full = SurfaceRZFourier.from_vmec_input(filename, range="full torus", ntheta=ntheta, nphi=int(nphi*2*s.nfp))
 cws = SurfaceRZFourier.from_nphi_ntheta(nphi, ntheta, "half period", s.nfp, mpol=mpol, ntor=ntor)
 cws_full = SurfaceRZFourier.from_nphi_ntheta(int(nphi*2*s.nfp), ntheta, "full torus", s.nfp, mpol=mpol, ntor=ntor)
 
