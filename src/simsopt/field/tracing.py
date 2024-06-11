@@ -261,7 +261,8 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
         tmax: integration time
         mass: particle mass in kg, defaults to the mass of an alpha particle
         charge: charge in Coulomb, defaults to the charge of an alpha particle
-        Ekin: kinetic energy in Joule, defaults to 3.52MeV
+        Ekin: kinetic energy in Joule, defaults to 3.52MeV. Either a scalar (assumed
+              same energy for all particles), or ``(nparticles, )`` array. 
         tol: defualt tolerance for ode solver when solver-specific tolerances are not set
         comm: MPI communicator to parallelize over
         zetas: list of angles in [0, 2pi] for which intersection with the plane
@@ -283,7 +284,9 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
                 `zetas_stop`: whether to stop if hit provided zeta planes
                 `vpars_stop`: whether to stop if hit provided vpar planes
             default solver (rk45) specific options are
-                `axis`: TODO
+                `axis`: If `True`, tracing is performed in coordinates :math:`x = \sqrt{s}\cos(\theta)`
+                           and :math:`y = \sqrt{s}\sin(\theta)` to avoid a coordinate singularity on
+                           the magnetic axis. If `False`, tracing is performed in :math:`(s,\theta)`. 
                 `reltol`: relative tolerance for adaptive ode solver
                 `abstol`: absolute tolerance for adaptive ode solver
             symplectic solver specific options are 
@@ -341,7 +344,10 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
     assert stz_inits.shape[0] == len(parallel_speeds)
     speed_par = parallel_speeds
     m = mass
-    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    assert np.isscalar(Ekin) or (len(Ekin) == len(parallel_speeds)) 
+    if np.isscalar(Ekin):
+        Ekin = Ekin * np.ones((len(parallel_speeds),))
+    speed_total = np.sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
     mode = mode.lower()
     assert mode in ['gc', 'gc_vac', 'gc_nok']
 
@@ -352,7 +358,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
-            m, charge, speed_total, speed_par[i], tmax, vacuum=(mode == 'gc_vac'),
+            m, charge, speed_total[i], speed_par[i], tmax, vacuum=(mode == 'gc_vac'),
             noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
             **options)
         if not forget_exact_path:
