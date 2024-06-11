@@ -7,6 +7,8 @@ from .._core.util import parallel_loop_bounds, align_and_pad, allocate_aligned_a
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["BoozerMagneticField","BoozerAnalytic","BoozerRadialInterpolant","InterpolatedBoozerField"]
+
 try:
     from mpi4py import MPI
 except ImportError as e:

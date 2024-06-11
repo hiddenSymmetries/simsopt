@@ -1,9 +1,9 @@
 import numpy as np
-from monty.json import MontyDecoder, MSONable
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
-from .._core.derivative import Derivative
+from .._core.json import GSONDecoder
+from .mgrid import MGrid
 
 __all__ = ['MagneticField', 'MagneticFieldSum', 'MagneticFieldMultiply']
 
@@ -92,6 +92,69 @@ class MagneticField(sopp.MagneticField, Optimizable):
         contig = np.ascontiguousarray
         gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[..., 0]), contig(vals[..., 1]), contig(vals[..., 2]))})
 
+    def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1, 
+                 include_potential=False):
+        """Export the field to the mgrid format for free boundary calculations.
+
+        The field data is represented as a single "current group". For
+        free-boundary vmec, the "extcur" array should have a single nonzero
+        element, set to 1.0.
+
+        In the future, we may want to implement multiple current groups.
+
+        Args:
+            filename: Name of the NetCDF file to save.
+            nr: Number of grid points in the major radius dimension.
+            nphi: Number of planes in the toroidal angle.
+            nz: Number of grid points in the z coordinate.
+            rmin: Minimum value of major radius for the grid.
+            rmax: Maximum value of major radius for the grid.
+            zmin: Minimum value of z for the grid.
+            zmax: Maximum value of z for the grid.
+            nfp: Number of field periods.
+            include_potential: Boolean to include the vector potential A. Defaults to false.
+        """
+
+        rs = np.linspace(rmin, rmax, nr, endpoint=True)
+        phis = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+        zs = np.linspace(zmin, zmax, nz, endpoint=True)
+
+        Phi, Z, R = np.meshgrid(phis, zs, rs, indexing='ij')
+
+        RPhiZ = np.zeros((R.size, 3))
+        RPhiZ[:, 0] = R.flatten()
+        RPhiZ[:, 1] = Phi.flatten()  
+        RPhiZ[:, 2] = Z.flatten()
+
+        # get field on the grid
+        self.set_points_cyl(RPhiZ)
+        B = self.B_cyl()
+
+        # shape the components
+        br, bp, bz = B.T
+        br_3 = br.reshape((nphi, nz, nr))
+        bp_3 = bp.reshape((nphi, nz, nr))
+        bz_3 = bz.reshape((nphi, nz, nr))
+        
+        if include_potential:
+            A = self.A_cyl()
+            # shape the potential components
+            ar, ap, az = A.T
+            ar_3 = ar.reshape((nphi, nz, nr))
+            ap_3 = ap.reshape((nphi, nz, nr))
+            az_3 = az.reshape((nphi, nz, nr))
+
+        mgrid = MGrid(nfp=nfp,
+                      nr=nr, nz=nz, nphi=nphi,
+                      rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
+        if include_potential:
+            mgrid.add_field_cylindrical(br_3, bp_3, bz_3, ar=ar_3, ap=ap_3, az=az_3, name='simsopt_coils')  
+        else:
+            mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
+
+
+        mgrid.write(filename)
+
 
 class MagneticFieldMultiply(MagneticField):
     """
@@ -126,17 +189,17 @@ class MagneticFieldMultiply(MagneticField):
     def _d2A_by_dXdX_impl(self, ddA):
         ddA[:] = self.scalar*self.Bfield.d2A_by_dXdX()
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        Bfield = decoder.process_decoded(d["Bfield"])
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        Bfield = decoder.process_decoded(d["Bfield"], serial_objs_dict, recon_objs)
         field = cls(d["scalar"], Bfield)
-        xyz = decoder.process_decoded(d["points"])
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field.set_points_cart(xyz)
         return field
 
@@ -178,19 +241,17 @@ class MagneticFieldSum(MagneticField):
     def B_vjp(self, v):
         return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
         d["points"] = self.get_points_cart()
         return d
 
     @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        Bfields = []
-        for field in d["Bfields"]:
-            Bfields.append(decoder.process_decoded(field))
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        Bfields = decoder.process_decoded(d["Bfields"], serial_objs_dict, recon_objs)
         field_sum = cls(Bfields)
-        xyz = decoder.process_decoded(d["points"])
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field_sum.set_points_cart(xyz)
         return field_sum
 
