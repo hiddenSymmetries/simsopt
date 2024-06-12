@@ -32,7 +32,7 @@ class PSCgrid:
         self.BdotN2_list = []
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
-        num_quad = 8  # 20 required for unit tests to pass
+        num_quad = 8  # 8 required for unit tests to pass and 20 required to do it well
         (quad_points_phi, 
          quad_weights) = np.polynomial.legendre.leggauss(num_quad)
         self.quad_points_phi = contig(quad_points_phi * np.pi + np.pi)
@@ -73,9 +73,9 @@ class PSCgrid:
         if self.plasma_boundary.nfp == 2:
             self.R = Nmin / 2.5 
         elif self.plasma_boundary.nfp == 3:
-            self.R = min(Nmin / 2.0, self.poff / 3.0)
+            self.R = min(Nmin / 2.0, self.poff / 1.75)
         else:
-            self.R = self.poff / 2.5
+            self.R = min(Nmin / 2.2, self.poff / 4.0) # self.poff / 2.5
             
         # Note that aspect ratio of 0.1 has ~twice as large currents
         # as aspect ratio of 0.01
@@ -119,7 +119,7 @@ class PSCgrid:
                         if self.nfp == 4:
                             phi2 = np.arctan2(self.R, X[i, j, k])
                         elif self.nfp == 3:
-                            phi2 = np.arctan2(Y[i, j, k] + self.R, X[i, j, k] - self.R) - phi
+                            phi2 = np.arctan2(Y[i, j, k] + self.R / 2.0, X[i, j, k] - self.R / 2.0) - phi
                         elif self.nfp == 2:
                             phi2 = np.arctan2(self.R, self.plasma_boundary.get_rc(0, 0))
                         # Add a little factor to avoid phi = pi / n_p degrees 
@@ -212,6 +212,7 @@ class PSCgrid:
         from simsopt.util import calculate_on_axis_B
         from . import curves_to_vtk
                 
+        t1 = time.time()
         psc_grid = cls() 
         psc_grid.out_dir = kwargs.pop("out_dir", '')
         
@@ -244,12 +245,8 @@ class PSCgrid:
         if not np.allclose(Bn_plasma.shape, (psc_grid.nphi, psc_grid.ntheta)): 
             raise ValueError('Plasma magnetic field surface data is incorrect shape.')
         psc_grid.Bn_plasma = Bn_plasma
-        psc_grid.plasma_boundary_full = kwargs.pop("plasma_boundary_full", psc_grid.plasma_boundary)
         
         # Get geometric data for initializing the PSCs
-        N = 20  # Number of integration points for integrals over PSC coils
-        psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
-        psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
         Nx = kwargs.pop("Nx", 10)
         Ny = kwargs.pop("Ny", Nx)
         Nz = kwargs.pop("Nz", Nx)
@@ -267,7 +264,6 @@ class PSCgrid:
             ' array to be correctly initialized.'
         )        
         
-        t1 = time.time()
         # Use the geometric info to initialize a grid of PSCs
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
@@ -283,13 +279,7 @@ class PSCgrid:
         inds = np.ravel(np.logical_not(np.all(psc_grid.grid_xyz == 0.0, axis=-1)))
         psc_grid.grid_xyz = np.array(psc_grid.grid_xyz[inds, :], dtype=float)
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
-        # psc_grid.rho = np.linspace(0, psc_grid.R, N, endpoint=False)
         psc_grid.quad_points_rho = psc_grid.quad_points_rho * psc_grid.R
-        # psc_grid.drho = psc_grid.rho[1] - psc_grid.rho[0]
-        # Initialize 2D (rho, phi) mesh for integrals over the PSC "face".
-        # Rho, Phi = np.meshgrid(psc_grid.rho, psc_grid.phi, indexing='ij')
-        # psc_grid.Rho = np.ravel(Rho)
-        # psc_grid.Phi = np.ravel(Phi)
         
         # Order of each PSC coil when they are initialized as 
         # CurvePlanarFourier objects. For unit tests, needs > 400 for 
@@ -327,6 +317,10 @@ class PSCgrid:
         # representing Bnormal errors on the plasma surface
         psc_grid.normalization = B_axis ** 2 * psc_grid.plasma_boundary.area()
         psc_grid.fac2_norm = psc_grid.fac ** 2 / psc_grid.normalization
+        psc_grid.fac2_norm2 = psc_grid.fac2_norm * 0.5
+        # psc_grid.fac2_norm_grid = psc_grid.fac2_norm * psc_grid.grid_normalization
+        # psc_grid.fac2_norm_grid2 = psc_grid.fac2_norm * psc_grid.grid_normalization ** 2
+        # psc_grid.fac2_norm2_grid2 = psc_grid.fac2_norm * psc_grid.grid_normalization ** 2 * 0.5
         psc_grid.B_TF = B_TF
 
         # Random or B_TF aligned initialization of the coil orientations
@@ -402,20 +396,13 @@ class PSCgrid:
         # Generate all the locations of the PSC coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
         psc_grid.setup_full_grid()
-        t2 = time.time()
-        # print('Initialize grid time = ', t2 - t1)
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
-        # t1 = time.time()
         # Initialize all of the fields, currents, inductances, for all the PSCs
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
-        # psc_grid.L_inv = inv(psc_grid.L, check_finite=False)
-        # psc_grid.I = -psc_grid.L_inv[:psc_grid.num_psc, :psc_grid.num_psc] @ psc_grid.psi / psc_grid.fac
         psc_grid.setup_currents_and_fields()
-        # t2 = time.time()
-        # print('Geo setup time = ', t2 - t1)
         
         # Initialize CurvePlanarFourier objects for the PSCs, mostly for
         # plotting purposes
@@ -430,6 +417,8 @@ class PSCgrid:
         # optimization variables used in this work. 
         kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
         psc_grid.kappas = kappas
+        t2 = time.time()
+        print('Geo setup time = ', t2 - t1)
         return psc_grid
     
     @classmethod
@@ -501,6 +490,7 @@ class PSCgrid:
         from simsopt.field import InterpolatedField
         from . import curves_to_vtk
         
+        t1 = time.time()
         psc_grid = cls()
         # Initialize geometric information of the PSC array
         psc_grid.grid_xyz = np.array(points, dtype=float)
@@ -516,32 +506,23 @@ class PSCgrid:
                                      (np.random.rand(
                                          psc_grid.num_psc) - 0.5) * 2 * np.pi
         )
-        # N = 500  # Must be larger for some unit tests to converge
-        # psc_grid.phi = np.linspace(0, 2 * np.pi, N, endpoint=False)
-        # psc_grid.dphi = psc_grid.phi[1] - psc_grid.phi[0]
-        # psc_grid.rho = np.linspace(0, R, N, endpoint=False)
-        # psc_grid.drho = psc_grid.rho[1] - psc_grid.rho[0]
-        # psc_grid.rho = np.linspace(0, psc_grid.R, N, endpoint=False)
         psc_grid.quad_points_rho = psc_grid.quad_points_rho * psc_grid.R
-        # print(psc_grid.quad_points_rho)
-        # Initialize 2D (rho, phi) mesh for integrals over the PSC "face".
-        # Rho, Phi = np.meshgrid(psc_grid.rho, psc_grid.phi, indexing='ij')
-        # psc_grid.Rho = np.ravel(Rho)
-        # psc_grid.Phi = np.ravel(Phi)
     
         # initialize a default plasma boundary
-        input_name = 'input.LandremanPaul2021_QA_lowres'
-        TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-        surface_filename = TEST_DIR / input_name
-        ndefault = 4
-        default_surf = SurfaceRZFourier.from_vmec_input(
-            surface_filename, range='full torus', nphi=ndefault, ntheta=ndefault
-        )
-        default_surf.nfp = 1
-        default_surf.stellsym = False
+        psc_grid.plasma_boundary = kwargs.pop("plasma_boundary", None)
+        if psc_grid.plasma_boundary is None:
+            input_name = 'input.LandremanPaul2021_QA_lowres'
+            TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
+            surface_filename = TEST_DIR / input_name
+            ndefault = 4
+            default_surf = SurfaceRZFourier.from_vmec_input(
+                surface_filename, range='full torus', nphi=ndefault, ntheta=ndefault
+            )
+            default_surf.nfp = 1
+            default_surf.stellsym = False
+            psc_grid.plasma_boundary = default_surf
         
         # Initialize all the plasma boundary information
-        psc_grid.plasma_boundary = kwargs.pop("plasma_boundary", default_surf)
         psc_grid.nfp = psc_grid.plasma_boundary.nfp
         psc_grid.stellsym = psc_grid.plasma_boundary.stellsym
         psc_grid.nphi = len(psc_grid.plasma_boundary.quadpoints_phi)
@@ -562,7 +543,6 @@ class PSCgrid:
         if not np.allclose(Bn_plasma.shape, (psc_grid.nphi, psc_grid.ntheta)): 
             raise ValueError('Plasma magnetic field surface data is incorrect shape.')
         psc_grid.Bn_plasma = Bn_plasma
-        psc_grid.plasma_boundary_full = kwargs.pop("plasma_boundary_full", psc_grid.plasma_boundary)
         
         # Check if the grid intersects a symmetry plane -- oops!
         phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
@@ -581,35 +561,35 @@ class PSCgrid:
                              'Please reinitialize the coils.')
         
         # generate planar TF coils
-        ncoils = 4
-        R0 = 1.4
-        R1 = 0.9
-        order = 4
-        total_current = 1e6
-        base_curves = create_equally_spaced_curves(
-            ncoils, psc_grid.plasma_boundary.nfp, 
-            stellsym=psc_grid.plasma_boundary.stellsym, 
-            R0=R0, R1=R1, order=order, numquadpoints=128
-        )
-        base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
-        total_current = Current(total_current)
-        total_current.fix_all()
-        default_coils = coils_via_symmetries(
-            base_curves, base_currents, 
-            psc_grid.plasma_boundary.nfp, 
-            psc_grid.plasma_boundary.stellsym
-        )
-        # fix all the coil shapes so only the currents are optimized
-        for i in range(ncoils):
-            base_curves[i].fix_all()
-        coils_TF = kwargs.pop("coils_TF", default_coils)
+        coils_TF = kwargs.pop("coils_TF", None)
+        if coils_TF is None:
+            ncoils = 4
+            R0 = 1.4
+            R1 = 0.9
+            order = 4
+            total_current = 1e6
+            base_curves = create_equally_spaced_curves(
+                ncoils, psc_grid.plasma_boundary.nfp, 
+                stellsym=psc_grid.plasma_boundary.stellsym, 
+                R0=R0, R1=R1, order=order, numquadpoints=128
+            )
+            base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
+            total_current = Current(total_current)
+            total_current.fix_all()
+            default_coils = coils_via_symmetries(
+                base_curves, base_currents, 
+                psc_grid.plasma_boundary.nfp, 
+                psc_grid.plasma_boundary.stellsym
+            )
+            # fix all the coil shapes so only the currents are optimized
+            for i in range(ncoils):
+                base_curves[i].fix_all()
+            coils_TF = default_coils
         
         # Get all the TF coils data
         psc_grid.I_TF = np.array([coil.current.get_value() for coil in coils_TF])
         psc_grid.dl_TF = np.array([coil.curve.gammadash() for coil in coils_TF])
         psc_grid.gamma_TF = np.array([coil.curve.gamma() for coil in coils_TF])
-        TF_curves = np.array([coil.curve for coil in coils_TF])
-        curves_to_vtk(TF_curves, psc_grid.out_dir + "coils_TF", close=True, scalar_data=psc_grid.I_TF)
         
         # Setup the B field from the TF coils
         # Many big calls to B_TF.B() so can make an interpolated object
@@ -637,14 +617,18 @@ class PSCgrid:
             )
         B_TF.set_points(psc_grid.grid_xyz)
         B_axis = calculate_on_axis_B(B_TF, psc_grid.plasma_boundary, print_out=False)
+        
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
         psc_grid.normalization = B_axis ** 2 * psc_grid.plasma_boundary.area()
         psc_grid.fac2_norm = psc_grid.fac ** 2 / psc_grid.normalization
+        psc_grid.fac2_norm2 = psc_grid.fac2_norm * 0.5
+        # psc_grid.fac2_norm_grid = psc_grid.fac2_norm * psc_grid.grid_normalization
+        # psc_grid.fac2_norm_grid2 = psc_grid.fac2_norm * psc_grid.grid_normalization ** 2
         psc_grid.B_TF = B_TF
         
         # Order of the coils. For unit tests, needs > 400
-        psc_grid.ppp = kwargs.pop("ppp", 1000)
+        psc_grid.ppp = kwargs.pop("ppp", 100)
 
         psc_grid.coil_normals = np.array(
             [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
@@ -662,12 +646,9 @@ class PSCgrid:
         psc_grid.setup_full_grid()
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
-        # psc_grid.L_inv = inv(psc_grid.L, check_finite=False)
-        # psc_grid.I = -psc_grid.L_inv[:psc_grid.num_psc, :psc_grid.num_psc] @ psc_grid.psi / psc_grid.fac
         psc_grid.setup_currents_and_fields()
         
-        # Initialize CurvePlanarFourier objects for the PSCs, mostly for
-        # plotting purposes
+        # Initialize CurvePlanarFourier objects for the PSCs
         psc_grid.setup_curves()
         psc_grid.plot_curves()
         
@@ -679,6 +660,8 @@ class PSCgrid:
         # optimization variables used in this work. 
         kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
         psc_grid.kappas = kappas
+        t2 = time.time()
+        print('Initialize grid time = ', t2 - t1)
         return psc_grid
     
     def setup_currents_and_fields(self):
@@ -689,10 +672,9 @@ class PSCgrid:
         VERY ill-conditioned! 
         """
         self.L_inv = np.linalg.inv(self.L)
-        self.I_all = -self.L_inv @ self.psi_total / self.fac
-        self.I = self.I_all[:self.num_psc]
+        self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
         self.setup_A_matrix()
-        self.Bn_PSC = (self.A_matrix @ self.I).reshape(-1)
+        self.Bn_PSC = self.A_matrix @ self.I
         
     def setup_A_matrix(self):
         """
@@ -760,28 +742,29 @@ class PSCgrid:
             File name extension for some of the saved files.
 
         """
-        from pyevtk.hl import pointsToVTK
+        # from pyevtk.hl import pointsToVTK
         from . import curves_to_vtk
         
-        curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
-        self.B_TF.set_points(self.grid_xyz)
-        B = self.B_TF.B()
-        pointsToVTK(self.out_dir + 'curve_centers', 
-                    contig(self.grid_xyz[:, 0]),
-                    contig(self.grid_xyz[:, 1]), 
-                    contig(self.grid_xyz[:, 2]),
-                    data={"n": (contig(self.coil_normals[:, 0]), 
-                                contig(self.coil_normals[:, 1]),
-                                contig(self.coil_normals[:, 2])),
-                          "psi": contig(self.psi),
-                          "I": contig(self.I),
-                          "B_TF": (contig(B[:, 0]), 
-                                    contig(B[:, 1]),
-                                    contig(B[:, 2])),
-                          },
-        )
+        # curves_to_vtk(self.curves, self.out_dir + "psc_curves", close=True, scalar_data=self.I)
+        # self.B_TF.set_points(self.grid_xyz)
+        # B = self.B_TF.B()
+        # pointsToVTK(self.out_dir + 'curve_centers', 
+        #             contig(self.grid_xyz[:, 0]),
+        #             contig(self.grid_xyz[:, 1]), 
+        #             contig(self.grid_xyz[:, 2]),
+        #             data={"n": (contig(self.coil_normals[:, 0]), 
+        #                         contig(self.coil_normals[:, 1]),
+        #                         contig(self.coil_normals[:, 2])),
+        #                   "psi": contig(self.psi),
+        #                   "I": contig(self.I),
+        #                   "B_TF": (contig(B[:, 0]), 
+        #                             contig(B[:, 1]),
+        #                             contig(B[:, 2])),
+        #                   },
+        # )
         
         # Repeat for the whole torus
+        self.I_all = -self.L_inv @ self.psi_total / self.fac
         self.I_all_with_sign_flips = np.zeros(self.I_all.shape)
         q = 0
         nn = self.num_psc
@@ -790,22 +773,22 @@ class PSCgrid:
                 self.I_all_with_sign_flips[q * nn: (q + 1) * nn] = self.I_all[q * nn: (q + 1) * nn] * stell
                 q += 1
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all_with_sign_flips)
-        self.B_TF.set_points(self.grid_xyz_all)
-        B = self.B_TF.B()
-        pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
-                    contig(self.grid_xyz_all[:, 0]),
-                    contig(self.grid_xyz_all[:, 1]), 
-                    contig(self.grid_xyz_all[:, 2]),
-                    data={"n": (contig(self.coil_normals_all[:, 0]), 
-                                contig(self.coil_normals_all[:, 1]),
-                                contig(self.coil_normals_all[:, 2])),
-                          "psi": contig(self.psi_total),
-                          "I": contig(self.I_all_with_sign_flips),
-                          "B_TF": (contig(B[:, 0]), 
-                                   contig(B[:, 1]),
-                                   contig(B[:, 2])),
-                          },
-        )
+        # self.B_TF.set_points(self.grid_xyz_all)
+        # B = self.B_TF.B()
+        # pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
+        #             contig(self.grid_xyz_all[:, 0]),
+        #             contig(self.grid_xyz_all[:, 1]), 
+        #             contig(self.grid_xyz_all[:, 2]),
+        #             data={"n": (contig(self.coil_normals_all[:, 0]), 
+        #                         contig(self.coil_normals_all[:, 1]),
+        #                         contig(self.coil_normals_all[:, 2])),
+        #                   "psi": contig(self.psi_total),
+        #                   "I": contig(self.I_all_with_sign_flips),
+        #                   "B_TF": (contig(B[:, 0]), 
+        #                            contig(B[:, 1]),
+        #                            contig(B[:, 2])),
+        #                   },
+        # )
         
     def b_vector(self):
         """
@@ -845,7 +828,7 @@ class PSCgrid:
         self.update_psi()
         self.setup_currents_and_fields()
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
-        BdotN2 = 0.5 * Ax_b.T @ Ax_b * self.fac2_norm
+        BdotN2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
         self.BdotN2_list.append(BdotN2)
         return BdotN2
     
@@ -868,6 +851,18 @@ class PSCgrid:
                 with the array of kappas.
 
         """
+        #### Probably this makes it so we are really using the Jacobian from
+        #### the previous iteration, but seems to work pretty well and speeds
+        #### up the optimization a fair bit
+        # self.setup_orientations(kappas[:self.num_psc], kappas[self.num_psc:])
+        # self.update_psi()
+        # self.setup_currents_and_fields()
+        # Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
+        # grad1 = self.A_deriv() * np.hstack((self.I, self.I))
+        # Linv = self.L_inv[:self.num_psc, :self.num_psc]
+        # grad3 = -self.A_matrix @ (np.hstack((Linv, Linv)) * self.psi_deriv())
+        # return (Ax_b.T @ (self.grid_normalization[:, None] * (grad1 + grad3))) * self.fac2_norm
+    
         self.setup_orientations(kappas[:self.num_psc], kappas[self.num_psc:])
         self.update_psi()
         self.setup_currents_and_fields()
