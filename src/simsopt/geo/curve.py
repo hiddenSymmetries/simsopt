@@ -406,6 +406,30 @@ class Curve(Optimizable):
                     - 5 * d1_dot_d2 * norm_d1_x_d2 * d1_dot_d1coeff/normdgamma**7
             )
         return dkappadash_by_dcoeff
+    
+    def save_biek_data(self, filename, width, height, framing='frenet'): 
+        """
+        Save the curve in a file format for processing in ANSYS finite element methods
+        developed by Daniel Biek. 
+        
+        The format specifies each coil be described by 4 files for the four cornerpoints,
+        i.e. coil_n_bottom/top_left/right.csv
+
+        * arguments:
+            - filename: the base filename to save the data, i.e. 'coil1'
+            - width: the width of the coil in m
+            - height: the height of the coil in m
+            - framing: the framing of the coil, only frenet is supported for now
+        """
+        if framing == 'frenet':
+            t, n, b = self.frenet_frame()
+            gamma = self.gamma()
+            np.savetxt(f"{filename}_bottom_left.csv", gamma - height/2 * n - width/2 * b , delimiter=",")
+            np.savetxt(f"{filename}_bottom_right.csv", gamma - height/2 * n + width/2 * b , delimiter=",")
+            np.savetxt(f"{filename}_top_left.csv", gamma + height/2 * n - width/2 * b , delimiter=",")
+            np.savetxt(f"{filename}_top_right.csv", gamma + height/2 * n + width/2 * b , delimiter=",")
+        else:
+            raise NotImplementedError("Only Frenet frame is supported for now.")
 
 
 class JaxCurve(sopp.Curve, Curve):
