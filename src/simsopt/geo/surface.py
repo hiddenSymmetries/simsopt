@@ -959,7 +959,7 @@ class Surface(Optimizable):
         if not stellsym:
             field = field + A_mnc[0, ntor]
         if normalization is not None: 
-            if isinstance(normalization, float):
+            if not isinstance(normalization, float):
                 raise ValueError("normalization must be a float")
             field = field * normalization
         return field
