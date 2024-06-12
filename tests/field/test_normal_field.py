@@ -93,9 +93,13 @@ class NormalFieldTests(unittest.TestCase):
 
         normal_field.set_vns(m=1, n=-1, value=1)
         self.assertEqual(normal_field.get_vns(m=1, n=-1), 1)
+        i, j = normal_field.get_index_in_array(m=1, n=-1)
+        self.assertEqual(normal_field.vns[i, j], 1)
 
         normal_field.set_vnc(m=2, n=1, value=0.5)
         self.assertEqual(normal_field.get_vnc(m=2, n=1), 0.5)
+        i, j = normal_field.get_index_in_array(m=2, n=1)
+        self.assertEqual(normal_field.vnc[i, j], 0.5)
 
     def test_check_mn(self):
         """
@@ -208,3 +212,47 @@ class NormalFieldTests(unittest.TestCase):
                     self.assertTrue(normal_field.is_fixed(ii))
                 else:
                     self.assertTrue(normal_field.is_free(ii))
+    
+    @unittest.skipIf(py_spec is None, "py_spec not found")
+    def test_from_spec_object(self):
+        """
+        test classmethod to instantiate from an existing SPEC object
+        """
+        from simsopt.mhd import Spec
+        # Init from SPEC input file
+        filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
+        spec = Spec(filename)
+        normal_field = NormalField.from_spec_object(spec)
+        normal_field_2 = NormalField.from_spec(filename)
+
+        self.assertAlmostEqual(normal_field.get_vns(m=3, n=-1), 1.71466651E-03)
+        self.assertAlmostEqual(normal_field.get_vns(m=5, n=1), -3.56991494E-05)
+
+        self.assertTrue(np.allclose(normal_field.local_full_x, normal_field_2.local_full_x))
+    
+    @unittest.skipIf(py_spec is None, "py_spec not found")
+    def test_get_set_vns_vnc_asarray(self):
+        """
+        test the array-wise getter and setter functions for the 
+        Vns and Vnc arrays
+        """
+        filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
+        normal_field = NormalField.from_spec(filename)
+        vns = normal_field.get_vns_asarray()
+        vnc = normal_field.get_vnc_asarray()
+        vns2, vnc2 = normal_field.get_vns_vnc_asarray()
+        self.assertTrue(np.allclose(vns, vns2))
+        self.assertTrue(np.allclose(vnc, vnc2))
+        vns3 = np.copy(vnc)
+
+    @unittest.skipIf(py_spec is None, "py_spec not found")
+    def test_get_real_space_field(self):
+        """
+        test the conversion to real space
+        """
+        filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
+
+        normal_field = NormalField.from_spec(filename)
+        real_space_field = normal_field.get_real_space_field()
+        self.assertTrue(real_space_field is not None)
+        self.assertTrue(real_space_field.shape == normal_field.surface.get_quadpoints().shape)

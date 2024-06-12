@@ -233,7 +233,7 @@ class Spec(Optimizable):
             self._normal_field = NormalField(nfp=self.nfp, stellsym=self.stellsym,
                                              mpol=self.mpol, ntor=self.ntor,
                                              vns=vns.as_simsopt, vnc=vnc.as_simsopt, 
-                                             computational_boundary=self._computational_boundary)
+                                             surface=self._computational_boundary)
         else:
             self._normal_field: Optional[NormalField] = None
 
