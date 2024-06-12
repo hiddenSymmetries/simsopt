@@ -120,6 +120,9 @@ class GuidingCenterVacuumBoozerRHS {
             if (axis==1) {
                 s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -146,6 +149,9 @@ class GuidingCenterVacuumBoozerRHS {
             if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -193,6 +199,9 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             if (axis==1) {
                 s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -230,6 +239,9 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -282,6 +294,9 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             if (axis==1) {
                 s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -325,6 +340,9 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -381,6 +399,9 @@ class GuidingCenterNoKBoozerRHS {
             if (axis==1) {
                 s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -410,6 +431,9 @@ class GuidingCenterNoKBoozerRHS {
             if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
@@ -456,6 +480,9 @@ class GuidingCenterBoozerRHS {
             if (axis==1) {
                 s = pow(ys[0],2)+pow(ys[1],2);
                 theta = atan2(ys[1],ys[0]);          
+            } else if (axis==2) {
+                s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+                theta = atan2(ys[1],ys[0]); 
             } else {
                 s = ys[0];
                 theta = ys[1];
@@ -490,6 +517,9 @@ class GuidingCenterBoozerRHS {
             if (axis==1) {
                 dydt[0] = sdot*cos(theta)/(2*sqrt(s)) - sqrt(s) * sin(theta) * tdot;
                 dydt[1] = sdot*sin(theta)/(2*sqrt(s)) + sqrt(s) * cos(theta) * tdot;
+            } else if (axis==2) {
+                dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+                dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot; 
             } else {
                 dydt[0] = sdot;
                 dydt[1] = tdot;
