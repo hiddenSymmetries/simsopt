@@ -187,3 +187,52 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
     ma.zs[:] = sZ[0:Nt_ma]
     ma.x = ma.get_dofs()
     return (curves, currents, ma)
+
+def get_QUASR_data(config_ID:int=None, return_style='default'): 
+    """
+    download a configuration from the QUASAR database
+
+    Args:
+        config_ID: the ID of the configuration to download. If None, a random configuration will be downloaded
+        return_style: 'default' or 'coils. If 'default', the function will return the curves, currents and magnetic axis
+         like the other configurations in the zoo. 
+         If 'coils', the function will return coils, the magnetic axis and a list of flux surfaces.
+
+    """
+    import json
+    from simsopt._core.json import GSONDecoder
+    import numpy as np
+    #test if you have the requests library: 
+    try:
+        import requests
+    except ImportError:
+        raise ImportError("You need to install the requests library to use this function. Run 'pip install requests'")
+    
+    if config_ID is None: 
+        # a random number between 1 and 300000:
+        config_ID = np.random.randint(1,300000)
+    
+    id_str = f"{config_ID:07d}"
+    
+    # string format randint to 7 digits
+    url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+
+    with requests.get(url) as r:
+        if r.status_code == 200:
+            print(f"Configuration with ID {config_ID} downloaded successfully")
+            surfaces, ma, coils = json.loads(r.content, cls=GSONDecoder)
+        else:
+            print(url)
+            raise ValueError(f"Could not download configuration with ID {config_ID:07d}. Status code: {r.status_code}")
+        
+    if return_style == 'default':
+        curves = [coil.curve for coil in coils]
+        currents = [coil.current for coil in coils]
+        return curves, currents, ma
+    elif return_style == 'coils':
+        return coils, ma, surfaces
+    else:
+        raise ValueError("return_style must be either 'default' or 'coils'")
+
+        
+    
