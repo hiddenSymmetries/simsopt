@@ -75,7 +75,7 @@ class Surface(Optimizable):
             nphi, ntheta, nfp=nfp, range=range)
         return cls(quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
-
+    @staticmethod
     def get_quadpoints(nphi=None,
                        ntheta=None,
                        range=None,
@@ -109,7 +109,7 @@ class Surface(Optimizable):
         """
         return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
                 Surface.get_theta_quadpoints(ntheta=ntheta))
-
+    @staticmethod
     def get_theta_quadpoints(ntheta=None):
         r"""
         Sets the theta grid points for Surface subclasses.
@@ -124,7 +124,7 @@ class Surface(Optimizable):
         if ntheta is None:
             ntheta = 62
         return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
-
+    @staticmethod
     def get_phi_quadpoints(nphi=None, range=None, nfp=1):
         r"""
         Sets the phi grid points for Surface subclasses.
