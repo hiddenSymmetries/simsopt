@@ -255,4 +255,4 @@ class NormalFieldTests(unittest.TestCase):
         normal_field = NormalField.from_spec(filename)
         real_space_field = normal_field.get_real_space_field()
         self.assertTrue(real_space_field is not None)
-        self.assertTrue(real_space_field.shape == normal_field.surface.get_quadpoints().shape)
+        self.assertEqual(real_space_field.shape, (normal_field.surface.quadpoints_phi.size, normal_field.surface.quadpoints_theta.size))
