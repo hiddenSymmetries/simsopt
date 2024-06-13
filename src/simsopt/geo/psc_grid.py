@@ -30,6 +30,7 @@ class PSCgrid:
         self.mu0 = 4 * np.pi * 1e-7
         self.fac = 1e-7
         self.BdotN2_list = []
+        self.Bn_list = []
         # Define a set of quadrature points and weights for the N point
         # Gaussian quadrature rule
         num_quad = 8  # 8 required for unit tests to pass and 20 required to do it well
@@ -75,7 +76,7 @@ class PSCgrid:
         elif self.plasma_boundary.nfp == 3:
             self.R = min(Nmin / 2.0, self.poff / 1.75)
         else:
-            self.R = min(Nmin / 2.2, self.poff / 4.0) # self.poff / 2.5
+            self.R = min(Nmin / 2.3, self.poff / 2.6) # self.poff / 2.5
             
         # Note that aspect ratio of 0.1 has ~twice as large currents
         # as aspect ratio of 0.01
@@ -316,6 +317,7 @@ class PSCgrid:
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
         psc_grid.normalization = B_axis ** 2 * psc_grid.plasma_boundary.area()
+        psc_grid.Baxis_A = B_axis * psc_grid.plasma_boundary.area()
         psc_grid.fac2_norm = psc_grid.fac ** 2 / psc_grid.normalization
         psc_grid.fac2_norm2 = psc_grid.fac2_norm * 0.5
         # psc_grid.fac2_norm_grid = psc_grid.fac2_norm * psc_grid.grid_normalization
@@ -374,6 +376,7 @@ class PSCgrid:
         phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
         phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
         inds = []
+        eps = 5e-2
         for i in range(psc_grid.nfp):
             conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
             if len(conflicts) > 0:
@@ -387,11 +390,19 @@ class PSCgrid:
         for i in range(psc_grid.num_psc):
             for j in range(i + 1, psc_grid.num_psc):
                 dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
-                conflict_bool = (dij < 2.0 * psc_grid.R)
+                conflict_bool = (dij < (2.0 + eps) * psc_grid.R)
                 if conflict_bool:
                     print('bad indices = ', i, j, dij)
                     raise ValueError('There is a PSC coil initialized such that it is within a diameter'
                                      'of another PSC coil. Please reinitialize the coils.')
+            for j in range(len(coils_TF)):
+                for k in range(psc_grid.gamma_TF.shape[1]):
+                    dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.gamma_TF[j, k, :]) ** 2))
+                    conflict_bool = (dij < (2.0 + eps) * psc_grid.R)
+                    if conflict_bool:
+                        print('bad indices = ', i, j, dij)
+                        raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                                         'of a TF coil. Please reinitialize the coils.')
             
         # Generate all the locations of the PSC coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
@@ -621,6 +632,7 @@ class PSCgrid:
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
         psc_grid.normalization = B_axis ** 2 * psc_grid.plasma_boundary.area()
+        psc_grid.Baxis_A = B_axis * psc_grid.plasma_boundary.area()
         psc_grid.fac2_norm = psc_grid.fac ** 2 / psc_grid.normalization
         psc_grid.fac2_norm2 = psc_grid.fac2_norm * 0.5
         # psc_grid.fac2_norm_grid = psc_grid.fac2_norm * psc_grid.grid_normalization
@@ -803,6 +815,13 @@ class PSCgrid:
         )
         self.b_opt = (Bn_TF + Bn_plasma) / self.fac
         
+    def normalized_Bn(self):
+        """
+        """
+        Bn_mag = np.sum(np.abs((self.Bn_PSC + self.b_opt) * self.grid_normalization ** 2))
+        Bn_mag = Bn_mag * self.fac / self.Baxis_A
+        self.Bn_list.append(Bn_mag)
+        
     def least_squares(self, kappas, verbose=False):
         """
         Evaluate the 0.5 * ||A*Linv*psi - b||^2
@@ -830,6 +849,7 @@ class PSCgrid:
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
         BdotN2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
         self.BdotN2_list.append(BdotN2)
+        self.normalized_Bn()
         return BdotN2
     
     def least_squares_jacobian(self, kappas, verbose=False):

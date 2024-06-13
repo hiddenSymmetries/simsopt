@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.optimize import minimize
+from matplotlib import pyplot as plt
 
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
@@ -29,6 +30,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 import time
 import shutil
 
+t1 = time.time()
 # np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
 
 # Set some parameters -- if doing CI, lower the resolution
@@ -38,7 +40,7 @@ if in_github_actions:
 else:
     # Resolution needs to be reasonably high if you are doing permanent magnets
     # or small coils because the fields are quite local
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # Make higher resolution surface for plotting Bnormal
     qphi = nphi * 2
@@ -46,7 +48,7 @@ else:
     quadpoints_theta = np.linspace(0, 1, ntheta * 2, endpoint=True)
 
 poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 1.75  # PSC grid will be initialized between 1 m and 2 m from plasma
+coff = 1.3  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
@@ -116,7 +118,7 @@ def initialize_coils_QH(TEST_DIR, s):
     # qh needs to be scaled to 0.1 T on-axis magnetic field strength
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753 / 1.1
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753 / 1.3
     print('Total current = ', total_current)
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
                                                R0=R0, R1=R1, order=order, numquadpoints=128)
@@ -180,7 +182,7 @@ def coil_optimization_QH(s, bs, base_curves, curves):
     CC_WEIGHT = 1
 
     # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-    CS_THRESHOLD = 3.2
+    CS_THRESHOLD = 3.1
     CS_WEIGHT = 1
 
     # Threshold and weight for the curvature penalty in the objective function:
@@ -266,7 +268,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 4, "out_dir": out_str, 
+kwargs_geo = {"Nx": 16, "out_dir": out_str, 
               # "initialization": "plasma", 
               "poff": poff,}
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
@@ -315,7 +317,7 @@ def callback(x):
 # Actually do the minimization now
 print('beginning optimization: ')
 eps = 1e-6
-options = {"disp": True, "maxiter": 50}
+options = {"disp": True, "maxiter": 30}
 verbose = True
 
 # Run STLSQ with BFGS in the loop
@@ -324,11 +326,12 @@ kwargs_manual = {
                  "plasma_boundary" : s,
                  "coils_TF" : coils
                  }
-I_threshold = 2e4
-I_threshold_scaling = 1.2
-I_scaling_scaling = 0.997
-STLSQ_max_iters = 2
+I_threshold = 6e4
+I_threshold_scaling = 1.3
+I_scaling_scaling = 0.992
+STLSQ_max_iters = 40
 BdotN2_list = []
+Bn_list = []
 num_pscs = []
 for k in range(STLSQ_max_iters):
     
@@ -353,7 +356,7 @@ for k in range(STLSQ_max_iters):
                      jac=psc_array.least_squares_jacobian, 
                      options=options,
                      tol=1e-20,  # Required to make progress when fB is small
-                     callback=callback
+                     # callback=callback
                      )
     t2_min = time.time()
     print(t2_min - t1_min, ' seconds for optimization')
@@ -381,9 +384,11 @@ for k in range(STLSQ_max_iters):
     deltas = psc_array.deltas
     if len(BdotN2_list) > 0:
         BdotN2_list = np.hstack((BdotN2_list, np.array(psc_array.BdotN2_list)))
+        Bn_list = np.hstack((Bn_list, np.array(psc_array.Bn_list)))
         num_pscs = np.hstack((num_pscs, (len(x0) // 2) * np.ones(len(np.array(psc_array.BdotN2_list)))))
     else:
         BdotN2_list = np.array(psc_array.BdotN2_list)
+        Bn_list = np.array(psc_array.Bn_list)
         num_pscs = np.array((len(x0) // 2) * np.ones(len(np.array(psc_array.BdotN2_list))))
     big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold))
     if len(big_I_inds) != psc_array.num_psc:
@@ -406,12 +411,15 @@ for k in range(STLSQ_max_iters):
 # Plot the data from optimization
 num_pscs = np.ravel(num_pscs)
 BdotN2_list = np.ravel(BdotN2_list)
+Bn_list = np.ravel(Bn_list)
 fig, ax1 = plt.subplots()
-color = 'tab:blue'
+color = 'b'
 ax1.set_xlabel('Iterations')
 ax1.set_ylabel(r'$f_B$', color=color)
 ax1.semilogy(BdotN2_list, color=color)
-ax1.plot(fB_TF * np.ones(len(BdotN2_list)), 'k--', label='TF coils only')
+ax1.semilogy(Bn_list, color + '--', label=r'$b_n$')
+ax1.semilogy(0.005 * np.ones(len(Bn_list)), 'm--', label=r'$b_n$, benchmark')
+ax1.plot(fB_TF * np.ones(len(BdotN2_list)), 'k--', label=r'$f_B$, TF coils only')
 ax1.grid()
 ax1.tick_params(axis='y', labelcolor=color)
 ax1.legend()

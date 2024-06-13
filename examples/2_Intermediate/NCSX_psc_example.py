@@ -332,8 +332,9 @@ kwargs_manual = {
 I_threshold = 5e3
 I_threshold_scaling = 1.2
 I_scaling_scaling = 0.997
-STLSQ_max_iters = 40
+STLSQ_max_iters = 2
 BdotN2_list = []
+Bn_list = []
 num_pscs = []
 for k in range(STLSQ_max_iters):
     
@@ -358,6 +359,7 @@ for k in range(STLSQ_max_iters):
                      jac=psc_array.least_squares_jacobian, 
                      options=options,
                      tol=1e-20,  # Required to make progress when fB is small
+                     # callback=callback
                      )
     t2_min = time.time()
     print(t2_min - t1_min, ' seconds for optimization')
@@ -385,9 +387,11 @@ for k in range(STLSQ_max_iters):
     deltas = psc_array.deltas
     if len(BdotN2_list) > 0:
         BdotN2_list = np.hstack((BdotN2_list, np.array(psc_array.BdotN2_list)))
+        Bn_list = np.hstack((Bn_list, np.array(psc_array.Bn_list)))
         num_pscs = np.hstack((num_pscs, (len(x0) // 2) * np.ones(len(np.array(psc_array.BdotN2_list)))))
     else:
         BdotN2_list = np.array(psc_array.BdotN2_list)
+        Bn_list = np.array(psc_array.Bn_list)
         num_pscs = np.array((len(x0) // 2) * np.ones(len(np.array(psc_array.BdotN2_list))))
     big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold))
     if len(big_I_inds) != psc_array.num_psc:
@@ -399,19 +403,26 @@ for k in range(STLSQ_max_iters):
         break
     kwargs_manual["alphas"] = alphas
     kwargs_manual["deltas"] = deltas
-    psc_array = PSCgrid.geo_setup_manual(
-        grid_xyz, psc_array.R, **kwargs_manual
-    )
+    try:
+        psc_array = PSCgrid.geo_setup_manual(
+            grid_xyz, psc_array.R, **kwargs_manual
+        )
+    except TypeError:
+        print('Grid initialization raised TypeError, quitting STLSQ loop')
+        break
 
 # Plot the data from optimization
 num_pscs = np.ravel(num_pscs)
 BdotN2_list = np.ravel(BdotN2_list)
+Bn_list = np.ravel(Bn_list)
 fig, ax1 = plt.subplots()
-color = 'tab:blue'
+color = 'b'
 ax1.set_xlabel('Iterations')
 ax1.set_ylabel(r'$f_B$', color=color)
 ax1.semilogy(BdotN2_list, color=color)
-ax1.plot(fB_TF * np.ones(len(BdotN2_list)), 'k--', label='TF coils only')
+ax1.semilogy(Bn_list, color + '--', label=r'$b_n$')
+ax1.semilogy(0.005 * np.ones(len(Bn_list)), 'm--', label=r'$b_n$, benchmark')
+ax1.plot(fB_TF * np.ones(len(BdotN2_list)), 'k--', label=r'$f_B$, TF coils only')
 ax1.grid()
 ax1.tick_params(axis='y', labelcolor=color)
 ax1.legend()
