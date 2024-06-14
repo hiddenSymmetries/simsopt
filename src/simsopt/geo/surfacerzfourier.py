@@ -637,9 +637,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    def fourier_transform_field(self, field, mpol=None, ntor=None, normalization=None, **kwargs):
+    def fourier_transform_scalar(self, scalar, mpol=None, ntor=None, normalization=None, **kwargs):
         r"""
-        Compute the Fourier components of a field on the surface. The field
+        Compute the Fourier components of a scalar on the surface. The scalar
         is evaluated at the quadrature points on the surface. 
         The Fourier uses the conventions of the FourierRZSurface series, 
         with `npol` going from `-ntor` to `ntor` and `mpol` from 0 to `mpol`
@@ -647,11 +647,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         :math:`f(\theta, \phi) = \Sum_{m=0}^{mpol} \Sum_{n=-npol}^{npol} A^{mn}_s \sin(m\theta - n*Nfp*\phi)\\
             + A^{mn}_c \cos(m\theta - n*Nfp*\phi)`
         Where the cosine series is only evaluated if the surface is not stellarator
-        symmetric (if the field does not adhere to the symmetry of the surface, 
+        symmetric (if the scalar does not adhere to the symmetry of the surface, 
         request the cosine series by setting the kwarg stellsym=False)
         By default, the poloidal and toroidal resolution are the same as those of the surface, but different quantities can be specified in the kwargs. 
         *Arguments*:
-            - field: 2D array of shape (numquadpoints_phi, numquadpoints_theta).
+            - scalar: 2D array of shape (numquadpoints_phi, numquadpoints_theta).
             - mpol: maximum poloidal mode number of the transform, if None,
                 the mpol attribute of the surface is used.
             - ntor: maximum toroidal mode number of the transform if None, 
@@ -667,8 +667,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
                 (these are zero if the surface is stellarator symmetric)
         """
-        assert field.shape[0] == self.quadpoints_phi.size, "Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
-        assert field.shape[1] == self.quadpoints_theta.size, "Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        assert scalar.shape[0] == self.quadpoints_phi.size, "scalar must be evaluated at the quadrature points on the surface.\n the scalar you passed in has shape {}".format(scalar.shape)
+        assert scalar.shape[1] == self.quadpoints_theta.size, "scalar must be evaluated at the quadrature points on the surface.\n the scalar you passed in has shape {}".format(scalar.shape)
         stellsym = kwargs.pop('stellsym', self.stellsym)
         if mpol is None:
             try: mpol = self.mpol
@@ -699,12 +699,12 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 # The next 2 lines ensure inverse Fourier transform(Fourier transform) = identity
                 if np.mod(ntheta_grid, 2) == 0 and m == (ntheta_grid/2): factor2 = factor2 / 2
                 if np.mod(nphi_grid, 2) == 0 and abs(n) == (nphi_grid/2): factor2 = factor2 / 2
-                A_mns[m, n + ntor] = np.sum(field * sinangle * factor2)
+                A_mns[m, n + ntor] = np.sum(scalar * sinangle * factor2)
                 if not stellsym:
-                    A_mnc[m, n + ntor] = np.sum(field * cosangle * factor2)
+                    A_mnc[m, n + ntor] = np.sum(scalar * cosangle * factor2)
         
         if not stellsym:
-            A_mnc[0, ntor] = np.sum(field) / (ntheta_grid * nphi_grid)
+            A_mnc[0, ntor] = np.sum(scalar) / (ntheta_grid * nphi_grid)
         if normalization is not None:
             if isinstance(normalization, float):
                 raise ValueError("normalization must be a float")
