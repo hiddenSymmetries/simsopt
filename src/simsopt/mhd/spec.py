@@ -749,7 +749,7 @@ class Spec(Optimizable):
             longname: string, either 
                 - 'pressure'
                 - 'volume_current'
-                - 'surface_current'
+                - 'interface_current'
                 - 'iota'
                 - 'oita'
                 - 'mu'
@@ -1071,7 +1071,7 @@ class Spec(Optimizable):
                 logger.debug('About to call check_inputs')
                 spec.allglobal.check_inputs()
             logger.debug('About to call broadcast_inputs')
-            self.mpi.comm_groups.Barrier()  # wait for 
+            self.mpi.comm_groups.Barrier()  # Barrier to ensure all groups are ready to broadcast. 
             spec.allglobal.broadcast_inputs()
             logger.debug('About to call preset')
             spec.preset()

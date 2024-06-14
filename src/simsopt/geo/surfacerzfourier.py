@@ -693,14 +693,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             for n in range(nmin, ntor+1):
                 angle = m * theta2d - n * self.nfp * phi2d
                 sinangle = np.sin(angle)
-                if not stellsym: 
-                    cosangle = np.cos(angle)
                 factor2 = factor
                 # The next 2 lines ensure inverse Fourier transform(Fourier transform) = identity
                 if np.mod(ntheta_grid, 2) == 0 and m == (ntheta_grid/2): factor2 = factor2 / 2
                 if np.mod(nphi_grid, 2) == 0 and abs(n) == (nphi_grid/2): factor2 = factor2 / 2
                 A_mns[m, n + ntor] = np.sum(scalar * sinangle * factor2)
                 if not stellsym:
+                    cosangle = np.cos(angle)
                     A_mnc[m, n + ntor] = np.sum(scalar * cosangle * factor2)
         
         if not stellsym:
@@ -749,10 +748,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             for n in range(nmin, ntor+1):
                 angle = m * theta2d - n * self.nfp * phi2d
                 sinangle = np.sin(angle)
-                if not stellsym:
-                    cosangle = np.cos(angle)
                 scalars = scalars + A_mns[m, n + ntor] * sinangle
                 if not stellsym:
+                    cosangle = np.cos(angle)
                     scalars = scalars + A_mnc[m, n + ntor] * cosangle
         
         if not stellsym:
