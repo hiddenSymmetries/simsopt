@@ -244,6 +244,12 @@ class NormalFieldTests(unittest.TestCase):
         self.assertTrue(np.allclose(vns, vns2))
         self.assertTrue(np.allclose(vnc, vnc2))
         vns3 = np.copy(vnc)
+        i, j = normal_field.get_index_in_array(m=3, n=-1)
+        vns3[i, j] = 0.5
+        normal_field.set_vns_asarray(vns3)
+        self.assertEqual(normal_field.get_vns(m=3, n=-1), 0.5)
+        dof_index = normal_field.get_index_in_dofs(m=3, n=-1)
+        self.assertEqual(normal_field.local_full_x[dof_index], 0.5)
 
     @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_get_real_space_field(self):
