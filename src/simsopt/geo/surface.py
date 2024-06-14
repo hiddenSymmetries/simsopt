@@ -75,6 +75,7 @@ class Surface(Optimizable):
             nphi, ntheta, nfp=nfp, range=range)
         return cls(quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
+    
     @staticmethod
     def get_quadpoints(nphi=None,
                        ntheta=None,
@@ -109,6 +110,7 @@ class Surface(Optimizable):
         """
         return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
                 Surface.get_theta_quadpoints(ntheta=ntheta))
+    
     @staticmethod
     def get_theta_quadpoints(ntheta=None):
         r"""
@@ -124,6 +126,7 @@ class Surface(Optimizable):
         if ntheta is None:
             ntheta = 62
         return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
+    
     @staticmethod
     def get_phi_quadpoints(nphi=None, range=None, nfp=1):
         r"""
@@ -868,8 +871,8 @@ class Surface(Optimizable):
             - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
                 (these are zero if the surface is stellarator symmetric)
         """
-        assert field.shape[0] == self.quadpoints_phi.size,"Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
-        assert field.shape[1] == self.quadpoints_theta.size,"Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        assert field.shape[0] == self.quadpoints_phi.size, "Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        assert field.shape[1] == self.quadpoints_theta.size, "Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
         stellsym = kwargs.pop('stellsym', self.stellsym)
         if mpol is None:
             try: mpol = self.mpol
@@ -963,6 +966,7 @@ class Surface(Optimizable):
                 raise ValueError("normalization must be a float")
             field = field * normalization
         return field
+
 
 def signed_distance_from_surface(xyz, surface):
     """

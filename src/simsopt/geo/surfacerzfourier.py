@@ -637,6 +637,132 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
+    def fourier_transform_field(self, field, mpol=None, ntor=None, normalization=None, **kwargs):
+        r"""
+        Compute the Fourier components of a field on the surface. The field
+        is evaluated at the quadrature points on the surface. 
+        The Fourier uses the conventions of the FourierRZSurface series, 
+        with `npol` going from `-ntor` to `ntor` and `mpol` from 0 to `mpol`
+        i.e.: 
+        :math:`f(\theta, \phi) = \Sum_{m=0}^{mpol} \Sum_{n=-npol}^{npol} A^{mn}_s \sin(m\theta - n*Nfp*\phi)\\
+            + A^{mn}_c \cos(m\theta - n*Nfp*\phi)`
+        Where the cosine series is only evaluated if the surface is not stellarator
+        symmetric (if the field does not adhere to the symmetry of the surface, 
+        request the cosine series by setting the kwarg stellsym=False)
+        By default, the poloidal and toroidal resolution are the same as those of the surface, but different quantities can be specified in the kwargs. 
+        *Arguments*:
+            - field: 2D array of shape (numquadpoints_phi, numquadpoints_theta).
+            - mpol: maximum poloidal mode number of the transform, if None,
+                the mpol attribute of the surface is used.
+            - ntor: maximum toroidal mode number of the transform if None, 
+                the ntor attribute of the surface is used.
+        *Optional keyword arguments*:
+            - normalization: Fourier transform normalization. Can be: 
+              None: forward and back transform are not normalized
+              float: forward transform is divided by this number
+            - stellsym: boolean to override the stellsym attribute 
+                of the surface if you want to force the calculation of the cosine series
+        *Returns*:
+            - A_mns: 2D array of shape (mpol+1, 2*ntor+1) containing the sine coefficients
+            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
+                (these are zero if the surface is stellarator symmetric)
+        """
+        assert field.shape[0] == self.quadpoints_phi.size, "Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        assert field.shape[1] == self.quadpoints_theta.size, "Field must be evaluated at the quadrature points on the surface.\n the field you passed in has shape {}".format(field.shape)
+        stellsym = kwargs.pop('stellsym', self.stellsym)
+        if mpol is None:
+            try: mpol = self.mpol
+            except AttributeError: raise ValueError("mpol must be specified")
+        if ntor is None:
+            try: ntor = self.ntor
+            except AttributeError: raise ValueError("ntor must be specified")
+        A_mns = np.zeros((int(mpol + 1), int(2 * ntor + 1)))  # sine coefficients
+        A_mnc = np.zeros((int(mpol + 1), int(2 * ntor + 1)))  # cosine coefficients
+        ntheta_grid = len(self.quadpoints_theta)
+        nphi_grid = len(self.quadpoints_phi)
+
+        factor = 2.0 / (ntheta_grid * nphi_grid)
+
+        phi2d, theta2d = np.meshgrid(2 * np.pi * self.quadpoints_phi,
+                                     2 * np.pi * self.quadpoints_theta, 
+                                     indexing="ij")
+        
+        for m in range(mpol + 1):
+            nmin = -ntor
+            if m == 0: nmin = 1
+            for n in range(nmin, ntor+1):
+                angle = m * theta2d - n * self.nfp * phi2d
+                sinangle = np.sin(angle)
+                if not stellsym: 
+                    cosangle = np.cos(angle)
+                factor2 = factor
+                # The next 2 lines ensure inverse Fourier transform(Fourier transform) = identity
+                if np.mod(ntheta_grid, 2) == 0 and m == (ntheta_grid/2): factor2 = factor2 / 2
+                if np.mod(nphi_grid, 2) == 0 and abs(n) == (nphi_grid/2): factor2 = factor2 / 2
+                A_mns[m, n + ntor] = np.sum(field * sinangle * factor2)
+                if not stellsym:
+                    A_mnc[m, n + ntor] = np.sum(field * cosangle * factor2)
+        
+        if not stellsym:
+            A_mnc[0, ntor] = np.sum(field) / (ntheta_grid * nphi_grid)
+        if normalization is not None:
+            if isinstance(normalization, float):
+                raise ValueError("normalization must be a float")
+            A_mns = A_mns / normalization
+            A_mnc = A_mnc / normalization
+
+        return A_mns, A_mnc
+
+    def inverse_fourier_transform_scalar(self, A_mns, A_mnc, normalization=None, **kwargs):
+        r"""
+        Compute the inverse Fourier transform of a scalar on the surface, specified by the Fourier coefficients. The quantity must be
+        is evaluated at the quadrature points on the surface. The Fourier
+        transform is defined as
+        :math:`f(\theta, \phi) = \Sum_{m=0}^{mpol} \Sum_{n=-npol}^{npol} A^{mn}_s \sin(m\theta - n*Nfp*\phi)\\
+            + A^{mn}_c \cos(m\theta - n*Nfp*\phi)`
+        Where the cosine series is only evaluated if the surface is not stellarator
+        symmetric.
+        *Arguments*:
+            - A_mns: 2D array of shape (mpol+1, 2*ntor+1) containing the sine coefficients
+            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
+                (these are zero if the surface is stellarator symmetric)
+        *Optional keyword arguments*:
+            - normalization: Fourier transform normalization. Can be:
+                None: forward and back transform are not normalized
+                float: inverse transform is multiplied by this number
+            - stellsym: boolean to override the stellsym attribute of the surface
+        """
+        mpol = A_mns.shape[0] - 1
+        ntor = int((A_mns.shape[1] - 1) / 2)
+        stellsym = kwargs.pop('stellsym', self.stellsym)
+        ntheta_grid = len(self.quadpoints_theta)
+        nphi_grid = len(self.quadpoints_phi)
+
+        phi2d, theta2d = np.meshgrid(2 * np.pi * self.quadpoints_phi,
+                                     2 * np.pi * self.quadpoints_theta,
+                                     indexing="ij")
+
+        scalars = np.zeros((nphi_grid, ntheta_grid))
+        for m in range(mpol + 1):
+            nmin = -ntor
+            if m == 0: nmin = 1
+            for n in range(nmin, ntor+1):
+                angle = m * theta2d - n * self.nfp * phi2d
+                sinangle = np.sin(angle)
+                if not stellsym:
+                    cosangle = np.cos(angle)
+                scalars = scalars + A_mns[m, n + ntor] * sinangle
+                if not stellsym:
+                    scalars = scalars + A_mnc[m, n + ntor] * cosangle
+        
+        if not stellsym:
+            scalars = scalars + A_mnc[0, ntor]
+        if normalization is not None: 
+            if not isinstance(normalization, float):
+                raise ValueError("normalization must be a float")
+            scalars = scalars * normalization
+        return scalars
+
     def make_rotating_ellipse(self, major_radius, minor_radius, elongation, torsion=0):
         """
         Set the surface shape to be a rotating ellipse with the given
