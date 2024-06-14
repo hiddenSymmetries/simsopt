@@ -284,7 +284,7 @@ class SpecTests(unittest.TestCase):
         from scipy.constants import mu_0
         filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
         s = Spec(filename)
-        self.assertAlmostEqual(s.poloidal_current_amperes(), s.inputlist.curpol/mu_0)
+        self.assertAlmostEqual(s.poloidal_current_amperes, s.inputlist.curpol/mu_0)
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """
