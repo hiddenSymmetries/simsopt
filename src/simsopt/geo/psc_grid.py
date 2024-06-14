@@ -72,11 +72,13 @@ class PSCgrid:
         # This is not a guarantee that coils will not touch but inductance
         # matrix blows up if they do so it is easy to tell when they do
         if self.plasma_boundary.nfp == 2:
-            self.R = Nmin / 2.5 
+            # self.R = Nmin / 2.5 
+            self.R = Nmin / 2.5
         elif self.plasma_boundary.nfp == 3:
             self.R = min(Nmin / 2.0, self.poff / 1.75)
         else:
-            self.R = min(Nmin / 2.3, self.poff / 2.6) # self.poff / 2.5
+            self.R = Nmin / 2.5
+            # self.R = min(Nmin / 2.3, self.poff / 2.0) # self.poff / 2.5
             
         # Note that aspect ratio of 0.1 has ~twice as large currents
         # as aspect ratio of 0.01
@@ -395,13 +397,14 @@ class PSCgrid:
                     print('bad indices = ', i, j, dij)
                     raise ValueError('There is a PSC coil initialized such that it is within a diameter'
                                      'of another PSC coil. Please reinitialize the coils.')
+            eps = 0.1
             for j in range(len(coils_TF)):
                 for k in range(psc_grid.gamma_TF.shape[1]):
                     dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.gamma_TF[j, k, :]) ** 2))
-                    conflict_bool = (dij < (2.0 + eps) * psc_grid.R)
+                    conflict_bool = (dij < (1.0 + eps) * psc_grid.R)
                     if conflict_bool:
                         print('bad indices = ', i, j, dij)
-                        raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                        raise ValueError('There is a PSC coil initialized such that it is within a radius'
                                          'of a TF coil. Please reinitialize the coils.')
             
         # Generate all the locations of the PSC coils obtained by applying

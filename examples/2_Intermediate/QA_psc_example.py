@@ -59,20 +59,20 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     LENGTH_WEIGHT = 0.05
 
     # Threshold and weight for the coil-to-coil distance penalty in the objective function:
-    CC_THRESHOLD = 0.5
-    CC_WEIGHT = 1e2
+    CC_THRESHOLD = 1.0
+    CC_WEIGHT = 1e1
 
     # Threshold and weight for the coil-to-surface distance penalty in the objective function:
-    CS_THRESHOLD = 3.6
-    CS_WEIGHT = 1e1
+    CS_THRESHOLD = 3.7
+    CS_WEIGHT = 1e0
 
     # Threshold and weight for the curvature penalty in the objective function:
-    CURVATURE_THRESHOLD = 0.001
-    CURVATURE_WEIGHT = 1e-11
+    CURVATURE_THRESHOLD = 0.1
+    CURVATURE_WEIGHT = 1e1
 
     # Threshold and weight for the mean squared curvature penalty in the objective function:
-    MSC_THRESHOLD = 0.001
-    MSC_WEIGHT = 1e-12
+    MSC_THRESHOLD = 0.1
+    MSC_WEIGHT = 1e1
 
     MAXITER = 1000  # number of iterations for minimize
 
@@ -130,7 +130,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, out_dir=''):
     ### Run the optimisation #######################################################
     ################################################################################
     """)
-    minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 600}, tol=1e-15)
+    minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-8)
     bs.set_points(s.gamma().reshape((-1, 3)))
     return bs
 
@@ -151,8 +151,8 @@ else:
     quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
     quadpoints_theta = np.linspace(0, 1, ntheta * 2, endpoint=True)
 
-poff = 1.0  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 2.0  # PSC grid will be initialized between 1 m and 2 m from plasma
+poff = 1.5  # PSC grid will be offset 'poff' meters from the plasma surface
+coff = 1.6  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
@@ -189,8 +189,8 @@ out_dir = Path("QA_psc_output")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # Save the inner and outer surfaces for debugging purposes
-# s_inner.to_vtk(out_str + 'inner_surf')
-# s_outer.to_vtk(out_str + 'outer_surf')
+s_inner.to_vtk(out_str + 'inner_surf')
+s_outer.to_vtk(out_str + 'outer_surf')
 
 
 def initialize_coils_qa():
@@ -258,7 +258,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 14, "out_dir": out_str, 
+kwargs_geo = {"Nx": 8, "out_dir": out_str,
               # "initialization": "plasma", 
               "poff": poff,}
               # "interpolated_field": True} 
@@ -298,7 +298,7 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 print('beginning optimization: ')
 eps = 1e-6
-options = {"disp": True, "maxiter": 50}
+options = {"disp": True, "maxiter": 60}  # 100
 verbose = True
 
 # Run STLSQ with BFGS in the loop
@@ -307,10 +307,10 @@ kwargs_manual = {
                  "plasma_boundary" : s,
                  "coils_TF" : coils
                  }
-I_threshold = 2e4
-I_threshold_scaling = 1.2
-I_scaling_scaling = 0.997
-STLSQ_max_iters = 60
+I_threshold = 1e5  # 2e4
+I_threshold_scaling = 1.05  # 1.2
+I_scaling_scaling = 1.0  # 0.999 # 0.997
+STLSQ_max_iters = 40  # 60
 BdotN2_list = []
 Bn_list = []
 num_pscs = []
@@ -376,9 +376,9 @@ for k in range(STLSQ_max_iters):
         grid_xyz = grid_xyz[big_I_inds, :]
         alphas = alphas[big_I_inds]
         deltas = deltas[big_I_inds]
-    else:
-        print('STLSQ converged, breaking out of loop')
-        break
+    # else:
+    #     print('STLSQ converged, breaking out of loop')
+    #     break
     kwargs_manual["alphas"] = alphas
     kwargs_manual["deltas"] = deltas
     try:
