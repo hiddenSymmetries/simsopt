@@ -160,8 +160,8 @@ class Spec(Optimizable):
         # Store initial guess data
         # The initial guess is a collection of SurfaceRZFourier instances,
         # stored in a list of size Mvol-1 (the number of inner interfaces)
-        initial_guess_present = bool(self.allglobal.num_modes > 0 and self.nvol > 1)
-        if initial_guess_present:
+        read_initial_guess = self.inputlist.linitialize <= 0
+        if read_initial_guess:
             self.initial_guess = self._read_initial_guess()
             # In general, initial guess is NOT a degree of freedom for the
             # optimization - we thus fix them.
