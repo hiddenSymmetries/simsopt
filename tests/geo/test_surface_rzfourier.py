@@ -748,11 +748,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # create a test field where only Fourier elements [m=2, n=3] 
         # and [m=4,n=5] are nonzero:
-        field = []
-        for phi, theta in zip(phi2d.flatten(), theta2d.flatten()):
-            field.append(0.8 * np.sin(2*theta - 3*s.nfp*phi) + 0.2*np.sin(4*theta - 5*s.nfp*phi)
-                         + 0.7*np.cos(3*theta - 3*s.nfp*phi))
-        field = np.array(field).reshape(phi2d.shape)
+        field = field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
 
         # Transform the field to Fourier space:
         ft_sines, ft_cosines = s.fourier_transform_field(field, stellsym=False)
