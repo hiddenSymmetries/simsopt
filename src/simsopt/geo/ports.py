@@ -46,6 +46,8 @@ class PortSet(object):
             if port_type is None:
                 raise ValueError('port_type must be specified if loading ' \
                                  + 'from file')
+            elif isinstance(port_type, str):
+                port_type = [port_type]
             elif not hasattr(port_type, '__len__'):
                 port_type = [port_type]
 
@@ -129,8 +131,8 @@ class PortSet(object):
         for i in range(portdata.shape[0]):
 
             self.ports.append( \
-                CircularPort(xo = portdata[i,0], yo = portdata[i,1], \
-                             zo = portdata[i,2], ax = portdata[i,3], \
+                CircularPort(ox = portdata[i,0], oy = portdata[i,1], \
+                             oz = portdata[i,2], ax = portdata[i,3], \
                              ay = portdata[i,4], az = portdata[i,5], \
                              ir = portdata[i,6], thick = portdata[i,7], \
                              l0 = portdata[i,8], l1 = portdata[i,9]))
@@ -156,21 +158,21 @@ class PortSet(object):
         portdata = np.loadtxt(file, delimiter=',', skiprows=1)
 
         if portdata.shape[1] != 17:
-            raise ValueError('Circular ports input file must have 10 columns ' \
-                             + 'with the following data:\n' \
+            raise ValueError('Rectangular ports input file must have 17 ' \
+                             + 'columns with the following data:\n' \
                              + 'ox, oy, oz, ax, ay, az, wx, wy, wz, ' \
                              + 'hx, hy, hz, iw, ih, thick, l0, l1')
         
         for i in range(portdata.shape[0]):
 
             self.ports.append( \
-                RectangularPort(xo = portdata[i, 0], yo = portdata[i, 1], \
-                                zo = portdata[i, 2], ax = portdata[i, 3], \
+                RectangularPort(ox = portdata[i, 0], oy = portdata[i, 1], \
+                                oz = portdata[i, 2], ax = portdata[i, 3], \
                                 ay = portdata[i, 4], az = portdata[i, 5], \
                                 wx = portdata[i, 6], wy = portdata[i, 7], \
                                 wz = portdata[i, 8], hx = portdata[i, 9], \
                                 hy = portdata[i,10], hz = portdata[i,11], \
-                                iw = portdata[:,12], ih = portdata[i,13], \
+                                iw = portdata[i,12], ih = portdata[i,13], \
                                 thick = portdata[i,14], \
                                 l0 = portdata[i,15], l1 = portdata[i,16]))
 
