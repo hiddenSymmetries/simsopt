@@ -146,30 +146,23 @@ class PortTests(unittest.TestCase):
         # Make sure error is raised for zero or non-perpendicular axis vectors
         with self.assertRaises(ValueError):
             p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, \
-                                wx=wx, wy=wy, wz=wy, hx=0, hy=0, hz=0, \
-                                iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
-        with self.assertRaises(ValueError):
-            p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, \
-                                wx=1, wy=0.2, wz=0, hx=hx, hy=hy, hz=hz, \
-                                iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
-        with self.assertRaises(ValueError):
-            p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, \
-                                wx=1, wy=0, wz=0.2, hx=hx, hy=hy, hz=hz, \
-                                iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
+                                wx=1, wy=0, wz=0.2, iw=iw, ih=ih, thick=thk, \
+                                l0=l0, l1=l1)
 
         # Initialize the port
         p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=ax, ay=ay, az=az, \
-                            wx=wx, wy=wy, wz=wz, hx=hx, hy=hy, hz=hz, \
-                            iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
+                            wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, thick=thk, \
+                            l0=l0, l1=l1)
 
         # Check the points for a single port
         self.check_points(p, gap, X_in, Y_in, X_thk, Y_thk, X_gap, Y_gap, \
                           X_out, Y_out, Z_mid, Z_gap, Z_out)
 
         # Re-initialize port with axis vectors of non-unit length
+        # TODO: check this!
         p = RectangularPort(ox=ox, oy=oy, oz=oz, ax=5*ax, ay=5*ay, az=5*az, \
-                            wx=6*wx, wy=6*wy, wz=6*wz, hx=7*hx, hy=7*hy, \
-                            hz=7*hz, iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
+                            wx=6*wx, wy=6*wy, wz=6*wz, iw=iw, ih=ih, \
+                            thick=thk, l0=l0, l1=l1)
 
         # Results should be the same irrespective of axis length
         self.check_points(p, gap, X_in, Y_in, X_thk, Y_thk, X_gap, Y_gap, \
@@ -237,8 +230,8 @@ class PortTests(unittest.TestCase):
 
         # Baseline rectangular port
         pRect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
-                                wx=wx, wy=wy, wz=wz, hx=hx, hy=hy, hz=hz, \
-                                iw=iw, ih=ih, thick=thk, l0=l0, l1=l1)
+                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
+                                thick=thk, l0=l0, l1=l1)
 
         # Test points in a torus that intersects the ports
         phiAx = np.linspace(0, 2*np.pi, 72, endpoint=False)

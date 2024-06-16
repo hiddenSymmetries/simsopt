@@ -170,11 +170,9 @@ class PortSet(object):
                                 oz = portdata[i, 2], ax = portdata[i, 3], \
                                 ay = portdata[i, 4], az = portdata[i, 5], \
                                 wx = portdata[i, 6], wy = portdata[i, 7], \
-                                wz = portdata[i, 8], hx = portdata[i, 9], \
-                                hy = portdata[i,10], hz = portdata[i,11], \
-                                iw = portdata[i,12], ih = portdata[i,13], \
-                                thick = portdata[i,14], \
-                                l0 = portdata[i,15], l1 = portdata[i,16]))
+                                wz = portdata[i, 8], iw = portdata[i, 9], \
+                                ih = portdata[i,10], thick = portdata[i,11], \
+                                l0 = portdata[i,12], l1 = portdata[i,13]))
 
             self.nPorts = self.nPorts + 1
 
@@ -552,8 +550,8 @@ class RectangularPort(Port):
     """
 
     def __init__(self, ox=1.0, oy=0.0, oz=0.0, ax=1.0, ay=0.0, az=0.0, \
-                 wx=0.0, wy=1.0, wz=0.0, hx=0.0, hy=0.0, hz=1.0, \
-                 iw=0.5, ih=0.5, thick=0.01, l0=0.0, l1=0.5):
+                 wx=0.0, wy=1.0, wz=0.0, iw=0.5, ih=0.5, thick=0.01, \
+                 l0=0.0, l1=0.5):
         """
         Initializes the RectangularPort class according to the geometric port
         parameters.
@@ -569,10 +567,6 @@ class RectangularPort(Port):
             wx, wy, wz: floats
                 Cartesian x, y, and z components of a vector in the direction
                 spanning the width of the cross-section, assumed perpendicular
-                to the axis
-            hx, hy, hz: floats
-                Cartesian x, y, and z components of a vector in the direction
-                spanning the height of the cross-section, assumed perpendicular
                 to the axis
             iw: float
                 Inner width of the cross-section, i.e. the dimension spanned by
@@ -594,8 +588,7 @@ class RectangularPort(Port):
         # Ensure that the axis and orientation vectors are nonzero
         mod_a = np.linalg.norm([ax, ay, az])
         mod_w = np.linalg.norm([wx, wy, wz])
-        mod_h = np.linalg.norm([hx, hy, hz])
-        if mod_a == 0 or mod_w == 0 or mod_h == 0:
+        if mod_a == 0 or mod_w == 0:
             raise ValueError('Vectors given by (ax, ay, az),  (wx, wy, wz), ' \
                              + 'and (hx, hy, hz) must have nonzero length')
 
@@ -606,15 +599,16 @@ class RectangularPort(Port):
         self.wx = wx/mod_w
         self.wy = wy/mod_w
         self.wz = wz/mod_w
-        self.hx = hx/mod_h
-        self.hy = hy/mod_h
-        self.hz = hz/mod_h
         tol = 1e-12
-        if np.abs(self.ax*self.wx + self.ay*self.wy + self.az*self.wz) > tol or\
-           np.abs(self.ax*self.hx + self.ay*self.hy + self.az*self.hz) > tol or\
-           np.abs(self.wx*self.hx + self.wy*self.hy + self.wz*self.hz) > tol:
+        if np.abs(self.ax*self.wx + self.ay*self.wy + self.az*self.wz) > tol:
             raise ValueError('Vectors given by (ax, ay, az),  (wx, wy, wz), ' \
                              + 'and (hx, hy, hz) must be mutually perpendicuar')
+
+        # Determine the third axis (height) from the two suppied axes
+        self.hx =  self.ay*self.wz - self.az*self.wy
+        self.hy = -self.ax*self.wz + self.az*self.wx
+        self.hz =  self.ax*self.wy - self.ay*self.wx
+        assert np.abs(np.sqrt(self.hx**2 + self.hy**2 + self.hz**2) - 1) < tol
 
         self.iw = iw
         self.ih = ih
@@ -713,23 +707,19 @@ class RectangularPort(Port):
             wyi = self.wx*np.sin(i*dphi) + self.wy*np.cos(i*dphi)
             wzi = self.wz
 
-            hxi = self.hx*np.cos(i*dphi) - self.hy*np.sin(i*dphi)
-            hyi = self.hx*np.sin(i*dphi) + self.hy*np.cos(i*dphi)
-            hzi = self.hz
-
             if stell_sym:
 
                 ports.append(RectangularPort(ox=oxi, oy=-oyi, oz=-ozi, \
                     ax=-axi, ay=ayi, az=azi, wx=-wxi, wy=wyi, wz=wzi, \
-                    hx=-hxi, hy=hyi, hz=hzi, iw=self.iw, ih=self.ih, \
-                    thick=self.thick, l0=-self.l1, l1=-self.l0))
+                    iw=self.iw, ih=self.ih, thick=self.thick, \
+                    l0=-self.l1, l1=-self.l0))
 
             if i > 0:
 
                 ports.append(RectangularPort(ox=oxi, oy=oyi, oz=ozi, \
                     ax=axi, ay=ayi, az=azi, wx=wxi, wy=wyi, wz=wzi, \
-                    hx=hxi, hy=hyi, hz=hzi, iw=self.iw, ih=self.ih, \
-                    thick=self.thick, l0=self.l0, l1=self.l1))
+                    iw=self.iw, ih=self.ih, thick=self.thick, \
+                    l0=self.l0, l1=self.l1))
 
         return PortSet(ports=ports)
 
