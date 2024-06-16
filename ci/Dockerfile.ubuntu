@@ -5,7 +5,7 @@ FROM --platform=linux/amd64 ubuntu:22.04 as intermediate
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive  apt-get install -y  build-essential gfortran git m4 wget cmake ninja-build \
     libopenblas-dev libfftw3-dev libhdf5-dev libhdf5-serial-dev libnetcdf-dev libnetcdff-dev libgl1-mesa-dev \
-    python3-dev python3-pip python3-venv
+    python3-dev python3-pip python3-venv libxrender1
 
 # Install mpich manually
 WORKDIR /src
