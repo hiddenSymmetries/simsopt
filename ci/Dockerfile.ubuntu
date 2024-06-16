@@ -40,6 +40,7 @@ RUN python3 -m pip install wheel
 RUN python3 -m venv /venv/
 
 RUN /venv/bin/pip install -U pip
+RUN /venv/bin/pip install mayavi
 RUN /venv/bin/python -m pip install numpy scipy jax jaxlib f90nml mpi4py jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake
 RUN /venv/bin/pip install git+https://github.com/zhucaoxiang/f90wrap
 ENV PATH="/venv/bin:${PATH}"
@@ -54,7 +55,6 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
     /venv/bin/pip install -v . 2>&1 | tee vmec_build.log
 
 RUN /venv/bin/pip install h5py pyoculus py_spec
-RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install vtk pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/virtual-casing
