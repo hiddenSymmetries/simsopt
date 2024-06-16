@@ -180,12 +180,12 @@ s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
 # Remake the output directory and erase previous files (to avoid confusion)
-out_str = "QA_psc_output/"
+out_str = "QA_psc_GPMO/"
 try:
     shutil.rmtree(out_str)
 except OSError as e:
     print("Error: %s - %s." % (e.filename, e.strerror))
-out_dir = Path("QA_psc_output")
+out_dir = Path("QA_psc_GPMO")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # Save the inner and outer surfaces for debugging purposes
@@ -258,7 +258,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 8, "out_dir": out_str,
+kwargs_geo = {"Nx": 10, "out_dir": out_str,
               # "initialization": "plasma", 
               "poff": poff,}
               # "interpolated_field": True} 
@@ -297,100 +297,96 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
 # Actually do the minimization now
 print('beginning optimization: ')
+# Start with zero PSCs and list of all admissible ones
 eps = 1e-6
-options = {"disp": True, "maxiter": 60}  # 100
-verbose = True
+pi = np.pi - eps
+alphas_admissible = np.array([0, 0, -pi / 2.0, pi / 2.0, 0, 0])
+deltas_admissible = np.array([pi / 2.0, -pi / 2.0, 0, 0, 0, pi])
 
-# Run STLSQ with BFGS in the loop
+# Start GPMO loop
+admissible_pscs = np.arange(psc_array.num_psc)
+placed_pscs = []
 kwargs_manual = {
                  "out_dir": out_str, 
                  "plasma_boundary" : s,
                  "coils_TF" : coils
                  }
-I_threshold = 1e5  # 2e4
-I_threshold_scaling = 1.05  # 1.2
-I_scaling_scaling = 1.0  # 0.999 # 0.997
-STLSQ_max_iters = 65  # 60
+num_placements = psc_array.num_psc
 BdotN2_list = []
 Bn_list = []
-num_pscs = []
-for k in range(STLSQ_max_iters):
-    
-    # Threshold scale gets exponentially smaller each iteration
-    I_threshold_scaling *= I_scaling_scaling
-    I_threshold *= I_threshold_scaling
-    x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
-    print('Number of PSCs = ', len(x0) // 2, ' in iteration ', k)
-    print('I_threshold = ', I_threshold)
-    
-    # Define the linear bound constraints for each set of angles
-    opt_bounds1 = tuple([(-np.pi / 2.0 + eps, np.pi / 2.0 - eps) for i in range(psc_array.num_psc)])
-    opt_bounds2 = tuple([(-np.pi + eps, np.pi - eps) for i in range(psc_array.num_psc)])
-    opt_bounds = np.vstack((opt_bounds1, opt_bounds2))
-    opt_bounds = tuple(map(tuple, opt_bounds))
-    t1_min = time.time()
-    x_opt = minimize(psc_array.least_squares, 
-                     x0, 
-                     args=(verbose,),
-                     method='L-BFGS-B',
-                     bounds=opt_bounds,
-                     jac=psc_array.least_squares_jacobian, 
-                     options=options,
-                     tol=1e-20,  # Required to make progress when fB is small
-                     # callback=callback
-                     )
-    t2_min = time.time()
-    print(t2_min - t1_min, ' seconds for optimization')
-    
-    t1_save = time.time()
-    psc_array.setup_curves()
-    psc_array.plot_curves('final_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc) + '_')
-    currents = []
-    for i in range(psc_array.num_psc):
-        currents.append(Current(psc_array.I[i]))
-    all_coils = coils_via_symmetries(
-        psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
-    )
-    B_PSC = BiotSavart(all_coils)
-    B_tot = bs + B_PSC
-    B_tot.save('B_total_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc) + '.json')
-    make_Bnormal_plots(B_tot, s_plot, out_dir, 'PSC_and_TF_final_Ithresh_{0:.3e}'.format(I_threshold) + '_N{0:d}'.format(psc_array.num_psc), B_axis)
-    t2_save = time.time()
-    print(t2_save - t1_save, ' seconds to save all the B field data')
-    
-    # Do the thresholding and reinitialize a grid without the chopped PSCs
-    I = psc_array.I
-    grid_xyz = psc_array.grid_xyz
-    alphas = psc_array.alphas
-    deltas = psc_array.deltas
-    if len(BdotN2_list) > 0:
-        BdotN2_list = np.hstack((BdotN2_list, np.array(psc_array.BdotN2_list)))
-        Bn_list = np.hstack((Bn_list, np.array(psc_array.Bn_list)))
-        num_pscs = np.hstack((num_pscs, (len(x0) // 2) * np.ones(len(np.array(psc_array.BdotN2_list)))))
-    else:
-        BdotN2_list = np.array(psc_array.BdotN2_list)
-        Bn_list = np.array(psc_array.Bn_list)
-        num_pscs = np.array((len(x0) // 2) * np.ones(len(np.array(psc_array.BdotN2_list))))
-    big_I_inds = np.ravel(np.where(np.abs(I) > I_threshold))
-    if len(big_I_inds) != psc_array.num_psc:
-        grid_xyz = grid_xyz[big_I_inds, :]
-        alphas = alphas[big_I_inds]
-        deltas = deltas[big_I_inds]
-    # else:
-    #     print('STLSQ converged, breaking out of loop')
-    #     break
-    kwargs_manual["alphas"] = alphas
-    kwargs_manual["deltas"] = deltas
-    try:
-        psc_array = PSCgrid.geo_setup_manual(
-            grid_xyz, psc_array.R, **kwargs_manual
+kappas_k = np.zeros(2)
+for j in range(num_placements):
+    t1 = time.time()
+    if j != 0:
+        kappas_k = np.insert(kappas_k, [j, 2 * j], 0.0)
+    BdotN2_min = 1e10
+    Bn_mag_min = 1e10
+    min_k_ind = 0
+    min_i_ind = 0
+    for k in admissible_pscs:
+        current_inds = placed_pscs + [k]
+        # print(j, k, current_inds, placed_pscs)
+        psc_temp = PSCgrid.geo_setup_manual(
+            psc_array.grid_xyz[current_inds, :], psc_array.R, **kwargs_manual
         )
-    except TypeError:
-        print('Grid initialization raised TypeError, quitting STLSQ loop')
-        break
+        # print(psc_temp.num_psc)
+        for i in range(6):
+            kappas_k[j] = alphas_admissible[i]
+            kappas_k[j + psc_temp.num_psc] = deltas_admissible[i]
+            # psc_temp.least_squares()
+            psc_temp.setup_orientations(kappas_k[:psc_temp.num_psc], kappas_k[psc_temp.num_psc:])
+            psc_temp.update_psi()
+            psc_temp.setup_currents_and_fields()
+            Ax_b = (psc_temp.Bn_PSC + psc_temp.b_opt) * psc_temp.grid_normalization
+            Bn_mag = np.sum(np.abs((psc_temp.Bn_PSC + psc_temp.b_opt) * psc_temp.grid_normalization ** 2))
+            Bn_mag = Bn_mag * psc_temp.fac / psc_temp.Baxis_A
+            BdotN2 = (Ax_b.T @ Ax_b) * psc_temp.fac2_norm2
+            if BdotN2 < BdotN2_min:
+                BdotN2_min = BdotN2
+                Bn_mag_min = Bn_mag
+                min_k_ind = k
+                min_i_ind = i
+                min_j_ind = j
+        # unset those variables
+        kappas_k[j] = 0.0
+        kappas_k[j + psc_temp.num_psc] = 0.0
+    kappas_k[min_j_ind] = alphas_admissible[min_i_ind]
+    kappas_k[min_j_ind + psc_temp.num_psc] = deltas_admissible[min_i_ind]
+    BdotN2_list.append(BdotN2_min)
+    Bn_list.append(Bn_mag_min)
+    print('Iteration ', j, ' fB = ', BdotN2_min)
+    # print(psc_temp.num_psc, placed_pscs)
+    # print(kappas_k)
+    # k_remainder = min_k_ind % 6
+    # remove_inds = np.arange(min_k_ind - k_remainder, min_k_ind + 6 - k_remainder)
+    # print('min_k_ind = ', min_k_ind, k_remainder)
+    # print('remove = ', remove_inds)
+    admissible_pscs = np.setdiff1d(admissible_pscs, min_k_ind)
+    # print('admissible = ', admissible_pscs)
+    # exit()
+    placed_pscs.append(min_k_ind)
+    
+    if j % 5 == 0:
+        psc_temp.setup_curves()
+        psc_temp.plot_curves('coils_{0:d}'.format(j + 1) + '_')
+        currents = []
+        for i in range(psc_temp.num_psc):
+            currents.append(Current(psc_temp.I[i]))
+        all_coils = coils_via_symmetries(
+            psc_temp.curves, currents, nfp=psc_temp.nfp, stellsym=psc_temp.stellsym
+        )
+        B_PSC = BiotSavart(all_coils)
+        B_tot = bs + B_PSC
+        # B_tot.save('B_{0:d}'.format(j + 1) + '.json')
+        make_Bnormal_plots(B_tot, s_plot, out_dir, 'B_{0:d}'.format(j + 1), B_axis)
+    t2 = time.time()
+    print('Time for that iteration = ', t2 - t1)
+psc_temp.kappas = kappas_k
+# psc_array.GPMO_PSC_arrays()
+# Bn_list = psc_array.Bn_list
+# BdotN2_list = psc_array.BdotN2_list
 
 # Plot the data from optimization
-num_pscs = np.ravel(num_pscs)
 BdotN2_list = np.ravel(BdotN2_list)
 Bn_list = np.ravel(Bn_list)
 fig, ax1 = plt.subplots()
@@ -404,12 +400,6 @@ ax1.plot(fB_TF * np.ones(len(BdotN2_list)), 'k--', label=r'$f_B$, TF coils only'
 ax1.grid()
 ax1.tick_params(axis='y', labelcolor=color)
 ax1.legend()
-ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
-color = 'tab:red'
-ax2.set_ylabel('# of PSCs', color=color)  # we already handled the x-label with ax1
-ax2.plot(num_pscs, color=color)
-ax2.tick_params(axis='y', labelcolor=color)
-fig.tight_layout()  # otherwise the right y-label is slightly clipped
 plt.savefig(out_dir / 'convergence.jpg')
 
 # Last check that direct f_B calculation is still consistent with the optimization

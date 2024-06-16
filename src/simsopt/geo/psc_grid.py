@@ -73,11 +73,11 @@ class PSCgrid:
         # matrix blows up if they do so it is easy to tell when they do
         if self.plasma_boundary.nfp == 2:
             # self.R = Nmin / 2.5 
-            self.R = Nmin / 2.5
+            self.R = Nmin / 2.5  # 2.5
         elif self.plasma_boundary.nfp == 3:
             self.R = min(Nmin / 2.0, self.poff / 1.75)
         else:
-            self.R = Nmin / 2.5
+            self.R = Nmin / 2.45
             # self.R = min(Nmin / 2.3, self.poff / 2.0) # self.poff / 2.5
             
         # Note that aspect ratio of 0.1 has ~twice as large currents
@@ -120,7 +120,7 @@ class PSCgrid:
                     for k in range(Nz):
                         phi = np.arctan2(Y[i, j, k], X[i, j, k])
                         if self.nfp == 4:
-                            phi2 = np.arctan2(self.R, X[i, j, k])
+                            phi2 = np.arctan2(self.R / 1.4, X[i, j, k])
                         elif self.nfp == 3:
                             phi2 = np.arctan2(Y[i, j, k] + self.R / 2.0, X[i, j, k] - self.R / 2.0) - phi
                         elif self.nfp == 2:
@@ -281,6 +281,47 @@ class PSCgrid:
         )
         inds = np.ravel(np.logical_not(np.all(psc_grid.grid_xyz == 0.0, axis=-1)))
         psc_grid.grid_xyz = np.array(psc_grid.grid_xyz[inds, :], dtype=float)
+        
+        # Check if the grid intersects a symmetry plane -- oops!
+        phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
+        phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
+        phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
+        inds = []
+        eps = 1e-3
+        remove_inds = []
+        for i in range(psc_grid.nfp):
+            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+            if len(conflicts) > 0:
+                inds.append(conflicts[0])
+        if len(inds) > 0:
+            print('bad indices = ', inds)
+            raise ValueError('The PSC coils are initialized such that they may intersect with '
+                             'a discrete symmetry plane, preventing the proper symmetrization '
+                             'of the coils under stellarator and field-period symmetries. '
+                             'Please reinitialize the coils.')
+        for i in range(psc_grid.grid_xyz.shape[0]):
+            for j in range(i + 1, psc_grid.grid_xyz.shape[0]):
+                dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
+                conflict_bool = (dij < (2.0 + eps) * psc_grid.R)
+                if conflict_bool:
+                    print('bad indices = ', i, j, dij)
+                    raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                                     'of another PSC coil. Please reinitialize the coils.')
+            eps = 0.1
+            for j in range(len(coils_TF)):
+                for k in range(psc_grid.gamma_TF.shape[1]):
+                    dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.gamma_TF[j, k, :]) ** 2))
+                    conflict_bool = (dij < (1.0 + eps) * psc_grid.R)
+                    if conflict_bool:
+                        print('bad indices = ', i, j, dij)
+                        warnings.warn(
+                            'There is a PSC coil initialized such that it is within a radius'
+                            'of a TF coil. Deleting these PSCs now.')
+                        remove_inds.append(i)
+                        break
+        
+        final_inds = np.setdiff1d(np.arange(psc_grid.grid_xyz.shape[0]), remove_inds)
+        psc_grid.grid_xyz = psc_grid.grid_xyz[final_inds, :]
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
         psc_grid.quad_points_rho = psc_grid.quad_points_rho * psc_grid.R
         
@@ -372,40 +413,6 @@ class PSCgrid:
             np.logical_and(np.isclose(psc_grid.coil_normals, 0.0), 
                            np.copysign(1.0, psc_grid.coil_normals) < 0)
             ] *= -1.0
-        
-        # Check if the grid intersects a symmetry plane -- oops!
-        phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
-        phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
-        phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
-        inds = []
-        eps = 5e-2
-        for i in range(psc_grid.nfp):
-            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-            if len(conflicts) > 0:
-                inds.append(conflicts[0])
-        if len(inds) > 0:
-            print('bad indices = ', inds)
-            raise ValueError('The PSC coils are initialized such that they may intersect with '
-                             'a discrete symmetry plane, preventing the proper symmetrization '
-                             'of the coils under stellarator and field-period symmetries. '
-                             'Please reinitialize the coils.')
-        for i in range(psc_grid.num_psc):
-            for j in range(i + 1, psc_grid.num_psc):
-                dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
-                conflict_bool = (dij < (2.0 + eps) * psc_grid.R)
-                if conflict_bool:
-                    print('bad indices = ', i, j, dij)
-                    raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                     'of another PSC coil. Please reinitialize the coils.')
-            eps = 0.1
-            for j in range(len(coils_TF)):
-                for k in range(psc_grid.gamma_TF.shape[1]):
-                    dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.gamma_TF[j, k, :]) ** 2))
-                    conflict_bool = (dij < (1.0 + eps) * psc_grid.R)
-                    if conflict_bool:
-                        print('bad indices = ', i, j, dij)
-                        raise ValueError('There is a PSC coil initialized such that it is within a radius'
-                                         'of a TF coil. Please reinitialize the coils.')
             
         # Generate all the locations of the PSC coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
@@ -511,16 +518,6 @@ class PSCgrid:
         psc_grid.R = R
         psc_grid.a = kwargs.pop("a", R / 10.0)
         psc_grid.out_dir = kwargs.pop("out_dir", '')
-        psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
-        psc_grid.alphas = kwargs.pop("alphas", 
-                                     (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * np.pi
-        )
-        psc_grid.deltas = kwargs.pop("deltas", 
-                                     (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
-        )
-        psc_grid.quad_points_rho = psc_grid.quad_points_rho * psc_grid.R
     
         # initialize a default plasma boundary
         psc_grid.plasma_boundary = kwargs.pop("plasma_boundary", None)
@@ -558,22 +555,6 @@ class PSCgrid:
             raise ValueError('Plasma magnetic field surface data is incorrect shape.')
         psc_grid.Bn_plasma = Bn_plasma
         
-        # Check if the grid intersects a symmetry plane -- oops!
-        phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
-        phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
-        phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
-        inds = []
-        for i in range(psc_grid.nfp):
-            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-            if len(conflicts) > 0:
-                inds.append(conflicts[0])
-        if len(inds) > 0:
-            print('bad indices = ', inds)
-            raise ValueError('The PSC coils are initialized such that they may intersect with '
-                             'a discrete symmetry plane, preventing the proper symmetrization '
-                             'of the coils under stellarator and field-period symmetries. '
-                             'Please reinitialize the coils.')
-        
         # generate planar TF coils
         coils_TF = kwargs.pop("coils_TF", None)
         if coils_TF is None:
@@ -604,6 +585,47 @@ class PSCgrid:
         psc_grid.I_TF = np.array([coil.current.get_value() for coil in coils_TF])
         psc_grid.dl_TF = np.array([coil.curve.gammadash() for coil in coils_TF])
         psc_grid.gamma_TF = np.array([coil.curve.gamma() for coil in coils_TF])
+        
+        # Check if the grid intersects a symmetry plane -- oops!
+        phi0 = 2 * np.pi / psc_grid.nfp * np.arange(psc_grid.nfp)
+        phi_grid = np.arctan2(psc_grid.grid_xyz[:, 1], psc_grid.grid_xyz[:, 0])
+        phi_dev = np.arctan2(psc_grid.R, np.sqrt(psc_grid.grid_xyz[:, 0] ** 2  + psc_grid.grid_xyz[:, 1] ** 2))
+        inds = []
+        eps = 5e-2
+        remove_inds = []
+        for i in range(psc_grid.nfp):
+            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+            if len(conflicts) > 0:
+                inds.append(conflicts[0])
+        if len(inds) > 0:
+            print('bad indices = ', inds)
+            raise ValueError('The PSC coils are initialized such that they may intersect with '
+                             'a discrete symmetry plane, preventing the proper symmetrization '
+                             'of the coils under stellarator and field-period symmetries. '
+                             'Please reinitialize the coils.')
+        for i in range(psc_grid.grid_xyz.shape[0]):
+            for j in range(i + 1, psc_grid.grid_xyz.shape[0]):
+                dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
+                conflict_bool = (dij < (2.0 + eps) * psc_grid.R)
+                if conflict_bool:
+                    print('bad indices = ', i, j, dij)
+                    raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                                     'of another PSC coil. Please reinitialize the coils.')
+            eps = 0.1
+            for j in range(len(coils_TF)):
+                for k in range(psc_grid.gamma_TF.shape[1]):
+                    dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.gamma_TF[j, k, :]) ** 2))
+                    conflict_bool = (dij < (1.0 + eps) * psc_grid.R)
+                    if conflict_bool:
+                        print('bad indices = ', i, j, dij)
+                        warnings.warn(
+                            'There is a PSC coil initialized such that it is within a radius'
+                            'of a TF coil. Deleting these PSCs now.')
+                        remove_inds.append(i)
+                        break
+        
+        final_inds = np.setdiff1d(np.arange(psc_grid.grid_xyz.shape[0]), remove_inds)
+        psc_grid.grid_xyz = psc_grid.grid_xyz[final_inds, :]
         
         # Setup the B field from the TF coils
         # Many big calls to B_TF.B() so can make an interpolated object
@@ -644,6 +666,17 @@ class PSCgrid:
         
         # Order of the coils. For unit tests, needs > 400
         psc_grid.ppp = kwargs.pop("ppp", 100)
+        
+        psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
+        psc_grid.alphas = kwargs.pop("alphas", 
+                                     (np.random.rand(
+                                         psc_grid.num_psc) - 0.5) * np.pi
+        )
+        psc_grid.deltas = kwargs.pop("deltas", 
+                                     (np.random.rand(
+                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
+        )
+        psc_grid.quad_points_rho = psc_grid.quad_points_rho * psc_grid.R
 
         psc_grid.coil_normals = np.array(
             [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
@@ -676,7 +709,7 @@ class PSCgrid:
         kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
         psc_grid.kappas = kappas
         t2 = time.time()
-        print('Initialize grid time = ', t2 - t1)
+        # print('Initialize grid time = ', t2 - t1)
         return psc_grid
     
     def setup_currents_and_fields(self):
@@ -1126,3 +1159,68 @@ class PSCgrid:
         self.alphas_total = contig(self.alphas_total)
         self.deltas_total = contig(self.deltas_total)
         self.coil_normals_all = contig(self.coil_normals_all)
+        
+    def GPMO_PSC_arrays(self, num_placements=100):
+        # kappas_admissible = np.array([[0, np.pi / 2.0], [0, -np.pi / 2.0], 
+        #                               [-np.pi / 2.0, 0], [np.pi / 2.0, 0], 
+        #                               [0, 0], [0, np.pi]])
+        # kappas_admissible = np.array([[0, 0, -np.pi / 2.0, np.pi / 2.0, 0, 0], 
+                                      # [np.pi / 2.0, -np.pi / 2.0, 0, 0, 0, np.pi]])
+                                      
+        # Start with zero PSCs and list of all admissible ones
+        eps = 1e-6
+        pi = np.pi - eps
+        alphas_admissible = np.array([0, 0, -pi / 2.0, pi / 2.0, 0, 0])
+        deltas_admissible = np.array([pi / 2.0, -pi / 2.0, 0, 0, 0, pi])
+
+        # for i in range(self.num_psc):
+        #     alphas_admissible = np.hstack((alphas_admissible, 
+        #                                    np.array([0, 0, -pi / 2.0, pi / 2.0, 0, 0])
+        #                                    ))
+        #     deltas_admissible = np.hstack((deltas_admissible, 
+        #                                    np.array([pi / 2.0, -pi / 2.0, 0, 0, 0, pi])
+        #                                    ))
+        # kappas_admissible = np.hstack((alphas_admissible, deltas_admissible))
+        # print(kappas_admissible.shape)
+        
+        # Start GPMO loop
+        BdotN2_min = 1e10
+        Bn_mag_min = 1e10
+        min_k_ind = 0
+        min_i_ind = 0
+        kappas_k = np.zeros(self.num_psc * 2)
+        admissible_pscs = np.arange(self.num_psc)
+        num_placements = min(num_placements, self.num_psc)
+        for j in range(num_placements):
+            for k in admissible_pscs:
+                for i in range(6):
+                    # Not correct yet -- need to actually remove the coils that
+                    # are not being used here -- right now they are just not
+                    # rotating but they are still there in all the calculations!!!
+                    kappas_k[k] = alphas_admissible[i]
+                    kappas_k[k + self.num_psc] = deltas_admissible[i]
+                    self.setup_orientations(kappas_k[:self.num_psc], kappas_k[self.num_psc:])
+                    self.update_psi()
+                    self.setup_currents_and_fields()
+                    Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
+                    Bn_mag = np.sum(np.abs((self.Bn_PSC + self.b_opt) * self.grid_normalization ** 2))
+                    Bn_mag = Bn_mag * self.fac / self.Baxis_A
+                    BdotN2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
+                    if BdotN2 < BdotN2_min:
+                        BdotN2_min = BdotN2
+                        Bn_mag_min = Bn_mag
+                        min_k_ind = k
+                        min_i_ind = i
+                # unset those variables
+                kappas_k[k] = 0.0
+                kappas_k[k + self.num_psc] = 0.0
+            kappas_k[min_k_ind] = alphas_admissible[min_i_ind]
+            kappas_k[min_k_ind + self.num_psc] = deltas_admissible[min_i_ind]
+            self.BdotN2_list.append(BdotN2_min)
+            self.Bn_list.append(Bn_mag_min)
+            print('Iteration ', j, ' fB = ', BdotN2_min)
+            k_remainder = min_k_ind % 6
+            remove_inds = np.arange(min_k_ind - k_remainder, min_k_ind + 6 - k_remainder)
+            admissible_pscs = np.setdiff1d(admissible_pscs, remove_inds)
+        self.kappas = kappas_k
+            
