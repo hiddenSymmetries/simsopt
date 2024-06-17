@@ -236,7 +236,7 @@ class NormalFieldTests(unittest.TestCase):
         test the array-wise getter and setter functions for the 
         Vns and Vnc arrays
         """
-        filename = os.path.join(TEST_DIR, 'Dommaschk.sp')
+        filename = os.path.join(TEST_DIR, 'M16N08.sp')
         normal_field = NormalField.from_spec(filename)
         vns = normal_field.get_vns_asarray()
         vnc = normal_field.get_vnc_asarray()
@@ -244,12 +244,20 @@ class NormalFieldTests(unittest.TestCase):
         self.assertTrue(np.allclose(vns, vns2))
         self.assertTrue(np.allclose(vnc, vnc2))
         vns3 = np.copy(vnc)
+        vnc3 = np.copy(vnc)
         i, j = normal_field.get_index_in_array(m=3, n=-1)
         vns3[i, j] = 0.5
         normal_field.set_vns_asarray(vns3)
         self.assertEqual(normal_field.get_vns(m=3, n=-1), 0.5)
         dof_index = normal_field.get_index_in_dofs(m=3, n=-1)
         self.assertEqual(normal_field.local_full_x[dof_index], 0.5)
+        i, j = normal_field.get_index_in_array(m=2, n=1)
+        vnc3[i, j] = 1.5
+        normal_field.set_vnc_asarray(vnc3)
+        self.assertEqual(normal_field.get_vnc(m=2, n=1), 1.5)
+        dof_index = normal_field.get_index_in_dofs(m=2, n=1, even=True)
+        self.assertEqual(normal_field.local_full_x[dof_index], 1.5)
+        normal_field.set_vns_vnc_asarray(vns2, vnc2)
 
     @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_get_real_space_field(self):
