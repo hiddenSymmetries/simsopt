@@ -100,8 +100,6 @@ class NormalField(Optimizable):
     def from_spec(cls, filename):
         """
         Initialize using the harmonics in SPEC input file
-        WARNING: A normal field initialized with this method will 
-        not have a computational boundary
         """
 
         # Test if py_spec is available
@@ -123,12 +121,12 @@ class NormalField(Optimizable):
         mpol = ph['Mpol']
         ntor = ph['Ntor']
         surface = SurfaceRZFourier(nfp=ph['nfp'], stellsym=bool(ph['istellsym']), mpol=mpol, ntor=ntor)
-        old_mpol = np.array(ph['rbc']).shape[1]//2
-        surface.rc[:] = np.array(ph['rbc'])[:ntor+1, old_mpol-mpol:old_mpol+mpol+1]
-        surface.zs[:] = np.array(ph['zbs'])[:ntor+1, old_mpol-mpol:old_mpol+mpol+1]
+        old_ntor = np.array(ph['rbc']).shape[1]//2
+        surface.rc[:] = np.array(ph['rbc'])[:mpol+1, old_ntor-ntor:old_ntor+ntor+1]
+        surface.zs[:] = np.array(ph['zbs'])[:mpol+1, old_ntor-ntor:old_ntor+ntor+1]
         if not ph['istellsym']:
-            surface.zc[:] = np.array(ph['zbc'])[:ntor+1, old_mpol-mpol:old_mpol+mpol+1]
-            surface.rs[:] = np.array(ph['rbs'])[:ntor+1, old_mpol-mpol:old_mpol+mpol+1]
+            surface.zc[:] = np.array(ph['zbc'])[:mpol+1, old_ntor-ntor:old_ntor+ntor+1]
+            surface.rs[:] = np.array(ph['rbs'])[:mpol+1, old_ntor-ntor:old_ntor+ntor+1]
 
         normal_field = cls(
             nfp=ph['nfp'],
@@ -471,7 +469,6 @@ class NormalField(Optimizable):
         dofs = self.get_dofs()
         self.local_full_x = dofs
 
-
     def set_vnc_asarray(self, vnc, mpol=None, ntor=None):
         """
         Set the vnc from a single array
@@ -490,12 +487,6 @@ class NormalField(Optimizable):
         dofs = self.get_dofs()
         self.local_full_x = dofs
 
-
-        for mm in range(0, mpol + 1):
-            for nn in range(-ntor, ntor + 1):
-                if mm == 0 and nn < 0: continue
-                self.set_vnc(mm, nn, vnc[mm, ntor + nn])
-    
     def set_vns_vnc_asarray(self, vns, vnc, mpol=None, ntor=None):
         """
         Set the vns and vnc from two single arrays
