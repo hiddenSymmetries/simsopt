@@ -2,11 +2,19 @@ import numpy as np
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.field.coil import Current
+from simsopt._core.dev import SimsoptRequires
+from simsopt._core.json import GSONDecoder
+import json
+
+try:
+    import requests
+except ImportError:
+    requests = None
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
 
-__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data"]
+__all__ = ['get_ncsx_data', 'get_hsx_data', 'get_giuliani_data', "get_w7x_data", 'get_QUASR_data']
 
 
 def get_ncsx_data(Nt_coils=25, Nt_ma=10, ppp=10):
@@ -188,51 +196,43 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
     ma.x = ma.get_dofs()
     return (curves, currents, ma)
 
-def get_QUASR_data(config_ID:int=None, return_style='default'): 
+
+@SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
+def get_QUASR_data(ID, return_style='default'): 
     """
-    download a configuration from the QUASAR database
+    Download a configuration from the QUASAR database.
 
     Args:
-        config_ID: the ID of the configuration to download. If None, a random configuration will be downloaded
-        return_style: 'default' or 'coils. If 'default', the function will return the curves, currents and magnetic axis
-         like the other configurations in the zoo. 
-         If 'coils', the function will return coils, the magnetic axis and a list of flux surfaces.
-
+        ID: the ID of the configuration to download.  The database is navigatable at https://quasr.flatironinstitute.org/
+            Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
+        
+        return_style: 'default' or 'json'. If 'default', the function will return the curves, currents and magnetic axis
+                      like the other configurations in the zoo. 
+                      If 'json' the function will return the full set of coils, magnetic axis and a number of surfaces
+                      parametrized in Boozer coordinates.
     """
-    import json
-    from simsopt._core.json import GSONDecoder
-    import numpy as np
-    #test if you have the requests library: 
-    try:
-        import requests
-    except ImportError:
-        raise ImportError("You need to install the requests library to use this function. Run 'pip install requests'")
     
-    if config_ID is None: 
-        # a random number between 1 and 300000:
-        config_ID = np.random.randint(1,300000)
+    assert return_style in ['default', 'json']
     
-    id_str = f"{config_ID:07d}"
-    
-    # string format randint to 7 digits
+    id_str = f"{ID:07d}"
+    # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
 
     with requests.get(url) as r:
         if r.status_code == 200:
-            print(f"Configuration with ID {config_ID} downloaded successfully")
+            print(f"Configuration with ID {ID:07} downloaded successfully")
             surfaces, ma, coils = json.loads(r.content, cls=GSONDecoder)
         else:
-            print(url)
-            raise ValueError(f"Could not download configuration with ID {config_ID:07d}. Status code: {r.status_code}")
-        
+            raise ValueError(f"Configuration ID {ID:07d} does not exist. Status code: {r.status_code}")
+    
     if return_style == 'default':
+        nfp = ma.nfp
+        nc_per_hp = len(coils) // nfp // (1 + ma.stellsym)
+        coils = coils[:nc_per_hp]
+
         curves = [coil.curve for coil in coils]
         currents = [coil.current for coil in coils]
         return curves, currents, ma
-    elif return_style == 'coils':
-        return coils, ma, surfaces
-    else:
-        raise ValueError("return_style must be either 'default' or 'coils'")
 
-        
-    
+    elif return_style == 'json':
+        return coils, ma, surfaces
