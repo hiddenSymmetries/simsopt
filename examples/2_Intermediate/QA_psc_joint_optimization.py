@@ -170,7 +170,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
             # grad -= SquaredFlux(s, bs).dJ() 
             # Add in the gradient from the PSC part
             # grad += bs.B_vjp(psc_array.grad_TF())(JF + SquaredFlux(s, B_PSC))  # Almost certainly wrong! 
-            BdotN = np.mean(np.abs(np.sum((bs.B() + B_PSC.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) * Nnorms)
+            BdotN = np.mean(np.abs(np.sum((bs.B() + psc_array.B_PSC.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) * Nnorms)
                             ) / (len(s.quadpoints_phi) * len(s.quadpoints_theta)) 
             B_axis = calculate_on_axis_B(bs, s, print_out=False)
             bs.set_points(s.gamma().reshape(-1, 3))
@@ -217,7 +217,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
     else:
         minimize(fun, dofs, jac=False, method='L-BFGS-B', options={'maxiter': MAXITER}, tol=1e-6)
     bs.set_points(s.gamma().reshape((-1, 3)))
-    return bs, BdotN2_list, Bn_list
+    return bs, BdotN2_list, Bn_list, psc_array
 
 t1 = time.time()
 np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
@@ -330,7 +330,7 @@ s_plot.save(filename=out_dir / 'plasma_boundary.json')
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # optimize the currents in the TF coils and plot results
-bs, _, _ = coil_optimization_QA(s, bs, base_curves, curves)
+bs, _, _, _ = coil_optimization_QA(s, bs, base_curves, curves)
 # bs.save('B_TF.json')
 currents = np.array([coil.current.get_value() for coil in coils])
 curves_to_vtk(curves, out_dir / "TF_0", close=True)
@@ -442,7 +442,7 @@ for k in range(STLSQ_max_iters):
     
     kwargs_manual["alphas"] = psc_array.alphas
     kwargs_manual["deltas"] = psc_array.deltas
-    bs, BdotN2, Bn = coil_optimization_QA(s, bs, base_curves, curves, psc_array, MAXITER=5, jac_flag=True)
+    bs, BdotN2, Bn, psc_array = coil_optimization_QA(s, bs, base_curves, curves, psc_array, MAXITER=5, jac_flag=True)
     currents = np.array([coil.current.get_value() for coil in coils])
     curves_to_vtk(curves, out_dir / ("TF_" + str(k + 1)), close=True)
     bs.set_points(s.gamma().reshape((-1, 3)))
@@ -479,7 +479,7 @@ for k in range(STLSQ_max_iters):
     #     break
     # kwargs_manual["alphas"] = alphas
     # kwargs_manual["deltas"] = deltas
-    kwargs_manual["coils_TF"] = coils
+    kwargs_manual["coils_TF"] = bs._coils
     try:
         # print(x_opt.x)
         psc_array = PSCgrid.geo_setup_manual(
