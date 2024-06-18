@@ -17,18 +17,11 @@ try:
 except ImportError:
     contour_self_intersects = None
 
-try:
-    import pyvista as pv
-except ImportError:
-    pv = None
-
-
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.dev import SimsoptRequires
 from .plotting import fix_matplotlib_3d
 from .._core.json import GSONable
-from monty.tempfile import ScratchDir
 
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
