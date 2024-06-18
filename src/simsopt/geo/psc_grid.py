@@ -355,7 +355,7 @@ class PSCgrid:
                 B_TF, degree, rrange, phirange, zrange, 
                 True, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
             )
-        B_TF.set_points(psc_grid.grid_xyz)
+        # B_TF.set_points(psc_grid.grid_xyz)
         B_axis = calculate_on_axis_B(B_TF, psc_grid.plasma_boundary, print_out=False)
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
@@ -417,6 +417,7 @@ class PSCgrid:
         # Generate all the locations of the PSC coils obtained by applying
         # discrete symmetries (stellarator and field-period symmetries)
         psc_grid.setup_full_grid()
+        psc_grid.update_alphas_deltas()
         
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
@@ -427,7 +428,7 @@ class PSCgrid:
         
         # Initialize CurvePlanarFourier objects for the PSCs, mostly for
         # plotting purposes
-        psc_grid.setup_curves()
+        # psc_grid.setup_curves()
         psc_grid.plot_curves()
         
         # Set up vector b appearing in objective ||A*Linv*psi - b||^2
@@ -651,7 +652,7 @@ class PSCgrid:
                 B_TF, degree, rrange, phirange, zrange, 
                 True, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
             )
-        B_TF.set_points(psc_grid.grid_xyz)
+        # B_TF.set_points(psc_grid.grid_xyz)
         B_axis = calculate_on_axis_B(B_TF, psc_grid.plasma_boundary, print_out=False)
         
         # Normalization of the ||A*Linv*psi - b||^2 objective 
@@ -676,6 +677,10 @@ class PSCgrid:
                                      (np.random.rand(
                                          psc_grid.num_psc) - 0.5) * 2 * np.pi
         )
+        ## Need to remove bad elements from alphas and deltas too!
+        psc_grid.alphas = psc_grid.alphas[final_inds]
+        psc_grid.deltas = psc_grid.deltas[final_inds]
+        
         psc_grid.quad_points_rho = psc_grid.quad_points_rho * psc_grid.R
 
         psc_grid.coil_normals = np.array(
@@ -692,12 +697,13 @@ class PSCgrid:
         # Initialize curve objects corresponding to each PSC coil for 
         # plotting in 3D
         psc_grid.setup_full_grid()
+        psc_grid.update_alphas_deltas()
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
         psc_grid.setup_currents_and_fields()
         
         # Initialize CurvePlanarFourier objects for the PSCs
-        psc_grid.setup_curves()
+        # psc_grid.setup_curves()
         psc_grid.plot_curves()
         
         # Set up vector b appearing in objective ||A*Linv*psi - b||^2
@@ -719,8 +725,19 @@ class PSCgrid:
         the PSC coils touching/intersecting, in which case it will be
         VERY ill-conditioned! 
         """
+        from simsopt.field import coils_via_symmetries, Current
         self.L_inv = np.linalg.inv(self.L)
         self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
+        self.setup_curves()
+        currents = []
+        for i in range(self.num_psc):
+            currents.append(Current(self.I[i]))
+        self.psc_coils = coils_via_symmetries(
+            self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
+        )
+        self.B_PSC = BiotSavart(self.psc_coils)
+        self.B_PSC.set_points(self.plasma_points)
+        self.currents = np.array(currents)
         self.setup_A_matrix()
         self.Bn_PSC = self.A_matrix @ self.I
         
@@ -749,7 +766,7 @@ class PSCgrid:
         that they represent. Also generates the symmetrized coils.
         """
         from . import CurvePlanarFourier
-        from simsopt.field import apply_symmetries_to_curves
+        from simsopt.field import apply_symmetries_to_curves, coils_via_symmetries, Current
 
         order = 1
         ncoils = self.num_psc
@@ -1139,7 +1156,7 @@ class PSCgrid:
                 
         self.grid_xyz_all = contig(self.grid_xyz_all)
         self.grid_xyz_all_normalized = self.grid_xyz_all / self.R
-        self.update_alphas_deltas()
+        # self.update_alphas_deltas()
     
     def update_alphas_deltas(self):
         """
@@ -1160,67 +1177,40 @@ class PSCgrid:
         self.deltas_total = contig(self.deltas_total)
         self.coil_normals_all = contig(self.coil_normals_all)
         
-    def GPMO_PSC_arrays(self, num_placements=100):
-        # kappas_admissible = np.array([[0, np.pi / 2.0], [0, -np.pi / 2.0], 
-        #                               [-np.pi / 2.0, 0], [np.pi / 2.0, 0], 
-        #                               [0, 0], [0, np.pi]])
-        # kappas_admissible = np.array([[0, 0, -np.pi / 2.0, np.pi / 2.0, 0, 0], 
-                                      # [np.pi / 2.0, -np.pi / 2.0, 0, 0, 0, np.pi]])
-                                      
-        # Start with zero PSCs and list of all admissible ones
-        eps = 1e-6
-        pi = np.pi - eps
-        alphas_admissible = np.array([0, 0, -pi / 2.0, pi / 2.0, 0, 0])
-        deltas_admissible = np.array([pi / 2.0, -pi / 2.0, 0, 0, 0, pi])
+    def grad_TF(self):
+        ALinv = (self.grid_normalization[:, None] * self.A_matrix) @ self.L_inv[:self.num_psc, :self.num_psc]
+        flux_grid = sopp.flux_xyz(
+            contig(self.grid_xyz_all), 
+            contig(self.alphas_total),
+            contig(self.deltas_total), 
+            contig(self.quad_points_rho), 
+            contig(self.quad_points_phi), 
+        )
+        self.flux_grid = np.array(flux_grid).reshape(-1, 3)
+        self.B_TF.set_points(contig(self.flux_grid))
+        N = len(self.quad_points_rho)
+        # integrate dB/dX over the loop
+        dpsi_by_dX = sopp.dB_by_dX_integration(
+            contig(self.B_TF.dB_by_dX().reshape(len(self.alphas_total), N, N, 3, 3)),
+            contig(self.quad_points_rho),
+            contig(self.coil_normals_all),
+            self.quad_weights
+        )
+        dpsi_by_dX = dpsi_by_dX[:self.num_psc, :]  # @ dX_by_dFourier
+        ALinv_dpsi = ALinv @ dpsi_by_dX
+        return ALinv_dpsi.T @ (ALinv @ self.psi - self.b_opt) * self.fac2_norm
+    
+    def update_TF(self, coils_TF):
+        from simsopt.util import calculate_on_axis_B
 
-        # for i in range(self.num_psc):
-        #     alphas_admissible = np.hstack((alphas_admissible, 
-        #                                    np.array([0, 0, -pi / 2.0, pi / 2.0, 0, 0])
-        #                                    ))
-        #     deltas_admissible = np.hstack((deltas_admissible, 
-        #                                    np.array([pi / 2.0, -pi / 2.0, 0, 0, 0, pi])
-        #                                    ))
-        # kappas_admissible = np.hstack((alphas_admissible, deltas_admissible))
-        # print(kappas_admissible.shape)
+        B_TF = BiotSavart(coils_TF)
+        B_axis = calculate_on_axis_B(B_TF, self.plasma_boundary, print_out=False)
         
-        # Start GPMO loop
-        BdotN2_min = 1e10
-        Bn_mag_min = 1e10
-        min_k_ind = 0
-        min_i_ind = 0
-        kappas_k = np.zeros(self.num_psc * 2)
-        admissible_pscs = np.arange(self.num_psc)
-        num_placements = min(num_placements, self.num_psc)
-        for j in range(num_placements):
-            for k in admissible_pscs:
-                for i in range(6):
-                    # Not correct yet -- need to actually remove the coils that
-                    # are not being used here -- right now they are just not
-                    # rotating but they are still there in all the calculations!!!
-                    kappas_k[k] = alphas_admissible[i]
-                    kappas_k[k + self.num_psc] = deltas_admissible[i]
-                    self.setup_orientations(kappas_k[:self.num_psc], kappas_k[self.num_psc:])
-                    self.update_psi()
-                    self.setup_currents_and_fields()
-                    Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
-                    Bn_mag = np.sum(np.abs((self.Bn_PSC + self.b_opt) * self.grid_normalization ** 2))
-                    Bn_mag = Bn_mag * self.fac / self.Baxis_A
-                    BdotN2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
-                    if BdotN2 < BdotN2_min:
-                        BdotN2_min = BdotN2
-                        Bn_mag_min = Bn_mag
-                        min_k_ind = k
-                        min_i_ind = i
-                # unset those variables
-                kappas_k[k] = 0.0
-                kappas_k[k + self.num_psc] = 0.0
-            kappas_k[min_k_ind] = alphas_admissible[min_i_ind]
-            kappas_k[min_k_ind + self.num_psc] = deltas_admissible[min_i_ind]
-            self.BdotN2_list.append(BdotN2_min)
-            self.Bn_list.append(Bn_mag_min)
-            print('Iteration ', j, ' fB = ', BdotN2_min)
-            k_remainder = min_k_ind % 6
-            remove_inds = np.arange(min_k_ind - k_remainder, min_k_ind + 6 - k_remainder)
-            admissible_pscs = np.setdiff1d(admissible_pscs, remove_inds)
-        self.kappas = kappas_k
-            
+        # Normalization of the ||A*Linv*psi - b||^2 objective 
+        # representing Bnormal errors on the plasma surface
+        self.normalization = B_axis ** 2 * self.plasma_boundary.area()
+        self.Baxis_A = B_axis * self.plasma_boundary.area()
+        self.B_TF = B_TF
+        self.update_psi()
+        self.setup_currents_and_fields()
+        self.b_vector()

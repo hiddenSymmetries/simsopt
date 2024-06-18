@@ -152,7 +152,7 @@ else:
     quadpoints_theta = np.linspace(0, 1, ntheta * 2, endpoint=True)
 
 poff = 1.5  # PSC grid will be offset 'poff' meters from the plasma surface
-coff = 1.6  # PSC grid will be initialized between 1 m and 2 m from plasma
+coff = 2.0  # PSC grid will be initialized between 1 m and 2 m from plasma
 
 # Read in the plasma equilibrium file
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
@@ -258,7 +258,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_TF_optimized", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10, "out_dir": out_str,
+kwargs_geo = {"Nx": 12, "out_dir": out_str,
               # "initialization": "plasma", 
               "poff": poff,}
               # "interpolated_field": True} 
@@ -313,62 +313,101 @@ kwargs_manual = {
                  }
 num_placements = psc_array.num_psc
 BdotN2_list = []
-Bn_list = []
+b_opt = psc_array.b_opt
+gn = psc_array.grid_normalization
+gn2 = gn ** 2
+# Bn_list = []
+backtracking = True
 kappas_k = np.zeros(2)
+jj = 0
+t1_opt = time.time()
 for j in range(num_placements):
-    t1 = time.time()
-    if j != 0:
-        kappas_k = np.insert(kappas_k, [j, 2 * j], 0.0)
-    BdotN2_min = 1e10
-    Bn_mag_min = 1e10
+    t1_j = time.time()
+    if jj != 0:
+        kappas_k = np.insert(kappas_k, [jj, 2 * jj], 0.0)
+    BdotN2_min = 1e100
+    Bn_mag_min = 1e100
     min_k_ind = 0
     min_i_ind = 0
+    j_inds = placed_pscs + [admissible_pscs[0]]
+    psc_temp = PSCgrid.geo_setup_manual(
+        psc_array.grid_xyz[j_inds, :], psc_array.R, **kwargs_manual
+    )
+    nn = psc_temp.num_psc
     for k in admissible_pscs:
-        current_inds = placed_pscs + [k]
-        # print(j, k, current_inds, placed_pscs)
-        psc_temp = PSCgrid.geo_setup_manual(
-            psc_array.grid_xyz[current_inds, :], psc_array.R, **kwargs_manual
-        )
-        # print(psc_temp.num_psc)
+        # Replace last coil with the newest coil to try
+        psc_temp.grid_xyz[-1, :] = psc_array.grid_xyz[k, :]
+        psc_temp.setup_full_grid()
+        # t1 = time.time()
         for i in range(6):
-            kappas_k[j] = alphas_admissible[i]
-            kappas_k[j + psc_temp.num_psc] = deltas_admissible[i]
+            kappas_k[jj] = alphas_admissible[i]
+            kappas_k[jj + psc_temp.num_psc] = deltas_admissible[i]
             # psc_temp.least_squares()
-            psc_temp.setup_orientations(kappas_k[:psc_temp.num_psc], kappas_k[psc_temp.num_psc:])
+            psc_temp.setup_orientations(kappas_k[:nn], kappas_k[nn:])
             psc_temp.update_psi()
             psc_temp.setup_currents_and_fields()
-            Ax_b = (psc_temp.Bn_PSC + psc_temp.b_opt) * psc_temp.grid_normalization
-            Bn_mag = np.sum(np.abs((psc_temp.Bn_PSC + psc_temp.b_opt) * psc_temp.grid_normalization ** 2))
-            Bn_mag = Bn_mag * psc_temp.fac / psc_temp.Baxis_A
-            BdotN2 = (Ax_b.T @ Ax_b) * psc_temp.fac2_norm2
+            Ax_b = (psc_temp.Bn_PSC + b_opt) * gn
+            # Bn_mag = np.sum(np.abs((psc_temp.Bn_PSC + b_opt) * gn2))
+            # Bn_mag = Bn_mag 
+            BdotN2 = Ax_b.T @ Ax_b 
             if BdotN2 < BdotN2_min:
                 BdotN2_min = BdotN2
-                Bn_mag_min = Bn_mag
+                # Bn_mag_min = Bn_mag
                 min_k_ind = k
                 min_i_ind = i
-                min_j_ind = j
-        # unset those variables
-        kappas_k[j] = 0.0
-        kappas_k[j + psc_temp.num_psc] = 0.0
+                min_j_ind = jj
+        # t2 = time.time()
+        # print('Time for i loop = ', t2 - t1)
+    # unset those variables
+    kappas_k[jj] = 0.0
+    kappas_k[jj + psc_temp.num_psc] = 0.0
     kappas_k[min_j_ind] = alphas_admissible[min_i_ind]
     kappas_k[min_j_ind + psc_temp.num_psc] = deltas_admissible[min_i_ind]
     BdotN2_list.append(BdotN2_min)
-    Bn_list.append(Bn_mag_min)
-    print('Iteration ', j, ' fB = ', BdotN2_min)
-    # print(psc_temp.num_psc, placed_pscs)
-    # print(kappas_k)
-    # k_remainder = min_k_ind % 6
-    # remove_inds = np.arange(min_k_ind - k_remainder, min_k_ind + 6 - k_remainder)
-    # print('min_k_ind = ', min_k_ind, k_remainder)
-    # print('remove = ', remove_inds)
+    # Bn_list.append(Bn_mag_min)
+    print('Iteration ', j, ', N = ', jj, ', fB = ', BdotN2_min * psc_temp.fac2_norm2)
     admissible_pscs = np.setdiff1d(admissible_pscs, min_k_ind)
-    # print('admissible = ', admissible_pscs)
-    # exit()
     placed_pscs.append(min_k_ind)
+    # print('Placed indices = ', placed_pscs)
     
-    if j % 5 == 0:
+    ### Backtracking
+    if backtracking and (j + 1) % 10 == 0:
+        # print('kappas = ', kappas_k)
+        print('N = ', psc_temp.num_psc, ' before backtracking is applied.')
+        grid_xyz = psc_temp.grid_xyz
+        normals = psc_temp.coil_normals
+        dij_min = 1.75  # if coils are dij_min apart, they are considered for backtracking
+        remove_inds = []
+        m_vecs = psc_temp.I[:, None] * normals
+        for iii in range(nn):
+            for jjj in range(iii + 1, nn):
+                dij = np.sqrt(np.sum((psc_temp.grid_xyz[iii, :] - psc_temp.grid_xyz[jjj, :]) ** 2))
+                # print(iii, jjj, dij)
+                if dij <= dij_min and np.allclose(m_vecs[iii, :], -m_vecs[jjj, :], rtol=1e-1, atol=1e3):
+                    # remove these coils
+                    remove_inds.append(iii)
+                    remove_inds.append(iii + nn)
+                    remove_inds.append(jjj)
+                    remove_inds.append(jjj + nn)
+                    break
+        if len(remove_inds) > 0:
+            remove_inds = np.unique(remove_inds)
+            # print(remove_inds)
+            jj -= len(remove_inds) // 2
+            kappas_k = np.delete(kappas_k, remove_inds)
+            remove_inds = remove_inds[:len(remove_inds) // 2]
+            placed_pscs = np.array(placed_pscs)
+            temp_pscs = np.setdiff1d(placed_pscs, placed_pscs[remove_inds])
+            admissible_pscs = np.hstack((admissible_pscs, placed_pscs[remove_inds]))
+            placed_pscs = temp_pscs.tolist()
+            # print('kappas = ', kappas_k)
+            # print('Placed indices = ', placed_pscs)
+            # print('Admissible indices = ', admissible_pscs)
+        print('N = ', len(kappas_k) // 2, ' after backtracking is applied.')
+    
+    if j % 10 == 0:
         psc_temp.setup_curves()
-        psc_temp.plot_curves('coils_{0:d}'.format(j + 1) + '_')
+        psc_temp.plot_curves('coils_{0:d}'.format(jj + 1) + '_')
         currents = []
         for i in range(psc_temp.num_psc):
             currents.append(Current(psc_temp.I[i]))
@@ -378,24 +417,29 @@ for j in range(num_placements):
         B_PSC = BiotSavart(all_coils)
         B_tot = bs + B_PSC
         # B_tot.save('B_{0:d}'.format(j + 1) + '.json')
-        make_Bnormal_plots(B_tot, s_plot, out_dir, 'B_{0:d}'.format(j + 1), B_axis)
-    t2 = time.time()
-    print('Time for that iteration = ', t2 - t1)
+        make_Bnormal_plots(B_tot, s_plot, out_dir, 'B_{0:d}'.format(jj + 1), B_axis)
+    jj += 1
+    t2_j = time.time()
+    print('Time for that iteration = ', t2_j - t1_j)
+t2_opt = time.time()
+print('Total time for GPMOb = ', t2_opt - t1_opt)
 psc_temp.kappas = kappas_k
 # psc_array.GPMO_PSC_arrays()
 # Bn_list = psc_array.Bn_list
 # BdotN2_list = psc_array.BdotN2_list
 
 # Plot the data from optimization
-BdotN2_list = np.ravel(BdotN2_list)
-Bn_list = np.ravel(Bn_list)
+B2_normalization = psc_temp.fac2_norm2
+Bn_normalization = psc_temp.fac / psc_temp.Baxis_A
+BdotN2_list = np.ravel(BdotN2_list) * B2_normalization
+# Bn_list = np.ravel(Bn_list * Bn_normalization)
 fig, ax1 = plt.subplots()
 color = 'b'
 ax1.set_xlabel('Iterations')
 ax1.set_ylabel(r'$f_B$', color=color)
 ax1.semilogy(BdotN2_list, color=color)
-ax1.semilogy(Bn_list, color + '--', label=r'$b_n$')
-ax1.semilogy(0.005 * np.ones(len(Bn_list)), 'm--', label=r'$b_n$, benchmark')
+# ax1.semilogy(Bn_list, color + '--', label=r'$b_n$')
+# ax1.semilogy(0.005 * np.ones(len(Bn_list)), 'm--', label=r'$b_n$, benchmark')
 ax1.plot(fB_TF * np.ones(len(BdotN2_list)), 'k--', label=r'$f_B$, TF coils only')
 ax1.grid()
 ax1.tick_params(axis='y', labelcolor=color)

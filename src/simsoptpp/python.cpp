@@ -66,6 +66,8 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("L_deriv_simd" , &L_deriv_simd);
     m.def("flux_xyz" , &flux_xyz);
     m.def("flux_integration" , &flux_integration);
+    m.def("dB_by_dX_integration", &dB_by_dX_integration);
+
     m.def("A_matrix" , &A_matrix);
     m.def("A_matrix_simd" , &A_matrix_simd);
     m.def("A_matrix_direct" , &A_matrix_direct);

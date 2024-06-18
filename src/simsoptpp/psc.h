@@ -33,6 +33,8 @@ Array flux_xyz(Array& points, Array& alphas, Array& deltas, Array& rho, Array& p
 
 Array flux_integration(Array& B, Array& rho, Array& normal, Array& int_weights);
 
+Array dB_by_dX_integration(Array& dB_by_dX, Array& rho, Array& normal, Array& int_weights);
+
 std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas(Array& coil_normals, int nfp, int stellsym);
 
 std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas_xsimd(Array& coil_normals, int nfp, int stellsym);
