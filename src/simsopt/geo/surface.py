@@ -17,11 +17,18 @@ try:
 except ImportError:
     contour_self_intersects = None
 
+try:
+    import pyvista as pv
+except ImportError:
+    pv = None
+
+
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.dev import SimsoptRequires
 from .plotting import fix_matplotlib_3d
 from .._core.json import GSONable
+from monty.tempfile import ScratchDir
 
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
@@ -333,19 +340,15 @@ class Surface(Optimizable):
         single curve.
         """
 
-        # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
+        # phi is assumed to be between [0, 2*pi], so if it does not lie on that interval
         # we shift it by multiples of 2pi until it does
         phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2 * np.pi)) * (2. * np.pi)
-        if phi > np.pi:
-            phi = phi - 2. * np.pi
-        if phi < -np.pi:
-            phi = phi + 2. * np.pi
-
-        # varphi are the search intervals on which we look for the cross section in
+        
+        # varphi is the search intervals on which we look for the cross section in
         # at constant cylindrical phi
         # The cross section is sampled at a number of points (theta_resolution) poloidally.
-        varphi = np.asarray([0., 0.5, 1.0])
-
+        varphi = np.asarray([0., 1.])
+        
         if thetas is None:
             theta = np.asarray(self.quadpoints_theta)
         elif isinstance(thetas, np.ndarray):
@@ -354,64 +357,47 @@ class Surface(Optimizable):
             theta = np.linspace(0, 1, thetas, endpoint=False)
         else:
             raise NotImplementedError('Need to pass int or 1d np.array to thetas')
-
-        varphigrid, thetagrid = np.meshgrid(varphi, theta)
-        varphigrid = varphigrid.T
-        thetagrid = thetagrid.T
+        
+        varphigrid, thetagrid = np.meshgrid(varphi, theta, indexing='ij')
 
         # sample the surface at the varphi and theta points
         gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3))
         self.gamma_lin(gamma, varphigrid.flatten(), thetagrid.flatten())
 
-        # compute the cylindrical phi coordinate of each sampled point on the surface
         cyl_phi = np.arctan2(gamma[:, :, 1], gamma[:, :, 0])
+        cyl_phi = np.where(cyl_phi < 0, cyl_phi + 2*np.pi, cyl_phi)
+        cyl_phi[1, :] += 2*np.pi # second row is the same as the first row, but shifted by 2pi
 
-        # reorder varphi, theta with respect to increasing cylindrical phi
-        idx = np.argsort(cyl_phi, axis=0)
-        cyl_phi = np.take_along_axis(cyl_phi, idx, axis=0)
-        varphigrid = np.take_along_axis(varphigrid, idx, axis=0)
+        varphi_left = varphigrid[0, :]
+        varphi_right = varphigrid[1, :]
+        cyl_phi_left = cyl_phi[0, :]
+        cyl_phi_right = cyl_phi[1, :]
+        
+        phi = phi*np.ones(varphi_left.size)
+        def put_angle_between_left_and_right(angle, left_bound, right_bound):
+            # shift angle by 2pi so that it lies between left_bound and right_bound
+            k = np.ceil((left_bound-angle)/(2*np.pi))
+            shifted_angle = angle + 2*np.pi * k
+            if not np.all((left_bound <= shifted_angle) & (shifted_angle <= right_bound)):
+                import ipdb;ipdb.set_trace()
+                raise Exception("An error occured during calculation of the cross section.  \
+                        This happens when a surface 'goes back' on itself. \
+                        The cylindrical angle is assumed to be monotonically increasing \
+                        with varphi, which is not the case for this surface.")
+            return shifted_angle
 
-        # In case the target cylindrical angle "phi" lies above the first row or below the last row,
-        # we must concatenate the lower row above the top row and the top row below the lower row.
-        # This is allowable since the data in the matrices are periodic
-        cyl_phi = np.concatenate((cyl_phi[-1, :][None, :] - 2. * np.pi, cyl_phi, cyl_phi[0, :][None, :] + 2. * np.pi),
-                                 axis=0)
-        varphigrid = np.concatenate((varphigrid[-1, :][None, :] - 1., varphigrid, varphigrid[0, :][None, :] + 1.),
-                                    axis=0)
-
-        # ensure that varphi does not have massive jumps.
-        diff = varphigrid[1:] - varphigrid[:-1]
-        pinc = np.abs(diff + 1) < np.abs(diff)
-        minc = np.abs(diff - 1) < np.abs(diff)
-        inc = pinc.astype(int) - minc.astype(int)
-        prefix_sum = np.cumsum(inc, axis=0)
-        varphigrid[1:] = varphigrid[1:] + prefix_sum
-
-        # find the subintervals in varphi on which the desired cross section lies.
-        # if idx_right == 0, then the subinterval must be idx_left = 0 and idx_right = 1
-        idx_right = np.argmax(phi <= cyl_phi, axis=0)
-        idx_right = np.where(idx_right == 0, 1, idx_right)
-        idx_left = idx_right - 1
-
-        varphi_left = varphigrid[idx_left, np.arange(idx_left.size)]
-        varphi_right = varphigrid[idx_right, np.arange(idx_right.size)]
-        cyl_phi_left = cyl_phi[idx_left, np.arange(idx_left.size)]
-        cyl_phi_right = cyl_phi[idx_right, np.arange(idx_right.size)]
-
-        # this function converts varphi to cylindrical phi, ensuring that the returned angle
-        # lies between left_bound and right_bound.
         def varphi2phi(varphi_in, left_bound, right_bound):
+            # convert varphi to phi, where phi lies between left_bound and right_bound
             gamma = np.zeros((varphi_in.size, 3))
             self.gamma_lin(gamma, varphi_in, theta)
-            phi = np.arctan2(gamma[:, 1], gamma[:, 0])
-            pinc = (phi < left_bound).astype(int)
-            minc = (phi > right_bound).astype(int)
-            phi = phi + 2. * np.pi * (pinc - minc)
-            return phi
+            angle = np.arctan2(gamma[:, 1], gamma[:, 0])
+            angle = np.where(angle < 0, angle+2*np.pi, angle)
+            shifted_angle = put_angle_between_left_and_right(angle, left_bound, right_bound)
+            return shifted_angle
 
         def bisection(phia, a, phic, c):
             err = 1.
-            while err > 1e-13:
+            while err > 1e-10:
                 b = (a + c) / 2.
                 phib = varphi2phi(b, phia, phic)
 
@@ -425,7 +411,8 @@ class Surface(Optimizable):
                 err = np.max(np.abs(a - c))
             b = (a + c) / 2.
             return b
-
+        
+        phi = put_angle_between_left_and_right(phi, cyl_phi_left, cyl_phi_right)
         # bisect cyl_phi to compute the cross section
         sol = bisection(cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
         cross_section = np.zeros((sol.size, 3))
