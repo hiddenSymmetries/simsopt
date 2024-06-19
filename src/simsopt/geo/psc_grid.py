@@ -6,7 +6,6 @@ from pyevtk.hl import pointsToVTK
 
 from . import Surface
 import simsoptpp as sopp
-from simsopt.field import BiotSavart
 import time
 from scipy.linalg import inv, pinv, pinvh
 
@@ -211,7 +210,7 @@ class PSCgrid:
         psc_grid: An initialized PSCgrid class object.
 
         """
-        from simsopt.field import InterpolatedField, BiotSavart
+        from simsopt.field import InterpolatedField, BiotSavart, Current, coils_via_symmetries
         from simsopt.util import calculate_on_axis_B
         from . import curves_to_vtk
                 
@@ -424,7 +423,18 @@ class PSCgrid:
         # Initialize all of the fields, currents, inductances, for all the PSCs
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
+
+        currents = []
+        for i in range(psc_grid.num_psc):
+            currents.append(Current(0.0))
+        psc_grid.currents = np.array(currents)
         psc_grid.setup_currents_and_fields()
+        psc_grid.setup_curves()
+        psc_grid.psc_coils = coils_via_symmetries(
+            psc_grid.curves, psc_grid.currents, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
+        )
+        psc_grid.B_PSC = BiotSavart(psc_grid.psc_coils)
+        psc_grid.B_PSC.set_points(psc_grid.plasma_points)
         
         # Initialize CurvePlanarFourier objects for the PSCs, mostly for
         # plotting purposes
@@ -437,8 +447,6 @@ class PSCgrid:
         
         # Initialize kappas = [alphas, deltas] which is the array of
         # optimization variables used in this work. 
-        kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
-        psc_grid.kappas = kappas
         t2 = time.time()
         print('Geo setup time = ', t2 - t1)
         return psc_grid
@@ -508,8 +516,7 @@ class PSCgrid:
         """
         from simsopt.util.permanent_magnet_helper_functions import initialize_coils, calculate_on_axis_B
         from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves
-        from simsopt.field import Current, coils_via_symmetries
-        from simsopt.field import InterpolatedField
+        from simsopt.field import InterpolatedField, Current, coils_via_symmetries, BiotSavart
         from . import curves_to_vtk
         
         t1 = time.time()
@@ -700,7 +707,18 @@ class PSCgrid:
         psc_grid.update_alphas_deltas()
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
+        currents = []
+        for i in range(psc_grid.num_psc):
+            currents.append(Current(0.0))
+        psc_grid.currents = np.array(currents)
         psc_grid.setup_currents_and_fields()
+        
+        from simsopt.field import coils_via_symmetries, Current
+        psc_grid.psc_coils = coils_via_symmetries(
+            psc_grid.curves, psc_grid.currents, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
+        )
+        psc_grid.B_PSC = BiotSavart(psc_grid.psc_coils)
+        psc_grid.B_PSC.set_points(psc_grid.plasma_points)
         
         # Initialize CurvePlanarFourier objects for the PSCs
         # psc_grid.setup_curves()
@@ -712,8 +730,6 @@ class PSCgrid:
         
         # Initialize kappas = [alphas, deltas] which is the array of
         # optimization variables used in this work. 
-        kappas = np.ravel(np.array([psc_grid.alphas, psc_grid.deltas]))
-        psc_grid.kappas = kappas
         t2 = time.time()
         # print('Initialize grid time = ', t2 - t1)
         return psc_grid
@@ -725,19 +741,18 @@ class PSCgrid:
         the PSC coils touching/intersecting, in which case it will be
         VERY ill-conditioned! 
         """
-        from simsopt.field import coils_via_symmetries, Current
+        from simsopt.field import BiotSavart, coils_via_symmetries
+        
         self.L_inv = np.linalg.inv(self.L)
         self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
         self.setup_curves()
-        currents = []
         for i in range(self.num_psc):
-            currents.append(Current(self.I[i]))
+            self.currents[i].set_dofs(self.I[i])
         self.psc_coils = coils_via_symmetries(
-            self.curves, currents, nfp=self.nfp, stellsym=self.stellsym
+            self.curves, self.currents, nfp=self.nfp, stellsym=self.stellsym
         )
         self.B_PSC = BiotSavart(self.psc_coils)
         self.B_PSC.set_points(self.plasma_points)
-        self.currents = np.array(currents)
         self.setup_A_matrix()
         self.Bn_PSC = self.A_matrix @ self.I
         
@@ -766,7 +781,7 @@ class PSCgrid:
         that they represent. Also generates the symmetrized coils.
         """
         from . import CurvePlanarFourier
-        from simsopt.field import apply_symmetries_to_curves, coils_via_symmetries, Current
+        from simsopt.field import apply_symmetries_to_curves
 
         order = 1
         ncoils = self.num_psc
@@ -792,6 +807,32 @@ class PSCgrid:
             curves[ic].set_dofs(dofs)
         self.curves = curves
         self.all_curves = apply_symmetries_to_curves(curves, self.nfp, self.stellsym)
+        
+    def update_curves(self):
+        """ 
+        Convert the (alphas, deltas) angles into the actual circular coils
+        that they represent. Also generates the symmetrized coils.
+        """
+        ncoils = self.num_psc
+        for ic in range(ncoils):
+            alpha2 = self.alphas[ic] / 2.0
+            delta2 = self.deltas[ic] / 2.0
+            calpha2 = np.cos(alpha2)
+            salpha2 = np.sin(alpha2)
+            cdelta2 = np.cos(delta2)
+            sdelta2 = np.sin(delta2)
+            dofs = self.curves[ic].get_dofs()
+            dofs[0] = self.R
+            # Conversion from Euler angles in 3-2-1 body sequence to 
+            # quaternions: 
+            # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+            dofs[3] = calpha2 * cdelta2
+            dofs[4] = salpha2 * cdelta2
+            dofs[5] = calpha2 * sdelta2
+            dofs[6] = -salpha2 * sdelta2
+            # Now specify the center 
+            dofs[7:10] = self.grid_xyz[ic, :]
+            self.curves[ic].set_dofs(dofs)
 
     def plot_curves(self, filename=''):
         """
@@ -897,12 +938,19 @@ class PSCgrid:
 
         """
         self.setup_orientations(kappas[:self.num_psc], kappas[self.num_psc:])
+        self.update_curves()
         self.update_psi()
         self.setup_currents_and_fields()
         Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
+        # print('bs Squared flux from psc array = ', 
+        #       (self.b_opt * self.grid_normalization).T @ (self.b_opt * self.grid_normalization) * self.fac2_norm2)
+        # print('PSC Squared flux from psc array = ', 
+        #       (self.Bn_PSC * self.grid_normalization).T @ (self.Bn_PSC * self.grid_normalization) * self.fac2_norm2)
         BdotN2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
         self.BdotN2_list.append(BdotN2)
         self.normalized_Bn()
+        Bn_check = np.sum(self.B_PSC.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1)
+        # print('Bn1, Bn2 = ', Bn_check, self.Bn_PSC * self.fac)
         return BdotN2
     
     def least_squares_jacobian(self, kappas, verbose=False):
@@ -1081,6 +1129,8 @@ class PSCgrid:
         # Need to check is alphas and deltas are in [-pi, pi] and remap if not
         self.alphas = alphas
         self.deltas = deltas
+        kappas = np.ravel(np.array([self.alphas, self.deltas]))
+        self.kappas = kappas
         
         self.coil_normals = np.array(
             [np.cos(alphas) * np.sin(deltas),
@@ -1134,6 +1184,7 @@ class PSCgrid:
             self.quad_weights
         )
         self.psi = self.psi_total[:self.num_psc]
+        self.B_TF.set_points(self.plasma_points)  # reset the plasma points (update_phi changes them)
         
     def setup_full_grid(self):
         """
@@ -1200,17 +1251,20 @@ class PSCgrid:
         ALinv_dpsi = ALinv @ dpsi_by_dX
         return ALinv_dpsi.T @ (ALinv @ self.psi - self.b_opt) * self.fac2_norm
     
-    def update_TF(self, coils_TF):
+    def update_TF(self, B_TF):
         from simsopt.util import calculate_on_axis_B
 
-        B_TF = BiotSavart(coils_TF)
+        # B_TF = BiotSavart(coils_TF)
         B_axis = calculate_on_axis_B(B_TF, self.plasma_boundary, print_out=False)
         
         # Normalization of the ||A*Linv*psi - b||^2 objective 
         # representing Bnormal errors on the plasma surface
         self.normalization = B_axis ** 2 * self.plasma_boundary.area()
         self.Baxis_A = B_axis * self.plasma_boundary.area()
+        self.fac2_norm = self.fac ** 2 / self.normalization
+        self.fac2_norm2 = self.fac2_norm * 0.5
         self.B_TF = B_TF
+        # self.update_curves()
         self.update_psi()
         self.setup_currents_and_fields()
         self.b_vector()
