@@ -1699,31 +1699,27 @@ Array dB_by_dX_integration(Array& dB_by_dX, Array& rho, Array& normal, Array& in
     int num_coils = dB_by_dX.shape(0);  // shape should be (num_coils, N, Nphi, 3)
     int N = rho.shape(0);  // shape should be (N)
     int Nphi = dB_by_dX.shape(2);
-    Array dPsi_by_dX = xt::zeros<double>({num_coils, 3}); 
+    int ndofs = dB_by_dX.shape(4);
+    Array dPsi_by_dX = xt::zeros<double>({num_coils, ndofs}); 
         
     #pragma omp parallel for schedule(static)
     for(int j = 0; j < num_coils; j++) {
         auto nx = normal(j, 0);
         auto ny = normal(j, 1);
         auto nz = normal(j, 2);
-        double integralx = 0.0;
-        double integraly = 0.0;
-        double integralz = 0.0;
         for(int k = 0; k < N; k++) {
             auto xx = rho(k);
             for(int kk = 0; kk < Nphi; kk++) {
                 auto weight = int_weights(k) * int_weights(kk);
-                auto Bnx = dB_by_dX(j, k, kk, 0, 0) * nx + dB_by_dX(j, k, kk, 0, 1) * ny + dB_by_dX(j, k, kk, 0, 2) * nz; 
-                auto Bny = dB_by_dX(j, k, kk, 1, 0) * nx + dB_by_dX(j, k, kk, 1, 1) * ny + dB_by_dX(j, k, kk, 1, 2) * nz; 
-                auto Bnz = dB_by_dX(j, k, kk, 2, 0) * nx + dB_by_dX(j, k, kk, 2, 1) * ny + dB_by_dX(j, k, kk, 2, 2) * nz; 
-                integralx += Bnx * xx * weight;
-                integraly += Bny * xx * weight;
-                integralz += Bnz * xx * weight;
+                for (int jj; jj < ndofs; jj++) {
+                    auto Bn = dB_by_dX(j, k, kk, jj, 0) * nx + dB_by_dX(j, k, kk, jj, 1) * ny + dB_by_dX(j, k, kk, jj, 2) * nz; 
+//                     integralx += Bnx * xx * weight;
+//                     integraly += Bny * xx * weight;
+//                     integralz += Bnz * xx * weight;
+                    dPsi_by_dX(j, ndofs) += Bn * xx * weight;
+                }
             }
         }
-        dPsi_by_dX(j, 0) = integralx;
-        dPsi_by_dX(j, 1) = integraly;
-        dPsi_by_dX(j, 2) = integralz;
     }
     return dPsi_by_dX * M_PI / 2.0;
 }

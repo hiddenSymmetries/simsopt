@@ -430,6 +430,9 @@ class PSCgrid:
         psc_grid.currents = np.array(currents)
         psc_grid.setup_currents_and_fields()
         psc_grid.setup_curves()
+        # for i in range(psc_grid.num_psc):
+        #     psc_grid.curves[i].fix_all()
+        #     psc_grid.currents[i].fix_all()
         psc_grid.psc_coils = coils_via_symmetries(
             psc_grid.curves, psc_grid.currents, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
         )
@@ -712,6 +715,9 @@ class PSCgrid:
             currents.append(Current(0.0))
         psc_grid.currents = np.array(currents)
         psc_grid.setup_currents_and_fields()
+        # for i in range(psc_grid.num_psc):
+        #     psc_grid.curves[i].fix_all()
+        #     psc_grid.currents[i].fix_all()
         
         from simsopt.field import coils_via_symmetries, Current
         psc_grid.psc_coils = coils_via_symmetries(
@@ -1228,28 +1234,83 @@ class PSCgrid:
         self.deltas_total = contig(self.deltas_total)
         self.coil_normals_all = contig(self.coil_normals_all)
         
-    def grad_TF(self):
-        ALinv = (self.grid_normalization[:, None] * self.A_matrix) @ self.L_inv[:self.num_psc, :self.num_psc]
-        flux_grid = sopp.flux_xyz(
-            contig(self.grid_xyz_all), 
-            contig(self.alphas_total),
-            contig(self.deltas_total), 
-            contig(self.quad_points_rho), 
-            contig(self.quad_points_phi), 
-        )
-        self.flux_grid = np.array(flux_grid).reshape(-1, 3)
-        self.B_TF.set_points(contig(self.flux_grid))
-        N = len(self.quad_points_rho)
-        # integrate dB/dX over the loop
-        dpsi_by_dX = sopp.dB_by_dX_integration(
-            contig(self.B_TF.dB_by_dX().reshape(len(self.alphas_total), N, N, 3, 3)),
-            contig(self.quad_points_rho),
-            contig(self.coil_normals_all),
-            self.quad_weights
-        )
-        dpsi_by_dX = dpsi_by_dX[:self.num_psc, :]  # @ dX_by_dFourier
-        ALinv_dpsi = ALinv @ dpsi_by_dX
-        return ALinv_dpsi.T @ (ALinv @ self.psi - self.b_opt) * self.fac2_norm
+    def grad_TF(self, JF):  # , JF):
+        # Just return a finite difference estimate for now!
+        print(JF.dof_names)
+        dofs = JF.x
+        h = np.random.uniform(size=dofs.shape)
+        orig_dof = []
+        eps = 1e-4
+        x1 = dofs + eps*h
+        x2 = dofs - eps*h
+        for i in range(len(dofs)):
+            name_i = JF.dof_names[i]
+            for j in range(len(self.B_TF._coils)):
+                cj = self.B_TF._coils[j]
+                for k in range(len(cj.dof_names)):
+                    orig_dof.append(cj.x[k])
+                    name_k = cj.dof_names[k]
+                    print(cj._names)
+                    if name_i == name_k:
+                        self.B_TF._coils[j].set(name_k, x1[i])
+        self.update_TF(self.B_TF)
+        Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
+        fB1 = (Ax_b.T @ Ax_b) * self.fac2_norm2
+        
+        for i in range(len(dofs)):
+            name_i = JF.dof_names[i]
+            for j in range(len(self.B_TF._coils)):
+                cj = self.B_TF._coils[j]
+                for k in range(len(cj.dof_names)):
+                    name_k = cj.dof_names[k]
+                    if name_i == name_k:
+                        self.B_TF._coils[j].set(cj.local_dof_names[k], x2[i])
+        self.update_TF(self.B_TF)
+        Ax_b = (self.Bn_PSC + self.b_opt) * self.grid_normalization
+        fB2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
+        
+        # Refix things
+        for i in range(len(dofs)):
+            name_i = JF.dof_names[i]
+            for j in range(len(self.B_TF._coils)):
+                cj = self.B_TF._coils[j]
+                for k in range(len(cj.dof_names)):
+                    name_k = cj.dof_names[k]
+                    if name_i == name_k:
+                        self.B_TF._coils[j].set(cj.local_dof_names[k], orig_dof[k])
+                cj.fix_all()
+        self.update_TF(self.B_TF)
+        
+        # Note b_opt doesn't get updated when you do this! Only changes the fluxes in the PSCs
+        return (fB1 - fB2) / (2 * eps)
+        
+        # ALinv = (self.grid_normalization[:, None] * self.A_matrix) @ self.L_inv[:self.num_psc, :self.num_psc]
+        # flux_grid = sopp.flux_xyz(
+        #     contig(self.grid_xyz_all), 
+        #     contig(self.alphas_total),
+        #     contig(self.deltas_total), 
+        #     contig(self.quad_points_rho), 
+        #     contig(self.quad_points_phi), 
+        # )
+        # self.flux_grid = np.array(flux_grid).reshape(-1, 3)
+        # self.B_TF.set_points(contig(self.flux_grid))
+        # N = len(self.quad_points_rho)
+        # dB_by_dX = self.B_TF.dB_by_dX()  #.reshape(len(self.alphas_total), N, N, 3, 3)
+        # dB_by_dFourier = np.zeros((dB_by_dX.shape[0], len(JF.x), 3))
+        # for i in range(dB_by_dX.shape[0]):
+        #     for j in range(3):
+        #         dB_by_dFourier[i, :, j] = self.B_TF.B_vjp(dB_by_dX[i, :, j])(JF)
+        # # integrate dB/dX over the loop
+        # dpsi_by_dX = sopp.dB_by_dX_integration(
+        #     contig(dB_by_dFourier.reshape(len(self.alphas_total), N, N, -1, 3)),
+        #     contig(self.quad_points_rho),
+        #     contig(self.coil_normals_all),
+        #     self.quad_weights
+        # )
+        # dpsi_by_dX = dpsi_by_dX[:self.num_psc, :]  # @ dX_by_dFourier
+        # ALinv_dpsi = ALinv @ dpsi_by_dX
+        # self.B_TF.set_points(self.plasma_points)
+        # return ALinv_dpsi.T @ (ALinv @ self.psi - self.b_opt) * self.fac2_norm
     
     def update_TF(self, B_TF):
         from simsopt.util import calculate_on_axis_B

@@ -298,7 +298,7 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 # Actually do the minimization now
 print('beginning optimization: ')
 epsilons = 0.0174533 * np.arange(1, 62, 4)
-# eps = 0.0872665 * 4  # 15 degrees 
+# eps = 0.0872665 * 3  # 15 degrees 
 options = {"disp": True, "maxiter": 120}  # 100
 verbose = True
 
