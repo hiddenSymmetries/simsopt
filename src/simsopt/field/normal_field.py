@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from .._core.optimizable import DOFs, Optimizable
+from simsopt.geo import SurfaceRZFourier
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,6 @@ class NormalField(Optimizable):
             vnc = np.zeros((self.mpol + 1, 2 * self.ntor + 1))
         
         if surface is None:
-            from simsopt.geo import SurfaceRZFourier
             surface = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor)
             surface.fix_all()
         self.surface = surface
@@ -106,7 +106,6 @@ class NormalField(Optimizable):
         if py_spec is None:
             raise RuntimeError(
                 "Initialization from Spec requires py_spec to be installed.")
-        from simsopt.geo import SurfaceRZFourier
 
         # Read Namelist
         nm = py_spec.SPECNamelist(filename)
