@@ -758,7 +758,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
 
         # Test that all other elements are close to zero
         sines_mask = np.ones_like(ft_sines, dtype=bool)
-        cosines_mask = sines_mask
+        cosines_mask = np.copy(sines_mask)
         sines_mask[2, 3 + s.ntor] = False
         sines_mask[4, 5 + s.ntor] = False
         cosines_mask[3, 3 + s.ntor] = False
