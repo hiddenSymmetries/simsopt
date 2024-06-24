@@ -90,6 +90,11 @@ def get_boozer_surface(label="Volume", nphi=None, ntheta=None, boozer_type='exac
     current_sum = sum(abs(c.current.get_value()) for c in coils)
     G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi)) if optimize_G else None
 
+    # currents need to be fixed if optimize_G is None
+    if optimize_G is False:
+        for c in bs.coils:
+            c.current.fix_all()
+
     ## RESOLUTION DETAILS OF SURFACE ON WHICH WE OPTIMIZE FOR QA
     mpol = 6 if boozer_type == 'exact' else 3
     ntor = 6 if boozer_type == 'exact' else 3
