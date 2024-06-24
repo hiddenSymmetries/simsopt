@@ -8,6 +8,7 @@ This module provides a class that handles the SPEC equilibrium code.
 import copy
 import logging
 import os.path
+import shutil, os
 import traceback
 from typing import Optional
 from scipy.constants import mu_0
@@ -259,7 +260,6 @@ class Spec(Optimizable):
             copy_to_pwd: boolean, if True, the default input file will be copied to the current working directory. Has to be set True as free-boundary SPEC can only handle files in the current working directory.
             verbose: boolean, if True, print statements will be printed
         """
-        import shutil, os
         filename = 'defaults_freebound.sp'
         if verbose: 
             print(f'Copying {os.path.join(os.path.dirname(__file__), filename)} to {os.getcwd()}/{filename}')

@@ -2,8 +2,11 @@ import logging
 import os
 import unittest
 
+
 import numpy as np
 from monty.tempfile import ScratchDir
+from scipy.constants import mu_0
+from simsopt._core.util import ObjectiveFailure
 
 try:
     import spec as spec_mod
@@ -236,8 +239,6 @@ class SpecTests(unittest.TestCase):
         test the default freeboundary file, and re-set if Picard
         iteration fails
         """
-        from simsopt._core.util import ObjectiveFailure
-
         with ScratchDir("."):
             s = Spec.default_freeboundary(copy_to_pwd=True)
             startingboundary = np.copy(s.inputlist.bns) 
@@ -281,7 +282,6 @@ class SpecTests(unittest.TestCase):
         """
         Test the poloidal current in amperes
         """
-        from scipy.constants import mu_0
         filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
         s = Spec(filename)
         self.assertAlmostEqual(s.poloidal_current_amperes, s.inputlist.curpol/mu_0)
