@@ -365,15 +365,22 @@ class BoozerSurfaceTests(unittest.TestCase):
         # this second time should not actually run
         boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
         
+        for c in bs.coils:
+            c.current.fix_all()
+
+        boozer_surface.need_to_run_code=True
+        # run without providing value of G
+        boozer_surface.run_code(boozer_surface.res['iota'])
+
         bs, boozer_surface = get_boozer_surface(boozer_type='exact')
         boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
         
         # this second time should not actually run
         boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
-       
-        boozer_surface.need_to_run_code=True
-        # run without providing value of G
-        boozer_surface.run_code(boozer_surface.res['iota'])
+        
+        # run the BoozerExact algorithm without a guess for G
+        boozer_surface.need_to_run_code = True
+        boozer_surface.solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
         
     def test_convergence_cpp_and_notcpp_same(self):
         """
