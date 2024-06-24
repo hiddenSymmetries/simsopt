@@ -17,6 +17,6 @@ from numpy.typing import NDArray
 RealArray = Union[Sequence[Real], NDArray[np.double]]
 IntArray = Union[Sequence[Integral], NDArray[np.int_]]
 StrArray = Sequence[str]
-BoolArray = Union[Sequence[bool], NDArray[np.bool]]
+BoolArray = Union[Sequence[bool], NDArray[bool]]
 Key = Union[Integral, str]
 
