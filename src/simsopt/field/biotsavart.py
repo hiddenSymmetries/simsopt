@@ -116,6 +116,9 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
                                    res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
+        print(np.shape(dB_by_dcoilcurrents), np.shape(dB_by_dcoilcurrents[0]))
+        # print('check = ', [coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+        # exit()
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
     def dA_by_dcoilcurrents(self, compute_derivatives=0):

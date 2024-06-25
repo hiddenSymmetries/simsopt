@@ -29,7 +29,7 @@ from simsopt.util.permanent_magnet_helper_functions import *
 import time
 import shutil
 
-def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=1000, jac_flag=True, LENGTH_WEIGHT=2):
+def coil_optimization_QA(s, bs, base_curves, curves):
     """
     Optimize the coils for the Landreman-Paul QA configuration.
 
@@ -49,16 +49,8 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
     from simsopt.geo import CurveLength, CurveCurveDistance, \
         MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance
     from simsopt.objectives import QuadraticPenalty
-    
-    BdotN2_list = []
-    Bn_list = []
-    # try:
-    #     grid = grid_xyz_copy 
-    # except:
-    #     grid = grid_xyz
-    # if psc_array is not None:
-        # B_PSC = BiotSavart(psc_array.psc_coils)
-        # B_PSC.set_points(s.gamma().reshape(-1, 3))
+
+    MAXITER = 1000
     Nnorms = np.sqrt(np.sum(s.normal() ** 2, axis=-1))
 
     nphi = len(s.quadpoints_phi)
@@ -66,7 +58,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
     ncoils = len(base_curves)
 
     # Weight on the curve lengths in the objective function:
-    # LENGTH_WEIGHT = 2
+    LENGTH_WEIGHT = 2
 
     # Threshold and weight for the coil-to-coil distance penalty in the objective function:
     CC_THRESHOLD = 1.5
@@ -84,134 +76,29 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
     MSC_THRESHOLD = 0.1
     MSC_WEIGHT = 1e-5
 
-    # Define the objective function:
-    # else:
-        # psc_array.setup_curves()
-        # currents = []
-        # for i in range(psc_array.num_psc):
-        #     currents.append(Current(psc_array.I[i]))
-        # all_coils = coils_via_symmetries(
-        #     psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym
-        # )
-        # b_psc = BiotSavart(all_coils)
-        # Jf = SquaredFlux(s, bs + b_psc)
-        # kwargs_manual = {
-        #                  "out_dir": out_str, 
-        #                  "plasma_boundary" : s,
-        #                  "coils_TF" : coils
-        #                  }
     Jls = [CurveLength(c) for c in base_curves]
     Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
     Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
     Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
-    if psc_array is None:
-        Jf = SquaredFlux(s, bs)
-        # Form the total objective function. Dropped Jf, be careful!
-        JF = Jf + LENGTH_WEIGHT * sum(Jls) \
-            + CC_WEIGHT * Jccdist \
-            + CS_WEIGHT * Jcsdist \
-            + CURVATURE_WEIGHT * sum(Jcs) \
-            + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
-    else:
-        # base_currents = [Current(0.0) for _ in range(ncoils)]
-        # coils_dummy = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-        # b_dummy = BiotSavart(coils_dummy)
-        # Btot = bs + psc_array.B_PSC
-        # Btot.set_points(s.gamma().reshape(-1, 3))
-        # Jf = SquaredFlux(s, Btot)
-        # Jf = SquaredFlux(s, Btot) 
-        # Jf = SquaredFlux(s, b_dummy)
-        JF = LENGTH_WEIGHT * sum(Jls) \
-            + CC_WEIGHT * Jccdist \
-            + CS_WEIGHT * Jcsdist \
-            # + CURVATURE_WEIGHT * sum(Jcs) \
-            # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
+    Jf = SquaredFlux(s, bs)
+    JF = Jf + LENGTH_WEIGHT * sum(Jls) \
+        + CC_WEIGHT * Jccdist \
+        + CS_WEIGHT * Jcsdist \
+        + CURVATURE_WEIGHT * sum(Jcs) \
+        + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs)
 
     def fun(dofs):
         """ Function for coil optimization grabbed from stage_two_optimization.py """
         JF.x = dofs
         J = JF.J()
         grad = JF.dJ()
-        if psc_array is None:
-            BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-            B_axis = calculate_on_axis_B(bs, s, print_out=False)
-            bs.set_points(s.gamma().reshape(-1, 3))
-            jf = Jf.J() / (B_axis ** 2 * s.area())
-            outstr = f"J={J:.3e}, Jf={jf:.3e}, ⟨B·n⟩={BdotN:.3e}"
-        else:
-            # coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-            psc_array.update_TF(bs)
-            # print('currents = ', [coil._current.get_value() for coil in psc_array.B_PSC._coils])
-            # print(psc_array.kappas)
-            # Bn2 = psc_array.least_squares(psc_array.kappas)
-            # Bn_check = np.sum(psc_array.B_PSC.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=2)
-            # print('Bn_check = ', Bn_check)
-            # print('Bn2 psc = ', Bn2)
-            # all_coils = coils_via_symmetries(
-            #     psc_array.curves, psc_array.currents, nfp=s.nfp, stellsym=s.stellsym
-            # )
-            # B_PSC = BiotSavart(all_coils)
-            # B_PSC.set_points(s.gamma().reshape(-1, 3))
-            # print(np.mean(np.abs(psc_array.B_PSC.B())), psc_array.alphas, psc_array.deltas)
-            
-            #################### Add PSC contribution to fB 
-            # jf = SquaredFlux(s, bs + B_PSC).J()
-            
-            # Add Bn2 contribution from PSCs
-            # J += SquaredFlux(s, B_PSC).J()
-            # Add cross term between PSCs and TF coils
-            # Bn_PSC = np.sum(B_PSC.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-            # Bn_TF = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-            # cross_term = np.sum(np.sum(Bn_TF * Bn_PSC * Nnorms)
-            #                 ) / (len(s.quadpoints_phi) * len(s.quadpoints_theta)) 
-            # jf = SquaredFlux(s, bs).J() + SquaredFlux(s, B_PSC).J() + cross_term
-            # jf = Jf.J()
-            # print('diff = ', jf - SquaredFlux(s, bs).J())
-            # J += cross_term
-            # print(JF)
-            # JF -= SquaredFlux(s, bs).J()
-            # JF += SquaredFlux(s, bs + B_PSC).J()
-            # print(Jf.J(), SquaredFlux(s, B_PSC).J(), np.sum(np.sum(Bn_TF * Bn_PSC * Nnorms)
-            #                 ) / (len(s.quadpoints_phi) * len(s.quadpoints_theta)) )
-            
-            # Add PSC contribution to grad
-            # grad += SquaredFlux(s, bs + B_PSC).dJ()
-            # Get rid of the pure B_TF gradient?
-            # grad -= SquaredFlux(s, bs).dJ() 
-            # Add in the gradient from the PSC part
-            # print(bs.dofs, dofs)
-            Btot1 = bs + psc_array.B_PSC
-            # JF_new = JF + SquaredFlux(s, bs)
-            # grad = JF_new.dJ()
-            
-            #######################
-            # grad += psc_array.grad_TF(JF)
-            
-            # grad += bs.B_vjp(psc_array.grad_TF())(JF)  # Almost certainly wrong! 
-            BdotN = np.sum(np.abs(np.sum((bs.B() + psc_array.B_PSC.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2) * Nnorms)
-                            ) / (len(s.quadpoints_phi) * len(s.quadpoints_theta)) 
-            B_axis = calculate_on_axis_B(bs, s, print_out=False)
-            bs.set_points(s.gamma().reshape(-1, 3))
-            f_B = 0.5 * np.sum(np.sum((bs.B() + psc_array.B_PSC.B()).reshape(nphi, ntheta, 3) * s.unitnormal(), axis=2) ** 2 * Nnorms
-                            ) / (len(s.quadpoints_phi) * len(s.quadpoints_theta)) 
-            # print('f_B check = ', f_B / (B_axis ** 2 * s.area()))
-            Btot1.set_points(s.gamma().reshape(-1, 3))
-            # print(bs.B().shape, psc_array.B_PSC.B().shape, Btot1.B().shape)
-            f_B = 0.5 * np.sum(np.sum((Btot1.B()).reshape(nphi, ntheta, 3) * s.unitnormal(), axis=2) ** 2 * Nnorms
-                            ) / (len(s.quadpoints_phi) * len(s.quadpoints_theta)) 
-            jf = f_B # * 10
-            J += jf 
-            # jf = Jf.J()
-            Jfnormed = jf / (B_axis ** 2 * s.area())  # / 10.0
-            Bnnormed = BdotN / (B_axis * s.area())
-            BdotN2_list.append(Jfnormed)
-            Bn_list.append(Bnnormed)
-            # print('f_B check2 = ', f_B / (B_axis ** 2 * s.area()))
-            # print('bs Squared Flux = ', SquaredFlux(s, bs).J() / (B_axis ** 2 * s.area()))
-            # print('PSC Squared Flux = ', SquaredFlux(s, psc_array.B_PSC).J() / (B_axis ** 2 * s.area()))
-            outstr = f"J={J:.3e}, Jf={jf:.3e}, Jfnormed={Jfnormed:.3e}, ⟨B·n⟩={Bnnormed:.3e}"
+        BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+        B_axis = calculate_on_axis_B(bs, s, print_out=False)
+        bs.set_points(s.gamma().reshape(-1, 3))
+        jf = Jf.J() / (B_axis ** 2 * s.area())
+        outstr = f"J={J:.3e}, Jf={jf:.3e}, ⟨B·n⟩={BdotN:.3e}"
         cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
         kap_string = ", ".join(f"{np.max(c.kappa()):.3f}" for c in base_curves)
         msc_string = ", ".join(f"{J.J():.3f}" for J in Jmscs)
@@ -219,10 +106,7 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
         outstr += f", C-C-Sep={Jccdist.shortest_distance():.3f}, C-S-Sep={Jcsdist.shortest_distance():.3f}"
         outstr += f", ║∇J║={np.linalg.norm(grad):.3e}"
         print(outstr)
-        if jac_flag:
-            return J, grad
-        else:
-            return J
+        return J, grad
 
     # print("""
     # ################################################################################
@@ -239,18 +123,14 @@ def coil_optimization_QA(s, bs, base_curves, curves, psc_array=None, MAXITER=100
     #     J1, _ = f(dofs + eps*h)
     #     J2, _ = f(dofs - eps*h)
     #     print("err", (J1-J2)/(2*eps) - dJh)
-
     print("""
     ################################################################################
     ### Run the optimisation #######################################################
     ################################################################################
     """)
-    if jac_flag:
-        minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 100}, tol=1e-6)
-    else:
-        minimize(fun, dofs, jac=False, method='L-BFGS-B', options={'maxiter': MAXITER}, tol=1e-6)
+    minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 100}, tol=1e-6)
     bs.set_points(s.gamma().reshape((-1, 3)))
-    return bs, BdotN2_list, Bn_list, psc_array
+    return bs
 
 
 def coil_optimization_PSC(s, bs, bpsc):
@@ -337,8 +217,28 @@ def coil_optimization_PSC(s, bs, bpsc):
     def fun(dofs):
         """ Function for coil optimization grabbed from stage_two_optimization.py """
         JF.x = dofs
+        # print(JF.dof_names)
+        # Get the dofs for the PSCs, convert to alphas and deltas, and update the coils
+        dofs = dofs.reshape(-1, 4)
+        dofs = (dofs.T / np.sqrt(np.sum(dofs ** 2, axis=-1))).T  # normalize the quaternion
+        alphas = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+                            1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+        deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
+            np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+            np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+        # print('a, d = ', np.max(np.abs(alphas)), np.max(np.abs(deltas)))
+        pscs = bpsc._coils[0]._psc_array
+        pscs.setup_orientations(alphas, deltas)
+        pscs.update_curves()
+        pscs.update_psi()
+        pscs.setup_currents_and_fields()
+        pscs.psi_deriv()
+        # print('a1, a2 = ', pscs.alphas, bpsc._coils[-1]._psc_array.I, bpsc._coils[-1]._psc_array.dpsi)
+        # exit()
+        
         J = JF.J()
         grad = JF.dJ()
+        print('grad = ', grad, grad.shape)
         # print('Jf names = ', Jf.dof_names)
         # print(psc_array.B_PSC.B(), dofs, psc_array.B_PSC.dof_names, 
               # len(dofs), len(psc_array.B_PSC.dof_names))
@@ -464,7 +364,7 @@ def coil_optimization_PSC(s, bs, bpsc):
     ### Run the optimisation #######################################################
     ################################################################################
     """)
-    MAXITER = 10
+    MAXITER = 100
     # eps = 1e-6
     # opt_bounds = tuple([(-1.0 + eps, 1.0 - eps) for i in range(psc_array.num_psc)])
     # opt_bounds = np.vstack((opt_bounds, opt_bounds, opt_bounds, opt_bounds))
@@ -562,6 +462,7 @@ def initialize_coils_qa():
     for i in range(ncoils):
         base_curves[i].fix_all()
         base_currents[i].fix_all()
+        
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
     curves_to_vtk(curves, out_dir / "curves_init")
@@ -593,7 +494,7 @@ s_plot.save(filename=out_dir / 'plasma_boundary.json')
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
 # optimize the currents in the TF coils and plot results
-# bs, _, _, _ = coil_optimization_QA(s, bs, base_curves, curves, LENGTH_WEIGHT=0.5)
+# bs = coil_optimization_QA(s, bs, base_curves, curves)
 # bs.save('B_TF.json')
 currents = np.array([coil.current.get_value() for coil in coils])
 curves_to_vtk(curves, out_dir / "TF_0", close=True)
@@ -603,7 +504,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "BTF_0", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 10, "out_dir": out_str,
+kwargs_geo = {"Nx": 8, "out_dir": out_str,
                 "initialization": "plasma", 
               "poff": poff,}
               # "interpolated_field": True} 
@@ -635,7 +536,7 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
 # Actually do the minimization now
 print('beginning optimization: ')
-options = {"disp": True, "maxiter": 2}  # 100
+options = {"disp": True, "maxiter": 10}  # 100
 verbose = True
 
 # Run STLSQ with BFGS in the loop
@@ -723,9 +624,9 @@ for k in range(STLSQ_max_iters):
     psc_array.plot_curves('final_')
     currents = []
     for i in range(psc_array.num_psc):
-        currents.append(Current(psc_array.I[i]))
+        currents.append(Current(psc_array.I[i] * 1e-5) * 1e5)
     all_coils = psc_coils_via_symmetries(
-        psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym, bs=bs, psc_array=psc_array
+        psc_array.curves, currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym, psc_array=psc_array
     )
     bpsc = BiotSavart(all_coils)
     coil_optimization_PSC(s, bs, bpsc)

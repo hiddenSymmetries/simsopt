@@ -371,8 +371,8 @@ class PSCgrid:
         initialization = kwargs.pop("initialization", "zeros")
         if initialization == "random":
             # Randomly initialize the coil orientations
-            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * np.pi
-            psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
+            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
+            psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * np.pi
             psc_grid.coil_normals = np.array(
                 [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
                   -np.sin(psc_grid.alphas),
@@ -690,11 +690,11 @@ class PSCgrid:
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
         psc_grid.alphas = kwargs.pop("alphas", 
                                      (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * np.pi
+                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
         )
         psc_grid.deltas = kwargs.pop("deltas", 
                                      (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
+                                         psc_grid.num_psc) - 0.5) * np.pi
         )
         ## Need to remove bad elements from alphas and deltas too!
         psc_grid.alphas = psc_grid.alphas[final_inds]
@@ -1043,10 +1043,10 @@ class PSCgrid:
         grad_alpha1 = A_deriv[:, :self.num_psc] * self.I
         grad_delta1 = A_deriv[:, self.num_psc:] * self.I
         grad_kappa1 = self.grid_normalization[:, None] * np.hstack((grad_alpha1, grad_delta1)) 
-        psi_deriv = self.psi_deriv()
+        self.psi_deriv()
         Linv = self.L_inv[:self.num_psc, :self.num_psc]
-        I_deriv2 = -Linv * psi_deriv[:self.num_psc]
-        I_deriv3 = -Linv * psi_deriv[self.num_psc:]
+        I_deriv2 = -Linv * self.dpsi[:self.num_psc]
+        I_deriv3 = -Linv * self.dpsi[self.num_psc:]
         grad_alpha3 = self.A_matrix @ I_deriv2
         grad_delta3 = self.A_matrix @ I_deriv3
         grad_kappa3 = self.grid_normalization[:, None] * np.hstack((grad_alpha3, grad_delta3))
@@ -1155,7 +1155,7 @@ class PSCgrid:
                 psi_deriv[:nn] += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
                 psi_deriv[nn:] += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 q += 1
-        return psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)  # Factors because TF fields get overcounted
+        self.dpsi = psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)  # Factors because TF fields get overcounted
     
     def setup_orientations(self, alphas, deltas):
         """
@@ -1400,8 +1400,16 @@ class PSCgrid:
         print(dofs, np.sqrt(dofs[:, 0] ** 2 + dofs[:, 2] ** 2))
         # dofs[6] is duplicate and not needed
         # print(dofs)
-        alphas = 2.0 * np.arcsin(np.sqrt(dofs[:, 1] ** 2 + dofs[:, 3] ** 2))
-        deltas = 2.0 * np.arccos(np.sqrt(dofs[:, 0] ** 2 + dofs[:, 1] ** 2))
+        # Normalize the quaternion
+        dofs = dofs / np.sqrt(np.sum(dofs ** 2, axis=-1))
+        alphas = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+                            1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+        deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
+            np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+            np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+        print('a, d = ', alphas, deltas)
+        # alphas = 2.0 * np.arcsin(np.sqrt(dofs[:, 1] ** 2 + dofs[:, 3] ** 2))
+        # deltas = 2.0 * np.arccos(np.sqrt(dofs[:, 0] ** 2 + dofs[:, 1] ** 2))
         # print('a, d = ', alphas, deltas)
         self.setup_orientations(alphas, deltas)
         self.update_curves()
