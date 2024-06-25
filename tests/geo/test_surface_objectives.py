@@ -337,18 +337,23 @@ class NonQSRatioTests(unittest.TestCase):
             for label in ["Volume", "ToroidalFlux"]:
                 for weight_inv_modB in [True, False]:
                     for optimize_G in [True, False]:
-                        if boozer_type == 'ls' and label == 'ToroidalFlux':
-                           continue
-                        if boozer_type == 'exact' and optimize_G is False:
-                            continue
-                        if boozer_type == 'exact' and weight_inv_modB:
-                            continue
-                        for axis in [False, True]:
-                            with self.subTest(label=label, axis=axis, boozer_type=boozer_type, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB):
-                                self.subtest_nonQSratio_derivative(label, axis, boozer_type, optimize_G, weight_inv_modB)
+                        for fix_coil_dof in [True, False]:
+                            if boozer_type == 'ls' and label == 'ToroidalFlux':
+                               continue
+                            if boozer_type == 'exact' and optimize_G is False:
+                                continue
+                            if boozer_type == 'exact' and weight_inv_modB:
+                                continue
+                            for axis in [False, True]:
+                                with self.subTest(label=label, axis=axis, boozer_type=boozer_type, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB, fix_coil_dof=fix_coil_dof):
+                                    self.subtest_nonQSratio_derivative(label, axis, boozer_type, optimize_G, weight_inv_modB, fix_coil_dof)
 
-    def subtest_nonQSratio_derivative(self, label, axis, boozer_type, optimize_G, weight_inv_modB):
+    def subtest_nonQSratio_derivative(self, label, axis, boozer_type, optimize_G, weight_inv_modB, fix_coil_dof):
         bs, boozer_surface = get_boozer_surface(label=label, boozer_type=boozer_type, optimize_G=optimize_G, weight_inv_modB=weight_inv_modB)
+        
+        if fix_coil_dof:
+            bs.coils[0].curve.fix('xc(0)')
+        
         coeffs = bs.x
         io = NonQuasiSymmetricRatio(boozer_surface, bs, quasi_poloidal=axis)
 
