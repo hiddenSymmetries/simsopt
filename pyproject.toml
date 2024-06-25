@@ -52,7 +52,7 @@ keywords = [
     "magnetostatics"
 ]
 dependencies = [
-    "numpy>=1.21,<2.0.0",
+    "numpy>=1.21",
     "jax>=0.2.5",
     "jaxlib>=0.1.56",
     "scipy>=1.5.4",
