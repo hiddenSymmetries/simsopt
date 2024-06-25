@@ -2,7 +2,8 @@
 requires = [
   "scikit-build-core>=0.3.3",
   "pybind11",
-  "numpy>=2.0",
+  "oldest-supported-numpy; python_version=='3.8'",
+  "numpy>=2.0.0; python_version>='3.9'",
   "setuptools_scm>=8.0",
   'tomli; python_version < "3.11"',]
 build-backend = "scikit_build_core.build"
