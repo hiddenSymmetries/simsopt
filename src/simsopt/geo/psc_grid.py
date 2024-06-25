@@ -424,15 +424,24 @@ class PSCgrid:
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
 
-        currents = []
+        psc_grid.currents = []
         for i in range(psc_grid.num_psc):
-            currents.append(Current(0.0))
-        psc_grid.currents = np.array(currents)
-        psc_grid.setup_currents_and_fields()
+            psc_grid.currents.append(Current(0.0))
+        # psc_grid.currents = np.array(psc_grid.currents)
         psc_grid.setup_curves()
-        # for i in range(psc_grid.num_psc):
-        #     psc_grid.curves[i].fix_all()
-        #     psc_grid.currents[i].fix_all()
+        psc_grid.setup_currents_and_fields()
+        for i in range(psc_grid.num_psc):
+            psc_grid.currents[i].fix_all()
+            names_i = psc_grid.curves[i].local_dof_names
+            psc_grid.curves[i].fix(names_i[0])
+            psc_grid.curves[i].fix(names_i[1])
+            psc_grid.curves[i].fix(names_i[2])
+            
+            # Fix the center point for now
+            psc_grid.curves[i].fix(names_i[7])
+            psc_grid.curves[i].fix(names_i[8])
+            psc_grid.curves[i].fix(names_i[9])
+            
         psc_grid.psc_coils = coils_via_symmetries(
             psc_grid.curves, psc_grid.currents, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
         )
@@ -710,18 +719,30 @@ class PSCgrid:
         psc_grid.update_alphas_deltas()
         psc_grid.setup_orientations(psc_grid.alphas, psc_grid.deltas)
         psc_grid.update_psi()
-        currents = []
+        psc_grid.currents = []
         for i in range(psc_grid.num_psc):
-            currents.append(Current(0.0))
-        psc_grid.currents = np.array(currents)
+            psc_grid.currents.append(Current(0.0))
+        # psc_grid.currents = np.array(psc_grid.currents)
+        psc_grid.setup_curves()
         psc_grid.setup_currents_and_fields()
-        # for i in range(psc_grid.num_psc):
-        #     psc_grid.curves[i].fix_all()
-        #     psc_grid.currents[i].fix_all()
+        for i in range(psc_grid.num_psc):
+            psc_grid.currents[i].fix_all()
+            names_i = psc_grid.curves[i].local_dof_names
+            psc_grid.curves[i].fix(names_i[0])
+            psc_grid.curves[i].fix(names_i[1])
+            psc_grid.curves[i].fix(names_i[2])
+            
+            # Fix the center point for now
+            psc_grid.curves[i].fix(names_i[7])
+            psc_grid.curves[i].fix(names_i[8])
+            psc_grid.curves[i].fix(names_i[9])
         
         from simsopt.field import coils_via_symmetries, Current
         psc_grid.psc_coils = coils_via_symmetries(
-            psc_grid.curves, psc_grid.currents, nfp=psc_grid.nfp, stellsym=psc_grid.stellsym
+            psc_grid.curves, 
+            psc_grid.currents, 
+            nfp=psc_grid.nfp, 
+            stellsym=psc_grid.stellsym
         )
         psc_grid.B_PSC = BiotSavart(psc_grid.psc_coils)
         psc_grid.B_PSC.set_points(psc_grid.plasma_points)
@@ -751,14 +772,16 @@ class PSCgrid:
         
         self.L_inv = np.linalg.inv(self.L)
         self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
-        self.setup_curves()
-        for i in range(self.num_psc):
-            self.currents[i].set_dofs(self.I[i])
-        self.psc_coils = coils_via_symmetries(
-            self.curves, self.currents, nfp=self.nfp, stellsym=self.stellsym
-        )
-        self.B_PSC = BiotSavart(self.psc_coils)
-        self.B_PSC.set_points(self.plasma_points)
+        # self.setup_curves()
+        for i, current in enumerate(self.currents):
+            current.unfix_all()
+            current.set('x0', self.I[i])
+            current.fix_all()
+        # self.psc_coils = coils_via_symmetries(
+        #     self.curves, self.currents, nfp=self.nfp, stellsym=self.stellsym
+        # )
+        # self.B_PSC = BiotSavart(self.psc_coils)
+        # self.B_PSC.set_points(self.plasma_points)
         self.setup_A_matrix()
         self.Bn_PSC = self.A_matrix @ self.I
         
@@ -791,7 +814,7 @@ class PSCgrid:
 
         order = 1
         ncoils = self.num_psc
-        curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
+        self.curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
         for ic in range(ncoils):
             alpha2 = self.alphas[ic] / 2.0
             delta2 = self.deltas[ic] / 2.0
@@ -810,9 +833,17 @@ class PSCgrid:
             dofs[6] = -salpha2 * sdelta2
             # Now specify the center 
             dofs[7:10] = self.grid_xyz[ic, :]
-            curves[ic].set_dofs(dofs)
-        self.curves = curves
-        self.all_curves = apply_symmetries_to_curves(curves, self.nfp, self.stellsym)
+            self.curves[ic].set_dofs(dofs)
+            # names_i = self.curves[ic].local_dof_names
+            # self.curves[ic].fix(names_i[0])
+            # self.curves[ic].fix(names_i[0])
+            # self.curves[ic].fix(names_i[0])
+            
+            # # Fix the center point for now
+            # self.curves[ic].fix(names_i[4])
+            # self.curves[ic].fix(names_i[4])
+            # self.curves[ic].fix(names_i[4])
+        self.all_curves = apply_symmetries_to_curves(self.curves, self.nfp, self.stellsym)
         
     def update_curves(self):
         """ 
@@ -827,18 +858,32 @@ class PSCgrid:
             salpha2 = np.sin(alpha2)
             cdelta2 = np.cos(delta2)
             sdelta2 = np.sin(delta2)
+            # print(ic, self.curves[ic].get_dofs())
             dofs = self.curves[ic].get_dofs()
-            dofs[0] = self.R
-            # Conversion from Euler angles in 3-2-1 body sequence to 
-            # quaternions: 
-            # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+            # dofs[0] = self.R
             dofs[3] = calpha2 * cdelta2
             dofs[4] = salpha2 * cdelta2
             dofs[5] = calpha2 * sdelta2
             dofs[6] = -salpha2 * sdelta2
+            # self.curves[ic].unfix_all()
+            # self.curves[ic].set_dofs(dofs)
+            self.curves[ic].set('x3', dofs[3])
+            self.curves[ic].set('x4', dofs[4])
+            self.curves[ic].set('x5', dofs[5])
+            self.curves[ic].set('x6', dofs[6])
+            # names_i = self.curves[ic].local_dof_names
+            # self.curves[ic].fix(names_i[0])
+            # self.curves[ic].fix(names_i[1])
+            # self.curves[ic].fix(names_i[2])
+            
+            # # Fix the center point for now
+            # self.curves[ic].fix(names_i[7])
+            # self.curves[ic].fix(names_i[8])
+            # self.curves[ic].fix(names_i[9])
             # Now specify the center 
-            dofs[7:10] = self.grid_xyz[ic, :]
-            self.curves[ic].set_dofs(dofs)
+            # dofs[7:10] = self.grid_xyz[ic, :]
+            # print(ic, self.curves[ic].get_dofs())
+            # names_i = self.curves[ic].local_dof_names
 
     def plot_curves(self, filename=''):
         """
@@ -955,7 +1000,7 @@ class PSCgrid:
         BdotN2 = (Ax_b.T @ Ax_b) * self.fac2_norm2
         self.BdotN2_list.append(BdotN2)
         self.normalized_Bn()
-        Bn_check = np.sum(self.B_PSC.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1)
+        # Bn_check = np.sum(self.B_PSC.B().reshape(-1, 3) * self.plasma_unitnormals, axis=-1)
         # print('Bn1, Bn2 = ', Bn_check, self.Bn_PSC * self.fac)
         return BdotN2
     
@@ -1312,20 +1357,60 @@ class PSCgrid:
         # self.B_TF.set_points(self.plasma_points)
         # return ALinv_dpsi.T @ (ALinv @ self.psi - self.b_opt) * self.fac2_norm
     
-    def update_TF(self, B_TF):
-        from simsopt.util import calculate_on_axis_B
+    # def update_TF(self, B_TF):
+    #     from simsopt.util import calculate_on_axis_B
 
-        # B_TF = BiotSavart(coils_TF)
-        B_axis = calculate_on_axis_B(B_TF, self.plasma_boundary, print_out=False)
+    #     # B_TF = BiotSavart(coils_TF)
+    #     B_axis = calculate_on_axis_B(B_TF, self.plasma_boundary, print_out=False)
         
-        # Normalization of the ||A*Linv*psi - b||^2 objective 
-        # representing Bnormal errors on the plasma surface
+    #     # Normalization of the ||A*Linv*psi - b||^2 objective 
+    #     # representing Bnormal errors on the plasma surface
+    #     self.normalization = B_axis ** 2 * self.plasma_boundary.area()
+    #     self.Baxis_A = B_axis * self.plasma_boundary.area()
+    #     self.fac2_norm = self.fac ** 2 / self.normalization
+    #     self.fac2_norm2 = self.fac2_norm * 0.5
+    #     self.B_TF = B_TF
+    #     # self.update_curves()
+    #     self.update_psi()
+    #     self.setup_currents_and_fields()
+    #     self.b_vector()
+
+    def update_curves_and_currents(self, dofs, B_TF):
+        """
+        """   
+        from simsopt.util import calculate_on_axis_B
+        # dofs need to be converted to kappas
+        # kappas = np.zeros(len(dofs) // 2)  # two Euler angles, 4 quaternion dofs
+        # dofs[3] = cos(alpha / 2.0) * cos(delta / 2.0)
+        # dofs[4] = sin(alpha / 2.0) * cos(delta / 2.0)
+        # dofs[5] = cos(alpha / 2.0) * sin(delta / 2.0)
+        # dofs[6] = -sin(alpha / 2.0) * sin(delta / 2.0)
+        # dofs[3] ** 2 + dofs[5] ** 2 = cos(alpha / 2.0) ** 2
+        # dofs[3] ** 2 + dofs[4] ** 2 = cos(delta / 2.0) ** 2
+        # constraints on the dofs
+        # dofs[3] ** 2 + dofs[5] ** 2 <= 1
+        # dofs[3] ** 2 + dofs[4] ** 2 <= 1
+        # dofs[3] + dofs[6] = cos(alpha / 2.0 + delta / 2.0)
+        # dofs[4] + dofs[5] = sin(alpha / 2.0 + delta / 2.0)
+        # (dofs[3] + dofs[6])^2 + (dofs[4] + dofs[5])^2 = 1 
+        # How to apply this quadratic but convex constraint? 
+        # Would be better to directly optimize alphas and deltas... 
+        # Could create new variable in CurvePlanarFourier?
+        dofs = dofs.reshape(-1, 4)
+        print(dofs, np.sqrt(dofs[:, 0] ** 2 + dofs[:, 2] ** 2))
+        # dofs[6] is duplicate and not needed
+        # print(dofs)
+        alphas = 2.0 * np.arcsin(np.sqrt(dofs[:, 1] ** 2 + dofs[:, 3] ** 2))
+        deltas = 2.0 * np.arccos(np.sqrt(dofs[:, 0] ** 2 + dofs[:, 1] ** 2))
+        # print('a, d = ', alphas, deltas)
+        self.setup_orientations(alphas, deltas)
+        self.update_curves()
+        B_axis = calculate_on_axis_B(B_TF, self.plasma_boundary, print_out=False)
         self.normalization = B_axis ** 2 * self.plasma_boundary.area()
         self.Baxis_A = B_axis * self.plasma_boundary.area()
         self.fac2_norm = self.fac ** 2 / self.normalization
         self.fac2_norm2 = self.fac2_norm * 0.5
         self.B_TF = B_TF
-        # self.update_curves()
         self.update_psi()
         self.setup_currents_and_fields()
         self.b_vector()
