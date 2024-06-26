@@ -63,7 +63,7 @@ Stage: devel
     cd .. && \
     rm -rf SPEC
 
-    git clone -b ml/numpy2_fix_4 --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git && \
+    git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git && \
     cd VMEC2000 && \
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install  . && \

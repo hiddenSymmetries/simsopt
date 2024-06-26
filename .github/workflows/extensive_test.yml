@@ -71,7 +71,7 @@ jobs:
     # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
-      run: git clone -b ml/numpy2_fix_4 https://github.com/hiddensymmetries/VMEC2000.git
+      run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
       run: |
@@ -98,7 +98,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann
+           pip install wheel "numpy<2.0.0" scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -107,8 +107,15 @@ jobs:
     - name: Install virtual_casing
       run: pip install -v git+https://github.com/hiddenSymmetries/virtual-casing
 
-    - name: Download SPEC
-      run: git clone -b numpy2_fix --depth=1 https://github.com/PrincetonUniversity/SPEC
+    # See https://github.community/t/best-way-to-clone-a-private-repo-during-script-run-of-private-github-action/16116/7
+    # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
+    # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
+    - name: Check out SPEC
+      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      uses: actions/checkout@v4
+      with:
+        repository: PrincetonUniversity/SPEC
+        path: SPEC
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
@@ -160,8 +167,7 @@ jobs:
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
         pip install -v .
-        pip install mpi4py h5py
-        pip install -v git+https://github.com/zhisong/pyoculus@numpy2_fix
+        pip install mpi4py py_spec pyoculus h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
