@@ -252,7 +252,7 @@ class SpecTests(unittest.TestCase):
             try: 
                 s.run()
             except ObjectiveFailure:
-                self.assertTrue(np.alltrue(s.inputlist.bns == startingboundary))
+                self.assertTrue(np.all(s.inputlist.bns == startingboundary))
             else: 
                 raise ValueError("ObjectiveFailure not raised")
             # give enough freeboundary iterations, let ir run successfully 
@@ -270,11 +270,11 @@ class SpecTests(unittest.TestCase):
         translator2 = spec.array_translator(array, style='spec')
         translator3 = spec.array_translator(translator.as_simsopt, style='simsopt')
 
-        self.assertTrue(np.alltrue(array == translator.as_spec))
-        self.assertTrue(np.alltrue(array == translator2.as_spec))
-        self.assertTrue(np.alltrue(array == translator3.as_spec))
-        self.assertTrue(np.alltrue(translator.as_simsopt == translator2.as_simsopt))
-        self.assertTrue(np.alltrue(translator2.as_simsopt == translator3.as_simsopt))
+        self.assertTrue(np.all(array == translator.as_spec))
+        self.assertTrue(np.all(array == translator2.as_spec))
+        self.assertTrue(np.all(array == translator3.as_spec))
+        self.assertTrue(np.all(translator.as_simsopt == translator2.as_simsopt))
+        self.assertTrue(np.all(translator2.as_simsopt == translator3.as_simsopt))
         # test that the shape of the array is correct:
         self.assertEqual(translator2.as_simsopt.shape, (spec.inputlist.ntor+1, (2*spec.inputlist.mpol)+1))
 
