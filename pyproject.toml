@@ -2,7 +2,8 @@
 requires = [
   "scikit-build-core>=0.3.3",
   "pybind11",
-  "oldest-supported-numpy",
+  "oldest-supported-numpy; python_version=='3.8'",
+  "numpy>=2.0.0; python_version>='3.9'",
   "setuptools_scm>=8.0",
   'tomli; python_version < "3.11"',]
 build-backend = "scikit_build_core.build"
@@ -52,7 +53,7 @@ keywords = [
     "magnetostatics"
 ]
 dependencies = [
-    "numpy>=1.21,<2.0.0",
+    "numpy>=1.21",
     "jax>=0.2.5",
     "jaxlib>=0.1.56",
     "scipy>=1.5.4",
