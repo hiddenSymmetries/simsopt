@@ -141,6 +141,10 @@ class Spec(Optimizable):
                 filename = f"{filename}.sp"
             if self.mpi.proc0_groups:
                 logger.info(f"Group {self.mpi.group}: Initializing a SPEC object from file: {filename}")
+        
+        #If spec has run before, clear the f90wrap array caches.
+        if spec.allglobal._arrays:
+            self._clear_f90wrap_array_caches()
 
         # Initialize the FORTRAN state with values in the input file:
         self._init_fortran_state(filename)
@@ -870,6 +874,13 @@ class Spec(Optimizable):
         poloidally
         """
         return self.inputlist.curpol/(mu_0)
+    
+    def _clear_f90wrap_array_caches(self):
+        """
+        Clear the f90wrap array caches. This is necessary when a new file is read after SPEC has run before.
+        """
+        spec.allglobal._arrays = {}
+        spec.inputlist._arrays = {}
 
     def _init_fortran_state(self, filename: str):
         """
