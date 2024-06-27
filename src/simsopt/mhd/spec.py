@@ -141,6 +141,10 @@ class Spec(Optimizable):
                 filename = f"{filename}.sp"
             logger.info(f"Initializing a SPEC object from file: {filename}")
 
+        #If spec has run before, clear the f90wrap array caches.
+        if spec.allglobal._arrays:
+            self._clear_f90wrap_array_caches()
+
         if tolerance <= 0:
             raise ValueError(
                 'tolerance should be greater than zero'
@@ -716,6 +720,13 @@ class Spec(Optimizable):
             if p is not None:
                 p.phiedge = x[0]
 
+    def _clear_f90wrap_array_caches(self):
+        """
+        Clear the f90wrap array caches. This is necessary when a new file is read after SPEC has run before.
+        """
+        spec.allglobal._arrays = {}
+        spec.inputlist._arrays = {}   logger.debug("Done with init")
+
     def init(self, filename: str):
         """
         Initialize SPEC fortran state from an input file.
@@ -737,7 +748,6 @@ class Spec(Optimizable):
         spec.allglobal.broadcast_inputs()
         logger.debug('About to call preset')
         spec.preset()
-        logger.debug("Done with init")
 
     def run(self, update_guess: bool = True):
         """
