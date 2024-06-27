@@ -371,8 +371,10 @@ class PSCgrid:
         initialization = kwargs.pop("initialization", "zeros")
         if initialization == "random":
             # Randomly initialize the coil orientations
-            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * np.pi
-            psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
+            psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
+            psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * np.pi
+            # psc_grid.alphas = (np.random.rand(psc_grid.num_psc) - 0.5) * np.pi
+            # psc_grid.deltas = (np.random.rand(psc_grid.num_psc) - 0.5) * 2 * np.pi
             psc_grid.coil_normals = np.array(
                 [np.cos(psc_grid.alphas) * np.sin(psc_grid.deltas),
                   -np.sin(psc_grid.alphas),
@@ -387,17 +389,26 @@ class PSCgrid:
                 min_ind = np.argmin(dists)
                 psc_grid.coil_normals[i, :] = psc_grid.plasma_unitnormals[min_ind, :]
                 
-            psc_grid.deltas = np.arctan2(psc_grid.coil_normals[:, 0], 
-                                         psc_grid.coil_normals[:, 2])
-            psc_grid.alphas = -np.arcsin(psc_grid.coil_normals[:, 1])
+            # psc_grid.deltas = np.arctan2(psc_grid.coil_normals[:, 0], 
+            #                              psc_grid.coil_normals[:, 2])
+            # psc_grid.alphas = -np.arcsin(psc_grid.coil_normals[:, 1])
+            psc_grid.alphas = np.arctan2(
+                -psc_grid.coil_normals[:, 1], 
+                np.sqrt(psc_grid.coil_normals[:, 0] ** 2 + psc_grid.coil_normals[:, 2] ** 2))
+            psc_grid.deltas = np.arcsin(psc_grid.coil_normals[:, 0], 
+                                        np.cos(psc_grid.alphas))
         elif initialization == "TF":
             # determine the alphas and deltas from these normal vectors
             B = B_TF.B()
             psc_grid.coil_normals = (B.T / np.sqrt(np.sum(B ** 2, axis=-1))).T
-            psc_grid.deltas = np.arctan2(psc_grid.coil_normals[:, 0], 
-                                         psc_grid.coil_normals[:, 2])
-            psc_grid.alphas =  -np.arcsin(psc_grid.coil_normals[:, 1]) 
-            
+            # psc_grid.deltas = np.arctan2(psc_grid.coil_normals[:, 0], 
+            #                              psc_grid.coil_normals[:, 2])
+            # psc_grid.alphas =  -np.arcsin(psc_grid.coil_normals[:, 1]) 
+            psc_grid.alphas = np.arctan2(
+                -psc_grid.coil_normals[:, 1], 
+                np.sqrt(psc_grid.coil_normals[:, 0] ** 2 + psc_grid.coil_normals[:, 2] ** 2))
+            psc_grid.deltas = np.arcsin(psc_grid.coil_normals[:, 0], 
+                                        np.cos(psc_grid.alphas))
         else:  # default is to initialize to zeros -- seems to work better in optimization anyways
             psc_grid.alphas = np.zeros(psc_grid.num_psc)
             psc_grid.deltas = np.zeros(psc_grid.num_psc)
@@ -690,11 +701,11 @@ class PSCgrid:
         psc_grid.num_psc = psc_grid.grid_xyz.shape[0]
         psc_grid.alphas = kwargs.pop("alphas", 
                                      (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * np.pi
+                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
         )
         psc_grid.deltas = kwargs.pop("deltas", 
                                      (np.random.rand(
-                                         psc_grid.num_psc) - 0.5) * 2 * np.pi
+                                         psc_grid.num_psc) - 0.5) * np.pi
         )
         ## Need to remove bad elements from alphas and deltas too!
         psc_grid.alphas = psc_grid.alphas[final_inds]
@@ -771,10 +782,10 @@ class PSCgrid:
         from simsopt.field import BiotSavart, coils_via_symmetries
         
         self.L_inv = np.linalg.inv(self.L)
-        if hasattr(self, 'I'):
-            'do nothing'
-        else:
-            self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
+        # if hasattr(self, 'I'):
+        #     'do nothing'
+        # else:
+        self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
             # print(self.I)
         # self.setup_curves()
         # for i, current in enumerate(self.currents):
@@ -937,22 +948,22 @@ class PSCgrid:
                 # print('here = ', q, self.I)
                 q += 1
         curves_to_vtk(self.all_curves, self.out_dir + filename + "all_psc_curves", close=True, scalar_data=self.I_all_with_sign_flips)
-        # self.B_TF.set_points(self.grid_xyz_all)
-        # B = self.B_TF.B()
-        # pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
-        #             contig(self.grid_xyz_all[:, 0]),
-        #             contig(self.grid_xyz_all[:, 1]), 
-        #             contig(self.grid_xyz_all[:, 2]),
-        #             data={"n": (contig(self.coil_normals_all[:, 0]), 
-        #                         contig(self.coil_normals_all[:, 1]),
-        #                         contig(self.coil_normals_all[:, 2])),
-        #                   "psi": contig(self.psi_total),
-        #                   "I": contig(self.I_all_with_sign_flips),
-        #                   "B_TF": (contig(B[:, 0]), 
-        #                            contig(B[:, 1]),
-        #                            contig(B[:, 2])),
-        #                   },
-        # )
+        self.B_TF.set_points(self.grid_xyz_all)
+        B = self.B_TF.B()
+        pointsToVTK(self.out_dir + filename + 'all_curve_centers', 
+                    contig(self.grid_xyz_all[:, 0]),
+                    contig(self.grid_xyz_all[:, 1]), 
+                    contig(self.grid_xyz_all[:, 2]),
+                    data={"n": (contig(self.coil_normals_all[:, 0]), 
+                                contig(self.coil_normals_all[:, 1]),
+                                contig(self.coil_normals_all[:, 2])),
+                          "psi": contig(self.psi_total),
+                          "I": contig(self.I_all_with_sign_flips),
+                          "B_TF": (contig(B[:, 0]), 
+                                    contig(B[:, 1]),
+                                    contig(B[:, 2])),
+                          },
+        )
         
     def b_vector(self):
         """
@@ -1057,7 +1068,7 @@ class PSCgrid:
         I_deriv3 = -Linv * self.dpsi[self.num_psc:]
         grad_alpha3 = self.A_matrix @ I_deriv2
         grad_delta3 = self.A_matrix @ I_deriv3
-        grad_kappa3 = np.zeros(grad_kappa1.shape)  # self.grid_normalization[:, None] * np.hstack((grad_alpha3, grad_delta3))
+        grad_kappa3 = self.grid_normalization[:, None] * np.hstack((grad_alpha3, grad_delta3))
         return (Ax_b.T @ (grad_kappa1 + grad_kappa3)) * self.fac2_norm 
     
     def A_deriv(self):

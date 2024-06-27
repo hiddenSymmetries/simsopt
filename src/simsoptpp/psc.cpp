@@ -693,8 +693,8 @@ std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas
                 simd_t secy_sinz = secy * sinz;
                 simd_t c0 = (sinx * cosz - stell * cosx * siny * sinz);
                 simd_t c2 = one / sqrt(one - c0 * c0);
-                simd_t deltas = xsimd::atan2(normals.x, normals.z);
-                simd_t alphas = -xsimd::asin(normals.y);
+                simd_t alphas = xsimd::atan2(-normals.y, xsimd::sqrt(normals.x * normals.x + normals.z * normals.z));
+                simd_t deltas = xsimd::asin(normals.x, xsimd::cos(alphas));
                 simd_t aaprime_aa = (sinx * siny * sinz * stell + cosx * cosz) * c2;
                 simd_t aaprime_dd = -stell * (cosx * cosy * sinz) * c2;
                 simd_t ddprime_dd = (secy_sinz * tanx * tany + stell * cosz * (one + tany2)) * d12;

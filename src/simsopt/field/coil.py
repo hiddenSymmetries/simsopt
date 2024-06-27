@@ -88,7 +88,9 @@ class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
         # print('here ', self.dkappa_dcoef_vjp(v_current), self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)))
          #self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)) #\
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
-            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash)
+            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
+            + self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current))
+            # + self.current.vjp(v_current)
             
     def psc_current_contribution_vjp(self, v_current):
         # Contributions from Rotated curves are already accounted for in dpsi calculation
