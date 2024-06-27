@@ -53,7 +53,8 @@ class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
         self._curve = curve
         self._index = index
         names = curve.local_dof_names
-        try: 
+        # print(names, curve.dof_names, curve.get_dofs())
+        if len(names) > 0: 
             # self._grid_xyz = self._curve.get_dofs()[-3:]
             # self.setup_full_grid()
             # Fix the curve shape and center point coordinate
@@ -63,41 +64,18 @@ class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
             self._curve.fix(names[2 * self._curve.order + 5])
             self._curve.fix(names[2 * self._curve.order + 6])
             self._curve.fix(names[2 * self._curve.order + 7])
+            # print(self._curve.local_dof_names)
             # print(curve.local_dof_names)
-        except:
-            'do nothing'
+        # print(names, curve.dof_names, curve.get_dofs())
+        # except:
+            # 'do nothing'
         self._current = current
         self._current.fix_all()  # currents cannot be freely optimized
         self._psc_array = psc_array
-        # self._bs = bs
-        # self._TF_coils = bs._coils
-        # self.I_TF = np.array([coil.current.get_value() for coil in self._TF_coils])
-        # self.dl_TF = np.array([coil.curve.gammadash() for coil in self._TF_coils])
-        # self.gamma_TF = np.array([coil.curve.gamma() for coil in self._TF_coils])
         self.npsc = self._psc_array.num_psc
+        # print(curve.gamma()[0, :], current.get_value())
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
-        
-    # def setup_full_grid(self):
-    #     """
-    #     Initialize the field-period and stellarator symmetrized grid locations
-    #     and normal vectors for all the PSC coils. Note that when alpha_i
-    #     and delta_i angles change, coil_i location does not change, only
-    #     its normal vector changes. 
-    #     """
-    #     nn = 1
-    #     contig = np.ascontiguousarray
-    #     self._grid_xyz_all = np.zeros((self._psc_array.symmetry, 3))
-    #     q = 0
-    #     for fp in range(self._psc_array.nfp):
-    #         for stell in self._psc_array.stell_list:
-    #             phi0 = (2 * np.pi / self._psc_array.nfp) * fp
-    #             # get new locations by flipping the y and z components, then rotating by phi0
-    #             self._grid_xyz_all[nn * q: nn * (q + 1), 0] = self._grid_xyz[0] * np.cos(phi0) - self._grid_xyz[1] * np.sin(phi0) * stell
-    #             self._grid_xyz_all[nn * q: nn * (q + 1), 1] = self._grid_xyz[0] * np.sin(phi0) + self._grid_xyz[1] * np.cos(phi0) * stell
-    #             self._grid_xyz_all[nn * q: nn * (q + 1), 2] = self._grid_xyz[2] * stell
-    #             q += 1
-    #     self._grid_xyz_all = contig(self._grid_xyz_all)
 
     def vjp(self, v_gamma, v_gammadash, v_current):
         # print(v_current, v_current[0])
@@ -108,20 +86,31 @@ class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
         #       self.curve.dgammadash_by_dcoeff_vjp(v_gammadash),
         #       self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)))
         # print('here ', self.dkappa_dcoef_vjp(v_current), self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)))
-        return self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current))
+         #self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)) #\
+        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
+            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash)
             
     def psc_current_contribution_vjp(self, v_current):
-        # self.update_variables()
+        # Contributions from Rotated curves are already accounted for in dpsi calculation
+        # if self._index >= self.npsc:
+        #     return Derivative({self: np.zeros(4)})
         indices = np.hstack((self._index, self._index + self.npsc))
-        Linv_partial = self._psc_array.L_inv[self._index, self._index]
+        Linv_partial = self._psc_array.L_inv[self._index % self.npsc, self._index % self.npsc]
         Linv = np.vstack((Linv_partial, Linv_partial)).T
-        psi_deriv = self._psc_array.dpsi[indices]
+        psi_deriv = self._psc_array.dpsi_full[indices]
+        # print(Linv, psi_deriv, v_current)
         # print('dpsi = ', -Linv, psi_deriv, v_current, np.ravel((-Linv * psi_deriv) @ v_current))
         # print(Linv.shape, indices, psi_deriv.shape, v_current.shape, ((-Linv * psi_deriv) @ v_current).shape)
-        return Derivative({self: np.ravel((-Linv * psi_deriv) @ v_current).tolist() })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
+        # print(np.ravel((-Linv * psi_deriv) @ v_current).shape)
+        return Derivative({self: np.ravel((-Linv * psi_deriv) @ v_current) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
     
     def dkappa_dcoef_vjp(self, v_current):
         dofs = self._curve.get_dofs()  # should already be only the orientation dofs
+        if len(dofs) == 0:
+            dofs = self._curve.curve.get_dofs()  # For the rotated coils
+        # print(dofs, self._curve.local_dof_names, self._curve.dof_names, v_current)
+        # if len(dofs) == 0:
+        #     return np.zeros((2, 4))
         dofs = dofs[2 * self._curve.order + 1:2 * self._curve.order + 5]  # don't need the coordinate variables
         # print('dofs = ', dofs)
         dofs = dofs / np.sqrt(np.sum(dofs ** 2))  # normalize the quaternion
@@ -156,125 +145,6 @@ class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
         # ddelta = np.hstack((ddelta, np.zeros(3)))
         deriv = np.vstack((dalpha, ddelta))
         return deriv * v_current[0]  # Derivative({self: deriv})
-    
-    # def update_variables(self):
-    #     dofs = self._curve.get_dofs()
-    #     dofs = dofs[2 * self._curve.order + 1:]  # don't need the coordinate variables
-    #     self.alphas = 2.0 * np.arcsin(np.sqrt(dofs[1] ** 2 + dofs[3] ** 2))
-    #     self.deltas = 2.0 * np.arccos(np.sqrt(dofs[0] ** 2 + dofs[1] ** 2))
-        # kappas = np.ravel(np.array([self.alphas, self.deltas]))
-        
-        # self._psc_array.self._index
-        
-        # self.coil_normals = np.array(
-        #     [np.cos(self.alphas) * np.sin(self.deltas),
-        #       -np.sin(self.alphas),
-        #       np.cos(self.alphas) * np.cos(self.deltas)]
-        # ).T
-        # # deal with -0 terms in the normals, which screw up the arctan2 calculations
-        # self.coil_normals[
-        #     np.logical_and(np.isclose(self.coil_normals, 0.0), 
-        #                    np.copysign(1.0, self.coil_normals) < 0)
-        #     ] *= -1.0
-                
-        # Apply discrete symmetries to the alphas and deltas and coordinates
-        # self.update_alphas_deltas()
-        
-        ##### NOOOOOOOO
-        # Recompute the inductance matrices with the newly rotated coils
-        # L_total = sopp.L_matrix(
-        #     self._psc_array._grid_xyz_all / self._psc_array.R, 
-        #     self._psc_array.alphas_total, 
-        #     self._psc_array.deltas_total,
-        #     self._psc_array.quad_points_phi,
-        #     self._psc_array.quad_weights
-        # )
-        # L_total = (L_total + L_total.T)
-        # # Add in self-inductances
-        # np.fill_diagonal(L_total, (np.log(8.0 * self._psc_array.R / self._psc_array.a) - 2.0) * 4 * np.pi)
-        # self.L = L_total * self._psc_array.R
-        # Linv = self._psc_array.L_inv[:self.npsc, :self.npsc]
-        # self.update_psi()
-        # self.I = -self.L_inv[:self.npsc, :] @ self.psi_total * 1e7
-        
-    # def update_alphas_deltas(self):
-    #     """
-    #     Initialize the field-period and stellarator symmetrized normal vectors
-    #     for all the PSC coils. This is required whenever the alpha_i
-    #     and delta_i angles change.
-    #     """
-    #     # Made this unnecessarily fast xsimd calculation for setting the 
-    #     # variables from the discrete symmetries
-    #     contig = np.ascontiguousarray
-    #     (self.coil_normals_all, self.alphas_total, self.deltas_total, 
-    #       self.aaprime_aa, self.aaprime_dd, self.ddprime_dd, self.ddprime_aa
-    #       ) = sopp.update_alphas_deltas_xsimd(
-    #           contig(self.coil_normals), 
-    #           self._psc_array.nfp, 
-    #           int(self._psc_array.stellsym)
-    #     )
-    #     self.alphas_total = contig(self.alphas_total)
-    #     self.deltas_total = contig(self.deltas_total)
-    #     self.coil_normals_all = contig(self.coil_normals_all)
-        
-    # def psi_deriv(self):
-    #     """
-    #     Should return gradient of the inductance matrix L that satisfies 
-    #     L^(-1) * Psi = I for the PSC arrays.
-    #     Returns
-    #     -------
-    #         grad_psi: 1D numpy array, shape (2 * num_psc) 
-    #             The gradient of the psi vector with respect to the PSC angles
-    #             alpha_i and delta_i. 
-    #     """
-    #     nn = self.npsc
-    #     contig = np.ascontiguousarray
-    #     psi_deriv = np.zeros(2 * nn)
-    #     q = 0
-    #     for fp in range(self._psc_array.nfp):
-    #         for stell in self._psc_array.stell_list:
-    #             dpsi = sopp.dpsi_dkappa(
-    #                 contig(self.I_TF),
-    #                 contig(self.dl_TF),
-    #                 contig(self.gamma_TF),
-    #                 contig(self._grid_xyz_all[q * nn: (q + 1) * nn, :]),
-    #                 contig(self.alphas_total[q * nn: (q + 1) * nn]),
-    #                 contig(self.deltas_total[q * nn: (q + 1) * nn]),
-    #                 contig(self.coil_normals_all[q * nn: (q + 1) * nn, :]),
-    #                 contig(self._psc_array.quad_points_rho),
-    #                 contig(self._psc_array.quad_points_phi),
-    #                 self._psc_array.quad_weights,
-    #                 self._psc_array.R,
-    #             ) 
-    #             psi_deriv[:nn] += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
-    #             psi_deriv[nn:] += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
-    #             q += 1
-    #     return psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self._psc_array.nfp / (self._psc_array.stellsym + 1.0)  # Factors because TF fields get overcounted
-    
-    # def update_psi(self):
-    #     """
-    #     Update the flux grid with the new normal vectors.
-    #     """
-    #     contig = np.ascontiguousarray
-    #     flux_grid = sopp.flux_xyz(
-    #         contig(self._grid_xyz_all), 
-    #         contig(self.alphas_total),
-    #         contig(self.deltas_total), 
-    #         contig(self._psc_array.quad_points_rho), 
-    #         contig(self._psc_array.quad_points_phi), 
-    #     )
-    #     flux_grid = np.array(flux_grid).reshape(-1, 3)
-    #     self._bs.set_points(contig(flux_grid))
-    #     N = len(self._psc_array.quad_points_rho)
-    #     # # Update the flux values through the newly rotated coils
-    #     self.psi_total = sopp.flux_integration(
-    #         contig(self._bs.B().reshape(len(self.alphas_total), N, N, 3)),
-    #         contig(self._psc_array.quad_points_rho),
-    #         contig(self.coil_normals_all),
-    #         self._psc_array.quad_weights
-    #     )
-    #     self.psi = self.psi_total[:self.npsc]
-    #     self._bs.set_points(self._psc_array.plasma_points)
 
     def plot(self, **kwargs):
         """
@@ -441,7 +311,7 @@ def psc_coils_via_symmetries(curves, currents, nfp, stellsym, psc_array):
     assert len(curves) == len(currents)
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
-    inds = np.arange(psc_array.num_psc)
+    inds = np.arange(psc_array.num_psc * nfp * (int(stellsym) + 1))
     coils = [PassiveSuperconductingCoil(curv, curr, psc_array, ind) for (curv, curr, ind) in zip(curves, currents, inds)]
     return coils
 

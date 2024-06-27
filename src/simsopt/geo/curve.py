@@ -620,7 +620,7 @@ class RotatedCurve(sopp.Curve, Curve):
 
     def __init__(self, curve, phi, flip):
         self.curve = curve
-        # self.order = curve.order
+        self.order = curve.order
         sopp.Curve.__init__(self, curve.quadpoints)
         Curve.__init__(self, depends_on=[curve])
         self._phi = phi
