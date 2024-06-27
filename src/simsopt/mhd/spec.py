@@ -725,7 +725,7 @@ class Spec(Optimizable):
         Clear the f90wrap array caches. This is necessary when a new file is read after SPEC has run before.
         """
         spec.allglobal._arrays = {}
-        spec.inputlist._arrays = {}   logger.debug("Done with init")
+        spec.inputlist._arrays = {}   
 
     def init(self, filename: str):
         """
@@ -748,6 +748,7 @@ class Spec(Optimizable):
         spec.allglobal.broadcast_inputs()
         logger.debug('About to call preset')
         spec.preset()
+        logger.debug("Done with init")
 
     def run(self, update_guess: bool = True):
         """
