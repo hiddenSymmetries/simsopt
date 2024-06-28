@@ -439,6 +439,12 @@ class PSCgrid:
         for i in range(psc_grid.num_psc):
             psc_grid.currents.append(Current(0.0))
         # psc_grid.currents = np.array(psc_grid.currents)
+        psc_grid.all_currents = []
+        for fp in range(psc_grid.nfp):
+            for stell in psc_grid.stell_list:
+                for i in range(psc_grid.num_psc):
+                    psc_grid.all_currents.append(Current(0.0))
+        
         psc_grid.setup_curves()
         psc_grid.setup_currents_and_fields()
         # for i in range(psc_grid.num_psc):
@@ -734,6 +740,12 @@ class PSCgrid:
         for i in range(psc_grid.num_psc):
             psc_grid.currents.append(Current(0.0))
         # psc_grid.currents = np.array(psc_grid.currents)
+        psc_grid.all_currents = []
+        for fp in range(psc_grid.nfp):
+            for stell in psc_grid.stell_list:
+                for i in range(psc_grid.num_psc):
+                    psc_grid.all_currents.append(Current(0.0))
+        
         psc_grid.setup_curves()
         psc_grid.setup_currents_and_fields()
         # for i in range(psc_grid.num_psc):
@@ -779,13 +791,20 @@ class PSCgrid:
         the PSC coils touching/intersecting, in which case it will be
         VERY ill-conditioned! 
         """
-        from simsopt.field import BiotSavart, coils_via_symmetries
+        from simsopt.field import BiotSavart, coils_via_symmetries, Current
         
         self.L_inv = np.linalg.inv(self.L)
         # if hasattr(self, 'I'):
         #     'do nothing'
         # else:
         self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
+        
+        q = 0
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                for i in range(self.num_psc):
+                    self.all_currents[i + q * self.num_psc].set('x0', self.I[i] * stell)
+                q += 1
             # print(self.I)
         # self.setup_curves()
         # for i, current in enumerate(self.currents):
@@ -826,12 +845,12 @@ class PSCgrid:
         Convert the (alphas, deltas) angles into the actual circular coils
         that they represent. Also generates the symmetrized coils.
         """
-        from . import CurvePlanarFourier
-        from simsopt.field import apply_symmetries_to_curves
+        from . import PSCCurve
+        from simsopt.field import apply_symmetries_to_psc_curves
 
         order = 1
         ncoils = self.num_psc
-        self.curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
+        self.curves = [PSCCurve(order*self.ppp, order, nfp=1, stellsym=False, psc_array=self, index=np.arange(ncoils)) for i in range(ncoils)]
         for ic in range(ncoils):
             alpha2 = self.alphas[ic] / 2.0
             delta2 = self.deltas[ic] / 2.0
@@ -850,7 +869,10 @@ class PSCgrid:
             dofs[6] = -salpha2 * sdelta2
             # Now specify the center 
             dofs[7:10] = self.grid_xyz[ic, :]
-            self.curves[ic].set_dofs(dofs)
+            
+            for j in range(10):
+                self.curves[ic].set('x' + str(j), dofs[j])
+            # self.curves[ic].set_dofs(dofs)
             # names_i = self.curves[ic].local_dof_names
             # self.curves[ic].fix(names_i[0])
             # self.curves[ic].fix(names_i[0])
@@ -860,7 +882,7 @@ class PSCgrid:
             # self.curves[ic].fix(names_i[4])
             # self.curves[ic].fix(names_i[4])
             # self.curves[ic].fix(names_i[4])
-        self.all_curves = apply_symmetries_to_curves(self.curves, self.nfp, self.stellsym)
+        self.all_curves = apply_symmetries_to_psc_curves(self.curves, self.nfp, self.stellsym)
         
     def update_curves(self):
         """ 
@@ -1188,8 +1210,12 @@ class PSCgrid:
         """
         nn = self.num_psc
         psi_deriv = np.zeros(2 * nn * self.symmetry)
+        self.dpsi_daa = np.zeros(nn * self.symmetry)
+        self.dpsi_dad = np.zeros(nn * self.symmetry)
+        self.dpsi_ddd = np.zeros(nn * self.symmetry)
+        self.dpsi_dda = np.zeros(nn * self.symmetry)
         q = 0
-        qq = 0
+        # qq = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 dpsi = sopp.dpsi_dkappa(
@@ -1205,10 +1231,15 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 ) 
-                psi_deriv[qq * nn:(qq + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
-                psi_deriv[(qq + 1) * nn:(qq + 2) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
+                # psi_deriv[2 * q * nn:(2 * q + 2) * nn] = 
+                self.dpsi_daa[q * nn:(q + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn]
+                self.dpsi_dad[q * nn:(q + 1) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn]
+                self.dpsi_ddd[q * nn:(q + 1) * nn] = dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
+                self.dpsi_dda[q * nn:(q + 1) * nn] = dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
+                # psi_deriv[qq * nn:(qq + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
+                # psi_deriv[(qq + 1) * nn:(qq + 2) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 q += 1
-                qq += 2
+                # qq += 2
         # print(psi_deriv)
         # exit()
         self.dpsi_full = psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)

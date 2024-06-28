@@ -5,13 +5,15 @@ from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
+# from simsopt.geo.curveplanarfourier import RotatedPSCCurve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'PassiveSuperconductingCoil', 
-           'Current', 'coils_via_symmetries', 'psc_coils_via_symmetries',
+__all__ = ['Coil', 'PSCCoil',
+           'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
+           'apply_symmetries_to_psc_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
 
@@ -29,6 +31,7 @@ class Coil(sopp.Coil, Optimizable):
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
+        # print('other derivs = ', v_current, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma), self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash))
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
             + self.current.vjp(v_current)
@@ -42,111 +45,25 @@ class Coil(sopp.Coil, Optimizable):
         """
         return self.curve.plot(**kwargs)
     
-class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
+class PSCCoil(sopp.Coil, Optimizable):
     """
     A :obj:`Coil` combines a :obj:`~simsopt.geo.curve.Curve` and a
     :obj:`Current` and is used as input for a
     :obj:`~simsopt.field.biotsavart.BiotSavart` field.
     """
 
-    def __init__(self, curve, current, psc_array, index=0):
+    def __init__(self, curve, current):
         self._curve = curve
-        self._index = index
-        names = curve.local_dof_names
-        # print(names, curve.dof_names, curve.get_dofs())
-        if len(names) > 0: 
-            # self._grid_xyz = self._curve.get_dofs()[-3:]
-            # self.setup_full_grid()
-            # Fix the curve shape and center point coordinate
-            # print(curve.local_dof_names)
-            for i in range(2 * self._curve.order + 1):
-                self._curve.fix(names[i])
-            self._curve.fix(names[2 * self._curve.order + 5])
-            self._curve.fix(names[2 * self._curve.order + 6])
-            self._curve.fix(names[2 * self._curve.order + 7])
-            # print(self._curve.local_dof_names)
-            # print(curve.local_dof_names)
-        # print(names, curve.dof_names, curve.get_dofs())
-        # except:
-            # 'do nothing'
+        current.fix_all()
         self._current = current
-        self._current.fix_all()  # currents cannot be freely optimized
-        self._psc_array = psc_array
-        self.npsc = self._psc_array.num_psc
-        # print(curve.gamma()[0, :], current.get_value())
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
-        # print(v_current, v_current[0])
-        # print(self.curve.local_dof_names)
-        # print(self.curve.dgammadash_by_dcoeff_vjp(v_gammadash), 
-              # self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)))
-        # print(self.curve.dgamma_by_dcoeff_vjp(v_gamma),
-        #       self.curve.dgammadash_by_dcoeff_vjp(v_gammadash),
-        #       self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)))
-        # print('here ', self.dkappa_dcoef_vjp(v_current), self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)))
-         #self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current)) #\
+        # print('other derivs = ', v_current, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma), self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash))
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
-            + self.psc_current_contribution_vjp(self.dkappa_dcoef_vjp(v_current))
-            # + self.current.vjp(v_current)
-            
-    def psc_current_contribution_vjp(self, v_current):
-        # Contributions from Rotated curves are already accounted for in dpsi calculation
-        # if self._index >= self.npsc:
-        #     return Derivative({self: np.zeros(4)})
-        indices = np.hstack((self._index, self._index + self.npsc))
-        Linv_partial = self._psc_array.L_inv[self._index % self.npsc, self._index % self.npsc]
-        Linv = np.vstack((Linv_partial, Linv_partial)).T
-        psi_deriv = self._psc_array.dpsi_full[indices]
-        # print(Linv, psi_deriv, v_current)
-        # print('dpsi = ', -Linv, psi_deriv, v_current, np.ravel((-Linv * psi_deriv) @ v_current))
-        # print(Linv.shape, indices, psi_deriv.shape, v_current.shape, ((-Linv * psi_deriv) @ v_current).shape)
-        # print(np.ravel((-Linv * psi_deriv) @ v_current).shape)
-        return Derivative({self: np.ravel((-Linv * psi_deriv) @ v_current) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
-    
-    def dkappa_dcoef_vjp(self, v_current):
-        dofs = self._curve.get_dofs()  # should already be only the orientation dofs
-        if len(dofs) == 0:
-            dofs = self._curve.curve.get_dofs()  # For the rotated coils
-        # print(dofs, self._curve.local_dof_names, self._curve.dof_names, v_current)
-        # if len(dofs) == 0:
-        #     return np.zeros((2, 4))
-        dofs = dofs[2 * self._curve.order + 1:2 * self._curve.order + 5]  # don't need the coordinate variables
-        # print('dofs = ', dofs)
-        dofs = dofs / np.sqrt(np.sum(dofs ** 2))  # normalize the quaternion
-        w = dofs[0]
-        x = dofs[1]
-        y = dofs[2]
-        z = dofs[3]
-        # alphas = 2.0 * np.arcsin(np.sqrt(dofs[:, 1] ** 2 + dofs[:, 3] ** 2))
-        # deltas = 2.0 * np.arccos(np.sqrt(dofs[:, 0] ** 2 + dofs[:, 1] ** 2))
-        # dofs[3] = cos(alpha / 2.0) * cos(delta / 2.0)
-        # dofs[4] = sin(alpha / 2.0) * cos(delta / 2.0)
-        # dofs[5] = cos(alpha / 2.0) * sin(delta / 2.0)
-        # dofs[6] = -sin(alpha / 2.0) * sin(delta / 2.0)
-        dalpha_dw = (2 * x * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-        dalpha_dx = (w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
-        dalpha_dy = (z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
-        dalpha_dz = (2 * y * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-        ddelta_dw = -y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dx = z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dy = -w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dz = x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        
-        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])
-        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])
-        # dalpha = np.hstack((np.zeros(2 * self._curve.order + 1), np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])))
-        # dalpha = np.hstack((dalpha, np.zeros(3)))
-        # ddelta = np.hstack((np.zeros(2 * self._curve.order + 1), np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])))
-        # ddelta = np.hstack((ddelta, np.zeros(3)))
-        deriv = np.vstack((dalpha, ddelta))
-        return deriv * v_current[0]  # Derivative({self: deriv})
+            + self.curve.psc_current_contribution_vjp(v_current)
 
     def plot(self, **kwargs):
         """
@@ -156,7 +73,6 @@ class PassiveSuperconductingCoil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
-
 
 class CurrentBase(Optimizable):
 
@@ -253,6 +169,28 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
         return self.current_a.get_value() + self.current_b.get_value()
 
 
+def apply_symmetries_to_psc_curves(base_curves, nfp, stellsym):
+    """
+    Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
+    (1+int(stellsym))`` :mod:`simsopt.geo.curve.Curve` objects obtained by
+    applying rotations and flipping corresponding to ``nfp`` fold rotational
+    symmetry and optionally stellarator symmetry.
+    """
+    flip_list = [False, True] if stellsym else [False]
+    curves = []
+    for k in range(0, nfp):
+        for flip in flip_list:
+            for i in range(len(base_curves)):
+                if k == 0 and not flip:
+                    curves.append(base_curves[i])
+                else:
+                    rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
+                    rotcurve.order = base_curves[i].order
+                    rotcurve._psc_array = base_curves[i]._psc_array
+                    rotcurve._index = base_curves[i]._index
+                    curves.append(rotcurve)
+    return curves
+
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
     """
     Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
@@ -300,21 +238,6 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
-    return coils
-
-
-def psc_coils_via_symmetries(curves, currents, nfp, stellsym, psc_array):
-    """
-    Take a list of ``n`` curves and return ``n * nfp * (1+int(stellsym))``
-    ``Coil`` objects obtained by applying rotations and flipping corresponding
-    to ``nfp`` fold rotational symmetry and optionally stellarator symmetry.
-    """
-
-    assert len(curves) == len(currents)
-    curves = apply_symmetries_to_curves(curves, nfp, stellsym)
-    currents = apply_symmetries_to_currents(currents, nfp, stellsym)
-    inds = np.arange(psc_array.num_psc * nfp * (int(stellsym) + 1))
-    coils = [PassiveSuperconductingCoil(curv, curr, psc_array, ind) for (curv, curr, ind) in zip(curves, currents, inds)]
     return coils
 
 

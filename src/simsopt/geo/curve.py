@@ -813,7 +813,6 @@ class RotatedCurve(sopp.Curve, Curve):
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
 
-
 def curves_to_vtk(curves, filename, close=False, scalar_data=None):
     """
     Export a list of Curve objects in VTK format, so they can be
@@ -928,3 +927,5 @@ def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
         curve.set_dofs(dofs)
         curves.append(curve)
     return curves
+            
+            

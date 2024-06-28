@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from matplotlib import pyplot as plt
-from simsopt.field import BiotSavart, Current, coils_via_symmetries, psc_coils_via_symmetries, apply_symmetries_to_curves
+from simsopt.field import BiotSavart, Current, coils_via_symmetries, apply_symmetries_to_curves
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.geo.psc_grid import PSCgrid
 from simsopt.objectives import SquaredFlux
@@ -179,7 +179,7 @@ def coil_optimization_PSC(s, bs, bpsc):
     print('Jf initial = ', Jf.J() / (B_axis ** 2 * s.area()))
     # Don't need other terms until let the coils move around
     JF = Jf 
-    pscs = bpsc._coils[0]._psc_array
+    pscs = bpsc._coils[0]._curve._psc_array
 
     def fun(dofs):
         """ Function for coil optimization grabbed from stage_two_optimization.py """
@@ -200,7 +200,15 @@ def coil_optimization_PSC(s, bs, bpsc):
         pscs.update_psi()
         pscs.setup_currents_and_fields()
         pscs.psi_deriv_full()
-        print('a1, a2 = ', pscs.alphas, bpsc._coils[-1]._psc_array.I, bpsc._coils[-1]._curve.gamma()[-1, :])
+        # JF.field.B_vjp(dJdB)
+        # print(bpsc._coils[-1].curve.dgamma_by_dcoeff_vjp(v_gamma)(JF),
+        #     + bpsc._coils[-1].curve.dgammadash_by_dcoeff_vjp(v_gammadash)(JF),
+        #     + bpsc._coils[-1].psc_current_contribution_vjp(bpsc._coils[-1].dkappa_dcoef_vjp(v_current))(JF))
+        # print('a1, a2 = ', pscs.alphas, 
+        #       bpsc._coils[-1]._current.get_value(), 
+        #       bpsc._coils[-1]._psc_array.I[-1],
+        #       bpsc._coils[-1]._psc_array.all_currents[-1].get_value(),
+        #       bpsc._coils[-1]._curve.gamma()[-1, :])
         # exit()
         
         J = JF.J()
@@ -210,28 +218,28 @@ def coil_optimization_PSC(s, bs, bpsc):
         BdotN = np.mean(np.abs(np.sum(Btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
         bs.set_points(s.gamma().reshape(-1, 3))
         jf = Jf.J() / axis_norm2
-        grad = grad / axis_norm2
+        grad_normed = grad / axis_norm2
         outstr = f"J={J:.3e}, Jf={jf:.3e}, ⟨B·n⟩={BdotN:.3e}"
         Bnnormed = BdotN / axis_norm
-        outstr += f", ║∇J║={np.linalg.norm(grad):.3e}"
+        outstr += f", ║∇J║={np.linalg.norm(grad_normed):.3e}"
         print(outstr)
         return J, grad
 
-    # print("""
-    # ################################################################################
-    # ### Perform a Taylor test ######################################################
-    # ################################################################################
-    # """)
-    # f = fun
+    print("""
+    ################################################################################
+    ### Perform a Taylor test ######################################################
+    ################################################################################
+    """)
+    f = fun
     dofs = JF.x
-    # h = np.random.uniform(size=dofs.shape)
+    h = np.random.uniform(size=dofs.shape)
 
-    # J0, dJ0 = f(dofs)
-    # dJh = sum(dJ0 * h)
-    # for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
-    #     J1, _ = f(dofs + eps*h)
-    #     J2, _ = f(dofs - eps*h)
-    #     print("err", (J1-J2)/(2*eps) - dJh)
+    J0, dJ0 = f(dofs)
+    dJh = sum(dJ0 * h)
+    for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+        J1, _ = f(dofs + eps*h)
+        J2, _ = f(dofs - eps*h)
+        print("err", (J1-J2)/(2*eps) - dJh, (J1-J2)/(2*eps), dJh)
 
     print("""
     ################################################################################
@@ -355,7 +363,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "BTF_0", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 6, "out_dir": out_str,
+kwargs_geo = {"Nx": 7, "out_dir": out_str,
                 "initialization": "plasma", 
               "poff": poff,}
 
@@ -380,13 +388,12 @@ bs.set_points(s.gamma().reshape(-1, 3))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 print('fB only TF direct = ', np.sum(Bnormal.reshape(-1) ** 2 * psc_array.grid_normalization ** 2
                                     ) / (2 * B_axis ** 2 * s.area()))
-currents_psc = []
-# print(psc_array.I)
-for i in range(psc_array.num_psc):
-    currents_psc.append(Current(psc_array.I[i] * 1e-6) * 1e6)
-all_coils = psc_coils_via_symmetries(
-    psc_array.curves, currents_psc, nfp=psc_array.nfp, stellsym=psc_array.stellsym, psc_array=psc_array
-)
+# all_coils = coils_via_symmetries(
+#     psc_array.all_curves, psc_array.all_currents, nfp=psc_array.nfp, stellsym=psc_array.stellsym,  # psc_array=psc_array
+# )
+from simsopt.field import PSCCoil 
+
+all_coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
 bpsc = BiotSavart(all_coils)
 bpsc.set_points(s.gamma().reshape((-1, 3)))
 
