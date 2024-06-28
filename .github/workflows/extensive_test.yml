@@ -28,8 +28,8 @@ jobs:
       fail-fast: false
       matrix:
         test-type: [unit, integrated]
-        packages: [all, vmec, spec, none]
-        python-version: [3.8, 3.9, "3.10"]
+        packages: [all, none]
+        python-version: [3.8, 3.9, "3.10", "3.11"]
         include:
             - python-version: 3.9
               test-type: unit
@@ -70,7 +70,7 @@ jobs:
 
     # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
@@ -101,7 +101,7 @@ jobs:
            pip install wheel "numpy<2.0.0" scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann
 
     - name: Install booz_xform
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
 
     - name: Install virtual_casing
@@ -111,7 +111,7 @@ jobs:
     # https://stackoverflow.com/questions/57612428/cloning-private-github-repository-within-organisation-in-actions
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       uses: actions/checkout@v4
       with:
         repository: PrincetonUniversity/SPEC
@@ -126,10 +126,10 @@ jobs:
         python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
-      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
+      run: pip install -U f90wrap
 
     - name: Build SPEC python wrapper.
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: |
          cd SPEC
          pip install .
@@ -148,11 +148,11 @@ jobs:
       run: env
 
     - name: ls in VMEC2000/python 1
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: ls -l VMEC2000/python
 
     - name: Configure VMEC2000 module
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: |
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
@@ -160,11 +160,11 @@ jobs:
         pip install .
 
     - name: Try importing vmec module
-      if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: |
         pip install -v .
         pip install mpi4py py_spec pyoculus h5py
@@ -173,14 +173,8 @@ jobs:
       if: contains(matrix.packages, 'none')
       run: pip install -v .
 
-    - name: Install simsopt package
-      if: contains(matrix.packages, 'vmec')
-      run: |
-        pip install -v .
-        pip install mpi4py
-
     - name: Run serial examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'integrated') 
       run: |
         cd examples
         ./run_serial_examples
@@ -190,23 +184,8 @@ jobs:
       run: |
         cd examples
         ./run_parallel_examples
-
-    - name: Run spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'spec')
-      run: |
-        cd examples
         ./run_spec_examples
-
-    - name: Run vmec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'vmec')
-      run: |
-        cd examples
         ./run_vmec_examples
-
-    - name: Run vmec and spec examples as part of integrated tests
-      if: contains(matrix.test-type, 'integrated') && contains(matrix.packages, 'all')
-      run: |
-        cd examples
         ./run_spec_vmec_examples
 
     - name: Install coverage dependencies
@@ -214,14 +193,10 @@ jobs:
       run: pip install coverage 
 
     - name: Run expensive tests on 1 MPI process using coverage
-      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'none') || contains(matrix.packages, 'all'))
+      if: contains(matrix.test-type, 'unit') 
       run: |
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/geo
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/field
-
-    - name: Run remaining tests on 1 MPI process using coverage
-      if: contains(matrix.test-type, 'unit')
-      run: | 
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/core
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/mhd
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/objectives
@@ -229,7 +204,7 @@ jobs:
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/util
 
     - name: Run MPI tests using coverage
-      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') || contains(matrix.packages, 'vmec') || contains(matrix.packages, 'spec'))
+      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') 
       run: |
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
