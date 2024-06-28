@@ -47,7 +47,7 @@ RUN git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git /src/SPE
     cd /src/SPEC   &&  \
     /venv/bin/pip install -v . 2>&1 | tee spec_build.log && \
     cd Utilities/pythontools && \
-    /venv/bin/pip install -r requirements.txt
+    /venv/bin/pip install -r requirements.txt && \
     /venv/bin/pip install -v .
     
 RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
