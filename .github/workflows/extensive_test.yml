@@ -119,7 +119,7 @@ jobs:
 
     # For some reason, installing py_spec does not install the dependencies f90nml and h5py. Therefore I installed these manually above.
     - name: Install py_spec
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: |
         pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
@@ -135,7 +135,7 @@ jobs:
          pip install .
 
     - name: Try import spec
-      if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
+      if: contains(matrix.packages, 'all')
       run: python -c "import spec.spec_f90wrapped as spec; print(spec.constants.version)"
 
     - name: ls in /usr/lib/x86_64-linux-gnu
@@ -147,13 +147,10 @@ jobs:
     - name: env after adding to LD_LIBRARY_PATH
       run: env
 
-    - name: ls in VMEC2000/python 1
-      if: contains(matrix.packages, 'all')
-      run: ls -l VMEC2000/python
-
     - name: Configure VMEC2000 module
       if: contains(matrix.packages, 'all')
       run: |
+        ls -l VMEC2000/python
         cd VMEC2000
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
@@ -164,14 +161,11 @@ jobs:
       run: python -c "print(dir()); import vmec; print(dir()); print(dir(vmec)); print('package:', vmec.__package__); print('spec:', vmec.__spec__); print('doc:', vmec.__doc__); print('file:', vmec.__file__); print('path:', vmec.__path__)"
 
     - name: Install simsopt package
-      if: contains(matrix.packages, 'all')
-      run: |
-        pip install -v .
-        pip install mpi4py py_spec pyoculus h5py
-
-    - name: Install simsopt package
-      if: contains(matrix.packages, 'none')
       run: pip install -v .
+
+    - name: Install simsopt optional dependencies
+      if: contains(matrix.packages, 'all')
+      run: pip install mpi4py py_spec pyoculus h5py
 
     - name: Run serial examples as part of integrated tests
       if: contains(matrix.test-type, 'integrated') 
@@ -204,7 +198,7 @@ jobs:
         coverage run --source=simsopt -m unittest discover -t tests -v -s tests/util
 
     - name: Run MPI tests using coverage
-      if: contains(matrix.test-type, 'unit') && (contains(matrix.packages, 'all') 
+      if: contains(matrix.test-type, 'unit') && contains(matrix.packages, 'all') 
       run: |
         mpiexec -n 1 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
