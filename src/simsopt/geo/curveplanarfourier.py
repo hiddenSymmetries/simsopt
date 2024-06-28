@@ -99,7 +99,8 @@ class PSCCurve(CurvePlanarFourier):
         # print('deriv info = ', -Linv, psi_deriv, v_current, np.ravel((-Linv * psi_deriv) @ v_current))
         # print(Linv.shape, indices, psi_deriv.shape, v_current.shape, ((-Linv * psi_deriv) @ v_current).shape)
         # print(np.ravel((-Linv * psi_deriv) @ v_current).shape)
-        return Derivative({self: np.ravel(-Linv_partial * v_current) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
+        # print(v_current, Linv_partial, self._psc_array.L_inv.shape, self._index)
+        return Derivative({self: np.ravel(-Linv_partial * self.dkappa_dcoef_vjp(v_current)) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
     
     def dkappa_dcoef_vjp(self, v_current):
         dofs = self.get_dofs()  # should already be only the orientation dofs
@@ -109,7 +110,7 @@ class PSCCurve(CurvePlanarFourier):
             dofs = self.curve.get_dofs()
 
         dofs = dofs[2 * self.order + 1:2 * self.order + 5]  # don't need the coordinate variables
-        print('dofs = ', dofs)
+        # print('dofs = ', dofs)
         normalization = np.sqrt(np.sum(dofs ** 2))
         dofs = dofs / normalization  # normalize the quaternion
         w = dofs[0]
@@ -147,7 +148,8 @@ class PSCCurve(CurvePlanarFourier):
         ddelta = np.hstack((np.zeros(2 * self.order + 1), ddelta))
         ddelta = np.hstack((ddelta, np.zeros(3)))
         deriv = dalpha + ddelta
-        print(deriv.shape)
+        # print(deriv.shape)
+        # exit()
         return deriv * v_current[0]  # Derivative({self: deriv})
     
 # class RotatedPSCCurve(RotatedCurve, PSCCurve):

@@ -178,6 +178,7 @@ def apply_symmetries_to_psc_curves(base_curves, nfp, stellsym):
     """
     flip_list = [False, True] if stellsym else [False]
     curves = []
+    q = 0
     for k in range(0, nfp):
         for flip in flip_list:
             for i in range(len(base_curves)):
@@ -187,8 +188,11 @@ def apply_symmetries_to_psc_curves(base_curves, nfp, stellsym):
                     rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
                     rotcurve.order = base_curves[i].order
                     rotcurve._psc_array = base_curves[i]._psc_array
-                    rotcurve._index = base_curves[i]._index
+                    rotcurve._index = base_curves[i]._index + base_curves[i].npsc * q
+                    rotcurve.psc_current_contribution_vjp = base_curves[i].psc_current_contribution_vjp
+                    rotcurve.dkappa_dcoef_vjp = base_curves[i].dkappa_dcoef_vjp
                     curves.append(rotcurve)
+            q += 1
     return curves
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
