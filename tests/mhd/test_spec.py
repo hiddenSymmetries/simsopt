@@ -2,8 +2,11 @@ import logging
 import os
 import unittest
 
+
 import numpy as np
 from monty.tempfile import ScratchDir
+from scipy.constants import mu_0
+from simsopt._core.util import ObjectiveFailure
 
 try:
     import spec as spec_mod
@@ -195,6 +198,93 @@ class SpecTests(unittest.TestCase):
                     self.assertEqual(s.get_profile('volume_current', lvol), 0)
                 else:
                     self.assertEqual(s.get_profile('volume_current', lvol), 1)
+
+    def test_activate_profiles(self):
+        """
+        test activate all profiles and confirm that DOFs are
+        correctly added
+        """
+        profiles = ['pressure',
+                    'volume_current',
+                    'interface_current',
+                    'iota',
+                    'oita',
+                    'mu',
+                    'pflux',
+                    'tflux',
+                    'helicity']
+
+        for profile in profiles:
+            with ScratchDir("."):
+                s = Spec.default_freeboundary(copy_to_pwd=True)
+                startdofs = len(s.x)
+                self.assertIsNone(s.__getattribute__(profile+'_profile'))
+                s.activate_profile(profile)
+                self.assertIsNotNone(s.__getattribute__(profile+'_profile'))
+                if profile in ['tflux', 'pflux', 'mu', 'oita', 'iota', 'helicity']:
+                    # test that the 'mvol' length profiles have been increased by two
+                    self.assertEqual(len(s.x), startdofs+2)
+                elif profile in ['volume_current', 'pressure']:
+                    # test that the 'nvol' length profiles have been increased by one
+                    self.assertEqual(len(s.x), startdofs+1)
+                elif profile in ['interface_current']:
+                    # test that the surface current profile has not been increased
+                    self.assertEqual(len(s.x), startdofs)
+                else: 
+                    raise ValueError(f"Profile {profile} not recognized")
+
+
+    def test_freeboundary_default(self):
+        """
+        test the default freeboundary file, and re-set if Picard
+        iteration fails
+        """
+        with ScratchDir("."):
+            s = Spec.default_freeboundary(copy_to_pwd=True)
+            startingboundary = np.copy(s.inputlist.bns) 
+            # run sucessfully as default should be converged
+            s.run()
+            # ask to generate guess, not enough freeboundary iterations
+            s.inputlist.linitialize = 2
+            s.inputlist.lautoinitbn = 1
+            s.inputlist.mfreeits = 2
+            s.recompute_bell()
+            try: 
+                s.run()
+            except ObjectiveFailure:
+                self.assertTrue(np.all(s.inputlist.bns == startingboundary))
+            else: 
+                raise ValueError("ObjectiveFailure not raised")
+            # give enough freeboundary iterations, let ir run successfully 
+            s.inputlist.mfreeits = 10
+            s.recompute_bell()
+            s.run()
+
+    def test_array_translator(self):
+        """
+        Test the array_translator method to convert a SPEC style array to simsopt style array.
+        """
+        spec = Spec()
+        array = spec.inputlist.rbc
+        translator = spec.array_translator(array)
+        translator2 = spec.array_translator(array, style='spec')
+        translator3 = spec.array_translator(translator.as_simsopt, style='simsopt')
+
+        self.assertTrue(np.all(array == translator.as_spec))
+        self.assertTrue(np.all(array == translator2.as_spec))
+        self.assertTrue(np.all(array == translator3.as_spec))
+        self.assertTrue(np.all(translator.as_simsopt == translator2.as_simsopt))
+        self.assertTrue(np.all(translator2.as_simsopt == translator3.as_simsopt))
+        # test that the shape of the array is correct:
+        self.assertEqual(translator2.as_simsopt.shape, (spec.inputlist.ntor+1, (2*spec.inputlist.mpol)+1))
+
+    def test_poloidal_current_amperes(self): 
+        """
+        Test the poloidal current in amperes
+        """
+        filename = os.path.join(TEST_DIR, 'RotatingEllipse_Nvol8.sp')
+        s = Spec(filename)
+        self.assertAlmostEqual(s.poloidal_current_amperes, s.inputlist.curpol/mu_0)
 
     def test_integrated_stellopt_scenarios_1dof(self):
         """
