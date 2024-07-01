@@ -4,7 +4,7 @@ import simsoptpp as sopp
 from .curve import Curve, RotatedCurve
 from .._core.derivative import Derivative
 
-__all__ = ['CurvePlanarFourier', 'PSCCurve']
+__all__ = ['CurvePlanarFourier', 'PSCCurve']  # , 'RotatedPSCCurve']
 
 
 class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
@@ -77,7 +77,7 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
 
 class PSCCurve(CurvePlanarFourier):
     def __init__(self, quadpoints, order, nfp, stellsym, psc_array, index, dofs=None):
-        CurvePlanarFourier.__init__(self, quadpoints, order, nfp, stellsym, dofs=None)
+        CurvePlanarFourier.__init__(self, quadpoints, order, nfp, stellsym, dofs=dofs)
         self._psc_array = psc_array
         self._index = index
         names = self.local_dof_names
@@ -90,67 +90,77 @@ class PSCCurve(CurvePlanarFourier):
         self.npsc = self._psc_array.num_psc
         
     def psc_current_contribution_vjp(self, v_current):
-        indices = np.hstack((self._index, self._index + self.npsc))
-        Linv_partial = self._psc_array.L_inv[self._index % self.npsc, self._index % self.npsc]
-        # Linv = np.vstack((Linv_partial, Linv_partial)).T
-        # psi_deriv = self._psc_array.dpsi_full[indices]
-        # print(v_curre.shape)
-        # print(Linv, psi_deriv, v_current)
-        # print('deriv info = ', -Linv, psi_deriv, v_current, np.ravel((-Linv * psi_deriv) @ v_current))
-        # print(Linv.shape, indices, psi_deriv.shape, v_current.shape, ((-Linv * psi_deriv) @ v_current).shape)
-        # print(np.ravel((-Linv * psi_deriv) @ v_current).shape)
-        # print(v_current, Linv_partial, self._psc_array.L_inv.shape, self._index)
+        indices = np.arange(self._index, self.npsc * self._psc_array.symmetry, self.npsc)
+        Linv_partial = self._psc_array.L_inv[self._index, self._index]  # % self.npsc, self._index % self.npsc]
+        print(self._psc_array.I[self._index], 
+              -self._psc_array.L_inv[self._index, :] @ self._psc_array.psi_total * 1e7,
+              -self._psc_array.L_inv[self._index, indices] @ self._psc_array.psi_total[indices] * 1e7)
         return Derivative({self: np.ravel(-Linv_partial * self.dkappa_dcoef_vjp(v_current)) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
     
     def dkappa_dcoef_vjp(self, v_current):
         dofs = self.get_dofs()  # should already be only the orientation dofs
         
         # For the rotated coils, need to compute dalpha_prime / dcoef
-        if len(dofs) == 0:
-            dofs = self.curve.get_dofs()
+        # if len(dofs) == 0:
+        #     dofs = self.curve.get_dofs()
+            # rotated curves need the orientation dofs of the rotated curve
 
         dofs = dofs[2 * self.order + 1:2 * self.order + 5]  # don't need the coordinate variables
-        # print('dofs = ', dofs)
         normalization = np.sqrt(np.sum(dofs ** 2))
+        # print('dofs = ', dofs, normalization)
         dofs = dofs / normalization  # normalize the quaternion
         w = dofs[0]
         x = dofs[1]
         y = dofs[2]
         z = dofs[3]
-        # alphas = 2.0 * np.arcsin(np.sqrt(dofs[:, 1] ** 2 + dofs[:, 3] ** 2))
-        # deltas = 2.0 * np.arccos(np.sqrt(dofs[:, 0] ** 2 + dofs[:, 1] ** 2))
-        # dofs[3] = cos(alpha / 2.0) * cos(delta / 2.0)
-        # dofs[4] = sin(alpha / 2.0) * cos(delta / 2.0)
-        # dofs[5] = cos(alpha / 2.0) * sin(delta / 2.0)
-        # dofs[6] = -sin(alpha / 2.0) * sin(delta / 2.0)
         dalpha_dw = (2 * x * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2) / normalization
         dalpha_dx = (w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25) / normalization
         dalpha_dy = (z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25) / normalization
         dalpha_dz = (2 * y * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-        ddelta_dw = -y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dx = z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dy = -w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dz = x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2) / normalization
+        ddelta_dw = -y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
+        ddelta_dx = z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
+        ddelta_dy = -w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
+        ddelta_dz = x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
     
-        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz] / normalization)
-        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz] / normalization)
+        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])
+        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])
+        
+        # dalpha = self._psc_array.dpsi2[self._index] * dalpha
+        # ddelta = self._psc_array.dpsi2[self._index + self.npsc] * ddelta
+        
+        # dalpha_total = self._psc_array.dpsi_daa[self._index] * dalpha + self._psc_array.dpsi_dad[self._index] * ddelta
+        # ddelta_total = self._psc_array.dpsi_dda[self._index] * dalpha + self._psc_array.dpsi_ddd[self._index] * ddelta
+        
+        # indices = np.arange(self._index, 2 * self.npsc * self._psc_array.symmetry, 2 * self.npsc)
+        # indices2 = np.arange(self._index + self.npsc, 2 * self.npsc * self._psc_array.symmetry, 2 * self.npsc)
+        # dalpha_total = self._psc_array.dpsi_full[indices] * dalpha
+        # ddelta_total = self._psc_array.dpsi_full[indices2] * ddelta
+        
+        dalpha_total = self._psc_array.dpsi[self._index] * dalpha
+        ddelta_total = self._psc_array.dpsi[self._index + self.npsc] * ddelta
         
         # if len(dofs) == 0:
-        dalpha = self._psc_array.dpsi_daa[self._index] * dalpha + self._psc_array.dpsi_dad[self._index] * ddelta
-        ddelta = self._psc_array.dpsi_ddd[self._index] * ddelta + self._psc_array.dpsi_dda[self._index] * dalpha
-             
-        dalpha = np.hstack((np.zeros(2 * self.order + 1), dalpha))
+        # print(self._index)
+        # dalpha_total = np.zeros(dalpha.shape)
+        # ddelta_total = np.zeros(ddelta.shape)
+        # for i in range(self._psc_array.symmetry):
+        #     index = self._index + self.npsc * i
+        #     dalpha_total += self._psc_array.dpsi_daa[index] * dalpha + self._psc_array.dpsi_dad[index] * ddelta
+        #     ddelta_total += self._psc_array.dpsi_ddd[index] * ddelta + self._psc_array.dpsi_dda[index] * dalpha
+        
+        dalpha = np.hstack((np.zeros(2 * self.order + 1), dalpha_total))
         dalpha = np.hstack((dalpha, np.zeros(3)))
-        ddelta = np.hstack((np.zeros(2 * self.order + 1), ddelta))
+        ddelta = np.hstack((np.zeros(2 * self.order + 1), ddelta_total))
         ddelta = np.hstack((ddelta, np.zeros(3)))
         deriv = dalpha + ddelta
         # print(deriv.shape)
         # exit()
         return deriv * v_current[0]  # Derivative({self: deriv})
+    
     
 # class RotatedPSCCurve(RotatedCurve, PSCCurve):
 #     """
@@ -160,9 +170,20 @@ class PSCCurve(CurvePlanarFourier):
 #     """
 
 #     def __init__(self, curve, phi, flip):
+#         # sopp.Curve.__init__(self, curve.quadpoints)
+#         # print(curve)
+#         # print(curve.quadpoints, curve.order, curve.nfp, curve.stellsym, curve._psc_array, curve._index, curve.get_dofs(), phi, flip)
+#         # print(self)
+#         # PSCCurve.__init__(self, curve.quadpoints, curve.order, curve.nfp, curve.stellsym, curve._psc_array, curve._index, curve.get_dofs())
 #         RotatedCurve.__init__(self, curve, phi, flip)
-#         PSCCurve.__init__(self, curve.quadpoints, curve.order, curve.nfp, curve.stellsym, curve._psc_array, curve._index, curve.get_dofs())
+#         exit()
+
 #         print(self, self.order, self.curve)
+#         # rotcurve.order = base_curves[i].order
+#         # rotcurve._psc_array = base_curves[i]._psc_array
+#         # rotcurve._index = base_curves[i]._index + base_curves[i].npsc * q
+#         # rotcurve.psc_current_contribution_vjp = base_curves[i].psc_current_contribution_vjp
+#         # rotcurve.dkappa_dcoef_vjp = base_curves[i].dkappa_dcoef_vjp
 #         #self.curve = curve
 #         #self.order = curve.order
         

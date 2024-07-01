@@ -3,6 +3,7 @@ import numpy as np
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
+from .._core.derivative import Derivative
 
 __all__ = ['BiotSavart']
 
@@ -103,6 +104,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
         """
+        # from simsopt.geo.curveplanarfourier import PSCCurve
 
         coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
@@ -122,7 +124,69 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         # print('check2 = ', sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))]).data)
         # print(np.shape(sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])))
         # exit()
+        # curves = [coil.curve for coil in coils]
+        # if np.any(isinstance(curves, PSCCurve)):
+        #     dI = np.zeros(len(curves))
+        #     for i in range(len(coils)): 
+        #         dI[i] = (coils[i].curve.psc_current_contribution_vjp([res_current[i]])
+        #     dI = -coils[i].curve._psc_array.L_inv @ dI
+        #     return dB
+        # else:
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+    
+    def B_vjp(self, v):
+        r"""
+        Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
+        :math:`\{\mathbf{B}_i\}_{i=1}^n`.
+        These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
+        This function returns the vector Jacobian product of this dependency, i.e.
+
+        .. math::
+
+            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
+
+        """
+        from simsopt.geo.curveplanarfourier import PSCCurve
+
+        coils = self._coils
+        gammas = [coil.curve.gamma() for coil in coils]
+        gammadashs = [coil.curve.gammadash() for coil in coils]
+        currents = [coil.current.get_value() for coil in coils]
+        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+
+        points = self.get_points_cart_ref()
+        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
+                                   res_gamma, res_gammadash, [], [], [])
+        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+        res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
+        # print(res_current)
+        # print(np.shape(dB_by_dcoilcurrents), np.shape(dB_by_dcoilcurrents[0]), np.shape(res_current))
+        # print('check = ', [coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])).data for i in range(len(coils))])
+        # print('check2 = ', sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))]).data)
+        # print(np.shape(sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])))
+        # exit()
+        curve_flags = [isinstance(coil.curve, PSCCurve) for coil in coils]
+        # print('here = ', curve_flags)
+        # print(np.shape(dB_by_dcoilcurrents), np.shape(v), np.shape(res_gamma))
+
+        if np.any(curve_flags):
+            order = coils[0].curve.order 
+            ndofs = 2 * order + 8
+            dI = np.zeros((len(coils), ndofs))
+            # dI_deriv = []
+            for i in range(coils[0].curve.npsc):   # Not using the rotated ones directly
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([res_current[i]])
+            dI = -coils[0].curve._psc_array.L_inv @ dI
+            # dI = np.zeros(dI.shape)
+            # print(np.max(np.abs(dI)), dI.shape)
+            # for i in range(len(coils)): 
+            #     dI_deriv.append(np.asarray(Derivative{coils[i].curve: dI[i]}))
+            # dB = 
+            # print([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([Derivative({coils[i].curve: dI[i, :]})])) for i in range(len(coils))])
+            return sum([coils[i].vjp(res_gamma[i], res_gammadash[i]) + Derivative({coils[i].curve: dI[i, :]}) for i in range(len(coils))])
+        else:
+            return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
     def dA_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()

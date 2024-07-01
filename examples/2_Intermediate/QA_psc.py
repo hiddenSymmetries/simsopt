@@ -199,16 +199,17 @@ def coil_optimization_PSC(s, bs, bpsc):
         # pscs.update_curves()
         pscs.update_psi()
         pscs.setup_currents_and_fields()
+        pscs.psi_deriv()
         pscs.psi_deriv_full()
         # JF.field.B_vjp(dJdB)
         # print(bpsc._coils[-1].curve.dgamma_by_dcoeff_vjp(v_gamma)(JF),
         #     + bpsc._coils[-1].curve.dgammadash_by_dcoeff_vjp(v_gammadash)(JF),
         #     + bpsc._coils[-1].psc_current_contribution_vjp(bpsc._coils[-1].dkappa_dcoef_vjp(v_current))(JF))
         # print('a1, a2 = ', pscs.alphas, 
-        #       bpsc._coils[-1]._current.get_value(), 
-        #       bpsc._coils[-1]._psc_array.I[-1],
-        #       bpsc._coils[-1]._psc_array.all_currents[-1].get_value(),
-        #       bpsc._coils[-1]._curve.gamma()[-1, :])
+        #       bpsc._coils[1]._current.get_value(), 
+        #       bpsc._coils[1].curve._psc_array.I[1],
+        #       bpsc._coils[1].curve._psc_array.all_currents[1].get_value(),
+        #       bpsc._coils[1].curve.gamma()[-1, :])
         # exit()
         
         J = JF.J()
@@ -363,7 +364,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "BTF_0", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 7, "out_dir": out_str,
+kwargs_geo = {"Nx": 5, "out_dir": out_str,
                 "initialization": "plasma", 
               "poff": poff,}
 
@@ -420,7 +421,7 @@ x_opt = minimize(psc_array.least_squares,
                   args=(verbose,),
                   method='L-BFGS-B',
                   bounds=opt_bounds,
-                    jac=psc_array.least_squares_jacobian, 
+                    # jac=psc_array.least_squares_jacobian, 
                   options=options,
                   tol=1e-20,  # Required to make progress when fB is small
                   # callback=callback

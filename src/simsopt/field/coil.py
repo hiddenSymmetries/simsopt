@@ -59,11 +59,10 @@ class PSCCoil(sopp.Coil, Optimizable):
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
 
-    def vjp(self, v_gamma, v_gammadash, v_current):
+    def vjp(self, v_gamma, v_gammadash):
         # print('other derivs = ', v_current, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma), self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash))
-        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
-            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
-            + self.curve.psc_current_contribution_vjp(v_current)
+        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) #\
+            # + self.curve.psc_current_contribution_vjp(v_current)
 
     def plot(self, **kwargs):
         """
@@ -187,10 +186,7 @@ def apply_symmetries_to_psc_curves(base_curves, nfp, stellsym):
                 else:
                     rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
                     rotcurve.order = base_curves[i].order
-                    rotcurve._psc_array = base_curves[i]._psc_array
                     rotcurve._index = base_curves[i]._index + base_curves[i].npsc * q
-                    rotcurve.psc_current_contribution_vjp = base_curves[i].psc_current_contribution_vjp
-                    rotcurve.dkappa_dcoef_vjp = base_curves[i].dkappa_dcoef_vjp
                     curves.append(rotcurve)
             q += 1
     return curves

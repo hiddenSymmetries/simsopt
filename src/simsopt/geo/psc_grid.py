@@ -395,8 +395,8 @@ class PSCgrid:
             psc_grid.alphas = np.arctan2(
                 -psc_grid.coil_normals[:, 1], 
                 np.sqrt(psc_grid.coil_normals[:, 0] ** 2 + psc_grid.coil_normals[:, 2] ** 2))
-            psc_grid.deltas = np.arcsin(psc_grid.coil_normals[:, 0], 
-                                        np.cos(psc_grid.alphas))
+            psc_grid.deltas = np.arcsin(psc_grid.coil_normals[:, 0] /  \
+                                        np.sqrt(psc_grid.coil_normals[:, 0] ** 2 + psc_grid.coil_normals[:, 2] ** 2))
         elif initialization == "TF":
             # determine the alphas and deltas from these normal vectors
             B = B_TF.B()
@@ -407,8 +407,8 @@ class PSCgrid:
             psc_grid.alphas = np.arctan2(
                 -psc_grid.coil_normals[:, 1], 
                 np.sqrt(psc_grid.coil_normals[:, 0] ** 2 + psc_grid.coil_normals[:, 2] ** 2))
-            psc_grid.deltas = np.arcsin(psc_grid.coil_normals[:, 0], 
-                                        np.cos(psc_grid.alphas))
+            psc_grid.deltas = np.arcsin(psc_grid.coil_normals[:, 0] / \
+                                        np.sqrt(psc_grid.coil_normals[:, 0] ** 2 + psc_grid.coil_normals[:, 2] ** 2))
         else:  # default is to initialize to zeros -- seems to work better in optimization anyways
             psc_grid.alphas = np.zeros(psc_grid.num_psc)
             psc_grid.deltas = np.zeros(psc_grid.num_psc)
@@ -960,12 +960,14 @@ class PSCgrid:
         # )
         
         # Repeat for the whole torus
-        # self.I_all = -self.L_inv @ self.psi_total / self.fac
+        self.I_all = -self.L_inv @ self.psi_total / self.fac
         self.I_all_with_sign_flips = np.zeros(self.num_psc * self.symmetry)
+        # self.I_all = np.zeros(self.num_psc * self.symmetry)
         q = 0
         nn = self.num_psc
         for fp in range(self.nfp):
             for stell in self.stell_list:
+                # self.I_all[q * nn: (q + 1) * nn] = self.I
                 self.I_all_with_sign_flips[q * nn: (q + 1) * nn] = self.I * stell
                 # print('here = ', q, self.I)
                 q += 1
@@ -1165,6 +1167,66 @@ class PSCgrid:
         L_deriv = (L_deriv_copy + np.transpose(L_deriv_copy, axes=[0, 2, 1]))
         return L_deriv * self.R
     
+    def L_deriv_full(self):
+        """
+        Should return gradient of the inductance matrix L that satisfies 
+        L^(-1) * Psi = I for the PSC arrays.
+        Returns
+        -------
+            grad_L: 3D numpy array, shape (2 * num_psc, num_psc, num_plasma_points) 
+                The gradient of the L matrix with respect to the PSC angles
+                alpha_i and delta_i. 
+        """
+        # t1 = time.time()
+        nn = self.num_psc
+        q = 0
+        self.dL_daa = np.zeros((nn, nn * self.symmetry, nn))
+        self.dL_dad = np.zeros((nn, nn * self.symmetry, nn))
+        self.dL_ddd = np.zeros((nn, nn * self.symmetry, nn))
+        self.dL_dda = np.zeros((nn, nn * self.symmetry, nn))
+        for fp in range(self.nfp):
+            for stell in self.stell_list:
+                dL = sopp.L_deriv_simd(
+                    self.grid_xyz_all_normalized[q * nn: (q + 1) * nn], 
+                    self.alphas_total[q * nn: (q + 1) * nn],
+                    self.deltas_total[q * nn: (q + 1) * nn],
+                    self.quad_points_phi,
+                    self.quad_weights,
+                    nn,
+                    self.stellsym,  # These  last few params are defunct in the function
+                    self.nfp
+                )  
+                # self.dpsi_daa[q * nn:(q + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn]
+                self.dL_daa[:, q * nn:(q + 1) * nn, :] += dL[:nn, :, :] * self.aaprime_aa[q * nn: (q + 1) * nn, None, None]
+                self.dL_dad[:, q * nn:(q + 1) * nn, :] += dL[:nn, :, :] * self.aaprime_dd[q * nn: (q + 1) * nn, None, None]
+                self.dL_ddd[:, q * nn:(q + 1) * nn, :] += dL[:nn, :, :] * self.ddprime_dd[q * nn: (q + 1) * nn, None, None]
+                self.dL_dda[:, q * nn:(q + 1) * nn, :] += dL[:nn, :, :] * self.ddprime_aa[q * nn: (q + 1) * nn, None, None]
+
+        self.dL_daa = (self.dL_daa + np.transpose(self.dL_daa, axes=[2, 1, 0])) * self.R
+        self.dL_dad = (self.dL_daa + np.transpose(self.dL_daa, axes=[2, 1, 0])) * self.R
+        self.dL_ddd = (self.dL_daa + np.transpose(self.dL_daa, axes=[2, 1, 0])) * self.R
+        self.dL_dda = (self.dL_daa + np.transpose(self.dL_daa, axes=[2, 1, 0])) * self.R
+        # self.dL_full = L_deriv
+        # nsym = self.symmetry
+        # L_deriv_copy = np.zeros(L_deriv.shape)
+        
+        # # Extra work required to impose the symmetries correctly
+        # nn = self.num_psc
+        # ncoils_sym = nn * nsym
+        # if nsym > 1:
+        #     q = 0
+        #     for fp in range(self.nfp):
+        #         for stell in self.stell_list:
+        #             L_deriv_copy[:nn, :, :] += L_deriv[q * nn:(q + 1) * nn, :, :] * self.aaprime_aa[q * nn: (q + 1) * nn, None, None] + L_deriv[ncoils_sym + q * nn:ncoils_sym + (q + 1) * nn, :, :] * self.ddprime_aa[q * nn: (q + 1) * nn, None, None]
+        #             L_deriv_copy[ncoils_sym:ncoils_sym + nn, :, :] += L_deriv[q * nn:(q + 1) * nn, :, :] * self.aaprime_dd[q * nn: (q + 1) * nn, None, None] + L_deriv[ncoils_sym + q * nn:ncoils_sym + (q + 1) * nn, :, :] * self.ddprime_dd[q * nn: (q + 1) * nn, None, None]
+        #             q = q + 1
+        # else:
+        #     L_deriv_copy = L_deriv
+            
+        # # symmetrize it
+        # L_deriv = (L_deriv_copy + np.transpose(L_deriv_copy, axes=[0, 2, 1]))
+        # return L_deriv * self.R
+    
     def psi_deriv(self):
         """
         Should return gradient of the inductance matrix L that satisfies 
@@ -1177,6 +1239,7 @@ class PSCgrid:
         """
         nn = self.num_psc
         psi_deriv = np.zeros(2 * nn)
+        # psi_deriv_unrotated = np.zeros(2 * nn)
         q = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
@@ -1193,10 +1256,29 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 ) 
+                # psi_deriv_unrotated[:nn] += dpsi[:nn] 
+                # psi_deriv_unrotated[nn:] += dpsi[nn:]
                 psi_deriv[:nn] += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
                 psi_deriv[nn:] += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
+                # dpsi = sopp.dpsi_dkappa(
+                #     contig(self.I_TF),
+                #     contig(self.dl_TF),
+                #     contig(self.gamma_TF),
+                #     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
+                #     contig(self.alphas),
+                #     contig(self.deltas),
+                #     contig(self.coil_normals_all[q * nn: (q + 1) * nn, :]),
+                #     contig(self.quad_points_rho),
+                #     contig(self.quad_points_phi),
+                #     self.quad_weights,
+                #     self.R,
+                # ) 
+                # psi_deriv_unrotated[:nn] += dpsi[:nn] 
+                # psi_deriv_unrotated[nn:] += dpsi[nn:]
                 q += 1
+        # self.dpsi2 = psi_deriv_unrotated * (1.0 / self.gamma_TF.shape[1])  # / self.nfp / (self.stellsym + 1.0)
         self.dpsi = psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)  # Factors because TF fields get overcounted
+        return self.dpsi
     
     def psi_deriv_full(self):
         """
@@ -1210,12 +1292,12 @@ class PSCgrid:
         """
         nn = self.num_psc
         psi_deriv = np.zeros(2 * nn * self.symmetry)
-        self.dpsi_daa = np.zeros(nn * self.symmetry)
-        self.dpsi_dad = np.zeros(nn * self.symmetry)
-        self.dpsi_ddd = np.zeros(nn * self.symmetry)
-        self.dpsi_dda = np.zeros(nn * self.symmetry)
+        self.dpsi_daa = np.zeros(nn)
+        self.dpsi_dad = np.zeros(nn)
+        self.dpsi_ddd = np.zeros(nn)
+        self.dpsi_dda = np.zeros(nn)
         q = 0
-        # qq = 0
+        qq = 0
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 dpsi = sopp.dpsi_dkappa(
@@ -1232,17 +1314,35 @@ class PSCgrid:
                     self.R,
                 ) 
                 # psi_deriv[2 * q * nn:(2 * q + 2) * nn] = 
-                self.dpsi_daa[q * nn:(q + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn]
-                self.dpsi_dad[q * nn:(q + 1) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn]
-                self.dpsi_ddd[q * nn:(q + 1) * nn] = dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
-                self.dpsi_dda[q * nn:(q + 1) * nn] = dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
-                # psi_deriv[qq * nn:(qq + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
-                # psi_deriv[(qq + 1) * nn:(qq + 2) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
+                self.dpsi_daa += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn]
+                self.dpsi_dad += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn]
+                self.dpsi_ddd += dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
+                self.dpsi_dda += dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
+                psi_deriv[qq * nn:(qq + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
+                psi_deriv[(qq + 1) * nn:(qq + 2) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 q += 1
-                # qq += 2
+                qq += 2
         # print(psi_deriv)
         # exit()
-        self.dpsi_full = psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)
+        # dpsi = sopp.dpsi_dkappa(
+        #     contig(self.I_TF),
+        #     contig(self.dl_TF),
+        #     contig(self.gamma_TF),
+        #     contig(self.grid_xyz_all),
+        #     contig(self.alphas_total),
+        #     contig(self.deltas_total),
+        #     contig(self.coil_normals_all),
+        #     contig(self.quad_points_rho),
+        #     contig(self.quad_points_phi),
+        #     self.quad_weights,
+        #     self.R,
+        # ) 
+        # psi_deriv[2 * q * nn:(2 * q + 2) * nn] = 
+        self.dpsi_daa *= (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)
+        self.dpsi_dad *= (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)
+        self.dpsi_ddd *= (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)
+        self.dpsi_dda *= (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)
+        self.dpsi_full = psi_deriv * (1.0 / self.gamma_TF.shape[1])   # / self.nfp / (self.stellsym + 1.0)
     
     def setup_orientations(self, alphas, deltas):
         """
@@ -1298,7 +1398,10 @@ class PSCgrid:
         # rescale inductance
         # if keeping track of the number of coil turns, need factor
         # of Nt ** 2 below as well
-        self.L = L_total * self.R
+        if hasattr(self, 'L'):
+            'do nothing'
+        else:
+            self.L = L_total * self.R
         
     def update_psi(self):
         """
