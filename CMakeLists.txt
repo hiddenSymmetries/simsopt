@@ -170,4 +170,3 @@ target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
 #install(TARGETS ${PROJECT_NAME}
 #        #LIBRARY
 #        DESTINATION src/${PROJECT_NAME})
-install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION .)
