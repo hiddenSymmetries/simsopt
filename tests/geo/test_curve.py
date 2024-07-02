@@ -9,6 +9,7 @@ import numpy as np
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curvecwsfourier import CurveCWSFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
@@ -83,6 +84,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = CurveXYZFourierSymmetries(x, order, 2, False)
     elif curvetype == "CurveXYZFourierSymmetries3":
         curve = CurveXYZFourierSymmetries(x, order, 2, False, ntor=3)
+    elif curvetype == "CurveCWSFourier":
+        curve = CurveCWSFourier(mpol=1, ntor=1, idofs=[1, 0.2, 0.2], quadpoints=150, order=order, nfp=1, stellsym=True)
     else:
         assert False
     
@@ -124,6 +127,9 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve.set('zc(0)', 1)
         curve.set('zs(1)', r)
         dofs = curve.get_dofs()
+    elif curvetype == "CurveCWSFourier":
+        dofs[1] = 1.
+        dofs[2*order + 2] = 1.
     else:
         assert False
 

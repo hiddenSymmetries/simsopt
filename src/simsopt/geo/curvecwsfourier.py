@@ -31,7 +31,6 @@ class CurveCWSFourier(sopp.CurveCWSFourier, Curve):
     """
 
     def __init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym, dofs=None):
-        #quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
         if not np.isscalar(quadpoints):
             quadpoints = len(quadpoints)
         sopp.CurveCWSFourier.__init__(self, mpol, ntor, idofs, quadpoints, order, nfp, stellsym)
