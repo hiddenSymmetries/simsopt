@@ -949,7 +949,7 @@ def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
     return curves
 
 
-def gamma_2d(modes, qpts, order):
+def gamma_2d(modes, qpts, order, G:int=0, H:int=0):
     """Given some dofs, return curve position in 2D cartesian coordinate
     
     Args:
@@ -978,6 +978,10 @@ def gamma_2d(modes, qpts, order):
     for ii in range(order):
         theta = theta + thetas[ii] * jnp.sin((ii+1)*ll)
         phi   = phi   + phis[ii]   * jnp.sin((ii+1)*ll)
+
+    # Add secular terms
+    theta = theta + G * qpts
+    phi = phi + H * qpts
             
     gamma = jnp.zeros((qpts.size, 3))
     gamma = gamma.at[:,0].set( phi   )
@@ -994,18 +998,20 @@ class Curve2D( JaxCurve ):
      - order: Integer, max Fourier mode order.
      - dofs (optionnal): Degrees of freedom. 
     """
-    def __init__(self, quadpoints, order, dofs=None):
+    def __init__(self, quadpoints, order, G=0, H=0, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = jnp.linspace(0, 1, quadpoints, endpoint=False)
         
         # Curve order. Number of Fourier harmonics for phi and theta
         self.order = order
+        self.G = G
+        self.H = H
         
         # Modes are order as phic, phis, thetac, thetas
         self.modes = [np.zeros((order+1,)), np.zeros((order,)), np.zeros((order+1,)), np.zeros((order,))]
 
         # Define pure function
-        pure = jit(lambda dofs, points: gamma_2d(dofs, points, self.order))
+        pure = jit(lambda dofs, points: gamma_2d(dofs, points, self.order, self.G, self.H))
 
         # Call JaxCurve constructor
         if dofs is None:
@@ -1014,7 +1020,8 @@ class Curve2D( JaxCurve ):
                 pure, 
                 x0=np.concatenate(self.modes),
                 external_dof_setter=Curve2D.set_dofs_impl,
-                names=self._make_names()
+                names=self._make_names(),
+                gamma_pure=pure
                 )
         else:
             super().__init__(
@@ -1022,7 +1029,8 @@ class Curve2D( JaxCurve ):
                 pure, 
                 dofs=dofs,
                 external_dof_setter=Curve2D.set_dofs_impl,
-                names=self._make_names()
+                names=self._make_names(),
+                gamma_pure=pure
             )
 
         self.dgamma_by_dpoint_pure = jit(lambda d, p: jacfwd(pure, argnums=1)(d, p))
@@ -1208,6 +1216,11 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
         points = self.curve2d.quadpoints
 
+        tmp = self.curve2d.gamma()
+        tmp = self.curve2d.gammadash()
+        tmp = self.curve2d.gammadashdash()
+        tmp = self.curve2d.gammadashdashdash()
+        
         # We are not doing the same search for x0
         sopp.Curve.__init__(self, points)
         super().__init__(depends_on=[self.surf, self.curve2d])
@@ -1234,7 +1247,13 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         self.dgammadash_by_dsurf_vjp_jax = jit(lambda gamma2d, surf_dofs, v: vjp(self.gammadash_jax, gamma2d, surf_dofs)[1](v)[1])
 
         # GAMMADASHDASH
-        self.gammadashdash_pure = lambda g, sdofs, p: jvp(lambda g2: self.gamma_pure(g2, sdofs, p), (g,), (self.curve2d.gammadashdash(),))[1]
+        self.dxdt_times_dc2ddl = lambda gamma, sdofs, p: jvp(lambda g: self.gamma_pure(g, sdofs, p), (gamma,), (self.curve2d.gammadash(),))[1]
+        self.dxxdtt_times_dc2ddlsq = lambda gamma, sdofs, p: jvp(lambda g: self.dxdt_times_dc2ddl(g, sdofs, p), (gamma,), (self.curve2d.gammadash(),))[1]
+
+        self.gammadashdash_pure = lambda g, sdofs, p: jvp(lambda g2: self.gamma_pure(g2, sdofs, p), (g,), (self.curve2d.gammadashdash(),))[1] + self.dxxdtt_times_dc2ddlsq(g, sdofs, p)
+        
+
+
 
         self.gammadashdash_jax = jit(lambda g, sdofs: self.gammadashdash_pure(g, sdofs, self.quadpoints))
         self.dgammadashdash_by_dcurve_jax = jit(lambda gamma2d, surf_dofs: jacfwd(self.gammadashdash_jax, argnums=0)(gamma2d, surf_dofs))
@@ -1244,7 +1263,7 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
 
         # GAMMADASHDASHDASH
-        self.gammadashdashdash_pure = lambda g, sdofs, p: jvp(lambda g2: self.gamma_pure(g2, sdofs, p), (g,), (self.curve2d.gammadashdashdash(),))[1]
+        self.gammadashdashdash_pure = lambda g, sdofs, p: jvp(lambda g2: self.gammadashdash_pure(g2, sdofs, p), (g,), (self.curve2d.gammadashdashdash(),))[1]
         self.gammadashdashdash_jax = jit(lambda g, sdofs: self.gammadashdashdash_pure(g, sdofs, self.quadpoints))
         self.dgammadashdashdash_by_dcurve_jax = jit(lambda gamma2d, surf_dofs: jacfwd(self.gammadashdashdash_jax, argnums=0)(gamma2d, surf_dofs))
         self.dgammadashdashdash_by_dsurf_jax = jit(lambda gamma2d, surf_dofs: jacfwd(self.gammadashdashdash_jax, argnums=1)(gamma2d, surf_dofs))
@@ -1286,10 +1305,12 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         surf_dofs = s.get_dofs()
         return self.gammadash_jax(gamma2d, surf_dofs)
     def gammadash_impl(self, gammadash):
+        gamma2d = self.curve2d.gamma()
         gammadash[:, :] = self.gammadash()
     
     def gammadashdash(self):
         gamma2d = self.curve2d.gamma()
+        g2dash = self.curve2d.gammadash()#for some reason need to call this
         g2dashdash = self.curve2d.gammadashdash()#for some reason need to call this
         s = self.surf.to_RZFourier()
         surf_dofs = s.get_dofs()

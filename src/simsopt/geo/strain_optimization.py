@@ -8,7 +8,6 @@ from simsopt.geo.curveobjectives import Lp_torsion_pure
 __all__ = ['LPBinormalCurvatureStrainPenalty',
            'LPTorsionalStrainPenalty', 'CoilStrain']
 
-
 class LPBinormalCurvatureStrainPenalty(Optimizable):
     r"""
     This class computes a penalty term based on the :math:`L_p` norm
