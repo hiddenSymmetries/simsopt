@@ -188,7 +188,8 @@ def coil_optimization_PSC(s, bs, bpsc):
         # print(JF.dof_names)
         # Get the dofs for the PSCs, convert to alphas and deltas, and update the coils
         dofs = dofs.reshape(-1, 4)
-        dofs = (dofs.T / np.sqrt(np.sum(dofs ** 2, axis=-1))).T  # normalize the quaternion
+        dofs = dofs / np.sqrt(np.sum(dofs ** 2, axis=-1))[:, None]  # normalize the quaternion
+        # print(dofs, np.sqrt(np.sum(dofs ** 2, axis=-1)), dofs.shape)
         alphas = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
                             1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
         deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
@@ -196,11 +197,12 @@ def coil_optimization_PSC(s, bs, bpsc):
             np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
         # print('a, d = ', np.max(np.abs(alphas)), np.max(np.abs(deltas)))
         pscs.setup_orientations(alphas, deltas)
+        #setup_curves
         # pscs.update_curves()
         pscs.update_psi()
         pscs.setup_currents_and_fields()
         pscs.psi_deriv()
-        pscs.psi_deriv_full()
+        # pscs.psi_deriv_full()
         # JF.field.B_vjp(dJdB)
         # print(bpsc._coils[-1].curve.dgamma_by_dcoeff_vjp(v_gamma)(JF),
         #     + bpsc._coils[-1].curve.dgammadash_by_dcoeff_vjp(v_gammadash)(JF),
@@ -237,6 +239,7 @@ def coil_optimization_PSC(s, bs, bpsc):
 
     J0, dJ0 = f(dofs)
     dJh = sum(dJ0 * h)
+    print(dofs, dJ0, dJ0.shape, h)
     for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
         J1, _ = f(dofs + eps*h)
         J2, _ = f(dofs - eps*h)
@@ -317,7 +320,7 @@ def initialize_coils_qa():
     # qa needs to be scaled to 5.7 T on-axis magnetic field strength
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
     total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) * 0.85  #  / 7.131 * 6 / 1.01
-    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=64)
+    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, numquadpoints=128)
     base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
     # base_currents[0].fix_all()
     total_current = Current(total_current)
@@ -409,11 +412,11 @@ print('fB with both (minus sign), before opt = ', fB / (B_axis ** 2 * s.area()))
 
 # Actually do the minimization now
 print('beginning optimization: ')
-options = {"disp": True, "maxiter": 20}  # 100
+options = {"disp": True, "maxiter": 10}  # 100
 verbose = True
 eps = 1e-6
-opt_bounds1 = tuple([(-np.pi / 2.0 + eps, np.pi / 2.0 - eps) for i in range(psc_array.num_psc)])
-opt_bounds2 = tuple([(-np.pi + eps, np.pi - eps) for i in range(psc_array.num_psc)])
+opt_bounds1 = tuple([(-np.pi + eps, np.pi - eps) for i in range(psc_array.num_psc)])
+opt_bounds2 = tuple([(-np.pi / 2.0 + eps, np.pi / 2.0 - eps) for i in range(psc_array.num_psc)])
 opt_bounds = np.vstack((opt_bounds1, opt_bounds2))
 opt_bounds = tuple(map(tuple, opt_bounds))
 x_opt = minimize(psc_array.least_squares, 

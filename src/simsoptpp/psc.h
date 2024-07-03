@@ -54,7 +54,9 @@ Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array&
 
 Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R);
 
-Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R);
+Array dpsi_dkappa_xsimd(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R);
+
+Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R);
 
 Array B_TF(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points);
 

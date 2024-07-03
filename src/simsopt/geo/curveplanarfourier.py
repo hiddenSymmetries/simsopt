@@ -97,7 +97,7 @@ class PSCCurve(CurvePlanarFourier):
               -self._psc_array.L_inv[self._index, indices] @ self._psc_array.psi_total[indices] * 1e7)
         return Derivative({self: np.ravel(-Linv_partial * self.dkappa_dcoef_vjp(v_current)) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
     
-    def dkappa_dcoef_vjp(self, v_current):
+    def dkappa_dcoef_vjp(self, v_current, index):
         dofs = self.get_dofs()  # should already be only the orientation dofs
         
         # For the rotated coils, need to compute dalpha_prime / dcoef
@@ -105,32 +105,42 @@ class PSCCurve(CurvePlanarFourier):
         #     dofs = self.curve.get_dofs()
             # rotated curves need the orientation dofs of the rotated curve
 
-        dofs = dofs[2 * self.order + 1:2 * self.order + 5]  # don't need the coordinate variables
-        normalization = np.sqrt(np.sum(dofs ** 2))
+        dofs_unnormalized = dofs[2 * self.order + 1:2 * self.order + 5]  # don't need the coordinate variables
+        normalization = np.sqrt(np.sum(dofs_unnormalized ** 2))
         # print('dofs = ', dofs, normalization)
-        dofs = dofs / normalization  # normalize the quaternion
+        dofs = dofs_unnormalized / normalization  # normalize the quaternion
         w = dofs[0]
         x = dofs[1]
         y = dofs[2]
         z = dofs[3]
-        dalpha_dw = (2 * x * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2) / normalization
-        dalpha_dx = (w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25) / normalization
-        dalpha_dy = (z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25) / normalization
-        dalpha_dz = (2 * y * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2) / normalization
-        ddelta_dw = -y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-        ddelta_dx = z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-        ddelta_dy = -w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-        ddelta_dz = x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
+        dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+        dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+        dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+        dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+        ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
     
-        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])
-        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])
-        
-        # dalpha = self._psc_array.dpsi2[self._index] * dalpha
-        # ddelta = self._psc_array.dpsi2[self._index + self.npsc] * ddelta
+        # dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])
+        # ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])
+
+        # So far this is dalpha with respect to the normalized variables 
+        # so need to convert to the original dof derivatives
+        dnormalization = np.zeros((4, 4))
+        for i in range(4):
+            eye = np.zeros(4)
+            eye[i] = 1.0
+            dnormalization[:, i] = eye / normalization - dofs_unnormalized * dofs_unnormalized[i] / normalization ** 3
+        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]) @ dnormalization
+        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]) @ dnormalization
+
+        # dalpha_total = self._psc_array.dpsi_full[index] * dalpha
+        # ddelta_total = self._psc_array.dpsi_full[index + self.npsc] * ddelta
         
         # dalpha_total = self._psc_array.dpsi_daa[self._index] * dalpha + self._psc_array.dpsi_dad[self._index] * ddelta
         # ddelta_total = self._psc_array.dpsi_dda[self._index] * dalpha + self._psc_array.dpsi_ddd[self._index] * ddelta

@@ -96,164 +96,6 @@ Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, A
     return L * M_PI * M_PI;
 }
 
-Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R)
-{
-    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
-    if(gamma_TF.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("gamma_TF needs to be in row-major storage order");
-    if(alphas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("alphas needs to be in row-major storage order");
-    if(deltas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("deltas needs to be in row-major storage order");
-    if(PSC_points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("PSC_points needs to be in row-major storage order");
-    if(coil_normals.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("coil_normals needs to be in row-major storage order");
-          
-    using namespace boost::math;
-    // points shape should be (num_coils, 3)
-    // plasma_normal shape should be (num_plasma_points, 3)
-    // plasma_points should be (num_plasma_points, 3)
-    int num_TF_coils = I_TF.shape(0);  // shape should be (num_coils)
-    int num_PSC_coils = coil_normals.shape(0);  // shape should be (num_coils)
-    int num_evaluation_points = PSC_points.shape(0);
-    int num_phi_TF = gamma_TF.shape(1);
-    int num_rho = rho.shape(0);
-    int num_phi = phi.shape(0);
-    
-    // this variable is the A matrix in the least-squares term so A * I = Bn
-    Array dpsi = xt::zeros<double>({num_PSC_coils * 2});
-    constexpr int simd_size = xsimd::simd_type<double>::size;
-    
-    double* points_ptr = &(PSC_points(0, 0));
-    double* normals_ptr = &(coil_normals(0, 0));
-    double* alphas_ptr = &(alphas(0));
-    double* deltas_ptr = &(deltas(0));
-    // Shared pointers over indices other than kk can cause memory issues
-    double* rho_ptr = &(rho(0));
-    double* phi_ptr = &(phi(0));
-    double* int_weights_ptr = &(int_weights(0));
-    double* I_ptr = &(I_TF(0));
-    double* gamma_ptr = &(gamma_TF(0, 0, 0));
-    double* dl_ptr = &(dl_TF(0, 0, 0));
-    
-    // loop over all the PSC coils
-    #pragma omp parallel for schedule(static)
-    for (int kk = 0; kk < num_PSC_coils; kk += simd_size) {
-        auto point_kk = Vec3dSimd();
-        auto n_kk = Vec3dSimd();
-        int klimit = std::min(simd_size, num_PSC_coils - kk);
-        simd_t integrand, aj, dj;
-        for(int k = 0; k < klimit; k++){
-            for (int d = 0; d < 3; ++d) {
-                point_kk[d][k] = points_ptr[3 * (kk + k) + d];
-                n_kk[d][k] = normals_ptr[3 * (kk + k) + d];
-            }
-            integrand[k] = 0.0;
-            aj[k] = alphas_ptr[kk + k];
-            dj[k] = deltas_ptr[kk + k];
-        }
-        simd_t cdj = xsimd::cos(dj);
-        simd_t caj = xsimd::cos(aj);
-        simd_t sdj = xsimd::sin(dj);
-        simd_t saj = xsimd::sin(aj);
-        // same normal for all these evaluation points so need an extra loop over all the PSCs
-        auto Rxx = cdj;
-        auto Rxy = sdj * saj;
-        auto Ryx = 0.0;
-        auto Ryy = caj;
-        auto Rzx = -sdj;
-        auto Rzy = cdj * saj;
-        auto dRxx_dalpha = 0.0;
-        auto dRxy_dalpha = sdj * caj;
-        auto dRxz_dalpha = -sdj * saj;
-        auto dRyx_dalpha = 0.0;
-        auto dRyy_dalpha = -saj;
-        auto dRyz_dalpha = -caj;
-        auto dRzx_dalpha = 0.0;
-        auto dRzy_dalpha = cdj * caj;
-        auto dRzz_dalpha = -cdj * saj;
-        auto dRxx_ddelta = -sdj;
-        auto dRxy_ddelta = cdj * saj;
-        auto dRxz_ddelta = cdj * caj;
-        auto dRyx_ddelta = 0.0;
-        auto dRyy_ddelta = 0.0;
-        auto dRyz_ddelta = 0.0;
-        auto dRzx_ddelta = -cdj;
-        auto dRzy_ddelta = -sdj * saj;
-        auto dRzz_ddelta = -sdj * caj;
-        auto B1 = Vec3dSimd();
-        auto B2 = Vec3dSimd();
-        auto B3 = Vec3dSimd();
-        // Do the integral over the PSC cross section
-        for (int i = 0; i < num_rho; ++i) {
-            simd_t rho_i = ((simd_t) rho_ptr[i]);  // needed for integrating over the disk
-            simd_t weight_i = ((simd_t) int_weights_ptr[i]);
-            for (int ii = 0; ii < num_phi; ++ii) {
-                // evaluation points here should be the points on a PSC coil cross section
-                simd_t phi_ii = ((simd_t) phi_ptr[ii]);
-                simd_t weight_ii = ((simd_t) int_weights_ptr[ii]);
-                simd_t weight = weight_i * weight_ii;
-                simd_t x0 = rho_i * xsimd::cos(phi_ii);
-                simd_t y0 = rho_i * xsimd::sin(phi_ii);
-                auto xi = Vec3dSimd((Rxx * x0 + Rxy * y0) + point_kk.x, \
-                                    (Ryy * y0) + point_kk.y, \
-                                    (Rzx * x0 + Rzy * y0) + point_kk.z);
-                // loop here is over all the TF coils
-                for(int j = 0; j < num_TF_coils; j++) {
-                    simd_t I_j = ((simd_t) I_ptr[j]);
-                    simd_t int_fac = rho_i * I_j * weight;
-                    // Do Biot Savart over each TF coil
-                    for (int k = 0; k < num_phi_TF; ++k) {
-                        auto gamma_k = Vec3dSimd(gamma_ptr[(j * num_phi_TF + k) * 3], \
-                                                 gamma_ptr[(j * num_phi_TF + k) * 3 + 1], \
-                                                 gamma_ptr[(j * num_phi_TF + k) * 3 + 2]);
-                        auto dl_k = Vec3dSimd(dl_ptr[(j * num_phi_TF + k) * 3], \
-                                              dl_ptr[(j * num_phi_TF + k) * 3 + 1], \
-                                              dl_ptr[(j * num_phi_TF + k) * 3 + 2]);
-                        Vec3dSimd RTdiff = xi - gamma_k;
-                        auto dl_cross_RTdiff = cross(dl_k, RTdiff);
-                        simd_t rmag_2 = normsq(RTdiff);
-                        simd_t rmag_inv = rsqrt(rmag_2);
-                        simd_t denom3 = rmag_inv * rmag_inv * rmag_inv;
-                        simd_t denom5 = denom3 * rmag_inv * rmag_inv;
-                        // First derivative contribution of three
-                        B1 += dl_cross_RTdiff * denom3 * int_fac;
-                        // second derivative contribution (should be dR/dalpha)
-                        auto dR_dalphaT = Vec3dSimd(dRxx_dalpha * x0 + dRxy_dalpha * y0, \
-                                                    dRyx_dalpha * x0 + dRyy_dalpha * y0, \
-                                                    dRzx_dalpha * x0 + dRzy_dalpha * y0);
-                        auto dR_ddeltaT = Vec3dSimd(dRxx_ddelta * x0 + dRxy_ddelta * y0, \
-                                                    dRyx_ddelta * x0 + dRyy_ddelta * y0, \
-                                                    dRzx_ddelta * x0 + dRzy_ddelta * y0);
-                        auto dl_cross_dR_dalphaT = cross(dl_k, dR_dalphaT);
-                        auto dl_cross_dR_ddeltaT = cross(dl_k, dR_ddeltaT);
-                        B2 += dl_cross_dR_dalphaT * denom3 * int_fac;
-                        B3 += dl_cross_dR_ddeltaT * denom3 * int_fac;
-                        // third derivative contribution
-                        simd_t RTdiff_dot_dR_dalpha = inner(RTdiff, dR_dalphaT);
-                        simd_t RTdiff_dot_dR_ddelta = inner(RTdiff, dR_ddeltaT);
-                        B2 += dl_cross_RTdiff * RTdiff_dot_dR_dalpha * denom5 * (int_fac * -3.0);
-                        B3 += dl_cross_RTdiff * RTdiff_dot_dR_ddelta * denom5 * (int_fac * -3.0);
-                    }
-                }
-            }
-        }
-        simd_t inner_prod2 = inner(B2, n_kk);
-        simd_t inner_prod3 = inner(B3, n_kk);
-        for(int k = 0; k < klimit; k++){
-            // rotate first contribution by dR/dalpha, then dot into zhat direction (not the normal!)
-            dpsi(kk + k) = (dRxz_dalpha * B1.x + dRyz_dalpha * B1.y + dRzz_dalpha * B1.z)[k];
-            // second contribution just gets dotted with the normal vector to the PSC loop
-            dpsi(kk + k) += inner_prod2[k];
-            // repeat for delta derivative
-            dpsi(kk + k + num_PSC_coils) = (dRxz_ddelta * B1.x + dRyz_ddelta * B1.y + dRzz_ddelta * B1.z)[k];  // * nz;
-            dpsi(kk + k + num_PSC_coils) += inner_prod3[k];
-        }
-    }
-    return dpsi * M_PI / 2.0;
-}
-
 double Ellint2AGM(double k) {
     auto prefactor = 1.0 - k * k;
     auto Kk = Ellint1AGM(k);
@@ -317,6 +159,85 @@ simd_t Ellint1AGM_simd(simd_t k)
 #else
 
 // Todo: write your own C++ code for ellipe/ellipk so we can XSIMD it...? 
+
+// Calculate the inductance matrix needed for the PSC forward problem
+Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights)
+{
+    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
+    if(points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("points needs to be in row-major storage order");
+    if(alphas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("alphas normal needs to be in row-major storage order");
+    if(deltas.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("deltas needs to be in row-major storage order");
+    
+    // points shape should be (num_coils, 3)
+    int num_coils = alphas.shape(0);  // shape should be (num_coils)
+    int num_quad = int_points.shape(0);
+    Array L = xt::zeros<double>({num_coils, num_coils});
+    
+    // initialize pointers to the beginning of alphas, deltas, points
+    double* points_ptr = &(points(0, 0));  // normalized by coil radius
+    double* alphas_ptr = &(alphas(0));
+    double* deltas_ptr = &(deltas(0));
+    double* weight_ptr = &(int_weights(0));
+    double* int_point_ptr = &(int_points(0));
+    
+    // Loop through the the PSC array
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < num_coils; i++) {
+        auto cai = cos(alphas_ptr[i]);
+        auto sai = sin(alphas_ptr[i]);
+        auto cdi = cos(deltas_ptr[i]);
+        auto sdi = sin(deltas_ptr[i]);
+        auto sai_sdi = sai * sdi;
+        auto sai_cdi = sai * cdi;
+        auto xi = points_ptr[3 * i];
+        auto yi = points_ptr[3 * i + 1];
+        auto zi = points_ptr[3 * i + 2];
+    	// Loop through all j > i coils
+        for (int j = (i + 1); j < num_coils; ++j) {
+            auto xj = points_ptr[3 * j] - xi;
+            auto yj = points_ptr[3 * j + 1] - yi;
+            auto zj = points_ptr[3 * j + 2] - zi;
+            auto caj = cos(alphas_ptr[j]);
+            auto saj = sin(alphas_ptr[j]);
+            auto cdj = cos(deltas_ptr[j]);
+            auto sdj = sin(deltas_ptr[j]);
+            auto saj_sdj = saj * sdj;
+            auto saj_cdj = saj * cdj;
+            auto integrand = 0.0;
+            for (int k = 0; k < num_quad; ++k) {
+                auto pk = int_point_ptr[k];
+                auto ck = cos(pk);
+                auto sk = sin(pk);
+                auto f1 = -sk * cdi + ck * sai_sdi;
+                auto f2 = ck * cai;
+                auto f3 = sk * sdi + ck * sai_cdi;
+                auto x2_partial = xj - ck * cdi - sk * sai_sdi;
+                auto y2_partial = yj - sk * cai;
+                auto z2_partial = zj - sk * sai_cdi + ck * sdi;
+                for (int kk = 0; kk < num_quad; ++kk) {
+                    auto weight = weight_ptr[k] * weight_ptr[kk];
+                    auto pkk = int_point_ptr[kk];
+                    auto ckk = cos(pkk);
+                    auto skk = sin(pkk);
+                    auto x2 = x2_partial + ckk * cdj + skk * saj_sdj;
+                    auto y2 = y2_partial + skk * caj;
+                    auto z2 = z2_partial + skk * saj_cdj - ckk * sdj;
+                    integrand += weight * (f1 * (-skk * cdj + ckk * saj_sdj) +  \
+                        f2 * (ckk * caj) + f3 * (skk * sdj + ckk * saj_cdj)) \
+                        / sqrt(x2 * x2 + y2 * y2 + z2 * z2);
+                }
+            }
+            L(i, j) = integrand;
+        }
+    }
+    return L * M_PI * M_PI; // M_PI ** 2 factor from Gauss Quadrature [-1, 1] to [0, 2*pi]
+}
+
+
+#endif
 
 Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R)
 {
@@ -498,84 +419,163 @@ Array dpsi_dkappa(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points,
     return dpsi * M_PI / 2.0;
 }
 
-// Calculate the inductance matrix needed for the PSC forward problem
-Array L_matrix(Array& points, Array& alphas, Array& deltas, Array& int_points, Array& int_weights)
+Array dpsi_dkappa_xsimd(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R)
 {
     // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
-    if(points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("points needs to be in row-major storage order");
+    if(gamma_TF.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("gamma_TF needs to be in row-major storage order");
     if(alphas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("alphas normal needs to be in row-major storage order");
+          throw std::runtime_error("alphas needs to be in row-major storage order");
     if(deltas.layout() != xt::layout_type::row_major)
           throw std::runtime_error("deltas needs to be in row-major storage order");
-    
+    if(PSC_points.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("PSC_points needs to be in row-major storage order");
+    if(coil_normals.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("coil_normals needs to be in row-major storage order");
+          
+    using namespace boost::math;
     // points shape should be (num_coils, 3)
-    int num_coils = alphas.shape(0);  // shape should be (num_coils)
-    int num_quad = int_points.shape(0);
-    Array L = xt::zeros<double>({num_coils, num_coils});
+    // plasma_normal shape should be (num_plasma_points, 3)
+    // plasma_points should be (num_plasma_points, 3)
+    int num_TF_coils = I_TF.shape(0);  // shape should be (num_coils)
+    int num_PSC_coils = coil_normals.shape(0);  // shape should be (num_coils)
+    int num_evaluation_points = PSC_points.shape(0);
+    int num_phi_TF = gamma_TF.shape(1);
+    int num_rho = rho.shape(0);
+    int num_phi = phi.shape(0);
     
-    // initialize pointers to the beginning of alphas, deltas, points
-    double* points_ptr = &(points(0, 0));  // normalized by coil radius
+    // this variable is the A matrix in the least-squares term so A * I = Bn
+    Array dpsi = xt::zeros<double>({num_PSC_coils * 2});
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    
+    double* points_ptr = &(PSC_points(0, 0));
+    double* normals_ptr = &(coil_normals(0, 0));
     double* alphas_ptr = &(alphas(0));
     double* deltas_ptr = &(deltas(0));
-    double* weight_ptr = &(int_weights(0));
-    double* int_point_ptr = &(int_points(0));
+    // Shared pointers over indices other than kk can cause memory issues
+    double* rho_ptr = &(rho(0));
+    double* phi_ptr = &(phi(0));
+    double* int_weights_ptr = &(int_weights(0));
+    double* I_ptr = &(I_TF(0));
+    double* gamma_ptr = &(gamma_TF(0, 0, 0));
+    double* dl_ptr = &(dl_TF(0, 0, 0));
     
-    // Loop through the the PSC array
+    // loop over all the PSC coils
     #pragma omp parallel for schedule(static)
-    for(int i = 0; i < num_coils; i++) {
-        auto cai = cos(alphas_ptr[i]);
-        auto sai = sin(alphas_ptr[i]);
-        auto cdi = cos(deltas_ptr[i]);
-        auto sdi = sin(deltas_ptr[i]);
-        auto sai_sdi = sai * sdi;
-        auto sai_cdi = sai * cdi;
-        auto xi = points_ptr[3 * i];
-        auto yi = points_ptr[3 * i + 1];
-        auto zi = points_ptr[3 * i + 2];
-    	// Loop through all j > i coils
-        for (int j = (i + 1); j < num_coils; ++j) {
-            auto xj = points_ptr[3 * j] - xi;
-            auto yj = points_ptr[3 * j + 1] - yi;
-            auto zj = points_ptr[3 * j + 2] - zi;
-            auto caj = cos(alphas_ptr[j]);
-            auto saj = sin(alphas_ptr[j]);
-            auto cdj = cos(deltas_ptr[j]);
-            auto sdj = sin(deltas_ptr[j]);
-            auto saj_sdj = saj * sdj;
-            auto saj_cdj = saj * cdj;
-            auto integrand = 0.0;
-            for (int k = 0; k < num_quad; ++k) {
-                auto pk = int_point_ptr[k];
-                auto ck = cos(pk);
-                auto sk = sin(pk);
-                auto f1 = -sk * cdi + ck * sai_sdi;
-                auto f2 = ck * cai;
-                auto f3 = sk * sdi + ck * sai_cdi;
-                auto x2_partial = xj - ck * cdi - sk * sai_sdi;
-                auto y2_partial = yj - sk * cai;
-                auto z2_partial = zj - sk * sai_cdi + ck * sdi;
-                for (int kk = 0; kk < num_quad; ++kk) {
-                    auto weight = weight_ptr[k] * weight_ptr[kk];
-                    auto pkk = int_point_ptr[kk];
-                    auto ckk = cos(pkk);
-                    auto skk = sin(pkk);
-                    auto x2 = x2_partial + ckk * cdj + skk * saj_sdj;
-                    auto y2 = y2_partial + skk * caj;
-                    auto z2 = z2_partial + skk * saj_cdj - ckk * sdj;
-                    integrand += weight * (f1 * (-skk * cdj + ckk * saj_sdj) +  \
-                        f2 * (ckk * caj) + f3 * (skk * sdj + ckk * saj_cdj)) \
-                        / sqrt(x2 * x2 + y2 * y2 + z2 * z2);
+    for (int kk = 0; kk < num_PSC_coils; kk += simd_size) {
+        auto point_kk = Vec3dSimd();
+        auto n_kk = Vec3dSimd();
+        int klimit = std::min(simd_size, num_PSC_coils - kk);
+        simd_t integrand, aj, dj;
+        for(int k = 0; k < klimit; k++){
+            for (int d = 0; d < 3; ++d) {
+                point_kk[d][k] = points_ptr[3 * (kk + k) + d];
+                n_kk[d][k] = normals_ptr[3 * (kk + k) + d];
+            }
+            integrand[k] = 0.0;
+            aj[k] = alphas_ptr[kk + k];
+            dj[k] = deltas_ptr[kk + k];
+        }
+        simd_t cdj = xsimd::cos(dj);
+        simd_t caj = xsimd::cos(aj);
+        simd_t sdj = xsimd::sin(dj);
+        simd_t saj = xsimd::sin(aj);
+        // same normal for all these evaluation points so need an extra loop over all the PSCs
+        auto Rxx = cdj;
+        auto Rxy = sdj * saj;
+        auto Ryx = 0.0;
+        auto Ryy = caj;
+        auto Rzx = -sdj;
+        auto Rzy = cdj * saj;
+        auto dRxx_dalpha = 0.0;
+        auto dRxy_dalpha = sdj * caj;
+        auto dRxz_dalpha = -sdj * saj;
+        auto dRyx_dalpha = 0.0;
+        auto dRyy_dalpha = -saj;
+        auto dRyz_dalpha = -caj;
+        auto dRzx_dalpha = 0.0;
+        auto dRzy_dalpha = cdj * caj;
+        auto dRzz_dalpha = -cdj * saj;
+        auto dRxx_ddelta = -sdj;
+        auto dRxy_ddelta = cdj * saj;
+        auto dRxz_ddelta = cdj * caj;
+        auto dRyx_ddelta = 0.0;
+        auto dRyy_ddelta = 0.0;
+        auto dRyz_ddelta = 0.0;
+        auto dRzx_ddelta = -cdj;
+        auto dRzy_ddelta = -sdj * saj;
+        auto dRzz_ddelta = -sdj * caj;
+        auto B1 = Vec3dSimd();
+        auto B2 = Vec3dSimd();
+        auto B3 = Vec3dSimd();
+        // Do the integral over the PSC cross section
+        for (int i = 0; i < num_rho; ++i) {
+            simd_t rho_i = ((simd_t) rho_ptr[i]);  // needed for integrating over the disk
+            simd_t weight_i = ((simd_t) int_weights_ptr[i]);
+            for (int ii = 0; ii < num_phi; ++ii) {
+                // evaluation points here should be the points on a PSC coil cross section
+                simd_t phi_ii = ((simd_t) phi_ptr[ii]);
+                simd_t weight_ii = ((simd_t) int_weights_ptr[ii]);
+                simd_t weight = weight_i * weight_ii;
+                simd_t x0 = rho_i * xsimd::cos(phi_ii);
+                simd_t y0 = rho_i * xsimd::sin(phi_ii);
+                auto xi = Vec3dSimd((Rxx * x0 + Rxy * y0) + point_kk.x, \
+                                    (Ryy * y0) + point_kk.y, \
+                                    (Rzx * x0 + Rzy * y0) + point_kk.z);
+                // loop here is over all the TF coils
+                for(int j = 0; j < num_TF_coils; j++) {
+                    simd_t I_j = ((simd_t) I_ptr[j]);
+                    simd_t int_fac = rho_i * I_j * weight;
+                    // Do Biot Savart over each TF coil
+                    for (int k = 0; k < num_phi_TF; ++k) {
+                        auto gamma_k = Vec3dSimd(gamma_ptr[(j * num_phi_TF + k) * 3], \
+                                                 gamma_ptr[(j * num_phi_TF + k) * 3 + 1], \
+                                                 gamma_ptr[(j * num_phi_TF + k) * 3 + 2]);
+                        auto dl_k = Vec3dSimd(dl_ptr[(j * num_phi_TF + k) * 3], \
+                                              dl_ptr[(j * num_phi_TF + k) * 3 + 1], \
+                                              dl_ptr[(j * num_phi_TF + k) * 3 + 2]);
+                        Vec3dSimd RTdiff = xi - gamma_k;
+                        auto dl_cross_RTdiff = cross(dl_k, RTdiff);
+                        simd_t rmag_2 = normsq(RTdiff);
+                        simd_t rmag_inv = rsqrt(rmag_2);
+                        simd_t denom3 = rmag_inv * rmag_inv * rmag_inv;
+                        simd_t denom5 = denom3 * rmag_inv * rmag_inv;
+                        // First derivative contribution of three
+                        B1 += dl_cross_RTdiff * denom3 * int_fac;
+                        // second derivative contribution (should be dR/dalpha)
+                        auto dR_dalphaT = Vec3dSimd(dRxx_dalpha * x0 + dRxy_dalpha * y0, \
+                                                    dRyx_dalpha * x0 + dRyy_dalpha * y0, \
+                                                    dRzx_dalpha * x0 + dRzy_dalpha * y0);
+                        auto dR_ddeltaT = Vec3dSimd(dRxx_ddelta * x0 + dRxy_ddelta * y0, \
+                                                    dRyx_ddelta * x0 + dRyy_ddelta * y0, \
+                                                    dRzx_ddelta * x0 + dRzy_ddelta * y0);
+                        auto dl_cross_dR_dalphaT = cross(dl_k, dR_dalphaT);
+                        auto dl_cross_dR_ddeltaT = cross(dl_k, dR_ddeltaT);
+                        B2 += dl_cross_dR_dalphaT * denom3 * int_fac;
+                        B3 += dl_cross_dR_ddeltaT * denom3 * int_fac;
+                        // third derivative contribution
+                        simd_t RTdiff_dot_dR_dalpha = inner(RTdiff, dR_dalphaT);
+                        simd_t RTdiff_dot_dR_ddelta = inner(RTdiff, dR_ddeltaT);
+                        B2 += dl_cross_RTdiff * RTdiff_dot_dR_dalpha * denom5 * (int_fac * -3.0);
+                        B3 += dl_cross_RTdiff * RTdiff_dot_dR_ddelta * denom5 * (int_fac * -3.0);
+                    }
                 }
             }
-            L(i, j) = integrand;
+        }
+        simd_t inner_prod2 = inner(B2, n_kk);
+        simd_t inner_prod3 = inner(B3, n_kk);
+        for(int k = 0; k < klimit; k++){
+            // rotate first contribution by dR/dalpha, then dot into zhat direction (not the normal!)
+            dpsi(kk + k) = (dRxz_dalpha * B1.x + dRyz_dalpha * B1.y + dRzz_dalpha * B1.z)[k];
+            // second contribution just gets dotted with the normal vector to the PSC loop
+            dpsi(kk + k) += inner_prod2[k];
+            // repeat for delta derivative
+            dpsi(kk + k + num_PSC_coils) = (dRxz_ddelta * B1.x + dRyz_ddelta * B1.y + dRzz_ddelta * B1.z)[k];  // * nz;
+            dpsi(kk + k + num_PSC_coils) += inner_prod3[k];
         }
     }
-    return L * M_PI * M_PI; // M_PI ** 2 factor from Gauss Quadrature [-1, 1] to [0, 2*pi]
+    return dpsi * M_PI / 2.0;
 }
-
-
-#endif
 
 std::tuple<Array, Array, Array, Array, Array, Array, Array> update_alphas_deltas(Array& coil_normals, int nfp, int stellsym) {
     int num_coils = coil_normals.shape(0);  // shape should be (num_coils)
@@ -1898,33 +1898,21 @@ Array A_matrix_direct(Array& points, Array& plasma_points, Array& alphas, Array&
 }
 
 
-
-Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, double R)
-{
-    // warning: row_major checks below do NOT throw an error correctly on a compute node on Cori
-    if(gamma_TF.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("gamma_TF needs to be in row-major storage order");
-    if(alphas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("alphas needs to be in row-major storage order");
-    if(deltas.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("deltas needs to be in row-major storage order");
-    if(PSC_points.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("PSC_points needs to be in row-major storage order");
-    if(coil_normals.layout() != xt::layout_type::row_major)
-          throw std::runtime_error("coil_normals needs to be in row-major storage order");
-          
+Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, Array& alphas, Array& deltas, Array& coil_normals, Array& rho, Array& phi, Array& int_weights, double R)
+{  
     // points shape should be (num_coils, 3)
     // plasma_normal shape should be (num_plasma_points, 3)
     // plasma_points should be (num_plasma_points, 3)
     int num_TF_coils = I_TF.shape(0);  // shape should be (num_coils)
     int num_PSC_coils = coil_normals.shape(0);  // shape should be (num_coils)
-    int num_evaluation_points = PSC_points.shape(0);
     int num_phi_TF = gamma_TF.shape(1);
-    int num_integration_points = rho.shape(0);
+    int num_rho = rho.shape(0);
+    int num_phi = phi.shape(0);
     double* points_ptr = &(PSC_points(0, 0));
     double* normals_ptr = &(coil_normals(0, 0));
     double* alphas_ptr = &(alphas(0));
     double* deltas_ptr = &(deltas(0));
+    double* int_weights_ptr = &(int_weights(0));
     // Shared pointers over indices other than kk can cause memory issues
     double* rho_ptr = &(rho(0));
     double* phi_ptr = &(phi(0));
@@ -1960,52 +1948,57 @@ Array psi_check(Array& I_TF, Array& dl_TF, Array& gamma_TF, Array& PSC_points, A
         auto By = 0.0;
         auto Bz = 0.0;
         // Do the integral over the PSC cross section
-        for (int i = 0; i < num_integration_points; ++i) {
-            // evaluation points here should be the points on a PSC coil cross section
+        for (int i = 0; i < num_rho; ++i) {
             auto rho_i = rho_ptr[i];  // needed for integrating over the disk
-            auto phi_i = phi_ptr[i];
-            auto x0 = rho_i * cos(phi_i);
-            auto y0 = rho_i * sin(phi_i);
-            // z0 = 0 here
-            auto xi = (Rxx * x0 + Rxy * y0) + xkk;
-            auto yi = (Ryy * y0) + ykk;
-            auto zi = (Rzx * x0 + Rzy * y0) + zkk;
-            // loop here is over all the TF coils
-            for(int j = 0; j < num_TF_coils; j++) {
-                auto I_j = I_ptr[j];
-                auto int_fac = rho_i * I_j;
-                auto Bx_temp = 0.0;
-                auto By_temp = 0.0;
-                auto Bz_temp = 0.0;
-                // Do Biot Savart over each TF coil - can probably downsample
-                for (int k = 0; k < num_phi_TF; ++k) {
-                    auto xk = gamma_ptr[(j * num_phi_TF + k) * 3];
-                    auto yk = gamma_ptr[(j * num_phi_TF + k) * 3 + 1];
-                    auto zk = gamma_ptr[(j * num_phi_TF + k) * 3 + 2];
-                    auto dlx = dl_ptr[(j * num_phi_TF + k) * 3];
-                    auto dly = dl_ptr[(j * num_phi_TF + k) * 3 + 1];
-                    auto dlz = dl_ptr[(j * num_phi_TF + k) * 3 + 2];
-                    // multiply by R (not R^T!) and then subtract off coil coordinate
-                    auto RTxdiff = xi - xk; 
-                    auto RTydiff = yi - yk;
-                    auto RTzdiff = zi - zk;
-                    auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
-                    auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
-                    auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
-                    auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
-                    auto denom3 = denom * denom * denom;
-                    Bx_temp += dl_cross_RTdiff_x / denom3;
-                    By_temp += dl_cross_RTdiff_y / denom3;
-                    Bz_temp += dl_cross_RTdiff_z / denom3;
+            auto weight_i = int_weights_ptr[i];
+            for (int ii = 0; ii < num_phi; ++ii) {
+            // evaluation points here should be the points on a PSC coil cross section
+                auto phi_ii = phi_ptr[ii];
+                auto weight_ii = int_weights_ptr[ii];
+                auto weight = weight_i * weight_ii;
+                auto x0 = rho_i * cos(phi_ii);
+                auto y0 = rho_i * sin(phi_ii);
+                // z0 = 0 here
+                auto xi = (Rxx * x0 + Rxy * y0) + xkk;
+                auto yi = (Ryy * y0) + ykk;
+                auto zi = (Rzx * x0 + Rzy * y0) + zkk;
+                // loop here is over all the TF coils
+                for(int j = 0; j < num_TF_coils; j++) {
+                    auto I_j = I_ptr[j];
+                    auto int_fac = rho_i * I_j * weight;
+                    auto Bx_temp = 0.0;
+                    auto By_temp = 0.0;
+                    auto Bz_temp = 0.0;
+                    // Do Biot Savart over each TF coil - can probably downsample
+                    for (int k = 0; k < num_phi_TF; ++k) {
+                        auto xk = gamma_ptr[(j * num_phi_TF + k) * 3];
+                        auto yk = gamma_ptr[(j * num_phi_TF + k) * 3 + 1];
+                        auto zk = gamma_ptr[(j * num_phi_TF + k) * 3 + 2];
+                        auto dlx = dl_ptr[(j * num_phi_TF + k) * 3];
+                        auto dly = dl_ptr[(j * num_phi_TF + k) * 3 + 1];
+                        auto dlz = dl_ptr[(j * num_phi_TF + k) * 3 + 2];
+                        // multiply by R (not R^T!) and then subtract off coil coordinate
+                        auto RTxdiff = xi - xk; 
+                        auto RTydiff = yi - yk;
+                        auto RTzdiff = zi - zk;
+                        auto dl_cross_RTdiff_x = dly * RTzdiff - dlz * RTydiff;
+                        auto dl_cross_RTdiff_y = dlz * RTxdiff - dlx * RTzdiff;
+                        auto dl_cross_RTdiff_z = dlx * RTydiff - dly * RTxdiff;
+                        auto denom = sqrt(RTxdiff * RTxdiff + RTydiff * RTydiff + RTzdiff * RTzdiff);
+                        auto denom3 = denom * denom * denom;
+                        Bx_temp += dl_cross_RTdiff_x / denom3;
+                        By_temp += dl_cross_RTdiff_y / denom3;
+                        Bz_temp += dl_cross_RTdiff_z / denom3;
+                    }
+                    Bx += int_fac * Bx_temp;
+                    By += int_fac * By_temp;
+                    Bz += int_fac * Bz_temp;
                 }
-                Bx += int_fac * Bx_temp;
-                By += int_fac * By_temp;
-                Bz += int_fac * Bz_temp;
             }
         }
         psi(kk) = Bx * nx + By * ny + Bz * nz;
     }
-    return psi * fac;
+    return psi * M_PI / 2.0;
 }
 
 

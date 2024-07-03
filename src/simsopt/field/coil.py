@@ -60,7 +60,7 @@ class PSCCoil(sopp.Coil, Optimizable):
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash):
-        # print('other derivs = ', v_current, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma), self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash))
+        # print('other derivs = ', self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma).shape, self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash).shape)
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) #\
             # + self.curve.psc_current_contribution_vjp(v_current)
 
@@ -185,8 +185,12 @@ def apply_symmetries_to_psc_curves(base_curves, nfp, stellsym):
                     curves.append(base_curves[i])
                 else:
                     rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
-                    rotcurve.order = base_curves[i].order
-                    rotcurve._index = base_curves[i]._index + base_curves[i].npsc * q
+                    try:
+                        rotcurve.order = base_curves[i].order
+                        rotcurve._index = base_curves[i]._index + base_curves[i].npsc * q
+                        rotcurve.dkappa_dcoef_vjp = base_curves[i].dkappa_dcoef_vjp
+                    except:
+                        'do nothing'
                     curves.append(rotcurve)
             q += 1
     return curves

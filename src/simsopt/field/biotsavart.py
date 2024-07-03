@@ -175,9 +175,16 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             ndofs = 2 * order + 8
             dI = np.zeros((len(coils), ndofs))
             # dI_deriv = []
-            for i in range(coils[0].curve.npsc):   # Not using the rotated ones directly
-                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([res_current[i]])
-            dI = -coils[0].curve._psc_array.L_inv @ dI
+            for i in range(coils[0].curve.npsc):  #len(coils)):   # Not using the rotated ones directly
+                # print(i, coils[i].curve._index)
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([res_current[i]], coils[i].curve._index)
+                print(i, dI[i, :])
+            Linv = coils[0].curve._psc_array.L_inv
+            Linv[coils[0].curve.npsc:, :] = 0.0
+            dI = - Linv @ dI
+
+            # for q in range(1, 4):
+            #     dI[:coils[0].curve.npsc, :] += dI[coils[0].curve.npsc * q:coils[0].curve.npsc * (q + 1), :]
             # dI = np.zeros(dI.shape)
             # print(np.max(np.abs(dI)), dI.shape)
             # for i in range(len(coils)): 

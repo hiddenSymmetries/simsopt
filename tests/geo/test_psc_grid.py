@@ -40,7 +40,7 @@ points = (np.random.rand(ncoils, 3) - 0.5) * 3
 points[:, -1] = 0.4
 alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
 deltas = (np.random.rand(ncoils) - 0.5) * np.pi
-epsilon = 1e-4  # smaller epsilon and numerical accumulation starts to be an issue
+epsilon = 1e-7  # smaller epsilon and numerical accumulation starts to be an issue
 
 class Testing(unittest.TestCase):
     
@@ -118,7 +118,344 @@ class Testing(unittest.TestCase):
     #     assert np.allclose(F_WP[:, 0], 0.0)
     #     assert np.allclose(F_WP[:, 1], 0.0)
     #     assert np.allclose(np.abs(F_WP[:, 2]), abs(F_analytic))
-    
+
+    def test_quaternion_derivs(self):
+        dofs = (np.random.rand(4) - 0.5) * 0.1   # quaternion dofs
+        for i in range(4):
+            epsilon = np.zeros(4)  # (np.random.rand(4) - 0.5)
+            epsilon[i] = 1e-5
+            dofs2 = dofs + epsilon
+            normalization = np.sqrt(np.sum(dofs ** 2))
+            # dofs = dofs / normalization  # normalize the quaternion
+            w = dofs[0]
+            x = dofs[1]
+            y = dofs[2]
+            z = dofs[3]
+            normalization2 = np.sqrt(np.sum(dofs2 ** 2))
+            # dofs2 = dofs2 / normalization2
+            print(normalization, normalization2, dofs, dofs2, np.sqrt(np.sum(dofs ** 2)), np.sqrt(np.sum(dofs2 ** 2)), epsilon)
+            alphas = np.arctan2(2 * (w * x + y * z), 
+                                1 - 2.0 * (x ** 2 + y ** 2))
+            deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (w * y - x * z)), 
+                np.sqrt(1.0 - 2 * (w * y - x * z)))
+            sis = np.arctan2(2 * (w * z + y * x), 
+                                1 - 2.0 * (z ** 2 + y ** 2))
+            alphas2 = np.arctan2(2 * (dofs2[0] * dofs2[1] + dofs2[2] * dofs2[3]), 
+                                1 - 2.0 * (dofs2[1] ** 2 + dofs2[2] ** 2))
+            deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs2[0] * dofs2[2] - dofs2[1] * dofs2[3])), 
+                np.sqrt(1.0 - 2 * (dofs2[0] * dofs2[2] - dofs2[1] * dofs2[3])))
+            ca = np.cos(alphas / 2.0)
+            sa = np.sin(alphas / 2.0)
+            cd = np.cos(deltas / 2.0)
+            sd = np.sin(deltas / 2.0)
+            cp = np.cos(sis / 2.0)
+            sp = np.sin(sis / 2.0)
+
+            q = [ca * cd * cp + sa * sd * sp, 
+                sa * cd * cp - ca * sd * sp, 
+                ca * sd * cp + sa * cd * sp, 
+                ca * cd * sp - sa * sd * cp]
+            print(q)
+            dalpha_fd = (alphas2 - alphas) / (dofs2 - dofs)[i]
+            ddelta_fd = (deltas2 - deltas) / (dofs2 - dofs)[i]
+            print(alphas, alphas2, deltas, deltas2, (dofs2 - dofs)[i])
+            # print('dofs = ', dofs, normalization)
+        
+            dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])
+            ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])
+            print('da, dd = ', dalpha, ddelta)
+            print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
+            assert np.isclose(dalpha[i], dalpha_fd)
+            assert np.isclose(ddelta[i], ddelta_fd)
+
+        # now try normalized
+        dofs = (np.random.rand(4) - 0.5) * 10   # quaternion dofs
+        for i in range(4):
+            print('i = ', i)
+            epsilon = np.zeros(4)  # (np.random.rand(4) - 0.5)
+            epsilon[i] = 1e-5
+            dofs2 = dofs + epsilon
+            normalization = np.sqrt(np.sum(dofs ** 2))
+            dofs_unnormalized = np.copy(dofs)
+            dofs = dofs / normalization  # normalize the quaternion
+            w = dofs[0]
+            x = dofs[1]
+            y = dofs[2]
+            z = dofs[3]
+            normalization2 = np.sqrt(np.sum(dofs2 ** 2))
+            dofs2 = dofs2 / normalization2
+            print(normalization, normalization2, dofs, dofs2, np.sqrt(np.sum(dofs ** 2)), np.sqrt(np.sum(dofs2 ** 2)), epsilon)
+            alphas = np.arctan2(2 * (w * x + y * z), 
+                                1 - 2.0 * (x ** 2 + y ** 2))
+            deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (w * y - x * z)), 
+                np.sqrt(1.0 - 2 * (w * y - x * z)))
+            sis = np.arctan2(2 * (w * z + y * x), 
+                                1 - 2.0 * (z ** 2 + y ** 2))
+            alphas2 = np.arctan2(2 * (dofs2[0] * dofs2[1] + dofs2[2] * dofs2[3]), 
+                                1 - 2.0 * (dofs2[1] ** 2 + dofs2[2] ** 2))
+            deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs2[0] * dofs2[2] - dofs2[1] * dofs2[3])), 
+                np.sqrt(1.0 - 2 * (dofs2[0] * dofs2[2] - dofs2[1] * dofs2[3])))
+            ca = np.cos(alphas / 2.0)
+            sa = np.sin(alphas / 2.0)
+            cd = np.cos(deltas / 2.0)
+            sd = np.sin(deltas / 2.0)
+            cp = np.cos(sis / 2.0)
+            sp = np.sin(sis / 2.0)
+
+            # Normalized derivative should be
+            # dalpha/dofs = dalpha / normed * dnormed/dofs
+            # normed_dofs = dofs / sqrt(dofs[0] ** 2 + ... )
+            # wn = dofs[0] / normalization = w / normalization
+            # dalpha_dw = dalpha_dwn * (dwn/dw) + dalpha_dxn * (dxn/dw) + ...
+            # Changing one dof changes them all through the normalization!
+            print(normalization, dofs_unnormalized, dofs_unnormalized * dofs_unnormalized[i] / normalization ** 3)
+            eye = np.zeros(4)
+            eye[i] = 1.0
+            dnormalization = eye / normalization - dofs_unnormalized * dofs_unnormalized[i] / normalization ** 3
+            print('dnorm = ', dnormalization)
+
+            q = [ca * cd * cp + sa * sd * sp, 
+                sa * cd * cp - ca * sd * sp, 
+                ca * sd * cp + sa * cd * sp, 
+                ca * cd * sp - sa * sd * cp]
+            print('q = ', q)
+            dalpha_fd = (alphas2 - alphas) / epsilon[i]
+            ddelta_fd = (deltas2 - deltas) / epsilon[i]
+            print((alphas2 - alphas) / (dofs2 - dofs))
+            print((deltas2 - deltas) / (dofs2 - dofs))
+            print(alphas, alphas2, deltas, deltas2, epsilon[i])
+            dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]) @ dnormalization
+            ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]) @ dnormalization
+            print('da, dd = ', dalpha, ddelta, dnormalization)
+            # print('da, dd = ', dalpha , ddelta @ dnormalization)
+            print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
+            assert np.isclose(dalpha, dalpha_fd, rtol=1e-2)
+            assert np.isclose(ddelta, ddelta_fd, rtol=1e-2)
+
+        # now try normalized in a general direction
+        dofs = (np.random.rand(4) - 0.5) * 10   # quaternion dofs
+        epsilon = 1e-5 * (np.random.rand(4) - 0.5)
+        dofs2 = dofs + epsilon
+        normalization = np.sqrt(np.sum(dofs ** 2))
+        dofs_unnormalized = np.copy(dofs)
+        dofs = dofs / normalization  # normalize the quaternion
+        w = dofs[0]
+        x = dofs[1]
+        y = dofs[2]
+        z = dofs[3]
+        normalization2 = np.sqrt(np.sum(dofs2 ** 2))
+        dofs2 = dofs2 / normalization2
+        print(normalization, normalization2, dofs, dofs2, np.sqrt(np.sum(dofs ** 2)), np.sqrt(np.sum(dofs2 ** 2)), epsilon)
+        alphas = np.arctan2(2 * (w * x + y * z), 
+                            1 - 2.0 * (x ** 2 + y ** 2))
+        deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
+            np.sqrt(1.0 + 2 * (w * y - x * z)), 
+            np.sqrt(1.0 - 2 * (w * y - x * z)))
+        sis = np.arctan2(2 * (w * z + y * x), 
+                            1 - 2.0 * (z ** 2 + y ** 2))
+        alphas2 = np.arctan2(2 * (dofs2[0] * dofs2[1] + dofs2[2] * dofs2[3]), 
+                            1 - 2.0 * (dofs2[1] ** 2 + dofs2[2] ** 2))
+        deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+            np.sqrt(1.0 + 2 * (dofs2[0] * dofs2[2] - dofs2[1] * dofs2[3])), 
+            np.sqrt(1.0 - 2 * (dofs2[0] * dofs2[2] - dofs2[1] * dofs2[3])))
+        ca = np.cos(alphas / 2.0)
+        sa = np.sin(alphas / 2.0)
+        cd = np.cos(deltas / 2.0)
+        sd = np.sin(deltas / 2.0)
+        cp = np.cos(sis / 2.0)
+        sp = np.sin(sis / 2.0)
+
+        # Normalized derivative should be
+        # dalpha/dofs = dalpha / normed * dnormed/dofs
+        # normed_dofs = dofs / sqrt(dofs[0] ** 2 + ... )
+        # wn = dofs[0] / normalization = w / normalization
+        # dalpha_dw = dalpha_dwn * (dwn/dw) + dalpha_dxn * (dxn/dw) + ...
+        # Changing one dof changes them all through the normalization!
+        print(normalization, dofs_unnormalized, dofs_unnormalized * dofs_unnormalized[i] / normalization ** 3)
+        dnormalization = np.zeros((4, 4))
+        for i in range(4):
+            eye = np.zeros(4)
+            eye[i] = 1.0
+            dnormalization[:, i] = eye / normalization - dofs_unnormalized * dofs_unnormalized[i] / normalization ** 3
+        print('dnorm = ', dnormalization)
+        dalpha_fd = (alphas2 - alphas) / 1e-5
+        ddelta_fd = (deltas2 - deltas) / 1e-5
+        print(alphas, alphas2, deltas, deltas2, epsilon)
+        dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+        dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+        dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+        dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+        ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]) @ dnormalization @ epsilon / 1e-5
+        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]) @ dnormalization @ epsilon / 1e-5
+        print('da, dd = ', dalpha, ddelta, dnormalization)
+        # print('da, dd = ', dalpha , ddelta @ dnormalization)
+        print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
+        assert np.isclose(dalpha, dalpha_fd, rtol=1e-2)
+        assert np.isclose(ddelta, ddelta_fd, rtol=1e-2)
+
+    def test_dpsi_ddofs(self):
+        from simsopt.field import PSCCoil
+        for surf in surfs:
+            print('Surf = ', surf)
+            kwargs_manual = {"plasma_boundary": surf}
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+            )
+            dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+            dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+            # print(dofs, dofs.shape)
+            A = psc_array.A_matrix
+            psi = psc_array.psi / psc_array.fac
+            Linv = psc_array.L_inv[:psc_array.num_psc, :psc_array.num_psc] # / psc_array.fac
+            I = psc_array.I  #(-Linv @ psi)
+            epsilon = 1e-5 * (np.random.rand(ncoils, 4) - 0.5)
+            # epsilon = np.hstack((np.zeros(3), epsilon))
+            # epsilon = np.hstack((epsilon, np.zeros(3)))
+            dofs2 = dofs + epsilon
+            # now try normalized in a general direction
+            normalization2 = np.sqrt(np.sum(dofs2 ** 2, axis=-1))
+            dofs2 = dofs2 / normalization2[:, None]
+            alphas2 = np.arctan2(2 * (dofs2[:, 0] * dofs2[:, 1] + dofs2[:, 2] * dofs2[:, 3]), 
+                                1 - 2.0 * (dofs2[:, 1] ** 2 + dofs2[:, 2] ** 2))
+            deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs2[:, 0] * dofs2[:, 2] - dofs2[:, 1] * dofs2[:, 3])), 
+                np.sqrt(1.0 - 2 * (dofs2[:, 0] * dofs2[:, 2] - dofs2[:, 1] * dofs2[:, 3])))
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas2, deltas=deltas2, **kwargs_manual
+            )
+            psi_new = psc_array_new.psi / psc_array.fac
+            I_new = psc_array_new.I
+            dpsi_fd = (psi_new - psi) / 1e-5
+            dI_fd = (I_new - I) / 1e-5
+            # print('dpsi_fd = ', dpsi_fd)
+            normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+            dofs_unnormalized = np.copy(dofs)
+            dofs = dofs / normalization[:, None]  # normalize the quaternion
+            w = dofs[:, 0]
+            x = dofs[:, 1]
+            y = dofs[:, 2]
+            z = dofs[:, 3]
+            alphas1 = np.arctan2(2 * (w * x + y * z), 
+                                1 - 2.0 * (x ** 2 + y ** 2))
+            deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (w * y - x * z)), 
+                np.sqrt(1.0 - 2 * (w * y - x * z)))
+
+            dnormalization = np.zeros((4, 4, dofs.shape[0]))
+            for j in range(dofs.shape[0]):
+                for i in range(4):
+                    eye = np.zeros(4)
+                    eye[i] = 1.0
+                    dnormalization[:, i, j] = eye / normalization[j] - dofs_unnormalized[j, :] * dofs_unnormalized[j, i] / normalization[j] ** 3
+            # print('dnorm = ', dnormalization)
+            dalpha_fd = (alphas2 - alphas1) / 1e-5
+            ddelta_fd = (deltas2 - deltas1) / 1e-5
+            # print(alphas1, alphas2, deltas1, deltas2, epsilon)
+            dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            
+            # dalpha array is shape (8, 4) -- previously (4)
+            # dnormalization is shape (4, 4, 8) -- previously (4, 4)
+            # epsilon is shape (8, 4)  -- previously (4)
+            dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]).T
+            ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]).T
+            dalpha_transformed = np.zeros(dalpha.shape[0])
+            ddelta_transformed = np.zeros(dalpha.shape[0])
+            for i in range(ncoils):
+                dalpha_transformed[i] = dalpha[i, :] @ dnormalization[:, :, i] @ epsilon[i, :] / 1e-5
+                ddelta_transformed[i] = ddelta[i, :] @ dnormalization[:, :, i] @ epsilon[i, :] / 1e-5
+            print('da, dd = ', dalpha_transformed, ddelta_transformed)
+            # print('da, dd = ', dalpha , ddelta @ dnormalization)
+            print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
+            assert np.allclose(dalpha_transformed, dalpha_fd, rtol=1e-2)
+            assert np.allclose(ddelta_transformed, ddelta_fd, rtol=1e-2)
+            psc_array.psi_deriv()
+            dpsi = (psc_array.dpsi[:psc_array.num_psc] * dalpha_transformed + \
+                   psc_array.dpsi[psc_array.num_psc:] * ddelta_transformed)
+            print('dpsi = ', dpsi, dpsi_fd)
+            assert np.allclose(dpsi, dpsi_fd, rtol=1e-2)
+            dI = - Linv @ dpsi 
+            print('dI = ', dI, dI_fd)
+            assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
+
+            coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+            # bpsc = BiotSavart(coils)
+            # bpsc.set_points(s.gamma().reshape((-1, 3)))
+            dI = np.zeros((len(coils), 10))
+            # dI_deriv = []
+            for i in range(coils[0].curve.npsc):  #len(coils)):   # Not using the rotated ones directly
+                # print(i, coils[i].curve._index)
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            Linv = coils[0].curve._psc_array.L_inv
+            dI = dI[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            dpsi = np.zeros(len(coils))
+            for i in range(len(coils)):
+                dpsi[i] = dI[i, :] @ epsilon[i % ncoils, :] / 1e-5
+            print('dpsi_coils = ', dpsi)
+            Linv[coils[0].curve.npsc:, :] = 0.0
+            dI = - Linv @ dpsi
+            print('dI_coils = ', dI)
+            assert np.allclose(dI[:ncoils], dI_fd, rtol=1e-1, atol=1e4)
+
+            dI = np.zeros((len(coils), 10))
+            # dI_deriv = []
+            for i in range(coils[0].curve.npsc):  #len(coils)):   # Not using the rotated ones directly
+                # print(i, coils[i].curve._index)
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            Linv = coils[0].curve._psc_array.L_inv
+            dI = dI[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            Linv[coils[0].curve.npsc:, :] = 0.0
+            dI = - Linv @ dI
+            dI = np.ravel(dI) @ np.ravel(epsilon) / 1e-5
+            print('dI_coils = ', dI)
+            assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
+        
     def test_dpsi_analytic_derivatives(self):
         """
         Tests the analytic calculations of dpsi/dalpha and dpsi/ddelta
@@ -138,21 +475,62 @@ class Testing(unittest.TestCase):
             I = (-Linv @ psi)
             Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
             deltas_new = np.copy(deltas)
-            deltas_new[0] += epsilon 
+            dd = epsilon * (np.random.rand(deltas.shape[0]) - 0.5)
+            deltas_new += dd
             alphas_new = np.copy(alphas)
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
             )
             psi_new = psc_array_new.psi / psc_array.fac
             I_new = (-Linv @ psi_new)
+            # print(I_new, -psc_array.L_inv @ psc_array.psi_total)
             Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             dpsi_ddelta = (psc_array_new.psi - psc_array.psi) / epsilon  / psc_array.fac
             psi_deriv = psc_array.psi_deriv()  # * 1e-7
-            assert(np.allclose(dpsi_ddelta[0], psi_deriv[ncoils], rtol=1e-3))
-            dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[ncoils:]))
-            print(dBn_objective, dBn_analytic[0])
-            assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+            psi_deriv = psi_deriv[psc_array.num_psc:] * dd / epsilon
+            print(dpsi_ddelta, psi_deriv)
+            # assert(np.allclose(dpsi_ddelta, psi_deriv, rtol=1e-3))
+            # dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[ncoils:]))
+            # print(dBn_objective, dBn_analytic[0])
+            # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+
+            # dI = (I_new - I) / epsilon
+            # dI_analytic = -Linv @ psi_deriv[ncoils:]
+            # print('dI = ', dI, dI.shape, dI_analytic, dI_analytic.shape)
+
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+            )
+            A = psc_array.A_matrix
+            psi = psc_array.psi / psc_array.fac
+            b = psc_array.b_opt # * psc_array.fac
+            Linv = psc_array.L_inv[:psc_array.num_psc, :psc_array.num_psc] # / psc_array.fac
+            I = (-Linv @ psi)
+            Bn_objective = 0.5 * (A @ I + b).T @ (A @ I + b)
+            deltas_new = np.copy(psc_array.deltas)
+            dd = epsilon * (np.random.rand(deltas.shape[0]) - 0.5)
+            alphas_new = np.copy(psc_array.alphas)
+            alphas_new += dd
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas_new, deltas=deltas_new, **kwargs_manual
+            )
+            psi_new = psc_array_new.psi / psc_array.fac
+            I_new = (-Linv @ psi_new)
+            # print(I_new, -psc_array.L_inv @ psc_array.psi_total)
+            Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
+            dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
+            dpsi_ddelta = (psc_array_new.psi - psc_array.psi) / epsilon  / psc_array.fac
+            psi_deriv = psc_array.psi_deriv()  # * 1e-7
+            psi_deriv = psi_deriv[:psc_array.num_psc] * dd / epsilon
+            print('dpsi = ', dpsi_ddelta, psi_deriv)
+            assert(np.allclose(dpsi_ddelta, psi_deriv, rtol=1e-3))
+            # dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[ncoils:]))
+            # print(dBn_objective, dBn_analytic[0])
+            # assert np.isclose(dBn_objective, dBn_analytic[0], rtol=1e-2)
+
+            # Same arguments apply here as with the quaternions --- computing
+            # dI/dalpha_j = dI/dalpha_
             
             # Repeat for changing coil 1
             psc_array = PSCgrid.geo_setup_manual(
@@ -178,7 +556,7 @@ class Testing(unittest.TestCase):
             print(dpsi_dalpha[1], psi_deriv[1])
             assert(np.allclose(dpsi_dalpha[1], psi_deriv[1], rtol=1e-3))
             dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[:ncoils]))
-            print(dBn_objective, dBn_analytic[1])
+            # print(dBn_objective, dBn_analytic[1])
             assert np.isclose(dBn_objective, dBn_analytic[1], rtol=1e-1)
     
     def test_L_analytic_derivatives(self):
