@@ -12,6 +12,7 @@ on:
 
   # Do the builds on all pull requests (to test them)
   pull_request: []
+  workflow_dispatch:
 
 jobs:
   build-containers:
