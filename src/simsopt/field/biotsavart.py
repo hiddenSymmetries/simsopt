@@ -182,7 +182,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             Linv = coils[0].curve._psc_array.L_inv
             Linv[coils[0].curve.npsc:, :] = 0.0
             dI = - Linv @ dI
-
+            print(dI.shape)
             # for q in range(1, 4):
             #     dI[:coils[0].curve.npsc, :] += dI[coils[0].curve.npsc * q:coils[0].curve.npsc * (q + 1), :]
             # dI = np.zeros(dI.shape)

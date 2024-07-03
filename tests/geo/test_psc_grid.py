@@ -443,18 +443,126 @@ class Testing(unittest.TestCase):
             print('dI_coils = ', dI)
             assert np.allclose(dI[:ncoils], dI_fd, rtol=1e-1, atol=1e4)
 
-            dI = np.zeros((len(coils), 10))
-            # dI_deriv = []
-            for i in range(coils[0].curve.npsc):  #len(coils)):   # Not using the rotated ones directly
-                # print(i, coils[i].curve._index)
-                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
-            Linv = coils[0].curve._psc_array.L_inv
-            dI = dI[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
-            Linv[coils[0].curve.npsc:, :] = 0.0
-            dI = - Linv @ dI
-            dI = np.ravel(dI) @ np.ravel(epsilon) / 1e-5
-            print('dI_coils = ', dI)
+    def test_dJ_ddofs(self):
+        from simsopt.field import PSCCoil
+        from simsopt.objectives import SquaredFlux
+
+        for surf in surfs:
+            print('Surf = ', surf)
+            kwargs_manual = {"plasma_boundary": surf}
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+            )
+            coils1 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+            bpsc1 = BiotSavart(coils1)
+            bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+            dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+            # print(dofs, dofs.shape)
+            fB1 = psc_array.least_squares(psc_array.kappas)
+            A = psc_array.A_matrix
+            psi = psc_array.psi / psc_array.fac
+            Linv = psc_array.L_inv[:psc_array.num_psc, :psc_array.num_psc] # / psc_array.fac
+            I = psc_array.I  #(-Linv @ psi)
+            epsilon = 1e-5 * (np.random.rand(ncoils, 4) - 0.5)
+            # epsilon = np.hstack((np.zeros(3), epsilon))
+            # epsilon = np.hstack((epsilon, np.zeros(3)))
+            dofs2 = dofs + epsilon
+            # now try normalized in a general direction
+            normalization2 = np.sqrt(np.sum(dofs2 ** 2, axis=-1))
+            dofs2 = dofs2 / normalization2[:, None]
+            alphas2 = np.arctan2(2 * (dofs2[:, 0] * dofs2[:, 1] + dofs2[:, 2] * dofs2[:, 3]), 
+                                1 - 2.0 * (dofs2[:, 1] ** 2 + dofs2[:, 2] ** 2))
+            deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs2[:, 0] * dofs2[:, 2] - dofs2[:, 1] * dofs2[:, 3])), 
+                np.sqrt(1.0 - 2 * (dofs2[:, 0] * dofs2[:, 2] - dofs2[:, 1] * dofs2[:, 3])))
+            psc_array_new = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas2, deltas=deltas2, **kwargs_manual
+            )
+            coils2 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array_new.all_curves, psc_array_new.all_currents)]
+            bpsc2 = BiotSavart(coils2)
+            bpsc2.set_points(psc_array_new.plasma_boundary.gamma().reshape((-1, 3)))
+            fB2 = psc_array_new.least_squares(psc_array_new.kappas)
+            print('dfB = ', (fB2 - fB1) / 1e-5)
+            psi_new = psc_array_new.psi / psc_array.fac
+            I_new = psc_array_new.I
+            dpsi_fd = (psi_new - psi) / 1e-5
+            dI_fd = (I_new - I) / 1e-5
+            # print('dpsi_fd = ', dpsi_fd)
+            normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+            dofs_unnormalized = np.copy(dofs)
+            dofs = dofs / normalization[:, None]  # normalize the quaternion
+            w = dofs[:, 0]
+            x = dofs[:, 1]
+            y = dofs[:, 2]
+            z = dofs[:, 3]
+            alphas1 = np.arctan2(2 * (w * x + y * z), 
+                                1 - 2.0 * (x ** 2 + y ** 2))
+            deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (w * y - x * z)), 
+                np.sqrt(1.0 - 2 * (w * y - x * z)))
+
+            dnormalization = np.zeros((4, 4, dofs.shape[0]))
+            for j in range(dofs.shape[0]):
+                for i in range(4):
+                    eye = np.zeros(4)
+                    eye[i] = 1.0
+                    dnormalization[:, i, j] = eye / normalization[j] - dofs_unnormalized[j, :] * dofs_unnormalized[j, i] / normalization[j] ** 3
+            # print('dnorm = ', dnormalization)
+            dalpha_fd = (alphas2 - alphas1) / 1e-5
+            ddelta_fd = (deltas2 - deltas1) / 1e-5
+            # print(alphas1, alphas2, deltas1, deltas2, epsilon)
+            dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+                (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            
+            # dalpha array is shape (8, 4) -- previously (4)
+            # dnormalization is shape (4, 4, 8) -- previously (4, 4)
+            # epsilon is shape (8, 4)  -- previously (4)
+            dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]).T
+            ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]).T
+            dalpha_transformed = np.zeros(dalpha.shape[0])
+            ddelta_transformed = np.zeros(dalpha.shape[0])
+            for i in range(ncoils):
+                dalpha_transformed[i] = dalpha[i, :] @ dnormalization[:, :, i] @ epsilon[i, :] / 1e-5
+                ddelta_transformed[i] = ddelta[i, :] @ dnormalization[:, :, i] @ epsilon[i, :] / 1e-5
+            print('da, dd = ', dalpha_transformed, ddelta_transformed)
+            # print('da, dd = ', dalpha , ddelta @ dnormalization)
+            print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
+            assert np.allclose(dalpha_transformed, dalpha_fd, rtol=1e-2)
+            assert np.allclose(ddelta_transformed, ddelta_fd, rtol=1e-2)
+            psc_array.psi_deriv()
+            dpsi = (psc_array.dpsi[:psc_array.num_psc] * dalpha_transformed + \
+                   psc_array.dpsi[psc_array.num_psc:] * ddelta_transformed)
+            print('dpsi = ', dpsi, dpsi_fd)
+            assert np.allclose(dpsi, dpsi_fd, rtol=1e-2)
+            dI = - Linv @ dpsi 
+            print('dI = ', dI, dI_fd)
             assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
+
+            dB_fd = (bpsc2.B() - bpsc1.B()).reshape(-1, 3) / 1e-5
+            coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+            bpsc = BiotSavart(coils)
+            bpsc.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            Jf = SquaredFlux(psc_array.plasma_boundary, psc_array.B_TF + bpsc)
+            dB = bpsc.B_vjp(psc_array.plasma_boundary.gamma().reshape((-1, 3)))  #(bpsc)
+            print('dB = ', dB, dB_fd)
+            print('dB = ', np.shape(dB), dB_fd.shape)
+            grad = Jf.dJ()
+            print(Jf.dof_names)
+            dJ = grad @ np.ravel(epsilon) / 1e-5
+            print(dJ, (fB2 - fB1) / 1e-5)
+            assert np.allclose(dJ, (fB2 - fB1) / 1e-5)
+
         
     def test_dpsi_analytic_derivatives(self):
         """

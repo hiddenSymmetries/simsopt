@@ -614,6 +614,7 @@ class PSCgrid:
             # fix all the coil shapes so only the currents are optimized
             for i in range(ncoils):
                 base_curves[i].fix_all()
+                base_currents[i].fix_all()
             coils_TF = default_coils
         
         # Get all the TF coils data
