@@ -128,12 +128,12 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve.set('zs(1)', r)
         dofs = curve.get_dofs()
     elif curvetype == "CurveCWSFourier":
-        dofs[1] = 1.
+        dofs[0] = 1.
         dofs[2*order + 2] = 1.
     else:
         assert False
 
-    curve.x = dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
+    curve.x = dofs # + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape)
 
     if rotated:
         curve = RotatedCurve(curve, 0.5, flip=False)
