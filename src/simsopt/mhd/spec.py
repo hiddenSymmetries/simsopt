@@ -141,7 +141,9 @@ class Spec(Optimizable):
                 filename = f"{filename}.sp"
             logger.info(f"Initializing a SPEC object from file: {filename}")
 
-        #If spec has run before, clear the f90wrap array caches.
+        # If spec has run before, clear the f90wrap array caches.
+        # See https://github.com/hiddenSymmetries/simsopt/pull/431
+        # This addresses the issue https://github.com/hiddenSymmetries/simsopt/issues/357
         if spec.allglobal._arrays:
             self._clear_f90wrap_array_caches()
 
@@ -722,7 +724,12 @@ class Spec(Optimizable):
 
     def _clear_f90wrap_array_caches(self):
         """
-        Clear the f90wrap array caches. This is necessary when a new file is read after SPEC has run before.
+        Clear the f90wrap array caches. This is necessary when a new file is
+        read after SPEC has run before.
+
+        See https://github.com/hiddenSymmetries/simsopt/pull/431
+
+        This function is for addressing the issue https://github.com/hiddenSymmetries/simsopt/issues/357
         """
         spec.allglobal._arrays = {}
         spec.inputlist._arrays = {}   
