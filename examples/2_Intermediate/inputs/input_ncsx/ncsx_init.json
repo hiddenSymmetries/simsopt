@@ -19639,8 +19639,7 @@
         "value": "Volume2"
       },
       "targetlabel": -0.2960004452246598,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart2": {
       "@module": "simsopt.field.biotsavart",
@@ -21380,8 +21379,7 @@
         "value": "Volume3"
       },
       "targetlabel": -0.6985426179774754,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart3": {
       "@module": "simsopt.field.biotsavart",
@@ -23121,8 +23119,7 @@
         "value": "Volume4"
       },
       "targetlabel": -1.101084790730291,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart4": {
       "@module": "simsopt.field.biotsavart",
@@ -24862,8 +24859,7 @@
         "value": "Volume5"
       },
       "targetlabel": -1.5036269634831068,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart5": {
       "@module": "simsopt.field.biotsavart",
@@ -26603,8 +26599,7 @@
         "value": "Volume6"
       },
       "targetlabel": -1.9061691362359223,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart6": {
       "@module": "simsopt.field.biotsavart",
@@ -28344,8 +28339,7 @@
         "value": "Volume7"
       },
       "targetlabel": -2.308711308988738,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart7": {
       "@module": "simsopt.field.biotsavart",
@@ -30085,8 +30079,7 @@
         "value": "Volume8"
       },
       "targetlabel": -2.7112534817415535,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart8": {
       "@module": "simsopt.field.biotsavart",
@@ -31826,8 +31819,7 @@
         "value": "Volume9"
       },
       "targetlabel": -3.113795654494369,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart9": {
       "@module": "simsopt.field.biotsavart",
@@ -33567,8 +33559,7 @@
         "value": "Volume10"
       },
       "targetlabel": -3.5163378272471846,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     },
     "BiotSavart10": {
       "@module": "simsopt.field.biotsavart",
@@ -35308,8 +35299,7 @@
         "value": "Volume11"
       },
       "targetlabel": -3.91888,
-      "constraint_weight": 100.0,
-      "reg": null
+      "constraint_weight": 100.0
     }
   }
 }

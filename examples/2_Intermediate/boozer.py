@@ -50,6 +50,8 @@ res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-10, maxite
 print(f"After LBFGS:   iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 if "DISPLAY" in os.environ:
     s.plot()
+
+boozer_surface.need_to_run_code = True
 # now drive the residual down using a specialised least squares algorithm
 res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'], method='manual')
 print(f"After Lev-Mar: iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
