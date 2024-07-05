@@ -399,12 +399,12 @@ class Spec(Optimizable):
         """
         if not self.freebound:
             raise ValueError('Normal field can only be set in freeboundary case')
-        if not isinstance(normal_field, NormalField) or not isinstance(normal_field):
+        if not isinstance(normal_field, NormalField):
             raise ValueError('Input should be a NormalField or CoilNormalField')
         if self._normal_field is not normal_field:
             self.remove_parent(self._normal_field)
-            if self._computational_boundary is not normal_field.computational_boundary:
-                normal_field.computational_boundary = self._computational_boundary
+            if self._computational_boundary is not normal_field.surface:
+                normal_field.surface = self._computational_boundary
             self._normal_field = normal_field
             self.append_parent(normal_field)
             return

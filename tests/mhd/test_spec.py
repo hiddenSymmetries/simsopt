@@ -25,6 +25,7 @@ except ImportError:
 
 from simsopt.geo import SurfaceGarabedian
 from simsopt.mhd import ProfileSpec
+from simsopt.field import NormalField
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
 
@@ -94,6 +95,27 @@ class SpecTests(unittest.TestCase):
             self.assertAlmostEqual(s.normal_field.get_vns(3, -1), -1.269776831212886e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, 0), 1.924871538367248e-04, places)
             self.assertAlmostEqual(s.normal_field.get_vnc(1, -2), 4.070523669489626e-04, places)
+    
+    def test_normal_field_setter(self):
+        """
+        Try creating a Spec instance from a freeboundary file that is also
+        non-stellarator symmetric.
+        Check value of normal field
+        """
+
+        filename = os.path.join(TEST_DIR, 'M16N08.sp')
+
+        with ScratchDir("."):
+            s = Spec(filename)
+            surface = s.boundary
+            old_normal = s.normal_field
+            new_normal = NormalField(s.nfp, stellsym=s.stellsym, mpol=s.mpol, ntor=s.ntor, surface=surface)
+            s.normal_field = new_normal
+            self.assertAlmostEqual(s.normal_field.get_vns(0,1), 0) # set to zeros
+            self.assertIs(s.normal_field.surface, s._computational_boundary) # normal field surface is set to spec computational boundary. 
+            self.assertIsNot(old_normal, new_normal)
+
+
 
     def test_init_freeboundary(self):
         """
