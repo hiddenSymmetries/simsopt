@@ -766,10 +766,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
 
         # Transform back to real space:
-        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False)
+        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False, normalization=1/2*np.pi**2)
 
         # Check that the result is the same as the original field:
-        np.testing.assert_allclose(field, field2)
+        np.testing.assert_allclose(field/2*np.pi**2, field2)
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
