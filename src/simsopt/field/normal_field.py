@@ -85,16 +85,16 @@ class NormalField(Optimizable):
         return self._vns
     
     @vns.setter
-    def vns(self):
-        raise AttributeError('change Vns using set_vns() or set_vns_asarray()')
+    def vns(self, value):
+        raise AttributeError('Change Vns using set_vns() or set_vns_asarray()')
     
     @property
     def vnc(self):
         return self._vnc
     
     @vnc.setter
-    def vnc(self):
-        raise AttributeError('change Vnc using set_vnc() or set_vnc_asarray()')
+    def vnc(self, value):
+        raise AttributeError('Change Vnc using set_vnc() or set_vnc_asarray()')
 
     @classmethod
     def from_spec(cls, filename):
