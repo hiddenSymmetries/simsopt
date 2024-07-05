@@ -510,7 +510,7 @@ class NormalField(Optimizable):
         The returned array will be of size specified by the surfaces'  quadpoints and located on the quadpoints. 
         """
         vns, vnc = self.get_vns_vnc_asarray(mpol=self.mpol, ntor=self.ntor)
-        BdotN_unnormalized = self.surface.inverse_fourier_transform_field(vns, vnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
+        BdotN_unnormalized = self.surface.inverse_fourier_transform_scalar(vns, vnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
         normal_field_real_space = -1 * BdotN_unnormalized / np.linalg.norm(self.surface.normal(), axis=-1)
         return normal_field_real_space
 
