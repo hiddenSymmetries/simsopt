@@ -732,7 +732,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_array_less(0, eq.wout.iotaf)
             np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
 
-    def test_fourier_transform_field(self):
+    def test_fourier_transform_scalar(self):
         """
         Test the Fourier transform of a field on a surface.
         """
@@ -751,7 +751,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
 
         # Transform the field to Fourier space:
-        ft_sines, ft_cosines = s.fourier_transform_field(field, stellsym=False)
+        ft_sines, ft_cosines = s.fourier_transform_scalar(field, stellsym=False)
         self.assertAlmostEqual(ft_sines[2, 3+s.ntor], 0.8)
         self.assertAlmostEqual(ft_sines[4, 5+s.ntor], 0.2)
         self.assertAlmostEqual(ft_cosines[3, 3+s.ntor], 0.7)
@@ -766,7 +766,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertEqual(np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
 
         # Transform back to real space:
-        field2 = s.inverse_fourier_transform_field(ft_sines, ft_cosines, stellsym=False)
+        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False)
 
         # Check that the result is the same as the original field:
         np.testing.assert_allclose(field, field2)
