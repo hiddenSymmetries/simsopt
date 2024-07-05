@@ -231,6 +231,72 @@ class NormalFieldTests(unittest.TestCase):
         self.assertTrue(np.allclose(normal_field.local_full_x, normal_field_2.local_full_x))
     
     @unittest.skipIf(py_spec is None, "py_spec not found")
+    def test_fail_for_fixedb(self):
+        """
+        test if instantiation fails if spec is not freeboundary
+        """
+        from simsopt.mhd import Spec
+        # Init from SPEC input file
+        spec = Spec()
+        with self.assertRaises(ValueError):
+            NormalField.from_spec_object(spec)
+
+    def test_wrong_index(self):
+        """
+        test if accessing a wrong m or n raises an error
+        """
+        normal_field = NormalField(stellsym=False, mpol=3, ntor=2)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=4, n=1)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=4, n=1, even=True)
+        with self.assertRaises(ValueError):   
+            normal_field.get_index_in_array(m=1, n=3)
+        with self.assertRaises(ValueError):   
+            normal_field.get_index_in_array(m=1, n=3, even=True)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=0, n=-1)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=0, n=-1, even=True)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=3, n=-3)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=3, n=-3, even=True)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=4, n=-3)
+        with self.assertRaises(ValueError):
+            normal_field.get_index_in_array(m=4, n=-3, even=True)
+        self.assertIsInstance(normal_field.get_index_in_array(m=0, n=0, even=True), list)
+        normal_field2 = NormalField(stellsym=True, mpol=3, ntor=2)
+        with self.assertRaises(ValueError):
+            normal_field2.get_index_in_array(m=0, n=0)
+        
+    def test_asarray_getter_setter_raises(self):
+        """
+        test that if wrong bounds are given, an error is raised
+        """
+        normal_field = NormalField(stellsym=False, mpol=3, ntor=2)
+        with self.assertRaises(ValueError):
+            normal_field.get_vns_asarray(mpol=4, ntor=5)
+        with self.assertRaises(ValueError):
+            normal_field.get_vns_asarray(mpol=3, ntor=4)
+        with self.assertRaises(ValueError):
+            normal_field.get_vnc_asarray(mpol=4, ntor=5)
+        with self.assertRaises(ValueError):
+            normal_field.get_vnc_asarray(mpol=3, ntor=4)
+        with self.assertRaises(ValueError):
+            normal_field.get_vns_vnc_asarray(mpol=4, ntor=5)
+        with self.assertRaises(ValueError):
+            normal_field.get_vns_vnc_asarray(mpol=3, ntor=4)
+        with self.assertRaises(ValueError):
+            normal_field.set_vns_asarray(np.zeros((3, 7)), mpol=2, ntor=3)
+        with self.assertRaises(ValueError):
+            normal_field.set_vnc_asarray(np.zeros((4, 7)), mpol=2, ntor=3)
+        with self.assertRaises(ValueError):
+            normal_field.set_vns_vnc_asarray(np.zeros((4, 7)), np.zeros((4, 7)), mpol=2, ntor=3)
+        
+    
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_get_set_vns_vnc_asarray(self):
         """
         test the array-wise getter and setter functions for the 
@@ -270,3 +336,14 @@ class NormalFieldTests(unittest.TestCase):
         real_space_field = normal_field.get_real_space_field()
         self.assertTrue(real_space_field is not None)
         self.assertEqual(real_space_field.shape, (normal_field.surface.quadpoints_phi.size, normal_field.surface.quadpoints_theta.size))
+    
+    def test_vns_vnc_setter(self):
+        normal_field = NormalField()
+        with self.assertRaises(AttributeError):
+            normal_field.vns = 1
+        with self.assertRaises(AttributeError):
+            normal_field.vnc = 1
+    
+
+if __name__ == '__main__':
+    unittest.main()
