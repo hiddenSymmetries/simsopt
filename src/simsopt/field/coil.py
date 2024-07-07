@@ -59,9 +59,14 @@ class PSCCoil(sopp.Coil, Optimizable):
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
 
-    def vjp(self, v_gamma, v_gammadash):
-        # print('other derivs = ', self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma).shape, self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash).shape)
-        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) #\
+    def vjp(self, v_gamma, v_gammadash, v_current):
+        # print('other derivs = ', v_gamma.shape, v_gammadash.shape, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma).shape, self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash).shape)
+        # print(self.curve.dgamma_by_dcoeff_vjp(v_gamma),
+        #     self.curve.dgammadash_by_dcoeff_vjp(v_gammadash),
+        #     Derivative({self.curve: v_current}))
+        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
+            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
+            + Derivative({self.curve: v_current}) #\
             # + self.curve.psc_current_contribution_vjp(v_current)
 
     def plot(self, **kwargs):

@@ -89,14 +89,6 @@ class PSCCurve(CurvePlanarFourier):
             self.fix(names[2 * self.order + 7])
         self.npsc = self._psc_array.num_psc
         
-    def psc_current_contribution_vjp(self, v_current):
-        indices = np.arange(self._index, self.npsc * self._psc_array.symmetry, self.npsc)
-        Linv_partial = self._psc_array.L_inv[self._index, self._index]  # % self.npsc, self._index % self.npsc]
-        print(self._psc_array.I[self._index], 
-              -self._psc_array.L_inv[self._index, :] @ self._psc_array.psi_total * 1e7,
-              -self._psc_array.L_inv[self._index, indices] @ self._psc_array.psi_total[indices] * 1e7)
-        return Derivative({self: np.ravel(-Linv_partial * self.dkappa_dcoef_vjp(v_current)) })  #  np.ravel((-Linv * psi_deriv) @ v_current).tolist()  # 
-    
     def dkappa_dcoef_vjp(self, v_current, index):
         dofs = self.get_dofs()  # should already be only the orientation dofs
         

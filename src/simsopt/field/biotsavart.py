@@ -91,48 +91,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         )
 
         return res
-
-    def B_vjp(self, v):
-        r"""
-        Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
-        :math:`\{\mathbf{B}_i\}_{i=1}^n`.
-        These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
-        This function returns the vector Jacobian product of this dependency, i.e.
-
-        .. math::
-
-            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
-
-        """
-        # from simsopt.geo.curveplanarfourier import PSCCurve
-
-        coils = self._coils
-        gammas = [coil.curve.gamma() for coil in coils]
-        gammadashs = [coil.curve.gammadash() for coil in coils]
-        currents = [coil.current.get_value() for coil in coils]
-        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
-        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
-
-        points = self.get_points_cart_ref()
-        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
-                                   res_gamma, res_gammadash, [], [], [])
-        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
-        res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
-        # print(res_current)
-        # print(np.shape(dB_by_dcoilcurrents), np.shape(dB_by_dcoilcurrents[0]), np.shape(res_current))
-        # print('check = ', [coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])).data for i in range(len(coils))])
-        # print('check2 = ', sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))]).data)
-        # print(np.shape(sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])))
-        # exit()
-        # curves = [coil.curve for coil in coils]
-        # if np.any(isinstance(curves, PSCCurve)):
-        #     dI = np.zeros(len(curves))
-        #     for i in range(len(coils)): 
-        #         dI[i] = (coils[i].curve.psc_current_contribution_vjp([res_current[i]])
-        #     dI = -coils[i].curve._psc_array.L_inv @ dI
-        #     return dB
-        # else:
-        return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
     
     def B_vjp(self, v):
         r"""
@@ -173,16 +131,49 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         if np.any(curve_flags):
             order = coils[0].curve.order 
             ndofs = 2 * order + 8
-            dI = np.zeros((len(coils), ndofs))
+            # dI = np.zeros((coils[0].curve.npsc, ndofs))
+            # print('res_current = ', res_current)
             # dI_deriv = []
-            for i in range(coils[0].curve.npsc):  #len(coils)):   # Not using the rotated ones directly
+            # for i in range(coils[0].curve.npsc):   # Not using the rotated ones directly
                 # print(i, coils[i].curve._index)
-                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([res_current[i]], coils[i].curve._index)
-                print(i, dI[i, :])
+                # for q in range(coils[0].curve._psc_array.symmetry):
+                # for fp in range(coils[0].curve._psc_array.nfp):
+                #     for stell in coils[0].curve._psc_array.stell_list:
+                # dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([res_current[i]], i)
+            dI = np.zeros((len(coils), ndofs))
+            # for i in range(len(coils)):   # Not using the rotated ones directly
+                # print(i, coils[i].curve._index)
+                # for q in range(coils[0].curve._psc_array.symmetry):
+            q = 0
+            for fp in range(coils[0].curve._psc_array.nfp):
+                for stell in coils[0].curve._psc_array.stell_list:
+                    for i in range(coils[0].curve.npsc):   # Not using the rotated ones directly
+                        # dI[i, :] += coils[i + q * coils[0].curve.npsc].curve.dkappa_dcoef_vjp(
+                        #     [res_current[i + q * coils[0].curve.npsc]], i + q * coils[0].curve.npsc)
+                        dI[i, :] += coils[i + q * coils[0].curve.npsc].curve.dkappa_dcoef_vjp(
+                            [res_current[i + q * coils[0].curve.npsc]], i) * stell
+                    q += 1
+                # dI[i % coils[0].curve.npsc, :] += coils[i].curve.dkappa_dcoef_vjp([res_current[i]], i)   
+                # coils[i].curve.plot()
+                # print(i, dI[i, :])
             Linv = coils[0].curve._psc_array.L_inv
-            Linv[coils[0].curve.npsc:, :] = 0.0
+            # Linv[coils[0].curve.npsc:, :] = 0.0
+            # q = 0
+            # dI_all = np.zeros((len(coils), ndofs))
+            # for fp in range(coils[0].curve._psc_array.nfp):
+            #     for stell in coils[0].curve._psc_array.stell_list:
+            #         dI_all[q * coils[0].curve.npsc:(q + 1) * coils[0].curve.npsc, :] = dI[:coils[0].curve.npsc, :] * stell
+            #         q += 1
+            # dI = - Linv @ dI_all
             dI = - Linv @ dI
-            print(dI.shape)
+            self.dI_psc = dI[:, 2 * order + 1: 2 * order + 5]
+            # print('dI_ mid = ', self.dI_psc)
+            # dI = np.zeros(dI.shape)
+            ### Issue is that the disrete symmetries not getting imposed right here. Have
+            # dJ / dB * dB / dI * dI / ddofs and fairly sure dI / ddofs looks correct when dB/dI is just set to one. 
+            # Clearly dB / dI should be diffferent for the coils at discrete symmetries. 
+
+            # print(dI.shape)
             # for q in range(1, 4):
             #     dI[:coils[0].curve.npsc, :] += dI[coils[0].curve.npsc * q:coils[0].curve.npsc * (q + 1), :]
             # dI = np.zeros(dI.shape)
@@ -191,7 +182,9 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             #     dI_deriv.append(np.asarray(Derivative{coils[i].curve: dI[i]}))
             # dB = 
             # print([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([Derivative({coils[i].curve: dI[i, :]})])) for i in range(len(coils))])
-            return sum([coils[i].vjp(res_gamma[i], res_gammadash[i]) + Derivative({coils[i].curve: dI[i, :]}) for i in range(len(coils))])
+            # print(res_gamma, res_gammadash, res_current)
+            # exit()
+            return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], dI[i, :]) for i in range(len(coils))])
         else:
             return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 

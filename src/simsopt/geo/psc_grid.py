@@ -851,6 +851,9 @@ class PSCgrid:
                     self.R,
                 ) # accounts for sign change of the currents
                 q = q + 1
+        # if hasattr(self, 'A_matrix'):
+        #     'do nothing'
+        # else:
         self.A_matrix = 2 * A_matrix  
     
     def setup_curves(self):
@@ -1378,21 +1381,31 @@ class PSCgrid:
         """
         
         # Need to check is alphas and deltas are in [-pi, pi] and remap if not
+        self.coil_normals = np.array(
+            [np.cos(alphas) * np.sin(deltas),
+              -np.sin(alphas),
+              np.cos(alphas) * np.cos(deltas)]
+        ).T
+        alphas = np.arctan2(
+                -self.coil_normals[:, 1], 
+                np.sqrt(self.coil_normals[:, 0] ** 2 + self.coil_normals[:, 2] ** 2))
+        deltas = np.arcsin(self.coil_normals[:, 0] / \
+                                    np.sqrt(self.coil_normals[:, 0] ** 2 + self.coil_normals[:, 2] ** 2))
         self.alphas = alphas
         self.deltas = deltas
         kappas = np.ravel(np.array([self.alphas, self.deltas]))
         self.kappas = kappas
         
         self.coil_normals = np.array(
-            [np.cos(alphas) * np.sin(deltas),
-              -np.sin(alphas),
-              np.cos(alphas) * np.cos(deltas)]
+            [np.cos(self.alphas) * np.sin(self.deltas),
+              -np.sin(self.alphas),
+              np.cos(self.alphas) * np.cos(self.deltas)]
         ).T
         # deal with -0 terms in the normals, which screw up the arctan2 calculations
-        self.coil_normals[
-            np.logical_and(np.isclose(self.coil_normals, 0.0), 
-                           np.copysign(1.0, self.coil_normals) < 0)
-            ] *= -1.0
+        # self.coil_normals[
+        #     np.logical_and(np.isclose(self.coil_normals, 0.0), 
+        #                    np.copysign(1.0, self.coil_normals) < 0)
+        #     ] *= -1.0
                 
         # Apply discrete symmetries to the alphas and deltas and coordinates
         self.update_alphas_deltas()

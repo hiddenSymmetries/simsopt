@@ -32,7 +32,7 @@ surf4 = SurfaceRZFourier.from_wout(
     surface_filename, range='half period', nphi=16, ntheta=16
 )
 surfs = [surf1, surf2, surf3, surf4]
-ncoils = 8
+ncoils = 14
 np.random.seed(29)
 R = 0.05
 a = 1e-5
@@ -416,17 +416,20 @@ class Testing(unittest.TestCase):
             assert np.allclose(dalpha_transformed, dalpha_fd, rtol=1e-2)
             assert np.allclose(ddelta_transformed, ddelta_fd, rtol=1e-2)
             psc_array.psi_deriv()
+            psc_array.psi_deriv_full()
             dpsi = (psc_array.dpsi[:psc_array.num_psc] * dalpha_transformed + \
                    psc_array.dpsi[psc_array.num_psc:] * ddelta_transformed)
             print('dpsi = ', dpsi, dpsi_fd)
             assert np.allclose(dpsi, dpsi_fd, rtol=1e-2)
             dI = - Linv @ dpsi 
             print('dI = ', dI, dI_fd)
+            # dI_fd_all = (psc_array_new.I_all - psc_array.I_all) / 1e-5
+            # print('dI_all = ', dI_fd_all)
             assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
 
             coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
             # bpsc = BiotSavart(coils)
-            # bpsc.set_points(s.gamma().reshape((-1, 3)))
+            # bpsc.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
             dI = np.zeros((len(coils), 10))
             # dI_deriv = []
             for i in range(coils[0].curve.npsc):  #len(coils)):   # Not using the rotated ones directly
@@ -443,6 +446,161 @@ class Testing(unittest.TestCase):
             print('dI_coils = ', dI)
             assert np.allclose(dI[:ncoils], dI_fd, rtol=1e-1, atol=1e4)
 
+    def test_dJ_dgamma(self):
+        from simsopt.field import PSCCoil, Coil
+        from simsopt.objectives import SquaredFlux
+
+        Jf1 = None
+        h = (np.random.rand(ncoils, 4) - 0.5)
+        for surf in surfs:
+            for eps in [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]:
+                kwargs_manual = {"plasma_boundary": surf}
+                psc_array = PSCgrid.geo_setup_manual(
+                    points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+                    )
+                dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+                dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+                normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+                dofs = dofs / normalization[:, None]
+                print('dofs = ', dofs, dofs.shape, normalization)
+                epsilon = eps * h
+                print('Surf = ', surf, ', eps = ', eps)
+                # now try normalized in a general direction
+                alphas1 = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+                                    1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+                deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                    np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+                    np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+                print('a1, d1 = ', alphas1, deltas1)
+                psc_array.setup_orientations(alphas1, deltas1)
+                psc_array.update_psi()
+                psc_array.setup_currents_and_fields()
+                psc_array.psi_deriv()
+
+                # psc_array.b_opt = np.zeros(psc_array.b_opt.shape)
+                coils1 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+                bpsc1 = BiotSavart(coils1)
+                bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+                print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value(), bpsc1.B().reshape(-1, 3)[0, :])
+                # print(bpsc1.B())
+                Jf1 = SquaredFlux(psc_array.plasma_boundary, bpsc1)
+                Jf1.x = np.ravel(dofs)
+                print('why = ', Jf1.x.reshape(-1, 4), np.sum(Jf1.x.reshape(-1, 4) ** 2, axis=-1))
+                Jf11 = Jf1.J()
+                grad1 = Jf1.dJ()
+
+                # dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+                # dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+                # print(dofs, dofs.shape)
+                dofs2 = dofs * normalization[:, None] + epsilon
+                Jf1.x = np.ravel(dofs2)
+                # now try normalized in a general direction
+                normalization2 = np.sqrt(np.sum(dofs2 ** 2, axis=-1))
+                dofs2_normed = dofs2 / normalization2[:, None]
+                alphas2 = np.arctan2(2 * (dofs2_normed[:, 0] * dofs2_normed[:, 1] + dofs2_normed[:, 2] * dofs2_normed[:, 3]), 
+                                    1 - 2.0 * (dofs2_normed[:, 1] ** 2 + dofs2_normed[:, 2] ** 2))
+                deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                    np.sqrt(1.0 + 2 * (dofs2_normed[:, 0] * dofs2_normed[:, 2] - dofs2_normed[:, 1] * dofs2_normed[:, 3])), 
+                    np.sqrt(1.0 - 2 * (dofs2_normed[:, 0] * dofs2_normed[:, 2] - dofs2_normed[:, 1] * dofs2_normed[:, 3])))
+                # psc_array = coils1[0]._curve._psc_array
+                psc_array.setup_orientations(alphas2, deltas2)
+                psc_array.update_psi()
+                psc_array.setup_currents_and_fields()
+                psc_array.psi_deriv()
+                psc_array.setup_curves()
+                # print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
+                Jf12 = Jf1.J()
+                print(Jf1.x)
+                print('d1_unnormed, d2_unnormed = ', dofs * normalization[:, None], dofs2)
+                print(Jf11, Jf12)
+                # grad2 = Jf1.dJ()
+                dJ = grad1 @ np.ravel(epsilon) / eps
+                print(dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
+                print('here1 = ', Jf1.x)
+                assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
+
+
+    def test_dJ_dgamma_basic(self):
+        from simsopt.field import PSCCoil, Coil
+        from simsopt.objectives import SquaredFlux
+
+        h = (np.random.rand(ncoils, 4) - 0.5)
+        eps = 1e-8
+        epsilon = eps * h
+        for surf in surfs:
+            kwargs_manual = {"plasma_boundary": surf}
+            psc_array = PSCgrid.geo_setup_manual(
+                points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+                )
+            dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+            dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+            normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+            print('dofs = ', dofs, dofs.shape, normalization)
+            dofs = dofs / normalization[:, None]
+            dofs2 = dofs * normalization[:, None] + epsilon
+            print('Surf = ', surf, ', eps = ', eps)
+            # now try normalized in a general direction
+            alphas1 = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+                                1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+            deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+                np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+            psc_array.setup_orientations(alphas1, deltas1)
+            psc_array.update_psi()
+            psc_array.setup_currents_and_fields()
+            psc_array.psi_deriv()
+
+            # psc_array.b_opt = np.zeros(psc_array.b_opt.shape)
+            coils1 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+            bpsc1 = BiotSavart(coils1)
+            print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
+            bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            Jf1 = SquaredFlux(psc_array.plasma_boundary, bpsc1)
+            Jf11 = Jf1.J()
+            grad1 = Jf1.dJ()
+
+            dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+            dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+            # print(dofs, dofs.shape)
+            Jf1.x = np.ravel(dofs2)
+            # now try normalized in a general direction
+            normalization2 = np.sqrt(np.sum(dofs2 ** 2, axis=-1))
+            dofs2_normed = dofs2 / normalization2[:, None]
+            alphas2 = np.arctan2(2 * (dofs2_normed[:, 0] * dofs2_normed[:, 1] + dofs2_normed[:, 2] * dofs2_normed[:, 3]), 
+                                1 - 2.0 * (dofs2_normed[:, 1] ** 2 + dofs2_normed[:, 2] ** 2))
+            deltas2 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs2_normed[:, 0] * dofs2_normed[:, 2] - dofs2_normed[:, 1] * dofs2_normed[:, 3])), 
+                np.sqrt(1.0 - 2 * (dofs2_normed[:, 0] * dofs2_normed[:, 2] - dofs2_normed[:, 1] * dofs2_normed[:, 3])))
+            # psc_array = coils1[0]._curve._psc_array
+            psc_array.setup_orientations(alphas2, deltas2)
+            psc_array.update_psi()
+            psc_array.setup_currents_and_fields()
+            psc_array.psi_deriv()
+            psc_array.setup_curves()
+            print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
+            # print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
+            Jf12 = Jf1.J()
+            print(Jf11, Jf12)
+            # dofs3 = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
+            # dofs3 = dofs3[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
+            # print(dofs3 / dofs2, dofs3 / dofs, dofs3.shape)
+            # psc_array_new = PSCgrid.geo_setup_manual(
+            #     points, R=R, a=a, alphas=alphas2, deltas=deltas2, **kwargs_manual
+            # )
+            # psc_array_new.b_opt = np.zeros(psc_array.b_opt.shape)
+            # psc_array_new.psi_deriv()
+            # coils2 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array_new.all_curves, psc_array_new.all_currents)]
+            # coils2 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+            # bpsc2 = BiotSavart(coils2)
+            # bpsc2.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            # Jf2 = SquaredFlux(psc_array.plasma_boundary, bpsc2)
+            print(alphas1, deltas1)
+            print(alphas2, deltas2)
+            grad2 = Jf1.dJ()
+            dJ = grad1 @ np.ravel(epsilon) / eps
+            print(dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
+            assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
+
     def test_dJ_ddofs(self):
         from simsopt.field import PSCCoil
         from simsopt.objectives import SquaredFlux
@@ -453,13 +611,16 @@ class Testing(unittest.TestCase):
             psc_array = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
             )
+            psc_array.b_opt = np.zeros(psc_array.b_opt.shape)
             coils1 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
             bpsc1 = BiotSavart(coils1)
             bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            Jf1 = SquaredFlux(psc_array.plasma_boundary, bpsc1)
+
             dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
             dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
             # print(dofs, dofs.shape)
-            fB1 = psc_array.least_squares(psc_array.kappas)
+            fB1 = psc_array.least_squares(psc_array.kappas) * psc_array.normalization
             A = psc_array.A_matrix
             psi = psc_array.psi / psc_array.fac
             Linv = psc_array.L_inv[:psc_array.num_psc, :psc_array.num_psc] # / psc_array.fac
@@ -479,15 +640,21 @@ class Testing(unittest.TestCase):
             psc_array_new = PSCgrid.geo_setup_manual(
                 points, R=R, a=a, alphas=alphas2, deltas=deltas2, **kwargs_manual
             )
+            psc_array_new.b_opt = np.zeros(psc_array.b_opt.shape)
             coils2 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array_new.all_curves, psc_array_new.all_currents)]
+            # coils2 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array_new.all_curves, psc_array.all_currents)]
             bpsc2 = BiotSavart(coils2)
             bpsc2.set_points(psc_array_new.plasma_boundary.gamma().reshape((-1, 3)))
-            fB2 = psc_array_new.least_squares(psc_array_new.kappas)
+            Jf2 = SquaredFlux(psc_array.plasma_boundary, bpsc2)
+            fB2 = psc_array_new.least_squares(psc_array_new.kappas) * psc_array.normalization
             print('dfB = ', (fB2 - fB1) / 1e-5)
             psi_new = psc_array_new.psi / psc_array.fac
             I_new = psc_array_new.I
             dpsi_fd = (psi_new - psi) / 1e-5
             dI_fd = (I_new - I) / 1e-5
+            dI1 = np.array([coils1[i].current.get_value() for i in range(len(coils1))])
+            dI2 = np.array([coils2[i].current.get_value() for i in range(len(coils2))])
+            print('dI2 - dI1 = ', (dI2 - dI1) / 1e-5)
             # print('dpsi_fd = ', dpsi_fd)
             normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
             dofs_unnormalized = np.copy(dofs)
@@ -535,12 +702,15 @@ class Testing(unittest.TestCase):
             for i in range(ncoils):
                 dalpha_transformed[i] = dalpha[i, :] @ dnormalization[:, :, i] @ epsilon[i, :] / 1e-5
                 ddelta_transformed[i] = ddelta[i, :] @ dnormalization[:, :, i] @ epsilon[i, :] / 1e-5
-            print('da, dd = ', dalpha_transformed, ddelta_transformed)
+            # print('da, dd = ', dalpha_transformed, ddelta_transformed)
             # print('da, dd = ', dalpha , ddelta @ dnormalization)
-            print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
+            # print('da_fd, dd_fd = ', dalpha_fd, ddelta_fd)
             assert np.allclose(dalpha_transformed, dalpha_fd, rtol=1e-2)
             assert np.allclose(ddelta_transformed, ddelta_fd, rtol=1e-2)
             psc_array.psi_deriv()
+            psc_array.psi_deriv_full() # * 1e-7
+            psc_array_new.psi_deriv()
+            psc_array_new.psi_deriv_full() # * 1e-7
             dpsi = (psc_array.dpsi[:psc_array.num_psc] * dalpha_transformed + \
                    psc_array.dpsi[psc_array.num_psc:] * ddelta_transformed)
             print('dpsi = ', dpsi, dpsi_fd)
@@ -549,18 +719,161 @@ class Testing(unittest.TestCase):
             print('dI = ', dI, dI_fd)
             assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
 
-            dB_fd = (bpsc2.B() - bpsc1.B()).reshape(-1, 3) / 1e-5
-            coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
-            bpsc = BiotSavart(coils)
-            bpsc.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
-            Jf = SquaredFlux(psc_array.plasma_boundary, psc_array.B_TF + bpsc)
-            dB = bpsc.B_vjp(psc_array.plasma_boundary.gamma().reshape((-1, 3)))  #(bpsc)
-            print('dB = ', dB, dB_fd)
-            print('dB = ', np.shape(dB), dB_fd.shape)
-            grad = Jf.dJ()
-            print(Jf.dof_names)
+            coils = coils1
+            order = coils[0].curve.order 
+            ndofs = 2 * order + 8
+            dI = np.zeros((len(coils), ndofs))
+            # dI_deriv = []
+            for i in range(coils[0].curve.npsc):
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            Linv = coils[0].curve._psc_array.L_inv
+            # Linv[coils[0].curve.npsc:, :] = 0.0
+            dI = (- Linv @ dI)[:coils[0].curve.npsc, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            dI = np.sum(dI * epsilon, axis=-1) / 1e-5
+            print('dI = ', dI, dI_fd)
+            assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
+
+            dI = np.zeros((len(coils), ndofs))
+            for i in range(len(coils)):
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            # Linv[coils[0].curve.npsc:, :] = 0.0
+            dI = (- Linv @ dI)[:coils[0].curve.npsc, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            dI = np.sum(dI * epsilon, axis=-1) / 1e-5
+            print('dI = ', dI, dI_fd)
+            assert np.allclose(dI, dI_fd, rtol=1e-1, atol=1e4)
+
+            dI1 = np.array([bpsc1._coils[i].current.get_value() for i in range(len(coils))])
+            dI2 = np.array([bpsc2._coils[i].current.get_value() for i in range(len(coils))])
+            print('dI_12 = ', (dI2 - dI1) / 1e-5)
+
+            # coils1 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+            # bpsc1 = BiotSavart(coils1)
+            # bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            # coils2 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array_new.all_curves, psc_array_new.all_currents)]
+            # bpsc2 = BiotSavart(coils2)
+            # bpsc2.set_points(psc_array_new.plasma_boundary.gamma().reshape((-1, 3)))
+            # dI = np.zeros((len(coils), ndofs))
+            # for i in range(len(coils)):
+            #     dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            # # Linv[coils[0].curve.npsc:, :] = 0.0
+            # dI = (- Linv @ dI)[:coils[0].curve.npsc, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            # dB_dgamma = np.array([bpsc1._coils[i].curve.dgamma_by_dcoeff_vjp_impl([1.0]) for i in range(len(coils))]
+            #                      )[:coils[0].curve.npsc, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            # dB_dgammadash = np.array([bpsc1._coils[i].curve.dgammadash_by_dcoeff_vjp_impl([1.0]) for i in range(len(coils))]
+            #                          )[:coils[0].curve.npsc, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            # dB_full = np.sum((dI + dB_dgamma + dB_dgammadash) * epsilon, axis=-1) / 1e-5
+            # print(dB_full.shape, bpsc1._coils[0].curve.dgammadash_by_dcoeff_vjp_impl([1.0]))
+            # print(dB_dgamma.shape, dB_dgammadash.shape, bpsc1._coils[0].curve.gamma().shape)
+            # exit()
+            # dB_no_dI = dB_dgamma * ( )
+
+            # dI = np.zeros((len(coils), ndofs))
+            # for i in range(len(coils)):
+            #     dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            dI = np.zeros((coils[0].curve.npsc, ndofs))
+            for i in range(coils[0].curve.npsc):
+                dI[i, :] = coils[i].curve.dkappa_dcoef_vjp([1.0], coils[i].curve._index)
+            dI_all = np.zeros((len(coils), ndofs))
+            eps_all = np.zeros((len(coils), 4))
+            q = 0
+            for fp in range(psc_array.nfp):
+                for stell in psc_array.stell_list:
+                    eps_all[q * coils[0].curve.npsc: (q + 1) * coils[0].curve.npsc, :] = epsilon
+                    dI_all[q * coils[0].curve.npsc: (q + 1) * coils[0].curve.npsc, :] = dI * stell
+                    q += 1
+            dI = dI_all
+            # print('dI_check1 = ', dI[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5])
+            # Linv[coils[0].curve.npsc:, :] = 0.0
+            dI = (- Linv @ dI)[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+            # print('dI_check2 = ', dI)
+           
+                # print(q, epsilon.shape)
+            dI = np.sum(dI * eps_all, axis=-1) / 1e-5
+            print('dI_check3 = ', dI)
+            # assert np.allclose(dI, (dI2 - dI1) / 1e-5, rtol=1e-1)
+            dB_dI = np.array(bpsc1.dB_by_dcoilcurrents())
+            # print('dB = ', dB_dI.shape, dI.shape)
+            dB = np.tensordot(dI, dB_dI, axes=([0, 0]))
+            coils3 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array_new.all_currents)]
+            bpsc3 = BiotSavart(coils3)
+            bpsc3.set_points(psc_array_new.plasma_boundary.gamma().reshape((-1, 3)))
+            dB_fd = (bpsc3.B() - bpsc1.B()) / 1e-5
+            # for q in range(1, psc_array.symmetry):
+            #     dI = np.vstack((dI, dI))
+            #     epsilon = np.vstack((epsilon, epsilon))
+            # print(dI.shape, epsilon.shape)
+            dB_fd2 = np.tensordot(dI2 - dI1, dB_dI, axes=([0, 0])) / 1e-5
+            print('dB_diff = ', np.max(np.abs(dB / dB_fd)), dB[0, :], dB_fd2[0, :])
+            # assert np.allclose(dB, dB_fd, rtol=1)
+            # exit()
+
+            # dB_fd = (bpsc2.B() - bpsc1.B()).reshape(-1, 3) / 1e-5
+            # print(np.array(bpsc2.dB_by_dcoilcurrents()).shape, dI.shape)
+            # dB = np.sum(dI[:, None, None] * np.array(bpsc2.dB_by_dcoilcurrents()), axis=0)
+            # print(dB)
+            # all_curves = apply_symmetries_to_psc_curves(psc_array.curves, )
+            # bpsc = BiotSavart(coils)
+            # bpsc.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            # Jf = SquaredFlux(psc_array.plasma_boundary, psc_array.B_TF + bpsc)
+            # dB = bpsc.B_vjp(psc_array.plasma_boundary.gamma().reshape((-1, 3)))  #(bpsc)
+
+            # dB_dgamma = [bpsc._coils[i].curve.dgamma_by_dcoeff_vjp_impl(np.ones(3)) + bpsc._coils[i].curve.dgammadash_by_dcoeff_vjp_impl(np.ones(3)) for i in range(len(coils))]
+            # dB_dgamma = np.sum(np.array(dB_dgamma) * epsilon, axis=-1)
+            # dB_dgamma = np.sum(dB_dgamma[:, None, None] * np.array(bpsc2.dB_by_dcoilcurrents()), axis=0)
+            # print('dB_dgamma = ', np.shape(dB_dgamma))
+            # print('dB = ', dB / dB_fd)
+            # print('dB = ', np.shape(dB), dB_fd.shape)
+            # print(psc_array.A_matrix.shape, dalpha_transformed.shape)
+            # exit()
+            dA_fd = ((psc_array_new.A_matrix - psc_array.A_matrix)) / 1e-5
+            dA = psc_array.A_deriv()[:, :psc_array.num_psc] * dalpha_transformed + \
+                psc_array.A_deriv()[:, psc_array.num_psc:] * ddelta_transformed 
+            # print(dA.shape, dA_fd.shape)
+            # print('dA = ', dA / dA_fd)
+            print('df_direct = ', (Jf2.J() - Jf1.J()) / 1e-5)
+            # Learned a few things: A_deriv calculation not looking quite right for some coils.
+            # still does not explain why dgamma and dgammadash calculations do not account
+            # for the full jacobian for the coils. And fact that FDs and analytic jacobian agree 
+            # when either no currents are optimized, or only the currents are optimized, seems to 
+            # point to a missing term in the Jacobian. Seems like before, gamma, gammdash, and I 
+            # could be considered independent variables, but now gamma and gammadash certainly
+            # affect the calculation of I. But the I derivative is correct when dgamma and 
+            # dgammadash are removed and the A_matrix is kept the same. This is all consistent
+            # in there being extra terms looking like dI / dgamma * dgamma / ddofs.
+            # You can actually think about these terms as coming from a modified dB / dgamma calculation.
+            # Not sure how this is consistent with the psc_array results though. But seems like in both cases
+            # it is B = A * I and dB = dA * I + A * dI and the dI piece is correct, and the dA piece seems
+            # like it shouldn't have changed since it is independent of I. And indeed when I is unchanged it 
+            # seems to be correct.
+
+            # dA = np.array([coils[i].curve.dgamma_by_dcoeff_vjp_impl(np.ones((256, 3))) + \
+            #        coils[i].curve.dgammadash_by_dcoeff_vjp_impl(np.ones((256, 3))) for i in range(len(coils))])
+            # print(dA.shape)
+            # exit()
+            Bn = np.sum((bpsc1.B()).reshape(-1, 3) * psc_array.plasma_unitnormals, axis=-1) * psc_array.grid_normalization
+            f1 = Bn.T @ Bn * 0.5 
+            Bn = np.sum((bpsc2.B()).reshape(-1, 3) * psc_array.plasma_unitnormals, axis=-1) * psc_array.grid_normalization
+            f2 = Bn.T @ Bn * 0.5 
+            print('df_direct2 = ', (f2 - f1) / 1e-5)
+            Bn = psc_array.A_matrix @ psc_array.I * psc_array.grid_normalization
+            f1 = Bn.T @ Bn * 1e-14 * 0.5
+            Bn = psc_array.A_matrix @ psc_array_new.I * psc_array.grid_normalization
+            f2 = Bn.T @ Bn * 1e-14 * 0.5
+            print('df_direct3 = ', (f2 - f1) / 1e-5)
+            jac = psc_array.least_squares_jacobian(psc_array.kappas) * psc_array.normalization
+            jac = jac[:psc_array.num_psc] @ dalpha_transformed + jac[psc_array.num_psc:] @ ddelta_transformed
+            print('df_from_array = ', jac)
+            # Dont have the jacobian with respect to the dofs, only with respect to alpha and delta
+            # so need to convert it
+            grad = Jf1.dJ()
+            grad2 = Jf2.dJ()
+            # print(grad.shape, epsilon.shape, grad, grad2)
+            # print('dI_all = ', np.sum(bpsc1.dI_psc * epsilon, axis=-1) / 1e-5)
+            # print('I_internal = ', bpsc1.dI_psc, np.sum(bpsc1.dI_psc * epsilon, axis=-1) / 1e-5)
+            # print(Jf2.dof_names)
             dJ = grad @ np.ravel(epsilon) / 1e-5
             print(dJ, (fB2 - fB1) / 1e-5)
+            print('err = ', (dJ - (f2 - f1) / 1e-5))
             assert np.allclose(dJ, (fB2 - fB1) / 1e-5)
 
         
@@ -596,6 +909,7 @@ class Testing(unittest.TestCase):
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             dpsi_ddelta = (psc_array_new.psi - psc_array.psi) / epsilon  / psc_array.fac
             psi_deriv = psc_array.psi_deriv()  # * 1e-7
+            psc_array.psi_deriv_full()
             psi_deriv = psi_deriv[psc_array.num_psc:] * dd / epsilon
             print(dpsi_ddelta, psi_deriv)
             # assert(np.allclose(dpsi_ddelta, psi_deriv, rtol=1e-3))
@@ -629,7 +943,8 @@ class Testing(unittest.TestCase):
             Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             dpsi_ddelta = (psc_array_new.psi - psc_array.psi) / epsilon  / psc_array.fac
-            psi_deriv = psc_array.psi_deriv()  # * 1e-7
+            psi_deriv = psc_array_new.psi_deriv()  # * 1e-7
+            psc_array_new.psi_deriv_full()
             psi_deriv = psi_deriv[:psc_array.num_psc] * dd / epsilon
             print('dpsi = ', dpsi_ddelta, psi_deriv)
             assert(np.allclose(dpsi_ddelta, psi_deriv, rtol=1e-3))
@@ -660,7 +975,8 @@ class Testing(unittest.TestCase):
             Bn_objective_new = 0.5 * (A @ I_new + b).T @ (A @ I_new + b)
             dBn_objective = (Bn_objective_new - Bn_objective) / epsilon
             dpsi_dalpha = (psi_new - psi) / epsilon 
-            psi_deriv = psc_array.psi_deriv() # * 1e-7
+            psi_deriv = psc_array_new.psi_deriv() # * 1e-7
+            psc_array_new.psi_deriv_full() # * 1e-7
             print(dpsi_dalpha[1], psi_deriv[1])
             assert(np.allclose(dpsi_dalpha[1], psi_deriv[1], rtol=1e-3))
             dBn_analytic = (A @ I + b).T @ (-A @ (Linv * psi_deriv[:ncoils]))

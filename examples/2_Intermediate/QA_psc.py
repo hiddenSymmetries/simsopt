@@ -169,6 +169,10 @@ def coil_optimization_PSC(s, bs, bpsc):
     print(Btot.dof_names)
     # print([bpsc._coils[j]._current.get_value() for j in range(len(bpsc._coils))])
 
+    pscs = bpsc._coils[0]._curve._psc_array
+    # pscs.update_psi()
+    # pscs.setup_currents_and_fields()
+    # pscs.psi_deriv()
     Jf = SquaredFlux(s, Btot)
     B_axis = calculate_on_axis_B(bs, s, print_out=False)
     axis_norm = (B_axis * s.area())
@@ -179,14 +183,17 @@ def coil_optimization_PSC(s, bs, bpsc):
     print('Jf initial = ', Jf.J() / (B_axis ** 2 * s.area()))
     # Don't need other terms until let the coils move around
     JF = Jf 
-    pscs = bpsc._coils[0]._curve._psc_array
+    print(bpsc._coils[0]._curve.gamma()[-1, :], bpsc._coils[0]._current.get_value())
 
     def fun(dofs):
         """ Function for coil optimization grabbed from stage_two_optimization.py """
         JF.x = dofs
+        # print(dofs)
+        # exit()
         # print('dofs = ', dofs)
         # print(JF.dof_names)
         # Get the dofs for the PSCs, convert to alphas and deltas, and update the coils
+        # print(dofs, dofs.shape)
         dofs = dofs.reshape(-1, 4)
         dofs = dofs / np.sqrt(np.sum(dofs ** 2, axis=-1))[:, None]  # normalize the quaternion
         # print(dofs, np.sqrt(np.sum(dofs ** 2, axis=-1)), dofs.shape)
@@ -196,35 +203,24 @@ def coil_optimization_PSC(s, bs, bpsc):
             np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
             np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
         # print('a, d = ', np.max(np.abs(alphas)), np.max(np.abs(deltas)))
+        print(bpsc._coils[1]._curve.gamma()[-1, :], bpsc._coils[1]._current.get_value())
+        pscs = bpsc._coils[0]._curve._psc_array
         pscs.setup_orientations(alphas, deltas)
-        #setup_curves
-        # pscs.update_curves()
         pscs.update_psi()
         pscs.setup_currents_and_fields()
         pscs.psi_deriv()
-        # pscs.psi_deriv_full()
-        # JF.field.B_vjp(dJdB)
-        # print(bpsc._coils[-1].curve.dgamma_by_dcoeff_vjp(v_gamma)(JF),
-        #     + bpsc._coils[-1].curve.dgammadash_by_dcoeff_vjp(v_gammadash)(JF),
-        #     + bpsc._coils[-1].psc_current_contribution_vjp(bpsc._coils[-1].dkappa_dcoef_vjp(v_current))(JF))
-        # print('a1, a2 = ', pscs.alphas, 
-        #       bpsc._coils[1]._current.get_value(), 
-        #       bpsc._coils[1].curve._psc_array.I[1],
-        #       bpsc._coils[1].curve._psc_array.all_currents[1].get_value(),
-        #       bpsc._coils[1].curve.gamma()[-1, :])
-        # exit()
-        
+        pscs.setup_curves()
         J = JF.J()
         grad = JF.dJ()
-        # print(bpsc._coils[0]._curve.gamma()[-1, :], bpsc._coils[0]._current.get_value())
+        print(bpsc._coils[1]._curve.gamma()[-1, :], bpsc._coils[1]._current.get_value())
         # print('grad = ', grad, grad.shape)
-        BdotN = np.mean(np.abs(np.sum(Btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-        bs.set_points(s.gamma().reshape(-1, 3))
-        jf = Jf.J() / axis_norm2
-        grad_normed = grad / axis_norm2
-        outstr = f"J={J:.3e}, Jf={jf:.3e}, ⟨B·n⟩={BdotN:.3e}"
-        Bnnormed = BdotN / axis_norm
-        outstr += f", ║∇J║={np.linalg.norm(grad_normed):.3e}"
+        # BdotN = np.mean(np.abs(np.sum(Btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+        # bs.set_points(s.gamma().reshape(-1, 3))
+        jf = J  #/ axis_norm2
+        grad_normed = grad  #/ axis_norm2
+        outstr = f"J={J:.3e}, Jf={jf:.3e}"  #, ⟨B·n⟩={BdotN:.3e}"
+        # Bnnormed = BdotN / axis_norm
+        outstr += f", ║∇J║={np.linalg.norm(grad):.3e}"
         print(outstr)
         return J, grad
 
@@ -236,6 +232,19 @@ def coil_optimization_PSC(s, bs, bpsc):
     f = fun
     dofs = JF.x
     h = np.random.uniform(size=dofs.shape)
+    # now try normalized in a general direction
+    # dofs_reshape = dofs.reshape(-1, 4)
+    # normalization = np.sqrt(np.sum(dofs_reshape ** 2, axis=-1))
+    # dofs_normed = dofs_reshape / normalization[:, None]
+    # alphas1 = np.arctan2(2 * (dofs_normed[:, 0] * dofs_normed[:, 1] + dofs_normed[:, 2] * dofs_normed[:, 3]), 
+    #                     1 - 2.0 * (dofs_normed[:, 1] ** 2 + dofs_normed[:, 2] ** 2))
+    # deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+    #     np.sqrt(1.0 + 2 * (dofs_normed[:, 0] * dofs_normed[:, 2] - dofs_normed[:, 1] * dofs_normed[:, 3])), 
+    #     np.sqrt(1.0 - 2 * (dofs_normed[:, 0] * dofs_normed[:, 2] - dofs_normed[:, 1] * dofs_normed[:, 3])))
+    # pscs.setup_orientations(alphas1, deltas1)
+    # pscs.update_psi()
+    # pscs.setup_currents_and_fields()
+    # pscs.psi_deriv()
 
     J0, dJ0 = f(dofs)
     dJh = sum(dJ0 * h)
@@ -367,7 +376,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "BTF_0", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 5, "out_dir": out_str,
+kwargs_geo = {"Nx": 6, "out_dir": out_str,
                 "initialization": "plasma", 
               "poff": poff,}
 
