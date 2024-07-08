@@ -674,7 +674,7 @@ class Testing(unittest.TestCase):
                     # assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
             plt.grid()
             plt.show()
-        R = 0.1
+        R = 0.5
         for ncoils in [4]:  #, 5, 6, 7, 8, 23]:
             plt.figure(ncoils)
             points = (np.random.rand(ncoils, 3) - 0.5) * 10
@@ -725,7 +725,7 @@ class Testing(unittest.TestCase):
                     Jf12 = Jf1.J()
                     grad2 = Jf1.dJ()
                     dJ = grad1 @ np.ravel(epsilon) / eps
-                    print(dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
+                    print(Jf11, Jf12, dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
                     plt.loglog(eps, abs(dJ - (Jf12 - Jf11) / eps), 'o', color=colors[ii])
                     # assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
             plt.grid()
