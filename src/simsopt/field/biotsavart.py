@@ -354,7 +354,7 @@ class PSC_BiotSavart(BiotSavart):
                 np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
             self.psc_array.setup_orientations(alphas1, deltas1)
             self.psc_array.update_psi()
-            # self.psc_array.setup_currents_and_fields()
+            self.psc_array.setup_currents_and_fields()
             self.psc_array.psi_deriv()
             dI = np.zeros((len(coils), ndofs))
             q = 0

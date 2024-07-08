@@ -691,29 +691,32 @@ class Testing(unittest.TestCase):
                         )
                     curves = [psc_array.curves[i] for i in range(len(psc_array.curves))]
                     dofs_orig = np.array([curves[i].get_dofs() for i in range(len(curves))])
-                    for ic in range(ncoils):
-                        names_i = curves[ic].local_dof_names
-                        curves[ic].fix(names_i[0])
-                        curves[ic].fix(names_i[1])
-                        curves[ic].fix(names_i[2])
-                        curves[ic].fix(names_i[7])
-                        curves[ic].fix(names_i[8])
-                        curves[ic].fix(names_i[9])
                     dofs = dofs_orig[:, 2 * order + 1: 2 * order + 5]
                     dofs2 = dofs + epsilon
-                    psc_array.I = 1e7 * np.ones(psc_array.num_psc)
+                    # psc_array.I = 1e7 * np.ones(psc_array.num_psc)
                     print('ncoils = ', ncoils, ', surf = ', surf, ', eps = ', eps)
                     # print(dofs, dofs2)
-                    curves_to_vtk([coils1[i]._curve for i in range(len(coils1))], "curves_test", 
-                                  close=True, scalar_data=[coils1[i]._current.get_value() for i in range(len(coils1))])
                     bpsc1 = PSC_BiotSavart(psc_array)
+                    coils = bpsc1._coils
+                    curves_to_vtk([coils[i]._curve for i in range(len(coils))], "psc_curves_test", 
+                                  close=True, scalar_data=[coils[i]._current.get_value() for i in range(len(coils))])
                     bpsc1.set_points(surf.gamma().reshape((-1, 3)))
                     Jf1 = SquaredFlux(surf, bpsc1)
-                    # print(Jf1.x, bpsc1.x)
                     Jf11 = Jf1.J()
                     grad1 = Jf1.dJ()
                     Jf1.x = np.ravel(dofs2)
-                    # print(Jf1.x, bpsc1.x)
+                    # ndofs = 2 * order + 8
+                    # normalization = np.sqrt(np.sum(dofs2 ** 2, axis=-1))
+                    # dofs3 = dofs2 / normalization[:, None]
+                    # alphas1 = np.arctan2(2 * (dofs3[:, 0] * dofs3[:, 1] + dofs3[:, 2] * dofs3[:, 3]), 
+                    #                     1 - 2.0 * (dofs3[:, 1] ** 2 + dofs3[:, 2] ** 2))
+                    # deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                    #     np.sqrt(1.0 + 2 * (dofs3[:, 0] * dofs3[:, 2] - dofs3[:, 1] * dofs3[:, 3])), 
+                    #     np.sqrt(1.0 - 2 * (dofs3[:, 0] * dofs3[:, 2] - dofs3[:, 1] * dofs3[:, 3])))
+                    # bpsc1.psc_array.setup_orientations(alphas1, deltas1)
+                    # bpsc1.psc_array.update_psi()
+                    # bpsc1.psc_array.setup_currents_and_fields()
+                    # bpsc1.psc_array.psi_deriv()
                     Jf12 = Jf1.J()
                     grad2 = Jf1.dJ()
                     dJ = grad1 @ np.ravel(epsilon) / eps
