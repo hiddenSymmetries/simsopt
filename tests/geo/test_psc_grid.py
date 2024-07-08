@@ -5,7 +5,7 @@ import numpy as np
 from monty.tempfile import ScratchDir
 
 from simsopt.geo import PSCgrid, WPgrid, SurfaceRZFourier
-from simsopt.field import BiotSavart, coils_via_symmetries, Current, CircularCoil
+from simsopt.field import BiotSavart, coils_via_symmetries, Current, CircularCoil, PSC_BiotSavart
 import simsoptpp as sopp
 
 input_name = 'input.LandremanPaul2021_QA_lowres'
@@ -679,55 +679,47 @@ class Testing(unittest.TestCase):
             plt.figure(ncoils)
             points = (np.random.rand(ncoils, 3) - 0.5) * 10
             points[:, -1] = 0.4
-            h = np.random.uniform(size=(ncoils, 10))  # (np.random.rand(ncoils, 4) - 0.5)
+            alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+            deltas = (np.random.rand(ncoils) - 0.5) * np.pi
+            h = np.random.uniform(size=(ncoils, 10))
             for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
                 epsilon = (eps * h)[:, 2 * order + 1: 2 * order + 5]
                 for ii, surf in enumerate(surfs):
-                    surf.to_vtk(str(surf))
-                    print('ncoils = ', ncoils, ', surf = ', surf, ', eps = ', eps)
                     kwargs_manual = {"plasma_boundary": surf}
-                    
-                    # curves = create_equally_spaced_planar_curves(ncoils, surf.nfp, stellsym=surf.stellsym, R0=2.0, R1=R, order=order)
-                    curves = [CurvePlanarFourier(order*15, order, nfp=1, stellsym=False) for i in range(ncoils)]
+                    psc_array = PSCgrid.geo_setup_manual(
+                        points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+                        )
+                    curves = [psc_array.curves[i] for i in range(len(psc_array.curves))]
                     dofs_orig = np.array([curves[i].get_dofs() for i in range(len(curves))])
-                    dofs_orig[:, 2 * order + 1: 2 * order + 5] = np.random.uniform(size=(ncoils, 4))
-                    dofs_orig[:, -3:] = points
-                    dofs_orig[:, 0] = R
                     for ic in range(ncoils):
-                        dofs1 = dofs_orig[ic, :]
-                        for j in range(2 * order + 8):
-                            curves[ic].set('x' + str(j), dofs1[j])
                         names_i = curves[ic].local_dof_names
                         curves[ic].fix(names_i[0])
                         curves[ic].fix(names_i[1])
                         curves[ic].fix(names_i[2])
-                        
-                        # Fix the center point for now
                         curves[ic].fix(names_i[7])
                         curves[ic].fix(names_i[8])
                         curves[ic].fix(names_i[9])
-                        # print(ic, curves[ic].dof_names)
-                    currents = [Current(1.0) * 1e7 for i in range(ncoils)]
-                    [currents[i].fix_all() for i in range(ncoils)]
                     dofs = dofs_orig[:, 2 * order + 1: 2 * order + 5]
-                    normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
                     dofs2 = dofs + epsilon
-                    print(dofs)
-                    coils1 = coils_via_symmetries(curves, currents, surf.nfp, surf.stellsym)
+                    psc_array.I = 1e7 * np.ones(psc_array.num_psc)
+                    print('ncoils = ', ncoils, ', surf = ', surf, ', eps = ', eps)
+                    # print(dofs, dofs2)
                     curves_to_vtk([coils1[i]._curve for i in range(len(coils1))], "curves_test", 
                                   close=True, scalar_data=[coils1[i]._current.get_value() for i in range(len(coils1))])
-                    bpsc1 = BiotSavart(coils1)
+                    bpsc1 = PSC_BiotSavart(psc_array)
                     bpsc1.set_points(surf.gamma().reshape((-1, 3)))
                     Jf1 = SquaredFlux(surf, bpsc1)
+                    # print(Jf1.x, bpsc1.x)
                     Jf11 = Jf1.J()
                     grad1 = Jf1.dJ()
                     Jf1.x = np.ravel(dofs2)
+                    # print(Jf1.x, bpsc1.x)
                     Jf12 = Jf1.J()
                     grad2 = Jf1.dJ()
                     dJ = grad1 @ np.ravel(epsilon) / eps
                     print(Jf11, Jf12, dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
                     plt.loglog(eps, abs(dJ - (Jf12 - Jf11) / eps), 'o', color=colors[ii])
-                    # assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
+                    Jf1.x = np.ravel(dofs)
             plt.grid()
             plt.show()
 

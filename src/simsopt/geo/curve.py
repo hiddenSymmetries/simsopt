@@ -617,16 +617,10 @@ class RotatedCurve(sopp.Curve, Curve):
     input a Curve, rotates it about the ``z`` axis by a toroidal angle
     ``phi``, and optionally completes a reflection when ``flip=True``.
     """
-
     def __init__(self, curve, phi, flip):
-        from simsopt.geo.curveplanarfourier import PSCCurve
-
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
-        # print(curve)
         Curve.__init__(self, depends_on=[curve])
-        # if isinstance(curve, PSCCurve):
-        #     exit()
         self._phi = phi
         self.rotmat = np.asarray(
             [[cos(phi), -sin(phi), 0],
@@ -816,53 +810,6 @@ class RotatedCurve(sopp.Curve, Curve):
     @property
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
-    
-    def psc_current_contribution_vjp(self, v_current):
-        Linv_partial = self.curve._psc_array.L_inv[self._index, self._index]
-        # print(np.ravel(-Linv_partial * self.dkappa_dcoef_vjp(v_current)), v_current)
-        return Derivative({self: np.zeros(10)})
-        # Linv_partial = self.curve._psc_array.L_inv[self._index % self.curve.npsc, self._index % self.curve.npsc]
-        # return Derivative({self: np.ravel(-Linv_partial * self.dkappa_dcoef_vjp(v_current)) }) 
-    
-    def dkappa_dcoef_vjp(self, v_current):
-        dofs = self.get_dofs()
-        
-        # For the rotated coils, need to compute dalpha_prime / dcoef
-        if len(dofs) == 0:
-            dofs = self.curve.get_dofs()
-
-        dofs = dofs[2 * self.order + 1:2 * self.order + 5]  # don't need the coordinate variables
-        normalization = np.sqrt(np.sum(dofs ** 2))
-        dofs = dofs / normalization  # normalize the quaternion
-        w = dofs[0]
-        x = dofs[1]
-        y = dofs[2]
-        z = dofs[3]
-        dalpha_dw = (2 * x * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2) / normalization
-        dalpha_dx = (w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25) / normalization
-        dalpha_dy = (z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25) / normalization
-        dalpha_dz = (2 * y * (2 * (x ** 2 + y ** 2) - 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2) / normalization
-        ddelta_dw = -y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-        ddelta_dx = z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-        ddelta_dy = -w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-        ddelta_dz = x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5)) / normalization
-    
-        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz])
-        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz])
-        
-        dalpha = self.curve._psc_array.dpsi_daa[self._index] * dalpha + self.curve._psc_array.dpsi_dad[self._index] * ddelta
-        ddelta = self.curve._psc_array.dpsi_ddd[self._index] * ddelta + self.curve._psc_array.dpsi_dda[self._index] * dalpha
-             
-        dalpha = np.hstack((np.zeros(2 * self.order + 1), dalpha))
-        dalpha = np.hstack((dalpha, np.zeros(3)))
-        ddelta = np.hstack((np.zeros(2 * self.order + 1), ddelta))
-        ddelta = np.hstack((ddelta, np.zeros(3)))
-        deriv = dalpha + ddelta
-        return deriv * v_current[0]
 
 def curves_to_vtk(curves, filename, close=False, scalar_data=None):
     """

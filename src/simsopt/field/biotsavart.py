@@ -5,7 +5,7 @@ from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 from .._core.derivative import Derivative
 
-__all__ = ['BiotSavart']
+__all__ = ['BiotSavart', 'PSC_BiotSavart']
 
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
@@ -296,3 +296,76 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         bs = cls(coils)
         bs.set_points_cart(xyz)
         return bs
+
+class PSC_BiotSavart(BiotSavart):
+    """
+    """
+    def __init__(self, psc_array):
+        from simsopt.field import coils_via_symmetries, Current, psc_coils_via_symmetries
+        self.psc_array = psc_array
+        self.npsc = psc_array.num_psc
+        curves = [self.psc_array.curves[i] for i in range(self.npsc)]
+        currents = [Current(self.psc_array.I[i] * 1e-5) * 1e5 for i in range(self.npsc)]
+        self.curves = curves
+        [currents[i].fix_all() for i in range(self.npsc)]
+        self.currents = currents
+        coils = psc_coils_via_symmetries(self.curves, self.currents, psc_array.nfp, psc_array.stellsym)
+        BiotSavart.__init__(self, coils)
+
+    def B_vjp(self, v):
+        r"""
+        Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
+        :math:`\{\mathbf{B}_i\}_{i=1}^n`.
+        These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
+        This function returns the vector Jacobian product of this dependency, i.e.
+
+        .. math::
+
+            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
+
+        """
+        from simsopt.geo.curveplanarfourier import PSCCurve
+
+        coils = self._coils
+        gammas = [coil.curve.gamma() for coil in coils]
+        gammadashs = [coil.curve.gammadash() for coil in coils]
+        currents = [coil.current.get_value() for coil in coils]
+        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+
+        points = self.get_points_cart_ref()
+        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
+                                   res_gamma, res_gammadash, [], [], [])
+        dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+        res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
+        
+        curve_flags = [isinstance(coil.curve, PSCCurve) for coil in coils]
+        if np.any(curve_flags):
+            order = coils[0].curve.order 
+            ndofs = 2 * order + 8
+            dofs = np.array([self.curves[i].get_dofs() for i in range(self.npsc)])
+            dofs = dofs[:, 2 * order + 1:2 * order + 5]
+            normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+            dofs = dofs / normalization[:, None]
+            alphas1 = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+                                1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+            deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+                np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+                np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+            self.psc_array.setup_orientations(alphas1, deltas1)
+            self.psc_array.update_psi()
+            # self.psc_array.setup_currents_and_fields()
+            self.psc_array.psi_deriv()
+            dI = np.zeros((len(coils), ndofs))
+            q = 0
+            for fp in range(self.psc_array.nfp):
+                for stell in self.psc_array.stell_list:
+                    for i in range(self.npsc):
+                        dI[i, :] += coils[i + q * self.npsc].curve.dkappa_dcoef_vjp(
+                            [res_current[i + q * self.npsc]], self.psc_array.dpsi) * stell
+                    q += 1
+            Linv = self.psc_array.L_inv
+            dI = - Linv @ dI
+            return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], dI[i, :]) for i in range(len(coils))])
+        else:
+            return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], res_current[i]) for i in range(len(coils))])

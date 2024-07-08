@@ -13,7 +13,7 @@ __all__ = ['Coil', 'PSCCoil',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
-           'apply_symmetries_to_psc_curves',
+           'apply_symmetries_to_psc_curves', 'psc_coils_via_symmetries',
            'coils_to_makegrid', 'coils_to_focus']
 
 
@@ -60,14 +60,9 @@ class PSCCoil(sopp.Coil, Optimizable):
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
-        # print('other derivs = ', v_gamma.shape, v_gammadash.shape, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma).shape, self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash).shape)
-        # print(self.curve.dgamma_by_dcoeff_vjp(v_gamma),
-        #     self.curve.dgammadash_by_dcoeff_vjp(v_gammadash),
-        #     Derivative({self.curve: v_current}))
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
-            + Derivative({self.curve: v_current}) #\
-            # + self.curve.psc_current_contribution_vjp(v_current)
+            # + Derivative({self.curve: v_current})
 
     def plot(self, **kwargs):
         """
@@ -245,6 +240,20 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
 
     assert len(curves) == len(currents)
     curves = apply_symmetries_to_curves(curves, nfp, stellsym)
+    currents = apply_symmetries_to_currents(currents, nfp, stellsym)
+    coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
+    return coils
+
+def psc_coils_via_symmetries(curves, currents, nfp, stellsym):
+    """
+    Take a list of ``n`` curves and return ``n * nfp * (1+int(stellsym))``
+    ``Coil`` objects obtained by applying rotations and flipping corresponding
+    to ``nfp`` fold rotational symmetry and optionally stellarator symmetry.
+    """
+
+    assert len(curves) == len(currents)
+    curves = apply_symmetries_to_psc_curves(curves, nfp, stellsym)
+    # [currents[i].fix_all() for i in range(len(currents))]
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils

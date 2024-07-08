@@ -861,12 +861,12 @@ class PSCgrid:
         Convert the (alphas, deltas) angles into the actual circular coils
         that they represent. Also generates the symmetrized coils.
         """
-        from . import PSCCurve
+        from . import PSCCurve, CurvePlanarFourier
         from simsopt.field import apply_symmetries_to_psc_curves
 
         order = 1
         ncoils = self.num_psc
-        self.curves = [PSCCurve(order*self.ppp, order, nfp=1, stellsym=False, psc_array=self, index=i) for i in range(ncoils)]
+        self.curves = [CurvePlanarFourier(order*self.ppp, order, nfp=1, stellsym=False) for i in range(ncoils)]
         for ic in range(ncoils):
             alpha2 = self.alphas[ic] / 2.0
             delta2 = self.deltas[ic] / 2.0

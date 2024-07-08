@@ -124,7 +124,6 @@ class ToroidalField(MagneticField):
         field.set_points_cart(xyz)
         return field
 
-
 class PoloidalField(MagneticField):
     '''
     Magnetic field purely in the poloidal direction, that is, in the
