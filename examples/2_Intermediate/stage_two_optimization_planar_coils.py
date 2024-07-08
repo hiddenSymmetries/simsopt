@@ -51,7 +51,7 @@ R0 = 1.0
 R1 = 0.5
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 5
+order = 1
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
@@ -80,6 +80,8 @@ MAXITER = 50 if in_github_actions else 400
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
+input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
+filename = TEST_DIR / input_name
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -92,15 +94,23 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_planar_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
+for i in range(len(base_curves)):
+    for j in range(2 * order + 1):
+        base_curves[i].fix('x' + str(j))
+    base_curves[i].fix('x' + str(2 * order + 5))
+    base_curves[i].fix('x' + str(2 * order + 6))
+    base_curves[i].fix('x' + str(2 * order + 7))
+    print(i, base_curves[i].dof_names)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
 # of the currents:
-base_currents[0].fix_all()
+for i in range(ncoils):
+    base_currents[i].fix_all()
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 bs = BiotSavart(coils)

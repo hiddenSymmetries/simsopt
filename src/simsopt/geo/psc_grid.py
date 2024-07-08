@@ -288,16 +288,16 @@ class PSCgrid:
         inds = []
         eps = 1e-3
         remove_inds = []
-        for i in range(psc_grid.nfp):
-            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-            if len(conflicts) > 0:
-                inds.append(conflicts[0])
-        if len(inds) > 0:
-            print('bad indices = ', inds)
-            raise ValueError('The PSC coils are initialized such that they may intersect with '
-                             'a discrete symmetry plane, preventing the proper symmetrization '
-                             'of the coils under stellarator and field-period symmetries. '
-                             'Please reinitialize the coils.')
+        # for i in range(psc_grid.nfp):
+        #     conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+        #     if len(conflicts) > 0:
+        #         inds.append(conflicts[0])
+        # if len(inds) > 0:
+        #     print('bad indices = ', inds)
+        #     raise ValueError('The PSC coils are initialized such that they may intersect with '
+        #                      'a discrete symmetry plane, preventing the proper symmetrization '
+        #                      'of the coils under stellarator and field-period symmetries. '
+        #                      'Please reinitialize the coils.')
         for i in range(psc_grid.grid_xyz.shape[0]):
             for j in range(i + 1, psc_grid.grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
@@ -629,16 +629,16 @@ class PSCgrid:
         inds = []
         eps = 5e-2
         remove_inds = []
-        for i in range(psc_grid.nfp):
-            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-            if len(conflicts) > 0:
-                inds.append(conflicts[0])
-        if len(inds) > 0:
-            print('bad indices = ', inds)
-            raise ValueError('The PSC coils are initialized such that they may intersect with '
-                              'a discrete symmetry plane, preventing the proper symmetrization '
-                              'of the coils under stellarator and field-period symmetries. '
-                              'Please reinitialize the coils.')
+        # for i in range(psc_grid.nfp):
+        #     conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+        #     if len(conflicts) > 0:
+        #         inds.append(conflicts[0])
+        # if len(inds) > 0:
+        #     print('bad indices = ', inds)
+        #     raise ValueError('The PSC coils are initialized such that they may intersect with '
+        #                       'a discrete symmetry plane, preventing the proper symmetrization '
+        #                       'of the coils under stellarator and field-period symmetries. '
+        #                       'Please reinitialize the coils.')
         for i in range(psc_grid.grid_xyz.shape[0]):
             for j in range(i + 1, psc_grid.grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
@@ -1428,6 +1428,9 @@ class PSCgrid:
             'do nothing'
         else:
             self.L = L_total * self.R
+            # print(self.L)
+            # self.L = np.diag(np.diag(self.L))
+            # print('cond = ', np.linalg.cond(self.L))
         
     def update_psi(self):
         """

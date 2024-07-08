@@ -32,7 +32,7 @@ surf4 = SurfaceRZFourier.from_wout(
     surface_filename, range='half period', nphi=16, ntheta=16
 )
 surfs = [surf1, surf2, surf3, surf4]
-ncoils = 14
+ncoils = 8
 np.random.seed(29)
 R = 0.05
 a = 1e-5
@@ -521,11 +521,12 @@ class Testing(unittest.TestCase):
 
 
     def test_dJ_dgamma_basic(self):
-        from simsopt.field import PSCCoil, Coil
+        from simsopt.field import PSCCoil
         from simsopt.objectives import SquaredFlux
-
-        h = (np.random.rand(ncoils, 4) - 0.5)
-        eps = 1e-8
+        np.random.seed(1)
+        h = np.random.uniform(size=(ncoils, 4))  # (np.random.rand(ncoils, 4) - 0.5)
+        print(h)
+        eps = 1e-4
         epsilon = eps * h
         for surf in surfs:
             kwargs_manual = {"plasma_boundary": surf}
@@ -554,14 +555,16 @@ class Testing(unittest.TestCase):
             coils1 = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
             bpsc1 = BiotSavart(coils1)
             print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
-            bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
-            Jf1 = SquaredFlux(psc_array.plasma_boundary, bpsc1)
+            # bpsc1.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
+            Jf1 = SquaredFlux(psc_array.plasma_boundary, bpsc1 + psc_array.B_TF)
+            Bn1 = psc_array.least_squares(np.hstack((alphas1, deltas1))) * psc_array.normalization
+            print(Bn1)
             Jf11 = Jf1.J()
             grad1 = Jf1.dJ()
 
             dofs = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
             dofs = dofs[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
-            # print(dofs, dofs.shape)
+            print(dofs, dofs2)
             Jf1.x = np.ravel(dofs2)
             # now try normalized in a general direction
             normalization2 = np.sqrt(np.sum(dofs2 ** 2, axis=-1))
@@ -580,6 +583,8 @@ class Testing(unittest.TestCase):
             print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
             # print(coils1[1]._curve.gamma()[0, :], coils1[1]._current.get_value())
             Jf12 = Jf1.J()
+            Bn2 = psc_array.least_squares(np.hstack((alphas2, deltas2))) * psc_array.normalization
+            print(Bn1, Bn2, (Bn2 - Bn1) / eps)
             print(Jf11, Jf12)
             # dofs3 = np.array([psc_array.curves[i].get_dofs() for i in range(len(psc_array.curves))])
             # dofs3 = dofs3[:, 2 * psc_array.curves[0].order + 1:2 * psc_array.curves[0].order + 5]
@@ -594,12 +599,138 @@ class Testing(unittest.TestCase):
             # bpsc2 = BiotSavart(coils2)
             # bpsc2.set_points(psc_array.plasma_boundary.gamma().reshape((-1, 3)))
             # Jf2 = SquaredFlux(psc_array.plasma_boundary, bpsc2)
-            print(alphas1, deltas1)
-            print(alphas2, deltas2)
+            # print(alphas1, deltas1)
+            # print(alphas2, deltas2)
             grad2 = Jf1.dJ()
             dJ = grad1 @ np.ravel(epsilon) / eps
             print(dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
             assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
+
+
+    ### Todo: write test of the jacobians of just regular coils, varying epsilon and the number of coils
+    # and the type of plasma surface. No PSC functionality at all. Make sure that works first. 
+    def test_dJ_dgamma_no_psc(self):
+        from simsopt.field import PSCCoil, Coil, apply_symmetries_to_psc_curves, \
+            apply_symmetries_to_curves, apply_symmetries_to_currents
+        from simsopt.geo import CurvePlanarFourier, PSCCurve, curves_to_vtk, create_equally_spaced_planar_curves
+        from simsopt.objectives import SquaredFlux
+        from matplotlib import pyplot as plt
+        np.random.seed(1)
+        order = 1
+        R = 0.025
+        # a = 1e-5
+        colors = ['r', 'b', 'g', 'm']
+        for ncoils in [4]:  #, 5, 6, 7, 8, 23]:
+            plt.figure(ncoils)
+            # points = (np.random.rand(ncoils, 3) - 0.5) * 10
+            # points[:, -1] = 0.4
+            h = np.random.uniform(size=(ncoils, 10))  # (np.random.rand(ncoils, 4) - 0.5)
+            for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+                epsilon = (eps * h)[:, 2 * order + 1: 2 * order + 5]
+                for ii, surf in enumerate(surfs):
+                    surf.to_vtk(str(surf))
+                    print('ncoils = ', ncoils, ', surf = ', surf, ', eps = ', eps)
+                    kwargs_manual = {"plasma_boundary": surf}
+                    # dofs_orig = np.zeros((ncoils, 2 * order + 8))
+                    # dofs_orig[:, 2 * order + 1: 2 * order + 5] = np.random.rand(ncoils, 4)
+                    # dofs_orig[:, -3:] = points
+                    # dofs_orig[:, 0] = R
+                    curves = create_equally_spaced_planar_curves(ncoils, surf.nfp, stellsym=surf.stellsym, R0=2.0, R1=R, order=order)
+                    dofs_orig = np.array([curves[i].get_dofs() for i in range(len(curves))])
+                    # curves = [CurvePlanarFourier(order*100, order, nfp=1, stellsym=False) for i in range(ncoils)]
+                    for ic in range(ncoils):
+                        dofs1 = dofs_orig[ic, :]
+                        for j in range(2 * order + 8):
+                            curves[ic].set('x' + str(j), dofs1[j])
+                        names_i = curves[ic].local_dof_names
+                        curves[ic].fix(names_i[0])
+                        curves[ic].fix(names_i[1])
+                        curves[ic].fix(names_i[2])
+                        
+                        # Fix the center point for now
+                        curves[ic].fix(names_i[7])
+                        curves[ic].fix(names_i[8])
+                        curves[ic].fix(names_i[9])
+                        print(ic, curves[ic].dof_names)
+                    currents = [Current(1.0) * 1e6 for i in range(ncoils)]
+                    [currents[i].fix_all() for i in range(ncoils)]
+                    dofs = dofs_orig[:, 2 * order + 1: 2 * order + 5]
+                    normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+                    dofs2 = dofs + epsilon
+                    coils1 = coils_via_symmetries(curves, currents, surf.nfp, surf.stellsym)
+                    curves_to_vtk([coils1[i]._curve for i in range(len(coils1))], "curves_test", 
+                                  close=True, scalar_data=[coils1[i]._current.get_value() for i in range(len(coils1))])
+                    bpsc1 = BiotSavart(coils1)
+                    bpsc1.set_points(surf.gamma().reshape((-1, 3)))
+                    Jf1 = SquaredFlux(surf, bpsc1)
+                    Jf11 = Jf1.J()
+                    grad1 = Jf1.dJ()
+                    Jf1.x = np.ravel(dofs2)
+                    Jf12 = Jf1.J()
+                    grad2 = Jf1.dJ()
+                    dJ = grad1 @ np.ravel(epsilon) / eps
+                    print(dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
+                    plt.loglog(eps, abs(dJ - (Jf12 - Jf11) / eps), 'o', color=colors[ii])
+                    # assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
+            plt.grid()
+            plt.show()
+        R = 0.1
+        for ncoils in [4]:  #, 5, 6, 7, 8, 23]:
+            plt.figure(ncoils)
+            points = (np.random.rand(ncoils, 3) - 0.5) * 10
+            points[:, -1] = 0.4
+            h = np.random.uniform(size=(ncoils, 10))  # (np.random.rand(ncoils, 4) - 0.5)
+            for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+                epsilon = (eps * h)[:, 2 * order + 1: 2 * order + 5]
+                for ii, surf in enumerate(surfs):
+                    surf.to_vtk(str(surf))
+                    print('ncoils = ', ncoils, ', surf = ', surf, ', eps = ', eps)
+                    kwargs_manual = {"plasma_boundary": surf}
+                    
+                    # curves = create_equally_spaced_planar_curves(ncoils, surf.nfp, stellsym=surf.stellsym, R0=2.0, R1=R, order=order)
+                    curves = [CurvePlanarFourier(order*15, order, nfp=1, stellsym=False) for i in range(ncoils)]
+                    dofs_orig = np.array([curves[i].get_dofs() for i in range(len(curves))])
+                    dofs_orig[:, 2 * order + 1: 2 * order + 5] = np.random.uniform(size=(ncoils, 4))
+                    dofs_orig[:, -3:] = points
+                    dofs_orig[:, 0] = R
+                    for ic in range(ncoils):
+                        dofs1 = dofs_orig[ic, :]
+                        for j in range(2 * order + 8):
+                            curves[ic].set('x' + str(j), dofs1[j])
+                        names_i = curves[ic].local_dof_names
+                        curves[ic].fix(names_i[0])
+                        curves[ic].fix(names_i[1])
+                        curves[ic].fix(names_i[2])
+                        
+                        # Fix the center point for now
+                        curves[ic].fix(names_i[7])
+                        curves[ic].fix(names_i[8])
+                        curves[ic].fix(names_i[9])
+                        # print(ic, curves[ic].dof_names)
+                    currents = [Current(1.0) * 1e7 for i in range(ncoils)]
+                    [currents[i].fix_all() for i in range(ncoils)]
+                    dofs = dofs_orig[:, 2 * order + 1: 2 * order + 5]
+                    normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+                    dofs2 = dofs + epsilon
+                    print(dofs)
+                    coils1 = coils_via_symmetries(curves, currents, surf.nfp, surf.stellsym)
+                    curves_to_vtk([coils1[i]._curve for i in range(len(coils1))], "curves_test", 
+                                  close=True, scalar_data=[coils1[i]._current.get_value() for i in range(len(coils1))])
+                    bpsc1 = BiotSavart(coils1)
+                    bpsc1.set_points(surf.gamma().reshape((-1, 3)))
+                    Jf1 = SquaredFlux(surf, bpsc1)
+                    Jf11 = Jf1.J()
+                    grad1 = Jf1.dJ()
+                    Jf1.x = np.ravel(dofs2)
+                    Jf12 = Jf1.J()
+                    grad2 = Jf1.dJ()
+                    dJ = grad1 @ np.ravel(epsilon) / eps
+                    print(dJ, (Jf12 - Jf11) / eps, ', err = ', (dJ - (Jf12 - Jf11) / eps))
+                    plt.loglog(eps, abs(dJ - (Jf12 - Jf11) / eps), 'o', color=colors[ii])
+                    # assert np.allclose(dJ, (Jf12 - Jf11) / eps, rtol=1e-1)
+            plt.grid()
+            plt.show()
+
 
     def test_dJ_ddofs(self):
         from simsopt.field import PSCCoil

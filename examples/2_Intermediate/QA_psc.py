@@ -376,7 +376,7 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "BTF_0", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 6, "out_dir": out_str,
+kwargs_geo = {"Nx": 7, "out_dir": out_str,
                 "initialization": "plasma", 
               "poff": poff,}
 

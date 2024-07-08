@@ -104,7 +104,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
         """
-        from simsopt.geo.curveplanarfourier import PSCCurve
+        from simsopt.field.coil import PSCCoil
 
         coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
@@ -124,7 +124,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         # print('check2 = ', sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))]).data)
         # print(np.shape(sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])))
         # exit()
-        curve_flags = [isinstance(coil.curve, PSCCurve) for coil in coils]
+        curve_flags = [isinstance(coil, PSCCoil) for coil in coils]
         # print('here = ', curve_flags)
         # print(np.shape(dB_by_dcoilcurrents), np.shape(v), np.shape(res_gamma))
 
