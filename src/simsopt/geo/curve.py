@@ -1064,7 +1064,6 @@ class Curve2D( JaxCurve ):
 
         return dofs_name
 
-
 def gamma_curve_on_surface(gamma2d, surf_dofs, qpts, mpol, ntor, nfp):
     """Returns position in 3D space of a curve lying on a surface
 
@@ -1225,6 +1224,11 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
         self.gamma_pure = jit(lambda gamma2d, surf_dofs, points: gamma_curve_on_surface(gamma2d, surf_dofs, points, self.surf.mpol, self.surf.ntor, self.surf.nfp))
 
+        # Some useful stuff...
+        self.ndofs_curve = self.curve2d.num_dofs()
+        self.ndofs_surf = self.surf.full_x.size
+        self.ones = np.ones((self.ndofs_curve+self.ndofs_surf,))
+
         # GAMMA
         self.gamma_jax = jit(lambda gamma2d, surf_dofs: self.gamma_pure(gamma2d,  surf_dofs, points))
         self.gamma_impl_jax = jit(lambda gamma2d, surf_dofs, p: self.gamma_pure(gamma2d, surf_dofs, p))
@@ -1288,6 +1292,27 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         self.dsnr_by_dcurve_vjp_jax = jit(lambda g2, sdofs, v: vjp(self.snr, g2, sdofs)[1](v)[0])
         self.dsnr_by_dsurf_vjp_jax = jit(lambda g2, sdofs, v: vjp(self.snr, g2, sdofs)[1](v)[1])
 
+    # DOFS and co
+    def get_dofs(self):
+        """
+        RotatedCurve does not have any dofs of its own.
+        This function returns null array
+        """
+        return np.array([])
+
+    def set_dofs_impl(self, d):
+        """
+        RotatedCurve does not have any dofs of its own.
+        This function does nothing.
+        """
+        pass
+
+    def num_dofs(self):
+        """
+        This function returns the number of dofs associated to the curve.
+        """
+        return self.ndofs_curve + self.ndofs_surf
+
     # GAMMA AND DASHES
     def gamma(self):
         gamma2d = self.curve2d.gamma()
@@ -1330,16 +1355,38 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     def dgamma_by_dcoeff_vjp(self, v):
         dg = self.dgamma_by_dcurve_vjp(v)
         return self.curve2d.dgamma_by_dcoeff_vjp(dg) + self.dgamma_by_dsurf_vjp(v)
+    
     def dgammadash_by_dcoeff_vjp(self, v):
-        dg = self.dgammadash_by_dcurve_vjp(v)
-        return self.curve2d.dgamma_by_dcoeff_vjp(dg) + self.dgammadash_by_dsurf_vjp(v)
+        dg = self.dgammadash_by_dcurve_vjp( v )
+        return self.curve2d.dgamma_by_dcoeff_vjp( dg ) + self.dgammadash_by_dsurf_vjp( v )
+
     def dgammadashdash_by_dcoeff_vjp(self, v):
         dg = self.dgammadashdash_by_dcurve_vjp(v)
         return self.curve2d.dgamma_by_dcoeff_vjp(dg) + self.dgammadashdash_by_dsurf_vjp(v)
+    
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         dg = self.dgammadashdashdash_by_dcurve_vjp(v)
         return self.curve2d.dgamma_by_dcoeff_vjp(dg) + self.dgammadashdashdash_by_dsurf_vjp(v)
+    
+    def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
+        v = np.ones(self.curve2d.gamma().shape)
+        d = self.dgamma_by_dcoeff_vjp( v )
+        dgamma_by_dcoeff[:] = np.append( d.data[self.curve2d], d.data[self.surf] )
 
+    def dgammadash_by_dcoeff_impl(self, dgammadash_by_dcoeff):
+        v = np.ones(self.curve2d.gamma().shape)
+        d = self.dgammadash_by_dcoeff_vjp( v )
+        dgammadash_by_dcoeff[:] = np.append( d.data[self.curve2d], d.data[self.surf] )
+
+    def dgammadashdash_by_dcoeff_impl(self, dgammadashdash_by_dcoeff):
+        v = np.ones(self.curve2d.gamma().shape)
+        d = self.dgammadashdash_by_dcoeff_vjp( v )
+        dgammadashdash_by_dcoeff[:] = np.append( d.data[self.curve2d], d.data[self.surf] )
+
+    def dgammadashdashdash_by_dcoeff_impl(self, dgammadashdashdash_by_dcoeff):
+        v = np.ones(self.curve2d.gamma().shape)
+        d = self.dgammadashdashdash_by_dcoeff_vjp( v )
+        dgammadashdashdash_by_dcoeff[:] = np.append( d.data[self.curve2d], d.data[self.surf] )
 
     # DERIVATIVE W.R.T CURVE
     def dgamma_by_dcurve_vjp(self, v):   
