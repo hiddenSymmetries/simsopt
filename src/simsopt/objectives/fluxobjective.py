@@ -48,9 +48,7 @@ class SquaredFlux(Optimizable):
           available options are ``"quadratic flux"``, ``"normalized"``, and ``"local"``.
     """
 
-
-    def __init__(self, surface, field, Btarget=None):
-
+    def __init__(self, surface, field, target=None, definition="quadratic flux"):
         self.surface = surface
         if target is not None:
             self.target = np.ascontiguousarray(target)
@@ -67,9 +65,7 @@ class SquaredFlux(Optimizable):
     def J(self):
         n = self.surface.normal()
         Bcoil = self.field.B().reshape(n.shape)
-
-        return sopp.integral_BdotN(Bcoil, self.Btarget, n)
-
+        return sopp.integral_BdotN(Bcoil, self.target, n, self.definition)
 
     @derivative_dec
     def dJ(self):
@@ -77,10 +73,35 @@ class SquaredFlux(Optimizable):
         absn = np.linalg.norm(n, axis=2)
         unitn = n * (1. / absn)[:, :, None]
         Bcoil = self.field.B().reshape(n.shape)
-        Bcoil_n = np.sum(Bcoil*unitn, axis=2)
+        Bcoil_n = np.sum(Bcoil * unitn, axis=2)
+        if self.target is not None:
+            B_n = (Bcoil_n - self.target)
+        else:
+            B_n = Bcoil_n
 
-        B_n = (Bcoil_n - self.Btarget)
-        dJdB = (B_n[..., None] * unitn * absn[..., None])/absn.size
+        if self.definition == "quadratic flux":
+            dJdB = (B_n[..., None] * unitn * absn[..., None]) / absn.size
+            dJdB = dJdB.reshape((-1, 3))
+
+        elif self.definition == "local":
+            mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+            dJdB = ((
+                (B_n/mod_Bcoil)[..., None] * (
+                    unitn / mod_Bcoil[..., None] - (B_n / mod_Bcoil**3)[..., None] * Bcoil
+                )) * absn[..., None]) / absn.size
+
+        elif self.definition == "normalized":
+            mod_Bcoil = np.linalg.norm(Bcoil, axis=2)
+            num = np.mean(B_n**2 * absn)
+            denom = np.mean(mod_Bcoil**2 * absn)
+
+            dnum = 2 * (B_n[..., None] * unitn * absn[..., None]) / absn.size
+            ddenom = 2 * (Bcoil * absn[..., None]) / absn.size
+            dJdB = 0.5 * (dnum / denom - num * ddenom / denom**2)
+
+        else:
+            raise ValueError("Should never get here")
+
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp(dJdB)
 
