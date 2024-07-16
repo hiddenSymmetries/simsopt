@@ -44,8 +44,7 @@ Stage: devel
     python3 -m venv /venv/
     . /venv/bin/activate
     /venv/bin/pip install -U pip
-    /venv/bin/pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake
-    /venv/bin/pip install git+https://github.com/zhucaoxiang/f90wrap
+    /venv/bin/pip install numpy scipy jax jaxlib f90nml jupyter notebook ipython qsc sympy scikit-build ninja "pybind11[global]" cmake f90wrap h5py
     PATH="/usr/local/bin:/venv/bin:${PATH}"
     LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
 
@@ -60,7 +59,10 @@ Stage: devel
     cd SPEC   &&  \
     /venv/bin/python setup.py bdist_wheel && \
     /venv/bin/pip install -v dist/*.whl &&  \
-    cd .. && \
+    cd Utilities/pythontools && \
+    /venv/bin/pip install -r requirements.txt && \
+    /venv/bin/pip install . && \
+    cd ../../.. && \
     rm -rf SPEC
 
     git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git && \
@@ -70,7 +72,7 @@ Stage: devel
     cd .. && \
     rm -rf VMEC2000
 
-    /venv/bin/pip install h5py pyoculus py_spec
+    /venv/bin/pip install pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
