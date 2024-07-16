@@ -12,7 +12,7 @@ from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
-from simsopt.geo import SurfaceRZFourier, CurveCWSFourier, Curve2D
+from simsopt.geo import SurfaceRZFourier, CurveCWSFourier
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 from simsopt.configs.zoo import get_ncsx_data, get_w7x_data  
@@ -98,16 +98,15 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
             quadpoints_theta=np.arange(50)/50, 
         )
         if curvetype == "CurveCWSFourier_windowpane":
-            test_curve2d = Curve2D(x, order)
+            curve = CurveCWSFourier(128, order, surf_test, G=0, H=0)
         elif curvetype == "CurveCWSFourier_helical":
-            test_curve2d = Curve2D(x, order, G=10, H=1)
+            curve = CurveCWSFourier(128, order, surf_test, G=10, H=1)
         elif curvetype == "CurveCWSFourier_pol":
-            test_curve2d = Curve2D(x, order, G=1)
+            curve = CurveCWSFourier(128, order, surf_test, G=1, H=0)
         elif curvetype == "CurveCWSFourier_tor":
-            test_curve2d = Curve2D(x, order, H=1)
+            curve = CurveCWSFourier(128, order, surf_test, G=0, H=1)
         else:
             assert False
-        curve = CurveCWSFourier(test_curve2d, surf_test)
     else:
         assert False
     
@@ -154,8 +153,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         "CurveCWSFourier_helical", 
         "CurveCWSFourier_pol", 
         "CurveCWSFourier_tor"]:
-        curve.curve2d.set('thetas(1)', .1)
-        curve.curve2d.set('phic(1)', .05)
+        curve.set('thetas(1)', .1)
+        curve.set('phic(1)', .05)
         # The curve.curve2d.dofs and curve.x are not equivalent
         # because curve.x includes dofs of the surface.
         dofs = curve.x
