@@ -511,18 +511,20 @@ class ReducedCoilSet(CoilSet):
         Recalculate the reduced basis using a new target function. 
         """
         thisfunction = target_function or self.function
-        if target_function is None:
+        if thisfunction is None:
             raise ValueError("No target function provided")
         self.function = thisfunction
-        optfunction = make_optimizable(target_function, self.coilset)
+        optfunction = make_optimizable(thisfunction, self.coilset)
         fd = FiniteDifference(optfunction.J)
         jaccers = fd.jac()
         u_matrix, s_diag, vh_matrix = np.linalg.svd(jaccers)
+        self.nsv = min(self.nsv, len(s_diag))
         self._u_matrix = u_matrix
         self._s_diag = s_diag
         self._vh_matrix = vh_matrix
         self._coil_x0 = np.copy(self.coilset.x)
-        self.x = np.zeros_like(self._s_diag[:self.nsv])
+        x = np.zeros(self.nsv)
+        self.replace_dofs(DOFs(x, self._make_names()))
 
     @property
     def coilset(self):
@@ -570,11 +572,14 @@ class ReducedCoilSet(CoilSet):
         return self._nsv
     
     @nsv.setter
-    def nsv(self, nsv:int):
+    def nsv(self, nsv: int):
         """
-        setting the number of singular values requires re-calculating
-        the SVD matrices. 
+        Set the number of singular values to use. 
+        args: 
+            nsv: the number of singular values to use, int or string 'nonzero'
         """
+        if nsv == 'nonzero':
+            nsv = len(self._s_diag)
         if nsv > len(self._s_diag):
             raise ValueError("nsv must be equal to or smaller than the number of singular values")
         self._nsv = nsv
@@ -588,21 +593,21 @@ class ReducedCoilSet(CoilSet):
         """
         right-singular vectors of the svd
         """
-        return self._vh_matrix.tolist()[:self.nsv]
+        return [np.array(self._vh_matrix[i, :]) for i in range(self.nsv)]
     
     @property
     def lsv(self):
         """
         left-singular vectors of the svd
         """
-        return self._u_matrix.T.tolist()[:self.nsv]
+        return [np.array(self._u_matrix.T[i, :]) for i in range(self.nsv)]
     
     @property
     def singular_values(self):
         """
         singular values of the svd
         """
-        return self.s_diag[:self.nsv]
+        return self._s_diag[:self.nsv]
 
     
     def get_dof_orders(self):

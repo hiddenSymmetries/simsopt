@@ -18,7 +18,7 @@ class TestCoilSet(unittest.TestCase):
     def test_default_properties(self):
         coilset = CoilSet()
         self.assertEqual(len(coilset.base_coils), 10)
-        self.assertEqual(len(coilset.coils), 10)
+        self.assertEqual(len(coilset.coils), 20)
 
     def test_to_from_mgrid(self):
         order = 25
@@ -26,16 +26,16 @@ class TestCoilSet(unittest.TestCase):
         with ScratchDir("."):
             self.coilset.to_makegrid_file("coils.file_to_load")
             loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order=order, ppp=ppp)
-            loaded_coilset = CoilSet.from_mgrid(loaded_coils)
+            loaded_coilset = CoilSet.from_makegrid_file("coils.file_to_load", self.coilset.surface, order=order, ppp=ppp)
         
         np.random.seed(1)
 
         points = np.asarray(17 * [[0.9, 0.4, -0.85]])
         points += 0.01 * (np.random.rand(*points.shape) - 0.5)
-        self.bs.set_points(points)
+        self.coilset.bs.set_points(points)
         loaded_coilset.bs.set_points(points)
 
-        B = self.bs.B()
+        B = self.coilset.bs.B()
         loaded_B = loaded_coilset.bs.B()
         np.testing.assert_allclose(B, loaded_B)
 
@@ -53,15 +53,13 @@ class TestCoilSet(unittest.TestCase):
         # Test the surface setter method
         new_surface = SurfaceRZFourier(nfp=1, stellsym=False)
         self.coilset.surface = new_surface
-        self.assertEqual(self.coilset.surface, new_surface)
-        self.AssertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_FIELD_PERIOD)
+        self.assertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_FIELD_PERIOD)
     
     def test_surface_setter_nonstellsym(self):
         # Test the surface setter method
         new_surface = SurfaceRZFourier(nfp=1, stellsym=True)
         self.coilset.surface = new_surface
-        self.assertEqual(self.coilset.surface, new_surface)
-        self.AssertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_HALF_PERIOD)
+        self.assertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_HALF_PERIOD)
 
     def test_base_coils(self):
         # Test the base_coils property
@@ -131,7 +129,7 @@ class TestCoilSet(unittest.TestCase):
         # Test the total_length function
         length = self.coilset.total_length_penalty()
         self.assertIsNotNone(length.J())
-        self.assertTrue(CurveLength(self.coilset.coils[0].curve).J() > length.J())
+        self.assertTrue(CurveLength(self.coilset.coils[0].curve).J() < length.J())
     
     def test_total_length_property(self):
         # Test the total_length property
@@ -141,8 +139,9 @@ class TestCoilSet(unittest.TestCase):
 
     def test_coilset_to_vtk(self):
         with ScratchDir("."):
-            self.coilset.to_vtk("test.vtk")
-            self.assertTrue(os.path.exists("test.vtk"))
+            self.coilset.to_vtk("test")
+            self.assertTrue(os.path.exists("test_coils.vtu"))
+            self.assertTrue(os.path.exists("test_surface.vts"))
     
     def test_save_load(self):
         with ScratchDir("."):
@@ -179,15 +178,15 @@ class TestReducedCoilSet(TestCoilSet):
             reduced_coilset.recalculate_reduced_basis()
         reduced_coilset2 = ReducedCoilSet(self.unreduced_coilset)
         self.assertIsNotNone(reduced_coilset2)
-        self.assertIsEqual(len(reduced_coilset2.x), len(self.unreduced_coilset.x))
+        self.assertEqual(len(reduced_coilset2.x), len(self.unreduced_coilset.x))
         reduced_coilset3 = ReducedCoilSet(self.unreduced_coilset, nsv=10)
-        self.assertListEqual(len(reduced_coilset3.x), 10)
+        self.assertEqual(len(reduced_coilset3.x), 10)
 
     def test_nsv_setter(self):
         self.coilset.nsv = 10
         self.assertEqual(self.coilset.nsv, 10)
         self.assertEqual(len(self.coilset.x), 10)
-        self.test_recalculate_reduced_basis()
+        self.coilset.recalculate_reduced_basis()
         self.assertEqual(len(self.coilset.x), 10)
 
     def test_surface_setter(self):
@@ -195,13 +194,11 @@ class TestReducedCoilSet(TestCoilSet):
             self.coilset.surface = SurfaceRZFourier(nfp=3, stellsym=False)
         self.coilset.surface = SurfaceRZFourier(nfp=1, stellsym=True)
     
-    
     def test_recalculate_reduced_basis(self):
         reduced_coilset = ReducedCoilSet()
         reduced_coilset.recalculate_reduced_basis(self.test_target_function)
         # test if the reduced basis has the correct length
-        self.assertIsEqual(len(reduced_coilset.x), len(self.test_target_function(self.unreduced_coilset)))
-        self.test_recalculate_reduced_basis()
+        self.assertEqual(len(reduced_coilset.x), len(self.test_target_function(self.unreduced_coilset)))
     
     def test_dof_orders(self):
         with self.assertRaises(ValueError):
@@ -211,15 +208,15 @@ class TestReducedCoilSet(TestCoilSet):
         # test that small displacements along the singular vectors give the correct change in the target function evaluation.
         self.coilset.nsv = 10
         # calculate what the normal field on the collocation points is. 
-        initial_function_value = np.copy(self.test_target_function(self._unreduced_coilset))
-        initial_coilset_x = np.copy(self.coilset.x)
+        initial_function_value = np.copy(self.test_target_function(self.unreduced_coilset))
+        initial_coilset_x = np.copy(self.unreduced_coilset.x)
         epsilon = 1e-6
         for index, (rsv, lsv, singular_value) in enumerate(zip(self.coilset.rsv, self.coilset.lsv, self.coilset.singular_values)):
             newx = np.zeros_like(self.coilset.x)
             newx[index] = epsilon
             self.coilset.x = newx
             # test if coilset has been updated with rsv
-            np.testing.allclose(self.unreduced_coilset.x, initial_coilset_x+epsilon*rsv, atol = 1e-6)
+            np.testing.assert_allclose(self.unreduced_coilset.x, initial_coilset_x+epsilon*rsv, atol = 1e-6)
             
             new_function_value = self.test_target_function(self.coilset.coilset)
             function_diff = new_function_value - initial_function_value
