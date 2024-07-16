@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides a class that handles the VMEC equilibrium code.
@@ -8,7 +8,7 @@ This module provides a class that handles the VMEC equilibrium code.
 
 import logging
 import os.path
-from typing import Union
+from typing import Optional
 from datetime import datetime
 
 import numpy as np
@@ -168,8 +168,8 @@ class Vmec(Optimizable):
     Vmec object with different parameters; changing the parameters of
     one would change the parameters of the other.
 
-    An instance of this class owns just a few optimizable degrees of
-    freedom, particularly ``phiedge`` and ``curtor``. The optimizable
+    An instance of this class owns three optimizable degrees of
+    freedom: ``phiedge``, ``curtor``, and ``pres_scale``. The optimizable
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
@@ -260,8 +260,8 @@ class Vmec(Optimizable):
     """
 
     def __init__(self,
-                 filename: Union[str, None] = None,
-                 mpi: Union[MpiPartition, None] = None,
+                 filename: Optional[str] = None,
+                 mpi: Optional[MpiPartition] = None,
                  keep_all_files: bool = False,
                  verbose: bool = True,
                  ntheta=50,
@@ -308,7 +308,7 @@ class Vmec(Optimizable):
                 raise RuntimeError(
                     "Running VMEC from simsopt requires VMEC python extension. "
                     "Install the VMEC python extension from "
-                    "https://https://github.com/hiddenSymmetries/VMEC2000")
+                    "https://github.com/hiddenSymmetries/VMEC2000")
 
             comm = self.mpi.comm_groups
             self.fcomm = comm.py2f()
@@ -330,14 +330,13 @@ class Vmec(Optimizable):
             logger.info('About to call runvmec to readin')
             vmec.runvmec(self.ictrl, filename, self.verbose, self.fcomm, reset_file)
             ierr = self.ictrl[1]
-            logger.info('Done with runvmec. ierr={}. Calling cleanup next.'.format(ierr))
+            logger.info(f'Done with runvmec. ierr={ierr}. Calling cleanup next.')
             # Deallocate arrays allocated by VMEC's fixaray():
             vmec.cleanup(False)
             if ierr != 0:
-                raise RuntimeError("Failed to initialize VMEC from input file {}. "
-                                   "error code {}".format(filename, ierr))
+                raise RuntimeError(f"Failed to initialize VMEC from input file {filename}. Error code: {ierr}.")
 
-            objstr = " for Vmec " + str(hex(id(self)))
+            # objstr = " for Vmec " + str(hex(id(self)))
 
             # A vmec object has mpol and ntor attributes independent of
             # the boundary. The boundary surface object is initialized
@@ -374,7 +373,7 @@ class Vmec(Optimizable):
         # Handle a few variables that are not Parameters:
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
-        names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        names = ['phiedge', 'curtor', 'pres_scale']
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=[self._boundary],
                          external_dof_setter=Vmec.set_dofs)
@@ -390,7 +389,7 @@ class Vmec(Optimizable):
 
     @boundary.setter
     def boundary(self, boundary):
-        if not boundary is self._boundary:
+        if boundary is not self._boundary:
             logging.debug('Replacing surface in boundary setter')
             self.remove_parent(self._boundary)
             self._boundary = boundary
@@ -403,7 +402,7 @@ class Vmec(Optimizable):
 
     @pressure_profile.setter
     def pressure_profile(self, pressure_profile):
-        if not pressure_profile is self._pressure_profile:
+        if pressure_profile is not self._pressure_profile:
             logging.debug('Replacing pressure_profile in setter')
             if self._pressure_profile is not None:
                 self.remove_parent(self._pressure_profile)
@@ -418,7 +417,7 @@ class Vmec(Optimizable):
 
     @current_profile.setter
     def current_profile(self, current_profile):
-        if not current_profile is self._current_profile:
+        if current_profile is not self._current_profile:
             logging.debug('Replacing current_profile in setter')
             if self._current_profile is not None:
                 self.remove_parent(self._current_profile)
@@ -433,7 +432,7 @@ class Vmec(Optimizable):
 
     @iota_profile.setter
     def iota_profile(self, iota_profile):
-        if not iota_profile is self._iota_profile:
+        if iota_profile is not self._iota_profile:
             logging.debug('Replacing iota_profile in setter')
             if self._iota_profile is not None:
                 self.remove_parent(self._iota_profile)
@@ -445,20 +444,17 @@ class Vmec(Optimizable):
     def get_dofs(self):
         if not self.runnable:
             # Use default values from vmec_input
-            return np.array([1, 1, 1, 0, 0])
+            return np.array([1.0, 0.0, 1.0])
         else:
-            return np.array([self.indata.delt, self.indata.tcon0,
-                             self.indata.phiedge, self.indata.curtor,
-                             self.indata.gamma])
+            return np.array([self.indata.phiedge, self.indata.curtor,
+                             self.indata.pres_scale])
 
     def set_dofs(self, x):
         if self.runnable:
             self.need_to_run_code = True
-            self.indata.delt = x[0]
-            self.indata.tcon0 = x[1]
-            self.indata.phiedge = x[2]
-            self.indata.curtor = x[3]
-            self.indata.gamma = x[4]
+            self.indata.phiedge = x[0]
+            self.indata.curtor = x[1]
+            self.indata.pres_scale = x[2]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -568,21 +564,32 @@ class Vmec(Optimizable):
         nml += f'NFP = {vi.nfp}\n'
         nml += f'LASYM = {to_namelist_bool(vi.lasym)}\n'
 
+        if vi.lfreeb:
+            nml += '\n! ---- Free-boundary parameters ----\n'
+            nml += 'LFREEB = T\n'
+            nml += f"MGRID_FILE = '{vi.mgrid_file.decode('utf-8')}'\n"
+            nml += 'EXTCUR = ' + array_to_namelist(vi.extcur)
+            nml += '\n'
+
         nml += '\n! ---- Resolution parameters ----\n'
         nml += f'MPOL = {vi.mpol}\n'
         nml += f'NTOR = {vi.ntor}\n'
+        if vi.ntheta != 0:
+            nml += f'NTHETA = {vi.ntheta}\n'
+        if vi.nzeta != 0:
+            nml += f'NZETA = {vi.nzeta}\n'
         index = np.max(np.nonzero(vi.ns_array))
-        nml += f'NS_ARRAY    ='
+        nml += 'NS_ARRAY    ='
         for j in range(index + 1):
             nml += f'{vi.ns_array[j]:7}'
         nml += '\n'
         index = np.max(np.where(vi.niter_array > 0))
-        nml += f'NITER_ARRAY ='
+        nml += 'NITER_ARRAY ='
         for j in range(index + 1):
             nml += f'{vi.niter_array[j]:7}'
         nml += '\n'
         index = np.max(np.nonzero(vi.ftol_array))
-        nml += f'FTOL_ARRAY  ='
+        nml += 'FTOL_ARRAY  ='
         for j in range(index + 1):
             nml += f'{vi.ftol_array[j]:7}'
         nml += '\n'
@@ -706,8 +713,7 @@ class Vmec(Optimizable):
         # should logically never occur, so these codes raise a
         # different exception.
         if ierr in [0, 5]:
-            raise RuntimeError(f"runvmec returned an error code that should " \
-                               "never occur: ierr={ierr}")
+            raise RuntimeError(f"runvmec returned an error code that should never occur: ierr={ierr}")
         if ierr != 11:
             raise ObjectiveFailure(f"VMEC did not converge. ierr={ierr}")
 
@@ -746,7 +752,11 @@ class Vmec(Optimizable):
 
             # Delete the previous output file, if desired:
             for filename in self.files_to_delete:
-                os.remove(filename)
+                try:
+                    os.remove(filename)
+                except FileNotFoundError:
+                    logger.debug(f"Tried to delete the file {filename} but it was not found")
+                    
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:

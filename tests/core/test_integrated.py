@@ -1,7 +1,7 @@
 import unittest
-import logging
 
 import numpy as np
+from monty.tempfile import ScratchDir
 
 try:
     from mpi4py import MPI
@@ -67,7 +67,8 @@ class IntegratedTests(unittest.TestCase):
             np.testing.assert_allclose(prob.x, [0.1, 0.2])
 
             # Solve the minimization problem:
-            solver(prob)
+            with ScratchDir("."):
+                solver(prob)
 
             # Check results
             self.assertAlmostEqual(surf.get_rc(0, 0), 1.0, places=13)
@@ -121,7 +122,8 @@ class IntegratedTests(unittest.TestCase):
             np.testing.assert_allclose(prob.x, [0.1, -0.1])
 
             # Solve the minimization problem:
-            solver(prob)
+            with ScratchDir("."):
+                solver(prob)
 
             # Check results
             self.assertAlmostEqual(surf.get_Delta(0, 0), 0.193449881648249, places=11)

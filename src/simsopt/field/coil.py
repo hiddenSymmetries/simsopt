@@ -4,7 +4,7 @@ import numpy as np
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve, Curve
+from simsopt.geo.curve import RotatedCurve
 import simsoptpp as sopp
 
 

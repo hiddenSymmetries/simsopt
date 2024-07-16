@@ -7,6 +7,7 @@ import numpy as np
 from simsopt.mhd import Spec
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_serial_solve
+from simsopt.util import proc0_print
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -26,8 +27,8 @@ can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
 """
 
-print("Running 2DOF_specOnly_targetIotaAndVolume.py")
-print("============================================")
+proc0_print("Running 2DOF_specOnly_targetIotaAndVolume.py")
+proc0_print("============================================")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 logging.basicConfig(level=logging.INFO)
@@ -63,13 +64,14 @@ prob = LeastSquaresProblem.from_tuples([term1, term2])
 # Solve the minimization problem:
 least_squares_serial_solve(prob, grad=True)
 
-print("At the optimum,")
-print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
-print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
-print(" volume, according to VMEC    = ", equil.volume())
-print(" volume, according to Surface = ", surf.volume())
-print(" iota on axis = ", equil.iota())
-print(" objective function = ", prob.objective())
+objective = prob.objective()  # Evaluate this on all procs
+proc0_print("At the optimum,")
+proc0_print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
+proc0_print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
+proc0_print(" volume, according to VMEC    = ", equil.volume())
+proc0_print(" volume, according to Surface = ", surf.volume())
+proc0_print(" iota on axis = ", equil.iota())
+proc0_print(" objective function = ", objective)
 
 # The tests here are based on values from the VMEC version in
 # https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
@@ -80,5 +82,5 @@ assert np.abs(equil.volume() - 0.178091) < 0.001
 assert np.abs(surf.volume() - 0.178091) < 0.001
 assert np.abs(equil.iota() - (-0.4114567)) < 0.001
 assert (prob.objective() - 7.912501330E-04) < 0.2e-4
-print("End of 2DOF_specOnly_targetIotaAndVolume.py")
-print("============================================")
+proc0_print("End of 2DOF_specOnly_targetIotaAndVolume.py")
+proc0_print("============================================")

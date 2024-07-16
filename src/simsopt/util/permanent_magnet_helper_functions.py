@@ -185,7 +185,7 @@ def coil_optimization(s, bs, base_curves, curves, out_dir=''):
     ### Run the optimisation #######################################################
     ################################################################################
     """)
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+    minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     curves_to_vtk(curves, out_dir / "curves_opt")
     bs.set_points(s.gamma().reshape((-1, 3)))
     return bs
@@ -203,8 +203,8 @@ def trace_fieldlines(bfield, label, s, comm, out_dir=''):
         comm: MPI COMM_WORLD object for using MPI for tracing.
         out_dir: Path or string for the output directory for saved files.
     """
-    from simsopt.field.tracing import particles_to_vtk, compute_fieldlines, \
-        LevelsetStoppingCriterion, plot_poincare_data, \
+    from simsopt.field.tracing import compute_fieldlines, \
+        plot_poincare_data, \
         IterationStoppingCriterion, SurfaceClassifier
 
     out_dir = Path(out_dir)
@@ -223,7 +223,7 @@ def trace_fieldlines(bfield, label, s, comm, out_dir=''):
 
     fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
         bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm,
-        phis=phis,  # stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
+        phis=phis,
         stopping_criteria=[IterationStoppingCriterion(20000)])
 
     # make the poincare plots
@@ -245,7 +245,7 @@ def make_qfm(s, Bfield):
         qfm_surface: The identified QfmSurface class object.
     """
     from simsopt.geo.qfmsurface import QfmSurface
-    from simsopt.geo.surfaceobjectives import QfmResidual, ToroidalFlux, Area, Volume
+    from simsopt.geo.surfaceobjectives import QfmResidual, Volume
 
     # weight for the optimization
     constraint_weight = 1e0
@@ -259,13 +259,13 @@ def make_qfm(s, Bfield):
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=50,
-                                                             constraint_weight=constraint_weight)
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=50,
+                                                       constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 
     # repeat the optimization for further convergence
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=200,
-                                                             constraint_weight=constraint_weight)
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-20, maxiter=200,
+                                                       constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
     return qfm_surface
 
@@ -380,8 +380,6 @@ def calculate_on_axis_B(bs, s):
     bs.set_points(bspoints)
     B0 = np.linalg.norm(bs.B(), axis=-1)
     B0avg = np.mean(np.linalg.norm(bs.B(), axis=-1))
-    surface_area = s.area()
-    bnormalization = B0avg * surface_area
     print("Bmag at R = ", R0, ", Z = 0: ", B0)
     print("toroidally averaged Bmag at R = ", R0, ", Z = 0: ", B0avg)
     return B0avg
@@ -472,12 +470,11 @@ def make_optimization_plots(RS_history, m_history, m_proxy_history, pm_opt, out_
 
             plt.xlabel('Normalized magnitudes')
             plt.ylabel('Number of dipoles')
-            ani = animation.FuncAnimation(
+            animation.FuncAnimation(
                 fig, prepare_animation(bar_container),
                 range(0, m_history.shape[0], 2),
                 repeat=False, blit=True
             )
-            # ani.save(out_dir / 'm_history' + str(i) + '.mp4')
 
 
 def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''):
@@ -493,7 +490,7 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''
         out_dir: Path or string for the output directory for saved files.
     """
     from simsopt.field.magneticfieldclasses import InterpolatedField
-    from simsopt.objectives import SquaredFlux
+    # from simsopt.objectives import SquaredFlux
 
     out_dir = Path(out_dir)
 
@@ -505,13 +502,13 @@ def run_Poincare_plots(s_plot, bs, b_dipole, comm, filename_poincare, out_dir=''
     phirange = (0, 2 * np.pi / s_plot.nfp, n * 2)
     zrange = (0, np.max(zs), n // 2)
     degree = 4  # 2 is sufficient sometimes
-    nphi = len(s_plot.quadpoints_phi)
-    ntheta = len(s_plot.quadpoints_theta)
+    # nphi = len(s_plot.quadpoints_phi)
+    # ntheta = len(s_plot.quadpoints_theta)
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    Bnormal_dipole = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-    f_B = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+    # Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    # Bnormal_dipole = np.sum(b_dipole.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+    # f_B = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_pre_poincare_check")
     make_Bnormal_plots(b_dipole, s_plot, out_dir, "dipole_pre_poincare_check")
     make_Bnormal_plots(bs + b_dipole, s_plot, out_dir, "total_pre_poincare_check")

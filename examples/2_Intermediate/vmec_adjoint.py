@@ -2,9 +2,9 @@
 
 import os
 import numpy as np
-from simsopt.mhd import Vmec
-from simsopt.mhd import IotaTargetMetric
 from scipy.optimize import minimize
+from simsopt.mhd import Vmec, IotaTargetMetric
+from simsopt.util import in_github_actions
 from simsopt._core.util import ObjectiveFailure
 
 """
@@ -16,8 +16,6 @@ modes in the optimization space is slowly increased from |m|,|n| <= 2 to 5. At
 the end, the initial and final profiles are plotted.
 """
 
-# check whether we're in CI, in that case we make the run a bit cheaper
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
 
 # target profile of rotational transform, here just a constant:
 target_function = lambda s: 0.381966
@@ -27,7 +25,7 @@ filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ell
 vmec = Vmec(filename, ntheta=100, nphi=100)
 
 # Lower resolution and function evaluations if in CI
-if ci:
+if in_github_actions:
     vmec.indata.mpol = 6
     vmec.indata.ntor = 6
     vmec.indata.ns_array = np.zeros_like(vmec.indata.ns_array)
@@ -74,7 +72,7 @@ for max_mode in range(3, maxres):
 vmec.run()
 iotas_final = vmec.wout.iotas
 
-if not ci:
+if not in_github_actions:
     # Plot result
     plt.figure()
     plt.plot(vmec.s_half_grid, iotas_init[1:], color='green')

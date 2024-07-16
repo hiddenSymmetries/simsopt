@@ -4,6 +4,14 @@ simsopt.objectives package
 Submodules
 ----------
 
+simsopt.objectives.constrained module
+-------------------------------------
+
+.. automodule:: simsopt.objectives.constrained
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.objectives.fluxobjective module
 ---------------------------------------
 

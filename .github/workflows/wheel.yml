@@ -8,10 +8,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-11, ubuntu-20.04]
+        os: [macos-12, ubuntu-20.04]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Fetch all history for all tags
         run: git fetch --prune --unshallow
@@ -20,12 +20,12 @@ jobs:
         uses: pypa/cibuildwheel@v2.11.4
         # To supply options, put them in 'env'
         env:
-          # Only build for python 3.{7,8,9,10}
-          CIBW_BUILD : cp37-* cp38-* cp39-* cp310-*
+          # Only build for python 3.{8,9,10,11}
+          CIBW_BUILD : cp38-* cp39-* cp310-* cp311-*
           # Supports only x86_64 arch for linux
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_SKIP: cp27-* cp36-*
+          CIBW_SKIP: cp27-* cp36-* cp37-*
           CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v3
@@ -37,15 +37,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Fetch all history for all tags
         run: git fetch --prune --unshallow
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         name: Install Python
         with:
-          python-version: '3.8'
+          python-version: '3.9'
 
       - name: Download all submodules
         run: git submodule update --init

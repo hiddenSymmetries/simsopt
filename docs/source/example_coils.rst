@@ -228,6 +228,12 @@ for values that are too small or a regular 2-sided quadratic penalty
 by setting the last argument to ``"min"`` or ``"identity"``
 respectively.
 
+Note that the :obj:`~simsopt.objectives.SquaredFlux` objective can be
+defined in several different ways. You can choose among the available
+definitions using the ``definition`` argument. For the available
+definitions, see the documentation for
+:obj:`~simsopt.objectives.SquaredFlux`.
+
 You can check the degrees of freedom that will be varied in the
 optimization by printing the ``dof_names`` property of the objective::
 

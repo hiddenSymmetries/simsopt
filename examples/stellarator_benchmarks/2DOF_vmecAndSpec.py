@@ -4,10 +4,10 @@ import os
 import logging
 import numpy as np
 
-from simsopt.util import MpiPartition, log
 from simsopt.mhd import Vmec, Spec
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, log, proc0_print
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -26,8 +26,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
 """
-print("Running 2DOF_vmecAndSpec.py")
-print("=========================")
+proc0_print("Running 2DOF_vmecAndSpec.py")
+proc0_print("=========================")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 log(logging.INFO)
@@ -93,5 +93,5 @@ if mpi.proc0_world:
     assert np.abs(surf_volume - 0.178091) < 1.0e-3
     assert np.abs(vmec_iota - 0.4114567) < 1.0e-4
     assert final_objective < 1.0e-2
-print("End of  2DOF_vmecAndSpec.py")
-print("=========================")
+proc0_print("End of  2DOF_vmecAndSpec.py")
+proc0_print("=========================")

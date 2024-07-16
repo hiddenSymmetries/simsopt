@@ -12,13 +12,15 @@ set -ex
 ./1_Simple/tracing_particle.py
 ./1_Simple/qfm.py
 ./1_Simple/stage_two_optimization_minimal.py
+./1_Simple/permanent_magnet_simple.py
 ./2_Intermediate/QSC.py
 ./2_Intermediate/boozer.py
 ./2_Intermediate/stage_two_optimization.py
+./2_Intermediate/stage_two_optimization_planar_coils.py
 ./2_Intermediate/stage_two_optimization_stochastic.py
 ./2_Intermediate/stage_two_optimization_finite_beta.py
+./2_Intermediate/strain_optimization.py
 ./2_Intermediate/permanent_magnet_MUSE.py
 ./2_Intermediate/permanent_magnet_QA.py
-./2_Intermediate/permanent_magnet_NCSX.py
 ./2_Intermediate/permanent_magnet_PM4Stell.py
 ./3_Advanced/stage_two_optimization_finitebuild.py

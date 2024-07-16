@@ -8,6 +8,8 @@ except:
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
 
+from simsopt.util import proc0_print
+
 # logging.basicConfig(level=logging.DEBUG)
 # logger = logging.getLogger('[{}]'.format(MPI.COMM_WORLD.Get_rank()) + __name__)
 logger = logging.getLogger(__name__)
@@ -113,3 +115,7 @@ class MpiPartitionTests(unittest.TestCase):
         m.write()
 
 
+class OtherMpiTests(unittest.TestCase):
+    def test_proc0_print(self):
+        proc0_print("foo")
+        proc0_print("foo", flush=True)  # Try with a kwarg

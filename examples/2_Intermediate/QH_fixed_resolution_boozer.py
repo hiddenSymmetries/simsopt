@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import os
-from simsopt.util import MpiPartition
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, proc0_print
 
 """
 Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
@@ -13,8 +13,8 @@ Optimize for quasi-helical symmetry (M=1, N=1) at a given radius.
 # This problem has 24 degrees of freedom, so we can use 24 + 1 = 25
 # concurrent function evaluations for 1-sided finite difference
 # gradients.
-print("Running 2_Intermediate/QH_fixed_resolution_boozer.py")
-print("====================================================")
+proc0_print("Running 2_Intermediate/QH_fixed_resolution_boozer.py")
+proc0_print("====================================================")
 
 mpi = MpiPartition(25)
 
@@ -38,15 +38,21 @@ qs = Quasisymmetry(Boozer(vmec),
 prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 7, 1),
                                         (qs.J, 0, 1)])
 
-print(f"Quasisymmetry objective before optimization: {qs.J()}")
+# Make sure all procs run vmec:
+qs_initial = qs.J()
+
+proc0_print(f"Quasisymmetry objective before optimization: {qs_initial}")
 
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
 least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-3, abs_step=1e-5, max_nfev=1)
 
-print(f"Final aspect ratio is {vmec.aspect()}")
-print(f"Quasisymmetry objective after optimization: {qs.J()}")
+# Make sure all procs run vmec:
+qs_final = qs.J()
 
-print("End of 2_Intermediate/QH_fixed_resolution_boozer.py")
-print("===================================================")
+proc0_print(f"Final aspect ratio is {vmec.aspect()}")
+proc0_print(f"Quasisymmetry objective after optimization: {qs_final}")
+
+proc0_print("End of 2_Intermediate/QH_fixed_resolution_boozer.py")
+proc0_print("===================================================")

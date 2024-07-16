@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from mpi4py import MPI
 
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.mhd import Vmec
-from simsopt.util import MpiPartition, log
+from simsopt.util import MpiPartition, log, proc0_print
 from simsopt.solve import least_squares_mpi_solve
 
 """
@@ -26,8 +25,8 @@ https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSe
 """
 
 # Print detailed logging info. This could be commented out if desired.
-print("Running 1DOF_circularCrossSection_varyR0_targetVolume.py")
-print("========================================================")
+proc0_print("Running 1DOF_circularCrossSection_varyR0_targetVolume.py")
+proc0_print("========================================================")
 log()
 
 # In the next line, we can adjust how many groups the pool of MPI
@@ -67,16 +66,15 @@ least_squares_mpi_solve(prob, mpi, grad=True)
 
 # Make sure all procs call VMEC:
 objective = prob.objective()
-if mpi.proc0_world:
-    print("At the optimum,")
-    print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
-    print(" volume, according to VMEC    = ", equil.volume())
-    print(" volume, according to Surface = ", surf.volume())
-    print(" objective function = ", objective)
+proc0_print("At the optimum,")
+proc0_print(" rc(m=0,n=0) = ", surf.get_rc(0, 0))
+proc0_print(" volume, according to VMEC    = ", equil.volume())
+proc0_print(" volume, according to Surface = ", surf.volume())
+proc0_print(" objective function = ", objective)
 
 assert np.abs(surf.get_rc(0, 0) - 0.7599088773175) < 1.0e-5
 assert np.abs(equil.volume() - 0.15) < 1.0e-6
 assert np.abs(surf.volume() - 0.15) < 1.0e-6
 assert prob.objective() < 1.0e-15
-print("End of 1DOF_circularCrossSection_varyR0_targetVolume.py")
-print("======================================================")
+proc0_print("End of 1DOF_circularCrossSection_varyR0_targetVolume.py")
+proc0_print("======================================================")

@@ -27,14 +27,11 @@ import os
 import numpy as np
 from pathlib import Path
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart
-from simsopt.field import Current, Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
-from simsopt.geo import curves_to_vtk, create_equally_spaced_curves
-from simsopt.geo import create_multifilament_grid
-from simsopt.geo import CurveLength, CurveCurveDistance
-from simsopt.geo import SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
-from simsopt.objectives import QuadraticPenalty
+from simsopt.field import BiotSavart, Current, Coil, apply_symmetries_to_curves, apply_symmetries_to_currents
+from simsopt.geo import (curves_to_vtk, create_equally_spaced_curves, create_multifilament_grid,
+                         CurveLength, CurveCurveDistance, SurfaceRZFourier)
+from simsopt.objectives import QuadraticPenalty, SquaredFlux
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -67,8 +64,7 @@ gapsize_b = 0.04  # gap between filaments in bi-normal direction
 rot_order = 1  # order of the Fourier expression for the rotation of the filament pack, i.e. maximum Fourier mode number
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 400
+MAXITER = 50 if in_github_actions else 400
 
 #######################################################
 # End of input parameters.

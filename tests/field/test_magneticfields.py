@@ -1,8 +1,11 @@
 import json
 import unittest
+import tempfile
 import numpy as np
 from pathlib import Path
 
+from monty.tempfile import ScratchDir
+from scipy.io import netcdf_file
 try:
     import sympy
 except ImportError:
@@ -19,12 +22,11 @@ from simsopt.field import (BiotSavart, CircularCoil, Coil, Current,
                            DipoleField, Dommaschk, InterpolatedField,
                            MagneticFieldSum, PoloidalField, Reiman,
                            ScalarPotentialRZMagneticField, ToroidalField,
-                           coils_via_symmetries)
+                           coils_via_symmetries, MirrorModel)
 from simsopt.objectives import SquaredFlux
 from simsopt.geo import (CurveHelical, CurveRZFourier, CurveXYZFourier,
                          PermanentMagnetGrid, SurfaceRZFourier,
                          create_equally_spaced_curves)
-from simsopt.solve import relax_and_split
 from simsoptpp import dipole_field_Bn
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -154,11 +156,8 @@ class Testing(unittest.TestCase):
         # Convert to Cartesian coordinates
         r = np.sqrt(np.power(points[:, 0], 2) + np.power(points[:, 1], 2))
         phi = np.arctan2(points[:, 1], points[:, 0])
-        z = points[:, 2]
         B2_cart = np.zeros_like(B2)
-        # Bx = Br cos(phi) - Bphi sin(phi)
         B2_cart[:, 0] = B2[:, 0] * np.cos(phi) - B2[:, 1] * np.sin(phi)
-        # By = Br sin(phi) + Bphi cos(phi)
         B2_cart[:, 1] = B2[:, 0] * np.sin(phi) + B2[:, 1] * np.cos(phi)
         B2_cart[:, 2] = B2[:, 2]
         dB2_by_dX = np.array([
@@ -222,6 +221,20 @@ class Testing(unittest.TestCase):
         Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
 
+        def compare_gammas(circular_coil, general_coil):
+            # Verify that the gamma values are the same, up to a shift in the
+            # array index.
+            gamma1 = general_coil.curve.gamma()
+            gamma2 = circular_coil.gamma(len(curve.quadpoints))
+            if general_coil.current.get_value() * circular_coil.I < 0:
+                # Currents are opposite sign, so the direction of the points
+                # will be reversed.
+                gamma1 = np.flipud(gamma1)
+
+            index = np.argmin(np.linalg.norm(gamma1[0, None] - gamma2, axis=1))
+            gamma3 = np.roll(gamma2, -index, axis=0)
+            np.testing.assert_allclose(gamma1, gamma3, atol=1e-14)
+
         # Verify that divergence is zero
         dB1_by_dX = Bfield.dB_by_dX()
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
@@ -233,11 +246,13 @@ class Testing(unittest.TestCase):
         points = np.asarray(npoints * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         np.random.seed(0)
         points += pointVar * (np.random.rand(*points.shape)-0.5)
+
         ## verify with a x^2+z^2=radius^2 circular coil
         normal = [np.pi/2, np.pi/2]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        general_coil = Coil(curve, Current(current))
+        Bcircular = BiotSavart([general_coil])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -247,11 +262,14 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
         assert np.allclose(dB1_by_dX, transpGradB1)
+        compare_gammas(Bfield, general_coil)
+
         # use normal = [0, 1, 0]
         normal = [0, 1, 0]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], radius, 0., center[1], 0., 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        general_coil = Coil(curve, Current(current))
+        Bcircular = BiotSavart([general_coil])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -261,11 +279,14 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))
         assert np.allclose(dB1_by_dX, transpGradB1)
+        compare_gammas(Bfield, general_coil)
+
         ## verify with a y^2+z^2=radius^2 circular coil
         normal = [0, np.pi/2]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(-current))])
+        general_coil = Coil(curve, Current(-current))
+        Bcircular = BiotSavart([general_coil])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -275,6 +296,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        compare_gammas(Bfield, general_coil)
 
         # one points
         Bfield.set_points(np.asarray([[0.1, 0.2, 0.3]]))
@@ -295,7 +317,8 @@ class Testing(unittest.TestCase):
         normal = [1, 0, 0]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, 0., center[1], radius, 0., center[2], 0., radius])
-        Bcircular = BiotSavart([Coil(curve, Current(-current))])
+        general_coil = Coil(curve, Current(-current))
+        Bcircular = BiotSavart([general_coil])
         Bfield = CircularCoil(I=current, r0=radius, normal=normal, center=center)
         Bfield.set_points(points)
         Bcircular.set_points(points)
@@ -305,12 +328,15 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        compare_gammas(Bfield, general_coil)
+
         ## verify with a x^2+y^2=radius^2 circular coil
         center = [0, 0, 0]
         normal = [0, 0]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        general_coil = Coil(curve, Current(current))
+        Bcircular = BiotSavart([general_coil])
         curve2 = CurveRZFourier(300, 1, 1, True)
         curve2.set_dofs([radius, 0, 0])
         Bcircular2 = BiotSavart([Coil(curve2, Current(current))])
@@ -326,12 +352,15 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        compare_gammas(Bfield, general_coil)
+
         # use normal = [0, 0, 1]
         center = [0, 0, 0]
         normal = [0, 0, 1]
         curve = CurveXYZFourier(300, 1)
         curve.set_dofs([center[0], 0, radius, center[1], radius, 0., center[2], 0., 0.])
-        Bcircular = BiotSavart([Coil(curve, Current(current))])
+        general_coil = Coil(curve, Current(current))
+        Bcircular = BiotSavart([general_coil])
         curve2 = CurveRZFourier(300, 1, 1, True)
         curve2.set_dofs([radius, 0, 0])
         Bcircular2 = BiotSavart([Coil(curve, Current(current))])
@@ -347,6 +376,8 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
+        compare_gammas(Bfield, general_coil)
+
         ## Test with results from coilpy
         radius = 1.2345
         center = np.array([0.123, 1.456, 2.789])
@@ -373,7 +404,14 @@ class Testing(unittest.TestCase):
 
         field = CircularCoil(r0=radius, center=center, I=current, normal=[np.pi/2, -angle])
         field.set_points(points)
-        np.allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]])
+        np.testing.assert_allclose(field.B(), [[0.01016974, 0.00629875, -0.00220838]], rtol=1e-6)
+        # test coil location
+        np.testing.assert_allclose(field.gamma(points=4), [[1.3575,1.456,2.789],[0.123,center[1]+radius*np.cos(-angle),center[2]-radius*np.sin(-angle)],
+                                                  [-1.1115,1.456,2.789],[0.123,center[1]-radius*np.cos(-angle),center[2]+radius*np.sin(-angle)]])
+        with ScratchDir("."):
+            for close in [True, False]:
+                field.to_vtk('test', close=close)
+
 
     def test_circularcoil_Bfield_toroidal_arrangement(self):
         # This makes N_coils with centered at major radius R_m
@@ -475,16 +513,77 @@ class Testing(unittest.TestCase):
         Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
         self.assertTrue(np.allclose(B, Bfield_regen.B()))
 
+        #Field configuration from Dommaschk paper equation number (40)
+        mn = [[5, 2], [5, 4], [5, 10]]
+        coeffs = [[1.4, 1.4], [19.25, 0], [5.10e10, 5.10e10]]
+        Bfield = Dommaschk(mn=mn, coeffs=coeffs)
+        point = np.asarray([[0.71879008, 0.76265643, 0.0745]])
+        Bfield.set_points(point)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        B = Bfield.B()     
+        assert np.allclose(B, [[-0.7094243, 0.65632967, -0.125321]])
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, np.array([[0.90663628, 0.5078183, -0.55436901],
+                                            [0.5078183, 0.27261978, -0.66073972],
+                                            [-0.55436901, -0.66073972, -1.17925605]]))
+        #Test field 
+        mn = [[3, 2], [6, 4], [2, 11]]
+        coeffs = [[1.4, 1.4], [19.25, 0], [5.10e10, 5.10e10]]
+        Bfield = Dommaschk(mn=mn, coeffs=coeffs)
+        point = np.asarray([[0.77066908, -0.61182119, 0.1057]])
+        Bfield.set_points(point)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        B = Bfield.B()      
+        assert np.allclose(B, [[0.55674279, 0.83401312, -0.121491]])
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, np.array([[0.11538721234011184, -0.7518405857812525, -0.6107605261251816], 
+                                            [-0.7518410735861303, 1.0695191900989125, 0.14110885184619465],
+                                            [-0.6107606676662055, 0.1411086735566982, -1.18491]]))
+        #Test field 2
+        mn = [[5, 0], [10, 10], [15, 19]]
+        coeffs = [[1.4, 1.4], [5.10e10, 5.10e10], [9e20, 0]]
+        Bfield = Dommaschk(mn=mn, coeffs=coeffs)
+        point = np.asarray([[0.06660615, -0.93924128, 0.16]])
+        Bfield.set_points(point)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        B = Bfield.B()       
+        assert np.allclose(B, [[3.90161959, -1.87151853, 0.0119783]])
+        assert np.allclose(gradB, transpGradB)
+        assert np.allclose(gradB, np.array([[39.394312086253024, 14.061725133810995, 0.1684479703125076],
+                                            [14.061729381899355, -40.23304445668633, -0.40810476986895994],
+                                            [0.16844815337021118, -0.4081047568874514, 0.838733]]))                
+        # Verify serialization works
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        self.assertTrue(np.allclose(Bfield.B(), Bfield_regen.B()))
+
+    def test_MirrorModel(self):
+        """
+        For MirrorModel, compare to reference values from Rogerio Jorge's
+        Mathematica notebook.
+        """
+        Bfield = MirrorModel(B0=6.51292, gamma=0.124904, Z_m=0.98)
+        point = np.asarray([[0.9231, 0.8423, -0.1123]])
+        Bfield.set_points(point)
+        gradB = np.array(Bfield.dB_by_dX())
+        transpGradB = np.array([dBdx.T for dBdx in gradB])
+        # Verify B
+        B = Bfield.B()
+        assert np.allclose(B, [[0.172472, 0.157375, 0.551171]])
+        assert np.allclose(transpGradB, np.array([[0.18684, 0, -1.66368], [0, 0.18684, -1.51805], [0, 0, -0.373679]]))
+        # Verify serialization works
+        field_json_str = json.dumps(SIMSON(Bfield), cls=GSONEncoder)
+        Bfield_regen = json.loads(field_json_str, cls=GSONDecoder)
+        self.assertTrue(np.allclose(B, Bfield_regen.B()))
+
     def test_DipoleField_single_dipole(self):
         m = np.array([0.5, 0.5, 0.5])
         m_loc = np.array([0.1, -0.1, 1]).reshape(1, 3)
         field_loc = np.array([1, 0.2, 0.5]).reshape(1, 3)
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            stellsym=False,
-            coordinate_flag='cartesian'
-        )
+        Bfield = DipoleField(m_loc, m, stellsym=False, coordinate_flag='cartesian')
         Bfield.set_points(field_loc)
         gradB = np.array(Bfield.dB_by_dX())
         transpGradB = np.array([dBdx.T for dBdx in gradB])
@@ -504,12 +603,7 @@ class Testing(unittest.TestCase):
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.outer(np.ones(1001), np.array([1, 0.2, 0.5]))
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            stellsym=False, 
-            coordinate_flag='cartesian',
-        )
+        Bfield = DipoleField(m_loc, m, stellsym=False, coordinate_flag='cartesian')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         B_correct = Ndipoles * 1e-7 * np.array([0.260891, -0.183328, -0.77562])
@@ -530,18 +624,15 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradA, Ndipoles * 1e-7 * np.array([[0.76151796, -0.151597, -0.0176294], [-0.92722, -0.444219, 0.3349286], [0.1657024, 0.5958156, -0.31730]]), atol=1e-4)
 
         # Save to vtk
-        Bfield._toVTK('test')
+        with ScratchDir("."):
+            Bfield._toVTK('test')
 
     def test_DipoleField_multiple_points_multiple_dipoles(self):
         Ndipoles = 101
         m = np.ravel(np.outer(np.ones(Ndipoles), np.array([0.5, 0.5, 0.5])))
         m_loc = np.outer(np.ones(Ndipoles), np.array([0.1, -0.1, 1]))
         field_loc = np.array([[1, 0.2, 0.5], [-1, 0.5, 0.0], [0.1, 0.5, 0.5]])
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            coordinate_flag='cartesian'
-        )
+        Bfield = DipoleField(m_loc, m, coordinate_flag='cartesian')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -564,11 +655,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
         # Repeat in cylindrical coords
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            coordinate_flag='cylindrical'
-        )
+        Bfield = DipoleField(m_loc, m, coordinate_flag='cylindrical')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -591,11 +678,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(gradB, gradB_simsopt, atol=1e-4) 
 
         # Repeat with toroidal orientation
-        Bfield = DipoleField(
-            m_loc,
-            m,
-            coordinate_flag='toroidal'
-        )
+        Bfield = DipoleField(m_loc, m, coordinate_flag='toroidal')
         Bfield.set_points(field_loc)
         B_simsopt = Bfield.B()
         A_simsopt = Bfield.A()
@@ -619,18 +702,16 @@ class Testing(unittest.TestCase):
 
     def test_pmopt_dipoles(self):
         """
-            Test that A * m in the permanent magnet optimizer class
-            agrees with SquaredFlux function using Bn from the DipoleField
-            class, with range of different plasma surfaces with different
-            values of field-period symmetry. 
+        Test that A * m in the permanent magnet optimizer class
+        agrees with SquaredFlux function using Bn from the DipoleField
+        class, with range of different plasma surfaces with different
+        values of field-period symmetry.
         """
         nphi = 8
         ntheta = 8
-        file_tests = [
-            "input.LandremanPaul2021_QA", "input.W7-X_standard_configuration",
-            "input.LandremanPaul2021_QH_reactorScale_lowres",
-            "input.circular_tokamak", "input.rotating_ellipse"
-        ]
+        file_tests = ["input.LandremanPaul2021_QA", "input.W7-X_standard_configuration",
+                      "input.LandremanPaul2021_QH_reactorScale_lowres",
+                      "input.circular_tokamak", "input.rotating_ellipse"]
 
         for filename in file_tests: 
             sfilename = TEST_DIR / filename
@@ -652,19 +733,17 @@ class Testing(unittest.TestCase):
             bs = BiotSavart(coils)
             bs.set_points(s.gamma().reshape((-1, 3)))
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
-            pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
-                s, Bn, s_inner, s_outer
-            )
+            with ScratchDir("."):
+                pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+                    s, Bn, s_inner, s_outer)
             dipoles = np.random.rand(pm_opt.ndipoles * 3)
             pm_opt.m = dipoles
-            b_dipole = DipoleField(
-                pm_opt.dipole_grid_xyz,
-                pm_opt.m,
-                nfp=s.nfp,
-                stellsym=s.stellsym,
-                coordinate_flag=pm_opt.coordinate_flag,
-                m_maxima=pm_opt.m_maxima,
-            )
+            b_dipole = DipoleField(pm_opt.dipole_grid_xyz,
+                                   pm_opt.m,
+                                   nfp=s.nfp,
+                                   stellsym=s.stellsym,
+                                   coordinate_flag=pm_opt.coordinate_flag,
+                                   m_maxima=pm_opt.m_maxima)
             b_dipole.set_points(s.gamma().reshape((-1, 3)))
             # check Bn
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
@@ -674,17 +753,13 @@ class Testing(unittest.TestCase):
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(dipoles) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-            Bn_dipole_only = np.sum(b_dipole.B().reshape(-1, 3) * s.unitnormal().reshape(-1, 3), axis=1)
+            # Bn_dipole_only = np.sum(b_dipole.B().reshape(-1, 3) * s.unitnormal().reshape(-1, 3), axis=1)
             assert np.isclose(B_opt, B_dipole_field)
-            A_dipole = dipole_field_Bn(
-                s.gamma().reshape(-1, 3),
-                pm_opt.dipole_grid_xyz,
-                s.unitnormal().reshape(-1, 3),
-                s.nfp,
-                s.stellsym,
-                pm_opt.b_obj,
-                pm_opt.coordinate_flag
-            )
+            A_dipole = dipole_field_Bn(s.gamma().reshape(-1, 3),
+                                       pm_opt.dipole_grid_xyz,
+                                       s.unitnormal().reshape(-1, 3),
+                                       s.nfp, s.stellsym,
+                                       pm_opt.b_obj, pm_opt.coordinate_flag)
             # Rescale
             A_dipole = A_dipole.reshape(Ngrid, pm_opt.ndipoles * 3)
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
@@ -810,6 +885,44 @@ class Testing(unittest.TestCase):
             with self.subTest(idx=idx):
                 self.subtest_reiman_dBdX_taylortest(idx)
 
+    def test_cyl_versions(self):
+        R0test = 1.5
+        B0test = 0.8
+        B0 = ToroidalField(R0test, B0test)
+
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        btotal = bs + B0
+        rmin = 1.5
+        rmax = 1.7
+        phimin = 0
+        phimax = 2*np.pi/nfp
+        zmax = 0.1
+        N = 1000
+        points = np.random.uniform(size=(N, 3))
+        points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
+        points[:, 1] = points[:, 1]*(nfp*phimax-phimin) + phimin
+        points[:, 2] = points[:, 2]*(2*zmax) - zmax
+        btotal.set_points_cyl(points)
+
+        dB = btotal.GradAbsB()
+        B = btotal.B()
+        A = btotal.A()
+        dB_cyl = btotal.GradAbsB_cyl()
+        B_cyl = btotal.B_cyl()
+        A_cyl = btotal.A_cyl()
+
+        for j in range(N):
+            phi = points[j, 1]
+            rotation = np.array([[np.cos(phi), np.sin(phi), 0],
+                                [-np.sin(phi), np.cos(phi), 0],
+                                [0, 0, 1]])
+            np.testing.assert_allclose(rotation @ B[j, :], B_cyl[j, :])
+            np.testing.assert_allclose(rotation @ dB[j, :], dB_cyl[j, :])
+            np.testing.assert_allclose(rotation @ A[j, :], A_cyl[j, :])
+
     def test_interpolated_field_close_with_symmetries(self):
         R0test = 1.5
         B0test = 0.8
@@ -873,9 +986,8 @@ class Testing(unittest.TestCase):
         zmin = -0.1
         zmax = 0.1
         zsteps = n
-        bsh = InterpolatedField(
-            btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps],
-            True)
+        bsh = InterpolatedField(btotal, 4, [rmin, rmax, rsteps], [phimin, phimax, phisteps],
+                                [zmin, zmax, zsteps], True)
         N = 100
         points = np.random.uniform(size=(N, 3))
         points[:, 0] = points[:, 0]*(rmax-rmin) + rmin
@@ -919,7 +1031,8 @@ class Testing(unittest.TestCase):
             zmin = -0.1
             zmax = 0.1
             zsteps = n
-            bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps], [zmin, zmax, zsteps], True)
+            bsh = InterpolatedField(btotal, 2, [rmin, rmax, rsteps], [phimin, phimax, phisteps],
+                                    [zmin, zmax, zsteps], True)
             err_1 = np.mean(bsh.estimate_error_B(1000))
             err_2 = np.mean(bsh.estimate_error_GradAbsB(1000))
             assert err_1 < 0.6**3 * old_err_1
@@ -967,32 +1080,80 @@ class Testing(unittest.TestCase):
         bs = BiotSavart(coils)
         bs.to_vtk('/tmp/bfield')
 
+    def subtest_to_mgrid(self, include_potential):
+        curves, currents, ma = get_ncsx_data()
+        nfp = 3
+        coils = coils_via_symmetries(curves, currents, nfp, True)
+        bs = BiotSavart(coils)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = Path(tmpdir) / "mgrid.bfield.nc"
+            bs.to_mgrid(filename, nfp=nfp, include_potential=include_potential)
+
+            # Compare the B data in the file to a separate evaluation here
+            with netcdf_file(filename, mmap=False) as f:
+                rmin = f.variables["rmin"][()]
+                rmax = f.variables["rmax"][()]
+                zmin = f.variables["zmin"][()]
+                zmax = f.variables["zmax"][()]
+                nr = f.variables["ir"][()]
+                nphi = f.variables["kp"][()]
+                nz = f.variables["jz"][()]
+                Br = f.variables["br_001"][()]
+                Bphi = f.variables["bp_001"][()]
+                Bz = f.variables["bz_001"][()]
+                assert nr == f.dimensions["rad"]
+                assert nphi == f.dimensions["phi"]
+                assert nz == f.dimensions["zee"]
+                assert Br.shape == (nphi, nz, nr)
+                assert Bphi.shape == (nphi, nz, nr)
+                assert Bz.shape == (nphi, nz, nr)
+                if include_potential:
+                    Ar = f.variables["ar_001"][()]
+                    Aphi = f.variables["ap_001"][()]
+                    Az = f.variables["az_001"][()]
+                    assert Ar.shape == (nphi, nz, nr)
+                    assert Aphi.shape == (nphi, nz, nr)
+                    assert Az.shape == (nphi, nz, nr)
+                r = np.linspace(rmin, rmax, nr)
+                phi = np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False)
+                z = np.linspace(zmin, zmax, nz)
+                for jr in range(nr):
+                    for jphi in range(nphi):
+                        for jz in range(nz):
+                            bs.set_points_cyl(np.array([[r[jr], phi[jphi], z[jz]]]))
+                            np.testing.assert_allclose(Br[jphi, jz, jr], bs.B_cyl()[0, 0])
+                            np.testing.assert_allclose(Bphi[jphi, jz, jr], bs.B_cyl()[0, 1])
+                            np.testing.assert_allclose(Bz[jphi, jz, jr], bs.B_cyl()[0, 2])
+                            if include_potential:
+                                np.testing.assert_allclose(Ar[jphi, jz, jr], bs.A_cyl()[0, 0])
+                                np.testing.assert_allclose(Aphi[jphi, jz, jr], bs.A_cyl()[0, 1])
+                                np.testing.assert_allclose(Az[jphi, jz, jr], bs.A_cyl()[0, 2])
+
+    def test_to_mgrid(self):
+        for include_potential in [True, False]:
+            with self.subTest(include_potential=include_potential):
+                self.subtest_to_mgrid(include_potential)
+
     def test_poloidal_field(self):
         B0 = 1.1
         R0 = 1.2
         q = 1.3
         # point locations
-        points = np.asarray([
-            [-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
-            [0.1231, 2.4123, 0.002341],
-        ])
+        points = np.asarray([[-1.41513202e-3, 8.99999382e-1, -3.14473221e-4],
+                             [0.1231, 2.4123, 0.002341]])
         # Bfield from class
         Bfield = PoloidalField(R0=R0, B0=B0, q=q)
         Bfield.set_points(points)
         B1 = Bfield.B()
         dB1 = Bfield.dB_by_dX()
-        B1_analytical = [
-            [-3.48663e-7, 0.000221744, -0.211538],
-            [-0.0000841262, -0.00164856, 0.85704]
-        ]
-        dB1_analytical = [
-            [[0.000246381, 3.87403e-7, 0.00110872],
-             [3.87403e-7, 6.0914e-10, -0.705127],
-             [-0.00110872, 0.705127, 0]],
-            [[-0.000681623, 0.0000347833, -0.035936],
-             [0.0000347833, -1.775e-6, -0.704212],
-             [0.035936, 0.704212, 0]]
-        ]
+        B1_analytical = [[-3.48663e-7, 0.000221744, -0.211538],
+                         [-0.0000841262, -0.00164856, 0.85704]]
+        dB1_analytical = [[[0.000246381, 3.87403e-7, 0.00110872],
+                           [3.87403e-7, 6.0914e-10, -0.705127],
+                           [-0.00110872, 0.705127, 0]],
+                          [[-0.000681623, 0.0000347833, -0.035936],
+                           [0.0000347833, -1.775e-6, -0.704212],
+                           [0.035936, 0.704212, 0]]]
         assert np.allclose(B1, B1_analytical)
         assert np.allclose(dB1, dB1_analytical)
 

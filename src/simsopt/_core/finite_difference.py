@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides Jacobian evaluated with finite difference scheme
@@ -13,7 +13,7 @@ import traceback
 import collections
 from time import time
 from datetime import datetime
-from typing import Callable, Sequence
+from typing import Callable, Union, IO
 from numbers import Real
 
 import numpy as np
@@ -132,7 +132,7 @@ class MPIFiniteDifference:
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
                  diff_method: str = "forward",
-                 log_file: Union[str, typing.IO] = "jac_log") -> None:
+                 log_file: Union[str, IO] = "jac_log") -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
@@ -191,9 +191,7 @@ class MPIFiniteDifference:
             self.log_file.close()
 
     # Called by MPI leaders
-    def _jac(self, x: RealArray = None, *args):
-        # *args are considered non_dofs that should also
-        # be broadcast when performing parallel computations
+    def _jac(self, x: RealArray = None):
         # Use shortcuts for class variables
         opt = self.opt
         mpi = self.mpi
@@ -211,8 +209,6 @@ class MPIFiniteDifference:
         nparams = opt.dof_size
         # Make sure all leaders have the same x0.
         mpi.comm_leaders.Bcast(x0)
-        non_dofs = np.array(args) if args else None
-        non_dofs = mpi.comm_leaders.bcast(non_dofs, root=0)
         logger.info(f'nparams: {nparams}')
         logger.info(f'x0:  {x0}')
 
@@ -257,7 +253,6 @@ class MPIFiniteDifference:
                 x = xs[:, j]
                 mpi.comm_groups.bcast(x, root=0)
                 opt.x = x
-                self.opt.non_dofs = non_dofs
                 out = np.asarray(self.fn())
 
                 if evals is None and mpi.proc0_world:
@@ -303,14 +298,14 @@ class MPIFiniteDifference:
         logger.debug('mpi leaders task')
 
         # x is a buffer for receiving the state vector:
-        x = np.empty(self.opt.dof_size, dtype='d')
+        full_x = np.empty(self.opt.full_dof_size, dtype='d')
         # If we make it here, we must be doing a fd_jac_par
         # calculation, so receive the state vector: mpi4py has
         # separate bcast and Bcast functions!!  comm.Bcast(x,
         # root=0)
-        x = self.mpi.comm_leaders.bcast(x, root=0)
-        logger.debug(f'mpi leaders loop x={x}')
-        self.opt.x = x
+        full_x = self.mpi.comm_leaders.bcast(full_x, root=0)
+        logger.debug(f'mpi leaders loop full_x={full_x}')
+        self.opt.full_x = full_x
         self._jac()
 
     def mpi_workers_task(self, *args):
@@ -363,9 +358,11 @@ class MPIFiniteDifference:
                                      dtype=np.int32)
 
         self.mpi.mobilize_leaders(ARB_VAL)  # Any value not equal to STOP
-        self.mpi.comm_leaders.bcast(x, root=0)
+        full_x = self.opt.full_x
+        self.mpi.comm_leaders.bcast(full_x, root=0)
+        self.opt.full_x = full_x
 
-        jac, xs, evals = self._jac(x, args)
+        jac, xs, evals = self._jac(x)
         logger.debug(f'jac is {jac}')
 
         # Write to the log file:

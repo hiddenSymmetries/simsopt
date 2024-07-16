@@ -14,12 +14,14 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
-#include "dommaschk.h"
+#include "boozerradialinterpolant.h"
 #include "dipole_field.h"
+#include "dommaschk.h"
+#include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
 #include "reiman.h"
-#include "boozerradialinterpolant.h"
 #include "simdhelpers.h"
+#include "boozerresidual_py.h"
 
 namespace py = pybind11;
 
@@ -63,7 +65,6 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("dipole_field_dB", &dipole_field_dB);
     m.def("dipole_field_dA" , &dipole_field_dA);
     m.def("dipole_field_Bn" , &dipole_field_Bn, py::arg("points"), py::arg("m_points"), py::arg("unitnormal"), py::arg("nfp"), py::arg("stellsym"), py::arg("b"), py::arg("coordinate_flag") = "cartesian", py::arg("R0") = 0.0);
-    m.def("define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces" , &define_a_uniform_cylindrical_grid_between_two_toroidal_surfaces);
     m.def("define_a_uniform_cartesian_grid_between_two_toroidal_surfaces" , &define_a_uniform_cartesian_grid_between_two_toroidal_surfaces);
 
     // Permanent magnet optimization algorithms have many default arguments
@@ -72,11 +73,13 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("GPMO_backtracking", &GPMO_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7, py::arg("max_nMagnets"));
     m.def("GPMO_multi", &GPMO_multi, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("dipole_grid_xyz"), py::arg("single_direction") = -1, py::arg("Nadjacent") = 7);
     m.def("GPMO_ArbVec", &GPMO_ArbVec, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100);
-    m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"));
+    m.def("GPMO_ArbVec_backtracking", &GPMO_ArbVec_backtracking, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("pol_vectors"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("backtracking") = 100, py::arg("dipole_grid_xyz"), py::arg("Nadjacent") = 7, py::arg("thresh_angle") = 3.1415926535897931, py::arg("max_nMagnets"), py::arg("x_init"));
     m.def("GPMO_baseline", &GPMO_baseline, py::arg("A_obj"), py::arg("b_obj"), py::arg("mmax"), py::arg("normal_norms"), py::arg("K") = 1000, py::arg("verbose") = false, py::arg("nhistory") = 100, py::arg("single_direction") = -1);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);
+
+    m.def("integral_BdotN", &integral_BdotN);
 
     m.def("ReimanB" , &ReimanB);
     m.def("ReimandB", &ReimandB);
@@ -121,6 +124,10 @@ PYBIND11_MODULE(simsoptpp, m) {
             return res;
         });
 
+    m.def("boozer_residual", &boozer_residual);
+    m.def("boozer_residual_ds", &boozer_residual_ds);
+    m.def("boozer_residual_ds2", &boozer_residual_ds2);
+
     m.def("matmult", [](PyArray& A, PyArray&B) {
             // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
             int l = A.shape(0);
@@ -147,72 +154,6 @@ PYBIND11_MODULE(simsoptpp, m) {
             eigC = eigv.transpose()*eigB;
             return C;
         });
-
-    m.def("integral_BdotN", [](PyArray& Bcoil, PyArray& Btarget, PyArray& n, bool local) {
-        int nphi = Bcoil.shape(0);
-        int ntheta = Bcoil.shape(1);
-        double *Bcoil_ptr = Bcoil.data();
-        double *Btarget_ptr = NULL;
-        double *n_ptr = n.data();
-        if(Bcoil.layout() != xt::layout_type::row_major)
-              throw std::runtime_error("Bcoil needs to be in row-major storage order");
-        if(Bcoil.shape(2) != 3)
-            throw std::runtime_error("Bcoil has wrong shape.");
-        if(Bcoil.size() != 3*nphi*ntheta)
-            throw std::runtime_error("Bcoil has wrong size.");
-        if(n.layout() != xt::layout_type::row_major)
-              throw std::runtime_error("n needs to be in row-major storage order");
-        if(n.shape(0) != nphi)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.shape(1) != ntheta)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.shape(2) != 3)
-            throw std::runtime_error("n has wrong shape.");
-        if(n.size() != 3*nphi*ntheta)
-            throw std::runtime_error("n has wrong size.");
-        if(Btarget.size() > 0){
-            if(Btarget.layout() != xt::layout_type::row_major)
-                throw std::runtime_error("Btarget needs to be in row-major storage order");
-            if(Btarget.shape(0) != nphi)
-                throw std::runtime_error("Btarget has wrong shape.");
-            if(Btarget.shape(1) != ntheta)
-                throw std::runtime_error("Btarget has wrong shape.");
-            if(Btarget.size() != nphi*ntheta)
-                throw std::runtime_error("Btarget has wrong size.");
-
-            Btarget_ptr = Btarget.data();
-        }
-        double numerator_sum = 0.0;
-        double denominator_sum = 0.0;
-
-        #pragma omp parallel for reduction(+:numerator_sum, denominator_sum)
-        for(int i=0; i<nphi*ntheta; i++){
-            double normN = std::sqrt(n_ptr[3*i+0]*n_ptr[3*i+0] + n_ptr[3*i+1]*n_ptr[3*i+1] + n_ptr[3*i+2]*n_ptr[3*i+2]);
-            double Nx = n_ptr[3*i+0]/normN;
-            double Ny = n_ptr[3*i+1]/normN;
-            double Nz = n_ptr[3*i+2]/normN;
-            double BcoildotN = Bcoil_ptr[3*i+0]*Nx + Bcoil_ptr[3*i+1]*Ny + Bcoil_ptr[3*i+2]*Nz;
-            if(Btarget_ptr != NULL)
-                BcoildotN -= Btarget_ptr[i];
-
-            double mod_Bcoil = std::sqrt(Bcoil_ptr[3*i+0]*Bcoil_ptr[3*i+0] + Bcoil_ptr[3*i+1]*Bcoil_ptr[3*i+1] + Bcoil_ptr[3*i+2]*Bcoil_ptr[3*i+2]);
-            if (local) {
-                numerator_sum += (BcoildotN * BcoildotN) / (mod_Bcoil * mod_Bcoil) * normN;
-            } else {
-                numerator_sum += (BcoildotN * BcoildotN) * normN;
-                denominator_sum += mod_Bcoil * mod_Bcoil * normN;
-            }
-        }
-
-        double result = 0.0;
-        if (local) {
-            result = 0.5 * numerator_sum / (nphi*ntheta);
-        } else {
-            result = numerator_sum / denominator_sum;
-        }
-
-        return result;
-    });
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

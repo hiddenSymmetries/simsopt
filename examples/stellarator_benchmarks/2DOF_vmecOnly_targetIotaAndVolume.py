@@ -5,8 +5,8 @@ import numpy as np
 
 from simsopt.mhd import Vmec
 from simsopt.objectives import LeastSquaresProblem
-from simsopt.util import MpiPartition, log
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, log, proc0_print
 
 """
 This script implements the "2DOF_vmecOnly_targetIotaAndVolume" example from
@@ -25,8 +25,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/2DOF_vmecOnly_targetIotaAndVolume
 """
-print("Running 2DOF_vmecOnly_targetIotaAndVolume.py")
-print("============================================")
+proc0_print("Running 2DOF_vmecOnly_targetIotaAndVolume.py")
+proc0_print("============================================")
 # This next line turns on detailed logging. It can be commented out if
 # you do not want such verbose output.
 log()
@@ -61,26 +61,26 @@ iota_weight = 1
 term2 = (equil.iota_axis, desired_iota, iota_weight)
 
 prob = LeastSquaresProblem.from_tuples([term1, term2])
-print(f"Length of x is {len(prob.x)}")
+proc0_print(f"Length of x is {len(prob.x)}")
 
 # Solve the minimization problem:
 least_squares_mpi_solve(prob, mpi, grad=True)
 
 objective = prob.objective()
-if mpi.proc0_world:
-    print("At the optimum,")
-    print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
-    print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
-    print(" volume, according to VMEC    = ", equil.volume())
-    print(" volume, according to Surface = ", surf.volume())
-    print(" iota on axis = ", equil.iota_axis())
-    print(" objective function = ", objective)
+proc0_print("At the optimum,")
+proc0_print(" rc(m=1,n=1) = ", surf.get_rc(1, 1))
+proc0_print(" zs(m=1,n=1) = ", surf.get_zs(1, 1))
+proc0_print(" volume, according to VMEC    = ", equil.volume())
+proc0_print(" volume, according to Surface = ", surf.volume())
+proc0_print(" iota on axis = ", equil.iota_axis())
+proc0_print(" objective function = ", objective)
 
+if mpi.proc0_world:
     assert np.abs(surf.get_rc(1, 1) - 0.0313066948) < 1.0e-3
     assert np.abs(surf.get_zs(1, 1) - (-0.031232391)) < 1.0e-3
     assert np.abs(equil.volume() - 0.178091) < 1.0e-3
     assert np.abs(surf.volume() - 0.178091) < 1.0e-3
     assert np.abs(equil.iota_axis() - 0.4114567) < 1.0e-4
     assert prob.objective() < 1.0e-2
-print("End of 2DOF_vmecOnly_targetIotaAndVolume.py")
-print("============================================")
+proc0_print("End of 2DOF_vmecOnly_targetIotaAndVolume.py")
+proc0_print("============================================")

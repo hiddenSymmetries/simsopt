@@ -15,28 +15,25 @@
     Ken Hammond and the PM4Stell + MAGPIE teams. 
 '''
 
-import os
 from pathlib import Path
 import time
 
 from matplotlib import pyplot as plt
 import numpy as np
 
-from simsopt.field import BiotSavart, DipoleField
-from simsopt.field import Coil
+from simsopt.field import BiotSavart, DipoleField, Coil
 from simsopt.geo import SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, make_Bnormal_plots
-from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils
+from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
 from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
                                                discretize_polarizations)
 
 t_start = time.time()
 
 # Set some parameters -- warning this is super low resolution!
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-if ci:
+if in_github_actions:
     N = 2  # >= 64 for high-resolution runs
     nIter_max = 100
     max_nMagnets = 20

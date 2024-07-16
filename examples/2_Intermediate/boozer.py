@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-from simsopt.field import BiotSavart
-from simsopt.geo import SurfaceXYZTensorFourier
-from simsopt.geo import BoozerSurface
-from simsopt.geo import boozer_surface_residual, ToroidalFlux, Area
-from simsopt.field import coils_via_symmetries
-from simsopt.configs import get_ncsx_data
-import numpy as np
+
 import os
+import numpy as np
+from simsopt.configs import get_ncsx_data
+from simsopt.field import BiotSavart, coils_via_symmetries
+from simsopt.geo import BoozerSurface, boozer_surface_residual, ToroidalFlux, Area, SurfaceXYZTensorFourier
 
 """
 This example demonstrate how to compute surfaces in Boozer coordinates for a
@@ -52,6 +50,8 @@ res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-10, maxite
 print(f"After LBFGS:   iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")
 if "DISPLAY" in os.environ:
     s.plot()
+
+boozer_surface.need_to_run_code = True
 # now drive the residual down using a specialised least squares algorithm
 res = boozer_surface.minimize_boozer_penalty_constraints_ls(tol=1e-10, maxiter=100, constraint_weight=100., iota=res['iota'], G=res['G'], method='manual')
 print(f"After Lev-Mar: iota={res['iota']:.3f}, tf={tf.J():.3f}, area={s.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)):.3e}")

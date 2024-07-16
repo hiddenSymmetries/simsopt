@@ -1,11 +1,9 @@
 import unittest
 import logging
 import os
+
 import numpy as np
-from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.virtual_casing import VirtualCasing
-from simsopt.geo.surfacerzfourier import SurfaceRZFourier
-from . import TEST_DIR
+from monty.tempfile import ScratchDir
 try:
     import virtual_casing
 except ImportError:
@@ -21,10 +19,13 @@ except:
     MPI = None
 
 try:
-    import vmec
-    vmec_found = True
+    import vmec as vmec_mod
 except ImportError:
-    vmec_found = False
+    vmec_mod = None
+
+from simsopt.mhd.vmec import Vmec
+from simsopt.mhd.virtual_casing import VirtualCasing
+from . import TEST_DIR
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
@@ -38,7 +39,7 @@ variables = [
 
 @unittest.skipIf(
     (virtual_casing is None) or
-    (MPI is None) or (not vmec_found),
+    (MPI is None) or (vmec_mod is None),
     "Need virtual_casing, mpi4py, and vmec python packages")
 class VirtualCasingVmecTests(unittest.TestCase):
 
@@ -47,14 +48,15 @@ class VirtualCasingVmecTests(unittest.TestCase):
         Verify the virtual casing object can be initialized from a Vmec
         object, from a Vmec input file, or from a Vmec wout file.
         """
-        filename = os.path.join(TEST_DIR, 'input.li383_low_res')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=8)
+        with ScratchDir("."):
+            filename = os.path.join(TEST_DIR, 'input.li383_low_res')
+            VirtualCasing.from_vmec(filename, src_nphi=8)
 
-        filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=9, src_ntheta=10)
+            filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
+            VirtualCasing.from_vmec(filename, src_nphi=9, src_ntheta=10)
 
-        vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=10)
+            vmec = Vmec(filename)
+            VirtualCasing.from_vmec(vmec, src_nphi=10)
 
 
 @unittest.skipIf(
@@ -152,26 +154,28 @@ class VirtualCasingTests(unittest.TestCase):
         fields of the objects should all match.
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc1 = VirtualCasing.from_vmec(filename, src_nphi=11, src_ntheta=12, trgt_nphi=13, trgt_ntheta=11, filename='vcasing.nc')
-        vc2 = VirtualCasing.load('vcasing.nc')
-        for variable in variables:
-            variable1 = eval('vc1.' + variable)
-            variable2 = eval('vc2.' + variable)
-            logger.info(f'Variable {variable} in vc1 is {variable1} and in vc2 is {variable2}')
-            np.testing.assert_allclose(variable1, variable2)
+        with ScratchDir("."):
+            vc1 = VirtualCasing.from_vmec(filename, src_nphi=11, src_ntheta=12, trgt_nphi=13, trgt_ntheta=11, filename='vcasing.nc')
+            vc2 = VirtualCasing.load('vcasing.nc')
+            for variable in variables:
+                variable1 = eval('vc1.' + variable)
+                variable2 = eval('vc2.' + variable)
+                logger.info(f'Variable {variable} in vc1 is {variable1} and in vc2 is {variable2}')
+                np.testing.assert_allclose(variable1, variable2)
 
     @unittest.skipIf(
         (matplotlib is None),
         "Need matplotlib python package to test VirtualCasing plot")
     def test_plot(self):
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
-        vc = VirtualCasing.from_vmec(filename, src_nphi=8, src_ntheta=9)
-        vc.plot(show=False)
-        # Now cover the case in which an axis is provided:
-        import matplotlib.pyplot as plt
-        fig, ax0 = plt.subplots()
-        ax1 = vc.plot(ax=ax0, show=False)
-        assert ax1 is ax0
+        with ScratchDir("."):
+            vc = VirtualCasing.from_vmec(filename, src_nphi=8, src_ntheta=9)
+            vc.plot(show=False)
+            # Now cover the case in which an axis is provided:
+            import matplotlib.pyplot as plt
+            fig, ax0 = plt.subplots()
+            ax1 = vc.plot(ax=ax0, show=False)
+            assert ax1 is ax0
 
     def test_vacuum(self):
         """
@@ -179,12 +183,13 @@ class VirtualCasingTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc')
         vmec = Vmec(filename)
-        vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
-        logger.info(f'ntheta: {vc.src_ntheta}  B_external.shape: {vc.B_external.shape}')
-        logger.info(f'max(|B_external - B_total|): {np.max(np.abs(vc.B_external - vc.B_total))}')
-        logger.info(f'max(|B_external_normal|): {np.max(np.abs(vc.B_external_normal))}')
-        np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.02)
-        np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.001)
+        with ScratchDir("."):
+            vc = VirtualCasing.from_vmec(vmec, src_nphi=32)
+            logger.info(f'ntheta: {vc.src_ntheta}  B_external.shape: {vc.B_external.shape}')
+            logger.info(f'max(|B_external - B_total|): {np.max(np.abs(vc.B_external - vc.B_total))}')
+            logger.info(f'max(|B_external_normal|): {np.max(np.abs(vc.B_external_normal))}')
+            np.testing.assert_allclose(vc.B_external, vc.B_total, atol=0.02)
+            np.testing.assert_allclose(vc.B_external_normal, 0, atol=0.001)
 
     def test_stellsym(self):
         """
@@ -192,7 +197,6 @@ class VirtualCasingTests(unittest.TestCase):
         """
         filename = os.path.join(TEST_DIR, 'wout_20220102-01-053-003_QH_nfp4_aspect6p5_beta0p05_iteratedWithSfincs_reference.nc')
         vmec = Vmec(filename)
-        nfp = vmec.wout.nfp
         src_nphi = 48
         src_ntheta = 12
         vc = VirtualCasing.from_vmec(vmec, src_nphi=src_nphi, src_ntheta=src_ntheta, use_stellsym=False)

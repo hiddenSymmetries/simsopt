@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 __all__ = ['initialize_logging']
 
@@ -11,7 +11,6 @@ from pathlib import Path
 from ruamel.yaml import YAML
 try:
     from mpi4py import MPI
-    # from .mpi_logger import MPILogHandler
 except:
     MPI = None
 

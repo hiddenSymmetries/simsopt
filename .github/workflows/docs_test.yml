@@ -1,0 +1,35 @@
+name: Docs_test
+
+on: [push, pull_request]
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.9]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Upgrade pip
+      run: python -m pip install --upgrade pip
+
+    - name: Install sphinx and its dependencies for building docs
+      run: |
+        pip install -r docs/requirements.txt
+
+    - name: Install simsopt package
+      run: pip install -v .
+
+    - name: Build docs
+      run: |
+        cd docs
+        sphinx-build -b html source build

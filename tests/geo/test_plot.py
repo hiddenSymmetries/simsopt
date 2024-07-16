@@ -2,6 +2,8 @@ import unittest
 import logging
 from pathlib import Path
 
+from monty.tempfile import ScratchDir
+
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.field.coil import Current, coils_via_symmetries
@@ -70,10 +72,11 @@ class PlotTests(unittest.TestCase):
         items_to_plot = coils + [s]  # Coils and surface together
         items_to_plot2 = [c.curve for c in coils] + [s]  # Curves and surface together
 
-        for engine in engines:
-            plot(items_to_plot, engine=engine, show=show)
-            # Try adding a keyword argument:
-            plot(items_to_plot2, engine=engine, show=show, close=True)
+        with ScratchDir("."):
+            for engine in engines:
+                plot(items_to_plot, engine=engine, show=show)
+                # Try adding a keyword argument:
+                plot(items_to_plot2, engine=engine, show=show, close=True)
 
 
 if __name__ == "__main__":

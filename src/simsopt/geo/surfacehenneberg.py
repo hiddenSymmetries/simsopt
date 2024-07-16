@@ -4,13 +4,14 @@ from typing import Union
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.interpolate import interp1d
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 from .._core.types import RealArray
-from .._core.json import GSONDecoder
+from .._core.optimizable import DOFs
+from .._core.descriptor import OneofIntegers, Integer, PositiveInteger
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+    nfp = Integer(min_value=1)
+    alpha_fac = OneofIntegers(-1, 0, 1)
+    mmax = Integer(min_value=1)
+    nmax = PositiveInteger()
 
     def __init__(self,
                  nfp: int = 1,
@@ -98,11 +103,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                  nmax: int = 0,
                  quadpoints_phi: RealArray = None,
                  quadpoints_theta: RealArray = None,
-                 dofs=None
-                 ):
-
-        if alpha_fac > 1 or alpha_fac < -1:
-            raise ValueError('alpha_fac must be 1, 0, or -1')
+                 dofs: DOFs = None):
 
         self.nfp = nfp
         self.alpha_fac = alpha_fac
@@ -156,18 +157,18 @@ class SurfaceHenneberg(sopp.Surface, Surface):
     def _make_names(self):
         names = []
         for n in range(self.nmax + 1):
-            names.append('R0nH(' + str(n) + ')')
+            names.append(f'R0nH({n})')
         for n in range(1, self.nmax + 1):
-            names.append('Z0nH(' + str(n) + ')')
+            names.append(f'Z0nH({n})')
         for n in range(self.nmax + 1):
-            names.append('bn(' + str(n) + ')')
+            names.append(f'bn({n})')
         # Handle m = 0 modes in rho_mn:
         for n in range(1, self.nmax + 1):
-            names.append('rhomn(0,' + str(n) + ')')
+            names.append(f'rhomn(0,{n})')
         # Handle m > 0 modes in rho_mn:
         for m in range(1, self.mmax + 1):
             for n in range(-self.nmax, self.nmax + 1):
-                names.append('rhomn(' + str(m) + ',' + str(n) + ')')
+                names.append(f'rhomn({m},{n})')
         return names
 
     def _validate_mn(self, m, n):
@@ -269,12 +270,10 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         """
         if mmax < 0:
             raise ValueError('mmax must be >= 0')
-        if mmax > self.mmax:
-            mmax = self.mmax
+        mmax = min(self.mmax, mmax)
         if nmax < 0:
             raise ValueError('nmax must be >= 0')
-        if nmax > self.nmax:
-            nmax = self.nmax
+        nmax = min(self.nmax, nmax)
 
         fn = self.fix if fixed else self.unfix
 
@@ -683,7 +682,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
                 rho += self.get_rhomn(m, n) * cosangle
                 d_rho_d_phi -= self.get_rhomn(m, n) * sinangle * (nfp * n - alpha)
         R0H2D = np.kron(R0H, np.ones((ntheta, 1)))
-        Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
+        # Z0H2D = np.kron(Z0H, np.ones((ntheta, 1)))
         b2D = np.kron(b, np.ones((ntheta, 1)))
         zeta = b2D * np.sin(theta - alpha * phi)
         d_R0H2D_d_phi = np.kron(d_R0H_d_phi, np.ones((ntheta, 1)))
@@ -694,7 +693,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
         sinaphi = np.sin(alpha * phi)
         cosaphi = np.cos(alpha * phi)
         R = R0H2D + rho * cosaphi - zeta * sinaphi
-        Z = Z0H2D + rho * sinaphi + zeta * cosaphi
+        # Z = Z0H2D + rho * sinaphi + zeta * cosaphi
         d_R_d_phi = d_R0H2D_d_phi + d_rho_d_phi * cosaphi + rho * (-alpha * sinaphi) \
             - d_zeta_d_phi * sinaphi - zeta * (alpha * cosaphi)
         d_Z_d_phi = d_Z0H2D_d_phi + d_rho_d_phi * sinaphi + rho * (alpha * cosaphi) \

@@ -13,6 +13,8 @@ namespace py = pybind11;
 typedef CurveXYZFourier<PyArray> PyCurveXYZFourier;
 #include "curverzfourier.h"
 typedef CurveRZFourier<PyArray> PyCurveRZFourier; 
+#include "curveplanarfourier.h"
+typedef CurvePlanarFourier<PyArray> PyCurvePlanarFourier;
 #include "curvecwsfourier.h"
 typedef CurveCWSFourier<PyArray> PyCurveCWSFourier;
 
@@ -44,7 +46,6 @@ template <class PyCurveCWSFourierBase = PyCurveCWSFourier> class PyCurveCWSFouri
             PyCurveCWSFourierBase::gamma_impl(data, quadpoints);
         }
 };
-
 
 template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFourierTrampoline : public PyCurveTrampoline<PyCurveXYZFourierBase> {
     public:
@@ -85,6 +86,27 @@ template <class PyCurveRZFourierBase = PyCurveRZFourier> class PyCurveRZFourierT
 
         void gamma_impl(PyArray& data, PyArray& quadpoints) override {
             PyCurveRZFourierBase::gamma_impl(data, quadpoints);
+        }
+};
+
+template <class PyCurvePlanarFourierBase = PyCurvePlanarFourier> class PyCurvePlanarFourierTrampoline : public PyCurveTrampoline<PyCurvePlanarFourierBase> {
+    public:
+        using PyCurveTrampoline<PyCurvePlanarFourierBase>::PyCurveTrampoline; // Inherit constructors
+
+        int num_dofs() override {
+            return PyCurvePlanarFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<double>& _dofs) override {
+            PyCurvePlanarFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<double> get_dofs() override {
+            return PyCurvePlanarFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints) override {
+            PyCurvePlanarFourierBase::gamma_impl(data, quadpoints);
         }
 };
 template <typename T, typename S> void register_common_curve_methods(S &c) {
@@ -142,6 +164,17 @@ void init_curves(py::module_ &m) {
         .def_readonly("stellsym", &PyCurveRZFourier::stellsym)
         .def_readonly("nfp", &PyCurveRZFourier::nfp);
     register_common_curve_methods<PyCurveRZFourier>(pycurverzfourier);
+
+    auto pycurveplanarfourier = py::class_<PyCurvePlanarFourier, shared_ptr<PyCurvePlanarFourier>, PyCurvePlanarFourierTrampoline<PyCurvePlanarFourier>, PyCurve>(m, "CurvePlanarFourier")
+        .def(py::init<vector<double>, int, int, bool>())
+        .def_readwrite("rc", &PyCurvePlanarFourier::rc)
+        .def_readwrite("rs", &PyCurvePlanarFourier::rs)
+        .def_readwrite("q", &PyCurvePlanarFourier::q)
+        .def_readwrite("center", &PyCurvePlanarFourier::center)
+        .def_readonly("order", &PyCurvePlanarFourier::order)
+        .def_readonly("stellsym", &PyCurvePlanarFourier::stellsym)
+        .def_readonly("nfp", &PyCurvePlanarFourier::nfp);
+    register_common_curve_methods<PyCurvePlanarFourier>(pycurveplanarfourier);
 
     auto pycurvecwsfourier = py::class_<PyCurveCWSFourier, shared_ptr<PyCurveCWSFourier>, PyCurveCWSFourierTrampoline<PyCurveCWSFourier>, PyCurve>(m, "CurveCWSFourier")
         .def(py::init<int, int, vector<double>, int, int, int, bool>())

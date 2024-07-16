@@ -6,7 +6,6 @@ import jax.numpy as jnp
 from scipy.fft import rfft
 
 from .curve import Curve, JaxCurve
-from .._core.json import GSONDecoder
 import simsoptpp as sopp
 
 

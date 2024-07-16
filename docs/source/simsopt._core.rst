@@ -13,6 +13,15 @@ simsopt.\_core.derivative module
    :show-inheritance:
    :private-members:
 
+simsopt.\_core.descriptor module
+--------------------------------
+
+.. automodule:: simsopt._core.descriptor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :private-members:
+
 simsopt.\_core.finite_difference module
 ---------------------------------------
 

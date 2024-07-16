@@ -12,12 +12,13 @@ except ImportError:
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
-from .._core.json import GSONable, GSONDecoder
+from .._core.json import GSONDecoder
 
 logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
-           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField']
+           'CircularCoil', 'Dommaschk', 'Reiman', 'InterpolatedField', 'DipoleField',
+           'MirrorModel']
 
 
 class ToroidalField(MagneticField):
@@ -45,7 +46,6 @@ class ToroidalField(MagneticField):
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        phi = np.arctan2(points[:, 1], points[:, 0])
         R = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
 
         x = points[:, 0]
@@ -65,8 +65,6 @@ class ToroidalField(MagneticField):
 
     def _d2B_by_dXdX_impl(self, ddB):
         points = self.get_points_cart_ref()
-        x = points[:, 0]
-        y = points[:, 1]
         ddB[:] = 2*self.B0*self.R0*np.multiply(
             1/(points[:, 0]**2+points[:, 1]**2)**3, np.array([
                 [[3*points[:, 0]**2+points[:, 1]**3, points[:, 0]**3-3*points[:, 0]*points[:, 1]**2, np.zeros((len(points)))], [
@@ -258,8 +256,8 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self.phi_str = phi_str
         self.phi_parsed = parse_expr(phi_str)
         R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z,\
-                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z,\
+        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z, \
+                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z, \
                                                    self.phi_parsed.diff(Z)+1e-30*Phi*R*Z])
         self.dBlambdify_by_dX = sp.lambdify(
             (R, Z, Phi),
@@ -361,14 +359,44 @@ class CircularCoil(MagneticField):
         self.Inorm = I*4e-7
         self.center = center
         self.normal = normal
-        if len(normal) == 2:
-            theta = normal[0]
-            phi = normal[1]
-        else:
-            theta = np.arctan2(normal[1], normal[0])
-            phi = np.arctan2(np.sqrt(normal[0]**2+normal[1]**2), normal[2])
 
-        self.rotMatrix = np.array([
+        super().__init__(x0=self.get_dofs(), names=self._make_names(),external_dof_setter=CircularCoil.set_dofs_impl)
+
+    def _make_names(self):
+        if len(self.normal)==2:
+            normal_names = ['theta', 'phi']
+        elif len(self.normal)==3:
+            normal_names = ['x', 'y', 'z']
+        return ['r0', 'x0', 'y0', 'z0', 'Inorm'] + normal_names
+
+    def num_dofs(self):
+        return 5+len(self.normal)
+
+    def get_dofs(self):
+        return np.concatenate([np.array([self.r0]), np.array(self.center), np.array([self.Inorm]), np.array(self.normal)])
+
+    def set_dofs_impl(self, dofs):
+        self.r0 = dofs[0]
+        self.center = dofs[1:4].tolist()
+        self.Inorm = dofs[4]
+        self.normal = dofs[5:].tolist()
+        
+    @property
+    def I(self):
+        return self.Inorm * 25e5
+
+    def _rotmat(self):
+        if len(self.normal) == 2:
+            theta = self.get('theta')
+            phi   = self.get('phi')
+        else:
+            xn    = self.get('x')
+            yn    = self.get('y')
+            zn    = self.get('z')
+            theta = np.arctan2(yn, xn)
+            phi = np.arctan2(np.sqrt(xn**2+yn**2), zn)
+            
+        m = np.array([
             [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
              -np.sin(phi / 2)**2 * np.sin(2 * theta),
              np.cos(theta) * np.sin(phi)],
@@ -379,16 +407,16 @@ class CircularCoil(MagneticField):
              -np.sin(phi) * np.sin(theta),
              np.cos(phi)]
         ])
+        return m
 
-        self.rotMatrixInv = np.array(self.rotMatrix.T)
-
-    @property
-    def I(self):
-        return self.Inorm * 25e5
+    def _rotmatinv(self):
+        m    = self._rotmat()
+        minv = np.array(m.T)
+        return minv
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
-        points = np.array(np.dot(self.rotMatrixInv, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self._rotmatinv(), np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -396,15 +424,14 @@ class CircularCoil(MagneticField):
         k = np.sqrt(1-np.divide(np.square(alpha), np.square(beta)))
         ellipek2 = ellipe(k**2)
         ellipkk2 = ellipk(k**2)
-        gamma = np.square(points[:, 0]) - np.square(points[:, 1])
-        B[:] = np.dot(self.rotMatrix, np.array(
+        B[:] = np.dot(self._rotmat(), np.array(
             [self.Inorm*points[:, 0]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm*points[:, 1]*points[:, 2]/(2*alpha**2*beta*rho**2+1e-31)*((self.r0**2+r**2)*ellipek2-alpha**2*ellipkk2),
              self.Inorm/(2*alpha**2*beta+1e-31)*((self.r0**2-r**2)*ellipek2+alpha**2*ellipkk2)])).T
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        points = np.array(np.dot(self.rotMatrixInv, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self._rotmatinv(), np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -462,19 +489,19 @@ class CircularCoil(MagneticField):
             [dBxdz, dBydz, dBzdz]])
 
         dB[:] = np.array([
-            [np.dot(self.rotMatrixInv[:, 0], np.dot(self.rotMatrix[0, :], dB_by_dXm)),
-             np.dot(self.rotMatrixInv[:, 1], np.dot(self.rotMatrix[0, :], dB_by_dXm)),
-             np.dot(self.rotMatrixInv[:, 2], np.dot(self.rotMatrix[0, :], dB_by_dXm))],
-            [np.dot(self.rotMatrixInv[:, 0], np.dot(self.rotMatrix[1, :], dB_by_dXm)),
-             np.dot(self.rotMatrixInv[:, 1], np.dot(self.rotMatrix[1, :], dB_by_dXm)),
-             np.dot(self.rotMatrixInv[:, 2], np.dot(self.rotMatrix[1, :], dB_by_dXm))],
-            [np.dot(self.rotMatrixInv[:, 0], np.dot(self.rotMatrix[2, :], dB_by_dXm)),
-             np.dot(self.rotMatrixInv[:, 1], np.dot(self.rotMatrix[2, :], dB_by_dXm)),
-             np.dot(self.rotMatrixInv[:, 2], np.dot(self.rotMatrix[2, :], dB_by_dXm))]]).T
+            [np.dot(self._rotmatinv()[:, 0], np.dot(self._rotmat()[0, :], dB_by_dXm)),
+             np.dot(self._rotmatinv()[:, 1], np.dot(self._rotmat()[0, :], dB_by_dXm)),
+             np.dot(self._rotmatinv()[:, 2], np.dot(self._rotmat()[0, :], dB_by_dXm))],
+            [np.dot(self._rotmatinv()[:, 0], np.dot(self._rotmat()[1, :], dB_by_dXm)),
+             np.dot(self._rotmatinv()[:, 1], np.dot(self._rotmat()[1, :], dB_by_dXm)),
+             np.dot(self._rotmatinv()[:, 2], np.dot(self._rotmat()[1, :], dB_by_dXm))],
+            [np.dot(self._rotmatinv()[:, 0], np.dot(self._rotmat()[2, :], dB_by_dXm)),
+             np.dot(self._rotmatinv()[:, 1], np.dot(self._rotmat()[2, :], dB_by_dXm)),
+             np.dot(self._rotmatinv()[:, 2], np.dot(self._rotmat()[2, :], dB_by_dXm))]]).T
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        points = np.array(np.dot(self.rotMatrixInv, np.array(np.subtract(points, self.center)).T).T)
+        points = np.array(np.dot(self._rotmatinv(), np.array(np.subtract(points, self.center)).T).T)
         rho = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
         r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
         alpha = np.sqrt(self.r0**2 + np.square(r) - 2*self.r0*rho)
@@ -487,7 +514,7 @@ class CircularCoil(MagneticField):
         denom = ((points[:, 0]**2+points[:, 1]**2+1e-31)*np.sqrt(self.r0**2+points[:, 0]**2+points[:, 1]**2+2*self.r0*np.sqrt(points[:, 0]**2+points[:, 1]**2)+points[:, 2]**2+1e-31))
         fak = num/denom
         pts = fak[:, None]*np.concatenate((-points[:, 1][:, None], points[:, 0][:, None], np.zeros((points.shape[0], 1))), axis=-1)
-        A[:] = -self.Inorm/2*np.dot(self.rotMatrix, pts.T).T
+        A[:] = -self.Inorm/2*np.dot(self._rotmat(), pts.T).T
 
     def as_dict(self, serial_objs_dict):
         d = super().as_dict(serial_objs_dict=serial_objs_dict)
@@ -502,6 +529,44 @@ class CircularCoil(MagneticField):
         field.set_points_cart(xyz)
         return field
 
+    def gamma(self, points=64):
+        """Export points of the coil."""
+
+        angle_points = np.linspace(0, 2*np.pi, points+1)[:-1]
+
+        x = self.r0 * np.cos(angle_points)
+        y = self.r0 * np.sin(angle_points)
+        z = 0 * angle_points
+
+        coords = np.add(np.dot(self._rotmat(), np.column_stack([x,y,z]).T).T, self.center)
+        return coords
+
+    def to_vtk(self, filename, close=False):
+        """
+        Export circular coil to VTK format
+
+        Args:
+            filename: Name of the file to write.
+            close: Whether to draw the segment from the last quadrature point back to the first.
+        """
+        from pyevtk.hl import polyLinesToVTK
+
+        def wrap(data):
+            return np.concatenate([data, [data[0]]])
+
+        # get the coordinates
+        if close:
+            x = wrap(self.gamma()[:, 0])
+            y = wrap(self.gamma()[:, 1])
+            z = wrap(self.gamma()[:, 2])
+            ppl = np.asarray([self.gamma().shape[0]+1])
+        else:
+            x = self.gamma()[:, 0]
+            y = self.gamma()[:, 1]
+            z = self.gamma()[:, 2]
+            ppl = np.asarray([self.gamma().shape[0]])
+
+        polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl)
 
 class DipoleField(MagneticField):
     r"""
@@ -665,7 +730,6 @@ class DipoleField(MagneticField):
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
-        mmag = np.sqrt(mx ** 2 + my ** 2 + mz ** 2)
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
@@ -681,9 +745,7 @@ class DipoleField(MagneticField):
         # Save all the data to a vtk file which can be visualized nicely with ParaView
         data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
         from pyevtk.hl import pointsToVTK
-        pointsToVTK(
-            str(vtkname), ox, oy, oz, data=data
-        )
+        pointsToVTK(str(vtkname), ox, oy, oz, data=data)
 
 
 class Dommaschk(MagneticField):
@@ -851,3 +913,114 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
             rmin=self.r_range[0], rmax=self.r_range[1],
             zmin=self.z_range[0], zmax=self.z_range[1]
         )
+
+
+class MirrorModel(MagneticField):
+    r"""
+    Model magnetic field employed in https://arxiv.org/abs/2305.06372 to study
+    the magnetic mirror experiment WHAM. The
+    magnetic field is given by :math:`\vec{B}=B_R \vec{e}_R + B_Z \vec{e}_Z`, where 
+    :math:`\vec{e}_R` and :math:`\vec{e}_Z` are
+    the cylindrical radial and axial unit vectors, respectively, and
+    :math:`B_R` and :math:`B_Z` are given by
+
+    .. math::
+
+        B_R = -\frac{1}{R} \frac{\partial\psi}{\partial Z}, \; B_Z = \frac{1}{R}.
+        \frac{\partial\psi}{\partial R}
+
+    In this model, the magnetic flux function :math:`\psi` is written as a double
+    Lorentzian function
+
+    .. math::
+
+        \psi = \frac{R^2 \mathcal{B}}{2 \pi \gamma}\left(\left[1+\left(\frac{Z-Z_m}{\gamma}\right)^2\right]^{-1}+\left[1+\left(\frac{Z+Z_m}{\gamma}\right)^2\right]^{-1}\right).
+
+    Note that this field is neither a vacuum field nor a solution of MHD force balance.
+    The input parameters are ``B0``, ``gamma`` and ``Z_m`` with the standard values the
+    ones used in https://arxiv.org/abs/2305.06372, that is, ``B0 = 6.51292``,
+    ``gamma = 0.124904``, and ``Z_m = 0.98``.
+
+    Args:
+        B0:  parameter :math:`\mathcal{B}` of the flux surface function
+        gamma:  parameter :math:`\gamma` of the flux surface function
+        Z_m:  parameter :math:`Z_m` of the flux surface function
+    """
+
+    def __init__(self, B0=6.51292, gamma=0.124904, Z_m=0.98):
+        MagneticField.__init__(self)
+        self.B0 = B0
+        self.gamma = gamma
+        self.Z_m = Z_m
+
+    def _psi(self, R, Z):
+        factor1 = 1+((Z-self.Z_m)/(self.gamma))**2
+        factor2 = 1+((Z+self.Z_m)/(self.gamma))**2
+        psi = (R*R*self.B0/(2*np.pi*self.gamma))*(1/factor1+1/factor2)
+        return psi
+
+    def _B_impl(self, B):
+        points = self.get_points_cart_ref()
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+        # BR = -(1/R)dpsi/dZ, BZ=(1/R)dpsi/dR
+        factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
+        factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
+        Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        Bz = self._psi(r, z)*2/r/r
+        B[:, 0] = Br * np.cos(phi)
+        B[:, 1] = Br * np.sin(phi)
+        B[:, 2] = Bz
+
+    def _dB_by_dX_impl(self, dB):
+        points = self.get_points_cart_ref()
+        r = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]))
+        z = points[:, 2]
+        phi = np.arctan2(points[:, 1], points[:, 0])
+
+        factor1 = (1+((z-self.Z_m)/(self.gamma))**2)**2
+        factor2 = (1+((z+self.Z_m)/(self.gamma))**2)**2
+        Br = (r*self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        # Bz = self._psi(r,z)*2/r/r
+        dBrdr = (self.B0/(np.pi*self.gamma**3))*((z-self.Z_m)/factor1+(z+self.Z_m)/factor2)
+        dBzdz = -2*dBrdr
+        dBrdz = (self.B0*r/(np.pi*self.gamma**3))*(1/factor1+1/factor2
+                                                   - 4*self.gamma**4*((z-self.Z_m)**2/((z-self.Z_m)**2+self.gamma**2)**3+(z+self.Z_m)**2/((z+self.Z_m)**2+self.gamma**2)**3))
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        dcosphidx = -points[:, 0]**2/r**3 + 1/r
+        dsinphidx = -points[:, 0]*points[:, 1]/r**3
+        dcosphidy = -points[:, 0]*points[:, 1]/r**3
+        dsinphidy = -points[:, 1]**2/r**3 + 1/r
+        drdx = points[:, 0]/r
+        drdy = points[:, 1]/r
+        dBxdx = dBrdr*drdx*cosphi + Br*dcosphidx
+        dBxdy = dBrdr*drdy*cosphi + Br*dcosphidy
+        dBxdz = dBrdz*cosphi
+        dBydx = dBrdr*drdx*sinphi + Br*dsinphidx
+        dBydy = dBrdr*drdy*sinphi + Br*dsinphidy
+        dBydz = dBrdz*sinphi
+
+        dB[:, 0, 0] = dBxdx
+        dB[:, 1, 0] = dBxdy
+        dB[:, 2, 0] = dBxdz
+        dB[:, 0, 1] = dBydx
+        dB[:, 1, 1] = dBydy
+        dB[:, 2, 1] = dBydz
+        dB[:, 0, 2] = 0
+        dB[:, 1, 2] = 0
+        dB[:, 2, 2] = dBzdz
+
+    def as_dict(self, serial_objs_dict) -> dict:
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        d["points"] = self.get_points_cart()
+        return d
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        field = cls(d["B0"], d["gamma"], d["Z_m"])
+        decoder = GSONDecoder()
+        xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
+        field.set_points_cart(xyz)
+        return field

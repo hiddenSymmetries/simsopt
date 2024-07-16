@@ -1,15 +1,16 @@
 import unittest
 
 import numpy as np
+from monty.tempfile import ScratchDir
 try:
     from mpi4py import MPI
 except ImportError:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
-from simsopt.objectives.functions import Identity, Rosenbrock, Affine
+from simsopt.objectives.functions import Rosenbrock
 from simsopt.objectives.constrained import ConstrainedProblem
-from simsopt.solve.serial import constrained_serial_solve, serial_solve
+from simsopt.solve.serial import constrained_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
     from simsopt.solve.mpi import constrained_mpi_solve
@@ -66,12 +67,13 @@ class ConstrainedSolveTests_mpi(unittest.TestCase):
         rosen.upper_bounds = 5*np.ones(len(rosen.x))
         prob = ConstrainedProblem(rosen.f)
         options = {'ftol': 1e-9, 'maxiter': 2000}
-        for solver in solvers:
-            for grad in grads:
-                prob.x = np.zeros(2)
-                solver(prob, grad=grad, options=options)
-                np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
-                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
+        with ScratchDir("."):
+            for solver in solvers:
+                for grad in grads:
+                    prob.x = np.zeros(2)
+                    solver(prob, grad=grad, options=options)
+                    np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
+                    np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
         # bound constraints with vector bounds
         rosen = Rosenbrock()
@@ -81,12 +83,13 @@ class ConstrainedSolveTests_mpi(unittest.TestCase):
         rosen.upper_bounds = ub
         prob = ConstrainedProblem(rosen.f)
         options = {'ftol': 1e-9, 'maxiter': 2000}
-        for solver in solvers:
-            for grad in grads:
-                prob.x = np.zeros(2)
-                solver(prob, grad=grad, options=options)
-                np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
-                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
+        with ScratchDir("."):
+            for solver in solvers:
+                for grad in grads:
+                    prob.x = np.zeros(2)
+                    solver(prob, grad=grad, options=options)
+                    np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
+                    np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
     def test_linear(self):
         grads = [True, False]
@@ -100,12 +103,13 @@ class ConstrainedSolveTests_mpi(unittest.TestCase):
         rosen.upper_bounds = ub
         prob = ConstrainedProblem(rosen.f, tuple_lc=(A, -np.inf, b))
         options = {'ftol': 1e-9, 'maxiter': 2000}
-        for solver in solvers:
-            for grad in grads:
-                prob.x = np.zeros(2)
-                solver(prob, grad=grad, options=options)
-                np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
-                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
+        with ScratchDir("."):
+            for solver in solvers:
+                for grad in grads:
+                    prob.x = np.zeros(2)
+                    solver(prob, grad=grad, options=options)
+                    np.testing.assert_allclose(prob.x, np.ones(2), atol=1e-3)
+                    np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
         # QP program
         tester = TestFunc1(2, 2)
@@ -115,12 +119,13 @@ class ConstrainedSolveTests_mpi(unittest.TestCase):
         prob = ConstrainedProblem(tester.f2, tuple_lc=(A, -np.inf, b))
         prob.x = np.ones(2)
         options = {'ftol': 1e-9, 'maxiter': 2000}
-        for solver in solvers:
-            for grad in grads:
-                prob.x = np.zeros(2)
-                solver(prob, grad=grad, options=options)
-                np.testing.assert_allclose(prob.x, 0.25*np.ones(2), atol=1e-3)
-                np.testing.assert_allclose(prob.objective(), 0.125, atol=1e-3)
+        with ScratchDir("."):
+            for solver in solvers:
+                for grad in grads:
+                    prob.x = np.zeros(2)
+                    solver(prob, grad=grad, options=options)
+                    np.testing.assert_allclose(prob.x, 0.25*np.ones(2), atol=1e-3)
+                    np.testing.assert_allclose(prob.objective(), 0.125, atol=1e-3)
 
     def test_nlc(self):
         grads = [True, False]
@@ -129,12 +134,13 @@ class ConstrainedSolveTests_mpi(unittest.TestCase):
         tester = TestFunc1(2, 2)
         prob = ConstrainedProblem(tester.f, tuples_nlc=[(tester.c2, 0.0, np.inf)])
         options = {'ftol': 1e-9, 'maxiter': 2000}
-        for solver in solvers:
-            for grad in grads:
-                prob.x = np.ones(2)
-                solver(prob, grad=grad, options=options)
-                np.testing.assert_allclose(prob.x, np.zeros(2), atol=1e-3)
-                np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
+        with ScratchDir("."):
+            for solver in solvers:
+                for grad in grads:
+                    prob.x = np.ones(2)
+                    solver(prob, grad=grad, options=options)
+                    np.testing.assert_allclose(prob.x, np.zeros(2), atol=1e-3)
+                    np.testing.assert_allclose(prob.objective(), 0.0, atol=1e-3)
 
 
 if __name__ == "__main__":

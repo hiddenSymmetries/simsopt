@@ -1,25 +1,25 @@
 import unittest
 from pathlib import Path
-import json
 
 from qsc import Qsc
-
 import numpy as np
-from simsopt import save, load
+from monty.tempfile import ScratchDir
 
+from simsopt import save, load
 from simsopt.geo.surfacerzfourier import SurfaceRZFourier, SurfaceRZPseudospectral
 from simsopt.geo.surface import Surface
 from simsopt._core.optimizable import Optimizable
 
+try:
+    import vmec
+except ImportError:
+    vmec = None
+
+from simsopt.mhd import Vmec
+
 TEST_DIR = Path(__file__).parent / ".." / "test_files"
 
 stellsym_list = [True, False]
-
-try:
-    import pyevtk
-    pyevtk_found = True
-except ImportError:
-    pyevtk_found = False
 
 
 class SurfaceRZFourierTests(unittest.TestCase):
@@ -75,19 +75,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s2.area(), true_area, places=4)
         self.assertAlmostEqual(s2.volume(), true_volume, places=3)
 
-    def test_area_volume(self):
-        """
-        Test the calculation of area and volume for an axisymmetric surface
-        """
-        s = SurfaceRZFourier()
-        s.rc[0, 0] = 1.3
-        s.rc[1, 0] = 0.4
-        s.zs[1, 0] = 0.2
-
-        true_area = 15.827322032265993
-        true_volume = 2.0528777154265874
-        self.assertAlmostEqual(s.area(), true_area, places=4)
-        self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
     def test_get_dofs(self):
         """
@@ -277,8 +264,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # be shifted by the hiddenSymmetries VMEC2000 module.  For any
         # input file and version of VMEC, we can compare
         # coordinate-independent properties like the volume and area.
-        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()),
-                               places=13)
+        self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
         self.assertAlmostEqual(s1.area(), s2.area(), places=7)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
@@ -286,14 +272,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_get_and_write_nml(self):
         """
@@ -305,8 +287,9 @@ class SurfaceRZFourierTests(unittest.TestCase):
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         new_filename = 'boundary.li383_low_res'
-        s1.write_nml(new_filename)
-        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        with ScratchDir("."):
+            s1.write_nml(new_filename)
+            s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
         places = 13
@@ -315,19 +298,18 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
 
         # Try a non-stellarator-symmetric case
         filename = TEST_DIR / 'input.LandremanSenguptaPlunk_section5p3'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         nml_str = s1.get_nml()  # This time, cover the case in which a string is returned
-        new_filename = 'boundary'
-        with open(new_filename, 'w') as f:
-            f.write(nml_str)
-        s2 = SurfaceRZFourier.from_vmec_input(new_filename)
+        with ScratchDir("."):
+            new_filename = 'boundary'
+            with open(new_filename, 'w') as f:
+                f.write(nml_str)
+            s2 = SurfaceRZFourier.from_vmec_input(new_filename)
         mpol = min(s1.mpol, s2.mpol)
         ntor = min(s1.ntor, s2.ntor)
         places = 13
@@ -336,14 +318,10 @@ class SurfaceRZFourierTests(unittest.TestCase):
         for m in range(mpol + 1):
             nmin = 0 if m == 0 else -ntor
             for n in range(nmin, ntor + 1):
-                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n),
-                                       places=places)
-                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n),
-                                       places=places)
+                self.assertAlmostEqual(s1.get_rc(m, n), s2.get_rc(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zs(m, n), s2.get_zs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_rs(m, n), s2.get_rs(m, n), places=places)
+                self.assertAlmostEqual(s1.get_zc(m, n), s2.get_zc(m, n), places=places)
 
     def test_from_focus(self):
         """
@@ -526,28 +504,6 @@ class SurfaceRZFourierTests(unittest.TestCase):
         self.assertAlmostEqual(s.area(), true_area, places=4)
         self.assertAlmostEqual(s.volume(), true_volume, places=3)
 
-    @unittest.skip
-    def test_derivatives(self):
-        """
-        Check the automatic differentiation for area and volume.
-        """
-        for mpol in range(1, 3):
-            for ntor in range(2):
-                for nfp in range(1, 4):
-                    s = SurfaceRZFourier(nfp=nfp, mpol=mpol, ntor=ntor)
-                    x0 = s.get_dofs()
-                    x = np.random.rand(len(x0)) - 0.5
-                    x[0] = np.random.rand() + 2
-                    # This surface will probably self-intersect, but I
-                    # don't think this actually matters here.
-                    s.set_dofs(x)
-
-                    dofs = Dofs([s.area, s.volume])
-                    jac = dofs.jac()
-                    fd_jac = dofs.fd_jac()
-                    print('difference for surface test_derivatives:', jac - fd_jac)
-                    np.testing.assert_allclose(jac, fd_jac, rtol=1e-4, atol=1e-4)
-
     def test_vjps(self):
         mpol = 10
         ntor = 10
@@ -682,6 +638,138 @@ class SurfaceRZFourierTests(unittest.TestCase):
             self.assertAlmostEqual(s2.area(), surf_objs[1].area())
             self.assertIs(surf_objs[0].dofs, surf_objs[1].dofs)
 
+    def test_make_rotating_ellipse(self):
+        major_radius = 8.4
+        minor_radius = 2.3
+        elongation = 2.7
+        torsion = 0.6
+        nfp = 3
+        sqrt_elong = np.sqrt(elongation)
+        surf = SurfaceRZFourier.from_nphi_ntheta(ntor=2, mpol=3, nphi=2, ntheta=4, range="field period", nfp=nfp)
+        surf.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+
+        xyz = surf.gamma()
+        R = np.sqrt(xyz[:, :, 0]**2 + xyz[:, :, 1]**2)
+        Z = xyz[:, :, 2]
+
+        # Check phi=0 plane:
+        np.testing.assert_allclose(
+            R[0, :],
+            [major_radius + torsion + minor_radius / sqrt_elong,
+             major_radius + torsion,
+             major_radius + torsion - minor_radius / sqrt_elong,
+             major_radius + torsion]
+        )
+        np.testing.assert_allclose(
+            Z[0, :],
+            [0,
+             minor_radius * sqrt_elong,
+             0,
+             -minor_radius * sqrt_elong],
+            atol=1e-14,
+        )
+
+        # Check phi=pi/nfp plane:
+        np.testing.assert_allclose(
+            R[1, :],
+            [major_radius - torsion + minor_radius * sqrt_elong,
+             major_radius - torsion,
+             major_radius - torsion - minor_radius * sqrt_elong,
+             major_radius - torsion]
+        )
+        np.testing.assert_allclose(
+            Z[1, :],
+            [0,
+             minor_radius / sqrt_elong,
+             0,
+             -minor_radius / sqrt_elong],
+            atol=1e-14,
+        )
+
+        # Now make the same surface shape with more quadpoints:
+        surf = SurfaceRZFourier.from_nphi_ntheta(ntor=1, mpol=1, nphi=64, ntheta=65, range="field period", nfp=nfp)
+        surf.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+        np.testing.assert_allclose(surf.major_radius(), major_radius)
+        np.testing.assert_allclose(surf.minor_radius(), minor_radius)
+        np.testing.assert_allclose(surf.aspect_ratio(), major_radius / minor_radius)
+
+        # Check that the cross-sectional area is correct at every phi:
+        gamma = surf.gamma()
+        R = np.sqrt(gamma[:, :, 0]**2 + gamma[:, :, 1]**2)
+        gammadash2 = surf.gammadash2()
+        dZdtheta = gammadash2[:, :, 2]
+        dtheta = surf.quadpoints_theta[1] - surf.quadpoints_theta[0]
+        area_vs_phi = np.abs(np.sum(R * dZdtheta, axis=1) * dtheta)
+        np.testing.assert_allclose(area_vs_phi, np.pi * minor_radius**2)
+
+    @unittest.skipIf(vmec is None, "vmec python extension is not installed")
+    def test_make_rotating_ellipse_iota(self):
+        """make_rotating_ellipse() should give positive iota."""
+        filename = str(TEST_DIR / 'input.LandremanPaul2021_QH_reactorScale_lowres')
+        with ScratchDir("."):
+            eq = Vmec(filename)
+            eq.indata.mpol = 4  # Lower resolution to expedite test
+            eq.indata.ntor = 4
+            eq.indata.ftol_array[:2] = [1e-8, 1e-10]
+
+            # Try the case of elongation=1 with positive axis torsion:
+            major_radius = 8.4
+            minor_radius = 1.3
+            elongation = 1.0
+            torsion = 0.9
+            eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+            eq.run()
+            np.testing.assert_array_less(0, eq.wout.iotaf)
+            np.testing.assert_allclose(eq.mean_iota(), 0.26990720954583547, rtol=1e-6)
+
+            # Try the case of zero axis torsion with rotating elongation:
+            major_radius = 8.4
+            minor_radius = 1.3
+            elongation = 2.1
+            torsion = 0.0
+            eq.boundary.make_rotating_ellipse(major_radius, minor_radius, elongation, torsion)
+            eq.run()
+            np.testing.assert_array_less(0, eq.wout.iotaf)
+            np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
+
+    def test_fourier_transform_scalar(self):
+        """
+        Test the Fourier transform of a field on a surface.
+        """
+        s = SurfaceRZFourier(mpol=4, ntor=5)
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+
+        # Create the grid of quadpoints:
+        phi2d, theta2d = np.meshgrid(2 * np.pi * s.quadpoints_phi,
+                                     2 * np.pi * s.quadpoints_theta, 
+                                     indexing='ij')
+
+        # create a test field where only Fourier elements [m=2, n=3] 
+        # and [m=4,n=5] are nonzero:
+        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
+
+        # Transform the field to Fourier space:
+        ft_sines, ft_cosines = s.fourier_transform_scalar(field, stellsym=False)
+        self.assertAlmostEqual(ft_sines[2, 3+s.ntor], 0.8)
+        self.assertAlmostEqual(ft_sines[4, 5+s.ntor], 0.2)
+        self.assertAlmostEqual(ft_cosines[3, 3+s.ntor], 0.7)
+
+        # Test that all other elements are close to zero
+        sines_mask = np.ones_like(ft_sines, dtype=bool)
+        cosines_mask = np.copy(sines_mask)
+        sines_mask[2, 3 + s.ntor] = False
+        sines_mask[4, 5 + s.ntor] = False
+        cosines_mask[3, 3 + s.ntor] = False
+        self.assertEqual(np.all(np.abs(ft_sines[sines_mask]) < 1e-10), True)
+        self.assertEqual(np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
+
+        # Transform back to real space:
+        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False, normalization=1/2*np.pi**2)
+
+        # Check that the result is the same as the original field:
+        np.testing.assert_allclose(field/2*np.pi**2, field2)
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
@@ -757,10 +845,8 @@ class SurfaceRZPseudospectralTests(unittest.TestCase):
         filename = TEST_DIR / 'input.li383_low_res'
         s1 = SurfaceRZFourier.from_vmec_input(filename)
         #print('Original SurfaceRZFourier dofs:', s1.x)
-        x1 = s1.x
         s2 = SurfaceRZPseudospectral.from_RZFourier(s1, r_shift=2.2, a_scale=0.4)
         s3 = s2.to_RZFourier()
-        x3 = s3.x
         #for j, name in enumerate(s1.local_dof_names):
         #    print(name, x1[j], x3[j], x1[j] - x3[j])
         np.testing.assert_allclose(s1.full_x, s3.full_x)

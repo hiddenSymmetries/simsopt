@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 Provides graph based Optimizable class, whose instances can be used to
@@ -93,8 +93,6 @@ class DOFs(GSONable, Hashable):
         """
         if x is None:
             x = np.array([])
-        elif np.isscalar(x):
-            x = np.array([x], dtype=np.double)
         else:
             x = np.asarray(x, dtype=np.double)
 
@@ -968,6 +966,7 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         # TODO: Develop a faster scheme.
         # TODO: Alternatively ask the user to call this manually from the end
         # TODO: node after fixing/unfixing any DOF
+        dof_indices = [0]
         full_dof_size = 0
         dof_objs = set()
         self.ancestors = self._get_ancestors()
@@ -976,8 +975,12 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
             if opt.dofs not in dof_objs:
                 dof_objs.add(opt.dofs)
                 full_dof_size += opt.local_full_dof_size
+                dof_indices.append(full_dof_size)
                 self._unique_dof_opts.append(opt)
+
         self._full_dof_size = full_dof_size
+        self._full_dof_indices = dict(zip(self._unique_dof_opts,
+                                          zip(dof_indices[:-1], dof_indices[1:])))
 
         # Update the full dof length of children
         for weakref_child in self._children:
@@ -1056,6 +1059,14 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         return np.concatenate([opt._dofs.full_x for
                                opt in self._unique_dof_opts])
+
+    @full_x.setter
+    def full_x(self, x: RealArray) -> None:
+        """
+        Setter used to set all the global DOF values
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt.local_full_x = x[indices[0]:indices[1]]
 
     @property
     def local_x(self) -> RealArray:
@@ -1278,7 +1289,6 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         Upper bounds of the free DOFs associated with the current
         Optimizable object and those of its ancestors
         """
-        opts = self.ancestors + [self]
         return np.concatenate([opt._dofs.free_upper_bounds for opt in self.unique_dof_lineage])
 
     @upper_bounds.setter
@@ -1429,6 +1439,34 @@ class Optimizable(ABC_Callable, Hashable, GSONable, metaclass=OptimizableMeta):
         """
         self._dofs.unfix(key)
         self.update_free_dof_size_indices()
+
+    def full_fix(self, arr: Key) -> None:
+        """
+        Set the fixed/free attribute for all dofs on which this Optimizable object
+        depends. 
+
+        Args:
+            arr: List or array of the same length as ``full_x``, containing
+                booleans. For each array entry that is ``True``, the corresponding dof will be set
+                to fixed.
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt._dofs._free[:] = np.logical_not(arr[indices[0]:indices[1]])
+            opt._dofs._update_opt_indices()
+
+    def full_unfix(self, arr: Key) -> None:
+        """
+        Set the fixed/free attribute for all dofs on which this Optimizable object
+        depends. 
+
+        Args:
+            arr: List or array of the same length as ``full_x``, containing
+                booleans. For each array entry that is ``True``, the corresponding dof will be set
+                to free.
+        """
+        for opt, indices in self._full_dof_indices.items():
+            opt._dofs._free[:] = arr[indices[0]:indices[1]]
+            opt._dofs._update_opt_indices()
 
     def local_fix_all(self) -> None:
         """
@@ -1655,10 +1693,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                     elif dof_indicators[i] == "non-dof":
                         non_dofs.append(arg)
                     elif dof_indicators[i] == "dof":
-                        if dof_indicators.count("dof") == 1:
-                            dofs = arg
-                        else:
-                            dofs.append(arg)
+                        dofs.append(arg)
                     else:
                         raise ValueError
                 for i, k in enumerate(kwargs.keys()):
@@ -1709,10 +1744,7 @@ def make_optimizable(func, *args, dof_indicators=None, **kwargs):
                     args.append(self.parents[opt_ind])
                     opt_ind += 1
                 elif self.dof_indicators[i] == 'dof':
-                    if self.dof_indicators.count("dof") == 1:
-                        args.append(dofs)
-                    else:
-                        args.append(dofs[dof_ind])
+                    args.append(dofs[dof_ind])
                     dof_ind += 1
                 elif self.dof_indicators[i] == 'non-dof':
                     args.append(self.non_dofs[non_dof_ind])

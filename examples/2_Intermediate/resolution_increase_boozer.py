@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import os
-from simsopt.util import MpiPartition
 from simsopt.mhd import Vmec, Boozer, Quasisymmetry
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
+from simsopt.util import MpiPartition, proc0_print
 
 """
 This example shows how scripting can be used to increase the size
@@ -22,8 +22,8 @@ resolution for VMEC and booz_xform is increased.
 
 #log()
 
-print("Running 2_Intermediate/resolution_increase_boozer.py")
-print("====================================================")
+proc0_print("Running 2_Intermediate/resolution_increase_boozer.py")
+proc0_print("====================================================")
 
 mpi = MpiPartition()
 mpi.write()
@@ -60,11 +60,10 @@ for step in range(3):
     boozer.mpol = 16 + step * 8
     boozer.ntor = boozer.mpol
 
-    if mpi.proc0_world:
-        print("Beginning optimization with max_mode =", max_mode, \
-              ", vmec mpol=ntor=", vmec.indata.mpol, \
-              ", boozer mpol=ntor=", boozer.mpol, \
-              ". Previous vmec iteration = ", vmec.iter)
+    proc0_print("Beginning optimization with max_mode =", max_mode, \
+                ", vmec mpol=ntor=", vmec.indata.mpol, \
+                ", boozer mpol=ntor=", boozer.mpol, \
+                ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
     surf.fix_all()
@@ -81,11 +80,10 @@ for step in range(3):
     # deleted when vmec runs again:
     vmec.files_to_delete = []
 
-    if mpi.proc0_world:
-        print(f"Done optimization with max_mode ={max_mode}. "
-              f"Final vmec iteration = {vmec.iter}")
+    proc0_print(f"Done optimization with max_mode ={max_mode}. "
+                f"Final vmec iteration = {vmec.iter}")
 
-print("Good bye")
+proc0_print("Good bye")
 
-print("End of 2_Intermediate/resolution_increase_boozer.py")
-print("===================================================")
+proc0_print("End of 2_Intermediate/resolution_increase_boozer.py")
+proc0_print("===================================================")

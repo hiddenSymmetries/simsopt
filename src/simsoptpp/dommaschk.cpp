@@ -89,7 +89,7 @@ double dRDmn(int m, int n, double R, double Z) {
 	for (k=0; k<=floor(n/2); k++) {
 		sumD = 0.0;
 		for (j=0;j<k+1;j++) {
-			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*log(R)+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
+			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*(1.0/(2*j+m)+log(R))+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
 		}
 		y += (pow(Z,n-2*k)/tgamma(n-2*k+1))*sumD;
 	}
@@ -120,7 +120,7 @@ double dRRDmn(int m, int n, double R, double Z) {
 	for (k=0;k<=floor(n/2);k++) {
 		sumD = 0.0;
 		for (j=0; j<k+1; j++) {
-			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*log(R)+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-2))*(2*j+m)*(2*j+m-1) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-2)*(2*j-m)*(2*j-m-1);
+			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*(((4.0*j+2*m-1)/((2.0*j+m)*(2.0*j+m-1)))+log(R))+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-2))*(2*j+m)*(2*j+m-1) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-2)*(2*j-m)*(2*j-m-1);
 		}
 		y += (pow(Z,n-2*k)/tgamma(n-2*k+1))*sumD;
 	}
@@ -151,7 +151,7 @@ double dRZDmn(int m, int n, double R, double Z) {
 	for (k=0;k<=floor(n/2);k++) {
 		sumD = 0.0;
 		for (j=0; j<k+1; j++) {
-			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*log(R)+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
+			sumD += -(alpha(m,j)*(alphas(m,k-m-j)*(1.0/(2*j+m)+log(R))+gammas(m,k-m-j)-alpha(m,k-m-j))-gamma1(m,j)*alphas(m,k-m-j)+alpha(m,j)*betas(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) + alphas(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
 		}
         if (n-2*k==0){
             y += 0;
@@ -169,7 +169,8 @@ double dRNmn(int m, int n, double R, double Z) {
 	for (k=0;k<=floor(n/2); k++) {
 		sumN = 0.0;
 		for (j=0; j<k+1; j++) {
-			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*log(R)+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
+			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*(1.0/(2*j+m)+log(R))+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
+
 		}	
 	y += (pow(Z,n-2*k)/tgamma(n-2*k+1))*sumN;
 	}
@@ -200,7 +201,7 @@ double dRRNmn(int m, int n, double R, double Z) {
 	for (k=0; k< n/2 + 1; k++) {
 		sumN = 0.0;
 		for (j=0; j< k+1; j++) {
-			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*log(R)+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-2))*(2*j+m)*(2*j+m-1) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-2)*(2*j-m)*(2*j-m-1);
+			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*(((4.0*j+2*m-1)/((2.0*j+m)*(2.0*j+m-1)))+log(R))+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-2))*(2*j+m)*(2*j+m-1) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-2)*(2*j-m)*(2*j-m-1);
 		}
 		y += (pow(Z,n-2*k)/tgamma(n-2*k+1))*sumN;
 	}
@@ -231,7 +232,7 @@ double dRZNmn(int m, int n, double R, double Z) {
 	for (k=0;k<=floor(n/2); k++) {
 		sumN = 0.0;
 		for (j=0; j< k+1; j++) {
-			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*log(R)+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
+			sumN += +(alpha(m,j)*(alpha(m,k-m-j)*(1.0/(2*j+m)+log(R))+gamma1(m,k-m-j))-gamma1(m,j)*alpha(m,k-m-j)+alpha(m,j)*beta(m,k-j))*pow(R,(2*j+m-1))*(2*j+m) - alpha(m,k-j)*beta(m,j)*pow(R,2*j-m-1)*(2*j-m);
 		}
         if (n-2*k==0 || n<0) {
             y += 0;
@@ -524,6 +525,8 @@ Array DommaschkdB(Array& mArray, Array& nArray, Array& coeffs, Array& points){
             dB(j,i,2,0) = dZBR(m,n,R,z,phi,coeff1,coeff2)*cosphi-dZBphi(m,n,R,z,phi,coeff1,coeff2)*sinphi;
             dB(j,i,2,1) = dZBR(m,n,R,z,phi,coeff1,coeff2)*sinphi+dZBphi(m,n,R,z,phi,coeff1,coeff2)*cosphi;
             dB(j,i,2,2) = dZBZ(m,n,R,z,phi,coeff1,coeff2);
+
+
         }
     }
     return dB;

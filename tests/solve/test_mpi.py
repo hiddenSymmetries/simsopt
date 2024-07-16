@@ -1,6 +1,7 @@
 import logging
 import unittest
 
+from monty.tempfile import ScratchDir
 import numpy as np
 try:
     from mpi4py import MPI
@@ -8,7 +9,6 @@ except:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
-from simsopt.objectives.functions import Beale
 from simsopt.objectives.least_squares import LeastSquaresProblem
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
@@ -94,44 +94,46 @@ class MPISolveTests(unittest.TestCase):
         """
         Test a full least-squares optimization.
         """
-        for ngroups in range(1, 4):
-            mpi = MpiPartition(ngroups=ngroups)
-            o = TestFunction3(mpi.comm_groups)
-            term1 = (o.f0, 0, 1)
-            term2 = (o.f1, 0, 1)
-            prob = LeastSquaresProblem.from_tuples([term1, term2])
-            least_squares_mpi_solve(prob, mpi, grad=False)
-            self.assertAlmostEqual(prob.x[0], 1)
-            self.assertAlmostEqual(prob.x[1], 1)
+        with ScratchDir("."):
+            for ngroups in range(1, 4):
+                mpi = MpiPartition(ngroups=ngroups)
+                o = TestFunction3(mpi.comm_groups)
+                term1 = (o.f0, 0, 1)
+                term2 = (o.f1, 0, 1)
+                prob = LeastSquaresProblem.from_tuples([term1, term2])
+                least_squares_mpi_solve(prob, mpi, grad=False)
+                self.assertAlmostEqual(prob.x[0], 1)
+                self.assertAlmostEqual(prob.x[1], 1)
 
     def test_parallel_optimization_with_grad(self):
         """
         Test a full least-squares optimization.
         """
-        for ngroups in range(1, 4):
-            for abs_step in [0, 1.0e-7]:
-                # Only try rel_step=0 if abs_step is positive:
-                rel_steps = [0, 1.0e-7]
-                if abs_step == 0:
-                    rel_steps = [1.0e-7]
+        with ScratchDir("."):
+            for ngroups in range(1, 4):
+                for abs_step in [0, 1.0e-7]:
+                    # Only try rel_step=0 if abs_step is positive:
+                    rel_steps = [0, 1.0e-7]
+                    if abs_step == 0:
+                        rel_steps = [1.0e-7]
 
-                for rel_step in rel_steps:
-                    for diff_method in ["forward", "centered"]:
-                        logger.debug(f'ngroups={ngroups} abs_step={abs_step} ' \
-                                     f'rel_step={rel_step} diff_method={diff_method}')
-                        mpi = MpiPartition(ngroups=ngroups)
-                        o = TestFunction3(mpi.comm_groups)
-                        term1 = (o.f0, 0, 1)
-                        term2 = (o.f1, 0, 1)
-                        prob = LeastSquaresProblem.from_tuples([term1, term2])
-                        # Set initial condition different from 0,
-                        # because otherwise abs_step=0 causes step
-                        # size to be 0.
-                        prob.x = [-0.1, 0.2]
-                        least_squares_mpi_solve(prob, mpi, grad=True,
-                                                diff_method=diff_method,
-                                                abs_step=abs_step,
-                                                rel_step=rel_step)
-                        self.assertAlmostEqual(prob.x[0], 1)
-                        self.assertAlmostEqual(prob.x[1], 1)
+                    for rel_step in rel_steps:
+                        for diff_method in ["forward", "centered"]:
+                            logger.debug(f'ngroups={ngroups} abs_step={abs_step} ' \
+                                         f'rel_step={rel_step} diff_method={diff_method}')
+                            mpi = MpiPartition(ngroups=ngroups)
+                            o = TestFunction3(mpi.comm_groups)
+                            term1 = (o.f0, 0, 1)
+                            term2 = (o.f1, 0, 1)
+                            prob = LeastSquaresProblem.from_tuples([term1, term2])
+                            # Set initial condition different from 0,
+                            # because otherwise abs_step=0 causes step
+                            # size to be 0.
+                            prob.x = [-0.1, 0.2]
+                            least_squares_mpi_solve(prob, mpi, grad=True,
+                                                    diff_method=diff_method,
+                                                    abs_step=abs_step,
+                                                    rel_step=rel_step)
+                            self.assertAlmostEqual(prob.x[0], 1)
+                            self.assertAlmostEqual(prob.x[1], 1)
 

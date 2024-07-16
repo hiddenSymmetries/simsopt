@@ -10,12 +10,12 @@ filename_mhd_lasym = str((TEST_DIR / 'wout_10x10.nc').resolve())
 
 try:
     import vmec
-except ImportError as e:
+except ImportError:
     vmec = None
 
 try:
     from mpi4py import MPI
-except ImportError as e:
+except ImportError:
     MPI = None
 
 if (MPI is not None) and (vmec is not None):
@@ -27,7 +27,6 @@ class TestingAnalytic(unittest.TestCase):
     def test_boozeranalytic(self):
         etabar = 1.1
         B0 = 1.0
-        Bbar = 1.0
         N = 0
         G0 = 1.1
         psi0 = 0.8
@@ -132,8 +131,6 @@ class TestingVmec(unittest.TestCase):
         thetas = np.linspace(0, 2*np.pi, ntheta, endpoint=False)
         zetas = np.linspace(0, 2*np.pi/vmec_sym.wout.nfp, nzeta, endpoint=False)
 
-        dtheta = thetas[1]-thetas[0]
-        dzeta = zetas[1]-zetas[0]
         thetas, zetas = np.meshgrid(thetas, zetas)
         thetas_flat = thetas.flatten()
         zetas_flat = zetas.flatten()
@@ -369,18 +366,18 @@ class TestingVmec(unittest.TestCase):
 
                 # zmns/zmnc on full grid
                 # lmnc/lmns on half grid
-                zmns_full = vmec.wout.zmns[:, 1:]
+                # zmns_full = vmec.wout.zmns[:, 1:]
                 zmns_half = 0.5*(vmec.wout.zmns[:, 0:-1] + vmec.wout.zmns[:, 1::])
-                lmns_full = 0.5*(vmec.wout.lmns[:, 1:-1] + vmec.wout.lmns[:, 2::])
+                # lmns_full = 0.5*(vmec.wout.lmns[:, 1:-1] + vmec.wout.lmns[:, 2::])
                 lmns_half = vmec.wout.lmns[:, 1::]
                 if not bri.stellsym:
-                    lmnc_full = 0.5*(vmec.wout.lmnc[:, 1:-1] + vmec.wout.lmnc[:, 2::])
+                    # lmnc_full = 0.5*(vmec.wout.lmnc[:, 1:-1] + vmec.wout.lmnc[:, 2::])
                     lmnc_half = vmec.wout.lmnc[:, 1::]
-                    zmnc_full = vmec.wout.zmnc[:, 1:-1]
+                    # zmnc_full = vmec.wout.zmnc[:, 1:-1]
                     zmnc_half = 0.5*(vmec.wout.zmnc[:, 0:-1] + vmec.wout.zmnc[:, 1::])
                 else:
-                    lmnc_full = np.zeros_like(lmns_full)
-                    zmnc_full = np.zeros_like(zmns_full)
+                    # lmnc_full = np.zeros_like(lmns_full)
+                    # zmnc_full = np.zeros_like(zmns_full)
                     lmnc_half = np.zeros_like(lmns_half)
                     zmnc_half = np.zeros_like(zmns_half)
 
@@ -607,7 +604,6 @@ class TestingVmec(unittest.TestCase):
         order = 3
         bri = BoozerRadialInterpolant(vmec, order, mpol=5, ntor=5, rescale=True)
 
-        nfp = vmec.wout.nfp
         n = 12
         smin = 0.4
         smax = 0.6
@@ -648,11 +644,11 @@ class TestingVmec(unittest.TestCase):
         modB = bri.modB()
         R = bri.R()
         dRdtheta = bri.dRdtheta()
-        dRdzeta = bri.dRdzeta()
+        # dRdzeta = bri.dRdzeta()
         dRds = bri.dRds()
         Z = bri.Z()
         dZdtheta = bri.dZdtheta()
-        dZdzeta = bri.dZdzeta()
+        # dZdzeta = bri.dZdzeta()
         dZds = bri.dZds()
         dmodBds = bri.dmodBds()
         dmodBdtheta = bri.dmodBdtheta()
@@ -675,11 +671,11 @@ class TestingVmec(unittest.TestCase):
         modBh = bsh.modB()
         Rh = bsh.R()
         dRdthetah = bsh.dRdtheta()
-        dRdzetah = bsh.dRdzeta()
+        # dRdzetah = bsh.dRdzeta()
         dRdsh = bsh.dRds()
         Zh = bsh.Z()
         dZdthetah = bsh.dZdtheta()
-        dZdzetah = bsh.dZdzeta()
+        # dZdzetah = bsh.dZdzeta()
         dZdsh = bsh.dZds()
         nuh = bsh.nu()
         dnudthetah = bsh.dnudtheta()

@@ -3,11 +3,13 @@ import json
 
 import numpy as np
 
+from simsopt.geo import SurfaceXYZTensorFourier
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, LpCurveTorsion
-from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty
+from simsopt.geo.curveobjectives import CurveLength, LpCurveTorsion
+from simsopt.objectives.utilities import MPIObjective, QuadraticPenalty, MPIOptimizable
 from simsopt.geo import parameters
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
+from simsopt._core.util import parallel_loop_bounds
 parameters['jit'] = False
 try:
     from mpi4py import MPI
@@ -61,10 +63,8 @@ class UtilityObjectiveTesting(unittest.TestCase):
         with self.assertRaises(Exception):
             self.subtest_quadratic_penalty(curve, J.J()+0.1, 'NotInList')
 
+    @unittest.skipIf(MPI is None, "mpi4py not found")
     def test_mpi_objective(self):
-        if MPI is None:
-            print("skip test_mpi_objective")
-            return
         comm = MPI.COMM_WORLD
 
         c = self.create_curve()
@@ -84,3 +84,32 @@ class UtilityObjectiveTesting(unittest.TestCase):
             Jmpi1 = MPIObjective(Js1subset, comm, needs_splitting=False)
             assert abs(Jmpi1.J() - sum(J.J() for J in Js)/n) < 1e-14
             assert np.sum(np.abs(Jmpi1.dJ() - sum(J.dJ() for J in Js)/n)) < 1e-14
+
+    @unittest.skipIf(MPI is None, "mpi4py not found")
+    def test_mpi_optimizable(self):
+        """
+        This test checks that the `x` attribute of the surfaces is correctly communicated across the ranks.
+        """
+        
+        comm = MPI.COMM_WORLD
+        for size in [1, 2, 3, 4, 5]:
+            surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(size)]
+       
+            equal_to = []
+            for i in range(size):
+                x = np.zeros(surfaces[i].x.size)
+                x[:] = i
+                equal_to.append(x)
+            
+            startidx, endidx = parallel_loop_bounds(comm, len(surfaces))
+            for idx in range(startidx, endidx):
+                surfaces[idx].x = equal_to[idx]
+
+            mpi_surfaces = MPIOptimizable(surfaces, ["x"], comm)
+            for s, sx in zip(mpi_surfaces, equal_to):
+                np.testing.assert_allclose(s.x, sx, atol=1e-14)
+            
+            # this should raise an exception
+            mpi_surfaces = [SurfaceXYZTensorFourier(mpol=1, ntor=1, stellsym=True) for i in range(size)]
+            with self.assertRaises(Exception):
+                _ = MPIOptimizable(surfaces, ["y"], comm)

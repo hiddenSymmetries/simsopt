@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module contains the :class:`~simsopt.util.mpi.MpiPartition` class.
@@ -11,18 +11,19 @@ mpi4py and numpy, not on any other simsopt components.
 __all__ = ['log', 'MpiPartition']
 
 import logging
-from typing import Union
 import numpy as np
 
 from .._core.dev import SimsoptRequires
 try:
     from mpi4py import MPI
+    comm_world = MPI.COMM_WORLD
 except ImportError:
     MPI = None
+    comm_world = None
 
 STOP = 0
 
-__all__ = ['log', 'MpiPartition']
+__all__ = ['log', 'MpiPartition', 'proc0_print', 'comm_world']
 
 
 def log(level: int = logging.INFO):
@@ -42,6 +43,18 @@ def log(level: int = logging.INFO):
 
 
 logger = logging.getLogger(__name__)
+
+"""
+Print only on MPI process 0. This function works also if MPI is not found.
+"""
+
+
+def proc0_print(*args, **kwargs):
+    if MPI is None:
+        print(*args, **kwargs)
+    else:
+        if MPI.COMM_WORLD.rank == 0:
+            print(*args, **kwargs)
 
 
 @SimsoptRequires(MPI is not None, "mpi4py is not installed")
@@ -77,12 +90,8 @@ class MpiPartition:
     """
 
     def __init__(self,
-                 # ngroups: Union[None, int] = None,
-                 # comm_world: Union[MPI.Intracomm, None] = MPI.COMM_WORLD):
                  ngroups=None,
                  comm_world=None):
-        # if MPI is None:
-        #     raise RuntimeError("MpiPartition class requires the mpi4py package.")
 
         self.is_apart = False
         self.comm_world = comm_world if comm_world is not None else MPI.COMM_WORLD

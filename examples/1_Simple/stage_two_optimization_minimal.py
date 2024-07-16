@@ -31,6 +31,7 @@ from simsopt.geo import SurfaceRZFourier, create_equally_spaced_curves, \
     CurveLength, curves_to_vtk
 from simsopt.field import Current, coils_via_symmetries, BiotSavart
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
+from simsopt.util import in_github_actions
 
 # Number of unique coil shapes, i.e. the number of coils per half field period:
 # (Since the configuration has nfp = 2, multiply by 4 to get the total number of coils.)
@@ -52,8 +53,7 @@ LENGTH_WEIGHT = 1.0
 LENGTH_TARGET = 18.0
 
 # Number of iterations to perform:
-ci = "CI" in os.environ and os.environ['CI'].lower() in ['1', 'true']
-MAXITER = 50 if ci else 300
+MAXITER = 50 if in_github_actions else 300
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -135,7 +135,7 @@ print("""
 """)
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
                options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 5}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + f"curves_opt", close=True)
+curves_to_vtk(curves, OUT_DIR + "curves_opt", close=True)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 

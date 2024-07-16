@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+from monty.tempfile import ScratchDir
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.surfacehenneberg import SurfaceHenneberg
 
@@ -18,11 +19,10 @@ except:
 
 try:
     import vmec
-    vmec_found = True
 except ImportError:
-    vmec_found = False
+    vmec = None
 
-if (MPI is not None) and vmec_found:
+if (MPI is not None) and vmec is not None:
     from simsopt.mhd.vmec import Vmec
 else:
     Vmec = None
@@ -101,12 +101,6 @@ class SurfaceHennebergTests(unittest.TestCase):
         """
         surf = SurfaceHenneberg(nfp=1, alpha_fac=1, mmax=2, nmax=1)
         # Order of elements:
-        names_correct = ['R0nH(0)', 'R0nH(1)',
-                         'Z0nH(1)',
-                         'bn(0)', 'bn(1)',
-                         'rhomn(0,1)',
-                         'rhomn(1,-1)', 'rhomn(1,0)', 'rhomn(1,1)',
-                         'rhomn(2,-1)', 'rhomn(2,0)', 'rhomn(2,1)']
         surf.fixed_range(20, 20, True)
         np.testing.assert_equal(surf.local_dofs_free_status, [False]*12)
         surf.fixed_range(20, 20, False)
@@ -219,39 +213,40 @@ class SurfaceHennebergTests(unittest.TestCase):
         files = ['input.W7-X_standard_configuration', 'input.cfqs_2b40', 'input.NuhrenbergZille_1988_QHS']
         alpha_facs = [1, 1, -1]
 
-        for test_file, alpha_fac in zip(files, alpha_facs):
-            vmec = Vmec(os.path.join(TEST_DIR, test_file))
-            surf1 = vmec.boundary
-            surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
-            # Make sure that the graph framework dofs are sync-ed with
-            # the rc/zs arrays:
-            np.testing.assert_allclose(surf2.x, surf2.get_dofs())
-            self.assertEqual(surf2.num_dofs(), len(surf2.get_dofs()))
-            surf3 = surf2.to_RZFourier()
-            # Make sure that the graph framework dofs are sync-ed with
-            # the rc/zs arrays:
-            np.testing.assert_allclose(surf3.x, surf3.get_dofs())
+        with ScratchDir("."):
+            for test_file, alpha_fac in zip(files, alpha_facs):
+                vmec = Vmec(os.path.join(TEST_DIR, test_file))
+                surf1 = vmec.boundary
+                surf2 = SurfaceHenneberg.from_RZFourier(surf1, alpha_fac)
+                # Make sure that the graph framework dofs are sync-ed with
+                # the rc/zs arrays:
+                np.testing.assert_allclose(surf2.x, surf2.get_dofs())
+                self.assertEqual(surf2.num_dofs(), len(surf2.get_dofs()))
+                surf3 = surf2.to_RZFourier()
+                # Make sure that the graph framework dofs are sync-ed with
+                # the rc/zs arrays:
+                np.testing.assert_allclose(surf3.x, surf3.get_dofs())
 
-            # Test gamma_lin:
-            gamma2 = np.zeros((nlist, 3))
-            gamma3 = np.zeros((nlist, 3))
-            surf2.gamma_lin(gamma2, phi_list, theta_list)
-            surf3.gamma_lin(gamma3, phi_list, theta_list)
-            np.testing.assert_allclose(gamma2, gamma3, atol=1e-13, rtol=1e-13)
+                # Test gamma_lin:
+                gamma2 = np.zeros((nlist, 3))
+                gamma3 = np.zeros((nlist, 3))
+                surf2.gamma_lin(gamma2, phi_list, theta_list)
+                surf3.gamma_lin(gamma3, phi_list, theta_list)
+                np.testing.assert_allclose(gamma2, gamma3, atol=1e-13, rtol=1e-13)
 
-            # Test other surface functions:
-            np.testing.assert_allclose(surf2.gamma(), surf3.gamma(), atol=1e-13, rtol=1e-13)
-            np.testing.assert_allclose(surf2.gammadash2(), surf3.gammadash2(), atol=1e-12, rtol=1e-12)
-            np.testing.assert_allclose(surf2.gammadash1(), surf3.gammadash1(), atol=1e-11, rtol=1e-11)
-            np.testing.assert_allclose(surf1.volume(), surf2.volume(), atol=0, rtol=1e-3)
-            np.testing.assert_allclose(surf1.volume(), surf3.volume(), atol=0, rtol=1e-3)
-            np.testing.assert_allclose(surf1.area(), surf2.area(), atol=0, rtol=1e-3)
-            np.testing.assert_allclose(surf1.area(), surf3.area(), atol=0, rtol=1e-3)
-            surf4 = SurfaceHenneberg.from_RZFourier(surf3, alpha_fac, mmax=surf2.mmax, nmax=surf2.nmax)
-            np.testing.assert_allclose(surf2.R0nH, surf4.R0nH, atol=1e-10, rtol=1e-4)
-            np.testing.assert_allclose(surf2.Z0nH, surf4.Z0nH, atol=1e-12, rtol=1e-4)
-            np.testing.assert_allclose(surf2.bn, surf4.bn, atol=1e-12, rtol=1e-4)
-            np.testing.assert_allclose(surf2.rhomn, surf4.rhomn, atol=1e-8, rtol=1e-4)
+                # Test other surface functions:
+                np.testing.assert_allclose(surf2.gamma(), surf3.gamma(), atol=1e-13, rtol=1e-13)
+                np.testing.assert_allclose(surf2.gammadash2(), surf3.gammadash2(), atol=1e-12, rtol=1e-12)
+                np.testing.assert_allclose(surf2.gammadash1(), surf3.gammadash1(), atol=1e-11, rtol=1e-11)
+                np.testing.assert_allclose(surf1.volume(), surf2.volume(), atol=0, rtol=1e-3)
+                np.testing.assert_allclose(surf1.volume(), surf3.volume(), atol=0, rtol=1e-3)
+                np.testing.assert_allclose(surf1.area(), surf2.area(), atol=0, rtol=1e-3)
+                np.testing.assert_allclose(surf1.area(), surf3.area(), atol=0, rtol=1e-3)
+                surf4 = SurfaceHenneberg.from_RZFourier(surf3, alpha_fac, mmax=surf2.mmax, nmax=surf2.nmax)
+                np.testing.assert_allclose(surf2.R0nH, surf4.R0nH, atol=1e-10, rtol=1e-4)
+                np.testing.assert_allclose(surf2.Z0nH, surf4.Z0nH, atol=1e-12, rtol=1e-4)
+                np.testing.assert_allclose(surf2.bn, surf4.bn, atol=1e-12, rtol=1e-4)
+                np.testing.assert_allclose(surf2.rhomn, surf4.rhomn, atol=1e-8, rtol=1e-4)
 
     @unittest.skipIf(Vmec is None, "Valid Python interface to VMEC not found")
     def test_vmec(self):
@@ -261,22 +256,23 @@ class SurfaceHennebergTests(unittest.TestCase):
         run VMEC again, the rotational transform should be almost
         identical.
         """
-        vmec = Vmec(os.path.join(TEST_DIR, 'input.cfqs_2b40'))
-        vmec.run()
-        iota1 = vmec.wout.iotaf
+        with ScratchDir("."):
+            vmec = Vmec(os.path.join(TEST_DIR, 'input.cfqs_2b40'))
+            vmec.run()
+            iota1 = vmec.wout.iotaf
 
-        vmec.boundary = SurfaceHenneberg.from_RZFourier(vmec.boundary, 1)
-        vmec.need_to_run_code = True
-        vmec.run()
-        iota2 = vmec.wout.iotaf
+            vmec.boundary = SurfaceHenneberg.from_RZFourier(vmec.boundary, 1)
+            vmec.need_to_run_code = True
+            vmec.run()
+            iota2 = vmec.wout.iotaf
 
-        logger.info(f'iota1: {iota1}')
-        logger.info(f'iota2: {iota2}')
-        logger.info(f'diff: {iota1 - iota2}')
-        np.testing.assert_allclose(iota1, iota2, atol=1e-3, rtol=1e-3)
-        # But if the 2 iota profiles are _exactly_ the same, vmec must
-        # not have actually used the converted boundary.
-        self.assertTrue(np.max(np.abs(iota1 - iota2)) > 1e-12)
+            logger.info(f'iota1: {iota1}')
+            logger.info(f'iota2: {iota2}')
+            logger.info(f'diff: {iota1 - iota2}')
+            np.testing.assert_allclose(iota1, iota2, atol=1e-3, rtol=1e-3)
+            # But if the 2 iota profiles are _exactly_ the same, vmec must
+            # not have actually used the converted boundary.
+            self.assertTrue(np.max(np.abs(iota1 - iota2)) > 1e-12)
 
     def test_serialization(self):
         R0 = 1.5

@@ -1,7 +1,9 @@
-import numpy as np
 import logging
 
+import numpy as np
+
 import simsoptpp as sopp
+from .._core.descriptor import Integer
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
@@ -43,6 +45,11 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+    mmin = Integer(max_value=0)
+    mmax = Integer(min_value=1)
+    nfp = Integer()
+    nmin = Integer()
+    nmax = Integer()
 
     def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None,
                  quadpoints_phi=None, quadpoints_theta=None,
@@ -54,10 +61,6 @@ class SurfaceGarabedian(sopp.Surface, Surface):
             raise ValueError("mmin must be >= mmax")
         if nmax < nmin:
             raise ValueError("nmin must be >= nmax")
-        if mmax < 1:
-            raise ValueError("mmax must be >= 1")
-        if mmin > 0:
-            raise ValueError("mmin must be <= 0")
         self.mmin = mmin
         self.mmax = mmax
         self.nmin = nmin

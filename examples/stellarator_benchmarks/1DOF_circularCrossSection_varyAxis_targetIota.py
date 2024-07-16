@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 import os
-from mpi4py import MPI
 import numpy as np
 
 from simsopt.mhd import Vmec
 from simsopt.objectives import LeastSquaresProblem
-from simsopt.util import MpiPartition, log
+from simsopt.util import MpiPartition, log, proc0_print
 from simsopt.solve import least_squares_mpi_solve
 from simsopt.geo import SurfaceGarabedian
 
@@ -26,8 +25,8 @@ Details of the optimum and a plot of the objective function landscape
 can be found here:
 https://github.com/landreman/stellopt_scenarios/tree/master/1DOF_circularCrossSection_varyAxis_targetIota
 """
-print("Running 1DOF_circularCrossSection_varyAxis_targetIota.py")
-print("========================================================")
+proc0_print("Running 1DOF_circularCrossSection_varyAxis_targetIota.py")
+proc0_print("========================================================")
 
 # Print detailed logging info. This line could be commented out if desired.
 log()
@@ -66,14 +65,13 @@ least_squares_mpi_solve(prob, mpi, grad=False)
 
 # Make sure all procs call VMEC:
 objective = prob.objective()
-if mpi.proc0_world:
-    print("At the optimum,")
-    print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
-    print(" iota on axis = ", equil.iota_axis())
-    print(" objective function = ", objective)
+proc0_print("At the optimum,")
+proc0_print(" Delta(m=1,n=-1) = ", surf.get_Delta(1, -1))
+proc0_print(" iota on axis = ", equil.iota_axis())
+proc0_print(" objective function = ", objective)
 
 assert np.abs(surf.get_Delta(1, -1) - 0.08575) < 1.0e-4
 assert np.abs(equil.iota_axis() - desired_iota) < 1.0e-5
 assert prob.objective() < 1.0e-15
-print("End of 1DOF_circularCrossSection_varyAxis_targetIota.py")
-print("========================================================")
+proc0_print("End of 1DOF_circularCrossSection_varyAxis_targetIota.py")
+proc0_print("========================================================")

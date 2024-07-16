@@ -33,33 +33,22 @@ class Testing(unittest.TestCase):
         assert np.allclose(B1, B2)
 
     def test_biotsavart_exponential_convergence(self):
-        coil = BiotSavart([Coil(get_curve(), Current(1e4))])
-        from time import time
-        # points = np.asarray(17 * [[-1.41513202e-03,  8.99999382e-01, -3.14473221e-04 ]])
+        BiotSavart([Coil(get_curve(), Current(1e4))])
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-        tic = time()
         btrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).B()
-        # print(btrue)
         bcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).B()
         bfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).B()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-        # print(time()-tic)
 
-        tic = time()
         dbtrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).dB_by_dX()
-        # print(dbtrue)
         dbcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).dB_by_dX()
         dbfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).dB_by_dX()
-        assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-        # print(time()-tic)
+        assert np.linalg.norm(dbtrue-dbfine) < 1e-4 * np.linalg.norm(dbcoarse-dbfine)
 
-        tic = time()
         dbtrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).d2B_by_dXdX()
-        # print("dbtrue", dbtrue)
         dbcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).d2B_by_dXdX()
         dbfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).d2B_by_dXdX()
-        assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
-        # print(time()-tic)
+        assert np.linalg.norm(dbtrue-dbfine) < 1e-4 * np.linalg.norm(dbcoarse-dbfine)
 
     def test_dB_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
@@ -180,7 +169,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        dB_by_dX, d2B_by_dXdX = bs.dB_by_dX(), bs.d2B_by_dXdX()
+        d2B_by_dXdX = bs.d2B_by_dXdX()
         for d1 in range(3):
             for d2 in range(3):
                 second_deriv = d2B_by_dXdX[idx, d1, d2]
@@ -255,7 +244,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        dA_by_dX, d2A_by_dXdX = bs.dA_by_dX(), bs.d2A_by_dXdX()
+        d2A_by_dXdX = bs.d2A_by_dXdX()
         for d1 in range(3):
             for d2 in range(3):
                 second_deriv = d2A_by_dXdX[idx, d1, d2]
