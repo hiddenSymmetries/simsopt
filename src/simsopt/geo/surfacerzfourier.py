@@ -421,6 +421,73 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
+    
+    def copy(self, **kwargs): 
+        """
+        return a copy of the surfaceRZFourier object, but with the specified
+        attributes changed. 
+        key-worded arguments accepted: 
+            - ntheta: number of quadrature points in the theta direction
+            - nphi: number of quadrature points in the phi direction
+            - mpol: number of poloidal Fourier modes for the surface
+            - ntor: number of toroidal Fourier modes for the surface
+            - nfp: number of field periods
+            - stellsym: whether the surface is stellarator-symmetric
+            - quadpoints_theta: theta grid points
+            - quadpoints_phi: phi grid points
+        
+        
+        """
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        grid_range = kwargs.pop("range", None)
+        mpol = kwargs.pop("mpol", self.mpol)
+        ntor = kwargs.pop("ntor", self.ntor)
+        nfp = kwargs.pop("nfp", self.nfp)
+        stellsym = kwargs.pop("stellsym", self.stellsym)
+        quadpoints_theta = kwargs.pop("quadpoints_theta", None)
+        quadpoints_phi = kwargs.pop("quadpoints_phi", None)
+
+        otherntheta = self.quadpoints_theta.size
+        othernphi = self.quadpoints_phi.size
+        # recalculate the quadpoints if necessary (grid_range is not stored in the
+        # surface object, so assume that if it is given, the gridpoints should be
+        # recalculated to the specified size)
+        if quadpoints_theta is None and quadpoints_phi is None:
+            if ntheta is not otherntheta or nphi is not othernphi or grid_range is not None:
+                kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                    ntheta=ntheta, nphi=nphi, nfp=self.nfp, range=grid_range)
+            else:
+                kwargs["quadpoints_phi"] = self.quadpoints_phi
+                kwargs["quadpoints_theta"] = self.quadpoints_theta
+        elif quadpoints_theta is None:
+            if ntheta is not otherntheta or grid_range is not None:
+                kwargs["quadpoints_theta"] = Surface.get_theta_quadpoints(ntheta, range=grid_range)
+            else:
+                kwargs["quadpoints_theta"] = self.quadpoints_theta
+        elif quadpoints_phi is None:
+            if nphi is not othernphi or grid_range is not None:
+                kwargs["quadpoints_phi"] = Surface.get_phi_quadpoints(nfp, nphi, range=grid_range)
+            else:
+                kwargs["quadpoints_phi"] = self.quadpoints_phi
+        else:
+            kwargs["quadpoints_phi"] = quadpoints_phi
+            kwargs["quadpoints_theta"] = quadpoints_theta
+        # create new surface in old resolution
+        surf = SurfaceRZFourier(mpol=self.mpol, ntor=self.ntor, nfp=nfp, stellsym=stellsym,
+                   **kwargs)
+        surf.rc[:, :] = self.rc
+        surf.zs[:, :] = self.zs
+        if not self.stellsym:
+            surf.rs[:, :] = self.rs
+            surf.zc[:, :] = self.zc
+        # set to the requested resolution
+        surf.change_resolution(mpol, ntor)
+        surf.local_full_x = surf.get_dofs()
+        return surf
+
+
+
 
     def change_resolution(self, mpol, ntor):
         """
