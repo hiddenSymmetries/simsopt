@@ -3,7 +3,7 @@ from scipy.constants import mu_0
 import re
 
 from simsopt._core.optimizable import DOFs, Optimizable
-from simsopt.field import BiotSavart
+from .biotsavart import BiotSavart
 from simsopt.geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveLength,
                          CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature,
                          MeanSquaredCurvature, MeanSquaredCurvature, ArclengthVariation, 
@@ -12,7 +12,7 @@ from simsopt.geo import plot, curves_to_vtk, create_equally_spaced_curves
 from simsopt._core.finite_difference import FiniteDifference
 from simsopt._core import make_optimizable
 from simsopt.objectives import SquaredFlux, QuadraticPenalty 
-from simsopt.field import Coil, coils_via_symmetries, Current, load_coils_from_makegrid_file, coils_to_makegrid
+from .coil import Coil, coils_via_symmetries, Current, load_coils_from_makegrid_file, coils_to_makegrid
        
 __all__ = ['CoilSet', 'ReducedCoilSet']
 

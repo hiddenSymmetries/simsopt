@@ -4,7 +4,7 @@ import numpy as np
 
 from .._core.optimizable import DOFs, Optimizable
 from simsopt.geo import SurfaceRZFourier
-from simsopt.field import CoilSet, ReducedCoilSet
+from .coilset import CoilSet, ReducedCoilSet
 
 logger = logging.getLogger(__name__)
 
@@ -527,7 +527,7 @@ class CoilNormalField(NormalField):
         coilset: The CoilSet object from which to inherit the degrees of freedom        
 
     Properties:
-        computational_boundary: The computational boundary of the SPEC simulation, 
+        surface: The computational boundary of the SPEC simulation, 
         that is managed by the CoilSet. 
         vns/vnc: fourier harmonics of the normal field. 
         This property is cached, and recomputed only when the parents' DOFS (the
@@ -541,22 +541,20 @@ class CoilNormalField(NormalField):
         if coilset is not None:
             self._coilset = coilset
         else:  
-            from simsopt.field import CoilSet
-            surface = SurfaceRZFourier()
-            self._coilset = CoilSet.for_surface(surface)
+            self._coilset = CoilSet()
 
-        self.nfp = self.computational_boundary.nfp
-        self.stellsym = self.computational_boundary.stellsym
-        self.mpol = self.computational_boundary.mpol
-        self.ntor = self.computational_boundary.ntor   
+        self.nfp = self.surface.nfp
+        self.stellsym = self.surface.stellsym
+        self.mpol = self.surface.mpol
+        self.ntor = self.surface.ntor   
         Optimizable.__init__(self, depends_on=[self._coilset])  # call the Optimizable constructor, skip the NormalField constructor
 
     @property
-    def computational_boundary(self): 
+    def surface(self): 
         return self._coilset.surface
     
-    @computational_boundary.setter
-    def computational_boundary(self, boundary):
+    @surface.setter
+    def surface(self, boundary):
         self._coilset.surface = boundary
 
     @classmethod
@@ -567,7 +565,7 @@ class CoilNormalField(NormalField):
         from simsopt.field import CoilSet
         if not spec.freebound:
             raise ValueError('The given SPEC object is not free-boundary')
-        computational_boundary = spec.computational_boundary
+        surface = spec.computational_boundary
         coilset = CoilSet.for_spec_equil(spec, coils_per_period=coils_per_period, current_constraint='fix_all')
         coil_normal_field = cls(coilset=coilset)
         if not optimize_coils:
@@ -581,24 +579,11 @@ class CoilNormalField(NormalField):
 
         return coil_normal_field
     
-    @classmethod
-    def from_saved_coilset(cls, coilset_filename, computational_boundary):
-        """
-        Initialize using a saved CoilSet. 
-        Args: 
-            coilset_filename: The filename of the CoilSet to load
-            computational_boundary: The computational boundary of your SPEC 
-                simulation.
-        """
-        from simsopt.field import CoilSet
-        coilset = CoilSet.from_mgrid_file(coilset_filename, computational_boundary)
-        return cls(coilset=coilset)
-
     @property
     def vns(self):
         if self._vns is None:
-            bnormal = np.sum(self.coilset.bs.B().reshape((self.computational_boundary.quadpoints_phi.size, self.computational_boundary.quadpoints_theta.size, 3)) * self.computational_boundary.normal()*-1, axis=2)
-            Vns, Vnc = self.computational_boundary.fourier_transform_field(bnormal[:, :], normalization=(2*np.pi)**2, stellsym=self.stellsym)
+            bnormal = np.sum(self.coilset.bs.B().reshape((self.surface.quadpoints_phi.size, self.surface.quadpoints_theta.size, 3)) * self.surface.normal()*-1, axis=2)
+            Vns, Vnc = self.surface.fourier_transform_scalar(bnormal[:, :], normalization=(2*np.pi)**2, stellsym=self.stellsym)
             self._vns = Vns
             self._vnc = Vnc
         return self._vns
@@ -610,8 +595,8 @@ class CoilNormalField(NormalField):
     @property
     def vnc(self):
         if self._vnc is None:
-            bnormal = np.sum(self.coilset.bs.B().reshape((self.computational_boundary.quadpoints_phi.size, self.computational_boundary.quadpoints_theta.size, 3)) * self.computational_boundary.normal()*-1, axis=2)
-            Vns, Vnc = self.computational_boundary.fourier_transform_field(bnormal[:, :], normalization=(2*np.pi)**2, stellsym=self.stellsym)
+            bnormal = np.sum(self.coilset.bs.B().reshape((self.surface.quadpoints_phi.size, self.surface.quadpoints_theta.size, 3)) * self.surface.normal()*-1, axis=2)
+            Vns, Vnc = self.surface.fourier_transform_scalar(bnormal[:, :], normalization=(2*np.pi)**2, stellsym=self.stellsym)
             self._vns = Vns
             self._vnc = Vnc
         return self._vnc
@@ -647,9 +632,9 @@ class CoilNormalField(NormalField):
         
         def target_function(coilset): 
             cnf = CoilNormalField(coilset)
-            output = cnf.vns.ravel()[coilset.surface.ntor+1:]
+            output = cnf.vns.ravel()[coilset.surface.ntor+1:] #remove leading zeros
             if not coilset.surface.stellsym:
-                np.append(output, cnf.vnc.ravel()[coilset.surface.ntor:])
+                np.append(output, cnf.vnc.ravel()[coilset.surface.ntor:]) #remove leading zeros
             return np.ravel(output)
         
         reduced_coilset = ReducedCoilSet.from_function(thiscoilset, target_function, nsv=nsv)
@@ -708,7 +693,7 @@ class CoilNormalField(NormalField):
         """
         get the index of the n,m mode in the array
         """
-        index = [m, n - self.ntor]
+        index = [m, self.ntor + n]
         return index
     
     def optimize_coils(self, targetvns, targetvnc=None, TARGET_LENGTH=1000, MAXITER=300):
@@ -729,8 +714,8 @@ class CoilNormalField(NormalField):
         from scipy.optimize import minimize
         if targetvnc is None:
             targtetvnc = np.zeros_like(targetvns)
-        BdotN_unnormalized = self.computational_boundary.inverse_fourier_transform_field(targetvns, targetvnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
-        target = -1 * BdotN_unnormalized / np.linalg.norm(self.computational_boundary.normal(), axis=-1)
+        BdotN_unnormalized = self.surface.inverse_fourier_transform_scalar(targetvns, targetvnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
+        target = -1 * BdotN_unnormalized / np.linalg.norm(self.surface.normal(), axis=-1)
         JF = self.coilset.flux_penalty(target=target)\
             + self.coilset.length_penalty(TOTAL_LENGTH=TARGET_LENGTH, f='max')
         
