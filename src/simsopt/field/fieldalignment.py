@@ -70,7 +70,7 @@ def c_axis_angle_pure(coil, B):
     return angle
 
 
-def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b):
+def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, Bext):
 
     regularization = regularization_rect(a, b)
     tangent, normal, binormal = rotated_centroid_frame(
@@ -83,7 +83,7 @@ def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, cu
     Ic_0 = 1  # 1.3e11,
 
     field = B_regularized_pure(
-        gamma, gammadash, gammadashdash, quadpoints, current, regularization)
+        gamma, gammadash, gammadashdash, quadpoints, current, regularization) + Bext
     B_proj = field - inner(field, tangent)[:, None] * tangent
 
     B_perp = inner(B_proj, normal)
@@ -93,17 +93,17 @@ def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, cu
     return Ic
 
 
-def critical_current(framedcoil, a, b, JANUS=True):
+def critical_current(framedcoil, a, b, Bext, JANUS=True):
     """Critical current on a coil assuming a homogeneous current distribution. Replace with analytical model"""
     Ic = critical_current_pure(framedcoil.curve.curve.gamma(), framedcoil.curve.curve.gammadash(), framedcoil.curve.curve.gammadashdash(
-    ), framedcoil.curve.rotation.alpha(framedcoil.curve.quadpoints), framedcoil.curve.quadpoints, framedcoil.current.current, a, b)
+    ), framedcoil.curve.rotation.alpha(framedcoil.curve.quadpoints), framedcoil.curve.quadpoints, framedcoil.current.current, a, b, Bext)
     return Ic
 
 
-def critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b):
+def critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, Bext):
     Ic0 = 1  # QUESTION: Why is Ic0 equal to 1 here?
     Ic = critical_current_pure(
-        gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b)
+        gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, Bext)
     obj = jnp.sum(jnp.maximum(Ic-Ic0, 0)**2)
     return obj
 
@@ -121,35 +121,36 @@ class CriticalCurrentOpt(Optimizable):
     Args:
     -----
      - framedcoil. simsopt.field.Coil object, where framedcoil.curve is an instance of the simsopt.geo.framedcurve class. The critical current will be evaluated for this coil.
-     - coils (list). List of all other coils in the system
+     - biotsavart_ext. simsopt.field.BiotSavart object. Contains all other coils in the system. Should not include the coil represented by framedcoil.
      - a (float, default: 0.05). Conductor stack width ?
      - b (float, default: 0.05). Conductor stack height ?
     """
 
-    def __init__(self, framedcoil, coils, a=0.05, b=0.05):
+    def __init__(self, framedcoil, biotsavart_ext, a=0.05, b=0.05):
         self.coil = framedcoil
         self.curve = framedcoil.curve
         self.quadpoints = self.coil.curve.curve.quadpoints
-        self.coils = coils
         self.a = a
         self.b = b
-        self.B_ext = BiotSavart(coils).set_points(
-            framedcoil.curve.curve.gamma()).B()
+        self.B_ext = biotsavart_ext
+        self.B_ext.set_points(self.curve.curve.gamma().reshape((-1,3)))
         self.B_self = 0
         self.B = 0
         self.alpha = framedcoil.curve.rotation.alpha(
             framedcoil.curve.quadpoints
             )
         self.quadpoints = framedcoil.curve.quadpoints
-        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, current: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, self.quadpoints, current, self.a, self.b))
+        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, self.quadpoints, current, self.a, self.b, Bext))
 
-        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, alpha, current))
-        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, alpha, current))
-        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, alpha, current))
-        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, alpha, current))
-        self.thisgrad4 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, alpha, current))
+        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, alpha, current, Bext))
+        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, alpha, current, Bext))
+        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, alpha, current, Bext))
+        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, alpha, current, Bext))
+        self.thisgrad4 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, alpha, current, Bext))
+        self.thisgrad5 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=5)(gamma, gammadash, gammadashdash, alpha, current, Bext))
 
         super().__init__(depends_on=[framedcoil])
+        #super().__init__(depends_on=[framedcoil, biotsavart_ext])
 
     def J(self):
         gamma = self.coil.curve.curve.gamma()
@@ -159,8 +160,9 @@ class CriticalCurrentOpt(Optimizable):
         #phidash = self.coil.curve.curve.quadpoints
         alpha = self.coil.curve.rotation.alpha(self.quadpoints)
 
+        Bext = self.B_ext.B()
         #B_ext = self.B_ext
-        return self.J_jax(gamma, d1gamma, d2gamma, alpha, current)
+        return self.J_jax(gamma, d1gamma, d2gamma, alpha, current, Bext)
 
     @derivative_dec
     def dJ(self):
@@ -170,18 +172,24 @@ class CriticalCurrentOpt(Optimizable):
         current = self.coil.current.get_value()
         alpha = self.coil.curve.rotation.alpha(self.quadpoints)
 
-        #B_ext = self.B_ext
+        B_ext = self.B_ext.B()
 
-        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma, alpha, current)
-        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma, alpha, current)
-        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma, alpha, current)
-        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma, alpha, current)
-        #grad4 = self.thisgrad4(gamma, d1gamma, d2gamma, alpha, current)
+        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma, alpha, current, B_ext)
+        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma, alpha, current, B_ext)
+        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma, alpha, current, B_ext)
+        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma, alpha, current, B_ext)
+        #grad4 = self.thisgrad4(gamma, d1gamma, d2gamma, alpha, current, B_ext)
+        #grad5 = self.thisgrad5(gamma, d1gamma, d2gamma, alpha, current, B_ext)
 
-        return self.coil.curve.curve.dgamma_by_dcoeff_vjp(grad0) \
+        out = self.coil.curve.curve.dgamma_by_dcoeff_vjp(grad0) \
             + self.coil.curve.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.coil.curve.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
             + self.coil.curve.rotation.dalpha_by_dcoeff_vjp(self.quadpoints, grad3) \
+            #+ self.B_ext.B_vjp(grad5)
             #+ self.coil.current.vjp(grad4)
+
+
+
+        return out
 
     return_fn_map = {'J': J, 'dJ': dJ}

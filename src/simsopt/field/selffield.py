@@ -16,6 +16,7 @@ from .._core.derivative import derivative_dec
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
+__all__ = ['B_regularized_pure', 'regularization_rect']
 
 def rectangular_xsection_k(a, b):
     """Auxiliary function for field in rectangular conductor"""
