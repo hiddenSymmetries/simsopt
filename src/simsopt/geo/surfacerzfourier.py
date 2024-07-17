@@ -35,6 +35,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
     and the same for :math:`z(\theta, \phi)`.
 
+    Note that the `mpol` in this is different than the `mpol` in VMEC:
+    VMEC uses poloidal mode numbers `m=0, 1, ..., (mpol-1)`,
+    but here we use `m=0, 1, ..., mpol`.
+
     Here, :math:`(r,\phi, z)` are standard cylindrical coordinates, and theta
     is any poloidal angle.
 
@@ -190,7 +194,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             interp = interp1d(s_full_grid, zmnc, kind=interp_kind, axis=0)
             zbc = interp(s)
 
-        mpol = int(np.max(xm))
+        # VMEC only considers poloidal modes up to `m=(mpol-1)`,
+        # but `SurfaceRZFourier` includes `m=mpol`.
+        # Here, `xm` comes from VMEC and `mpol` goes into `SurfaceRZFourier`.
+        mpol = int(np.max(xm)) - 1
         ntor = int(np.max(np.abs(xn)) / nfp)
 
         ntheta = kwargs.pop("ntheta", None)
@@ -640,31 +647,31 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def fourier_transform_scalar(self, scalar, mpol=None, ntor=None, normalization=None, **kwargs):
         r"""
         Compute the Fourier components of a scalar on the surface. The scalar
-        is evaluated at the quadrature points on the surface. 
-        The Fourier uses the conventions of the FourierRZSurface series, 
+        is evaluated at the quadrature points on the surface.
+        The Fourier uses the conventions of the FourierRZSurface series,
         with `npol` going from `-ntor` to `ntor` and `mpol` from 0 to `mpol`
-        i.e.: 
+        i.e.:
         :math:`f(\theta, \phi) = \Sum_{m=0}^{mpol} \Sum_{n=-npol}^{npol} A^{mn}_s \sin(m\theta - n*Nfp*\phi)\\
             + A^{mn}_c \cos(m\theta - n*Nfp*\phi)`
         Where the cosine series is only evaluated if the surface is not stellarator
-        symmetric (if the scalar does not adhere to the symmetry of the surface, 
+        symmetric (if the scalar does not adhere to the symmetry of the surface,
         request the cosine series by setting the kwarg stellsym=False)
-        By default, the poloidal and toroidal resolution are the same as those of the surface, but different quantities can be specified in the kwargs. 
+        By default, the poloidal and toroidal resolution are the same as those of the surface, but different quantities can be specified in the kwargs.
         *Arguments*:
             - scalar: 2D array of shape (numquadpoints_phi, numquadpoints_theta).
             - mpol: maximum poloidal mode number of the transform, if None,
                 the mpol attribute of the surface is used.
-            - ntor: maximum toroidal mode number of the transform if None, 
+            - ntor: maximum toroidal mode number of the transform if None,
                 the ntor attribute of the surface is used.
         *Optional keyword arguments*:
-            - normalization: Fourier transform normalization. Can be: 
+            - normalization: Fourier transform normalization. Can be:
               None: forward and back transform are not normalized
               float: forward transform is divided by this number
-            - stellsym: boolean to override the stellsym attribute 
+            - stellsym: boolean to override the stellsym attribute
                 of the surface if you want to force the calculation of the cosine series
         *Returns*:
             - A_mns: 2D array of shape (mpol+1, 2*ntor+1) containing the sine coefficients
-            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
+            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients
                 (these are zero if the surface is stellarator symmetric)
         """
         assert scalar.shape[0] == self.quadpoints_phi.size, "scalar must be evaluated at the quadrature points on the surface.\n the scalar you passed in has shape {}".format(scalar.shape)
@@ -684,9 +691,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         factor = 2.0 / (ntheta_grid * nphi_grid)
 
         phi2d, theta2d = np.meshgrid(2 * np.pi * self.quadpoints_phi,
-                                     2 * np.pi * self.quadpoints_theta, 
+                                     2 * np.pi * self.quadpoints_theta,
                                      indexing="ij")
-        
+
         for m in range(mpol + 1):
             nmin = -ntor
             if m == 0: nmin = 1
@@ -701,7 +708,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not stellsym:
                     cosangle = np.cos(angle)
                     A_mnc[m, n + ntor] = np.sum(scalar * cosangle * factor2)
-        
+
         if not stellsym:
             A_mnc[0, ntor] = np.sum(scalar) / (ntheta_grid * nphi_grid)
         if normalization is not None:
@@ -723,7 +730,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         symmetric.
         *Arguments*:
             - A_mns: 2D array of shape (mpol+1, 2*ntor+1) containing the sine coefficients
-            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
+            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients
                 (these are zero if the surface is stellarator symmetric)
         *Optional keyword arguments*:
             - normalization: Fourier transform normalization. Can be:
@@ -752,10 +759,10 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                 if not stellsym:
                     cosangle = np.cos(angle)
                     scalars = scalars + A_mnc[m, n + ntor] * cosangle
-        
+
         if not stellsym:
             scalars = scalars + A_mnc[0, ntor]
-        if normalization is not None: 
+        if normalization is not None:
             if not isinstance(normalization, float):
                 raise ValueError("normalization must be a float")
             scalars = scalars * normalization
