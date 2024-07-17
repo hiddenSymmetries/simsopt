@@ -129,6 +129,7 @@ class CriticalCurrentOpt(Optimizable):
     def __init__(self, framedcoil, coils, a=0.05, b=0.05):
         self.coil = framedcoil
         self.curve = framedcoil.curve
+        self.quadpoints = self.coil.curve.curve.quadpoints
         self.coils = coils
         self.a = a
         self.b = b
@@ -137,14 +138,16 @@ class CriticalCurrentOpt(Optimizable):
         self.B_self = 0
         self.B = 0
         self.alpha = framedcoil.curve.rotation.alpha(
-            framedcoil.curve.quadpoints)
+            framedcoil.curve.quadpoints
+            )
         self.quadpoints = framedcoil.curve.quadpoints
-        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
+        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, current: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, self.quadpoints, current, self.a, self.b))
 
-        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b: grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
-        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b: grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
-        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b: grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
-        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b: grad(self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b))
+        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, alpha, current))
+        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, alpha, current))
+        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, alpha, current))
+        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, alpha, current))
+        self.thisgrad4 = jit(lambda gamma, gammadash, gammadashdash, alpha, current: grad(self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, alpha, current))
 
         super().__init__(depends_on=[framedcoil])
 
@@ -153,14 +156,11 @@ class CriticalCurrentOpt(Optimizable):
         d1gamma = self.coil.curve.curve.gammadash()
         d2gamma = self.coil.curve.curve.gammadashdash()
         current = self.coil.current.get_value()
-        phi = self.coil.curve.curve.quadpoints
         #phidash = self.coil.curve.curve.quadpoints
-        alpha = self.coil.curve.rotation.alpha(phi)
-        a = self.a
-        b = self.b
+        alpha = self.coil.curve.rotation.alpha(self.quadpoints)
 
         #B_ext = self.B_ext
-        return self.J_jax(gamma, d1gamma, d2gamma, alpha, phi, current, a, b)
+        return self.J_jax(gamma, d1gamma, d2gamma, alpha, current)
 
     @derivative_dec
     def dJ(self):
@@ -168,25 +168,20 @@ class CriticalCurrentOpt(Optimizable):
         d1gamma = self.coil.curve.curve.gammadash()
         d2gamma = self.coil.curve.curve.gammadashdash()
         current = self.coil.current.get_value()
-        phi = self.coil.curve.quadpoints
-        #phidash = self.coil.curve.quadpoints
-        alpha = self.coil.curve.rotation.alpha(phi)
-        a = self.a
-        b = self.b
+        alpha = self.coil.curve.rotation.alpha(self.quadpoints)
 
         #B_ext = self.B_ext
 
-        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma,
-                               alpha, phi, current, a, b)
-        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma,
-                               alpha, phi, current, a, b)
-        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma,
-                               alpha, phi, current, a, b)
-        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma,
-                               alpha, phi, current, a, b)
+        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma, alpha, current)
+        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma, alpha, current)
+        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma, alpha, current)
+        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma, alpha, current)
+        #grad4 = self.thisgrad4(gamma, d1gamma, d2gamma, alpha, current)
 
-        return self.coil.curve.curve.dgamma_by_dcoeff_vjp(grad0) + self.coil.curve.curve.dgammadash_by_dcoeff_vjp(grad1) \
-            + self.coil.curve.curve.dgammadashdash_by_dcoeff_vjp(
-                grad2) + self.coil.curve.rotation.dalpha_by_dcoeff_vjp(phi, grad3)
+        return self.coil.curve.curve.dgamma_by_dcoeff_vjp(grad0) \
+            + self.coil.curve.curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.coil.curve.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
+            + self.coil.curve.rotation.dalpha_by_dcoeff_vjp(self.quadpoints, grad3) \
+            #+ self.coil.current.vjp(grad4)
 
     return_fn_map = {'J': J, 'dJ': dJ}
