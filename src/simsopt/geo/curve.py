@@ -1561,3 +1561,30 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         #     self.surf: self.dtorsion_by_dsurf_vjp_jax(self.surf.get_dofs(), v)
         #     })
 
+
+    # NORMAL COMPONENTS
+    def zfactor(self):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        return self.snz(cdofs, sdofs)
+    
+    def dzfactor_by_dcoeff_vjp(self, v):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        dndcurve = self.dsnz_by_dcurve_vjp_jax(cdofs, sdofs, v)
+        dndcoef = self.curve2d.dgamma_by_dcoeff_vjp(dndcurve)
+        dndsurf = Derivative({self.surf: self.dsnz_by_dsurf_vjp_jax(cdofs, sdofs, v)})
+        return dndcoef + dndsurf
+    
+    def rfactor(self):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        return self.snr(cdofs, sdofs)
+
+    def drfactor_by_dcoeff_vjp(self, v):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        dndcurve = self.dsnr_by_dcurve_vjp_jax(cdofs, sdofs, v)
+        dndcoef = self.curve2d.dgamma_by_dcoeff_vjp(dndcurve)
+        dndsurf = Derivative({self.surf: self.dsnr_by_dsurf_vjp_jax(cdofs, sdofs, v)})
+        return dndcoef + dndsurf    
