@@ -1533,7 +1533,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
         """
         return Derivative({
-            self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
+            self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), self.surf.get_dofs(), v),
+            self.surf: self.dkappa_by_dsurf_vjp_jax(self.get_dofs(), self.surf.get_dofs(), v)
             })
         # return Derivative({
         #     self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v),
