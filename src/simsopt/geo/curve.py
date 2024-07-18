@@ -1046,7 +1046,7 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor,
 
     return gamma
 
-def normal(gamma2d, surf_dofs, qpts, mpol, ntor, nfp):
+def normal(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp):
     """Returns the unitary vector normal to the surface on a curve that lies on the surface
     
     Args:
@@ -1060,6 +1060,7 @@ def normal(gamma2d, surf_dofs, qpts, mpol, ntor, nfp):
     Returns:
      - n: Nx3 array; unitary normal vector.
     """
+    gamma2d = gamma_2d(curve_dofs, qpts, order, G, H)
     phi = gamma2d[:,0]
     theta = gamma2d[:,1]
 
@@ -1152,7 +1153,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         # We are not doing the same search for x0       
         sopp.Curve.__init__(self, quadpoints)
 
-        Curve.__init__(self, x0=self.get_dofs(), depends_on=[self.surf], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
+        Curve.__init__(self, x0=self.get_dofs(), depends_on=[], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
+        #Curve.__init__(self, x0=self.get_dofs(), depends_on=[self.surf], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
         #super().__init__()
 
         self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf.mpol, self.surf.ntor, self.surf.nfp))
@@ -1246,9 +1248,12 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
     def dgamma_by_dcoeff_vjp(self, v):
         return Derivative({
-            self: self.dgamma_by_dcoeff_vjp_impl(v),
-            self.surf: self.dgamma_by_dsurf_vjp_impl(v)
+            self: self.dgamma_by_dcoeff_vjp_impl(v)
             })
+        #return Derivative({
+        #    self: self.dgamma_by_dcoeff_vjp_impl(v),
+        #    self.surf: self.dgamma_by_dsurf_vjp_impl(v)
+        #    })
     
     def dgamma_by_dcoeff_impl(self, v):
         r"""
@@ -1303,9 +1308,12 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # ==========
     def dgammadash_by_dcoeff_vjp(self, v):
         return Derivative({
-            self: self.dgammadash_by_dcoeff_vjp_impl(v),
-            self.surf: self.dgammadash_by_dsurf_vjp_impl(v)
+            self: self.dgammadash_by_dcoeff_vjp_impl(v)
             })
+        # return Derivative({
+        #     self: self.dgammadash_by_dcoeff_vjp_impl(v),
+        #     self.surf: self.dgammadash_by_dsurf_vjp_impl(v)
+        #     })
     def gammadash_impl(self, v):
         r"""
         This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z coordinates
@@ -1370,9 +1378,12 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # ===============
     def dgammadashdash_by_dcoeff_vjp(self, v):
         return Derivative({
-            self: self.dgammadashdash_by_dcoeff_vjp_impl(v),
-            self.surf: self.dgammadashdash_by_dsurf_vjp_impl(v)
+            self: self.dgammadashdash_by_dcoeff_vjp_impl(v)
             })
+        # return Derivative({
+        #     self: self.dgammadashdash_by_dcoeff_vjp_impl(v),
+        #     self.surf: self.dgammadashdash_by_dsurf_vjp_impl(v)
+        #     })
     
     def gammadashdash_impl(self, v):
         r"""
@@ -1439,9 +1450,12 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # ====================
     def dgammadashdashdash_by_dcoeff_vjp(self, v):
         return Derivative({
-            self: self.dgammadashdashdash_by_dcoeff_vjp_impl(v),
-            self.surf: self.dgammadashdashdash_by_dsurf_vjp_jax_impl(v)
+            self: self.dgammadashdashdash_by_dcoeff_vjp_impl(v)
             })
+        # return Derivative({
+        #     self: self.dgammadashdashdash_by_dcoeff_vjp_impl(v),
+        #     self.surf: self.dgammadashdashdash_by_dsurf_vjp_jax_impl(v)
+        #     })
     
     def gammadashdashdash_impl(self, v):
         r"""
@@ -1519,9 +1533,12 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
         """
         return Derivative({
-            self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v),
-            self.surf: self.dkappa_by_dsurf_vjp_jax(self.surf.get_dofs(), v)
+            self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v)
             })
+        # return Derivative({
+        #     self: self.dkappa_by_dcoeff_vjp_jax(self.get_dofs(), v),
+        #     self.surf: self.dkappa_by_dsurf_vjp_jax(self.surf.get_dofs(), v)
+        #     })
 
     # TORSION
     # =======
@@ -1537,7 +1554,10 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         """
 
         return Derivative({
-            self: self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v),
-            self.surf: self.dtorsion_by_dsurf_vjp_jax(self.surf.get_dofs(), v)
+            self: self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
             })
+        # return Derivative({
+        #     self: self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v),
+        #     self.surf: self.dtorsion_by_dsurf_vjp_jax(self.surf.get_dofs(), v)
+        #     })
 
