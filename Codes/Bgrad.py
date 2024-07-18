@@ -1,6 +1,6 @@
 import numpy as np
 import sympy as sp
-from Bcube__7_1_24 import Pdsym
+from Bcube import Pdsym
 
 
 #FOR CUBE
@@ -55,6 +55,26 @@ def gradr_Bcube(points, magPos, M, phiThetas, dims):
             drH = grad_r_H(r_loc, dims, P)
             dB[n] += mu0 * P.T @ (drH @ M[d]) @ P
     return dB
+
+
+def gradr_gcube(r_loc, n_i_loc, dims):
+    return dH(r_loc,dims) @ n_i_loc #works only because H is always symmetric, dH/dr = dH^T/dr
+
+
+def gradr_Acube(points, magPos, phiThetas, dims):
+    D = len(magPos)
+    N = len(points)
+
+    dA = np.zeros((N,3*D,3))
+    for n in range(N):
+        for d in range(D):
+            P = Pdsym(phiThetas[d,0],phiThetas[d,1])
+            r_loc = P @ (points[n] - magPos[d])
+            n_loc = P @ norms[n]
+            
+            dg = P.T@gradr_gcube(r_loc, n_loc, dims)#P.T to make g global
+            dA[n,3*d : 3*d+3,:] = dg
+    return dA
 
 
 #FOR DIPOLE
