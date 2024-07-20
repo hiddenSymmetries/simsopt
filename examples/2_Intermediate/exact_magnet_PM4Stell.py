@@ -20,7 +20,6 @@ import time
 
 from matplotlib import pyplot as plt
 import numpy as np
-import sympy as sp
 
 
 from simsopt.field import BiotSavart, Coil, ExactField

@@ -625,11 +625,11 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
-        A[:] = cub.Acube(points, self.dipole_grid, norms, self.dims, self.phiThetas)
+        A[:] = sopp.dipole_field_A(points, self.dipole_grid, self.m_vec)
 
     def _dA_by_dX_impl(self, dA):
         points = self.get_points_cart_ref()
-        dA[:] = dcub.gradr_Acube(points, self.dipole_grid, self.phiThetas, self.dims)
+        dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec)
 
     def _dipole_fields_from_symmetries(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1): #what is this and how do I need to change it?
         """
