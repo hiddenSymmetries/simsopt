@@ -50,7 +50,7 @@ class TestCoilSet(unittest.TestCase):
 
     def test_surface_setter_nonstellsym(self):
         # Test the surface setter method
-        new_surface = SurfaceRZFourier(nfp=1, stellsym=False)
+        new_surface = SurfaceRZFourier(nfp=2, stellsym=False)
         self.coilset.surface = new_surface
         self.assertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_FIELD_PERIOD)
     
