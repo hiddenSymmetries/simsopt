@@ -447,6 +447,8 @@ class NormalField(Optimizable):
         
         vns = self.get_vns_asarray(mpol, ntor)
         vnc = self.get_vnc_asarray(mpol, ntor)
+        if vnc is None:
+            vnc = np.zeros_like(vns)
         return vns, vnc
     
     def set_vns_asarray(self, vns, mpol=None, ntor=None):
