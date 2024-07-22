@@ -772,7 +772,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         if not stellsym:
             A_mnc[0, ntor] = np.sum(scalar) / (ntheta_grid * nphi_grid)
         if normalization is not None:
-            if isinstance(normalization, float):
+            if not isinstance(normalization, float):
                 raise ValueError("normalization must be a float")
             A_mns = A_mns / normalization
             A_mnc = A_mnc / normalization
