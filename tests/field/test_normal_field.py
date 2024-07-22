@@ -352,6 +352,7 @@ class CoilNormalFieldTests(unittest.TestCase):
         coil_normal_field = CoilNormalField()
         self.assertIsNotNone(coil_normal_field)
 
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_spec_coil_correspondence_on_converged_output(self):
         # Init from SPEC input file
         with ScratchDir("."):
@@ -396,6 +397,7 @@ class CoilNormalFieldTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             coil_normal_field.set_vns_vnc_asarray(coil_normal_field.vns, coil_normal_field.vnc)
 
+    @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_reduce_coilset(self):
         """
         test if the coilset can be reduced, and
