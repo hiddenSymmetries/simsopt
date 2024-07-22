@@ -80,6 +80,11 @@ class NormalField(Optimizable):
             self,
             x0=dofs,
             names=self._make_names())
+        
+    @property
+    def from_spec(self, *args, **kwargs):
+        raise ValueError('This method is not implemented for NormalField')
+
     
     @property
     def vns(self):
@@ -190,7 +195,7 @@ class NormalField(Optimizable):
                     dofs[ii] = self.vnc[mm, input_ntor+nn]
         return dofs
 
-    def get_index_in_array(self, m, n, mpol=None, ntor=None, even=False):
+    def get_index_in_array(self, m, n, mpol=None, ntor=None):
         """
         Returns position of mode (m,n) in vns or vnc array
 
@@ -213,8 +218,6 @@ class NormalField(Optimizable):
             raise ValueError('n out of bound')
         if m == 0 and n < 0:
             raise ValueError('n has to be positive if m==0')
-        if not even and m == 0 and n == 0:
-            raise ValueError('m=n=0 not supported for odd series')
         
         return [m, n+ntor]
 
@@ -510,7 +513,7 @@ class NormalField(Optimizable):
         provided field on the computational boundary. 
         The returned array will be of size specified by the surfaces'  quadpoints and located on the quadpoints. 
         """
-        vns, vnc = self.get_vns_vnc_asarray(mpol=self.mpol, ntor=self.ntor)
+        vns, vnc = self.get_vns_vnc_asarray()
         BdotN_unnormalized = self.surface.inverse_fourier_transform_scalar(vns, vnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
         normal_field_real_space = -1 * BdotN_unnormalized / np.linalg.norm(self.surface.normal(), axis=-1)
         return normal_field_real_space
@@ -558,26 +561,12 @@ class CoilNormalField(NormalField):
         self._coilset.surface = boundary
 
     @classmethod
-    def from_spec_object(cls, spec, coils_per_period=6, optimize_coils=False, TARGET_LENGTH=1000):
-        """
-        Initialize a CoilNormalField using the simsopt SPEC object's attributes
-        """
-        from simsopt.field import CoilSet
-        if not spec.freebound:
-            raise ValueError('The given SPEC object is not free-boundary')
-        surface = spec.computational_boundary
-        coilset = CoilSet.for_spec_equil(spec, coils_per_period=coils_per_period, current_constraint='fix_all')
-        coil_normal_field = cls(coilset=coilset)
-        if not optimize_coils:
-            print("Good luck with these coils! They are not optimized.")
-            print("To optimize the coils, call coil_normal_field.optimize_coils()")
-            print("rms difference between target and actual normal field: ")
-            print(np.sum(np.sqrt(coil_normal_field.vns**2 - spec.normal_field.get_vns_asarray()**2)))
-            return coil_normal_field
-        else: 
-            coil_normal_field.optimize_coils(spec.normal_field.get_vns_asarray(), spec.normal_field.get_vnc_asarray(), TARGET_LENGTH=TARGET_LENGTH)
-
-        return coil_normal_field
+    def from_spec_object(cls, *args, **kwargs):
+        raise ValueError('Generate the coils separately and pass them to the CoilNormalField constructor')
+    
+    @classmethod
+    def from_spec(cls, *args, **kwargs):
+        raise ValueError('Generate the coils separately and pass them to the CoilNormalField constructor')
     
     @property
     def vns(self):
@@ -589,7 +578,7 @@ class CoilNormalField(NormalField):
         return self._vns
     
     @vns.setter
-    def vns(self):
+    def vns(self, *args, **kwargs):
         raise AttributeError('you cannot set vns, the coils do this!')
 
     @property
@@ -602,7 +591,7 @@ class CoilNormalField(NormalField):
         return self._vnc
     
     @vnc.setter
-    def vnc(self):
+    def vnc(self, *args, **kwargs):
         raise AttributeError('you cannot set vnc, the coils do this!')
     
     @property
@@ -631,13 +620,13 @@ class CoilNormalField(NormalField):
             thiscoilset = self.coilset.coilset
         
         def target_function(coilset): 
-            cnf = CoilNormalField(coilset)
+            cnf = CoilNormalField(coilset) # dummy CoilNormalField to evaluate the vnc and vnc
             output = cnf.vns.ravel()[coilset.surface.ntor+1:] #remove leading zeros
             if not coilset.surface.stellsym:
                 np.append(output, cnf.vnc.ravel()[coilset.surface.ntor:]) #remove leading zeros
             return np.ravel(output)
         
-        reduced_coilset = ReducedCoilSet.from_function(thiscoilset, target_function, nsv=nsv)
+        reduced_coilset = thiscoilset.reduce(target_function, nsv=nsv)
         logger.info(f'CoilNormalField replaced Coilset with ReducedCoilsSet with {reduced_coilset.nsv} singular values')
         logger.debug(f'first right-singular vector: ')
         logger.debug(reduced_coilset.rsv[0])
@@ -651,53 +640,79 @@ class CoilNormalField(NormalField):
 
     def get_vns(self, m, n):
         self.check_mn(m, n)
-        index = self._get_index_in_array(m, n)
-        return self.vns[index]  # calls cache'd getter
+        index = self.get_index_in_array(m, n)
+        return self.vns[index[0], index[1]]  # calls cache'd getter
     
     def get_vnc(self, m, n):
         self.check_mn(m, n)
-        index = self._get_index_in_array(m, n)
-        return self.vnc[index]  # calls cache'd getter
+        index = self.get_index_in_array(m, n)
+        return self.vnc[index[0], index[1]]  # calls cache'd getter
     
-    def set_vns(self):
+    def set_vns(self, *args, **kwargs):
         raise AttributeError('you cannot set vns, the coils do this!')
     
-    def set_vnc(self):
+    def set_vnc(self, *args, **kwargs):
         raise AttributeError('you cannot set vnc, the coils do this!')
     
     def get_vns_asarray(self):
         return self.vns
     
-    def set_vns_asarray(self):
+    def set_vns_asarray(self, *args, **kwargs):
         raise AttributeError('you cannot set vns, the coils do this!')
     
     def get_vnc_asarray(self):
         return self.vnc
     
-    def set_vnc_asarray(self):
+    def set_vnc_asarray(self, *args, **kwargs):
         raise AttributeError('you cannot set vnc, the coils do this!')
     
     def get_vns_vnc_asarray(self):
         return self.vns, self.vnc
     
-    def set_vns_vnc_asarray(self):
+    def set_vns_vnc_asarray(self, *args, **kwargs):
         raise AttributeError('you cannot set fourier components, the coils do this!')
     
-    def change_resolution(self, mpol, ntor):
+    def change_resolution(self, *args, **kwargs):
         raise NotImplementedError('CoilNormalField.change_resolution() not implemented')
     
-    def fixed_range(self, mmin, mmax, nmin, nmax, fixed=True):
-        raise ValueError('no sense in fixing anython in a CoilNormalField')
+    def fixed_range(self, *args, **kwargs):
+        raise ValueError('no sense in fixing anything in a CoilNormalField')
 
-    def _get_index_in_array(self, m, n):
+    def get_index_in_array(self, m, n, mpol=None, ntor=None):
         """
-        get the index of the n,m mode in the array
+        Returns position of mode (m,n) in vns or vnc array
+
+        Args:
+        - m: poloidal mode number
+        - n: toroidal mode number (normalized by Nfp)
+        - mpol: resolution of dofs array. If None (by default), use self.mpol
+        - ntor: resolution of dofs array. If None (by default), use self.ntor
+        - even: set to True to get vnc. Default is False
         """
-        index = [m, self.ntor + n]
-        return index
+
+        if mpol is None:
+            mpol = self.mpol
+        if ntor is None:
+            ntor = self.ntor
+
+        if m < 0 or m > mpol:
+            raise ValueError('m out of bound')
+        if abs(n) > ntor:
+            raise ValueError('n out of bound')
+        if m == 0 and n < 0:
+            raise ValueError('n has to be positive if m==0')
+        
+        return [m, n+ntor]
+    
+    def get_dofs(self, *args, **kwargs):
+        raise ValueError('CoilNormalField does not have its own degrees of freedom')
+    
+    def get_index_in_dofs(self, *args, **kwargs):
+        raise ValueError('CoilNormalField does not have its own degrees of freedom')
     
     def optimize_coils(self, targetvns, targetvnc=None, TARGET_LENGTH=1000, MAXITER=300):
         r"""
+        Simple convenience function to 
         optimize the coils to match the target vns and vnc using a FOCUS-style algorithm.
 
         Uses the simplest FOCUS optimization consisting of only

@@ -60,7 +60,7 @@ class CoilSet(Optimizable):
         if base_coils is not None:
             self._base_coils = base_coils
             if coils is None:
-                coils = coils_via_symmetries([coil.curve for coil in base_coils], [coil.current for coil in base_coils], nfp=self._surface.nfp, stellsym=self._surface.stellsym)
+                self.coils = coils_via_symmetries([coil.curve for coil in base_coils], [coil.current for coil in base_coils], nfp=self._surface.nfp, stellsym=self._surface.stellsym)
             else: 
                 self.coils = coils
         else:
