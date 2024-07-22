@@ -1,12 +1,10 @@
 import numpy as np
-from scipy.constants import mu_0
 import re
 
 from simsopt._core.optimizable import DOFs, Optimizable
 from .biotsavart import BiotSavart
-from simsopt.geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveLength,
-                         CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature,
-                         MeanSquaredCurvature, MeanSquaredCurvature, ArclengthVariation, 
+from simsopt.geo import (SurfaceRZFourier, Surface, CurveXYZFourier, CurveCurveDistance, CurveSurfaceDistance, LpCurveCurvature,
+                         MeanSquaredCurvature, ArclengthVariation, 
                          CurveLength)
 from simsopt.geo import plot, curves_to_vtk, create_equally_spaced_curves
 from simsopt._core.finite_difference import FiniteDifference

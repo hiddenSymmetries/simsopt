@@ -4,7 +4,7 @@ import numpy as np
 
 from .._core.optimizable import DOFs, Optimizable
 from simsopt.geo import SurfaceRZFourier
-from .coilset import CoilSet, ReducedCoilSet
+from .coilset import CoilSet
 
 logger = logging.getLogger(__name__)
 
@@ -80,11 +80,6 @@ class NormalField(Optimizable):
             self,
             x0=dofs,
             names=self._make_names())
-        
-    @property
-    def from_spec(self, *args, **kwargs):
-        raise ValueError('This method is not implemented for NormalField')
-
     
     @property
     def vns(self):
@@ -432,7 +427,7 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        vnc = self.vns
+        vnc = self.vnc
 
         return vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
     
@@ -628,7 +623,7 @@ class CoilNormalField(NormalField):
         
         reduced_coilset = thiscoilset.reduce(target_function, nsv=nsv)
         logger.info(f'CoilNormalField replaced Coilset with ReducedCoilsSet with {reduced_coilset.nsv} singular values')
-        logger.debug(f'first right-singular vector: ')
+        logger.debug('first right-singular vector: ')
         logger.debug(reduced_coilset.rsv[0])
         logger.debug('singular values: ')
         logger.debug(reduced_coilset._s_diag)
@@ -725,10 +720,12 @@ class CoilNormalField(NormalField):
                 (mpol+1)x(2ntor+1). Ignored if stellsym if True. 
             TARGET_LENGTH: The target length of the coils. Default is 1000. 
             MAXITER: The maximum number of iterations. Default is 1000.
+        returns:
+            res: the result object from scipy.optimize.minimize
         """
         from scipy.optimize import minimize
         if targetvnc is None:
-            targtetvnc = np.zeros_like(targetvns)
+            targetvnc = np.zeros_like(targetvns)
         BdotN_unnormalized = self.surface.inverse_fourier_transform_scalar(targetvns, targetvnc, normalization=(2*np.pi)**2, stellsym=self.stellsym)
         target = -1 * BdotN_unnormalized / np.linalg.norm(self.surface.normal(), axis=-1)
         JF = self.coilset.flux_penalty(target=target)\
@@ -744,4 +741,5 @@ class CoilNormalField(NormalField):
                        options={'maxiter': MAXITER, 'maxcor': 300, 'iprint': 5}, tol=1e-15)
         print(f'the maximum difference between coil Vns and target Vns is: {np.max(np.abs(self.vns-targetvns))}')
         print(f'The root mean squared difference between the Vns produced by the coils and the target is: {np.sqrt(np.mean((self.vns-targetvns)**2))}')
+        return res
 

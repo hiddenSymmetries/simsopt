@@ -1,7 +1,7 @@
 import unittest
 import os
 from simsopt.field.coilset import CoilSet, ReducedCoilSet
-from simsopt.field.coil import Coil, load_coils_from_makegrid_file
+from simsopt.field.coil import Coil
 from simsopt.geo import SurfaceRZFourier, CurveLength
 from simsopt.configs import get_ncsx_data
 import numpy as np
@@ -25,7 +25,6 @@ class TestCoilSet(unittest.TestCase):
         ppp = 10
         with ScratchDir("."):
             self.coilset.to_makegrid_file("coils.file_to_load")
-            loaded_coils = load_coils_from_makegrid_file("coils.file_to_load", order=order, ppp=ppp)
             loaded_coilset = CoilSet.from_makegrid_file("coils.file_to_load", self.coilset.surface, order=order, ppp=ppp)
         
         np.random.seed(1)
@@ -55,7 +54,7 @@ class TestCoilSet(unittest.TestCase):
         self.coilset.surface = new_surface
         self.assertEqual(self.coilset.surface.deduced_range, SurfaceRZFourier.RANGE_FIELD_PERIOD)
     
-    def test_surface_setter_nonstellsym(self):
+    def test_surface_setter_stellsym(self):
         # Test the surface setter method
         new_surface = SurfaceRZFourier(nfp=1, stellsym=True)
         self.coilset.surface = new_surface
