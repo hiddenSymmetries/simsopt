@@ -428,6 +428,8 @@ class NormalField(Optimizable):
             raise ValueError('ntor out of bound')
 
         vnc = self.vnc
+        if vnc is None:
+            vnc = np.zeros((mpol, 2*ntor+1))
 
         return vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
     
