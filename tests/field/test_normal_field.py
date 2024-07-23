@@ -355,7 +355,7 @@ class CoilNormalFieldTests(unittest.TestCase):
     @unittest.skipIf(py_spec is None, "py_spec not found")
     def test_spec_coil_correspondence_on_converged_output(self):
         # Init from SPEC input file
-        with ScratchDir("."):
+        with ScratchDir(TEST_DIR):
             filespec = os.path.join(TEST_DIR, "M16N08.sp")
             spec = Spec(filespec)
             filecoils = os.path.join(TEST_DIR, "coils.M16N08")
@@ -402,7 +402,7 @@ class CoilNormalFieldTests(unittest.TestCase):
         """
         test if the coilset can be reduced, and
         if the"""
-        with ScratchDir("."):
+        with ScratchDir(TEST_DIR):
             spec = Spec.default_freeboundary(copy_to_pwd=True)
             spec.need_to_run_code = False
             base_curves = CoilSet._circlecurves_around_surface(
