@@ -64,7 +64,7 @@ class CoilSet(Optimizable):
         else:
             if coils is not None:
                 raise ValueError("If base_coils is None, coils must be None as well")
-            base_curves = self._circlecurves_around_surface(self._surface, nfp=self._surface.nfp, coils_per_period=10)
+            base_curves = self._circlecurves_around_surface(self._surface, coils_per_period=10)
             base_currents = [Current(1e5) for _ in base_curves]
             # fix the currents on the default coilset
             for current in base_currents: 
@@ -101,7 +101,7 @@ class CoilSet(Optimizable):
         """
         if nfp is None:
             nfp = surf.nfp
-        base_curves = CoilSet._circlecurves_around_surface(surf, coils_per_period=coils_per_period, nfp=nfp, **kwargs)
+        base_curves = CoilSet._circlecurves_around_surface(surf, coils_per_period=coils_per_period, **kwargs)
         base_currents = [Current(coil_current) for _ in base_curves]
         if current_constraint == "fix_one":
             base_currents[0].fix_all()
@@ -132,49 +132,6 @@ class CoilSet(Optimizable):
                           [coil.current for coil in self.coils], 
                           nfp=1)
 
-
-    @classmethod
-    def for_spec_equil(cls, spec, coils_per_period=5, current_constraint="fix_all", **kwargs):
-        """
-        Create a CoilSet for a given SPEC equilibrium. The coils are created using
-        :obj:`create_equally_spaced_curves` with the given parameters.
-
-        Args:
-            spec: The SPEC object for which to create the coils
-            coils_per_period: the number of coils per field period
-            nfp: The number of field periods.
-            current_constraint: "fix_one" or "fix_all" or "free_all" 
-
-        Keyword Args (passed to the create_equally_spaced_curves function)
-            coils_per_period: The number of coils per field period
-            order: The order of the Fourier expansion
-            R0: major radius of a torus on which the initial coils are placed
-            R1: The radius of the coils
-            factor: if R0 or R1 are None, they are factor times 
-                    the first sine/cosine coefficient (factor > 1)
-            use_stellsym: Whether to use stellarator symmetry
-        """
-        nfp = spec.nfp
-        use_stellsym = spec.stellsym
-        total_current = spec.poloidal_current_amperes
-        total_coil_number = coils_per_period * nfp * (1 + int(use_stellsym))  # only coils for half-period
-        if spec.freebound: 
-            surface = spec.computational_boundary
-        else: 
-            surface = spec.boundary
-        base_curves = CoilSet._circlecurves_around_surface(surface, coils_per_period=coils_per_period, nfp=nfp, use_stellsym=use_stellsym, **kwargs)
-        base_currents = [Current(total_current/total_coil_number) for _ in base_curves]
-        if current_constraint == "fix_one":
-            base_currents[0].fix_all()
-        elif current_constraint == "fix_all":
-            [base_current.fix_all() for base_current in base_currents]
-        elif current_constraint == "free_all":
-            pass
-        else:
-            raise ValueError("current_constraint must be 'fix_one', 'fix_all' or 'free_all'")
-        base_coils = [Coil(curv, curr) for (curv, curr) in zip(base_curves, base_currents)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, stellsym=True)
-        return cls(base_coils, coils, surface)
     
     def reduce(self, target_function, nsv='nonzero'):
         """
@@ -228,16 +185,13 @@ class CoilSet(Optimizable):
             self.append_parent(coilparent)
     
     @staticmethod
-    def _circlecurves_around_surface(surf, nfp=None, coils_per_period=4, order=6, R0=None, R1=None, use_stellsym=None, factor=2.):
+    def _circlecurves_around_surface(surf, coils_per_period=4, order=6, R0=None, R1=None, use_stellsym=None, factor=2.):
         """
         return a set of base curves for a surface using the surfaces properties where possible
         """
+        nfp = surf.nfp
         if use_stellsym is None:
             use_stellsym = surf.stellsym
-        if nfp is None:
-            nfp = surf.nfp
-        elif nfp != surf.nfp:
-            raise ValueError("nfp must equal surf.nfp")
         if R0 is None:
             R0 = surf.to_RZFourier().get_rc(0, 0) 
         if R1 is None:
@@ -460,6 +414,8 @@ class ReducedCoilSet(CoilSet):
             raise ValueError("If any of [s_diag, u_matrix, vh_matrix] are None, all must be None")
 
         if s_diag is None: 
+            if nsv > coilset.dof_size:
+                raise ValueError("nsv must be equal to or smaller than the coilset's number of DOFs if initializing with None")
             s_diag = np.ones(nsv)
             u_matrix = np.eye(nsv)
             vh_matrix = np.eye(nsv)
@@ -500,8 +456,6 @@ class ReducedCoilSet(CoilSet):
         u_matrix, s_diag, vh_matrix = np.linalg.svd(jaccers)
         if nsv == 'nonzero':
             nsv = len(s_diag)
-        else: 
-            assert isinstance(nsv, int), "nsv must be an integer or 'nonzero'"
         return cls(coilset, nsv, s_diag, u_matrix, vh_matrix, target_function)
     
     def recalculate_reduced_basis(self, target_function=None):
@@ -634,53 +588,56 @@ class ReducedCoilSet(CoilSet):
             show_delta_B: whether to show the change in the magnetic field
             engine: the plotting engine to use. Defaults to 'mayavi'
         """
-        from mayavi import mlab
-        if n > self.nsv:
-            raise ValueError("n must be smaller than the number of singular values")
-        singular_vector = np.array(self.rsv[n])
+        if engine == 'mayavi':
+            from mayavi import mlab
+            if n > self.nsv:
+                raise ValueError("n must be smaller than the number of singular values")
+            singular_vector = np.array(self.rsv[n])
 
-        plotsurf = self.surface.copy(range=SurfaceRZFourier.RANGE_FULL_TORUS)
-        if show_delta_B:
-            bs = self.bs
-            initial_points = self.bs.get_points_cart_ref()
-            bs.set_points(plotsurf.gamma().reshape((-1, 3)))
+            plotsurf = self.surface.copy(range=SurfaceRZFourier.RANGE_FULL_TORUS)
+            if show_delta_B:
+                bs = self.bs
+                initial_points = self.bs.get_points_cart_ref()
+                bs.set_points(plotsurf.gamma().reshape((-1, 3)))
 
-        current_x = np.copy(self.x)
-        startpositions = [np.copy(coil.curve.gamma()) for coil in self.coilset.coils]
-        plot(self.coilset.coils, close=True, engine='mayavi',tube_radius=0.02, color=(0, 0, 0), show=False, **kwargs)
-        if show_delta_B:
-            startB = np.copy(np.sum(bs.B().reshape((plotsurf.quadpoints_phi.size, plotsurf.quadpoints_theta.size, 3)) * plotsurf.unitnormal()*-1, axis=2))
-            startB = np.concatenate((startB, startB[:1, :]), axis=0)
-            startB = np.concatenate((startB, startB[:, :1]), axis=1)
-        
-        # Perturb the coils by the singular vector
-        self.coilset.x = self.coilset.x + singular_vector*eps
-        newpositions = [np.copy(coil.curve.gamma()) for coil in self.coilset.coils]
-        if show_delta_B:
-            changedB = np.copy(np.sum(bs.B().reshape((plotsurf.quadpoints_phi.size, plotsurf.quadpoints_theta.size, 3)) * plotsurf.unitnormal()*-1, axis=2))
-            # close the plot
-            changedB = np.concatenate((changedB, changedB[:1, :]), axis=0)
-            changedB = np.concatenate((changedB, changedB[:, :1]), axis=1)
-        # plot the displacement vectors
-        for newcoilpos, startcoilpos in zip(newpositions, startpositions):
-            diffs = (0.05/eps) * (startcoilpos - newcoilpos)
-            x = startcoilpos[:, 0]
-            y = startcoilpos[:, 1]
-            z = startcoilpos[:, 2]
-            # enlarge the difference vectors for better visibility
-            dx = diffs[:, 0]
-            dy = diffs[:, 1]
-            dz = diffs[:, 2]
-            mlab.quiver3d(x, y, z, dx, dy, dz, line_width=4, **kwargs)
-        
-        if show_delta_B:
-            plot([plotsurf,], engine='mayavi', wireframe=False, close=True, scalars=changedB-startB, colormap='Reds', show=False, **kwargs)
+            current_x = np.copy(self.x)
+            startpositions = [np.copy(coil.curve.gamma()) for coil in self.coilset.coils]
+            plot(self.coilset.coils, close=True, engine='mayavi',tube_radius=0.02, color=(0, 0, 0), show=False, **kwargs)
+            if show_delta_B:
+                startB = np.copy(np.sum(bs.B().reshape((plotsurf.quadpoints_phi.size, plotsurf.quadpoints_theta.size, 3)) * plotsurf.unitnormal()*-1, axis=2))
+                startB = np.concatenate((startB, startB[:1, :]), axis=0)
+                startB = np.concatenate((startB, startB[:, :1]), axis=1)
+            
+            # Perturb the coils by the singular vector
+            self.coilset.x = self.coilset.x + singular_vector*eps
+            newpositions = [np.copy(coil.curve.gamma()) for coil in self.coilset.coils]
+            if show_delta_B:
+                changedB = np.copy(np.sum(bs.B().reshape((plotsurf.quadpoints_phi.size, plotsurf.quadpoints_theta.size, 3)) * plotsurf.unitnormal()*-1, axis=2))
+                # close the plot
+                changedB = np.concatenate((changedB, changedB[:1, :]), axis=0)
+                changedB = np.concatenate((changedB, changedB[:, :1]), axis=1)
+            # plot the displacement vectors
+            for newcoilpos, startcoilpos in zip(newpositions, startpositions):
+                diffs = (0.05/eps) * (startcoilpos - newcoilpos)
+                x = startcoilpos[:, 0]
+                y = startcoilpos[:, 1]
+                z = startcoilpos[:, 2]
+                # enlarge the difference vectors for better visibility
+                dx = diffs[:, 0]
+                dy = diffs[:, 1]
+                dz = diffs[:, 2]
+                mlab.quiver3d(x, y, z, dx, dy, dz, line_width=4, **kwargs)
+            
+            if show_delta_B:
+                plot([plotsurf,], engine='mayavi', wireframe=False, close=True, scalars=changedB-startB, colormap='Reds', show=False, **kwargs)
+            else:
+                plot([plotsurf,], engine='mayavi', wireframe=False, close=True, colormap='Reds', show=False, **kwargs)
+            # plot the original coils again
+            self.x = current_x
+            plot(self.coilset.coils, close=True, tube_radius=0.02, engine='mayavi', color=(1, 1, 1), show=show, **kwargs)
+            # set bs set points back
+            if show_delta_B:
+                bs.set_points(initial_points)
+            return changedB, startB
         else:
-            plot([plotsurf,], engine='mayavi', wireframe=False, close=True, colormap='Reds', show=False, **kwargs)
-        # plot the original coils again
-        self.x = current_x
-        plot(self.coilset.coils, close=True, tube_radius=0.02, engine='mayavi', color=(1, 1, 1), show=show, **kwargs)
-        # set bs set points back
-        if show_delta_B:
-            bs.set_points(initial_points)
-        return changedB, startB
+            raise ValueError("plotting a ReducedCoilSet is only implemented in Mayavi. you can access and plot the surface and coils attributes directly.")

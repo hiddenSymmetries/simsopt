@@ -449,8 +449,6 @@ class NormalField(Optimizable):
         
         vns = self.get_vns_asarray(mpol, ntor)
         vnc = self.get_vnc_asarray(mpol, ntor)
-        if vnc is None:
-            vnc = np.zeros_like(vns)
         return vns, vnc
     
     def set_vns_asarray(self, vns, mpol=None, ntor=None):
@@ -622,7 +620,7 @@ class CoilNormalField(NormalField):
             cnf = CoilNormalField(coilset) # dummy CoilNormalField to evaluate the vnc and vnc
             output = cnf.vns.ravel()[coilset.surface.ntor+1:] #remove leading zeros
             if not coilset.surface.stellsym:
-                np.append(output, cnf.vnc.ravel()[coilset.surface.ntor:]) #remove leading zeros
+                output = np.append(output, cnf.vnc.ravel()[coilset.surface.ntor:]) #remove leading zeros
             return np.ravel(output)
         
         reduced_coilset = thiscoilset.reduce(target_function, nsv=nsv)
@@ -672,7 +670,7 @@ class CoilNormalField(NormalField):
         raise AttributeError('you cannot set fourier components, the coils do this!')
     
     def change_resolution(self, *args, **kwargs):
-        raise NotImplementedError('CoilNormalField.change_resolution() not implemented')
+        raise ValueError('CoilNormalField has no resolution, change parameters in its coilset')
     
     def fixed_range(self, *args, **kwargs):
         raise ValueError('no sense in fixing anything in a CoilNormalField')

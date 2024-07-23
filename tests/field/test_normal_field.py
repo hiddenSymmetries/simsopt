@@ -435,7 +435,7 @@ class CoilNormalFieldTests(unittest.TestCase):
             epsilon = 1e-5
             initial_vns = np.copy(cnf.vns)
             dofs = np.zeros(cnf.dof_size)
-            dofs[0] = 1e-5
+            dofs[0] = epsilon
             cnf.x = dofs
             vnsdiff = initial_vns - cnf.vns
             vnsdiff_unraveled = vnsdiff.ravel()[
@@ -465,6 +465,8 @@ class CoilNormalFieldTests(unittest.TestCase):
             cnf.get_index_in_dofs()
         with self.assertRaises(ValueError):
             cnf.fixed_range()
+        with self.assertRaises(ValueError):
+            cnf.change_resolution()
         
             
     def test_real_space_field(self):
@@ -479,7 +481,108 @@ class CoilNormalFieldTests(unittest.TestCase):
         thetasize, phisize = cnf.surface.quadpoints_theta.size, cnf.surface.quadpoints_phi.size
         directly_evaluated = np.copy(np.sum(cnf.coilset.bs.B().reshape(phisize, thetasize, 3) * cnf.surface.unitnormal(), axis=2))  #evaluate the field on the surface
         np.testing.assert_allclose(real_space_field, directly_evaluated, atol=1e-3)
+
+    def test_cache_vns(self):
+        cnf = CoilNormalField()
+        self.assertIsNone(cnf._vns)
+        tmp = cnf.vns
+        np.testing.assert_equal(cnf._vns, tmp)
+        self.assertIsNotNone(cnf._vnc)
     
+    def test_cache_vnc(self):
+        cnf = CoilNormalField()
+        self.assertIsNone(cnf._vnc)
+        tmp = cnf.vnc
+        np.testing.assert_equal(cnf._vnc, tmp)
+        self.assertIsNotNone(cnf._vns)
+
+    def test_nonstellsym_reduce(self):
+        """
+        nonstellaratorsymmetric fields have both vns and vnc components on the field
+        and a different function is used to reduce the coilset. 
+        This test ensures that the reduction works for non-stellaratorsymmetric fields
+        """
+        surface = SurfaceRZFourier(nfp=2, stellsym=False, mpol=6, ntor=6)
+        base_curves = CoilSet._circlecurves_around_surface(
+            surface, coils_per_period=2, order=4
+        )
+        base_coils = [Coil(curve, Current(1e5)) for curve in base_curves]
+        coilset = CoilSet(base_coils=base_coils, surface=surface)
+        cnf = CoilNormalField(coilset)
+        cnf.reduce_coilset()
+            
+        initial_vns = np.copy(cnf.vns)
+        initial_vnc = np.copy(cnf.vnc)
+
+        epsilon = 1e-5
+        dofs = np.zeros(cnf.dof_size); dofs[0] = epsilon; cnf.x = dofs
+
+        vnsdiff = initial_vns - cnf.vns
+        vncdiff = initial_vnc - cnf.vnc
+
+        diff_unraveled = np.concatenate(
+            (vnsdiff.ravel()[
+                cnf.coilset.surface.ntor + 1:
+            ], 
+            vncdiff.ravel()[
+                cnf.coilset.surface.ntor:
+                ]
+            )
+            )
+        np.testing.assert_allclose(
+            cnf.coilset.lsv[0],
+            -1*diff_unraveled / (epsilon * cnf.coilset.singular_values[0]),
+            atol=1e-4,
+        )
+    
+    def test_vns_vnc_asarray(self):
+        cnf = CoilNormalField()
+        vns = cnf.get_vns_asarray()
+        vnc = cnf.get_vnc_asarray()
+        self.assertIsNotNone(vns)
+        self.assertIsNotNone(vnc)
+
+    def test_wrong_index(self):
+        """
+        test if accessing a wrong m or n raises an error
+        """
+        surface = SurfaceRZFourier(nfp=3, stellsym=False, mpol=3, ntor=2)
+        base_curves = CoilSet._circlecurves_around_surface(
+            surface, coils_per_period=2, order=4
+        )
+        base_coils = [Coil(curve, Current(1e5)) for curve in base_curves]
+        coilset = CoilSet(base_coils=base_coils, surface=surface)
+        cnf = CoilNormalField(coilset)
+        with self.assertRaises(ValueError):
+            cnf.get_index_in_array(m=4, n=1)
+        with self.assertRaises(ValueError):
+            cnf.get_index_in_array(m=1, n=3)
+        with self.assertRaises(ValueError):
+            cnf.get_index_in_array(m=0, n=-1)
+        with self.assertRaises(ValueError):
+            cnf.get_index_in_array(m=3, n=-3)
+        with self.assertRaises(ValueError):
+            cnf.get_index_in_array(m=4, n=-3)
+    
+    def test_double_reduction(self):
+        """
+        test if reducing a coilset twice works
+        """
+        surface = SurfaceRZFourier(nfp=2, stellsym=False, mpol=6, ntor=6)
+        base_curves = CoilSet._circlecurves_around_surface(
+            surface, coils_per_period=2, order=4
+        )
+        base_coils = [Coil(curve, Current(1e5)) for curve in base_curves]
+        coilset = CoilSet(base_coils=base_coils, surface=surface)
+        cnf = CoilNormalField(coilset)
+        cnf.reduce_coilset()
+        num1 = int(cnf.dof_names[0][14]) # grab 'ReducedCoilSet*N* from first dof name
+        cnf.reduce_coilset()
+        num2 = int(cnf.dof_names[0][14]) # grab 'ReducedCoilSet*N* from first dof name
+        self.assertEqual(num2-num1, 1) # Coilset sucessfully replaced
+    
+        
+
 
 
 

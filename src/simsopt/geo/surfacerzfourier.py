@@ -460,19 +460,21 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             else:
                 kwargs["quadpoints_phi"] = self.quadpoints_phi
                 kwargs["quadpoints_theta"] = self.quadpoints_theta
-        elif quadpoints_theta is None:
-            if ntheta is not otherntheta or grid_range is not None:
-                kwargs["quadpoints_theta"] = Surface.get_theta_quadpoints(ntheta, range=grid_range)
-            else:
-                kwargs["quadpoints_theta"] = self.quadpoints_theta
-        elif quadpoints_phi is None:
-            if nphi is not othernphi or grid_range is not None:
-                kwargs["quadpoints_phi"] = Surface.get_phi_quadpoints(nfp, nphi, range=grid_range)
-            else:
-                kwargs["quadpoints_phi"] = self.quadpoints_phi
         else:
-            kwargs["quadpoints_phi"] = quadpoints_phi
-            kwargs["quadpoints_theta"] = quadpoints_theta
+            if quadpoints_theta is None:
+                if ntheta is not otherntheta or grid_range is not None:
+                    kwargs["quadpoints_theta"] = Surface.get_theta_quadpoints(ntheta)
+                else:
+                    kwargs["quadpoints_theta"] = self.quadpoints_theta
+            else:
+                kwargs["quadpoints_theta"] = quadpoints_theta
+            if quadpoints_phi is None:
+                if nphi is not othernphi or grid_range is not None:
+                    kwargs["quadpoints_phi"] = Surface.get_phi_quadpoints(nphi, range=grid_range, nfp=nfp)
+                else:
+                    kwargs["quadpoints_phi"] = self.quadpoints_phi
+            else:
+                kwargs["quadpoints_phi"] = quadpoints_phi
         # create new surface in old resolution
         surf = SurfaceRZFourier(mpol=self.mpol, ntor=self.ntor, nfp=nfp, stellsym=stellsym,
                    **kwargs)

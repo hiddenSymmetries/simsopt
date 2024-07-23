@@ -771,6 +771,24 @@ class SurfaceRZFourierTests(unittest.TestCase):
         # Check that the result is the same as the original field:
         np.testing.assert_allclose(field/2*np.pi**2, field2)
 
+    def test_copy_method(self):
+        s = SurfaceRZFourier(mpol=4, ntor=5, nfp=3)
+        s2 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'))
+        self.assertEqual(len(s2.quadpoints_phi), 100)
+        s3 = s.copy(quadpoints_theta=Surface.get_theta_quadpoints(ntheta=50))
+        self.assertEqual(len(s3.quadpoints_theta), 50)
+        s4 = s.copy(ntheta = 42)
+        self.assertEqual(len(s4.quadpoints_theta), 42)
+        s5 = s.copy(nphi = 17)
+        self.assertEqual(len(s5.quadpoints_phi), 17)
+        s6 = s.copy(range='field period')
+        self.assertEqual(s6.deduced_range, Surface.RANGE_FIELD_PERIOD)
+        s7 = s.copy(nfp=10)
+        self.assertEqual(s7.nfp, 10)
+        s8 = s.copy(mpol=5, ntor=6)
+        self.assertEqual(s8.mpol, 5)
+        self.assertEqual(s8.ntor, 6)
+
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
         """
