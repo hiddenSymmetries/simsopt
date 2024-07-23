@@ -131,4 +131,6 @@ class PSCCurve(CurvePlanarFourier):
         ddelta = np.hstack((np.zeros(2 * self.order + 1), ddelta_total))
         ddelta = np.hstack((ddelta, np.zeros(3)))
         deriv = dalpha + ddelta
+        # print(deriv, v_current)
+        # exit()
         return deriv * v_current[0]

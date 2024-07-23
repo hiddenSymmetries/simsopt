@@ -306,11 +306,48 @@ class PSC_BiotSavart(BiotSavart):
         self.npsc = psc_array.num_psc
         curves = [self.psc_array.curves[i] for i in range(self.npsc)]
         currents = [Current(self.psc_array.I[i] * 1e-5) * 1e5 for i in range(self.npsc)]
-        self.curves = curves
         [currents[i].fix_all() for i in range(self.npsc)]
-        self.currents = currents
-        coils = psc_coils_via_symmetries(self.curves, self.currents, psc_array.nfp, psc_array.stellsym)
+        # self.currents = currents
+        coils = psc_coils_via_symmetries(curves, currents, psc_array.nfp, psc_array.stellsym)
         BiotSavart.__init__(self, coils)
+
+    def set_currents(self):
+        from simsopt.field import coils_via_symmetries, Current, psc_coils_via_symmetries
+        # print([self._coils[i].current.get_value() for i in range(self.npsc)])
+        order = self._coils[0].curve.order 
+        dofs = np.array([self._coils[i].curve.get_dofs() for i in range(self.npsc)])
+        dofs = dofs[:, 2 * order + 1:2 * order + 5]
+        normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
+        dofs = dofs / normalization[:, None]
+        alphas1 = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+                            1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+        deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
+            np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+            np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+        self.psc_array.setup_orientations(alphas1, deltas1)
+        self.psc_array.update_psi()
+        self.psc_array.setup_currents_and_fields()
+        self.psc_array.psi_deriv()
+        psi = self.psc_array.psi / self.psc_array.fac
+        Linv = self.psc_array.L_inv[:self.psc_array.num_psc, :self.psc_array.num_psc] # / psc_array.fac
+        I = (-Linv @ psi)
+        for i in range(self.npsc):
+            self._coils[i]._current.unfix_all()
+            self._coils[i]._current.x = [I[i] * 1e-5]
+            self._coils[i]._current.fix_all()
+            # self._coils[i].current.set('x0', self.psc_array.I[i])
+            # self.currents[i].set('x0', self.psc_array.I[i])
+        # print([self._coils[i].current.get_value() for i in range(self.npsc)])
+        # print([self._coils[i].current.get_value() for i in range(self.npsc)])
+        # currents = [Current(self.psc_array.I[i] * 1e-5) * 1e5 for i in range(self.npsc)]
+        # for i in range(self.npsc):
+        #     self._coils[i].current = self.currents[i]
+        # [currents[i].fix_all() for i in range(self.npsc)]
+        # curves = [self.psc_array.curves[i] for i in range(self.npsc)]
+        # curves = [self.psc_array.curves[i] for i in range(self.npsc)]
+        # curves = [self._coils[i].curve for i in range(self.npsc)]
+        # coils = psc_coils_via_symmetries(curves, currents, self.psc_array.nfp, self.psc_array.stellsym)
+        # BiotSavart.__init__(self, coils)
 
     def B_vjp(self, v):
         r"""
@@ -343,29 +380,21 @@ class PSC_BiotSavart(BiotSavart):
         if np.any(curve_flags):
             order = coils[0].curve.order 
             ndofs = 2 * order + 8
-            dofs = np.array([self.curves[i].get_dofs() for i in range(self.npsc)])
-            dofs = dofs[:, 2 * order + 1:2 * order + 5]
-            normalization = np.sqrt(np.sum(dofs ** 2, axis=-1))
-            dofs = dofs / normalization[:, None]
-            alphas1 = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
-                                1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
-            deltas1 = -np.pi / 2.0 + 2.0 * np.arctan2(
-                np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
-                np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
-            self.psc_array.setup_orientations(alphas1, deltas1)
-            self.psc_array.update_psi()
-            self.psc_array.setup_currents_and_fields()
-            self.psc_array.psi_deriv()
             dI = np.zeros((len(coils), ndofs))
             q = 0
+            print(self.psc_array.nfp)
             for fp in range(self.psc_array.nfp):
                 for stell in self.psc_array.stell_list:
                     for i in range(self.npsc):
                         dI[i, :] += coils[i + q * self.npsc].curve.dkappa_dcoef_vjp(
-                            [res_current[i + q * self.npsc]], self.psc_array.dpsi) * stell
+                            [res_current[i + q * self.npsc]], self.psc_array.dpsi)  
+                        # print(i, dI[i, :])
+                        
                     q += 1
             Linv = self.psc_array.L_inv
-            dI = - Linv @ dI
+            dI = (- Linv @ dI)   #/ (self.psc_array.nfp * len(self.psc_array.stell_list))      
+            self.dI = dI[:, 2*order+1:2*order+5]
+            # print('dI = ', dI[:, 2*order+1:2*order+5])
             return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], dI[i, :]) for i in range(len(coils))])
         else:
             return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], res_current[i]) for i in range(len(coils))])

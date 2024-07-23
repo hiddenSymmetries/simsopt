@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
 from matplotlib import pyplot as plt
-from simsopt.field import BiotSavart, Current, coils_via_symmetries, apply_symmetries_to_curves
+from simsopt.field import BiotSavart, PSC_BiotSavart, Current, coils_via_symmetries, apply_symmetries_to_curves
 from simsopt.geo import SurfaceRZFourier, curves_to_vtk
 from simsopt.geo.psc_grid import PSCgrid
 from simsopt.objectives import SquaredFlux
@@ -169,11 +169,11 @@ def coil_optimization_PSC(s, bs, bpsc):
     print(Btot.dof_names)
     # print([bpsc._coils[j]._current.get_value() for j in range(len(bpsc._coils))])
 
-    pscs = bpsc._coils[0]._curve._psc_array
+    # pscs = bpsc._coils[0]._curve._psc_array
     # pscs.update_psi()
     # pscs.setup_currents_and_fields()
     # pscs.psi_deriv()
-    Jf = SquaredFlux(s, Btot)
+    Jf = SquaredFlux(s, bpsc)  # Btot
     B_axis = calculate_on_axis_B(bs, s, print_out=False)
     axis_norm = (B_axis * s.area())
     axis_norm2 = (B_axis ** 2 * s.area())
@@ -183,10 +183,11 @@ def coil_optimization_PSC(s, bs, bpsc):
     print('Jf initial = ', Jf.J() / (B_axis ** 2 * s.area()))
     # Don't need other terms until let the coils move around
     JF = Jf 
-    print(bpsc._coils[0]._curve.gamma()[-1, :], bpsc._coils[0]._current.get_value())
+    # print(bpsc._coils[0]._curve.gamma()[-1, :], bpsc._coils[0]._current.get_value())
 
     def fun(dofs):
         """ Function for coil optimization grabbed from stage_two_optimization.py """
+        print(bpsc._coils[-5].curve.gamma()[0, -1], bpsc._coils[-4].current.get_value())
         JF.x = dofs
         # print(dofs)
         # exit()
@@ -194,25 +195,27 @@ def coil_optimization_PSC(s, bs, bpsc):
         # print(JF.dof_names)
         # Get the dofs for the PSCs, convert to alphas and deltas, and update the coils
         # print(dofs, dofs.shape)
-        dofs = dofs.reshape(-1, 4)
-        dofs = dofs / np.sqrt(np.sum(dofs ** 2, axis=-1))[:, None]  # normalize the quaternion
-        # print(dofs, np.sqrt(np.sum(dofs ** 2, axis=-1)), dofs.shape)
-        alphas = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
-                            1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
-        deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
-            np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
-            np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
-        # print('a, d = ', np.max(np.abs(alphas)), np.max(np.abs(deltas)))
-        print(bpsc._coils[1]._curve.gamma()[-1, :], bpsc._coils[1]._current.get_value())
-        pscs = bpsc._coils[0]._curve._psc_array
-        pscs.setup_orientations(alphas, deltas)
-        pscs.update_psi()
-        pscs.setup_currents_and_fields()
-        pscs.psi_deriv()
-        pscs.setup_curves()
+        # dofs = dofs.reshape(-1, 4)
+        # dofs = dofs / np.sqrt(np.sum(dofs ** 2, axis=-1))[:, None]  # normalize the quaternion
+        # # print(dofs, np.sqrt(np.sum(dofs ** 2, axis=-1)), dofs.shape)
+        # alphas = np.arctan2(2 * (dofs[:, 0] * dofs[:, 1] + dofs[:, 2] * dofs[:, 3]), 
+        #                     1 - 2.0 * (dofs[:, 1] ** 2 + dofs[:, 2] ** 2))
+        # deltas = -np.pi / 2.0 + 2.0 * np.arctan2(
+        #     np.sqrt(1.0 + 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])), 
+        #     np.sqrt(1.0 - 2 * (dofs[:, 0] * dofs[:, 2] - dofs[:, 1] * dofs[:, 3])))
+        # # print('a, d = ', np.max(np.abs(alphas)), np.max(np.abs(deltas)))
+        # print(bpsc._coils[1]._curve.gamma()[-1, :], bpsc._coils[1]._current.get_value())
+        # pscs = bpsc._coils[0]._curve._psc_array
+        # pscs.setup_orientations(alphas, deltas)
+        # pscs.update_psi()
+        # pscs.setup_currents_and_fields()
+        # pscs.psi_deriv()
+        # pscs.setup_curves()
+        bpsc.set_currents()
         J = JF.J()
         grad = JF.dJ()
-        print(bpsc._coils[1]._curve.gamma()[-1, :], bpsc._coils[1]._current.get_value())
+        print(JF.field._coils[-5].curve.gamma()[0, -1], JF.field._coils[-4].current.get_value())
+        # print(bpsc._coils[1]._curve.gamma()[-1, :], bpsc._coils[1]._current.get_value())
         # print('grad = ', grad, grad.shape)
         # BdotN = np.mean(np.abs(np.sum(Btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
         # bs.set_points(s.gamma().reshape(-1, 3))
@@ -248,11 +251,11 @@ def coil_optimization_PSC(s, bs, bpsc):
 
     J0, dJ0 = f(dofs)
     dJh = sum(dJ0 * h)
-    print(dofs, dJ0, dJ0.shape, h)
-    for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+    # print(dofs, dJ0, dJ0.shape, h)
+    for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
         J1, _ = f(dofs + eps*h)
         J2, _ = f(dofs - eps*h)
-        print("err", (J1-J2)/(2*eps) - dJh, (J1-J2)/(2*eps), dJh)
+        print("err", J1, J2, (J1-J2)/(2*eps) - dJh, (J1-J2)/(2*eps), dJh)
 
     print("""
     ################################################################################
@@ -267,7 +270,7 @@ def coil_optimization_PSC(s, bs, bpsc):
     return bs
 
 np.random.seed(1)  # set a seed so that the same PSCs are initialized each time
-nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
 ntheta = nphi
 # Make higher resolution surface for plotting Bnormal
 qphi = nphi * 2
@@ -376,20 +379,28 @@ B_axis = calculate_on_axis_B(bs, s)
 make_Bnormal_plots(bs, s_plot, out_dir, "BTF_0", B_axis)
 
 # Finally, initialize the psc class
-kwargs_geo = {"Nx": 7, "out_dir": out_str,
+kwargs_geo = {"Nx": 8, "out_dir": out_str,
                 "initialization": "plasma", 
               "poff": poff,}
 
 psc_array = PSCgrid.geo_setup_between_toroidal_surfaces(
     s, coils, s_inner, s_outer,  **kwargs_geo
 )
+
+# ncoils = psc_array.num_psc
+# kwargs_manual = {"plasma_boundary": s}
+# alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+# deltas = (np.random.rand(ncoils) - 0.5) * np.pi
+# psc_array = PSCgrid.geo_setup_manual(
+#     psc_array.grid_xyz, R=psc_array.R, a=psc_array.a, alphas=alphas, deltas=deltas, **kwargs_manual
+#     )
 # psc_array.I = np.ones(len(psc_array.I)) * 1e7
 
 print('Number of PSC locations = ', len(psc_array.grid_xyz))
 
 # Plot initial errors from only the PSCs, and then together with the TF coils
-make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
-make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "B_0", B_axis)
+# make_Bnormal_plots(psc_array.B_PSC, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)
+# make_Bnormal_plots(bs + psc_array.B_PSC, s_plot, out_dir, "B_0", B_axis)
 
 # Check SquaredFlux values using different ways to calculate it
 x0 = np.ravel(np.array([psc_array.alphas, psc_array.deltas]))
@@ -406,8 +417,8 @@ print('fB only TF direct = ', np.sum(Bnormal.reshape(-1) ** 2 * psc_array.grid_n
 # )
 from simsopt.field import PSCCoil 
 
-all_coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
-bpsc = BiotSavart(all_coils)
+# all_coils = [PSCCoil(curv, curr) for (curv, curr) in zip(psc_array.all_curves, psc_array.all_currents)]
+bpsc = PSC_BiotSavart(psc_array)
 bpsc.set_points(s.gamma().reshape((-1, 3)))
 
 make_Bnormal_plots(bpsc, s_plot, out_dir, "biot_savart_PSC_initial", B_axis)

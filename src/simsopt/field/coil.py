@@ -62,7 +62,7 @@ class PSCCoil(sopp.Coil, Optimizable):
     def vjp(self, v_gamma, v_gammadash, v_current):
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
-            # + Derivative({self.curve: v_current})
+            + Derivative({self.curve: v_current})
 
     def plot(self, **kwargs):
         """
@@ -255,7 +255,7 @@ def psc_coils_via_symmetries(curves, currents, nfp, stellsym):
     curves = apply_symmetries_to_psc_curves(curves, nfp, stellsym)
     # [currents[i].fix_all() for i in range(len(currents))]
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
-    coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
+    coils = [PSCCoil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
 

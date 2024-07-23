@@ -288,16 +288,16 @@ class PSCgrid:
         inds = []
         eps = 1e-3
         remove_inds = []
-        # for i in range(psc_grid.nfp):
-        #     conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-        #     if len(conflicts) > 0:
-        #         inds.append(conflicts[0])
-        # if len(inds) > 0:
-        #     print('bad indices = ', inds)
-        #     raise ValueError('The PSC coils are initialized such that they may intersect with '
-        #                      'a discrete symmetry plane, preventing the proper symmetrization '
-        #                      'of the coils under stellarator and field-period symmetries. '
-        #                      'Please reinitialize the coils.')
+        for i in range(psc_grid.nfp):
+            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+            if len(conflicts) > 0:
+                inds.append(conflicts[0])
+        if len(inds) > 0:
+            print('bad indices = ', inds)
+            raise ValueError('The PSC coils are initialized such that they may intersect with '
+                             'a discrete symmetry plane, preventing the proper symmetrization '
+                             'of the coils under stellarator and field-period symmetries. '
+                             'Please reinitialize the coils.')
         for i in range(psc_grid.grid_xyz.shape[0]):
             for j in range(i + 1, psc_grid.grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
@@ -593,11 +593,11 @@ class PSCgrid:
         # generate planar TF coils
         coils_TF = kwargs.pop("coils_TF", None)
         if coils_TF is None:
-            ncoils = 4
-            R0 = 1.4
+            ncoils = 1
+            R0 = 3.4
             R1 = 0.9
-            order = 4
-            total_current = 1e7
+            order = 2
+            total_current = 1e8
             base_curves = create_equally_spaced_curves(
                 ncoils, psc_grid.plasma_boundary.nfp, 
                 stellsym=psc_grid.plasma_boundary.stellsym, 
@@ -629,16 +629,16 @@ class PSCgrid:
         inds = []
         eps = 5e-2
         remove_inds = []
-        # for i in range(psc_grid.nfp):
-        #     conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
-        #     if len(conflicts) > 0:
-        #         inds.append(conflicts[0])
-        # if len(inds) > 0:
-        #     print('bad indices = ', inds)
-        #     raise ValueError('The PSC coils are initialized such that they may intersect with '
-        #                       'a discrete symmetry plane, preventing the proper symmetrization '
-        #                       'of the coils under stellarator and field-period symmetries. '
-        #                       'Please reinitialize the coils.')
+        for i in range(psc_grid.nfp):
+            conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+            if len(conflicts) > 0:
+                inds.append(conflicts[0])
+        if len(inds) > 0:
+            print('bad indices = ', inds)
+            raise ValueError('The PSC coils are initialized such that they may intersect with '
+                              'a discrete symmetry plane, preventing the proper symmetrization '
+                              'of the coils under stellarator and field-period symmetries. '
+                              'Please reinitialize the coils.')
         for i in range(psc_grid.grid_xyz.shape[0]):
             for j in range(i + 1, psc_grid.grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((psc_grid.grid_xyz[i, :] - psc_grid.grid_xyz[j, :]) ** 2))
@@ -810,7 +810,7 @@ class PSCgrid:
         # if hasattr(self, 'I'):
         #     'do nothing'
         # else:
-        self.I = -self.L_inv[:self.num_psc, :] @ self.psi_total / self.fac
+        self.I = (-self.L_inv[:self.num_psc, :] @ self.psi_total) / self.fac
         
         # q = 0
         # for fp in range(self.nfp):
@@ -1253,7 +1253,7 @@ class PSCgrid:
         for fp in range(self.nfp):
             for stell in self.stell_list:
                 dpsi = sopp.dpsi_dkappa(
-                    contig(self.I_TF),
+                    contig(self.I_TF * 1e-6),
                     contig(self.dl_TF),
                     contig(self.gamma_TF),
                     contig(self.grid_xyz_all[q * nn: (q + 1) * nn, :]),
@@ -1268,7 +1268,7 @@ class PSCgrid:
                 psi_deriv[:nn] += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
                 psi_deriv[nn:] += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 q += 1
-        self.dpsi = psi_deriv * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)  # Factors because TF fields get overcounted
+        self.dpsi = psi_deriv * 1e6 * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)  # Factors because TF fields get overcounted
         return self.dpsi
     
     def setup_orientations(self, alphas, deltas):
@@ -1350,20 +1350,20 @@ class PSCgrid:
         self.B_TF.set_points(contig(self.flux_grid))
         N = len(self.quad_points_rho)
         # # Update the flux values through the newly rotated coils
-        self.psi_total = sopp.psi_check(
-                    contig(self.I_TF),
-                    contig(self.dl_TF),
-                    contig(self.gamma_TF),
-                    contig(self.grid_xyz_all),
-                    contig(self.alphas_total),
-                    contig(self.deltas_total),
-                    contig(self.coil_normals_all),
-                    contig(self.quad_points_rho),
-                    contig(self.quad_points_phi),
-                    self.quad_weights,
-                    self.R,
-                ) 
-        self.psi_total *=  (1.0 / self.gamma_TF.shape[1]) * 1e-7 / self.nfp / (self.stellsym + 1.0)
+        # self.psi_total = sopp.psi_check(
+        #             contig(self.I_TF),
+        #             contig(self.dl_TF),
+        #             contig(self.gamma_TF),
+        #             contig(self.grid_xyz_all),
+        #             contig(self.alphas_total),
+        #             contig(self.deltas_total),
+        #             contig(self.coil_normals_all),
+        #             contig(self.quad_points_rho),
+        #             contig(self.quad_points_phi),
+        #             self.quad_weights,
+        #             self.R,
+        #         ) 
+        # self.psi_total *=  (1.0 / self.gamma_TF.shape[1]) * 1e-7 / self.nfp / (self.stellsym + 1.0)
         
         self.psi_total = sopp.flux_integration(
             contig(self.B_TF.B().reshape(len(self.alphas_total), N, N, 3)),
