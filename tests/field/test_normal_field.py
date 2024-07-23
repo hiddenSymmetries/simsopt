@@ -3,11 +3,11 @@ import unittest
 import logging
 
 import numpy as np
+from monty.tempfile import ScratchDir
 
 from simsopt._core.util import DofLengthMismatchError
 from simsopt.field import NormalField, CoilNormalField, CoilSet, Coil, Current
 from simsopt.mhd import Spec
-from monty.tempfile import ScratchDir
 from simsopt.geo import SurfaceRZFourier
 
 try:
