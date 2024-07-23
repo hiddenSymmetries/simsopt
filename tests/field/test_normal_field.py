@@ -1,6 +1,7 @@
 import os
 import unittest
 import logging
+import re
 
 import numpy as np
 from monty.tempfile import ScratchDir
@@ -576,9 +577,9 @@ class CoilNormalFieldTests(unittest.TestCase):
         coilset = CoilSet(base_coils=base_coils, surface=surface)
         cnf = CoilNormalField(coilset)
         cnf.reduce_coilset()
-        num1 = int(cnf.dof_names[0][14]) # grab 'ReducedCoilSet*N* from first dof name
+        num1 = int(re.search(r'\d+', cnf.dof_names[0]).group()) # grab 'ReducedCoilSet*N* from first dof name
         cnf.reduce_coilset()
-        num2 = int(cnf.dof_names[0][14]) # grab 'ReducedCoilSet*N* from first dof name
+        num2 = int(re.search(r'\d+', cnf.dof_names[0]).group()) # grab 'ReducedCoilSet*N* from first dof name
         self.assertEqual(num2-num1, 1) # Coilset sucessfully replaced
     
         
