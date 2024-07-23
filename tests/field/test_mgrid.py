@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
 import unittest
-import os
 from pathlib import Path
 from monty.tempfile import ScratchDir
-import tempfile
 import numpy as np
 from scipy.io import netcdf_file
 
