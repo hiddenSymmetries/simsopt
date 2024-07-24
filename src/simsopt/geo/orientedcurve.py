@@ -142,4 +142,19 @@ class OrientedCurveXYZFourier( JaxCurve ):
             for j in range(0, self.order):
                 dofs_name += [f'{c}s({j+1})', f'{c}c({j+1})']
         return xyc_name + ypr_name + dofs_name
+    
+    @classmethod
+    def from_curvexyzfourier(cls, xyzcurve):
+        oriented_curve = cls(xyzcurve.quadpoints, xyzcurve.order)
+
+        for dname in xyzcurve.local_full_dof_names:
+            if dname in ['xc(0)', 'yc(0)', 'zc(0)']:
+                continue
+            oriented_curve.set(dname, xyzcurve.get(dname))
+
+        oriented_curve.set('x0', xyzcurve.get('xc(0)'))
+        oriented_curve.set('y0', xyzcurve.get('yc(0)'))
+        oriented_curve.set('z0', xyzcurve.get('zc(0)'))
+
+        return oriented_curve
 

@@ -635,6 +635,12 @@ class RotatedCurve(sopp.Curve, Curve):
                  [0, 0, -1]])
         self.rotmatT = self.rotmat.T.copy()
 
+    def change_curve(self, new_curve):
+        if isinstance(self.curve, RotatedCurve):
+            self.curve.change_curve(new_curve)
+        else:
+            self.curve = new_curve
+
     def get_dofs(self):
         """
         RotatedCurve does not have any dofs of its own.
