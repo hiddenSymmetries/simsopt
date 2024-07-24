@@ -330,7 +330,7 @@ class PSC_BiotSavart(BiotSavart):
         self.psc_array.psi_deriv()
         psi = self.psc_array.psi / self.psc_array.fac
         Linv = self.psc_array.L_inv[:self.psc_array.num_psc, :self.psc_array.num_psc] # / psc_array.fac
-        I = (-Linv @ psi)
+        I = (-self.psc_array.L_inv @ self.psc_array.psi_total) / self.psc_array.fac
         for i in range(self.npsc):
             self._coils[i]._current.unfix_all()
             self._coils[i]._current.x = [I[i] * 1e-5]
@@ -382,18 +382,16 @@ class PSC_BiotSavart(BiotSavart):
             ndofs = 2 * order + 8
             dI = np.zeros((len(coils), ndofs))
             q = 0
-            print(self.psc_array.nfp)
             for fp in range(self.psc_array.nfp):
                 for stell in self.psc_array.stell_list:
                     for i in range(self.npsc):
                         dI[i, :] += coils[i + q * self.npsc].curve.dkappa_dcoef_vjp(
-                            [res_current[i + q * self.npsc]], self.psc_array.dpsi)  
-                        # print(i, dI[i, :])
+                            [res_current[i + q * self.npsc]], self.psc_array.dpsi) / (self.psc_array.nfp * len(self.psc_array.stell_list))      
                         
                     q += 1
+            self.dpsi_debug = dI[:, 2*order+1:2*order+5]
             Linv = self.psc_array.L_inv
-            dI = (- Linv @ dI)   #/ (self.psc_array.nfp * len(self.psc_array.stell_list))      
-            self.dI = dI[:, 2*order+1:2*order+5]
+            dI = (- Linv @ dI)   
             # print('dI = ', dI[:, 2*order+1:2*order+5])
             return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], dI[i, :]) for i in range(len(coils))])
         else:

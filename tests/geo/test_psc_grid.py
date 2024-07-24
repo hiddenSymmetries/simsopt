@@ -441,18 +441,35 @@ class Testing(unittest.TestCase):
                     eye[i] = 1.0
                     dnormalization[:, i, j] = eye * normalization[j] - dofs_unnormalized[j, :] * dofs_unnormalized[j, i] * normalization3[j]
             # print('dnorm = ', dnormalization)
-            dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-            dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
-                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
-            dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
-                (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
-            dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+
+            def deuler_dquaternion():
+                dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
                 (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-            ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-            ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-            ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-            ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+                dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+                    (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+                dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+                    (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+                dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+                    (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+                ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+                ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+                ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+                ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+                return dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz, ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz
+        
+            dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz, ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz = deuler_dquaternion()
+            # dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
+            # (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            # dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
+            #     (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            # dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
+            #     (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
+            # dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
+            #     (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
+            # ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            # ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            # ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
+            # ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
             dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]).T
             ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]).T
             dI_diff = []
@@ -805,70 +822,87 @@ class Testing(unittest.TestCase):
             plt.grid()
             # plt.show()
         R = 0.1
-        for ncoils in [4]:  #, 5, 6, 7, 8, 11]:
+        for ncoils in [4]:  #, 5, 6, 7, 8, 11
             plt.figure(ncoils + 1)
             points = (np.random.rand(ncoils, 3) + 0.2) * 5
             points[:, -1] = 0.4
             alphas = (np.random.rand(ncoils) - 0.5) * 2 * np.pi
             deltas = (np.random.rand(ncoils) - 0.5) * np.pi
             h = np.random.uniform(size=(ncoils, 10))
-            for ii, surf in enumerate([surf1]):
-                kwargs_manual = {"plasma_boundary": surf}
-                psc_array = PSCgrid.geo_setup_manual(
-                    points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
-                    )
-                L1 = psc_array.L
-                psc_array.psi_deriv()
-                # print(psc_array.I)
-                curves = [psc_array.curves[i] for i in range(len(psc_array.curves))]
-                dofs_orig = np.array([curves[i].get_dofs() for i in range(len(curves))])
-                dofs = dofs_orig[:, 2 * order + 1: 2 * order + 5]
-                bpsc1 = PSC_BiotSavart(psc_array)
-                coils = bpsc1._coils
-                bpsc1.set_points(surf.gamma().reshape((-1, 3)))
-                Jf1 = SquaredFlux(surf, bpsc1)
-                Jf11 = Jf1.J()
-                grad1 = Jf1.dJ()
-
-                ndofs = 10
-                dI = np.zeros((len(coils), ndofs))
-                q = 0
-                if surf.stellsym:
-                    stellsym = [1, -1]
-                else:
-                    stellsym = [1]
-                for fp in range(surf.nfp):
-                    for stell in stellsym:
-                        for i in range(psc_array.num_psc):
-                            dI[i, :] += coils[i + q * psc_array.num_psc].curve.dkappa_dcoef_vjp(
-                                [1.0], bpsc1.psc_array.dpsi) / (surf.nfp * len(stellsym))                            
-                        q += 1
-                Linv = psc_array.L_inv
-                dI = dI[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
-                dpsi = np.zeros(len(coils))
-                for i in range(len(coils)):
-                    dpsi[i] = dI[i, :] @ epsilon[i % ncoils, :] / eps
-                # Linv[coils[0].curve.npsc:, :] = 0.0
-                dI = - Linv @ dpsi
-                L1_inv = bpsc1.psc_array.L_inv[:psc_array.num_psc, :]
-                I1 = -L1_inv @ psc_array.psi_total / psc_array.fac
+            for ii, surf in enumerate([surf3]):
                 for eps in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-12]:
+                    kwargs_manual = {"plasma_boundary": surf}
+                    psc_array = PSCgrid.geo_setup_manual(
+                        points, R=R, a=a, alphas=alphas, deltas=deltas, **kwargs_manual
+                        )
+                    L1 = psc_array.L
+                    psc_array.psi_deriv()
+                    # print(psc_array.I)
+                    curves = [psc_array.curves[i] for i in range(len(psc_array.curves))]
+                    dofs_orig = np.array([curves[i].get_dofs() for i in range(len(curves))])
+                    dofs = dofs_orig[:, 2 * order + 1: 2 * order + 5]
+                    bpsc1 = PSC_BiotSavart(psc_array)
+                    coils = bpsc1._coils
+                    bpsc1.set_points(surf.gamma().reshape((-1, 3)))
+                    Jf1 = SquaredFlux(surf, bpsc1)
+                    Jf11 = Jf1.J()
+                    grad1 = Jf1.dJ()
+
+                    ndofs = 10
+                    dI = np.zeros((len(coils), ndofs))
+                    q = 0
+                    if surf.stellsym:
+                        stellsym = [1, -1]
+                    else:
+                        stellsym = [1]
+                    for fp in range(surf.nfp):
+                        for stell in stellsym:
+                            for i in range(psc_array.num_psc):
+                                dI[i, :] += coils[i + q * psc_array.num_psc].curve.dkappa_dcoef_vjp(
+                                    [1.0], bpsc1.psc_array.dpsi) / (surf.nfp * len(stellsym))                     
+                            q += 1
+                    Linv = psc_array.L_inv
+                    dI = dI[:, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+                    # print('dI1 = ', dI)
+                    dpsi = np.zeros(len(coils))
+                    for i in range(len(coils)):
+                        dpsi[i] = dI[i, :] @ h[i % ncoils, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+                    # Linv[coils[0].curve.npsc:, :] = 0.0
+                    dI = - Linv @ dpsi
+                    print(dI)
+                    q = 0
+                    dI_temp = np.zeros(dI.shape)
+                    for fp in range(surf.nfp):
+                        for stell in stellsym:
+                            dI_temp[:ncoils] += dI[q * ncoils:ncoils * (q + 1)]
+                            q += 1
+                    dI = dI_temp
+                    L1_inv = bpsc1.psc_array.L_inv[:psc_array.num_psc, :]
+                    I1 = -L1_inv @ psc_array.psi_total / psc_array.fac
                     epsilon = (eps * h)[:, 2 * order + 1: 2 * order + 5]
                     print('ncoils = ', ncoils, ', surf = ', surf, ', eps = ', eps)
+                    dI2 = bpsc1.dpsi_debug
+                    # print('dI2 = ', dI2)
+                    dI2_temp = np.zeros(len(coils))
+                    for i in range(len(coils)):
+                        dI2_temp[i] = dI2[i, :] @ h[i % ncoils, 2 * coils[0].curve.order + 1: 2 * coils[0].curve.order + 5]
+                    dI2_temp = -L1_inv @ dI2_temp
+                    print('dI internal = ', dI2_temp)
                     dofs2 = dofs + epsilon
                     Jf1.x = np.ravel(dofs2)
                     bpsc1.set_currents()
-                    L2 = bpsc1.psc_array.L
+                    L2 = psc_array.L
                     L2_inv = bpsc1.psc_array.L_inv[:psc_array.num_psc, :]
-                    I2 = -L1_inv @ psc_array.psi_total / psc_array.fac
+                    I2 = -L1_inv @ bpsc1.psc_array.psi_total / psc_array.fac
                     print('dI = ', I1, I2, I2 - I1, eps, (I2 - I1))  # Possible issue is that dI is enormous from step to step?
                     dI_fd = (I2 - I1) / eps
-                    print('dI_coils = ', dI, dI_fd, (dI[:ncoils] - dI_fd))
+                    print('dI_coils = ', dI[:ncoils], dI_fd, (dI[:ncoils] - dI_fd))
                     print('dL = ', np.max(np.abs(L2 - L1)), np.max(np.abs(L2_inv - L1_inv)))
 
-                    bpsc1 = PSC_BiotSavart(psc_array)
-                    bpsc1.set_points(surf.gamma().reshape((-1, 3)))
-                    Jf1 = SquaredFlux(surf, bpsc1)
+
+                    # bpsc1 = PSC_BiotSavart(psc_array)
+                    # bpsc1.set_points(surf.gamma().reshape((-1, 3)))
+                    # Jf1 = SquaredFlux(surf, bpsc1)
 
                     Jf12 = Jf1.J()
                     grad2 = Jf1.dJ()
@@ -877,7 +911,10 @@ class Testing(unittest.TestCase):
                     plt.loglog(eps, abs(dJ - (Jf12 - Jf11) / eps), 'o', color=colors[ii])
                     plt.loglog(eps, np.sum((dI[:ncoils] - dI_fd) ** 2), 'x', color=colors[ii])
                     # plt.loglog(eps, abs(dJ - (I2 - I1) / eps), 'o', color=colors[ii])
-                    Jf1.x = np.ravel(dofs)
+                    # print(dofs2, Jf1.x, bpsc1.x)
+                    # Jf1.x = np.ravel(dofs)
+                    # bpsc1.set_currents()
+                    # print(dofs, Jf1.x, bpsc1.x)
             plt.grid()
         plt.show()
 
