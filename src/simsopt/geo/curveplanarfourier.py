@@ -88,7 +88,7 @@ class PSCCurve(CurvePlanarFourier):
             self.fix(names[2 * self.order + 7])
         self.npsc = npsc
         
-    def dkappa_dcoef_vjp(self, v_current, dpsi):
+    def dkappa_dcoef_vjp(self, v_current, dpsi, index):
         dofs = self.get_dofs()  
         dofs_unnormalized = dofs[2 * self.order + 1:2 * self.order + 5]
         normalization = np.sqrt(np.sum(dofs_unnormalized ** 2))
@@ -123,8 +123,10 @@ class PSCCurve(CurvePlanarFourier):
         # dalpha_total = self._psc_array.dpsi_full[index] * dalpha
         # ddelta_total = self._psc_array.dpsi_full[index + self.npsc] * ddelta
         
-        dalpha_total = dpsi[self._index] * dalpha
-        ddelta_total = dpsi[self._index + self.npsc] * ddelta
+        # dalpha_total = dpsi[self._index] * dalpha
+        # ddelta_total = dpsi[self._index + self.npsc] * ddelta
+        dalpha_total = dpsi[index] * dalpha
+        ddelta_total = dpsi[index + self.npsc] * ddelta
         
         dalpha = np.hstack((np.zeros(2 * self.order + 1), dalpha_total))
         dalpha = np.hstack((dalpha, np.zeros(3)))

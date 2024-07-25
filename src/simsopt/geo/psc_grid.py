@@ -1248,6 +1248,7 @@ class PSCgrid:
         """
         nn = self.num_psc
         psi_deriv = np.zeros(2 * nn)
+        psi_deriv_full = np.zeros(2 * nn * self.symmetry)
         # psi_deriv_unrotated = np.zeros(2 * nn)
         q = 0
         for fp in range(self.nfp):
@@ -1265,9 +1266,13 @@ class PSCgrid:
                     self.quad_weights,
                     self.R,
                 ) 
+                # print(q, dpsi, dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn])
+                psi_deriv_full[2 * q * nn: (2 * q + 1) * nn] = dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
+                psi_deriv_full[(2 * q + 1) * nn: (2 * q + 2) * nn] = dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 psi_deriv[:nn] += dpsi[:nn] * self.aaprime_aa[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_aa[q * nn:(q + 1) * nn]
                 psi_deriv[nn:] += dpsi[:nn] * self.aaprime_dd[q * nn:(q + 1) * nn] + dpsi[nn:] * self.ddprime_dd[q * nn:(q + 1) * nn]
                 q += 1
+        self.dpsi_full = psi_deriv_full * 1e6 * (1.0 / self.gamma_TF.shape[1])  #/ self.nfp / (self.stellsym + 1.0)
         self.dpsi = psi_deriv * 1e6 * (1.0 / self.gamma_TF.shape[1]) / self.nfp / (self.stellsym + 1.0)  # Factors because TF fields get overcounted
         return self.dpsi
     
