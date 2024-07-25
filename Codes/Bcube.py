@@ -1,6 +1,7 @@
 import numpy as np
 import sympy as sp
 import itertools
+import time
 
 mu0 = 4*np.pi*10**-7
 dim = np.array([1,1,1])
@@ -53,6 +54,8 @@ def B_direct(points, magPos, M, dims, phiThetas):
     D = len(M)
     
     B = np.zeros((N,3))
+    print('N, D =', N, D)
+    t1 = time.time()
     for n in range(N):
         for d in range(D):
             P = Pdnum(phiThetas[d,0],phiThetas[d,1])
@@ -64,6 +67,8 @@ def B_direct(points, magPos, M, dims, phiThetas):
             tm = 2*tx*ty*tz
             
             B[n] += mu0 * P.T @ (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
+    t2 = time.time()
+    print('t = ', t2 - t1)
 
     return B
 
@@ -84,10 +89,13 @@ def gd_i(r_loc, n_i_loc, dims): #for matrix formulation
     return mu0 * (Hd_i_prime(r_loc,dims).T + tm*np.eye(3)) @ n_i_loc
 
 def Acube(points, magPos, norms, dims, phiThetas):
+    print(points.shape, magPos.shape, norms.shape, phiThetas.shape)
     N = len(points)
     D = len(magPos)
     
     A = np.zeros((N,3*D))
+    print('N, D =', N, D)
+    t1 = time.time()
     for n in range(N):
         for d in range(D):
             P = Pdnum(phiThetas[d,0],phiThetas[d,1])
@@ -98,6 +106,8 @@ def Acube(points, magPos, norms, dims, phiThetas):
             A[n,3*d : 3*d + 3] = g
 
             assert (N,3*D) == A.shape
+    t2 = time.time()
+    print('t = ', t2 - t1)
     return A
 
 def Bn_fromMat(points, magPos, M, norms, dims, phiThetas): #solving Bnorm using matrix formulation

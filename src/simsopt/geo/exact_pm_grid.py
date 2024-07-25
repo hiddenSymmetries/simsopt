@@ -9,7 +9,7 @@ from .._core.descriptor import OneofStrings
 from . import Surface
 
 import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
 
 import Bcube as cub
 import Bgrad as dcub
