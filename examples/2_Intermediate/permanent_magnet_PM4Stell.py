@@ -39,10 +39,10 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 16  # >= 64 for high-resolution runs
+    N = 32  # >= 64 for high-resolution runs
     nIter_max = 10000
-    max_nMagnets = 1000
-    downsample = 1
+    max_nMagnets = 10000
+    downsample = 10
 
 nphi = N
 ntheta = N
@@ -52,7 +52,7 @@ nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}") 
+out_dir = Path("PM4Stell") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -170,7 +170,7 @@ dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 
 # Save files
-if False:
+if True:
     # Make BiotSavart object from the dipoles and plot solution 
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
@@ -200,7 +200,7 @@ if False:
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir / 'm_history_nmags=%d_nhist=%d.txt' % (nmags, nhist), m_history_2d)
+    np.savetxt(out_dir / 'm_history.txt', m_history_2d)
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 
@@ -212,4 +212,4 @@ plt.grid(True)
 plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
-# plt.show()
+plt.show()
