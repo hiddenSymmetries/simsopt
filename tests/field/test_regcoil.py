@@ -203,6 +203,7 @@ class Testing(unittest.TestCase):
             against the REGCOIL variables.
         """
         for filename in ['regcoil_out.w7x_infty.nc', 'regcoil_out.li383_infty.nc']:
+            print(filename)
             filename = TEST_DIR / filename
             cpst = CurrentPotentialSolve.from_netcdf(filename)
             # initialize a solver object for the cp CurrentPotential
@@ -240,6 +241,7 @@ class Testing(unittest.TestCase):
                 current_potential_thetazeta = f.variables['single_valued_current_potential_thetazeta'][()][ilambda, :, :]
                 f.close()
                 Bnormal_single_valued = Bnormal_regcoil_total - Bnormal_from_plasma_current - Bnormal_from_net_coil_currents
+                print('ilambda index = ', ilambda, lambda_regcoil)
 
                 assert np.allclose(b_rhs_regcoil, b_rhs_simsopt)
                 assert np.allclose(k_rhs, k_rhs_regcoil)
@@ -254,7 +256,8 @@ class Testing(unittest.TestCase):
                 optimized_phi_mn_lasso, f_B_lasso, f_K_lasso, _, _ = cpst.solve_lasso(lam=lambda_regcoil)
                 optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_regcoil)
                 assert np.allclose(single_valued_current_potential_mn, optimized_phi_mn)
-                assert np.isclose(f_B_lasso, f_B)
+                print(f_B, f_B_lasso, f_B_regcoil)
+                assert np.isclose(f_B, f_B_regcoil)
                 # assert np.isclose(f_K_lasso, f_K)
                 assert np.allclose(optimized_phi_mn_lasso, optimized_phi_mn)
 
@@ -330,6 +333,7 @@ class Testing(unittest.TestCase):
                 normal = s_coil.normal().reshape(-1, 3)
                 normN = np.linalg.norm(normal, axis=-1)
                 f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal.shape[0])
+                # print(f_K_regcoil, f_K_direct, f_K)
                 assert np.isclose(f_K_regcoil, f_K_direct)
                 assert np.isclose(f_K_regcoil, f_K)
 
@@ -462,6 +466,17 @@ class Testing(unittest.TestCase):
             norm_normal_coil_simsopt = np.linalg.norm(s_coil.normal(), axis=-1)
             assert np.allclose(norm_normal_coil*2*np.pi*2*np.pi, norm_normal_coil_simsopt[0:nzeta_coil, :])
 
+            # Compare two different ways of computing K()
+            K = cp.K().reshape(-1, 3)
+            winding_surface = cp.winding_surface
+            normal_vec = winding_surface.normal().reshape(-1, 3)
+            dzeta_coil = (winding_surface.quadpoints_phi[1] - winding_surface.quadpoints_phi[0])
+            dtheta_coil = (winding_surface.quadpoints_theta[1] - winding_surface.quadpoints_theta[0])
+            normn = np.sqrt(np.sum(normal_vec**2, axis=-1)) # |N|
+            K_2 = -(cpst.fj @ cp.get_dofs() - cpst.d) / \
+                    (np.sqrt(dzeta_coil * dtheta_coil) * normn[:, None]) 
+            assert np.allclose(K, K_2)
+
             # Compare field from net coil currents
             cp_GI = CurrentPotentialFourier.from_netcdf(filename)
             Bfield = WindingSurfaceField(cp_GI)
@@ -573,6 +588,115 @@ class Testing(unittest.TestCase):
                 Bnormal_REGCOIL += B_GI_winding_surface
                 assert np.allclose(Bnormal_REGCOIL, np.ravel(Bnormal_regcoil))
 
+    def test_K_calculations(self):
+        from simsopt import load
+        winding_surface, plasma_surface = load(TEST_DIR / 'winding_surface_test.json')
+        cp = CurrentPotentialFourier(
+            winding_surface, mpol=4, ntor=4,
+            net_poloidal_current_amperes=11884578.094260072,
+            net_toroidal_current_amperes=0,
+            stellsym=True)
+        cp.set_dofs(np.array([  
+            235217.63668779,  -700001.94517193,  1967024.36417348,
+            -1454861.01406576, -1021274.81793687,  1657892.17597651,
+            -784146.17389912,   136356.84602536,  -670034.60060171,
+            194549.6432583 ,  1006169.72177152, -1677003.74430119,
+            1750470.54137804,   471941.14387043, -1183493.44552104,
+            1046707.62318593,  -334620.59690486,   658491.14959397,
+            -1169799.54944824,  -724954.843765  ,  1143998.37816758,
+            -2169655.54190455,  -106677.43308896,   761983.72021537,
+            -986348.57384563,   532788.64040937,  -600463.7957275 ,
+            1471477.22666607,  1009422.80860728, -2000273.40765417,
+            2179458.3105468 ,   -55263.14222144,  -315581.96056445,
+            587702.35409154,  -637943.82177418,   609495.69135857,
+            -1050960.33686344,  -970819.1808181 ,  1467168.09965404,
+            -198308.0580687 
+        ]))
+        cpst = CurrentPotentialSolve(cp, plasma_surface, np.zeros(1024))
+        assert np.allclose(cpst.current_potential.get_dofs(), cp.get_dofs())
+        # Pre-compute some important matrices
+        cpst.B_matrix_and_rhs()
+
+        # Copied over from the packaged grid K operator.
+        winding_surface = cp.winding_surface
+        normal_vec = winding_surface.normal()
+        normn = np.sqrt(np.sum(normal_vec**2, axis=-1)) # |N|
+
+        test_K_1 = (
+            cp.winding_surface.gammadash2()
+            *(cp.Phidash1()+cp.net_poloidal_current_amperes)[:, :, None]
+            - cp.winding_surface.gammadash1()
+            *(cp.Phidash2()+cp.net_toroidal_current_amperes)[:, :, None])/normn[:, :, None]
+
+        test_K_3 = cp.K()
+
+        normn = normn.reshape(-1)
+        dzeta_coil = (winding_surface.quadpoints_phi[1] - winding_surface.quadpoints_phi[0])
+        dtheta_coil = (winding_surface.quadpoints_theta[1] - winding_surface.quadpoints_theta[0])
+
+        # Notice Equation A.13 for the current in Matt L's regcoil paper has factor of 1/nnorm in it
+        # But cpst.fj and cpst.d have factor of only 1/sqrt(normn)
+        test_K_2 = -(cpst.fj @ cp.get_dofs() - cpst.d) / \
+                            (np.sqrt(dzeta_coil * dtheta_coil) * normn[:, None])
+        nzeta_coil = cpst.nzeta_coil
+        test_K_2 = test_K_2.reshape(nzeta_coil, nzeta_coil // cp.nfp, 3)
+
+        plt.figure(1)
+        plt.subplot(3, 3, 1)
+        plt.pcolor(test_K_1[:, :, 0])
+        plt.colorbar()
+        plt.subplot(3, 3, 2)
+        plt.pcolor(test_K_1[:, :, 1])
+        plt.colorbar()
+        plt.subplot(3, 3, 3)
+        plt.pcolor(test_K_1[:, :, 2])
+        plt.colorbar()
+        plt.subplot(3, 3, 4)
+        plt.pcolor(test_K_2[:, :, 0])
+        plt.colorbar()
+        plt.subplot(3, 3, 5)
+        plt.pcolor(test_K_2[:, :, 1])
+        plt.colorbar()
+        plt.subplot(3, 3, 6)
+        plt.pcolor(test_K_2[:, :, 2])
+        plt.colorbar()
+        plt.subplot(3, 3, 7)
+        plt.pcolor(test_K_3[:, :, 0])
+        plt.colorbar()
+        plt.subplot(3, 3, 8)
+        plt.pcolor(test_K_3[:, :, 1])
+        plt.colorbar()
+        plt.subplot(3, 3, 9)
+        plt.pcolor(test_K_3[:, :, 2])
+        plt.colorbar()
+
+
+        # In[21]:
+
+        plt.figure(2)
+        # Errors
+        plt.subplot(3, 3, 1)
+        plt.pcolor(test_K_1[:, :, 0] - test_K_3[:, :, 0])
+        plt.colorbar()
+        plt.subplot(3, 3, 2)
+        plt.pcolor(test_K_1[:, :, 1] - test_K_3[:, :, 1])
+        plt.colorbar()
+        plt.subplot(3, 3, 3)
+        plt.pcolor(test_K_1[:, :, 2] - test_K_3[:, :, 2])
+        plt.colorbar()
+        plt.subplot(3, 3, 4)
+        plt.pcolor(test_K_2[:, :, 0] - test_K_3[:, :, 0])
+        plt.colorbar()
+        plt.subplot(3, 3, 5)
+        plt.pcolor(test_K_2[:, :, 1] - test_K_3[:, :, 1])
+        plt.colorbar()
+        plt.subplot(3, 3, 6)
+        plt.pcolor(test_K_2[:, :, 2] - test_K_3[:, :, 2])
+        plt.colorbar()
+        plt.show()
+
+        assert np.allclose(test_K_1, test_K_2)
+        assert np.allclose(test_K_1, test_K_3)
 
 if __name__ == "__main__":
     unittest.main()

@@ -443,7 +443,11 @@ class CurrentPotentialSolve:
         b_e = self.b_e
         Ak_times_phi = self.fj @ phi_mn_opt
         f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
-        f_K = 0.5 * np.linalg.norm(Ak_times_phi - self.d) ** 2
+        # extra normN factor needed here because fj and d don't have it 
+        # K^2 has 1/normn^2 factor, the sum over the winding surface has factor of normn,
+        # for total factor of 1/normn
+        normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
+        f_K = 0.5 * np.linalg.norm((Ak_times_phi - self.d) / np.sqrt(normN[:, None])) ** 2 
 
         if record_history:
             self.ilambdas_l2.append(lam)
@@ -484,12 +488,16 @@ class CurrentPotentialSolve:
         # Set up some matrices
         _, _ = self.B_matrix_and_rhs()
         normN = np.linalg.norm(self.plasma_surface.normal().reshape(-1, 3), axis=-1)
+        ws_normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
         A_matrix = self.gj
         for i in range(self.gj.shape[0]):
             A_matrix[i, :] *= (1.0 / np.sqrt(normN[i]))
         b_e = self.b_e
         Ak_matrix = self.fj.reshape(self.fj.shape[0] * 3, self.fj.shape[-1])
         d = np.ravel(self.d)
+        # for i in range(3):
+        #     Ak_matrix[i * len(ws_normN): (i+1) * len(ws_normN), :] *= 1.0 / np.sqrt(ws_normN)[:, None]
+        #     d[i * len(ws_normN): (i+1) * len(ws_normN)] *= 1.0 / np.sqrt(ws_normN)
         nfp = self.plasma_surface.nfp
 
         # Ak is non-square so pinv required. Careful with rcond parameter
@@ -505,8 +513,15 @@ class CurrentPotentialSolve:
         # if alpha << 1, want to use initial guess from the Tikhonov solve,
         # which is exact since it comes from a matrix inverse.
         phi0, _, _, = self.solve_tikhonov(lam=lam, record_history=False)
-        z0 = Ak_matrix @ phi0 - d
+
+        # L1 norm here should already include the contributions from the winding surface discretization 
+        # and factor of 1 / ws_normN from the K, cancelling the factor of ws_normN from the surface
+        z0 = (Ak_matrix @ phi0 - d)  #* np.sqrt(ws_normN)
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
+
+        # Need to put back in the 1 / ws_normN dependence in K
+        for i in range(3):
+            z_opt[i * len(ws_normN): (i + 1) * len(ws_normN)] *= ws_normN
 
         # Compute the history of values from the optimizer
         phi_history = []
@@ -520,10 +535,9 @@ class CurrentPotentialSolve:
 
         # Remember, Lasso solved for z = A_k * phi_mn - b_k so need to convert back
         phi_mn_opt = Ak_inv @ (z_opt + d)
-
         self.current_potential.set_dofs(phi_mn_opt)
         f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
-        f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
+        f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1) 
         self.ilambdas_l1.append(lam)
         self.dofs_l1.append(phi_mn_opt)
         # REGCOIL only uses 1 / 2 nfp of the winding surface

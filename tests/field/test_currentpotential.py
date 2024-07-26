@@ -42,8 +42,8 @@ class CurrentPotentialTests(unittest.TestCase):
             K = cp.K()
             K2 = np.sum(K*K, axis=2)
             K2_average = np.mean(K2, axis=(0, 1))
-            # print(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2.shape, K2_average)
-            # print(K2_regcoil/K2_average, K2_regcoil.shape)
+            print(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2.shape, K2_average)
+            print(K2_regcoil[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil.shape)
             assert np.allclose(K2[0:int(len(cp.quadpoints_phi)/cp.nfp), :]/K2_average, K2_regcoil/K2_average)
 
 
