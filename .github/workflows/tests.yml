@@ -93,7 +93,7 @@ jobs:
     - name: Install python dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py  py_spec pyoculus h5py
+        pip install "numpy<2.0.0" cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py py_spec pyoculus h5py ground bentley_ottmann
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
