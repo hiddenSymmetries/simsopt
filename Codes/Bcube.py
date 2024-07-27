@@ -8,19 +8,12 @@ dim = np.array([1,1,1])
 
 #FOR CUBIC MAGNETS
 
-def Pdnum(phi,theta): #goes from global to local
+def Pd(phi,theta): #goes from global to local
     return np.array([
         [np.cos(theta)*np.cos(phi), -np.cos(theta)*np.sin(phi), np.sin(theta)],
         [np.sin(phi), np.cos(phi), 0],
         [-np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), np.cos(theta)]
     ])
-
-# def Pdsym(phi,theta): #goes from global to local, sympy allows for exact trig values
-#     return np.array([
-#         [float((sp.cos(theta)*sp.cos(phi)).evalf()), float(-sp.cos(theta)*sp.sin(phi).evalf()), float((sp.sin(theta)).evalf())],
-#         [float(sp.sin(phi).evalf()), float(sp.cos(phi).evalf()), 0.0],
-#         [float((-sp.sin(theta)*sp.cos(phi)).evalf()), float((sp.sin(theta)*sp.sin(phi)).evalf()), float(sp.cos(theta).evalf())]
-#     ])
 
 def iterate_over_corners(corner, x, y, z):
     i,j,k = corner
@@ -54,11 +47,9 @@ def B_direct(points, magPos, M, dims, phiThetas):
     D = len(M)
     
     B = np.zeros((N,3))
-    print('N, D =', N, D)
-    t1 = time.time()
     for n in range(N):
         for d in range(D):
-            P = Pdnum(phiThetas[d,0],phiThetas[d,1])
+            P = Pd(phiThetas[d,0],phiThetas[d,1])
             r_loc = P @ (points[n] - magPos[d])
 
             tx = np.heaviside(dims[0]/2 - np.abs(r_loc[0]),0.5)
@@ -67,8 +58,6 @@ def B_direct(points, magPos, M, dims, phiThetas):
             tm = 2*tx*ty*tz
             
             B[n] += mu0 * P.T @ (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
-    t2 = time.time()
-    print('t = ', t2 - t1)
 
     return B
 
@@ -98,7 +87,7 @@ def Acube(points, magPos, norms, dims, phiThetas):
     t1 = time.time()
     for n in range(N):
         for d in range(D):
-            P = Pdnum(phiThetas[d,0],phiThetas[d,1])
+            P = Pd(phiThetas[d,0],phiThetas[d,1])
             r_loc = P @ (points[n] - magPos[d])
             n_loc = P @ norms[n]
             

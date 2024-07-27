@@ -1,6 +1,6 @@
 import numpy as np
 import sympy as sp
-from Bcube import Pdnum
+from Bcube import Pd
 import itertools
 
 
@@ -57,7 +57,7 @@ def gradr_Bcube(points, magPos, M, phiThetas, dims):
     dB = np.zeros((N,3,3))
     for n in range(N):
         for d in range(D):
-            P = Pdnum(phiThetas[d][0],phiThetas[d][1])
+            P = Pd(phiThetas[d][0],phiThetas[d][1])
             r_loc = P @ (points[n] - magPos[d])
             drH = grad_r_H(r_loc, dims, P)
             dB[n] += mu0 * P.T @ (drH @ M[d]) @ P
@@ -75,7 +75,7 @@ def gradr_Acube(points, magPos, norms, phiThetas, dims):
     dA = np.zeros((N,3*D,3))
     for n in range(N):
         for d in range(D):
-            P = Pdnum(phiThetas[d,0],phiThetas[d,1])
+            P = Pd(phiThetas[d,0],phiThetas[d,1])
             r_loc = P @ (points[n] - magPos[d])
             n_loc = P @ norms[n]
             
