@@ -14,7 +14,7 @@ import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 import sys
-sys.path.append('/Users/akaptanoglu/simsopt/Codes')
+sys.path.append('/Users/willhoffman/simsopt/Codes')
 
 import Bcube as cub
 import Bgrad as dcub
@@ -923,9 +923,9 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
     r"""
 
     Args:
-        dipole_grid: 2D numpy array, shape (ndipoles, 3).
+        pm_grid: 2D numpy array, shape (ndipoles, 3).
             A set of points corresponding to the locations of magnetic dipoles.
-        dipole_vectors: 2D numpy array, shape (ndipoles, 3).
+       pm_vectors: 2D numpy array, shape (ndipoles, 3).
             The dipole vectors of each of the dipoles in the grid.
         stellsym: bool (default True).
             Whether or not the dipole grid is stellarator symmetric.
