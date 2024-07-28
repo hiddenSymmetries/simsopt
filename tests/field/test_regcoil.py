@@ -256,6 +256,7 @@ class Testing(unittest.TestCase):
                 optimized_phi_mn_lasso, f_B_lasso, f_K_lasso, _, _ = cpst.solve_lasso(lam=lambda_regcoil)
                 optimized_phi_mn, f_B, f_K = cpst.solve_tikhonov(lam=lambda_regcoil)
                 assert np.allclose(single_valued_current_potential_mn, optimized_phi_mn)
+                print(optimized_phi_mn_lasso, optimized_phi_mn)
                 print(f_B, f_B_lasso, f_B_regcoil)
                 assert np.isclose(f_B, f_B_regcoil)
                 # assert np.isclose(f_K_lasso, f_K)

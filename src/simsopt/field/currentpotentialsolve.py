@@ -493,11 +493,10 @@ class CurrentPotentialSolve:
         for i in range(self.gj.shape[0]):
             A_matrix[i, :] *= (1.0 / np.sqrt(normN[i]))
         b_e = self.b_e
-        Ak_matrix = self.fj.reshape(self.fj.shape[0] * 3, self.fj.shape[-1])
-        d = np.ravel(self.d)
-        # for i in range(3):
-        #     Ak_matrix[i * len(ws_normN): (i+1) * len(ws_normN), :] *= 1.0 / np.sqrt(ws_normN)[:, None]
-        #     d[i * len(ws_normN): (i+1) * len(ws_normN)] *= 1.0 / np.sqrt(ws_normN)
+        fj = self.fj / np.sqrt(ws_normN)[:, None, None]
+        d = self.d / np.sqrt(ws_normN)[:, None]
+        Ak_matrix = fj.reshape(fj.shape[0] * 3, fj.shape[-1])
+        d = np.ravel(d)
         nfp = self.plasma_surface.nfp
 
         # Ak is non-square so pinv required. Careful with rcond parameter
@@ -516,12 +515,10 @@ class CurrentPotentialSolve:
 
         # L1 norm here should already include the contributions from the winding surface discretization 
         # and factor of 1 / ws_normN from the K, cancelling the factor of ws_normN from the surface
-        z0 = (Ak_matrix @ phi0 - d)  #* np.sqrt(ws_normN)
+        z0 = np.ravel((Ak_matrix @ phi0 - d).reshape(-1, 3) * np.sqrt(ws_normN)[:, None])
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
-
+        # z_opt = z_opt.reshape(-1, 3) # / ws_normN[:, None])
         # Need to put back in the 1 / ws_normN dependence in K
-        for i in range(3):
-            z_opt[i * len(ws_normN): (i + 1) * len(ws_normN)] *= ws_normN
 
         # Compute the history of values from the optimizer
         phi_history = []
