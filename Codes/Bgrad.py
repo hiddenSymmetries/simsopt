@@ -46,7 +46,7 @@ def grad_r_H(r_loc, dims, P):
         for row in range(3):
             for col in range(3):
                 corners = [np.array(corn) for corn in itertools.product(lst, repeat=3)]
-                dH[row][col][s] = np.sum(list(map(lambda corner: iterate_over_corners_grad(corner, s, rc, row, col, P), corners)), axis=0)
+                dH[row][col][s] = np.sum([iterate_over_corners_grad(corner, s, rc, row, col, P) for corner in corners], axis = 0)
     return dH/(4*np.pi)
 
 

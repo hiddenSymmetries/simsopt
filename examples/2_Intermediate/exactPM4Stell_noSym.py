@@ -171,7 +171,6 @@ R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 
-"""
 # Save files
 if True:
     pm_ncsx.dims = dims
@@ -206,7 +205,7 @@ if True:
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir / 'm_history.txt' % (nmags, nhist), m_history_2d)
+    np.savetxt(out_dir / 'm_history.txt', m_history_2d)
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 
@@ -219,4 +218,3 @@ plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
 plt.show()
-"""

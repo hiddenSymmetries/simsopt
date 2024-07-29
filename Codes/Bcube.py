@@ -1,7 +1,6 @@
 import numpy as np
 import sympy as sp
 import itertools
-import time
 
 mu0 = 4*np.pi*10**-7
 dim = np.array([1,1,1])
@@ -20,10 +19,18 @@ def iterate_over_corners(corner, x, y, z):
     summa = (-1)**(i+j+k)
     rijk = np.sqrt(x[i]**2 + y[j]**2 + z[k]**2)
 
-    h = np.zeros((3,3))
-    h[0] = summa * np.array([np.arctan2(y[j]*x[i],z[k]*rijk) + np.arctan2(z[k]*x[i],y[j]*rijk), np.log(z[k] + rijk), np.log(y[j] + rijk)])
-    h[1] = summa * np.array([np.log(z[k] + rijk), np.arctan2(x[i]*y[j],z[k]*rijk) + np.arctan2(z[k]*y[j],x[i]*rijk), np.log(x[i] + rijk)])
-    h[2] = summa * np.array([np.log(y[j] + rijk), np.log(x[i] + rijk), np.arctan2(x[i]*z[k],y[j]*rijk) + np.arctan2(y[j]*z[k],x[i]*rijk)])
+    atan_xy = np.arctan2(y[j]*x[i],z[k]*rijk)
+    atan_xz = np.arctan2(z[k]*x[i],y[j]*rijk)
+    atan_yz = np.arctan2(z[k]*y[j],x[i]*rijk)
+    log_x = np.log(x[i] + rijk)
+    log_y = np.log(y[j] + rijk)
+    log_z = np.log(z[k] + rijk)
+    
+    h = summa * np.array([
+        [atan_xy + atan_xz, log_z, log_y],
+        [log_z, atan_xy + atan_yz, log_x],
+        [log_y, log_x, atan_xz + atan_yz]
+    ])
 
     return h
 
@@ -39,8 +46,8 @@ def Hd_i_prime(r, dims):
     lst = np.array([0,1])
 
     corners = [np.array(corn) for corn in itertools.product(lst, repeat=3)]
-    H += np.sum(list(map(lambda corner: iterate_over_corners(corner, x, y, z), corners)), axis=0)
-    return H/(4*np.pi)
+    H = np.sum([iterate_over_corners(corner, x, y, z) for corner in corners], axis=0)/(4*np.pi)
+    return H
 
 def B_direct(points, magPos, M, dims, phiThetas):
     N = len(points)
@@ -75,16 +82,13 @@ def gd_i(r_loc, n_i_loc, dims): #for matrix formulation
     tz = np.heaviside(dims[2]/2 - np.abs(r_loc[2]),0.5)       
     tm = 2*tx*ty*tz
 
-    return mu0 * (Hd_i_prime(r_loc,dims).T + tm*np.eye(3)) @ n_i_loc
+    return mu0 * (Hd_i_prime(r_loc, dims).T + tm*np.eye(3)) @ n_i_loc
 
 def Acube(points, magPos, norms, dims, phiThetas):
-    print(points.shape, magPos.shape, norms.shape, phiThetas.shape)
     N = len(points)
     D = len(magPos)
     
     A = np.zeros((N,3*D))
-    print('N, D =', N, D)
-    t1 = time.time()
     for n in range(N):
         for d in range(D):
             P = Pd(phiThetas[d,0],phiThetas[d,1])
@@ -95,8 +99,6 @@ def Acube(points, magPos, norms, dims, phiThetas):
             A[n,3*d : 3*d + 3] = g
 
             assert (N,3*D) == A.shape
-    t2 = time.time()
-    print('t = ', t2 - t1)
     return A
 
 def Bn_fromMat(points, magPos, M, norms, dims, phiThetas): #solving Bnorm using matrix formulation

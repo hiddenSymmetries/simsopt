@@ -169,7 +169,7 @@ R2_history, Bn_history, m_history = GPMO(pm_ncsx, algorithm, **kwargs)
 dt = time.time() - t1
 print('GPMO took t = ', dt, ' s')
 
-"""
+
 # Save files
 if True:
     # Make BiotSavart object from the dipoles and plot solution 
@@ -214,4 +214,3 @@ plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
 plt.show()
-"""
