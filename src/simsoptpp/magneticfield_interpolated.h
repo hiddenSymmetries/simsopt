@@ -138,7 +138,8 @@ class InterpolatedField : public MagneticField<T> {
 
     public:
         const shared_ptr<MagneticField<T>> field;
-        const RangeTriplet r_range, phi_range, z_range;
+        // const RangeTriplet r_range, phi_range, z_range;
+        const RangeParams r_range, phi_range, z_range;
         using MagneticField<T>::npoints;
         const InterpolationRule rule;
 
@@ -146,9 +147,18 @@ class InterpolatedField : public MagneticField<T> {
                 shared_ptr<MagneticField<T>> field, InterpolationRule rule,
                 RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range,
                 bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
+                InterpolatedField(field, rule,
+                                  std::make_tuple(std::get<0>(r_range), std::get<1>(r_range), std::get<2>(r_range), true),
+                                  std::make_tuple(std::get<0>(phi_range), std::get<1>(phi_range), std::get<2>(phi_range), true),
+                                  std::make_tuple(std::get<0>(z_range), std::get<1>(z_range), std::get<2>(z_range), true),
+                                  extrapolate, nfp, stellsym, skip) {}
+
+        InterpolatedField(
+                shared_ptr<MagneticField<T>> field, InterpolationRule rule,
+                RangeParams r_range, RangeParams phi_range, RangeParams z_range,
+                bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
             field(field), rule(rule), r_range(r_range), phi_range(phi_range), z_range(z_range), extrapolate(extrapolate), nfp(nfp), stellsym(stellsym),
             skip(skip)
-             
         {
             fbatch_B = [this](Vec r, Vec phi, Vec z) {
                 int npoints = r.size();
@@ -184,6 +194,16 @@ class InterpolatedField : public MagneticField<T> {
         InterpolatedField(
                 shared_ptr<MagneticField<T>> field, int degree,
                 RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range,
+                bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
+                InterpolatedField(field, UniformInterpolationRule(degree),
+                                  std::make_tuple(std::get<0>(r_range), std::get<1>(r_range), std::get<2>(r_range), true),
+                                  std::make_tuple(std::get<0>(phi_range), std::get<1>(phi_range), std::get<2>(phi_range), true),
+                                  std::make_tuple(std::get<0>(z_range), std::get<1>(z_range), std::get<2>(z_range), true),
+                                  extrapolate, nfp, stellsym, skip) {}
+
+        InterpolatedField(
+                shared_ptr<MagneticField<T>> field, int degree,
+                RangeParams r_range, RangeParams phi_range, RangeParams z_range,
                 bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) : InterpolatedField(field, UniformInterpolationRule(degree), r_range, phi_range, z_range, extrapolate, nfp, stellsym, skip) {}
 
         std::pair<double, double> estimate_error_B(int samples) {

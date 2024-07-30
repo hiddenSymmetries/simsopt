@@ -14,8 +14,9 @@
 
 using Vec = std::vector<double>;
 using RangeTriplet = std::tuple<double, double, int>;
+using RangeParams = std::tuple<double, double, int, bool>;
 
-Vec linspace(double min, double max, int n, bool endpoint);
+double linspace(double min, double max, int n, bool endpoint, Vec& res);
 
 class InterpolationRule {
     /* An InterpolationRule consists of a list of interpolation nodes and then
@@ -86,7 +87,8 @@ class RegularGridInterpolant3D {
         const int nx, ny, nz;  // number of cells in x, y, and z direction
         double hx, hy, hz; // gridsize in x, y, and z direction
         const double xmin, ymin, zmin; // lower bounds of the x, y, and z coordinates
-        const double xmax, ymax, zmax; // lower bounds of the x, y, and z coordinates
+        const double xmax, ymax, zmax; // Upper bounds of the x, y, and z coordinates
+        const bool x_endpoint, y_endpoint, z_endpoint; // Include upper bound endpoint or not
         const int value_size; // number of output dimensions of the interpolant, i.e. space that is mapped into
         const InterpolationRule rule; // the interpolation rule to use on each cell in the grid
         const bool out_of_bounds_ok; // whether to do nothing or throw an error when the interpolant is queried at an out-of-bounds point
@@ -144,26 +146,37 @@ class RegularGridInterpolant3D {
         void evaluate_local(double x, double y, double z, int cell_idx, double* res);
 
     public:
+    RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool out_of_bounds_ok, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
+            RegularGridInterpolant3D(
+                  rule,
+                  std::make_tuple(std::get<0>(xrange), std::get<1>(xrange), std::get<2>(xrange), true), // Default is to include endpoint
+                  std::make_tuple(std::get<0>(yrange), std::get<1>(yrange), std::get<2>(yrange), true), // Default is to include endpoint
+                  std::make_tuple(std::get<0>(zrange), std::get<1>(zrange), std::get<2>(zrange), true), // Default is to include endpoint
+                  value_size,
+                  out_of_bounds_ok,
+                  skip
+              )
+    { }
 
-        RegularGridInterpolant3D(InterpolationRule rule, RangeTriplet xrange, RangeTriplet yrange, RangeTriplet zrange, int value_size, bool out_of_bounds_ok, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
+	RegularGridInterpolant3D(InterpolationRule rule, RangeParams xrange, RangeParams yrange, RangeParams zrange, int value_size, bool out_of_bounds_ok, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) :
             rule(rule), 
-            xmin(std::get<0>(xrange)), xmax(std::get<1>(xrange)), nx(std::get<2>(xrange)),
-            ymin(std::get<0>(yrange)), ymax(std::get<1>(yrange)), ny(std::get<2>(yrange)),
-            zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)),
+            xmin(std::get<0>(xrange)), xmax(std::get<1>(xrange)), nx(std::get<2>(xrange)), x_endpoint(std::get<3>(xrange)),
+            ymin(std::get<0>(yrange)), ymax(std::get<1>(yrange)), ny(std::get<2>(yrange)), y_endpoint(std::get<3>(yrange)),
+            zmin(std::get<0>(zrange)), zmax(std::get<1>(zrange)), nz(std::get<2>(zrange)), z_endpoint(std::get<3>(zrange)),
             value_size(value_size), out_of_bounds_ok(out_of_bounds_ok)
         {
             int degree = rule.degree;
             pkxs = Vec(degree+1, 0.);
             pkys = Vec(degree+1, 0.);
             pkzs = Vec(degree+1, 0.);
-            hx = (xmax-xmin)/nx;
-            hy = (ymax-ymin)/ny;
-            hz = (zmax-zmin)/nz;
 
             // build a regular mesh on [xmin, xmax] x [ymin, ymax] x [zmin, zmax]
-            xmesh = linspace(xmin, xmax, nx+1, true);
-            ymesh = linspace(ymin, ymax, ny+1, true);
-            zmesh = linspace(zmin, zmax, nz+1, true);
+            Vec xmesh(nx+1, 0);
+            hx = linspace(xmin, xmax, nx+1, x_endpoint, xmesh);
+            Vec ymesh(ny+1, 0);
+            hy = linspace(ymin, ymax, ny+1, y_endpoint, ymesh);
+            Vec zmesh(nz+1, 0);
+            hz = linspace(zmin, zmax, nz+1, z_endpoint, zmesh);
 
             int nmesh = (nx+1)*(ny+1)*(nz+1);
             Vec xmeshtensor(nmesh, 0.);
