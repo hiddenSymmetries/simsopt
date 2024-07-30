@@ -788,8 +788,8 @@ class SurfaceRZFourierTests(unittest.TestCase):
         s8 = s.copy(mpol=5, ntor=6)
         self.assertEqual(s8.mpol, 5)
         self.assertEqual(s8.ntor, 6)
-        s9 = s.copy()
-        s10 = s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'), ntheta=82)
+        s.copy()
+        s.copy(quadpoints_phi=Surface.get_phi_quadpoints(nphi=100,range='field period'), ntheta=82)
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):
