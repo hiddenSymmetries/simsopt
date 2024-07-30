@@ -438,8 +438,11 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         
         
         """
-        ntheta = kwargs.pop("ntheta", None)
-        nphi = kwargs.pop("nphi", None)
+        otherntheta = self.quadpoints_theta.size
+        othernphi = self.quadpoints_phi.size
+        
+        ntheta = kwargs.pop("ntheta", otherntheta)
+        nphi = kwargs.pop("nphi", othernphi)
         grid_range = kwargs.pop("range", None)
         mpol = kwargs.pop("mpol", self.mpol)
         ntor = kwargs.pop("ntor", self.ntor)
@@ -448,8 +451,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         quadpoints_theta = kwargs.pop("quadpoints_theta", None)
         quadpoints_phi = kwargs.pop("quadpoints_phi", None)
 
-        otherntheta = self.quadpoints_theta.size
-        othernphi = self.quadpoints_phi.size
         # recalculate the quadpoints if necessary (grid_range is not stored in the
         # surface object, so assume that if it is given, the gridpoints should be
         # recalculated to the specified size)
