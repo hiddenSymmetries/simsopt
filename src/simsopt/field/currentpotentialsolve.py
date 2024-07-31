@@ -48,6 +48,8 @@ class CurrentPotentialSolve:
         B_GI_vector = Bfield.B()
         normal = plasma_surface.unitnormal().reshape(-1, 3)
         B_GI_winding_surface = np.sum(B_GI_vector*normal, axis=1)
+        if B_GI_winding_surface.shape != Bnormal_plasma.shape:
+            raise ValueError('The shape of Bnormal_plasma does not match with the quadrature points of plasma_surface.')
         self.B_GI = B_GI_winding_surface
         # Save list of results for each L2 or L1 winding surface
         # optimization performed with this class object
