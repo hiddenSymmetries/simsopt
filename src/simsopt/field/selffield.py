@@ -7,16 +7,20 @@ import math
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
-from jax import grad
+from jax import grad, vjp
+from simsopt.geo.jit import jit
 from .biotsavart import BiotSavart
+from .magneticfield import MagneticField
+from .._core.optimizable import Optimizable
 from .coil import Coil
 from ..geo.jit import jit
 from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec
+from .._core.derivative import derivative_dec, Derivative
+import warnings
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
-__all__ = ['B_regularized_pure', 'regularization_rect']
+__all__ = ['B_regularized_pure', 'regularization_rect', 'SelfField']
 
 def rectangular_xsection_k(a, b):
     """Auxiliary function for field in rectangular conductor"""
@@ -177,3 +181,89 @@ def field_from_other_coils_pure(gamma, curves, currents):
     b_ext = BiotSavart(coils)
     b_ext.set_points(gamma)
     return b_ext.B()
+
+
+class SelfField(Optimizable):
+    def __init__(self, coil, a, b):
+        self._curve = coil.curve
+        self._current = coil.current
+
+        self.regularization = regularization_rect(a, b)
+        self.quadpoints = self._curve.quadpoints
+
+        self.B_jax = lambda gamma, gammadash, gammadashdash, current: B_regularized_pure(gamma, gammadash, gammadashdash, self.quadpoints, current, self.regularization)
+
+        self.Bgrad0 = jit(
+            lambda gamma, gammadash, gammadashdash, current: grad(self.B_jax, argnums=0)(gamma, gammadash, gammadashdash, current)
+        )
+        self.Bgrad1 = jit(
+            lambda gamma, gammadash, gammadashdash, current: grad(self.B_jax, argnums=1)(gamma, gammadash, gammadashdash, current)
+        )
+        self.Bgrad2 = jit(
+            lambda gamma, gammadash, gammadashdash, current: grad(self.B_jax, argnums=2)(gamma, gammadash, gammadashdash, current)
+        )
+        self.Bgrad3 = jit(
+            lambda gamma, gammadash, gammadashdash, current: grad(self.B_jax, argnums=3)(gamma, gammadash, gammadashdash, current)
+        )
+
+        self.dB_by_dgamma_vjp0 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d1g: self.B_jax(d1g, gammadash, gammadashdash, current), gamma)[1](v)[0])
+        self.dB_by_dgamma_vjp1 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d2g: self.B_jax(gamma, d2g, gammadashdash, current), gammadash)[1](v)[0])
+        self.dB_by_dgamma_vjp2 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d3g: self.B_jax(gamma, gammadash, d3g, current), gammadashdash)[1](v)[0])
+        self.dB_by_dgamma_vjp3 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda dcur: self.B_jax(gamma, gammadash, gammadashdash, dcur), current)[1](v)[0])
+
+        Optimizable.__init__(self, depends_on=[coil])
+
+    def set_points(self, xyz):
+        warnings.warn('Warning - SelfField evaluates the field on its curve. Evaluation points cannot be changed.')
+        return None
+
+    def set_points_cart(self, xyz):
+        warnings.warn('Warning - SelfField evaluates the field on its curve. Evaluation points cannot be changed.')
+        return None
+    
+    def set_points_cyl(self, rphiz):
+        warnings.warn('Warning - SelfField evaluates the field on its curve. Evaluation points cannot be changed.')
+        return None
+    
+    def get_points_cart(self):
+        return self._curve.gamma()
+    
+    def get_points_cyl(self):
+        g = self.get_points_cart()
+        r = np.sqrt(g[:,0]**2 + g[:,1]**2)
+        phi = np.arctan2(g[:,1], g[:,0])
+        z = g[:,2]
+        return np.array([r,phi,z])
+    
+    def B(self):
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        gammadashdash = self._curve.gammadashdash()
+        current = self._current.get_value()
+        return self.B_jax(gamma, gammadash, gammadashdash, current)
+
+    # def dB_by_dcoeff(self):
+    #     gamma = self._curve.gamma()
+    #     gammadash = self._curve.gammadash()
+    #     gammadashdash = self._curve.gammadashdash()
+    #     current = self._current.get_value()
+
+    #     grad0 = self.Bgrad0(gamma, gammadash, gammadashdash, current)
+    #     grad1 = self.Bgrad0(gamma, gammadash, gammadashdash, current)
+    #     grad2 = self.Bgrad0(gamma, gammadash, gammadashdash, current)
+    #     grad3 = self.Bgrad0(gamma, gammadash, gammadashdash, current)
+
+    #     return self._curve.dgamma_by_dcoeff_vjp(grad0) + self._curve.dgammadash_by_dcoeff_vjp(grad1) + self._curve.dgammadashdash_by_dcoeff_vjp(grad2) + self._current.vjp( grad3 )
+    
+    def B_vjp(self, v):
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        gammadashdash = self._curve.gammadashdash()
+        current = self._current.get_value()
+
+        return Derivative({self: self.dB_by_dgamma_vjp0(gamma, gammadash, gammadashdash, current, v) \
+            + self.dB_by_dgamma_vjp1(gamma, gammadash, gammadashdash, current, v) \
+            + self.dB_by_dgamma_vjp2(gamma, gammadash, gammadashdash, current, v) \
+            + self.dB_by_dgamma_vjp3(gamma, gammadash, gammadashdash, current, v)})
+
+    

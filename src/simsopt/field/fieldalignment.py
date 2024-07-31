@@ -71,28 +71,30 @@ def c_axis_angle_pure(coil, B):
     return angle
 
 
-def critical_current_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, Bext):
-
-    regularization = regularization_rect(a, b)
+def critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=None):
     tangent, normal, binormal = rotated_centroid_frame(
         gamma, gammadash, alpha
         )
 
     # Evaluate field
-    field = B_regularized_pure(
-        gamma, gammadash, gammadashdash, quadpoints, current, regularization) + Bext
+    field = Bself + Bext
     B_proj = field - inner(field, tangent)[:, None] * tangent
     B_perp = inner(B_proj, normal)
     B_par = inner(B_proj, binormal)
 
     # Fit parameters for reduced Kim-like model of the critical current (doi:10.1088/0953-2048/24/6/065005)
-    xi = -0.7
-    k = 0.3
-    B_0 = 42.6e-3
-    Ic_0 = 1  # 1.3e11,
+    if model is None:
+        xi = -0.7
+        k = 0.3
+        B_0 = 42.6e-3
+        Ic_0 = 1  # 1.3e11,
 
+        Ic = Ic_0*(jnp.sqrt(k**2 * B_par**2 + B_perp**2) / B_0)**xi
+    else:
+        Ic = model(B_perp, B_par, B_0)
 
-    Ic = Ic_0*(jnp.sqrt(k**2 * B_par**2 + B_perp**2) / B_0)**xi
+    #TODO: modify call signature everywhere
+    #TODO: make a file with different critical current models
     return Ic
 
 
@@ -110,19 +112,23 @@ def critical_current(framedcoil, a, b, Bext, JANUS=True):
     return Ic
 
 
-def critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, quadpoints, current, a, b, Bext):
-    Ic0 = 0  # QUESTION: Why is Ic0 equal to 1 here?
+def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=None):
+    # TODO: What is this?!
+    Ic0 = 1 
+
     Ic = critical_current_pure(
-        gamma, 
-        gammadash, 
-        gammadashdash, 
-        alpha, 
-        quadpoints, 
-        current, 
-        a, b, 
-        Bext
+        gamma, gammadash, alpha, Bself, Bext, model
     )
-    return jnp.sum(jnp.maximum(Ic-Ic0, 0)**2)
+
+    # TODO: clarify this thing.
+    # Step 1: Maximize critical current for one winding.    
+    # Step 1: P-norm approx of the critical current minimum
+    return jnp.mean(Ic**(1./p))**p
+    
+    # Step 2: Penalize current above critical current, given temperature and number of winds
+    # Ic is the current in the coil
+    # Ic0 is the critical current along the coil
+    #return jnp.sum(jnp.maximum(Ic-Ic0, 0)**2)
 
 
 def critical_current_obj(framedcoil, a, b, Bext, JANUS=True):
@@ -150,62 +156,54 @@ class CriticalCurrentOpt(Optimizable):
      - b (float, default: 0.05). Conductor stack height ?
     """
 
-    def __init__(self, framedcoil, biotsavart_ext, a=0.05, b=0.05):
-        self.coil = framedcoil
-        self.framedcurve = framedcoil.framedcurve
-        self.quadpoints = self.coil.curve.curve.quadpoints
-        
-        self.a = a
-        self.b = b
-
+    def __init__(self, self_field, frame, biotsavart_ext, model=None, p=4):
+        self.self_field = self_field
+        self._curve = self_field._curve #shorthand
+        self._current = self_field._current #shorthand
+        self.frame = frame
         self.B_ext = biotsavart_ext
-        self.B_ext.set_points(self.framedcurve.curve.gamma().reshape((-1,3)))
+        self.B_ext.set_points(self.self_field.get_points_cart())
+        self.model = model
+        self.p = p
 
-        self.quadpoints = framedcoil.framedcurve.curve.quadpoints
-        self.J_jax = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: critical_current_obj_pure(gamma, gammadash, gammadashdash, alpha, self.quadpoints, current, self.a, self.b, Bext))
+        self.J_jax = jit(lambda gamma, gammadash, alpha, Bself, Bext: critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=self.p, model=self.model))
 
-        self.thisgrad0 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash, alpha, current, Bext))
-        self.thisgrad1 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, alpha, current, Bext))
-        self.thisgrad2 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash, alpha, current, Bext))
-        self.thisgrad3 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, alpha, current, Bext))
-        self.thisgrad4 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=4)(gamma, gammadash, gammadashdash, alpha, current, Bext))
-        self.thisgrad5 = jit(lambda gamma, gammadash, gammadashdash, alpha, current, Bext: grad(self.J_jax, argnums=5)(gamma, gammadash, gammadashdash, alpha, current, Bext))
+        self.thisgrad0 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=0)(gamma, gammadash, alpha, Bself, Bext))
+        self.thisgrad1 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=1)(gamma, gammadash, alpha, Bself, Bext))
+        self.thisgrad2 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=2)(gamma, gammadash, alpha, Bself, Bext))
+        self.thisgrad3 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=3)(gamma, gammadash, alpha, Bself, Bext))
+        self.thisgrad4 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=4)(gamma, gammadash, alpha, Bself, Bext))
 
-        super().__init__(depends_on=[framedcoil, biotsavart_ext])
+        super().__init__(depends_on=[self_field, frame, biotsavart_ext])
 
     def J(self):
-        gamma = self.coil.framedcurve.curve.gamma()
-        d1gamma = self.coil.framedcurve.curve.gammadash()
-        d2gamma = self.coil.framedcurve.curve.gammadashdash()
-        alpha = self.coil.framedcurve.rotation.alpha(self.quadpoints)
-        current = self.coil.current.get_value()
-
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        alpha = self.frame.rotation.alpha(self._curve.quadpoints)
+        Bself = self.self_field.B()
         Bext = self.B_ext.B()
-        return self.J_jax(gamma, d1gamma, d2gamma, alpha, current, Bext)
+
+        return self.J_jax(gamma, gammadash, alpha, Bself, Bext)
 
     @derivative_dec
     def dJ(self):
-        gamma = self.coil.framedcurve.curve.gamma()
-        d1gamma = self.coil.framedcurve.curve.gammadash()
-        d2gamma = self.coil.framedcurve.curve.gammadashdash()
-        current = self.coil.current.get_value()
-        alpha = self.coil.framedcurve.rotation.alpha(self.quadpoints)
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        alpha = self.frame.rotation.alpha(self._curve.quadpoints)
+        Bself = self.self_field.B()
+        Bext = self.B_ext.B()
 
-        B_ext = self.B_ext.B()
+        grad0 = self.thisgrad0(gamma, gammadash, alpha, Bself, Bext)
+        grad1 = self.thisgrad1(gamma, gammadash, alpha, Bself, Bext)
+        grad2 = self.thisgrad2(gamma, gammadash, alpha, Bself, Bext)
+        grad3 = self.thisgrad3(gamma, gammadash, alpha, Bself, Bext)
+        grad4 = self.thisgrad4(gamma, gammadash, alpha, Bself, Bext)
 
-        grad0 = self.thisgrad0(gamma, d1gamma, d2gamma, alpha, current, B_ext)
-        grad1 = self.thisgrad1(gamma, d1gamma, d2gamma, alpha, current, B_ext)
-        grad2 = self.thisgrad2(gamma, d1gamma, d2gamma, alpha, current, B_ext)
-        grad3 = self.thisgrad3(gamma, d1gamma, d2gamma, alpha, current, B_ext)
-        grad4 = self.thisgrad4(gamma, d1gamma, d2gamma, alpha, current, B_ext)
-        grad5 = self.thisgrad5(gamma, d1gamma, d2gamma, alpha, current, B_ext)
-
-        out = self.coil.framedcurve.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.coil.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1) \
-            + self.coil.framedcurve.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-            + self.coil.framedcurve.rotation.dalpha_by_dcoeff_vjp(self.quadpoints, grad3) \
-            + self.coil.current.vjp(grad4) \
-            + self.B_ext.B_vjp(grad5)
+        out = self._curve.dgamma_by_dcoeff_vjp(grad0) \
+            + self._curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.frame.rotation.dalpha_by_dcoeff_vjp(self._curve.quadpoints, grad2) \
+            + self.self_field.B_vjp(grad3) \
+            + self.B_ext.B_vjp(grad4)
 
         return out
     
