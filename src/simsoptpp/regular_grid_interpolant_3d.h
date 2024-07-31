@@ -172,10 +172,11 @@ class RegularGridInterpolant3D {
 
             // build a regular mesh on [xmin, xmax] x [ymin, ymax] x [zmin, zmax]
             xmesh.reserve(nx+1);
-            hx = linspace(xmin, xmax, nx+1, x_endpoint, xmesh);
             ymesh.reserve(ny+1);
+	    zmesh.reserve(nz+1);
+	
+	    hx = linspace(xmin, xmax, nx+1, x_endpoint, xmesh);
             hy = linspace(ymin, ymax, ny+1, y_endpoint, ymesh);
-            zmesh.reserve(nz+1);
             hz = linspace(zmin, zmax, nz+1, z_endpoint, zmesh);
 
             int nmesh = (nx+1)*(ny+1)*(nz+1);
