@@ -206,10 +206,10 @@ class SelfField(Optimizable):
             lambda gamma, gammadash, gammadashdash, current: grad(self.B_jax, argnums=3)(gamma, gammadash, gammadashdash, current)
         )
 
-        self.dB_by_dgamma_vjp0 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d1g: self.B_jax(d1g, gammadash, gammadashdash, current), gamma)[1](v)[0])
-        self.dB_by_dgamma_vjp1 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d2g: self.B_jax(gamma, d2g, gammadashdash, current), gammadash)[1](v)[0])
-        self.dB_by_dgamma_vjp2 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d3g: self.B_jax(gamma, gammadash, d3g, current), gammadashdash)[1](v)[0])
-        self.dB_by_dgamma_vjp3 = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda dcur: self.B_jax(gamma, gammadash, gammadashdash, dcur), current)[1](v)[0])
+        self.dB_by_dgamma_vjp = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d1g: self.B_jax(d1g, gammadash, gammadashdash, current), gamma)[1](v)[0])
+        self.dB_by_dgammadash_vjp = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d2g: self.B_jax(gamma, d2g, gammadashdash, current), gammadash)[1](v)[0])
+        self.dB_by_dgammadashdash_vjp = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda d3g: self.B_jax(gamma, gammadash, d3g, current), gammadashdash)[1](v)[0])
+        self.dB_by_dcurrent_vjp = jit(lambda gamma, gammadash, gammadashdash, current, v: vjp(lambda dcur: self.B_jax(gamma, gammadash, gammadashdash, dcur), current)[1](v)[0])
 
         Optimizable.__init__(self, depends_on=[coil])
 
@@ -254,16 +254,45 @@ class SelfField(Optimizable):
     #     grad3 = self.Bgrad0(gamma, gammadash, gammadashdash, current)
 
     #     return self._curve.dgamma_by_dcoeff_vjp(grad0) + self._curve.dgammadash_by_dcoeff_vjp(grad1) + self._curve.dgammadashdash_by_dcoeff_vjp(grad2) + self._current.vjp( grad3 )
-    
-    def B_vjp(self, v):
+
+    def dB_by_dgamma_vjp_impl(self, v):
         gamma = self._curve.gamma()
         gammadash = self._curve.gammadash()
         gammadashdash = self._curve.gammadashdash()
         current = self._current.get_value()
 
-        return Derivative({self: self.dB_by_dgamma_vjp0(gamma, gammadash, gammadashdash, current, v) \
-            + self.dB_by_dgamma_vjp1(gamma, gammadash, gammadashdash, current, v) \
-            + self.dB_by_dgamma_vjp2(gamma, gammadash, gammadashdash, current, v) \
-            + self.dB_by_dgamma_vjp3(gamma, gammadash, gammadashdash, current, v)})
+        return self.dB_by_dgamma_vjp(gamma, gammadash, gammadashdash, current, v)
+    
+    def dB_by_dgammadash_vjp_impl(self, v):
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        gammadashdash = self._curve.gammadashdash()
+        current = self._current.get_value()
 
+        return self.dB_by_dgammadash_vjp(gamma, gammadash, gammadashdash, current, v)
+    
+    def dB_by_dgammadashdash_vjp_impl(self, v):
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        gammadashdash = self._curve.gammadashdash()
+        current = self._current.get_value()
+
+        return self.dB_by_dgammadashdash_vjp(gamma, gammadash, gammadashdash, current, v)
+    
+    def dB_by_dcurrent_vjp_impl(self, v):
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        gammadashdash = self._curve.gammadashdash()
+        current = self._current.get_value()
+
+        return self.dB_by_dcurrent_vjp(gamma, gammadash, gammadashdash, current, v)
+
+    
+    def B_vjp(self, v):
+        return Derivative({
+            self._curve: self.dB_by_dgamma_vjp_impl(v) \
+            + self.dB_by_dgammadash_vjp_impl(v) \
+            + self.dB_by_dgammadashdash_vjp_impl(v),
+            self._current: self.dB_by_dcurrent_vjp_impl(v)
+        })
     
