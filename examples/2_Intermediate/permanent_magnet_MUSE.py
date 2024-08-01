@@ -22,6 +22,7 @@ https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
 import time
+import math
 from pathlib import Path
 
 import numpy as np
@@ -140,7 +141,7 @@ pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
-# Set some hyperparameters for the optimization
+# Set some hyperp arameters for the optimization
 algorithm = 'ArbVec_backtracking'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 20  # How often to save the algorithm progress
