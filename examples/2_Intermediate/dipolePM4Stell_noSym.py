@@ -39,10 +39,10 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 4  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 100
-    downsample = 10
+    N = 2  # >= 64 for high-resolution runs
+    nIter_max = 1000
+    max_nMagnets = 10
+    downsample = 100
 
 nphi = N
 ntheta = N
@@ -50,9 +50,9 @@ algorithm = 'ArbVec_backtracking'
 nBacktracking = 200 
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
-nHistory = 10
+nHistory = 100
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell") 
+out_dir = Path("noSym_PM4Stell_angle{angle}_nb{nBacktracking}_na{nAdjacent}") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -142,17 +142,16 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-# Using m_maxima functionality to try out unrealistically strong magnets
-B_max = 5  # 5 Tesla!!!!
-mu0 = 4 * np.pi * 1e-7
-m_maxima = B_max / mu0
-kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample}
+kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
     lcfs_ncsx, bn_total, fname_argmt, **kwargs_geo
 )
 
+print(pm_ncsx.A_obj)
+
+"""
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
@@ -182,6 +181,9 @@ if True:
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
+    print('pm B = ', b_dipole.B())
+    print('pm B sum = ', np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1))
+    print('tf coil B = ', bs_tfcoils.B())
     make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
@@ -201,7 +203,7 @@ if True:
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir / 'm_history.txt', m_history_2d)
+    np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 
@@ -214,3 +216,4 @@ plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
 plt.show()
+"""

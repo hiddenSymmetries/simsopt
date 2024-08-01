@@ -618,7 +618,7 @@ class DipoleField(MagneticField):
                           'the major radius must be specified through R0 argument.')
         self.R0 = R0
         self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
-
+        
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
         B[:] = sopp.dipole_field_B(points, self.dipole_grid, self.m_vec)
@@ -955,6 +955,7 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
                           'the major radius must be specified through R0 argument.')
         self.D = len(dipole_grid)
         self.M = dipole_vectors.reshape((self.D,3)) / np.prod(dims)
+        # self.M = dipole_vectors.reshape((self.D, 3))
         self.dims = dims
         self.phiThetas = phiThetas()
         self.R0 = R0

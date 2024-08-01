@@ -22,8 +22,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 
-from simsopt.field import BiotSavart, Coil, ExactField
-from simsopt.geo import SurfaceRZFourier, ExactMagnetGrid
+from simsopt.field import BiotSavart, Coil, ExactField, DipoleField
+from simsopt.geo import SurfaceRZFourier, ExactMagnetGrid, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions \
     import initialize_default_kwargs, make_Bnormal_plots
@@ -40,11 +40,11 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 4  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 100
-    downsample = 10
-    dims = np.array([1,1,1]) #currently can only have all magnets be same shape
+    N = 2  # >= 64 for high-resolution runs
+    nIter_max = 1000
+    max_nMagnets = 10
+    downsample = 100
+    dims = np.array([1,1,1]) * 1e-7  #currently can only have all magnets be same shape
 
 nphi = N
 ntheta = N
@@ -52,9 +52,9 @@ algorithm = 'ArbVec_backtracking'
 nBacktracking = 200 
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
-nHistory = 10
+nHistory = 100
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("exactPM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}") 
+out_dir = Path("noSym_exactPM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -144,17 +144,53 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-# Using m_maxima functionality to try out unrealistically strong magnets
-B_max = 5  # 5 Tesla!!!!
-mu0 = 4 * np.pi * 1e-7
-m_maxima = B_max / mu0
-kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample, "dims": dims}
+kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample, "dims": dims}
+kwargs_dip = {"pol_vectors": pol_vectors, "downsample": downsample}
+
+
+copy_lc = lcfs_ncsx
+copy_bn = bn_total
+copy_fname = fname_argmt
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = ExactMagnetGrid.geo_setup_from_famus(
     lcfs_ncsx, bn_total, fname_argmt, **kwargs_geo
 )
+dip_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
+    copy_lc, copy_bn, copy_fname, **kwargs_dip
+)
 
+import sys
+sys.path.append('/Users/willhoffman/simsopt/Codes')
+import Bcube as exact
+from simsoptpp import dipole_field_Bn
+
+
+Acub = exact.Acube(
+    np.ascontiguousarray(pm_ncsx.plasma_boundary.gamma().reshape(-1, 3)),
+    np.ascontiguousarray(pm_ncsx.pm_grid_xyz),
+    np.ascontiguousarray(pm_ncsx.plasma_boundary.unitnormal().reshape(-1, 3)),
+    dims,
+    pm_ncsx.get_phiThetas()
+)
+for i in range(Acub.shape[0]):
+    Acub[i, :] = Acub[i, :] * np.sqrt(np.ravel(np.sqrt(np.sum(pm_ncsx.plasma_boundary.normal() ** 2, axis=-1)))[i] / (pm_ncsx.nphi * pm_ncsx.ntheta))
+
+AsimDip = dipole_field_Bn(
+    np.ascontiguousarray(dip_ncsx.plasma_boundary.gamma().reshape(-1, 3)),
+    np.ascontiguousarray(dip_ncsx.dipole_grid_xyz),
+    np.ascontiguousarray(dip_ncsx.plasma_boundary.unitnormal().reshape(-1, 3)),
+    1, 0, dip_ncsx.b_obj
+).reshape(Acub.shape[0], Acub.shape[1])
+
+print('direct = ',Acub)
+print('from grid = ',pm_ncsx.A_obj)
+print('close = ', np.allclose(Acub, pm_ncsx.A_obj))
+print('dip from grid = ', dip_ncsx.A_obj)
+print('close = ', np.allclose(pm_ncsx.A_obj, dip_ncsx.A_obj))
+print('dip direct = ', AsimDip)
+
+"""
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
@@ -163,6 +199,7 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
     kwargs['backtracking'] = nBacktracking
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.pm_grid_xyz)
+    # kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.dipole_grid_xyz)
     if algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
         kwargs['max_nMagnets'] = max_nMagnets
@@ -173,6 +210,7 @@ print('GPMO took t = ', dt, ' s')
 
 # Save files
 if True:
+    tc0 = time.time()
     pm_ncsx.dims = dims
     # Make BiotSavart object from the magnets and plot solution 
     b_exact = ExactField(
@@ -184,8 +222,20 @@ if True:
         coordinate_flag=pm_ncsx.coordinate_flag,
         m_maxima=pm_ncsx.m_maxima
     )
+    tc1 = time.time()
+    print('calc took t = ', tc1 - tc0, ' s')
+
+    tr= time.time()
     b_exact.set_points(s_plot.gamma().reshape((-1, 3)))
     b_exact._toVTK(out_dir / "Exact_Fields")
+    print('pm B = ', b_exact.B())
+    print('len pm B = ', len(b_exact.B()))
+    print('pm B sum = ', np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1))
+    print(len(np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)))
+    print('tf coil B = ', bs_tfcoils.B())
+    print(len(bs_tfcoils.B()))
+    tr2 = time.time()
+    print('took t = ', tr2-tr, ' s')
     make_Bnormal_plots(bs_tfcoils + b_exact, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_pms = np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
@@ -205,7 +255,40 @@ if True:
     nmags = m_history.shape[0]
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-    np.savetxt(out_dir / 'm_history.txt', m_history_2d)
+    np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
+    tr1 = time.time()
+    print('plotting took t = ', tr1 - tr2, ' s')
+# if True:
+#     # Make BiotSavart object from the dipoles and plot solution 
+#     b_dipole = DipoleField(
+#         pm_ncsx.dipole_grid_xyz,
+#         pm_ncsx.m,
+#         nfp=s_plot.nfp,
+#         coordinate_flag=pm_ncsx.coordinate_flag,
+#         m_maxima=pm_ncsx.m_maxima,
+#     )
+#     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+#     b_dipole._toVTK(out_dir / "Dipole_Fields")
+#     make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
+#     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+#     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+#     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
+#     Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles 
+#     pointData = {"B_N": Bnormal_plasma[:, :, None]}
+#     s_plot.to_vtk(out_dir / "Bnormal_plasma", extra_data=pointData)
+#     pointData = {"B_N": Bnormal_dipoles[:, :, None]}
+#     s_plot.to_vtk(out_dir / "Bnormal_dipoles", extra_data=pointData)
+#     pointData = {"B_N": Bnormal_coils[:, :, None]}
+#     s_plot.to_vtk(out_dir / "Bnormal_coils", extra_data=pointData)
+#     pointData = {"B_N": Bnormal_total[:, :, None]}
+#     s_plot.to_vtk(out_dir / "Bnormal_total", extra_data=pointData)
+#     pm_ncsx.write_to_famus(out_dir)
+#     np.savetxt(out_dir / 'R2_history.txt', R2_history)
+#     np.savetxt(out_dir / 'absBn_history.txt', Bn_history)
+#     nmags = m_history.shape[0]
+#     nhist = m_history.shape[2]
+#     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
+#     np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 
@@ -218,3 +301,4 @@ plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
 plt.show()
+"""

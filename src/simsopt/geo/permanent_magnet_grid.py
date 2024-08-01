@@ -803,6 +803,12 @@ class ExactMagnetGrid:
         ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
                                          delimiter=',', unpack=True)
 
+        print('M0s = ', M0s, ' # Mos = ', len(M0s))
+        print(np.loadtxt(famus_filename, skiprows = 3, usecols = [3, 4, 5, 6, 7], delimiter = ',', unpack = True))
+        # import matplotlib.pyplot as plt
+        # plt.scatter(ox, oy, s = 0.5)
+        # plt.show()
+
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))
         inds_downsampled = inds_total[::downsample]
@@ -830,7 +836,12 @@ class ExactMagnetGrid:
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
-            cell_vol = M0s * mu0 / B_max
+            # cell_vol = M0s * mu0 / B_max
+            cell_vol = np.full(len(M0s), np.prod(dims))
+
+            print(cell_vol)
+            print(M0s * mu0 / B_max)
+            
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
             if isinstance(m_maxima, float):
