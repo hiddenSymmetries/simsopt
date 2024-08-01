@@ -29,8 +29,8 @@ from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions import *
 
-nphi = 16  # change to 64 for a real run
-ntheta = 16
+nphi = 64  # change to 64 for a real run
+ntheta = 64
 input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 famus_filename = 'init_orient_pm_nonorm_5E4_q4_dp.focus'
 

@@ -6,7 +6,6 @@ from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.solve import least_squares_mpi_solve
 from simsopt.util import MpiPartition, proc0_print
-
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=1)
 throughout the volume.
@@ -52,7 +51,7 @@ proc0_print("Total objective before optimization:", prob.objective())
 # To keep this example fast, we stop after the first function
 # evaluation. For a "real" optimization, remove the max_nfev
 # parameter.
-least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8, max_nfev=1)
+least_squares_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-8)
 
 # Make sure all procs participate in computing the objective:
 prob.objective()
