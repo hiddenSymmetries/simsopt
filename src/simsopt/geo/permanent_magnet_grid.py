@@ -9,7 +9,7 @@ from . import Surface
 import simsoptpp as sopp
 
 import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
 import Bcube as cub
 import Bgrad as dcub
 
@@ -836,11 +836,15 @@ class ExactMagnetGrid:
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
-            # cell_vol = M0s * mu0 / B_max
-            cell_vol = np.full(len(M0s), np.prod(dims))
+            cell_vol = M0s * mu0 / B_max
 
-            print(cell_vol)
-            print(M0s * mu0 / B_max)
+            # Assumes that the magnets are all the same shape, and are perfect cubes!
+            cube_root_vol = np.cbrt(cell_vol[0]) # need to fix if the magnets have different sizes!
+            dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
+            #cell_vol = np.full(len(M0s), np.prod(dims))
+
+            # print(cell_vol)
+            # print(M0s * mu0 / B_max)
             
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:

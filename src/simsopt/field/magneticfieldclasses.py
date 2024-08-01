@@ -14,7 +14,7 @@ import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
 
 import Bcube as cub
 import Bgrad as dcub

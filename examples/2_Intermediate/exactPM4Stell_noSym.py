@@ -40,11 +40,11 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 2  # >= 64 for high-resolution runs
+    N = 16  # >= 64 for high-resolution runs
     nIter_max = 1000
-    max_nMagnets = 10
+    max_nMagnets = 100
     downsample = 100
-    dims = np.array([1,1,1]) * 1e-7  #currently can only have all magnets be same shape
+    dims = np.array([1,1,1])  #currently can only have all magnets be same shape
 
 nphi = N
 ntheta = N
@@ -70,6 +70,13 @@ s1 = SurfaceRZFourier.from_focus(
 s2 = SurfaceRZFourier.from_focus(
     fname_plasma, range='full torus', nphi=nphi, ntheta=ntheta
 )
+lcfs_ncsx.nfp = 1
+lcfs_ncsx.stellsym = False
+
+s1.nfp = 1
+s1.stellsym = False
+s2.nfp = 1
+s2.stellsym = False
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
@@ -161,7 +168,7 @@ dip_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 )
 
 import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
 import Bcube as exact
 from simsoptpp import dipole_field_Bn
 
@@ -182,6 +189,12 @@ AsimDip = dipole_field_Bn(
     np.ascontiguousarray(dip_ncsx.plasma_boundary.unitnormal().reshape(-1, 3)),
     1, 0, dip_ncsx.b_obj
 ).reshape(Acub.shape[0], Acub.shape[1])
+
+Ngrid = dip_ncsx.nphi * dip_ncsx.ntheta
+AsimDip = AsimDip.reshape(dip_ncsx.nphi * dip_ncsx.ntheta, dip_ncsx.ndipoles * 3)
+Nnorms = np.ravel(np.sqrt(np.sum(dip_ncsx.plasma_boundary.normal() ** 2, axis=-1)))
+for i in range(AsimDip.shape[0]):
+    AsimDip[i, :] = AsimDip[i, :] * np.sqrt(Nnorms[i] / Ngrid)
 
 print('direct = ',Acub)
 print('from grid = ',pm_ncsx.A_obj)
