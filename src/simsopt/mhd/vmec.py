@@ -168,8 +168,8 @@ class Vmec(Optimizable):
     Vmec object with different parameters; changing the parameters of
     one would change the parameters of the other.
 
-    An instance of this class owns just a few optimizable degrees of
-    freedom, particularly ``phiedge`` and ``curtor``. The optimizable
+    An instance of this class owns three optimizable degrees of
+    freedom: ``phiedge``, ``curtor``, and ``pres_scale``. The optimizable
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
@@ -373,7 +373,7 @@ class Vmec(Optimizable):
         # Handle a few variables that are not Parameters:
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
-        names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        names = ['phiedge', 'curtor', 'pres_scale']
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=[self._boundary],
                          external_dof_setter=Vmec.set_dofs)
@@ -444,20 +444,17 @@ class Vmec(Optimizable):
     def get_dofs(self):
         if not self.runnable:
             # Use default values from vmec_input
-            return np.array([1, 1, 1, 0, 0])
+            return np.array([1.0, 0.0, 1.0])
         else:
-            return np.array([self.indata.delt, self.indata.tcon0,
-                             self.indata.phiedge, self.indata.curtor,
-                             self.indata.gamma])
+            return np.array([self.indata.phiedge, self.indata.curtor,
+                             self.indata.pres_scale])
 
     def set_dofs(self, x):
         if self.runnable:
             self.need_to_run_code = True
-            self.indata.delt = x[0]
-            self.indata.tcon0 = x[1]
-            self.indata.phiedge = x[2]
-            self.indata.curtor = x[3]
-            self.indata.gamma = x[4]
+            self.indata.phiedge = x[0]
+            self.indata.curtor = x[1]
+            self.indata.pres_scale = x[2]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -755,7 +752,11 @@ class Vmec(Optimizable):
 
             # Delete the previous output file, if desired:
             for filename in self.files_to_delete:
-                os.remove(filename)
+                try:
+                    os.remove(filename)
+                except FileNotFoundError:
+                    logger.debug(f"Tried to delete the file {filename} but it was not found")
+                    
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:

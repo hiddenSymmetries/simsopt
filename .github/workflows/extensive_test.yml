@@ -63,12 +63,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential gfortran openmpi-bin libopenmpi-dev libnetcdf-dev libnetcdff-dev liblapack-dev libscalapack-mpi-dev libhdf5-dev libhdf5-serial-dev git m4 libfftw3-dev libopenblas-dev libboost-all-dev
     
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       # If we want submodules downloaded, uncomment the next 2 lines:
       #with:
       #  submodules: true
 
-    # We must run actions/checkout@v3 before downloading and building VMEC, since checkout deletes the contents of the directory.
+    # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: git clone https://github.com/hiddensymmetries/VMEC2000.git
@@ -80,7 +80,7 @@ jobs:
         pwd
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -98,7 +98,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel numpy scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz
+           pip install wheel "numpy<2.0.0" scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -112,7 +112,7 @@ jobs:
     # https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
     - name: Check out SPEC
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: PrincetonUniversity/SPEC
         path: SPEC
@@ -249,7 +249,7 @@ jobs:
     steps:
 
     - name: Set up Python 
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: 3.9
 
@@ -257,7 +257,7 @@ jobs:
       run: pip install coverage
 
     - name: Checkout simsopt 
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install simsopt before running coverage
       run: pip install .

@@ -18,7 +18,7 @@ from simsopt.mhd import Vmec
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 test_file = TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc'
-
+test_file2 = TEST_DIR / 'mgrid_ncsx_lowres_test.nc'
 
 class Testing(unittest.TestCase):
 
@@ -35,6 +35,13 @@ class Testing(unittest.TestCase):
 
         assert mgrid.br_arr.shape == (1, 6, 11, 11)
         assert mgrid.br[0, 0, 0] == -1.0633399551863771  # -0.9946816978184079
+
+        mgrid = MGrid.from_file(test_file2)
+        assert mgrid.rmin == 1.0
+        assert mgrid.bvec.shape == (10, 12, 4, 3)
+        assert mgrid.bz[1, 1, 1] == -1.012339153040808
+        assert mgrid.ap[1, 1, 1] == -0.3719177477496187
+
 
     def test_add_field_cylinder(self):
         N_points = 5
