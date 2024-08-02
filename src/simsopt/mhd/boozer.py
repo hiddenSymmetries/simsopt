@@ -222,7 +222,9 @@ class Boozer(Optimizable):
                                    bsubumns,
                                    wout.bsubvmnc,
                                    bsubvmns,
-                                   wout.chi)
+                                   wout.phipf,
+                                   wout.chi,
+                                   wout.pres)
             self.bx.compute_surfs = compute_surfs
             self.bx.mboz = self.mpol
             self.bx.nboz = self.ntor
