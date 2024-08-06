@@ -9,7 +9,7 @@ from . import Surface
 import simsoptpp as sopp
 
 import sys
-sys.path.append('/Users/akaptanoglu/simsopt/Codes')
+sys.path.append('/Users/willhoffman/simsopt/Codes')
 import Bcube as cub
 import Bgrad as dcub
 
@@ -794,7 +794,6 @@ class ExactMagnetGrid:
         downsample = kwargs.pop("downsample", 1)
         pol_vectors = kwargs.pop("pol_vectors", None)
         m_maxima = kwargs.pop("m_maxima", None)
-        dims = kwargs.pop("dims", None)
         if str(famus_filename)[-6:] != '.focus':
             raise ValueError('Famus filename must end in .focus')
 
@@ -802,12 +801,6 @@ class ExactMagnetGrid:
         pm_grid.famus_filename = famus_filename
         ox, oy, oz, Ic, M0s = np.loadtxt(famus_filename, skiprows=3, usecols=[3, 4, 5, 6, 7],
                                          delimiter=',', unpack=True)
-
-        print('M0s = ', M0s, ' # Mos = ', len(M0s))
-        print(np.loadtxt(famus_filename, skiprows = 3, usecols = [3, 4, 5, 6, 7], delimiter = ',', unpack = True))
-        # import matplotlib.pyplot as plt
-        # plt.scatter(ox, oy, s = 0.5)
-        # plt.show()
 
         # Downsample the resolution as needed 
         inds_total = np.arange(len(ox))
@@ -837,14 +830,11 @@ class ExactMagnetGrid:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
             cell_vol = M0s * mu0 / B_max
-
+            print('mag vol = ', cell_vol[0])
+            
             # Assumes that the magnets are all the same shape, and are perfect cubes!
             cube_root_vol = np.cbrt(cell_vol[0]) # need to fix if the magnets have different sizes!
-            dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
-            #cell_vol = np.full(len(M0s), np.prod(dims))
-
-            # print(cell_vol)
-            # print(M0s * mu0 / B_max)
+            pm_grid.dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
             
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
@@ -870,7 +860,7 @@ class ExactMagnetGrid:
                                  'must equal the number of dipoles')
         
         pm_grid.pol_vectors = pol_vectors
-        pm_grid._optimization_setup(dims = dims, phiThetas = pm_grid.get_phiThetas)
+        pm_grid._optimization_setup()
         return pm_grid
 
     @classmethod
@@ -950,7 +940,6 @@ class ExactMagnetGrid:
         pol_vectors = kwargs.pop("pol_vectors", None)
         m_maxima = kwargs.pop("m_maxima", None)
         pm_grid = cls(plasma_boundary, Bn, coordinate_flag) 
-        dims = kwargs.pop("dims", None)
         Nx = kwargs.pop("Nx", 10)
         Ny = kwargs.pop("Ny", 10)
         Nz = kwargs.pop("Nz", 10)
@@ -996,6 +985,9 @@ class ExactMagnetGrid:
                     contig(pm_grid.pm_grid_xyz[:, 0]),
                     contig(pm_grid.pm_grid_xyz[:, 1]),
                     contig(pm_grid.pm_grid_xyz[:, 2]))
+
+        side = np.cbrt(cell_vol[0])
+        pm_grid.dims = np.array([side, side, side])
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -1022,10 +1014,12 @@ class ExactMagnetGrid:
                                  'must equal the number of dipoles')
         
         pm_grid.pol_vectors = pol_vectors
-        pm_grid._optimization_setup(dims = dims, phiThetas = pm_grid.get_phiThetas)
+        pm_grid._optimization_setup()
         return pm_grid
+    
+    def _optimization_setup(self):
 
-    def _optimization_setup(self, dims, phiThetas):
+        self.phiThetas = np.repeat(np.array([[0,0]]), self.pm_grid_xyz.shape[0], axis = 0)
 
         if self.Bn.shape != (self.nphi, self.ntheta):
             raise ValueError('Normal magnetic field surface data is incorrect shape.')
@@ -1039,13 +1033,13 @@ class ExactMagnetGrid:
             np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3)),
             np.ascontiguousarray(self.pm_grid_xyz),
             np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3)),
-            dims, phiThetas()
+            self.dims, self.phiThetas
         )
 
         print('# points = ',len(np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3))))
         print('# mag points = ', len(np.ascontiguousarray(self.pm_grid_xyz)))
         print('# point norms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
-        print('# (phi, theta) mag orientations = ',len(phiThetas()))
+        print('# (phi, theta) mag orientations = ',len(self.get_phiThetas()))
         print('A shape = ',self.A_obj.shape)
         #HAVE TO ADD COORDINATE FLAG, NFP, STELLSYM, BOBJ, R0 TO MY A OBJECT
 
@@ -1066,7 +1060,7 @@ class ExactMagnetGrid:
         self.ATA_scale = S[0] ** 2
 
         # Set initial condition for the dipoles to default IC
-        self.m0 = np.zeros(self.ndipoles * 3) / np.prod(dims)
+        self.m0 = np.zeros(self.ndipoles * 3)
 
         # Set m to zeros
         self.m = self.m0

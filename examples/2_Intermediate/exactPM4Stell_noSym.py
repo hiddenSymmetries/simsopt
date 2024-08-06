@@ -41,10 +41,9 @@ if in_github_actions:
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-    nIter_max = 1000
-    max_nMagnets = 100
-    downsample = 100
-    dims = np.array([1,1,1])  #currently can only have all magnets be same shape
+    nIter_max = 100000
+    max_nMagnets = 40000
+    downsample = 5
 
 nphi = N
 ntheta = N
@@ -87,6 +86,16 @@ s_plot = SurfaceRZFourier.from_focus(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
+test_plot = SurfaceRZFourier.from_focus(
+    fname_plasma,
+    quadpoints_phi=quadpoints_phi, 
+    quadpoints_theta=quadpoints_theta
+)
+
+s_plot.nfp = 1
+s_plot.stellsym = False
+print('s_plot nfp and stellsym are ', s_plot.nfp, s_plot.stellsym)
+print('test_plot nfp and stellsym are ', test_plot.nfp, test_plot.stellsym)
 
 # Obtain the normal field on the plasma boundary arising from plasma currents
 bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
@@ -151,7 +160,8 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample, "dims": dims}
+
+kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
 kwargs_dip = {"pol_vectors": pol_vectors, "downsample": downsample}
 
 
@@ -168,17 +178,18 @@ dip_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 )
 
 import sys
-sys.path.append('/Users/akaptanoglu/simsopt/Codes')
+sys.path.append('/Users/willhoffman/simsopt/Codes')
 import Bcube as exact
 from simsoptpp import dipole_field_Bn
 
+print('angle shape = ', pm_ncsx.phiThetas.shape)
 
 Acub = exact.Acube(
     np.ascontiguousarray(pm_ncsx.plasma_boundary.gamma().reshape(-1, 3)),
     np.ascontiguousarray(pm_ncsx.pm_grid_xyz),
     np.ascontiguousarray(pm_ncsx.plasma_boundary.unitnormal().reshape(-1, 3)),
-    dims,
-    pm_ncsx.get_phiThetas()
+    pm_ncsx.dims,
+    pm_ncsx.phiThetas
 )
 for i in range(Acub.shape[0]):
     Acub[i, :] = Acub[i, :] * np.sqrt(np.ravel(np.sqrt(np.sum(pm_ncsx.plasma_boundary.normal() ** 2, axis=-1)))[i] / (pm_ncsx.nphi * pm_ncsx.ntheta))
@@ -203,7 +214,7 @@ print('dip from grid = ', dip_ncsx.A_obj)
 print('close = ', np.allclose(pm_ncsx.A_obj, dip_ncsx.A_obj))
 print('dip direct = ', AsimDip)
 
-"""
+
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
@@ -212,7 +223,6 @@ if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
     kwargs['backtracking'] = nBacktracking
     kwargs['Nadjacent'] = nAdjacent
     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.pm_grid_xyz)
-    # kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_ncsx.dipole_grid_xyz)
     if algorithm == 'ArbVec_backtracking':
         kwargs['thresh_angle'] = thresh_angle
         kwargs['max_nMagnets'] = max_nMagnets
@@ -224,31 +234,31 @@ print('GPMO took t = ', dt, ' s')
 # Save files
 if True:
     tc0 = time.time()
-    pm_ncsx.dims = dims
     # Make BiotSavart object from the magnets and plot solution 
     b_exact = ExactField(
         pm_ncsx.pm_grid_xyz,
         pm_ncsx.m,
         pm_ncsx.dims,
         pm_ncsx.get_phiThetas,
-        nfp=s_plot.nfp,
-        coordinate_flag=pm_ncsx.coordinate_flag,
-        m_maxima=pm_ncsx.m_maxima
+        nfp = s_plot.nfp,
+        stellsym = s_plot.stellsym,
+        coordinate_flag = pm_ncsx.coordinate_flag,
+        m_maxima = pm_ncsx.m_maxima
     )
     tc1 = time.time()
     print('calc took t = ', tc1 - tc0, ' s')
 
     tr= time.time()
+    print('splot gamma, shape = ', s_plot.gamma(), s_plot.gamma().shape)
+    print('s_plot gamma after reshape = ', s_plot.gamma().reshape((-1, 3)).shape)
+    print('splot unitnormal, shape = ', s_plot.unitnormal(), s_plot.unitnormal().shape)
+    print('testplot gamma, shape = ', test_plot.gamma(), test_plot.gamma().shape)
+    print('testplot gamma after reshape = ', test_plot.gamma().reshape((-1, 3)).shape)
+    print('testplot unitnormal, shape = ', test_plot.unitnormal(), test_plot.unitnormal().shape)
     b_exact.set_points(s_plot.gamma().reshape((-1, 3)))
     b_exact._toVTK(out_dir / "Exact_Fields")
-    print('pm B = ', b_exact.B())
-    print('len pm B = ', len(b_exact.B()))
-    print('pm B sum = ', np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1))
-    print(len(np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)))
-    print('tf coil B = ', bs_tfcoils.B())
-    print(len(bs_tfcoils.B()))
     tr2 = time.time()
-    print('took t = ', tr2-tr, ' s')
+    print('points to vtk took t = ', tr2-tr, ' s')
     make_Bnormal_plots(bs_tfcoils + b_exact, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_pms = np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
@@ -271,37 +281,7 @@ if True:
     np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
     tr1 = time.time()
     print('plotting took t = ', tr1 - tr2, ' s')
-# if True:
-#     # Make BiotSavart object from the dipoles and plot solution 
-#     b_dipole = DipoleField(
-#         pm_ncsx.dipole_grid_xyz,
-#         pm_ncsx.m,
-#         nfp=s_plot.nfp,
-#         coordinate_flag=pm_ncsx.coordinate_flag,
-#         m_maxima=pm_ncsx.m_maxima,
-#     )
-#     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-#     b_dipole._toVTK(out_dir / "Dipole_Fields")
-#     make_Bnormal_plots(bs_tfcoils + b_dipole, s_plot, out_dir, "biot_savart_optimized")
-#     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-#     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-#     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
-#     Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles 
-#     pointData = {"B_N": Bnormal_plasma[:, :, None]}
-#     s_plot.to_vtk(out_dir / "Bnormal_plasma", extra_data=pointData)
-#     pointData = {"B_N": Bnormal_dipoles[:, :, None]}
-#     s_plot.to_vtk(out_dir / "Bnormal_dipoles", extra_data=pointData)
-#     pointData = {"B_N": Bnormal_coils[:, :, None]}
-#     s_plot.to_vtk(out_dir / "Bnormal_coils", extra_data=pointData)
-#     pointData = {"B_N": Bnormal_total[:, :, None]}
-#     s_plot.to_vtk(out_dir / "Bnormal_total", extra_data=pointData)
-#     pm_ncsx.write_to_famus(out_dir)
-#     np.savetxt(out_dir / 'R2_history.txt', R2_history)
-#     np.savetxt(out_dir / 'absBn_history.txt', Bn_history)
-#     nmags = m_history.shape[0]
-#     nhist = m_history.shape[2]
-#     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
-#     np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
+
 t_end = time.time()  
 print('Script took in total t = ', t_end - t_start, ' s')
 
@@ -314,4 +294,3 @@ plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
 plt.show()
-"""

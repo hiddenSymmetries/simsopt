@@ -39,10 +39,10 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 2  # >= 64 for high-resolution runs
-    nIter_max = 1000
-    max_nMagnets = 10
-    downsample = 100
+    N = 8  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    max_nMagnets = 1000
+    downsample = 10
 
 nphi = N
 ntheta = N
@@ -69,6 +69,14 @@ s2 = SurfaceRZFourier.from_focus(
     fname_plasma, range='full torus', nphi=nphi, ntheta=ntheta
 )
 
+lcfs_ncsx.nfp = 1
+lcfs_ncsx.stellsym = False
+
+s1.nfp = 1
+s1.stellsym = False
+s2.nfp = 1
+s2.stellsym = False
+
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
@@ -78,6 +86,9 @@ s_plot = SurfaceRZFourier.from_focus(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
+
+s_plot.nfp = 1
+s_plot.stellsym = False
 
 # Obtain the normal field on the plasma boundary arising from plasma currents
 bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
@@ -151,7 +162,7 @@ pm_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
 
 print(pm_ncsx.A_obj)
 
-"""
+
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')
 kwargs['K'] = nIter_max
@@ -216,4 +227,3 @@ plt.xlabel('K')
 plt.ylabel('Metric values')
 plt.legend()
 plt.show()
-"""

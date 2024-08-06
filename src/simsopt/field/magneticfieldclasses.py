@@ -14,7 +14,7 @@ import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
 import sys
-sys.path.append('/Users/akaptanoglu/simsopt/Codes')
+sys.path.append('/Users/willhoffman/simsopt/Codes')
 
 import Bcube as cub
 import Bgrad as dcub
@@ -954,20 +954,32 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
             warnings.warn('Note that if using simple toroidal coordinates, '
                           'the major radius must be specified through R0 argument.')
         self.D = len(dipole_grid)
-        self.M = dipole_vectors.reshape((self.D,3)) / np.prod(dims)
-        # self.M = dipole_vectors.reshape((self.D, 3))
+        self.M = dipole_vectors.reshape((self.D, 3))
+        nonzero = []
+        test = dipole_vectors.reshape((self.D * 3, ))
+        for vec in test:
+            if vec != 0.0:
+                nonzero.append(vec)
+            else:
+                continue
+        print(len(nonzero), 'non-zero magnet components')
+        print('dip vec shape = ', dipole_vectors.shape)
+        print('grid shape = ', dipole_grid.shape)
         self.dims = dims
-        self.phiThetas = phiThetas()
         self.R0 = R0
         self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
 
-    def _B_impl(self, B): #eventually make dims and phiThetas bound method? Don't need to pass
+    def _B_impl(self, B): # check this is same as using B from grid
         points = self.get_points_cart_ref()
-        B[:] = cub.B_direct(points, self.dipole_grid, self.M, self.dims, self.phiThetas)
+        print(self.m_vec)
+        print(self.m_vec.shape)
+        print(self.dipole_grid.shape[0])
+        # print('M = m_vec? = ', np.allclose(self.M, self.m_vec))
+        B[:] = cub.B_direct(points, self.dipole_grid, self.m_vec, self.dims, self.phiThetas)
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()
-        dB[:] = dcub.gradr_Bcube(points, self.dipole_grid, self.M, self.phiThetas, self.dims)
+        dB[:] = dcub.gradr_Bcube(points, self.dipole_grid, self.m_vec, self.phiThetas, self.dims)
 
     def _A_impl(self, A):
         points = self.get_points_cart_ref()
@@ -995,7 +1007,10 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
         else:
             stell_list = [1]
             nsym = nfp
+        print('dip vec shape = ',dipole_vectors.shape)
+        print('ndipoles = ', ndipoles)
         m = dipole_vectors.reshape(ndipoles, 3)
+        print('m shape = ', m.shape)
 
         # Initialize new grid and dipole vectors for all the dipoles
         # after we account for the symmetries below.
@@ -1035,6 +1050,7 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
             mmz = mmz_temp
 
         # Loop over stellarator and field-period symmetry contributions
+        print('stell_list = ',stell_list)
         for stell in stell_list:
             for fp in range(nfp):
                 phi0 = (2 * np.pi / nfp) * fp
@@ -1055,6 +1071,8 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
         contig = np.ascontiguousarray
         self.dipole_grid = contig(np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T)
         self.m_vec = contig(m_vec)
+        self.phiThetas = np.repeat(np.array([[0,0]]), self.m_vec.shape[0], axis = 0) #works for now, will eventually have to use process above to make sure phiThetas are the same relatively, just rotated
+        print('working phiTheta shape = ', self.phiThetas.shape)
         self.m_maxima = contig(m_max)
 
     def _toVTK(self, vtkname):
