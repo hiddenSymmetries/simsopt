@@ -1,13 +1,15 @@
 import numpy as np
 import sympy as sp
-from Bcube import Pd
+from .Bcube import Pd
 import itertools
-
 
 #FOR CUBE
 mu0 = 4*np.pi*10**-7
 dim = np.array([1,1,1])
 
+__all__ = ['iterate_over_corners_grad', 'grad_r_H',
+           'gradr_Bcube', 'gradr_gcube', 'gradr_Acube',
+           'gradr_Bdip', 'gradr_Adip']
 
 def iterate_over_corners_grad(corner, s, rc, row, col, P):
     i,j,k = corner
