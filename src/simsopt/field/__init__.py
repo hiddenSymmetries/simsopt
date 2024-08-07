@@ -7,6 +7,8 @@ from .mgrid import *
 from .normal_field import *
 from .tracing import *
 from .magnetic_axis_helpers import *
+from .Bcube import *
+from .Bgrad import *
 
 __all__ = (
     biotsavart.__all__
@@ -18,4 +20,6 @@ __all__ = (
     + normal_field.__all__
     + tracing.__all__
     + magnetic_axis_helpers.__all__
+    + Bcube.__all__
+    + Bgrad.__all__
 )

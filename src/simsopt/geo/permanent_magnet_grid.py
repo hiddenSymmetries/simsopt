@@ -8,12 +8,10 @@ from .._core.descriptor import OneofStrings
 from . import Surface
 import simsoptpp as sopp
 
-import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
-import Bcube as cub
-import Bgrad as dcub
+from simsopt.field import Bcube as cub
+from simsopt.field import Bgrad as dcub
 
-__all__ = ['PermanentMagnetGrid','ExactMagnetGrid']
+__all__ = ['PermanentMagnetGrid', 'ExactMagnetGrid']
 
 
 class PermanentMagnetGrid:

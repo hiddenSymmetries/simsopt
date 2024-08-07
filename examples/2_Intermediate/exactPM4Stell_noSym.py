@@ -22,7 +22,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 
-from simsopt.field import BiotSavart, Coil, ExactField, DipoleField
+from simsopt.field import BiotSavart, Coil, ExactField, DipoleField, Bcube
 from simsopt.geo import SurfaceRZFourier, ExactMagnetGrid, PermanentMagnetGrid
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions \
@@ -30,6 +30,7 @@ from simsopt.util.permanent_magnet_helper_functions \
 from simsopt.util import FocusPlasmaBnormal, FocusData, read_focus_coils, in_github_actions
 from simsopt.util.polarization_project import (polarization_axes, orientation_phi,
                                                discretize_polarizations)
+from simsoptpp import dipole_field_Bn
 
 t_start = time.time()
 
@@ -41,19 +42,20 @@ if in_github_actions:
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 40000
-    downsample = 5
+    nIter_max = 1000
+    max_nMagnets = 400
+    downsample = 50
 
 nphi = N
 ntheta = N
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
-nAdjacent = 10
-thresh_angle = np.pi  # / np.sqrt(2)
+algorithm = 'baseline'
+# algorithm = 'ArbVec_backtracking'
+# nBacktracking = 200 
+# nAdjacent = 10
+# thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 100
-angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("noSym_exactPM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}") 
+# angle = int(thresh_angle * 180 / np.pi)
+out_dir = Path("exactPM4Stell_debugging") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -69,9 +71,10 @@ s1 = SurfaceRZFourier.from_focus(
 s2 = SurfaceRZFourier.from_focus(
     fname_plasma, range='full torus', nphi=nphi, ntheta=ntheta
 )
+
+# Turn off the symmetries for all the toroidal surfaces
 lcfs_ncsx.nfp = 1
 lcfs_ncsx.stellsym = False
-
 s1.nfp = 1
 s1.stellsym = False
 s2.nfp = 1
@@ -86,16 +89,16 @@ s_plot = SurfaceRZFourier.from_focus(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
-test_plot = SurfaceRZFourier.from_focus(
-    fname_plasma,
-    quadpoints_phi=quadpoints_phi, 
-    quadpoints_theta=quadpoints_theta
-)
+# test_plot = SurfaceRZFourier.from_focus(
+#     fname_plasma,
+#     quadpoints_phi=quadpoints_phi, 
+#     quadpoints_theta=quadpoints_theta
+# )
 
 s_plot.nfp = 1
 s_plot.stellsym = False
 print('s_plot nfp and stellsym are ', s_plot.nfp, s_plot.stellsym)
-print('test_plot nfp and stellsym are ', test_plot.nfp, test_plot.stellsym)
+# print('test_plot nfp and stellsym are ', test_plot.nfp, test_plot.stellsym)
 
 # Obtain the normal field on the plasma boundary arising from plasma currents
 bnormal_obj_ncsx = FocusPlasmaBnormal(fname_plasma)
@@ -160,11 +163,12 @@ pol_vectors[:, :, 0] = mag_data.pol_x
 pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
-
+# Define the keyword arguments for initializing the magnet grids
 kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
 kwargs_dip = {"pol_vectors": pol_vectors, "downsample": downsample}
 
-
+# Prof. K: Not sure why this is needed 
+# I think the objects don't get properly copied anyways
 copy_lc = lcfs_ncsx
 copy_bn = bn_total
 copy_fname = fname_argmt
@@ -177,14 +181,10 @@ dip_ncsx = PermanentMagnetGrid.geo_setup_from_famus(
     copy_lc, copy_bn, copy_fname, **kwargs_dip
 )
 
-import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
-import Bcube as exact
-from simsoptpp import dipole_field_Bn
-
 print('angle shape = ', pm_ncsx.phiThetas.shape)
 
-Acub = exact.Acube(
+# Calculate the A_matrix used for optimization, with the exact fields
+Acub = Bcube.Acube(
     np.ascontiguousarray(pm_ncsx.plasma_boundary.gamma().reshape(-1, 3)),
     np.ascontiguousarray(pm_ncsx.pm_grid_xyz),
     np.ascontiguousarray(pm_ncsx.plasma_boundary.unitnormal().reshape(-1, 3)),
@@ -194,26 +194,26 @@ Acub = exact.Acube(
 for i in range(Acub.shape[0]):
     Acub[i, :] = Acub[i, :] * np.sqrt(np.ravel(np.sqrt(np.sum(pm_ncsx.plasma_boundary.normal() ** 2, axis=-1)))[i] / (pm_ncsx.nphi * pm_ncsx.ntheta))
 
+# Calculate the A_matrix used for optimization, with the dipole fields
 AsimDip = dipole_field_Bn(
     np.ascontiguousarray(dip_ncsx.plasma_boundary.gamma().reshape(-1, 3)),
     np.ascontiguousarray(dip_ncsx.dipole_grid_xyz),
     np.ascontiguousarray(dip_ncsx.plasma_boundary.unitnormal().reshape(-1, 3)),
     1, 0, dip_ncsx.b_obj
 ).reshape(Acub.shape[0], Acub.shape[1])
-
 Ngrid = dip_ncsx.nphi * dip_ncsx.ntheta
 AsimDip = AsimDip.reshape(dip_ncsx.nphi * dip_ncsx.ntheta, dip_ncsx.ndipoles * 3)
 Nnorms = np.ravel(np.sqrt(np.sum(dip_ncsx.plasma_boundary.normal() ** 2, axis=-1)))
 for i in range(AsimDip.shape[0]):
     AsimDip[i, :] = AsimDip[i, :] * np.sqrt(Nnorms[i] / Ngrid)
 
-print('direct = ',Acub)
-print('from grid = ',pm_ncsx.A_obj)
+# Make sure the A matrices looks similar
+print('direct = ', Acub, Acub.shape)
+print('from grid = ', pm_ncsx.A_obj, pm_ncsx.A_obj.shape)
 print('close = ', np.allclose(Acub, pm_ncsx.A_obj))
-print('dip from grid = ', dip_ncsx.A_obj)
+print('dip from grid = ', dip_ncsx.A_obj, dip_ncsx.A_obj.shape)
 print('close = ', np.allclose(pm_ncsx.A_obj, dip_ncsx.A_obj))
-print('dip direct = ', AsimDip)
-
+print('dip direct = ', AsimDip, AsimDip.shape)
 
 # Optimize with the GPMO algorithm
 kwargs = initialize_default_kwargs('GPMO')
@@ -252,9 +252,9 @@ if True:
     print('splot gamma, shape = ', s_plot.gamma(), s_plot.gamma().shape)
     print('s_plot gamma after reshape = ', s_plot.gamma().reshape((-1, 3)).shape)
     print('splot unitnormal, shape = ', s_plot.unitnormal(), s_plot.unitnormal().shape)
-    print('testplot gamma, shape = ', test_plot.gamma(), test_plot.gamma().shape)
-    print('testplot gamma after reshape = ', test_plot.gamma().reshape((-1, 3)).shape)
-    print('testplot unitnormal, shape = ', test_plot.unitnormal(), test_plot.unitnormal().shape)
+    # print('testplot gamma, shape = ', test_plot.gamma(), test_plot.gamma().shape)
+    # print('testplot gamma after reshape = ', test_plot.gamma().reshape((-1, 3)).shape)
+    # print('testplot unitnormal, shape = ', test_plot.unitnormal(), test_plot.unitnormal().shape)
     b_exact.set_points(s_plot.gamma().reshape((-1, 3)))
     b_exact._toVTK(out_dir / "Exact_Fields")
     tr2 = time.time()

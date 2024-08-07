@@ -39,20 +39,21 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 8  # >= 64 for high-resolution runs
-    nIter_max = 10000
-    max_nMagnets = 1000
+    N = 16  # >= 64 for high-resolution runs
+    nIter_max = 5000
+    # max_nMagnets = 400
     downsample = 10
 
 nphi = N
 ntheta = N
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
-nAdjacent = 10
-thresh_angle = np.pi  # / np.sqrt(2)
+algorithm = 'baseline'
+# algorithm = 'ArbVec_backtracking'
+# nBacktracking = 400 
+# nAdjacent = 10
+# thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 100
-angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("noSym_PM4Stell_angle{angle}_nb{nBacktracking}_na{nAdjacent}") 
+# angle = int(thresh_angle * 180 / np.pi)
+out_dir = Path("noSym_PM4Stell") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -71,7 +72,6 @@ s2 = SurfaceRZFourier.from_focus(
 
 lcfs_ncsx.nfp = 1
 lcfs_ncsx.stellsym = False
-
 s1.nfp = 1
 s1.stellsym = False
 s2.nfp = 1
@@ -86,7 +86,6 @@ s_plot = SurfaceRZFourier.from_focus(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
-
 s_plot.nfp = 1
 s_plot.stellsym = False
 
@@ -183,9 +182,11 @@ print('GPMO took t = ', dt, ' s')
 # Save files
 if True:
     # Make BiotSavart object from the dipoles and plot solution 
+    print(s_plot.stellsym, s_plot.nfp)
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
         pm_ncsx.m,
+        stellsym=s_plot.stellsym,
         nfp=s_plot.nfp,
         coordinate_flag=pm_ncsx.coordinate_flag,
         m_maxima=pm_ncsx.m_maxima,

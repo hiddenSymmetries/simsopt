@@ -13,11 +13,9 @@ except ImportError:
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
-import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
 
-import Bcube as cub
-import Bgrad as dcub
+from . import Bcube as cub
+from . import Bgrad as dcub
 logger = logging.getLogger(__name__)
 
 __all__ = ['ToroidalField', 'PoloidalField', 'ScalarPotentialRZMagneticField',
