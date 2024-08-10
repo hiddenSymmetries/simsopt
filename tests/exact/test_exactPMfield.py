@@ -3,8 +3,7 @@ import numpy as np
 
 import sys
 sys.path.append('/Users/willhoffman/simsopt/Codes')
-from Bcube import *
-from Bgrad import *
+from Bcube_nonVec import *
 from simsoptpp import dipole_field_Bn, dipole_field_B, dipole_field_dB, dipole_field_dA
 
 

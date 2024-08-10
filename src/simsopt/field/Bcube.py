@@ -1,5 +1,5 @@
+
 import numpy as np
-import sympy as sp
 import itertools
 
 mu0 = 4*np.pi*10**-7
@@ -61,7 +61,7 @@ def B_direct(points, magPos, m, dims, phiThetas):
 
     P = Pd(phiThetas[:, 0], phiThetas[:, 1])
     P = np.transpose(P, axes=[2, 0, 1])
-    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :]), axis=-1)
+    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :])[:, :, None, :], axis=-1)
 
     tx = np.heaviside(dims[0]/2 - np.abs(r_loc[:, :, 0]),0.5)
     ty = np.heaviside(dims[1]/2 - np.abs(r_loc[:, :, 1]),0.5)
@@ -120,7 +120,7 @@ def Acube(points, magPos, norms, dims, phiThetas):
     t1 = time.time()
     P = Pd(phiThetas[:, 0], phiThetas[:, 1])
     P = np.transpose(P, axes=[2, 0, 1])
-    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :]), axis=-1)
+    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :])[:, :, None, :], axis=-1)
     n_loc = np.sum(P[None, :, :, :] * norms[:, None, None, :], axis=-1)
     A = gd_i(r_loc, n_loc, dims).reshape(N, -1)
     # for n in range(N):
@@ -139,52 +139,6 @@ def Acube(points, magPos, norms, dims, phiThetas):
 
 def Bn_fromMat(points, magPos, m, norms, dims, phiThetas): #solving Bnorm using matrix formulation
     A = Acube(points, magPos, norms, dims, phiThetas)
-    ms = np.concatenate(m)
-    return A @ ms
-
-
-#FOR DIPOLES
-
-def Bdip_direct(points, magPos, m):
-    N = len(points)
-    D = len(m)
-    
-    B = np.zeros((N,3))
-    for n in range(N):
-        for d in range(D):
-            r = points[n] - magPos[d]
-            B[n] += mu0/(4*np.pi) * (3*m[d]@r * r/np.linalg.norm(r)**5 - m[d]/np.linalg.norm(r)**3)
-    return B
-
-def Bndip_direct(points, magPos, m, norms): #solve Bnorm using analytic formula
-    N = len(points)
-    B = Bdip_direct(points, magPos, m)
-    Bn = np.zeros(N)
-
-    for n in range(N):
-        Bn[n] = B[n] @ norms[n]
-    return Bn
-
-def g_dip(r,n): #for matrix formulation
-    return mu0/(4*np.pi) * (3*r@n * r/np.linalg.norm(r)**5 - n/np.linalg.norm(r)**3)
-
-def Adip(points, magPos, norms):
-    N = len(points)
-    D = len(magPos)
-    
-    A = np.zeros((N,3*D))
-    for n in range(N):
-        for d in range(D):
-            r = (points[n] - magPos[d])            
-            g = g_dip(r,norms[n])
-            
-            A[n,3*d] = g[0]
-            A[n,3*d+1] = g[1]
-            A[n,3*d+2] = g[2]
-    return A
-
-def Bndip_fromMat(points, magPos, m, norms): #solve Bnorm using matrix formulation
-    A = Adip(points, magPos, norms)
     ms = np.concatenate(m)
     return A @ ms
 
