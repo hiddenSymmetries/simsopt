@@ -61,7 +61,7 @@ def B_direct(points, magPos, m, dims, phiThetas):
 
     P = Pd(phiThetas[:, 0], phiThetas[:, 1])
     P = np.transpose(P, axes=[2, 0, 1])
-    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :]), axis=-1)
+    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :])[:, :, None, :], axis=-1)
 
     tx = np.heaviside(dims[0]/2 - np.abs(r_loc[:, :, 0]),0.5)
     ty = np.heaviside(dims[1]/2 - np.abs(r_loc[:, :, 1]),0.5)
@@ -120,7 +120,7 @@ def Acube(points, magPos, norms, dims, phiThetas):
     t1 = time.time()
     P = Pd(phiThetas[:, 0], phiThetas[:, 1])
     P = np.transpose(P, axes=[2, 0, 1])
-    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :]), axis=-1)
+    r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :])[:, :, None, :], axis=-1)
     n_loc = np.sum(P[None, :, :, :] * norms[:, None, None, :], axis=-1)
     A = gd_i(r_loc, n_loc, dims).reshape(N, -1)
     # for n in range(N):
