@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 Provides the LeastSquaresProblem class implemented using the new graph based
@@ -10,7 +10,6 @@ optimization framework.
 from __future__ import annotations
 
 import logging
-import warnings
 from collections.abc import Sequence as ABC_Sequence
 from typing import Union, Callable, Tuple, Sequence
 from numbers import Real
@@ -19,7 +18,7 @@ import numpy as np
 
 from .._core.optimizable import Optimizable
 from .._core.util import ObjectiveFailure
-from .._core.types import RealArray, IntArray, BoolArray
+from .._core.types import RealArray
 
 __all__ = ['LeastSquaresProblem']
 
@@ -162,7 +161,7 @@ class LeastSquaresProblem(Optimizable):
                     break
 
                 output = np.array([out]) if not np.ndim(out) else np.asarray(out)
-                output -= self.goals[i]
+                output = output - self.goals[i]
                 if self.first_eval:
                     self.nvals += len(output)
                     logger.debug(f"{i}: first eval {self.nvals}")

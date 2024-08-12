@@ -4,12 +4,18 @@ import numpy as np
 from scipy.io import netcdf_file
 from scipy.interpolate import interp1d
 import f90nml
-from monty.json import MSONable
 
 import simsoptpp as sopp
 from .surface import Surface
 from .._core.optimizable import DOFs, Optimizable
 from .._core.util import nested_lists_to_array
+from .._core.dev import SimsoptRequires
+
+try:
+    from qsc import Qsc
+    from qsc.util import to_Fourier
+except ImportError:
+    Qsc = None
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +62,8 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
-                 quadpoints_phi=None, quadpoints_theta=None):
+                 quadpoints_phi=None, quadpoints_theta=None,
+                 dofs=None):
 
         if quadpoints_theta is None:
             quadpoints_theta = Surface.get_theta_quadpoints()
@@ -68,9 +75,13 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.rc[0, ntor] = 1.0
         self.rc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceRZFourier.set_dofs_impl,
-                         names=self._make_names())
+        if dofs is None:
+            Surface.__init__(self, x0=self.get_dofs(),
+                             external_dof_setter=SurfaceRZFourier.set_dofs_impl,
+                             names=self._make_names())
+        else:
+            Surface.__init__(self, dofs=dofs,
+                             external_dof_setter=SurfaceRZFourier.set_dofs_impl)
         self._make_mn()
 
     def get_dofs(self):
@@ -127,9 +138,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self.n = n
 
     @classmethod
-    def from_wout(cls,
-                  filename: str,
-                  s: float = 1.0,
+    def from_wout(cls, filename: str, s: float = 1.0,
                   interp_kind: str = 'linear',
                   **kwargs):
         """
@@ -208,9 +217,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         return surf
 
     @classmethod
-    def from_vmec_input(cls,
-                        filename: str,
-                        **kwargs):
+    def from_vmec_input(cls, filename: str, **kwargs):
         """
         Read in a surface from a VMEC input file. The ``INDATA`` namelist
         of this file will be read using `f90nml
@@ -297,31 +304,34 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
                    **kwargs)
 
         # Transfer boundary shape data from the namelist to the surface object:
+        # In these loops, we set surf.rc/zs rather than call surf.set_rc() for speed.
         for jm in range(rc.shape[0]):
             m = jm + nml.start_index['rbc'][1]
             for jn in range(rc.shape[1]):
                 n = jn + nml.start_index['rbc'][0]
-                surf.set_rc(m, n, rc[jm, jn])
+                surf.rc[m, n + ntor_boundary] = rc[jm, jn]
 
         for jm in range(zs.shape[0]):
             m = jm + nml.start_index['zbs'][1]
             for jn in range(zs.shape[1]):
                 n = jn + nml.start_index['zbs'][0]
-                surf.set_zs(m, n, zs[jm, jn])
+                surf.zs[m, n + ntor_boundary] = zs[jm, jn]
 
         if lasym:
             for jm in range(rs.shape[0]):
                 m = jm + nml.start_index['rbs'][1]
                 for jn in range(rs.shape[1]):
                     n = jn + nml.start_index['rbs'][0]
-                    surf.set_rs(m, n, rs[jm, jn])
+                    surf.rs[m, n + ntor_boundary] = rs[jm, jn]
 
             for jm in range(zc.shape[0]):
                 m = jm + nml.start_index['zbc'][1]
                 for jn in range(zc.shape[1]):
                     n = jn + nml.start_index['zbc'][0]
-                    surf.set_zc(m, n, zc[jm, jn])
+                    surf.zc[m, n + ntor_boundary] = zc[jm, jn]
 
+        # Sync the dofs:
+        surf.local_full_x = surf.get_dofs()
         return surf
 
     @classmethod
@@ -359,6 +369,14 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         mpol = int(np.max(m))
         ntor = int(np.max(np.abs(n)))
 
+        ntheta = kwargs.pop("ntheta", None)
+        nphi = kwargs.pop("nphi", None)
+        grid_range = kwargs.pop("range", None)
+
+        if ntheta is not None or nphi is not None:
+            kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                ntheta=ntheta, nphi=nphi, nfp=nfp, range=grid_range)
+
         surf = cls(mpol=mpol, ntor=ntor, nfp=nfp, stellsym=stellsym, **kwargs)
 
         for j in range(Nfou):
@@ -367,6 +385,39 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             if not stellsym:
                 surf.rs[m[j], n[j] + ntor] = rs[j]
                 surf.zc[m[j], n[j] + ntor] = zc[j]
+
+        surf.local_full_x = surf.get_dofs()
+        return surf
+
+    @classmethod
+    @SimsoptRequires(Qsc is not None, "from_pyQSC method requires pyQSC module")
+    def from_pyQSC(cls, stel: Qsc, r: float = 0.1, ntheta=20, mpol=10, ntor=20, **kwargs):
+        """
+        Initialize the surface from a pyQSC object. This creates a surface
+        from a near-axis equilibrium with a specified minor radius `r` (in meters).
+
+        Args:
+            stel: Qsc object with a near-axis equilibrium.
+            r: the near-axis coordinate radius (in meters).
+            ntheta: number of points in the theta direction for the Fourier transform.
+            mpol: number of poloidal Fourier modes for the surface.
+            ntor: number of toroidal Fourier modes for the surface.
+            kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` constructor.
+              You can specify ``quadpoints_theta`` and ``quadpoints_phi`` here.
+        """
+        # Get surface shape at fixed off-axis toroidal angle phi
+        R_2D, Z_2D, _ = stel.Frenet_to_cylindrical(r, ntheta)
+
+        # Fourier transform the result.
+        RBC, RBS, ZBC, ZBS = to_Fourier(R_2D, Z_2D, stel.nfp, mpol, ntor, stel.lasym)
+
+        surf = cls(mpol=mpol, ntor=ntor, nfp=stel.nfp, stellsym=not stel.lasym, **kwargs)
+
+        surf.rc[:, :] = RBC.transpose()
+        surf.zs[:, :] = ZBS.transpose()
+        if stel.lasym:
+            surf.rs[:, :] = RBS.transpose()
+            surf.zc[:, :] = ZBC.transpose()
 
         surf.local_full_x = surf.get_dofs()
         return surf
@@ -403,11 +454,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         self._make_mn()
 
         # Update the dofs object
-        self._dofs = DOFs(self.get_dofs(), self._make_names())
-        # The following methods of graph Optimizable framework need to be called
-        Optimizable._update_free_dof_size_indices(self)
-        Optimizable._update_full_dof_size_indices(self)
-        Optimizable._set_new_x(self)
+        self.replace_dofs(DOFs(self.get_dofs(), self._make_names()))
 
     def to_RZFourier(self):
         """
@@ -590,22 +637,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         with open(filename, 'w') as f:
             f.write(self.get_nml())
 
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["stellsym"] = self.stellsym
-        d["mpol"] = self.mpol
-        d["ntor"] = self.ntor
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
-                   mpol=d["mpol"], ntor=d["ntor"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
-        surf.local_full_x = d["x0"]
-        return surf
-
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,
                      'aspect-ratio': Surface.aspect_ratio}
@@ -680,14 +711,25 @@ class SurfaceRZPseudospectral(Optimizable):
         a_scale: Dofs are multiplied by this factor to get the actual cylindrical coordinates.
     """
 
-    def __init__(self, mpol, ntor, nfp, r_shift=1.0, a_scale=1.0):
+    def __init__(self, mpol, ntor, nfp, r_shift=1.0, a_scale=1.0, **kwargs):
         self.mpol = mpol
         self.ntor = ntor
         self.nfp = nfp
         self.r_shift = r_shift
         self.a_scale = a_scale
         ndofs = 1 + 2 * (ntor + mpol * (2 * ntor + 1))
-        super().__init__(x0=np.zeros(ndofs), names=self._make_names())
+        if "dofs" not in kwargs:
+            if "x0" not in kwargs:
+                kwargs["x0"] = np.zeros(ndofs)
+            else:
+                assert (len(kwargs["x0"]) == ndofs)
+            if "names" not in kwargs:
+                kwargs["names"] = self._make_names()
+            else:
+                assert (len(kwargs["names"]) == ndofs)
+        else:
+            assert (len(kwargs["dofs"]) == ndofs)
+        super().__init__(**kwargs)
 
     def _make_names(self):
         """
@@ -863,12 +905,3 @@ class SurfaceRZPseudospectral(Optimizable):
                                                        a_scale=self.a_scale)
         return surf3
 
-    def as_dict(self) -> dict:
-        d = MSONable.as_dict(self)
-        d["x0"] = list(self.local_full_x)
-
-    @classmethod
-    def from_dict(cls, d):
-        surf = cls(d["mpol"], d["ntor"], d["nfp"], d["r_shift"], d["a_scale"])
-        surf.local_full_x = d["x0"]
-        return surf

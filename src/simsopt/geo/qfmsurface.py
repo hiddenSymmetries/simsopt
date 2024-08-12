@@ -1,13 +1,12 @@
-from scipy.optimize import minimize, least_squares, NonlinearConstraint
-import numpy as np
-from monty.json import MontyDecoder, MSONable
+from scipy.optimize import minimize # , NonlinearConstraint
 
-from simsopt.geo.surfaceobjectives import QfmResidual
+from .._core.json import GSONable
+from .surfaceobjectives import QfmResidual
 
 __all__ = ['QfmSurface']
 
 
-class QfmSurface(MSONable):
+class QfmSurface(GSONable):
     r"""
     QfmSurface is used to compute a quadratic-flux minimizing surface, defined
     as the minimum of the objective function,
@@ -35,6 +34,7 @@ class QfmSurface(MSONable):
         self.label = label
         self.targetlabel = targetlabel
         self.qfm = QfmResidual(surface, biotsavart)
+        self.name = str(id(self))
 
     def qfm_label_constraint(self, x, derivatives=0):
         r"""
@@ -165,7 +165,7 @@ class QfmSurface(MSONable):
         con = lambda x: self.qfm_label_constraint(x, derivatives=1)[0]
         dcon = lambda x: self.qfm_label_constraint(x, derivatives=1)[1]
 
-        nlc = NonlinearConstraint(con, 0, 0)
+        # nlc = NonlinearConstraint(con, 0, 0)
         eq_constraints = [{'type': 'eq', 'fun': con, 'jac': dcon}]
         res = minimize(
             fun, x, jac=True, method='SLSQP', constraints=eq_constraints,

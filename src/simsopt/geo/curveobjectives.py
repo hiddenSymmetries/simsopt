@@ -3,16 +3,15 @@ from deprecated import deprecated
 import numpy as np
 from jax import grad
 import jax.numpy as jnp
-from monty.json import MontyDecoder, MSONable
 
 from .jit import jit
 from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec
+from .._core.derivative import derivative_dec, Derivative
 import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature']
+           'MeanSquaredCurvature', 'LinkingNumber']
 
 
 @jit
@@ -52,14 +51,6 @@ class CurveLength(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve)
-
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -83,7 +74,7 @@ class LpCurveCurvature(Optimizable):
     where :math:`\kappa_0` is a threshold curvature, given by the argument ``threshold``.
     """
 
-    def __init__(self, curve, p, threshold=0.):
+    def __init__(self, curve, p, threshold=0.0):
         self.curve = curve
         self.p = p
         self.threshold = threshold
@@ -107,14 +98,6 @@ class LpCurveCurvature(Optimizable):
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["p"], d["threshold"])
-
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -137,14 +120,14 @@ class LpCurveTorsion(Optimizable):
 
     """
 
-    def __init__(self, curve, p, threshold=0.):
+    def __init__(self, curve, p, threshold=0.0):
         self.curve = curve
         self.p = p
         self.threshold = threshold
+        super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda torsion, gammadash: Lp_torsion_pure(torsion, gammadash, p, threshold))
         self.thisgrad0 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=0)(torsion, gammadash))
         self.thisgrad1 = jit(lambda torsion, gammadash: grad(self.J_jax, argnums=1)(torsion, gammadash))
-        super().__init__(depends_on=[curve])
 
     def J(self):
         """
@@ -160,14 +143,6 @@ class LpCurveTorsion(Optimizable):
         grad0 = self.thisgrad0(self.curve.torsion(), self.curve.gammadash())
         grad1 = self.thisgrad1(self.curve.torsion(), self.curve.gammadash())
         return self.curve.dtorsion_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
-
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["p"], d["threshold"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -274,14 +249,6 @@ class CurveCurveDistance(Optimizable):
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        curves = MontyDecoder().process_decoded(d["curves"])
-        return cls(curves, d["minimum_distance"], d["num_basecurves"])
-
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -326,7 +293,7 @@ class CurveSurfaceDistance(Optimizable):
         self.thisgrad0 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=0)(gammac, lc, gammas, ns))
         self.thisgrad1 = jit(lambda gammac, lc, gammas, ns: grad(self.J_jax, argnums=1)(gammac, lc, gammas, ns))
         self.candidates = None
-        super().__init__(depends_on=curves)
+        super().__init__(depends_on=curves)  # Bharat's comment: Shouldn't we add surface here
 
     def recompute_bell(self, parent=None):
         self.candidates = None
@@ -384,16 +351,6 @@ class CurveSurfaceDistance(Optimizable):
             dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gammac, lc, gammas, ns)
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)
-
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        curves = decoder.process_decoded(d["curves"])
-        surf = decoder.process_decoded(d["surface"])
-        return cls(curves, surf, d["minimum_distance"])
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -473,14 +430,6 @@ class ArclengthVariation(Optimizable):
         return self.curve.dincremental_arclength_by_dcoeff_vjp(
             self.thisgrad(self.curve.incremental_arclength()))
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve, d["nintervals"])
-
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
@@ -508,7 +457,7 @@ class MeanSquaredCurvature(Optimizable):
         Args:
             curve: the curve of which the curvature should be computed.
         """
-        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[curve])
+        super().__init__(depends_on=[curve])
         self.curve = curve
         self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
         self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
@@ -522,15 +471,54 @@ class MeanSquaredCurvature(Optimizable):
         grad1 = self.thisgrad1(self.curve.kappa(), self.curve.gammadash())
         return self.curve.dkappa_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1)
 
-    def as_dict(self) -> dict:
-        return MSONable.as_dict(self)
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = MontyDecoder().process_decoded(d["curve"])
-        return cls(curve)
-
 
 @deprecated("`MinimumDistance` has been deprecated and will be removed. Please use `CurveCurveDistance` instead.")
 class MinimumDistance(CurveCurveDistance):
     pass
+
+
+class LinkingNumber(Optimizable):
+
+    def __init__(self, curves, downsample=1):
+        Optimizable.__init__(self, depends_on=curves)
+        self.curves = curves
+        for curve in curves:
+            assert np.mod(len(curve.quadpoints), downsample) == 0, f"Downsample {downsample} does not divide the number of quadpoints {len(curve.quadpoints)}."
+
+        self.downsample = downsample
+        self.dphis = np.array([(c.quadpoints[1] - c.quadpoints[0]) * downsample for c in self.curves])
+
+        r"""
+        Compute the Gauss linking number of a set of curves, i.e. whether the curves
+        are interlocked or not.
+
+        The value is an integer, >= 1 if the curves are interlocked, 0 if not. For each pair
+        of curves, the contribution to the linking number is
+        
+        .. math::
+            Link(c_1, c_2) = \frac{1}{4\pi} \left| \oint_{c_1}\oint_{c_2}\frac{\textbf{r}_1 - \textbf{r}_2}{|\textbf{r}_1 - \textbf{r}_2|^3} (d\textbf{r}_1 \times d\textbf{r}_2) \right|
+            
+        where :math:`c_1` is the first curve, :math:`c_2` is the second curve,
+        :math:`\textbf{r}_1` is the position vector along the first curve, and
+        :math:`\textbf{r}_2` is the position vector along the second curve.
+
+        Args:
+            curves: the set of curves for which the linking number should be computed.
+            downsample: integer factor by which to downsample the quadrature
+                points when computing the linking number. Setting this parameter to
+                a value larger than 1 will speed up the calculation, which may
+                be useful if the set of coils is large, though it may introduce
+                inaccuracy if ``downsample`` is set too large.
+        """
+
+    def J(self):
+        return sopp.compute_linking_number(
+            [c.gamma() for c in self.curves],
+            [c.gammadash() for c in self.curves],
+            self.dphis,
+            self.downsample,
+        )
+
+    @derivative_dec
+    def dJ(self):
+        return Derivative({})

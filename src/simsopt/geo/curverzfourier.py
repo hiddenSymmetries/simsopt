@@ -28,14 +28,18 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
        [r_{c,0},...,r_{c,order},z_{s,1},...,z_{s,order}]
     """
 
-    def __init__(self, quadpoints, order, nfp, stellsym):
+    def __init__(self, quadpoints, order, nfp, stellsym, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = list(np.linspace(0, 1./nfp, quadpoints, endpoint=False))
         elif isinstance(quadpoints, np.ndarray):
             quadpoints = list(quadpoints)
         sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
-        Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
-                       x0=self.get_dofs())
+        if dofs is None:
+            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
+                           x0=self.get_dofs())
+        else:
+            Curve.__init__(self, external_dof_setter=CurveRZFourier.set_dofs_impl,
+                           dofs=dofs)
 
     def get_dofs(self):
         """
@@ -49,23 +53,3 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
         """
         self.local_x = dofs
         sopp.CurveRZFourier.set_dofs(self, dofs)
-
-    def as_dict(self) -> dict:
-        d = {}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        d["quadpoints"] = list(self.quadpoints)
-        d["order"] = self.order
-        d["nfp"] = self.nfp
-        d["stellsym"] = self.stellsym
-        d["x0"] = list(self.local_full_x)
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        curve = cls(d["quadpoints"],
-                    d["order"],
-                    d["nfp"],
-                    d["stellsym"])
-        curve.local_full_x = d["x0"]
-        return curve

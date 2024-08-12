@@ -1,4 +1,5 @@
 import numpy as np
+
 import simsoptpp as sopp
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
@@ -55,7 +56,8 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
     """
 
     def __init__(self, nfp=1, stellsym=True, mpol=1, ntor=0,
-                 quadpoints_phi=None, quadpoints_theta=None):
+                 quadpoints_phi=None, quadpoints_theta=None,
+                 dofs=None):
 
         if quadpoints_theta is None:
             quadpoints_theta = Surface.get_theta_quadpoints()
@@ -67,8 +69,12 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
         self.xc[0, ntor] = 1.0
         self.xc[1, ntor] = 0.1
         self.zs[1, ntor] = 0.1
-        Surface.__init__(self, x0=self.get_dofs(),
-                         external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
+        if dofs is None:
+            Surface.__init__(self, x0=self.get_dofs(),
+                             external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
+        else:
+            Surface.__init__(self, dofs=dofs,
+                             external_dof_setter=SurfaceXYZFourier.set_dofs_impl)
 
     def get_dofs(self):
         """
@@ -104,22 +110,6 @@ class SurfaceXYZFourier(sopp.SurfaceXYZFourier, Surface):
             gamma[idx, :, :] = self.cross_section(surf.quadpoints_phi[idx]*2*np.pi)
 
         surf.least_squares_fit(gamma)
-        return surf
-
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["mpol"] = self.mpol
-        d["ntor"] = self.ntor
-        d["stellsym"] = self.stellsym
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        surf = cls(nfp=d["nfp"], stellsym=d["stellsym"],
-                   mpol=d["mpol"], ntor=d["ntor"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
-        surf.set_dofs(d["x0"])
         return surf
 
     return_fn_map = {'area': sopp.SurfaceXYZFourier.area,

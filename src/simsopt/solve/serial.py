@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides the least_squares_serial_solve
@@ -15,15 +15,17 @@ import logging
 
 import numpy as np
 from scipy.optimize import least_squares, minimize
+from scipy.optimize import NonlinearConstraint, LinearConstraint
 
 from ..objectives.least_squares import LeastSquaresProblem
+from ..objectives.constrained import ConstrainedProblem
 from .._core.optimizable import Optimizable
 from .._core.finite_difference import FiniteDifference
 
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['least_squares_serial_solve', 'serial_solve']
+__all__ = ['least_squares_serial_solve', 'serial_solve', 'constrained_serial_solve']
 
 
 def least_squares_serial_solve(prob: LeastSquaresProblem,
@@ -256,5 +258,164 @@ def serial_solve(prob: Union[Optimizable, Callable],
 
         datalogging_started = False
         logger.info("Completed solve.")
+
+    prob.x = result.x
+
+
+def constrained_serial_solve(prob: ConstrainedProblem,
+                             grad: bool = None,
+                             abs_step: float = 1.0e-7,
+                             rel_step: float = 0.0,
+                             diff_method: str = "forward",
+                             opt_method: str = "SLSQP",
+                             options: dict = None):
+    """
+    Solve a constrained minimization problem using
+    scipy.optimize, and without using any parallelization.
+
+    Args:
+        prob: :obj:`~simsopt.objectives.ConstrainedProblem` object defining the
+            objective function, parameter space, and constraints.
+        grad: Whether to use a gradient-based optimization algorithm, as
+            opposed to a gradient-free algorithm. If unspecified, a
+            a gradient-free algorithm
+            will be used by default. If you set ``grad=True`` for a problem,
+            finite-difference gradients will be used.
+        abs_step: Absolute step size for finite difference jac evaluation
+        rel_step: Relative step size for finite difference jac evaluation
+        diff_method: Differentiation strategy. Options are ``"centered"`` and
+            ``"forward"``. If ``"centered"``, centered finite differences will
+            be used. If ``"forward"``, one-sided finite differences will
+            be used. For other settings, an error is raised.
+        opt_method: Constrained solver to use: One of ``"SLSQP"``,
+            ``"trust-constr"``, or ``"COBYLA"``. Use ``"COBYLA"`` for
+            derivative-free optimization. See
+            `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
+            for a description of the methods.
+        options: dict, ``options`` keyword which is passed to
+            `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
+    """
+
+    datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    objective_file = open(f"simsopt_{datestr}.dat", 'w')
+    constraint_file = open(f"constraints_{datestr}.dat", 'w')
+
+    objective_datalog_started = False
+    constraint_datalog_started = False
+    n_objective_evals = 0
+    n_constraint_evals = 0
+    start_time = time()
+
+    def _obj(x):
+        nonlocal objective_datalog_started, objective_file, n_objective_evals
+        try:
+            objective_val = prob.objective(x)
+        except:
+            logger.info("Exception caught during objective evaluation")
+            objective_val = prob.fail
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not objective_datalog_started:
+            # Initialize log file
+            objective_datalog_started = True
+            ndofs = prob.dof_size
+            objective_file.write(
+                f"Problem type:\nconstrained\nnparams:\n{ndofs}\n")
+            objective_file.write("function_evaluation,seconds")
+            for j in range(ndofs):
+                objective_file.write(f",x({j})")
+            objective_file.write(",objective_function\n")
+
+        elapsed_t = time() - start_time
+        objective_file.write(f"{n_objective_evals:6d},{elapsed_t:12.4e}")
+        for xj in x:
+            objective_file.write(f",{xj:24.16e}")
+        objective_file.write(f",{objective_val:24.16e}")
+        objective_file.write("\n")
+        objective_file.flush()
+
+        n_objective_evals += 1
+        return objective_val
+
+    def _nlc(x):
+        nonlocal constraint_datalog_started, constraint_file, n_constraint_evals
+        try:
+            constraint_val = prob.nonlinear_constraints(x)
+        except:
+            logger.info("Exception caught during objective evaluation")
+            constraint_val = np.full(prob.nvals, prob.fail)
+
+        # Since the number of terms is not known until the first
+        # evaluation of the objective function, we cannot write the
+        # header of the output file until this first evaluation is
+        # done.
+        if not constraint_datalog_started:
+            # Initialize log file
+            constraint_datalog_started = True
+            ndofs = prob.dof_size
+            constraint_file.write(
+                f"Problem type:\nconstrained\nnparams:\n{ndofs}\n")
+            constraint_file.write("function_evaluation,seconds")
+            for j in range(ndofs):
+                constraint_file.write(f",x({j})")
+            constraint_file.write(",constraint_function\n")
+            for j in range(len(constraint_val)):
+                constraint_file.write(f",F({j})")
+            constraint_file.write("\n")
+
+        elapsed_t = time() - start_time
+        constraint_file.write(f"{n_constraint_evals:6d},{elapsed_t:12.4e}")
+        for xj in x:
+            constraint_file.write(f",{xj:24.16e}")
+        for fj in constraint_val:
+            constraint_file.write(f",{fj:24.16e}")
+        constraint_file.write("\n")
+        constraint_file.flush()
+
+        n_constraint_evals += 1
+        return constraint_val
+
+    # prepare linear constraints
+    constraints = []
+    if prob.has_lc:
+        constraints.append(LinearConstraint(prob.A_lc, lb=prob.l_lc, ub=prob.u_lc))
+
+    # prepare bounds
+    bounds = list(zip(*prob.bounds))
+
+    logger.info("Beginning solve.")
+
+    x0 = np.copy(prob.x)
+    if grad:
+        logger.info("Using finite-difference derivatives")
+        fd_obj = FiniteDifference(prob.objective, abs_step=abs_step,
+                                  rel_step=rel_step, diff_method=diff_method)
+        if prob.has_nlc:
+            fd_nlc = FiniteDifference(prob.nonlinear_constraints, abs_step=abs_step,
+                                      rel_step=rel_step, diff_method=diff_method)
+            nlc = NonlinearConstraint(_nlc, lb=-np.inf, ub=0.0, jac=fd_nlc.jac)
+            constraints.append(nlc)
+        # optimize
+        result = minimize(_obj, x0, jac=fd_obj,
+                          bounds=bounds, constraints=constraints,
+                          method=opt_method, options=options)
+    else:
+        logger.info("Using derivative-free method")
+        if prob.has_nlc:
+            nlc = NonlinearConstraint(_nlc, lb=-np.inf, ub=0.0)
+            constraints.append(nlc)
+        # optimize
+        result = minimize(_obj, x0,
+                          bounds=bounds, constraints=constraints,
+                          method=opt_method, options=options)
+
+    objective_datalog_started = False
+    constraint_datalog_started = False
+    objective_file.close()
+    constraint_file.close()
+    logger.info("Completed solve.")
 
     prob.x = result.x

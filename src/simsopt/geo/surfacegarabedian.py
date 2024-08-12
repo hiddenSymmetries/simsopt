@@ -1,7 +1,9 @@
-import numpy as np
 import logging
 
+import numpy as np
+
 import simsoptpp as sopp
+from .._core.descriptor import Integer
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 
@@ -43,9 +45,15 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         quadpoints_phi: Set this to a list or 1D array to set the :math:`\phi_j` grid points directly.
         quadpoints_theta: Set this to a list or 1D array to set the :math:`\theta_j` grid points directly.
     """
+    mmin = Integer(max_value=0)
+    mmax = Integer(min_value=1)
+    nfp = Integer()
+    nmin = Integer()
+    nmax = Integer()
 
     def __init__(self, nfp=1, mmax=1, mmin=0, nmax=0, nmin=None,
-                 quadpoints_phi=None, quadpoints_theta=None):
+                 quadpoints_phi=None, quadpoints_theta=None,
+                 dofs=None):
         if nmin is None:
             nmin = -nmax
         # Perform some validation.
@@ -53,10 +61,6 @@ class SurfaceGarabedian(sopp.Surface, Surface):
             raise ValueError("mmin must be >= mmax")
         if nmax < nmin:
             raise ValueError("nmin must be >= nmax")
-        if mmax < 1:
-            raise ValueError("mmax must be >= 1")
-        if mmin > 0:
-            raise ValueError("mmin must be <= 0")
         self.mmin = mmin
         self.mmax = mmax
         self.nmin = nmin
@@ -73,10 +77,13 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         if quadpoints_phi is None:
             quadpoints_phi = Surface.get_phi_quadpoints(nfp=nfp)
 
-        Delta = np.zeros(self.shape)
         sopp.Surface.__init__(self, quadpoints_phi, quadpoints_theta)
-        Surface.__init__(self, x0=Delta.ravel(),
-                         names=self._make_dof_names())
+        if dofs is None:
+            Delta = np.zeros(self.shape)
+            Surface.__init__(self, x0=Delta.ravel(),
+                             names=self._make_dof_names())
+        else:
+            Surface.__init__(self, dofs=dofs)
 
         # Initialize to an axisymmetric torus with major radius 1m and
         # minor radius 0.1m
@@ -235,23 +242,6 @@ class SurfaceGarabedian(sopp.Surface, Surface):
         """
         self.area_volume()
         return self._volume
-
-    def as_dict(self) -> dict:
-        d = super().as_dict()
-        d["mmax"] = self.mmax
-        d["mmin"] = self.mmin
-        d["nmax"] = self.nmax
-        d["nmin"] = self.nmin
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        surf = cls(nfp=d["nfp"], mmax=d["mmax"], mmin=d["mmin"],
-                   nmax=d["nmax"], nmin=d["nmin"],
-                   quadpoints_phi=d["quadpoints_phi"],
-                   quadpoints_theta=d["quadpoints_theta"])
-        surf.set_dofs(d["x0"])
-        return surf
 
     return_fn_map = {'area': area,
                      'volume': volume,

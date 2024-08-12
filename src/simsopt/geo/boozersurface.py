@@ -1,13 +1,14 @@
-from scipy.optimize import minimize, least_squares
 import numpy as np
-from monty.json import MontyDecoder, MSONable
+from scipy.linalg import lu
+from scipy.optimize import minimize, least_squares
 
-from simsopt.geo.surfaceobjectives import boozer_surface_residual
+from .surfaceobjectives import boozer_surface_residual
+from .._core.optimizable import Optimizable
 
 __all__ = ['BoozerSurface']
 
 
-class BoozerSurface(MSONable):
+class BoozerSurface(Optimizable):
     r"""
     BoozerSurface and its associated methods can be used to compute the Boozer
     angles on a surface. It takes a Surface representation (e.g. SurfaceXYZFourier,
@@ -40,10 +41,15 @@ class BoozerSurface(MSONable):
     """
 
     def __init__(self, biotsavart, surface, label, targetlabel):
+        super().__init__(depends_on=[biotsavart])
         self.biotsavart = biotsavart
         self.surface = surface
         self.label = label
         self.targetlabel = targetlabel
+        self.need_to_run_code = True
+
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
 
     def boozer_penalty_constraints(self, x, derivatives=0, constraint_weight=1., scalarize=True, optimize_G=False):
         r"""
@@ -107,7 +113,7 @@ class BoozerSurface(MSONable):
         dl = np.zeros(x.shape)
         drz = np.zeros(x.shape)
 
-        dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
+        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
 
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
         J = np.concatenate((
@@ -174,7 +180,7 @@ class BoozerSurface(MSONable):
         dl = np.zeros((xl.shape[0]-2,))
 
         l = self.label.J()
-        dl[:nsurfdofs] = self.label.dJ_by_dsurfacecoefficients()
+        dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
         drz = np.zeros((xl.shape[0]-2,))
         g = [l-self.targetlabel]
         rz = (s.gamma()[0, 0, 2] - 0.)
@@ -214,6 +220,9 @@ class BoozerSurface(MSONable):
         This is done using LBFGS.
         """
 
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -239,6 +248,8 @@ class BoozerSurface(MSONable):
         resdict['s'] = s
         resdict['iota'] = iota
 
+        self.res = resdict
+        self.need_to_run_code = False
         return resdict
 
     def minimize_boozer_penalty_constraints_newton(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, stab=0.):
@@ -246,6 +257,9 @@ class BoozerSurface(MSONable):
         This function does the same as :mod:`minimize_boozer_penalty_constraints_LBFGS`, but instead of LBFGS it uses
         Newton's method.
         """
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -282,6 +296,9 @@ class BoozerSurface(MSONable):
             res['G'] = G
         res['s'] = s
         res['iota'] = iota
+
+        self.res = res
+        self.need_to_run_code = False
         return res
 
     def minimize_boozer_penalty_constraints_ls(self, tol=1e-12, maxiter=10, constraint_weight=1., iota=0., G=None, method='lm'):
@@ -291,6 +308,10 @@ class BoozerSurface(MSONable):
         are the same as for :mod:`scipy.optimize.least_squares`. If ``method='manual'``, then a 
         damped Gauss-Newton method is used.
         """
+
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is None:
             x = np.concatenate((s.get_dofs(), [iota]))
@@ -347,6 +368,9 @@ class BoozerSurface(MSONable):
             resdict['G'] = G
         resdict['s'] = s
         resdict['iota'] = iota
+
+        self.res = resdict
+        self.need_to_run_code = False
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
@@ -369,6 +393,10 @@ class BoozerSurface(MSONable):
         The final constraint is not necessary for stellarator symmetric surfaces as it is automatically
         satisfied by the stellarator symmetric surface parametrization.
         """
+
+        if not self.need_to_run_code:
+            return self.res
+
         s = self.surface
         if G is not None:
             xl = np.concatenate((s.get_dofs(), [iota, G], lm))
@@ -412,6 +440,9 @@ class BoozerSurface(MSONable):
             iota = xl[-3]
         res['s'] = s
         res['iota'] = iota
+
+        self.res = res
+        self.need_to_run_code = False
         return res
 
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None):
@@ -481,6 +512,8 @@ class BoozerSurface(MSONable):
         which is the same as the number of surface dofs + 2 extra unknowns
         given by iota and G.
         """
+        if not self.need_to_run_code:
+            return self.res
 
         from simsopt.geo.surfacexyztensorfourier import SurfaceXYZTensorFourier
         s = self.surface
@@ -518,12 +551,12 @@ class BoozerSurface(MSONable):
             if s.stellsym:
                 J = np.vstack((
                     J[mask, :],
-                    np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                    np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
                 ))
             else:
                 J = np.vstack((
                     J[mask, :],
-                    np.concatenate((label.dJ_by_dsurfacecoefficients(), [0., 0.])),
+                    np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
                     np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
                 ))
             dx = np.linalg.solve(J, b)
@@ -535,13 +568,24 @@ class BoozerSurface(MSONable):
             i += 1
             r, J = boozer_surface_residual(s, iota, G, self.biotsavart, derivatives=1)
 
-        res = {"residual": r, "jacobian": J, "iter": i, "success": norm <= tol,
-               "G": G, "s": s, "iota": iota}
+        if s.stellsym:
+            J = np.vstack((
+                J[mask, :],
+                np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
+            ))
+        else:
+            J = np.vstack((
+                J[mask, :],
+                np.concatenate((label.dJ(partials=True)(s), [0., 0.])),
+                np.concatenate((s.dgamma_by_dcoeff()[0, 0, 2, :], [0., 0.]))
+            ))
+
+        P, L, U = lu(J)
+        res = {
+            "residual": r, "jacobian": J, "iter": i, "success": norm <= tol, "G": G, "s": s, "iota": iota, "PLU": (P, L, U),
+            "mask": mask, 'type': 'exact'
+        }
+        self.res = res
+        self.need_to_run_code = False
         return res
 
-    @classmethod
-    def from_dict(cls, d):
-        decoder = MontyDecoder()
-        bs = decoder.process_decoded(d["biotsavart"])
-        surf = decoder.process_decoded(d["surface"])
-        return cls(bs, surf, d["label"], d["targetlabel"])
