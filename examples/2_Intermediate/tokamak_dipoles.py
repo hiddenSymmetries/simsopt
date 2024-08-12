@@ -25,7 +25,7 @@ if in_github_actions:
 else:
     nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 80  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 50  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
