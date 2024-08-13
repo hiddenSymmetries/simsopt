@@ -371,13 +371,23 @@ class PermanentMagnetGrid:
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
         pm_grid._setup_uniform_grid()
-        pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            contig(normal_inner), 
-            contig(normal_outer), 
-            contig(pm_grid.xyz_uniform), 
-            contig(pm_grid.xyz_inner), 
-            contig(pm_grid.xyz_outer))
+        print(normal_inner.shape, normal_outer.shape, pm_grid.xyz_uniform.shape, pm_grid.xyz_inner.shape, pm_grid.xyz_outer.shape)
+        pm_grid.dipole_grid_xyz = define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+            normal_inner, 
+            normal_outer, 
+            pm_grid.xyz_uniform, 
+            pm_grid.xyz_inner, 
+            pm_grid.xyz_outer
+        )
+        
+        # pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+        #     contig(normal_inner), 
+        #     contig(normal_outer), 
+        #     contig(pm_grid.xyz_uniform), 
+        #     contig(pm_grid.xyz_inner), 
+        #     contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
+        print(inds.shape)
         pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
         pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
         pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
@@ -440,7 +450,7 @@ class PermanentMagnetGrid:
 
         print('# points = ',len(np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3))))
         print('# mag points = ', len(np.ascontiguousarray(self.dipole_grid_xyz)))
-        print('# point norms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
+        print('# ponorms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
         print('A shape = ',self.A_obj.shape)
 
         # Rescale the A matrix so that 0.5 * ||Am - b||^2 = f_b,
@@ -465,13 +475,13 @@ class PermanentMagnetGrid:
         # Set m to zeros
         self.m = self.m0
 
-        # Print initial f_B metric using the initial guess
+        # Prinitial f_B metric using the initial guess
         total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
         print('f_B (total with initial SIMSOPT guess) = ', total_error)
 
     def _print_initial_opt(self):
         """
-        Print out initial errors and the bulk optimization parameters
+        Prout initial errors and the bulk optimization parameters
         before the permanent magnets are optimized.
         """
         ave_Bn = np.mean(np.abs(self.b_obj))
@@ -1036,7 +1046,7 @@ class ExactMagnetGrid:
 
         print('# points = ',len(np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3))))
         print('# mag points = ', len(np.ascontiguousarray(self.pm_grid_xyz)))
-        print('# point norms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
+        print('# ponorms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
         print('# (phi, theta) mag orientations = ',len(self.get_phiThetas()))
         print('A shape = ',self.A_obj.shape)
         #HAVE TO ADD COORDINATE FLAG, NFP, STELLSYM, BOBJ, R0 TO MY A OBJECT
@@ -1063,13 +1073,13 @@ class ExactMagnetGrid:
         # Set m to zeros
         self.m = self.m0
 
-        # Print initial f_B metric using the initial guess
+        # Prinitial f_B metric using the initial guess
         total_error = np.linalg.norm((self.A_obj.dot(self.m0) - self.b_obj), ord=2) ** 2 / 2.0
         print('f_B (total with initial SIMSOPT guess) = ', total_error)
 
     def _print_initial_opt(self):
         """
-        Print out initial errors and the bulk optimization parameters
+        Prout initial errors and the bulk optimization parameters
         before the permanent magnets are optimized.
         """
         ave_Bn = np.mean(np.abs(self.b_obj))
@@ -1212,4 +1222,106 @@ class ExactMagnetGrid:
 
         return phiThetas
 
+def define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+    normal_inner, 
+    normal_outer, 
+    xyz_uniform, 
+    xyz_inner, 
+    xyz_outer
+):
+    num_inner = xyz_inner.shape[0]
+    num_outer = xyz_outer.shape[0]
+    ngrid = xyz_uniform.shape[0]
+    num_ray = 200
+    final_grid = np.zeros((ngrid, 3))
 
+    # Loop through every dipole
+    for i in range(ngrid):
+        X = xyz_uniform[i, 0]
+        Y = xyz_uniform[i, 1]
+        Z = xyz_uniform[i, 2]
+
+        # find nearest poon inner/outer toroidal surface
+        min_dist_inner = 1e5
+        min_dist_outer = 1e5
+        inner_loc = 0
+        outer_loc = 0
+        for k in range(num_inner):
+            x_inner = xyz_inner[k, 0]
+            y_inner = xyz_inner[k, 1]
+            z_inner = xyz_inner[k, 2]
+            dist_inner = (x_inner - X) * (x_inner - X) + (y_inner - Y) * (y_inner - Y) + (z_inner - Z) * (z_inner - Z)
+            if (dist_inner < min_dist_inner):
+                min_dist_inner = dist_inner
+                inner_loc = k
+
+        for k in range(num_outer):
+            x_outer = xyz_outer[k, 0]
+            y_outer = xyz_outer[k, 1]
+            z_outer = xyz_outer[k, 2]
+            dist_outer = (x_outer - X) * (x_outer - X) + (y_outer - Y) * (y_outer - Y) + (z_outer - Z) * (z_outer - Z)
+            if (dist_outer < min_dist_outer):
+                min_dist_outer = dist_outer
+                outer_loc = k
+
+        nx = 0.0
+        ny = 0.0
+        nz = 0.0
+        if (min_dist_inner < min_dist_outer):
+            nx = normal_inner[inner_loc, 0]
+            ny = normal_inner[inner_loc, 1]
+            nz = normal_inner[inner_loc, 2]
+        else:
+            nx = normal_outer[outer_loc, 0]
+            ny = normal_outer[outer_loc, 1]
+            nz = normal_outer[outer_loc, 2]
+        # normalize the normal vectors
+        norm_vec = np.sqrt(nx * nx + ny * ny + nz * nz)
+        ray_x = nx / norm_vec
+        ray_y = ny / norm_vec
+        ray_z = nz / norm_vec
+
+        # Compute all the rays and find the location of minimum ray-surface distance
+        dist_inner_ray = 0.0
+        dist_outer_ray = 0.0
+        min_dist_inner_ray = 1e5
+        min_dist_outer_ray = 1e5
+        nearest_loc_inner = 0
+        nearest_loc_outer = 0
+        ray_equation_x = 0.0
+        ray_equation_y = 0.0
+        ray_equation_z = 0.0
+        for k in range(num_ray):
+            ray_equation_x = X + ray_x * (4.0 / num_ray) * k
+            ray_equation_y = Y + ray_y * (4.0 / num_ray) * k
+            ray_equation_z = Z + ray_z * (4.0 / num_ray) * k
+            dist_inner_ray = (xyz_inner[inner_loc, 0] - ray_equation_x) * (
+                xyz_inner[inner_loc, 0] - ray_equation_x) + (
+                    xyz_inner[inner_loc, 1] - ray_equation_y) * (
+                        xyz_inner[inner_loc, 1] - ray_equation_y) + (
+                            xyz_inner[inner_loc, 2] - ray_equation_z) * (
+                                xyz_inner[inner_loc, 2] - ray_equation_z)
+            dist_outer_ray = (xyz_outer[outer_loc, 0] - ray_equation_x) * (
+                xyz_outer[outer_loc, 0] - ray_equation_x) + (
+                    xyz_outer[outer_loc, 1] - ray_equation_y) * (
+                        xyz_outer[outer_loc, 1] - ray_equation_y) + (
+                            xyz_outer[outer_loc, 2] - ray_equation_z) * (
+                                xyz_outer[outer_loc, 2] - ray_equation_z)
+            if (dist_inner_ray < min_dist_inner_ray):
+                min_dist_inner_ray = dist_inner_ray
+                nearest_loc_inner = k
+            if (dist_outer_ray < min_dist_outer_ray):
+                min_dist_outer_ray = dist_outer_ray
+                nearest_loc_outer = k
+
+        # nearest distance from the inner surface to the ray should be just the original point
+        if (nearest_loc_inner > 0):
+            continue
+
+        # nearest distance from the outer surface to the ray should NOT be the original point
+        if (nearest_loc_outer > 0):
+            final_grid[i, 0] = X
+            final_grid[i, 1] = Y
+            final_grid[i, 2] = Z
+
+    return final_grid

@@ -25,7 +25,7 @@ if in_github_actions:
 else:
     nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 50  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 20  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
@@ -42,12 +42,12 @@ s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, nphi=nphi, ntheta=ntheta)
 
 # Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_projected_normal(poff)
-s_outer.extend_via_projected_normal(poff + coff)
+s_inner.extend_via_normal(poff)
+s_outer.extend_via_normal(poff + coff)
 
-s.stellsym=False
-s_inner.stellsym=False
-s_outer.stellsym=False
+#s.stellsym=False
+#s_inner.stellsym=False
+#s_outer.stellsym=False
 
 # Make the output directory
 out_dir = Path("tokamak_dipole")
