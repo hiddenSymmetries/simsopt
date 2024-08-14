@@ -9,7 +9,7 @@ from simsopt.geo.curve import RotatedCurve, Curve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'FramedCoil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
+__all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
            'coils_to_makegrid', 'coils_to_focus']
 
@@ -26,34 +26,6 @@ class Coil(sopp.Coil, Optimizable):
         self._current = current
         sopp.Coil.__init__(self, curve, current)
         Optimizable.__init__(self, depends_on=[curve, current])
-
-    def vjp(self, v_gamma, v_gammadash, v_current):
-        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
-            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
-            + self.current.vjp(v_current)
-
-    def plot(self, **kwargs):
-        """
-        Plot the coil's curve. This method is just shorthand for calling
-        the :obj:`~simsopt.geo.curve.Curve.plot()` function on the
-        underlying Curve. All arguments are passed to
-        :obj:`simsopt.geo.curve.Curve.plot()`
-        """
-        return self.curve.plot(**kwargs)
-    
-class FramedCoil(sopp.Coil, Optimizable):
-    """
-    A :obj:`Coil` combines a :obj:`~simsopt.geo.framedcurve.FramedCurve` and a
-    :obj:`Current` and is used as input for a
-    :obj:`~simsopt.field.biotsavart.BiotSavart` field.
-    """
-
-    def __init__(self, framedcurve, current):
-        self.framedcurve = framedcurve
-        self._curve = framedcurve.curve
-        self._current = current
-        sopp.Coil.__init__(self, self._curve, current)
-        Optimizable.__init__(self, depends_on=[framedcurve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
