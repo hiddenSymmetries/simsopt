@@ -4,7 +4,6 @@ import itertools
 import time
 
 mu0 = 4*np.pi*10**-7
-dim = np.array([1,1,1])
 
 #FOR CUBIC MAGNETS
 

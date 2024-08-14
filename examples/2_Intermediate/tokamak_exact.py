@@ -45,9 +45,9 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
-s.stellsym=False
-s_inner.stellsym=False
-s_outer.stellsym=False
+# s.stellsym=False
+# s_inner.stellsym=False
+# s_outer.stellsym=False
 
 # Make the output directory
 out_dir = Path("tokamak_exact")

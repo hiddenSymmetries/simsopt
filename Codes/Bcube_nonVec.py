@@ -3,7 +3,6 @@ import numpy as np
 import itertools
 
 mu0 = 4*np.pi*10**-7
-dim = np.array([1,1,1])
 
 #FOR CUBIC MAGNETS
 
@@ -19,10 +18,18 @@ def iterate_over_corners(corner, x, y, z):
     summa = (-1)**(i+j+k)
     rijk = np.sqrt(x[i]**2 + y[j]**2 + z[k]**2)
 
-    h = np.zeros((3,3))
-    h[0] = summa * np.array([np.arctan2(y[j]*x[i],z[k]*rijk) + np.arctan2(z[k]*x[i],y[j]*rijk), np.log(z[k] + rijk), np.log(y[j] + rijk)])
-    h[1] = summa * np.array([np.log(z[k] + rijk), np.arctan2(x[i]*y[j],z[k]*rijk) + np.arctan2(z[k]*y[j],x[i]*rijk), np.log(x[i] + rijk)])
-    h[2] = summa * np.array([np.log(y[j] + rijk), np.log(x[i] + rijk), np.arctan2(x[i]*z[k],y[j]*rijk) + np.arctan2(y[j]*z[k],x[i]*rijk)])
+    atan_xy = np.arctan2(y[j]*x[i],z[k]*rijk)
+    atan_xz = np.arctan2(z[k]*x[i],y[j]*rijk)
+    atan_yz = np.arctan2(y[j]*z[k],x[i]*rijk)
+    log_x = np.log(x[i] + rijk)
+    log_y = np.log(y[j] + rijk)
+    log_z = np.log(z[k] + rijk)
+
+    h = summa * np.array([
+        [atan_xy + atan_xz, log_z, log_y],
+        [log_z, atan_xy + atan_yz, log_x],
+        [log_y, log_x, atan_xz + atan_yz]
+    ])
 
     return h
 
