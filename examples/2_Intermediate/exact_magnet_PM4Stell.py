@@ -40,21 +40,21 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 16  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 1000
+    N = 32  # >= 64 for high-resolution runs
+    nIter_max = 40000
+    # max_nMagnets = 2000
     downsample = 1
-    dims = np.array([1,1,1]) #currently can only have all magnets be same shape
+    # dims = np.array([1,1,1]) #currently can only have all magnets be same shape
 
 nphi = N
 ntheta = N
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
-nAdjacent = 10
-thresh_angle = np.pi  # / np.sqrt(2)
+algorithm = 'baseline'
+# nBacktracking = 200 
+# nAdjacent = 10
+# thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
-angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("exactPM4Stell_angle{angle}_nb{nBacktracking)_na{nAdjacent}") 
+# angle = int(thresh_angle * 180 / np.pi)
+out_dir = Path("exactPM4Stell") 
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -145,10 +145,7 @@ pol_vectors[:, :, 1] = mag_data.pol_y
 pol_vectors[:, :, 2] = mag_data.pol_z
 
 # Using m_maxima functionality to try out unrealistically strong magnets
-B_max = 5  # 5 Tesla!!!!
-mu0 = 4 * np.pi * 1e-7
-m_maxima = B_max / mu0
-kwargs_geo = {"pol_vectors": pol_vectors, "m_maxima": m_maxima, "downsample": downsample, "dims": dims}
+kwargs_geo = {"pol_vectors": pol_vectors, "downsample": downsample}
 
 # Initialize the permanent magnet grid from the PM4Stell arrangement
 pm_ncsx = ExactMagnetGrid.geo_setup_from_famus(
@@ -173,7 +170,7 @@ print('GPMO took t = ', dt, ' s')
 
 # Save files
 if True:
-    pm_ncsx.dims = dims
+    # pm_ncsx.dims = dims
     # Make BiotSavart object from the magnets and plot solution 
     b_exact = ExactField(
         pm_ncsx.pm_grid_xyz,
