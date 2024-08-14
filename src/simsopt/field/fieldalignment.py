@@ -205,6 +205,11 @@ class CriticalCurrentOpt(Optimizable):
             + self.self_field.B_vjp(grad3) \
             + self.B_ext.B_vjp(grad4)
 
+        # out = self._curve.dgamma_by_dcoeff_vjp(grad0) \
+        #     + self._curve.dgammadash_by_dcoeff_vjp(grad1) \
+        #     + self.frame.rotation.dalpha_by_dcoeff_vjp(self._curve.quadpoints, grad2)\
+        #     + self.self_field.B_vjp(grad3)
+
         return out
     
     return_fn_map = {'J': J, 'dJ': dJ}

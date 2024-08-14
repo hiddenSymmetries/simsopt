@@ -287,7 +287,7 @@ class SelfField(Optimizable):
 
         return self.dB_by_dcurrent_vjp(gamma, gammadash, gammadashdash, current, v)
 
-    
+    @derivative_dec
     def B_vjp(self, v):
         return Derivative({
             self._curve: self.dB_by_dgamma_vjp_impl(v) \
