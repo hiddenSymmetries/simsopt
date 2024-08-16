@@ -371,21 +371,6 @@ class PermanentMagnetGrid:
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
         pm_grid._setup_uniform_grid()
-<<<<<<< HEAD
-        print(normal_inner.shape, normal_outer.shape, pm_grid.xyz_uniform.shape, pm_grid.xyz_inner.shape, pm_grid.xyz_outer.shape)
-=======
->>>>>>> fe113881e652e58bc85b9ba9847357f9a2f9f5ef
-        # pm_grid.dipole_grid_xyz = define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-        #     normal_inner, 
-        #     normal_outer, 
-        #     pm_grid.xyz_uniform, 
-        #     pm_grid.xyz_inner, 
-        #     pm_grid.xyz_outer
-        # )
-<<<<<<< HEAD
-        
-=======
->>>>>>> fe113881e652e58bc85b9ba9847357f9a2f9f5ef
         pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
             contig(normal_inner), 
             contig(normal_outer), 
