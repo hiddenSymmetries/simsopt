@@ -1,7 +1,13 @@
 import unittest
 from pathlib import Path
 import numpy as np
-from simsopt.geo import SurfaceRZFourier, ToroidalWireframe, CircularPort
+from simsopt.geo import SurfaceRZFourier, ToroidalWireframe, CircularPort, \
+                        windowpane_wireframe
+
+try:
+    import pyevtk
+except ImportError:
+    pyevtk = None
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
@@ -499,3 +505,43 @@ class Testing(unittest.TestCase):
         wf.constrain_colliding_segments(p2.collides)
         self.assertEqual(len(wf.unconstrained_segments()), 0)
         wf.free_all_segments()
+
+    def test_toroidal_wireframe_windowpane(self):
+        """
+        Tests the construction of a wireframe with windowpane constraints
+        """
+
+        nfp = 3
+        rmaj = 2
+        rmin = 1
+        surf_wf = surf_torus(nfp, rmaj, rmin)
+
+        nCoils_tor = 4
+        nCoils_pol = 6
+        size_tor = 2
+        size_pol = 2
+        gap_tor = 2
+        gap_pol = 2
+        wf = windowpane_wireframe(surf_wf, nCoils_tor, nCoils_pol, size_tor, \
+                                  size_pol, gap_tor, gap_pol)
+
+        usegs = wf.unconstrained_segments()
+        n_usegs = 2*(size_tor + size_pol)*nCoils_tor*nCoils_pol
+        self.assertEqual(len(usegs), n_usegs)
+
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
+    def test_toroidal_wireframe_to_vtk(self):
+        """
+        Tests export of a wireframe to a VTK file
+        """
+
+        import os
+ 
+        surf_wf = surf_torus(3, 2, 0.5)
+        wf = windowpane_wireframe(surf_wf, 5, 10, 4, 4, 2, 2)
+
+        filename = 'temp_wframe_vtk_test_file'
+        filepath = os.path.join(os.path.dirname(__file__), filename)
+        wf.to_vtk(filepath)
+        os.remove(filepath + '.vtu')
+
