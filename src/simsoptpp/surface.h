@@ -12,7 +12,6 @@ using std::logic_error;
 
 #include "xtensor/xarray.hpp"
 #include "cachedarray.h"
-#include "curve.h"
 #include <Eigen/Dense>
 
 template<class Array>
@@ -81,9 +80,9 @@ class Surface {
         }
 
         void least_squares_fit(Array& target_values);
-        void fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta);
         void scale(double scale);
         void extend_via_normal(double scale);
+        void extend_via_projected_normal(double scale);
 
         void invalidate_cache() {
 

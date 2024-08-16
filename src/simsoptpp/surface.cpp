@@ -1,5 +1,8 @@
 #include "surface.h"
 #include <Eigen/Dense>
+#include "simdhelpers.h"
+#include "vec3dsimd.h"
+
 
 template<class Array>
 Array surface_vjp_contraction(const Array& mat, const Array& v){
@@ -76,27 +79,6 @@ void Surface<Array>::least_squares_fit(Array& target_values) {
 }
 
 template<class Array>
-void Surface<Array>::fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta) {
-    Array curvexyz = xt::zeros<double>({numquadpoints_phi, 3});
-    curve.gamma_impl(curvexyz, quadpoints_phi);
-    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
-    for (int i = 0; i < numquadpoints_phi; ++i) {
-        double phi = 2*M_PI*quadpoints_phi[i];
-        double R = sqrt(pow(curvexyz(i, 0), 2) + pow(curvexyz(i, 1), 2));
-        double z = curvexyz(i, 2);
-        for (int j = 0; j < numquadpoints_theta; ++j) {
-            double theta = 2*M_PI*quadpoints_theta[j];
-            if(flip_theta)
-                theta *= -1;
-            target_values(i, j, 0) = (R + radius * cos(theta))*cos(phi);
-            target_values(i, j, 1) = (R + radius * cos(theta))*sin(phi);
-            target_values(i, j, 2) = z + radius * sin(theta);
-        }
-    }
-    this->least_squares_fit(target_values);
-}
-
-template<class Array>
 void Surface<Array>::scale(double scale) {
     Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
     auto gamma = this->gamma();
@@ -136,6 +118,45 @@ void Surface<Array>::extend_via_normal(double scale) {
         }
     }
     this->least_squares_fit(target_values);
+}
+
+template<class Array>
+void Surface<Array>::extend_via_projected_normal(double scale) {
+    Array target_values_xyz = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    auto gamma = this->gamma();
+    auto n = this->normal();
+    auto phi = this->quadpoints_phi;
+    // Loop over toroidal angle, calculate rotation matrix
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+	double phi_i = 2 * M_PI * phi[i];
+	double rotation[3][3] = {cos(phi_i), sin(phi_i), 0, -sin(phi_i), cos(phi_i), 0, 0, 0, 1};
+	double rotation_inv[3][3] = {cos(phi_i), -sin(phi_i), 0, sin(phi_i), cos(phi_i), 0, 0, 0, 1};
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+	    double nij[3] = {0.0, 0.0, 0.0};
+	    double gammaij[3] = {0.0, 0.0, 0.0};
+	    // convert nij and gammij from cartesian to cylindrical
+            for (int k = 0; k < 3; ++k) {
+                for (int kk = 0; kk < 3; ++kk) {
+                    nij[k] += rotation[k][kk] * n(i, j, kk);
+                    gammaij[k] += rotation[k][kk] * gamma(i, j, kk);
+		}
+	    }
+            // keep toroidal direction constant
+	    nij[1] = 0.0;
+	    gammaij[1] = 0.0;
+	    auto nij_norm = sqrt(nij[0]*nij[0] + nij[2]*nij[2]);
+            target_values(i, j, 0) = gammaij[0] + scale * nij[0] / nij_norm;
+            target_values(i, j, 2) = gammaij[2] + scale * nij[2] / nij_norm;
+	    // now need to take target_values in (R, Z) and transform back to (X, Y, Z)
+            for (int k = 0; k < 3; ++k) {
+                for (int kk = 0; kk < 3; ++kk) {
+                    target_values_xyz(i, j, k) += rotation_inv[k][kk] * target_values(i, j, kk);
+		}
+	    }
+        }
+    }
+    this->least_squares_fit(target_values_xyz);
 }
 
 template<class Array>
@@ -603,12 +624,145 @@ void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
         data(m) = temp(m);
     }
 }
+
+#if defined(USE_XSIMD)
+
+template<class Array>
+void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
+    // this vectorized version of d2volume_by_dcoeffdcoeff computes the second derivative of
+    // the surface normal on the fly, which alleviates memory requirements.
+    constexpr int simd_size = xsimd::simd_type<double>::size;
+    data *= 0.;
+    auto nor = this->normal();
+    auto xyz = this->gamma();
+    auto dxyz_dc = this->dgamma_by_dcoeff();
+    auto dnor_dc = this->dnormal_by_dcoeff();
+    auto dg1_dc = this->dgammadash1_by_dcoeff();
+    auto dg2_dc = this->dgammadash2_by_dcoeff();
+    int ndofs = num_dofs();
+    
+    auto dg1x_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg1y_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg1z_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dg2x_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg2y_dc = AlignedPaddedVec(ndofs, 0);
+    auto dg2z_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dnorx_dc = AlignedPaddedVec(ndofs, 0);
+    auto dnory_dc = AlignedPaddedVec(ndofs, 0);
+    auto dnorz_dc = AlignedPaddedVec(ndofs, 0);
+
+    auto dxyzx_dc = AlignedPaddedVec(ndofs, 0);
+    auto dxyzy_dc = AlignedPaddedVec(ndofs, 0);
+    auto dxyzz_dc = AlignedPaddedVec(ndofs, 0);
+
+    for (int i = 0; i < numquadpoints_phi; ++i) {
+        for (int j = 0; j < numquadpoints_theta; ++j) {
+            simd_t xyzij0(xyz(i,j,0));
+            simd_t xyzij1(xyz(i,j,1));
+            simd_t xyzij2(xyz(i,j,2));
+            
+            // load the tangents, normals, and derivatives wrt to surface coeffs into aligned and padded memory
+            for (int n = 0; n < ndofs; ++n) {
+                dg1x_dc[n] = dg1_dc(i, j, 0, n);
+                dg1y_dc[n] = dg1_dc(i, j, 1, n);
+                dg1z_dc[n] = dg1_dc(i, j, 2, n);
+
+                dg2x_dc[n] = dg2_dc(i, j, 0, n);
+                dg2y_dc[n] = dg2_dc(i, j, 1, n);
+                dg2z_dc[n] = dg2_dc(i, j, 2, n);
+
+                dnorx_dc[n] = dnor_dc(i, j, 0, n);
+                dnory_dc[n] = dnor_dc(i, j, 1, n);
+                dnorz_dc[n] = dnor_dc(i, j, 2, n);
+ 
+                dxyzx_dc[n] = dxyz_dc(i, j, 0, n);
+                dxyzy_dc[n] = dxyz_dc(i, j, 1, n);
+                dxyzz_dc[n] = dxyz_dc(i, j, 2, n);
+            }
+
+            for (int m = 0; m < ndofs; ++m){ 
+                simd_t dg1_dc_ij0m(dg1_dc(i, j, 0, m));
+                simd_t dg1_dc_ij1m(dg1_dc(i, j, 1, m));
+                simd_t dg1_dc_ij2m(dg1_dc(i, j, 2, m));
+                
+                simd_t dg2_dc_ij0m(dg2_dc(i, j, 0, m));
+                simd_t dg2_dc_ij1m(dg2_dc(i, j, 1, m));
+                simd_t dg2_dc_ij2m(dg2_dc(i, j, 2, m));
+                
+                simd_t dxyz_dc_ij0m(dxyz_dc(i, j, 0, m));
+                simd_t dxyz_dc_ij1m(dxyz_dc(i, j, 1, m));
+                simd_t dxyz_dc_ij2m(dxyz_dc(i, j, 2, m));
+                
+                simd_t dnor_dc_ij0m(dnor_dc(i, j, 0, m));
+                simd_t dnor_dc_ij1m(dnor_dc(i, j, 1, m));
+                simd_t dnor_dc_ij2m(dnor_dc(i, j, 2, m));
+
+                for (int n = 0; n < ndofs; n+=simd_size){ 
+                    // load into aligned and padded memory into batches
+                    simd_t dg1_dc_ij0n = xs::load_aligned(&dg1x_dc[n]);
+                    simd_t dg1_dc_ij1n = xs::load_aligned(&dg1y_dc[n]);
+                    simd_t dg1_dc_ij2n = xs::load_aligned(&dg1z_dc[n]);
+                    
+                    simd_t dg2_dc_ij0n = xs::load_aligned(&dg2x_dc[n]);
+                    simd_t dg2_dc_ij1n = xs::load_aligned(&dg2y_dc[n]);
+                    simd_t dg2_dc_ij2n = xs::load_aligned(&dg2z_dc[n]);
+                    
+                    simd_t dnor_dc_ij0n = xs::load_aligned(&dnorx_dc[n]);
+                    simd_t dnor_dc_ij1n = xs::load_aligned(&dnory_dc[n]);
+                    simd_t dnor_dc_ij2n = xs::load_aligned(&dnorz_dc[n]);
+
+                    simd_t dxyz_dc_ij0n = xs::load_aligned(&dxyzx_dc[n]);
+                    simd_t dxyz_dc_ij1n = xs::load_aligned(&dxyzy_dc[n]);
+                    simd_t dxyz_dc_ij2n = xs::load_aligned(&dxyzz_dc[n]);
+
+                    // compute d2nor_dcdc on the fly
+                    //data(i, j, 0, m, n) =  dg1_dc(i, j, 1, m)*dg2_dc(i, j, 2, n) - dg1_dc(i, j, 2, m)*dg2_dc(i, j, 1, n);
+                    //data(i, j, 0, m, n) += dg1_dc(i, j, 1, n)*dg2_dc(i, j, 2, m) - dg1_dc(i, j, 2, n)*dg2_dc(i, j, 1, m);
+                    //data(i, j, 1, m, n) =  dg1_dc(i, j, 2, m)*dg2_dc(i, j, 0, n) - dg1_dc(i, j, 0, m)*dg2_dc(i, j, 2, n);
+                    //data(i, j, 1, m, n) += dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m);
+                    //data(i, j, 2, m, n) =  dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n);
+                    //data(i, j, 2, m, n) += dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m);
+                    auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n,  dg1_dc_ij2m*dg2_dc_ij1n);
+                         d2nor_dcdc_ij0mn += xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m,  dg1_dc_ij2n*dg2_dc_ij1m);
+                    auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n,  dg1_dc_ij0m*dg2_dc_ij2n);
+                         d2nor_dcdc_ij1mn += xsimd::fms(dg1_dc_ij2n, dg2_dc_ij0m,  dg1_dc_ij0n*dg2_dc_ij2m);
+                    auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n,  dg1_dc_ij1m*dg2_dc_ij0n);
+                         d2nor_dcdc_ij2mn += xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m,  dg1_dc_ij1n*dg2_dc_ij0m);
+                    
+                    // now compute d2volume_by_dcoeffdcoeff
+                    //data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
+                    //        +dxyz_dc(i,j,1,m)*dnor_dc(i,j,1,n)
+                    //        +dxyz_dc(i,j,2,m)*dnor_dc(i,j,2,n));
+                    //data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
+                    //        +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
+                    //        +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
+                    auto temp = xsimd::fma(dxyz_dc_ij0m, dnor_dc_ij0n, dxyz_dc_ij1m*dnor_dc_ij1n);
+                    auto data1  = (1./3) * xsimd::fma(dxyz_dc_ij2m, dnor_dc_ij2n, temp);
+                    auto data2  = (1./3) * (xsimd::fma(xyzij0, d2nor_dcdc_ij0mn , dxyz_dc_ij0n * dnor_dc_ij0m)
+                                           +xsimd::fma(xyzij1, d2nor_dcdc_ij1mn , dxyz_dc_ij1n * dnor_dc_ij1m)
+                                           +xsimd::fma(xyzij2, d2nor_dcdc_ij2mn , dxyz_dc_ij2n * dnor_dc_ij2m) );
+
+                    int jjlimit = std::min(simd_size, ndofs-n);
+                    for(int jj=0; jj<jjlimit; jj++){
+                        data(m, n+jj) += data1[jj]+data2[jj];
+                    }
+                }
+            }
+        }
+    }
+    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+}
+
+#else
+
 template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     data *= 0.;
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
-    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
+    auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff(); // uses a lot of memory for moderate surface complexity
     auto xyz = this->gamma();
     auto dxyz_dc = this->dgamma_by_dcoeff();
     int ndofs = num_dofs();
@@ -628,6 +782,8 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     }
     data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 }
+
+#endif
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;

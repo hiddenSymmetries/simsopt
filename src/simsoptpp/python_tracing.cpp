@@ -84,44 +84,6 @@ void init_tracing(py::module_ &m){
         py::arg("forget_exact_path")=false,
         py::arg("axis")=0
     );
-
-    m.def("particle_guiding_center_tracing", &particle_guiding_center_tracing<xt::pytensor>,
-        py::arg("field"),
-        py::arg("xyz_init"),
-        py::arg("m"),
-        py::arg("q"),
-        py::arg("vtotal"),
-        py::arg("vtang"),
-        py::arg("tmax"),
-        py::arg("abstol"),
-        py::arg("reltol"),
-        py::arg("vacuum"),
-        py::arg("phis")=vector<double>{},
-        py::arg("omegas")=vector<double>{},
-        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
-        );
-
-    m.def("particle_fullorbit_tracing", &particle_fullorbit_tracing<xt::pytensor>,
-        py::arg("field"),
-        py::arg("xyz_init"),
-        py::arg("v_init"),
-        py::arg("m"),
-        py::arg("q"),
-        py::arg("tmax"),
-        py::arg("abstol"),
-        py::arg("reltol"),
-        py::arg("phis")=vector<double>{},
-        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
-        );
-
-    m.def("fieldline_tracing", &fieldline_tracing<xt::pytensor>,
-            py::arg("field"),
-            py::arg("xyz_init"),
-            py::arg("tmax"),
-            py::arg("abstol"),
-            py::arg("reltol"),
-            py::arg("phis")=vector<double>{},
-            py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{});
-
+    
     m.def("get_phi", &get_phi);
 }

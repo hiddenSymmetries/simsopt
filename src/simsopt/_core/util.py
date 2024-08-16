@@ -12,11 +12,10 @@ from numbers import Integral, Real, Number
 from dataclasses import dataclass
 from abc import ABCMeta
 from weakref import WeakKeyDictionary
-
+from simsoptpp import Surface
 import numpy as np
 
 from .types import RealArray
-from simsoptpp import Curve   # To obtain pybind11 metaclass
 from simsoptpp import simd_alignment
 ALIGNMENT = simd_alignment()
 
@@ -141,7 +140,7 @@ class RegisterMeta(type):
 
 
 #class OptimizableMeta(InstanceCounterMeta, RegisterMeta, ABCMeta):
-class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Curve)):
+class OptimizableMeta(InstanceCounterMeta, ABCMeta, type(Surface)):
     """
     Meta class for Optimizable class that works with pybind11. Here
     type(simsoptpp.Curve) is used to obtain the pybind11_type, which can

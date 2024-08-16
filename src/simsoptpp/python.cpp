@@ -7,14 +7,6 @@
 typedef xt::pyarray<double> PyArray;
 #include <math.h>
 #include <chrono>
-
-
-
-
-#include "biot_savart_py.h"
-#include "biot_savart_vjp_py.h"
-#include "dommaschk.h"
-#include "reiman.h"
 #include "boozerradialinterpolant.h"
 
 namespace py = pybind11;
@@ -23,35 +15,15 @@ using std::vector;
 using std::shared_ptr;
 
 void init_surfaces(py::module_ &);
-void init_curves(py::module_ &);
-void init_magneticfields(py::module_ &);
 void init_boozermagneticfields(py::module_ &);
 void init_tracing(py::module_ &);
-void init_distance(py::module_ &);
-
-
 
 PYBIND11_MODULE(simsoptpp, m) {
     xt::import_numpy();
 
-    init_curves(m);
     init_surfaces(m);
-    init_magneticfields(m);
     init_boozermagneticfields(m);
     init_tracing(m);
-    init_distance(m);
-
-    m.def("biot_savart", &biot_savart);
-    m.def("biot_savart_B", &biot_savart_B);
-    m.def("biot_savart_vjp", &biot_savart_vjp);
-    m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
-    m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
-
-    m.def("DommaschkB" , &DommaschkB);
-    m.def("DommaschkdB", &DommaschkdB);
-
-    m.def("ReimanB" , &ReimanB);
-    m.def("ReimandB", &ReimandB);
 
     m.def("fourier_transform_even", &fourier_transform_even);
     m.def("fourier_transform_odd", &fourier_transform_odd);
