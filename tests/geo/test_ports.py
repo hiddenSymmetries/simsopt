@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from simsopt.geo import CircularPort, RectangularPort, PortSet
+from simsopt.geo import CircularPort, RectangularPort
 
 class PortTests(unittest.TestCase):
 
@@ -108,7 +108,7 @@ class PortTests(unittest.TestCase):
         [ox, oy, oz] = [Rmaj*np.cos(phiPort), Rmaj*np.sin(phiPort), 0]
         [ax, ay, az] = [0, 0, 1]
         [wx, wy, wz] = [1, 0, 0]
-        [hx, hy, hz] = [0, 1, 0]
+        [hx, hy] = [0, 1]
         [l0, l1] = [0, 1]
         iw = 0.25
         ih = 0.5
@@ -224,7 +224,6 @@ class PortTests(unittest.TestCase):
         phiPort_r = 40*np.pi/180.
         [oxr, oyr, ozr] = [Rmaj*np.cos(phiPort_r), Rmaj*np.sin(phiPort_r), 0]
         [wx, wy, wz] = [1, 0, 0]
-        [hx, hy, hz] = [0, 1, 0]
         iw = ir
         ih = 2*ir
 
