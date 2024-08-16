@@ -355,7 +355,7 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
     # plasma currents
     if bn_plas_curr is not None:
 
-        if bn_plas_curr.shape != (len(n), 1):
+        if bn_plas_curr.shape != (np.size(area_weight), 1):
             raise ValueError('Input `bn_plas_curr` must have shape ' \
                 + '(nTestPoints,1), where nTestPoints\n is the number of ' \
                 + 'test points on the plasma boundary')
