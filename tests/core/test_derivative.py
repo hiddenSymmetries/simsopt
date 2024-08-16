@@ -91,14 +91,12 @@ def taylor_test(obj):
     obj.x = x
     x = obj.x
     h = np.random.standard_normal(size=x.shape)
-    f = obj.J()
     df = obj.dJ()
     dfh = np.sum(df * h)
     err_old = 1e9
     for i in range(5, 11):
         eps = 0.5**i
         obj.x = x + 3 * eps * h
-        fppp = obj.J()
         obj.x = x + 2 * eps * h
         fpp = obj.J()
         obj.x = x + eps * h
@@ -108,18 +106,12 @@ def taylor_test(obj):
         obj.x = x - 2 * eps * h
         fmm = obj.J()
         obj.x = x - 3 * eps * h
-        fmmm = obj.J()
         # print(np.abs((fp-fm)/(2*eps) - dfh))
         dfhest = ((1/12) * fmm - (2/3) * fm + (2/3) * fp - (1/12) * fpp)/eps
         err = np.abs(dfhest - dfh)
         assert err < (0.6)**4 * err_old
         print(err_old/err)
         err_old = err
-
-        # dfhest = ((-1/60)*fmmm + (3/20)*fmm -(3/4)*fm+(3/4)*fp-(3/20)*fpp + (1/60)*fppp)/eps
-        # err = np.abs(dfhest - dfh)
-        # print(err_old/err)
-        # err_old = err
 
 
 class DerivativeTests(unittest.TestCase):

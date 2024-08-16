@@ -5,7 +5,7 @@ try:
 except ImportError:
     np = None
 
-from simsopt._core.dev import SimsoptRequires, deprecated
+from simsopt._core.dev import SimsoptRequires
 from simsopt._core.optimizable import Optimizable
 
 

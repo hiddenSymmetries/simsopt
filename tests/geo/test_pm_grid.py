@@ -3,15 +3,12 @@ import unittest
 
 import numpy as np
 from monty.tempfile import ScratchDir
-import simsoptpp as sopp
 
-from simsopt.field import (BiotSavart, Current, DipoleField, InterpolatedField,
-                           coils_via_symmetries, Coil)
+from simsopt.field import (BiotSavart, Current, DipoleField, coils_via_symmetries, Coil)
 from simsopt.geo import (PermanentMagnetGrid, SurfaceRZFourier, SurfaceXYZFourier,
                          create_equally_spaced_curves)
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
-from pyevtk.hl import pointsToVTK
 from simsopt.util import *
 from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vectors,
                                                pol_e, pol_f, pol_fe, pol_c, 
@@ -19,7 +16,6 @@ from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vect
                                                pol_ec23, pol_fe17, pol_fe23, pol_fe30)
 
 
-#from . import TEST_DIR
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 
 # File for the desired boundary magnetic surface:

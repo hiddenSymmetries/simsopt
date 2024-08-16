@@ -5,7 +5,7 @@ import numpy as np
 from pyevtk.hl import pointsToVTK
 
 from .._core.descriptor import OneofStrings
-from . import Surface, SurfaceRZFourier
+from . import Surface
 import simsoptpp as sopp
 
 __all__ = ['PermanentMagnetGrid']

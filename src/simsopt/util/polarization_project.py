@@ -373,7 +373,6 @@ def polarization_axes(polarizations):
 
     pol_axes = np.zeros((0, 3))
     pol_type = np.zeros(0, dtype=int)
-    first_row = 0
     i = 0
     if not isinstance(polarizations, list):
         polarizations = [polarizations]

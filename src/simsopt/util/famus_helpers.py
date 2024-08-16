@@ -136,7 +136,7 @@ class FocusData(object):
 
         with open(str(filename), 'r') as focusfile: 
             # Ignore the first line in the file
-            line1 = focusfile.readline()
+            focusfile.readline()
 
             # Record the number of magnets and the momentq
             line2data = [int(number) for number in \
@@ -164,7 +164,7 @@ class FocusData(object):
             self.op = np.zeros(self.nMagnets)
 
             # Ignore the third line in the file
-            line3 = focusfile.readline()
+            focusfile.readline()
 
             # Read the data for each magnet from the file
             count = 0
@@ -194,7 +194,7 @@ class FocusData(object):
                 if i == 0:
                     if len(linedata) > self.nProps:
                         try:
-                            testnum = np.double(linedata[12])
+                            _ = np.double(linedata[12])
                             self.has_op = True
                             self.nProps = self.nProps + 1
                         except:

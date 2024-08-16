@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-from mpi4py import MPI
 import numpy as np
 
 from simsopt.mhd import Vmec

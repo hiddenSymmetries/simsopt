@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 from sympy import Symbol, lambdify, exp
 
-from .._core.json import GSONable, GSONDecoder
+from .._core.json import GSONable
 from .._core.util import RealArray
 
 import simsoptpp as sopp

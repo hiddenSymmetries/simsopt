@@ -182,7 +182,7 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
 
     """
     # change to row-major order for the C++ code
-    A_obj = np.ascontiguousarray(pm_opt.A_obj)
+    # A_obj = np.ascontiguousarray(pm_opt.A_obj)
     ATb = np.ascontiguousarray(np.reshape(pm_opt.ATb, (pm_opt.ndipoles, 3)))
 
     # print initial errors and values before optimization
@@ -426,17 +426,17 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
     elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
         if pm_opt.coordinate_flag != 'cartesian':
-            raise ValueError('ArbVec_backtracking algorithm currently ' \
+            raise ValueError('ArbVec_backtracking algorithm currently '
                              'only supports dipole grids with \n'
                              'moment vectors in the Cartesian basis.')
         nGridPoints = int(A_obj.shape[1]/3)
         if "m_init" in kwargs.keys():
             if kwargs["m_init"].shape[0] != nGridPoints:
-                raise ValueError('Initialization vector `m_init` must have ' \
-                                 'as many rows as there are dipoles in the ' \
-                                 'grid');
+                raise ValueError('Initialization vector `m_init` must have '
+                                 'as many rows as there are dipoles in the '
+                                 'grid')
             elif kwargs["m_init"].shape[1] != 3:
-                raise ValueError('Initialization vector `m_init` must have '\
+                raise ValueError('Initialization vector `m_init` must have '
                                  'three columns')
             kwargs["x_init"] = contig(kwargs["m_init"] \
                                       / (mmax_vec.reshape(pm_opt.ndipoles, 3)))

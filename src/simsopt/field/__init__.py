@@ -8,6 +8,7 @@ from .mgrid import *
 from .normal_field import *
 from .tracing import *
 from .selffield import *
+from .magnetic_axis_helpers import *
 
 __all__ = (
     biotsavart.__all__
@@ -20,4 +21,5 @@ __all__ = (
     + tracing.__all__
     + fieldalignment.__all__
     + selffield.__all__
+    + magnetic_axis_helpers.__all__
 )

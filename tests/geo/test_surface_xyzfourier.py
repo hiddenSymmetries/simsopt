@@ -1,22 +1,19 @@
 import unittest
-import json
 import tempfile
 import os
 
 import numpy as np
 
-from simsopt.geo import Surface, SurfaceXYZFourier, SurfaceXYZTensorFourier
+from simsopt.geo import Surface, SurfaceXYZFourier
 from .surface_test_helpers import get_surface, get_exact_surface
-from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
 from simsopt._core.optimizable import load, save
 
 stellsym_list = [True, False]
 
 try:
     import pyevtk
-    pyevtk_found = True
 except ImportError:
-    pyevtk_found = False
+    pyevtk = None
 
 
 class SurfaceXYZFourierTests(unittest.TestCase):
@@ -211,7 +208,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
             R = np.sqrt(cs[i, :, 0]**2 + cs[i, :, 1]**2)
             Z = cs[i, :, 2]
             Rp = fftpack.diff(R, period=1.)
-            Zp = fftpack.diff(Z, period=1.)
+            fftpack.diff(Z, period=1.)
             cs_area[i] = np.abs(np.mean(Z*Rp))
         exact_area = np.pi * minor_R**2.
 
@@ -270,7 +267,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
             R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
             Z = cs[:, 2]
             Rp = fftpack.diff(R, period=1.)
-            Zp = fftpack.diff(Z, period=1.)
+            fftpack.diff(Z, period=1.)
             ar = np.mean(Z*Rp)
             cs_area[idx] = ar
 
@@ -285,7 +282,7 @@ class SurfaceXYZFourierTests(unittest.TestCase):
         print("AR rel error is:", rel_err)
         assert rel_err < 1e-5
 
-    @unittest.skipIf(not pyevtk_found, "pyevtk not found")
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
     def test_to_vtk(self):
         mpol = 4
         ntor = 3

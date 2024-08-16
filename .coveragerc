@@ -1,9 +1,12 @@
 [run]
 parallel = true
 source = simsopt
+relative_files = true
 
 [paths]
 sources = 
-    /opt/hostedtoolcache/Python/3.8.17/x64/lib/python3.8/site-packages
-    /opt/hostedtoolcache/Python/3.9.17/x64/lib/python3.9/site-packages
-    /opt/hostedtoolcache/Python/3.10.12/x64/lib/python3.10/site-packages
+    src/
+    /**/lib/python3.8/site-packages
+    /**/lib/python3.9/site-packages
+    /**/lib/python3.10/site-packages
+    /**/lib/python3.11/site-packages

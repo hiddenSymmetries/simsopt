@@ -479,48 +479,45 @@ class MinimumDistance(CurveCurveDistance):
 
 class LinkingNumber(Optimizable):
 
-    def __init__(self, curves):
+    def __init__(self, curves, downsample=1):
         Optimizable.__init__(self, depends_on=curves)
         self.curves = curves
-        r"""
-        Compute the Linking number of a set of curves (whether the curves 
-        are interlocked or not).
+        for curve in curves:
+            assert np.mod(len(curve.quadpoints), downsample) == 0, f"Downsample {downsample} does not divide the number of quadpoints {len(curve.quadpoints)}."
 
-        The value is 1 if the are interlocked, 0 if not.
+        self.downsample = downsample
+        self.dphis = np.array([(c.quadpoints[1] - c.quadpoints[0]) * downsample for c in self.curves])
+
+        r"""
+        Compute the Gauss linking number of a set of curves, i.e. whether the curves
+        are interlocked or not.
+
+        The value is an integer, >= 1 if the curves are interlocked, 0 if not. For each pair
+        of curves, the contribution to the linking number is
         
         .. math::
-            Link(c1,c2) = \frac{1}{4\pi} \oint_{c1}\oint_{c2}\frac{\textbf{R1} - \textbf{R2}}{|\textbf{R1}-\textbf{R2}|^3} (d\textbf{R1} \times d\textbf{R2})
+            Link(c_1, c_2) = \frac{1}{4\pi} \left| \oint_{c_1}\oint_{c_2}\frac{\textbf{r}_1 - \textbf{r}_2}{|\textbf{r}_1 - \textbf{r}_2|^3} (d\textbf{r}_1 \times d\textbf{r}_2) \right|
             
-        where :math:`c1` is the first curve and :math:`c2` is the second curve, 
-        :math:`\textbf{R1}` is the radius vector of the first curve, and 
-        :math:`\textbf{R2}` is the radius vector of the second curve
+        where :math:`c_1` is the first curve, :math:`c_2` is the second curve,
+        :math:`\textbf{r}_1` is the position vector along the first curve, and
+        :math:`\textbf{r}_2` is the position vector along the second curve.
 
         Args:
-            curves: the set of curves on which the linking number should be computed.
-        
+            curves: the set of curves for which the linking number should be computed.
+            downsample: integer factor by which to downsample the quadrature
+                points when computing the linking number. Setting this parameter to
+                a value larger than 1 will speed up the calculation, which may
+                be useful if the set of coils is large, though it may introduce
+                inaccuracy if ``downsample`` is set too large.
         """
 
     def J(self):
-        ncoils = len(self.curves)
-        linkNum = np.zeros([ncoils + 1, ncoils + 1])
-        i = 0
-        for c1 in self.curves[:(ncoils + 1)]:
-            j = 0
-            i = i + 1
-            for c2 in self.curves[:(ncoils + 1)]:
-                j = j + 1
-                if i < j:
-                    R1 = c1.gamma()
-                    R2 = c2.gamma()
-                    dS = c1.quadpoints[1] - c1.quadpoints[0]
-                    dT = c2.quadpoints[1] - c1.quadpoints[0]
-                    dR1 = c1.gammadash()
-                    dR2 = c2.gammadash()
-
-                    integrals = sopp.linkNumber(R1, R2, dR1, dR2) * dS * dT
-                    linkNum[i-1][j-1] = 1/(4*np.pi) * (integrals)
-        linkNumSum = sum(sum(abs(linkNum)))
-        return linkNumSum
+        return sopp.compute_linking_number(
+            [c.gamma() for c in self.curves],
+            [c.gammadash() for c in self.curves],
+            self.dphis,
+            self.downsample,
+        )
 
     @derivative_dec
     def dJ(self):

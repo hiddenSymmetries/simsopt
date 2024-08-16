@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from simsopt._core.util import isnumber, isbool, unique, \
-    ObjectiveFailure, finite_difference_steps, nested_lists_to_array
+    finite_difference_steps, nested_lists_to_array
 
 
 class IsboolTests(unittest.TestCase):

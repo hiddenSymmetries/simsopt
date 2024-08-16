@@ -166,6 +166,8 @@ class CriticalCurrentOpt(Optimizable):
         self.model = model
         self.p = p
 
+        self.critical_current_jax = lambda gamma, gammadash, alpha, Bself, Bext: critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=self.model)
+
         self.J_jax = jit(lambda gamma, gammadash, alpha, Bself, Bext: critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=self.p, model=self.model))
 
         self.thisgrad0 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=0)(gamma, gammadash, alpha, Bself, Bext))
@@ -175,6 +177,14 @@ class CriticalCurrentOpt(Optimizable):
         self.thisgrad4 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=4)(gamma, gammadash, alpha, Bself, Bext))
 
         super().__init__(depends_on=[self_field, frame, biotsavart_ext])
+
+    def critical_current(self):
+        gamma = self._curve.gamma()
+        gammadash = self._curve.gammadash()
+        alpha = self.frame.rotation.alpha(self._curve.quadpoints)
+        Bself = self.self_field.B()
+        Bext = self.B_ext.B()
+        return self.critical_current_jax(gamma, gammadash, alpha, Bself, Bext)
 
     def J(self):
         gamma = self._curve.gamma()

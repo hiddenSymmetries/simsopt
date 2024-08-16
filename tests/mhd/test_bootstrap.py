@@ -15,12 +15,12 @@ from . import TEST_DIR
 
 try:
     import booz_xform
-except ImportError as e:
+except ImportError:
     booz_xform = None
 
 try:
     import vmec as vmec_extension
-except ImportError as e:
+except ImportError:
     vmec_extension = None
 
 logger = logging.getLogger(__name__)

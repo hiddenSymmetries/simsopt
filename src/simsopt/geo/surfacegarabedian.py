@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 import simsoptpp as sopp
-from .._core.descriptor import Integer, Float, PositiveInteger, OneofIntegers, OneofStrings
+from .._core.descriptor import Integer
 from .surface import Surface
 from .surfacerzfourier import SurfaceRZFourier
 

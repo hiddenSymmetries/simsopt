@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from mpi4py import MPI
 
 from simsopt.objectives import LeastSquaresProblem
 from simsopt.mhd import Vmec
