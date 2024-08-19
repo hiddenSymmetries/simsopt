@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides Jacobian evaluated with finite difference scheme
@@ -13,7 +13,7 @@ import traceback
 import collections
 from time import time
 from datetime import datetime
-from typing import Callable, Sequence
+from typing import Callable, Union, IO
 from numbers import Real
 
 import numpy as np
@@ -132,7 +132,7 @@ class MPIFiniteDifference:
                  abs_step: Real = 1.0e-7,
                  rel_step: Real = 0.0,
                  diff_method: str = "forward",
-                 log_file: Union[str, typing.IO] = "jac_log") -> None:
+                 log_file: Union[str, IO] = "jac_log") -> None:
 
         try:
             if not isinstance(func.__self__, Optimizable):
@@ -162,6 +162,10 @@ class MPIFiniteDifference:
 
         self.jac_size = None
         self.eval_cnt = 1
+
+        # initialize cache
+        self.x_cache = None
+        self.jac_cache = None
 
     def __enter__(self):
         self.mpi_apart()
@@ -294,14 +298,14 @@ class MPIFiniteDifference:
         logger.debug('mpi leaders task')
 
         # x is a buffer for receiving the state vector:
-        x = np.empty(self.opt.dof_size, dtype='d')
+        full_x = np.empty(self.opt.full_dof_size, dtype='d')
         # If we make it here, we must be doing a fd_jac_par
         # calculation, so receive the state vector: mpi4py has
         # separate bcast and Bcast functions!!  comm.Bcast(x,
         # root=0)
-        x = self.mpi.comm_leaders.bcast(x, root=0)
-        logger.debug(f'mpi leaders loop x={x}')
-        self.opt.x = x
+        full_x = self.mpi.comm_leaders.bcast(full_x, root=0)
+        logger.debug(f'mpi leaders loop full_x={full_x}')
+        self.opt.full_x = full_x
         self._jac()
 
     def mpi_workers_task(self, *args):
@@ -333,6 +337,8 @@ class MPIFiniteDifference:
         """
         Called by proc0
         """
+        if np.all(x == self.x_cache) and (self.jac_cache is not None):
+            return self.jac_cache
 
         ARB_VAL = 100
         logger.debug("Entering jac evaluation")
@@ -352,7 +358,9 @@ class MPIFiniteDifference:
                                      dtype=np.int32)
 
         self.mpi.mobilize_leaders(ARB_VAL)  # Any value not equal to STOP
-        self.mpi.comm_leaders.bcast(x, root=0)
+        full_x = self.opt.full_x
+        self.mpi.comm_leaders.bcast(full_x, root=0)
+        self.opt.full_x = full_x
 
         jac, xs, evals = self._jac(x)
         logger.debug(f'jac is {jac}')
@@ -377,5 +385,9 @@ class MPIFiniteDifference:
             logfile.flush()
 
         self.eval_cnt += nevals
+
+        # cache it
+        self.x_cache = x
+        self.jac_cache = jac
 
         return jac
