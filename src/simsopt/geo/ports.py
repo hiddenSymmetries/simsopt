@@ -6,8 +6,17 @@ Functions for checking for collisions with ports and other obstacles.
 
 import numpy as np
 from abc import ABC, abstractmethod
+from .._core.dev import SimsoptRequires
+
+try:
+    from pyevtk.hl import unstructuredGridToVTK
+    from pyevtk.vtk import VtkTriangle
+except ImportError:
+    unstructuredGridToVTK = None
 
 __all__ = ['PortSet', 'CircularPort', 'RectangularPort']
+
+contig = np.ascontiguousarray
 
 class PortSet(object):
     """
@@ -104,6 +113,16 @@ class PortSet(object):
         else:
             raise ValueError('Addition with PortSet class instances is only ' \
                              'supported for Port and PortSet class instances.')
+
+
+    def __getitem__(self, key):
+        """
+        Allow member ports to be accessed with "[]" directly from the class
+        instance
+        """
+
+        return self.ports[key]
+
 
     def load_circular_ports_from_file(self, file):
         """
@@ -273,6 +292,63 @@ class PortSet(object):
                 raise RuntimeError('Should not get here!')
 
         return surfs
+
+    @SimsoptRequires(unstructuredGridToVTK is not None, \
+                     "to_vtk method requires pyevtk module")
+    def to_vtk(self, filename, nEdges=100):
+        """
+        Export a mesh representation of the port set to a VTK file, which can 
+        be read with ParaView.
+
+        In the VTK file, each mesh point will be associated with an integer
+        value "index" corresponding to the index of its respective port
+        within the port set.
+
+        Note: This function requires the ``pyevtk`` python package, which can 
+        be installed using ``pip install pyevtk``.
+
+        Parameters
+        ----------
+            filename: string
+                Name of the VTK file, without extension, to create.
+            nEdges: integer (optional)
+                Number of edges for the polygon used to approximate the 
+                circular cross-section of any circular ports. Default is 100.
+        """
+
+        xList = [[]]*self.nPorts
+        yList = [[]]*self.nPorts
+        zList = [[]]*self.nPorts
+        trianglesList = [[]]*self.nPorts
+        indexList = [[]]*self.nPorts
+        nPoints = 0
+
+        for i in range(self.nPorts):
+
+            if type(self.ports[i]) == CircularPort:
+                xList[i], yList[i], zList[i], trianglesList[i] \
+                    = self.ports[i].mesh_representation(nEdges=nEdges)
+            else:
+                xList[i], yList[i], zList[i], trianglesList[i] \
+                    = self.ports[i].mesh_representation()
+
+            # Offset vertex indices by # of vertices in previous ports
+            trianglesList[i] += nPoints
+            nPoints += xList[i].shape[0]
+
+            indexList[i] = np.full(xList[i].size, i)
+
+        x = contig(np.concatenate(xList, axis=0))
+        y = contig(np.concatenate(yList, axis=0))
+        z = contig(np.concatenate(zList, axis=0))
+        triangles = np.concatenate(trianglesList, axis=0)
+        connectivity = contig(triangles.reshape((-1)))
+        offsets = contig(3*np.arange(triangles.shape[0])+3)
+        index = contig(np.concatenate(indexList))
+
+        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
+            contig(np.full(offsets.shape, VtkTriangle.tid)), \
+            pointData={'index': index})
 
 class Port(ABC):
     """
@@ -467,27 +543,27 @@ class CircularPort(Port):
 
         return PortSet(ports=ports)
 
-    def plot(self, nEdges=100, **kwargs):
+    def mesh_representation(self, nEdges=100):
         """
-        Places a representation of the port on a 3D plot. Currently only
-        works with the mayavi plotting package.
+        Constructs a triangular mesh representation of the port for plotting
+        and visualization.
 
+       
         Parameters
         ----------
             nEdges: integer (optional)
                 Number of edges for the polygon used to approximate the 
                 circular cross-section. Default is 100.
-            **kwargs
-                Keyword arguments to be passed to the mayavi surface module
-                for the port
 
         Returns
         -------
-            surf: mayavi.modules.surface.Surface class instance
-                Reference to the plotted port
+            x, y, z: 1D arrays
+                Cartesian x, y, and z coordinates of the vertices of the mesh.
+            triangles: 2D array
+                Indices of the vertices (as listed in the x, y, and z arrays)
+                surrounding each triangular face within the mesh. Each row
+                (dimension 1) represents a face.
         """
-
-        from mayavi import mlab
 
         # Compute two radial vectors normal to the cylinder axis
         a_theta = np.arctan2(np.sqrt(self.ax**2 + self.ay**2), self.az)
@@ -538,11 +614,72 @@ class CircularPort(Port):
         triangles2 = np.concatenate((ul_col, lr_col, ur_col), axis=1)
         triangles = np.concatenate((triangles1, triangles2), axis=0)
 
+        return x, y, z, triangles
+
+    def plot(self, nEdges=100, **kwargs):
+        """
+        Places a representation of the port on a 3D plot. Currently only
+        works with the mayavi plotting package.
+
+        Parameters
+        ----------
+            nEdges: integer (optional)
+                Number of edges for the polygon used to approximate the 
+                circular cross-section. Default is 100.
+            **kwargs
+                Keyword arguments to be passed to the mayavi surface module
+                for the port
+
+        Returns
+        -------
+            surf: mayavi.modules.surface.Surface class instance
+                Reference to the plotted port
+        """
+
+        from mayavi import mlab
+
+        # Obtain data for the mesh representation of the port
+        x, y, z, triangles = self.mesh_representation(nEdges=nEdges)
+
         # Generate a mayavi surface instance
         if 'color' not in kwargs.keys():
             kwargs['color'] = (0.75, 0.75, 0.75)
         mesh_source = mlab.pipeline.triangular_mesh_source(x, y, z, triangles)
         return mlab.pipeline.surface(mesh_source, **kwargs)
+
+    @SimsoptRequires(unstructuredGridToVTK is not None, \
+                     "to_vtk method requires pyevtk module")
+    def to_vtk(self, filename, nEdges=100):
+        """
+        Export a mesh representation of the port to a VTK file, which can be 
+        read with ParaView.
+
+        Note: This function requires the ``pyevtk`` python package, which can 
+        be installed using ``pip install pyevtk``.
+
+        Parameters
+        ----------
+            filename: string
+                Name of the VTK file, without extension, to create.
+            nEdges: integer (optional)
+                Number of edges for the polygon used to approximate the 
+                circular cross-section. Default is 100.
+        """
+
+        # Obtain data for the mesh representation of the port
+        x, y, z, triangles = self.mesh_representation(nEdges=nEdges)
+        x = contig(x)
+        y = contig(y)
+        z = contig(z)
+        triangles = contig(triangles)
+
+        # Convert triangles array data to unstructured representation
+        connectivity = contig(triangles.reshape((-1)))
+        offsets = contig(3*np.arange(triangles.shape[0]) + 3)
+
+        # Save to file
+        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
+                              contig(np.full(offsets.shape, VtkTriangle.tid)))
 
 class RectangularPort(Port):
     """
@@ -723,24 +860,20 @@ class RectangularPort(Port):
 
         return PortSet(ports=ports)
 
-    def plot(self, **kwargs):
+    def mesh_representation(self):
         """
-        Places a representation of the port on a 3D plot. Currently only
-        works with the mayavi plotting package.
-
-        Parameters
-        ----------
-            **kwargs
-                Keyword arguments to be passed to the mayavi surface module
-                for the port
+        Constructs a triangular mesh representation of the port for plotting
+        and visualization.
 
         Returns
         -------
-            surf: mayavi.modules.surface.Surface class instance
-                Reference to the plotted port
+            x, y, z: 1D arrays
+                Cartesian x, y, and z coordinates of the vertices of the mesh.
+            triangles: 2D array
+                Indices of the vertices (as listed in the x, y, and z arrays)
+                surrounding each triangular face within the mesh. Each row
+                (dimension 1) represents a face.
         """
-
-        from mayavi import mlab
 
         # Points at each end of the port
         x0 = self.ox + self.l0*self.ax
@@ -786,10 +919,65 @@ class RectangularPort(Port):
         triangles2 = np.concatenate((ul_col, lr_col, ur_col), axis=1)
         triangles = np.concatenate((triangles1, triangles2), axis=0)
 
+        return x, y, z, triangles
+
+    def plot(self, **kwargs):
+        """
+        Places a representation of the port on a 3D plot. Currently only
+        works with the mayavi plotting package.
+
+        Parameters
+        ----------
+            **kwargs
+                Keyword arguments to be passed to the mayavi surface module
+                for the port
+
+        Returns
+        -------
+            surf: mayavi.modules.surface.Surface class instance
+                Reference to the plotted port
+        """
+
+        from mayavi import mlab
+
+        # Obtain data for the mesh representation of the port
+        x, y, z, triangles = self.mesh_representation()
+
         # Generate a mayavi surface instance
         if 'color' not in kwargs.keys():
             kwargs['color'] = (0.75, 0.75, 0.75)
         mesh_source = mlab.pipeline.triangular_mesh_source(x, y, z, triangles)
         return mlab.pipeline.surface(mesh_source, **kwargs)
+
+    @SimsoptRequires(unstructuredGridToVTK is not None, \
+                     "to_vtk method requires pyevtk module")
+    def to_vtk(self, filename):
+        """
+        Export a mesh representation of the port to a VTK file, which can be 
+        read with ParaView.
+
+        Note: This function requires the ``pyevtk`` python package, which can 
+        be installed using ``pip install pyevtk``.
+
+        Parameters
+        ----------
+            filename: string
+                Name of the VTK file, without extension, to create.
+        """
+
+        # Obtain data for the mesh representation of the port
+        x, y, z, triangles = self.mesh_representation()
+        x = contig(x)
+        y = contig(y)
+        z = contig(z)
+        triangles = contig(triangles)
+
+        # Convert triangles array data to unstructured representation
+        connectivity = contig(triangles.reshape((-1)))
+        offsets = contig(3*np.arange(triangles.shape[0]) + 3)
+
+        # Save to file
+        unstructuredGridToVTK(filename, x, y, z, connectivity, offsets, \
+                              contig(np.full(offsets.shape, VtkTriangle.tid)))
 
 

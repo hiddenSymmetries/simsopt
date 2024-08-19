@@ -2,6 +2,11 @@ import unittest
 import numpy as np
 from simsopt.geo import CircularPort, RectangularPort
 
+try:
+    import pyevtk
+except ImportError:
+    pyevtk = None
+
 class PortTests(unittest.TestCase):
 
     def test_circular_ports(self):
@@ -278,6 +283,52 @@ class PortTests(unittest.TestCase):
         self.assertTrue(np.all(coll_comb_sym == coll_both_sym))
         self.assertTrue(np.all(coll_cr_sym == coll_both_sym))
  
+    @unittest.skipIf(pyevtk is None, "pyevtk not found")
+    def test_port_to_vtk(self):
+        """
+        Tests functions that generate VTK files from ports and port sets
+        """
+
+        import os
+
+        # General parameters
+        Rmaj = 10 
+        [ax, ay, az] = [0, 0, 1]
+        [l0, l1] = [0, 1]
+        thk = 0.1
+
+        # Circular port parameters
+        phiPort_c = 20*np.pi/180.
+        [oxc, oyc, ozc] = [Rmaj*np.cos(phiPort_c), Rmaj*np.sin(phiPort_c), 0]
+        ir = 1
+
+        # Baseline circular port
+        pCirc = CircularPort(ox=oxc, oy=oyc, oz=ozc, ax=ax, ay=ay, az=az, \
+                             ir=ir, thick=thk, l0=l0, l1=l1)
+
+        # Rectangular port parameters
+        phiPort_r = 40*np.pi/180.
+        [oxr, oyr, ozr] = [Rmaj*np.cos(phiPort_r), Rmaj*np.sin(phiPort_r), 0]
+        [wx, wy, wz] = [1, 0, 0]
+        iw = ir
+        ih = 2*ir
+
+        # Baseline rectangular port
+        pRect = RectangularPort(ox=oxr, oy=oyr, oz=ozr, ax=ax, ay=ay, az=az, \
+                                wx=wx, wy=wy, wz=wz, iw=iw, ih=ih, \
+                                thick=thk, l0=l0, l1=l1)
+
+        bothPorts = pCirc + pRect
+
+        filename = 'temp_port_vtk_test_file'
+        filepath = os.path.join(os.path.dirname(__file__), filename)
+        pCirc.to_vtk(filename)
+        pRect.to_vtk(filename)
+        bothPorts.to_vtk(filename)
+        os.remove(filepath + '.vtu')
+ 
+
+
     def check_points(self, p, gap, X_in, Y_in, X_thk, Y_thk, X_gap, Y_gap, \
                      X_out, Y_out, Z_mid, Z_gap, Z_out):
         """

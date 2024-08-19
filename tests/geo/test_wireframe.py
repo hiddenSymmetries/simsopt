@@ -543,5 +543,8 @@ class Testing(unittest.TestCase):
         filename = 'temp_wframe_vtk_test_file'
         filepath = os.path.join(os.path.dirname(__file__), filename)
         wf.to_vtk(filepath)
+        wf.to_vtk(filepath, extent='torus')
+        wf.to_vtk(filepath, extent='field period')
+        wf.to_vtk(filepath, extent='half period')
         os.remove(filepath + '.vtu')
 
