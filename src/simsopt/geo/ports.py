@@ -325,7 +325,7 @@ class PortSet(object):
 
         for i in range(self.nPorts):
 
-            if type(self.ports[i]) == CircularPort:
+            if isinstance(self.ports[i], CircularPort):
                 xList[i], yList[i], zList[i], trianglesList[i] \
                     = self.ports[i].mesh_representation(nEdges=nEdges)
             else:
@@ -529,17 +529,17 @@ class CircularPort(Port):
             ayi = self.ax*np.sin(i*dphi) + self.ay*np.cos(i*dphi)
             azi = self.az
 
-            if stell_sym:
-
-                ports.append(CircularPort(ox=oxi, oy=-oyi, oz=-ozi, \
-                    ax=-axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
-                    l0=-self.l1, l1=-self.l0))
-
             if i > 0:
 
                 ports.append(CircularPort(ox=oxi, oy=oyi, oz=ozi, \
                     ax=axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
                     l0=self.l0, l1=self.l1))
+
+            if stell_sym:
+
+                ports.append(CircularPort(ox=oxi, oy=-oyi, oz=-ozi, \
+                    ax=-axi, ay=ayi, az=azi, ir=self.ir, thick=self.thick, \
+                    l0=-self.l1, l1=-self.l0))
 
         return PortSet(ports=ports)
 
@@ -844,19 +844,19 @@ class RectangularPort(Port):
             wyi = self.wx*np.sin(i*dphi) + self.wy*np.cos(i*dphi)
             wzi = self.wz
 
-            if stell_sym:
-
-                ports.append(RectangularPort(ox=oxi, oy=-oyi, oz=-ozi, \
-                    ax=-axi, ay=ayi, az=azi, wx=-wxi, wy=wyi, wz=wzi, \
-                    iw=self.iw, ih=self.ih, thick=self.thick, \
-                    l0=-self.l1, l1=-self.l0))
-
             if i > 0:
 
                 ports.append(RectangularPort(ox=oxi, oy=oyi, oz=ozi, \
                     ax=axi, ay=ayi, az=azi, wx=wxi, wy=wyi, wz=wzi, \
                     iw=self.iw, ih=self.ih, thick=self.thick, \
                     l0=self.l0, l1=self.l1))
+
+            if stell_sym:
+
+                ports.append(RectangularPort(ox=oxi, oy=-oyi, oz=-ozi, \
+                    ax=-axi, ay=ayi, az=azi, wx=-wxi, wy=wyi, wz=wzi, \
+                    iw=self.iw, ih=self.ih, thick=self.thick, \
+                    l0=-self.l1, l1=-self.l0))
 
         return PortSet(ports=ports)
 
