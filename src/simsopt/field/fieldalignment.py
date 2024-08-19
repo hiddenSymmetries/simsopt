@@ -13,20 +13,47 @@ from simsopt._core.derivative import derivative_dec
 
 Biot_savart_prefactor = constants.mu_0 / 4 / np.pi
 
-__all__ = ['CriticalCurrentOpt', 'critical_current']
+__all__ = ['CriticalCurrentOpt']
 
 def vector_matrix_product(matrix, vector):
-    """Product between matrix and a vector with one free axis (e.g. along a coil)"""
+    """Product between matrix and a vector with one free axis (e.g. along a coil)
+    
+    Args:
+      - matrix: array of size ??
+      - vector: array of size ??
+
+    Output:
+      - array of shape ??
+    """
+    #TODO: complete documentation with help of P. Huslage
     return jnp.einsum('ijk, ik -> ij', matrix, vector)
 
 
 def inner(vector_1, vector_2):
-    """Dot Product between two vectors with one free axis (e.g. along a coil)"""
+    """Dot Product between two vectors with one free axis (e.g. along a coil)
+    
+    Args:
+      - vector_1: first vector of shape (N,3)
+      - vector_2: second vector of shape (N,3)
+
+    Output:
+      - array of shape (N,)
+    """
     return jnp.sum(vector_1*vector_2, axis=1)
 
 
 def rotation(angle, axis, vector):
-    """Rotates a 3D vector around an axis vector"""
+    """Rotates a 3D vector around an axis vector
+    
+    Args:
+      - angle: ??
+      - axis: ??
+      - vector: Vector to be rotated, shape (N,3)
+
+    Output:
+      - array of shape ??
+    """
+    #TODO: complete documentation with help of P. Huslage
 
     n_quad = angle.shape[0]
 
@@ -51,7 +78,15 @@ def rotation(angle, axis, vector):
 
 
 def c_axis_pure(t, b):
-    """Implements THEVA-tape-like c-axis"""
+    """Implements THEVA-tape-like c-axis
+    
+    Args:
+      - t: tape tangent vector, shape (N,3)
+      - b: tape binormal vector, shape (N,3)
+
+    Output:
+      - array of shape (N,3)
+    """
     n_quad = t.shape[0]
     rotation_degrees = 60*jnp.ones(n_quad)
     rotation_radians = jnp.radians(rotation_degrees)
@@ -61,7 +96,16 @@ def c_axis_pure(t, b):
 
 
 def c_axis_angle_pure(coil, B):
-    """Angle between the magnetic field and the c-axis of the REBCO Tape"""
+    """Angle between the magnetic field and the c-axis of the REBCO Tape
+    
+    Args:
+      - coil: Instance of simsopt.field.coil.Coil
+      - B: Magnetic field evaluated along coil.curve. Array of shape (N,3), where N is coil.curve.quadpoints.size
+
+    Output:
+      - ??
+    """
+    #TODO: complete documentation with P.Huslage help
     t, _, b = coil.curve.rotated_frame()
     b_norm = jnp.einsum("ij, i->ij", B, 1/jnp.linalg.norm(B, axis=1))
 
@@ -72,6 +116,19 @@ def c_axis_angle_pure(coil, B):
 
 
 def critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=None):
+    """Evaluate the critical current along a coil, based on a critical current model provided by the user. If no critical current model is provided, the reduced Kim-like model (doi:10.1088/0953-2048/24/6/065005) is used.
+    
+    Args:
+      - gamma: Position of the curve in cartesian coordinates, shape (N,3)
+      - gammadash: Derivative of gamma w.r.t the curve arclength, shape (N,3)
+      - alpha: HTS frame rotation angle, shape (N,)
+      - Bself: Self-field from the coil, evaluated at the position given by gamma. Shape (N,3)
+      - Bext: External field, generated for example by other coils. Evaluated at the position given by gamma. Shape (N,3).
+      - model: function, taking as argument (B_parallel, B_perp) and returning the critical current. Should be Jaxable.
+
+    Returns:
+      - critical current along the curve. Shape (N,)
+    """
     tangent, normal, binormal = rotated_centroid_frame(
         gamma, gammadash, alpha
         )
@@ -89,33 +146,34 @@ def critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=None):
         B_0 = 42.6e-3
         Ic_0 = 1  # 1.3e11,
 
-        Ic = Ic_0*(jnp.sqrt(k**2 * B_par**2 + B_perp**2) / B_0)**xi
-    else:
-        Ic = model(B_perp, B_par, B_0)
+        model = lambda B_par, B_perp: Ic_0*(1 + jnp.sqrt(k**2 * B_par**2 + B_perp**2) / B_0)**xi
 
-    #TODO: modify call signature everywhere
     #TODO: make a file with different critical current models
-    return Ic
-
-
-def critical_current(framedcoil, a, b, Bext, JANUS=True):
-    """Critical current on a coil assuming a homogeneous current distribution. Replace with analytical model"""
-    Ic = critical_current_pure(
-        framedcoil.framedcurve.curve.gamma(), 
-        framedcoil.framedcurve.curve.gammadash(), 
-        framedcoil.framedcurve.curve.gammadashdash(), 
-        framedcoil.framedcurve.rotation.alpha(framedcoil.framedcurve.curve.quadpoints), 
-        framedcoil.framedcurve.curve.quadpoints, 
-        framedcoil.current.get_value(), 
-        a, b, Bext
-    )
-    return Ic
+    return model(B_par, B_perp)
 
 
 def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=None):
-    # TODO: What is this?!
-    Ic0 = 1 
+    """Evaluates the critical current objective, given by
+    
+    .. math::
+        J = \left(\frac{1}{N}\sum_{k=1}^N I_{c,k}^(1/p)\right)^p,
+    
+    where :math:`N` is the number of quadrature points :math:`\mathbf{x}_k` along the curve, :math:`I_{c,k}` is the critical current evaluated at :math:`\mathbf{x}_k`, and :math:`p` is a parameter, with :math:`p>1`.
 
+    This is constructed to return the minimum critical current along the curve, approximated by a p-norm.
+
+    Args:
+      - gamma: Position of the curve in cartesian coordinates, shape (N,3)
+      - gammadash: Derivative of gamma w.r.t the curve arclength, shape (N,3)
+      - alpha: HTS frame rotation angle, shape (N,)
+      - Bself: Self-field from the coil, evaluated at the position given by gamma. Shape (N,3)
+      - Bext: External field, generated for example by other coils. Evaluated at the position given by gamma. Shape (N,3).
+      - p: float, larger than 1. Default value is 10.
+      - model: function, taking as argument (B_parallel, B_perp) and returning the critical current. Should be Jaxable. Default is None (i.e. use an analytical model).
+
+    Output:
+      - Objective value, float.
+    """
     Ic = critical_current_pure(
         gamma, gammadash, alpha, Bself, Bext, model
     )
@@ -131,29 +189,15 @@ def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=
     #return jnp.sum(jnp.maximum(Ic-Ic0, 0)**2)
 
 
-def critical_current_obj(framedcoil, a, b, Bext, JANUS=True):
-    """Objective for field alignement optimization: Target minimum of the critical current along the coil"""
-    obj = critical_current_obj_pure(
-        framedcoil.framedcurve.curve.gamma(), 
-        framedcoil.framedcurve.curve.d1gamma(), 
-        framedcoil.framedcurve.curve.d2gamma(),
-        framedcoil.framedcurve.rotation.alpha(framedcoil.framedcurve.curve.quadpoints),
-        framedcoil.framedcurve.curve.quadpoints, 
-        framedcoil.framedcurrent.get_value(), 
-        a, b, Bext
-    )
-    return obj
-
-
 class CriticalCurrentOpt(Optimizable):
     """Optimizable class to optimize the critical on a ReBCO coil
     
     Args:
-    -----
-     - framedcoil. simsopt.field.Coil object, where framedcoil.curve is an instance of the simsopt.geo.framedcurve class. The critical current will be evaluated for this coil.
-     - biotsavart_ext. simsopt.field.BiotSavart object. Contains all other coils in the system. Should not include the coil represented by framedcoil.
-     - a (float, default: 0.05). Conductor stack width ?
-     - b (float, default: 0.05). Conductor stack height ?
+      - self_field: instance of simsopt.field.selffield.SelfField.
+      - frame: HTS frame associated to self_field._curve.
+      - biotsavart_ext: biotsavart object to evaluate external field.
+      - model: critical current model, default is None
+      - p: float, larger than 1. Used to approximate critical current minimum with a p-norm.
     """
 
     def __init__(self, self_field, frame, biotsavart_ext, model=None, p=4):

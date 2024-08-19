@@ -128,14 +128,13 @@ class FramedCurveFrenet(FramedCurve):
         grad5 = self.torsiongrad_vjp5(gamma, d1gamma, d2gamma,
                                       d3gamma, alpha, alphadash, v)
 
-        return Derivative({
-            self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+       
+        return self.curve.dgamma_by_dcoeff_vjp(grad0) \
+               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3),
-            self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
+            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-        })
 
     def dframe_binormal_curvature_by_dcoeff_vjp(self, v):
         gamma = self.curve.gamma()
@@ -158,14 +157,21 @@ class FramedCurveFrenet(FramedCurve):
         grad5 = self.binormgrad_vjp5(gamma, d1gamma, d2gamma,
                                      d3gamma, alpha, alphadash, v)
 
-        return Derivative({
-            self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+        # return Derivative({
+        #     self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
+        #     + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+        #     + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
+        #     + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3),
+        #     self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
+        #     + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
+        # })
+    
+        return self.curve.dgamma_by_dcoeff_vjp(grad0) \
+               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3),
-            self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
+            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-        })
 
     def rotated_frame_dcoeff_vjp(self, v, dn, db, arg=0):
         assert arg in [0, 1, 2, 3]
@@ -348,14 +354,12 @@ class FramedCurveCentroid(FramedCurve):
         grad5 = self.binormgrad_vjp5(gamma, d1gamma, d2gamma,
                                      alpha, alphadash, v)
 
-        return Derivative({
-            self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+        
+        return self.curve.dgamma_by_dcoeff_vjp(grad0) \
+               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3),
-            self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-        })
 
     def dframe_torsion_by_dcoeff_vjp(self, v):
         gamma = self.curve.gamma()
@@ -375,15 +379,18 @@ class FramedCurveCentroid(FramedCurve):
         grad5 = self.torsiongrad_vjp5(gamma, d1gamma, d2gamma,
                                       alpha, alphadash, v)
 
-        return Derivative({
-            self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
-            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+        # return Derivative({
+        #     self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
+        #     + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+        #     + self.curve.dgammadashdash_by_dcoeff_vjp(grad2),
+        #     self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
+        #     + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
+        # })
+        return self.curve.dgamma_by_dcoeff_vjp(grad0) \
+               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-            + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3),
-            self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
+            + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-        })
-
 
 class FrameRotation(Optimizable):
 
