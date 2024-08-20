@@ -400,4 +400,6 @@ class PortTests(unittest.TestCase):
         self.assertFalse(np.any(p.collides(X_out, Y_out, Z_out)))
         self.assertFalse(np.any(p.collides(X_out, Y_out, Z_out, gap=gap)))
 
+if __name__ == "__main__":
+    unittest.main()
 

@@ -76,7 +76,7 @@ def subtended_angle(x, y):
     
     return angle
 
-class Testing(unittest.TestCase):
+class WireframeTests(unittest.TestCase):
 
     def test_toroidal_wireframe_constructor(self):
         """
@@ -547,4 +547,7 @@ class Testing(unittest.TestCase):
         wf.to_vtk(filepath, extent='field period')
         wf.to_vtk(filepath, extent='half period')
         os.remove(filepath + '.vtu')
+
+if __name__ == "__main__":
+    unittest.main()
 

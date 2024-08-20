@@ -14,7 +14,7 @@ def surf_torus(nfp, rmaj, rmin):
     surf.set_zs(1, 0, rmin)
     return surf
 
-class Testing(unittest.TestCase):
+class WireframeFieldTests(unittest.TestCase):
 
     def test_toroidal_wireframe_field_from_square_loop(self):
         '''
@@ -270,4 +270,7 @@ class Testing(unittest.TestCase):
         SqFlux_ref = SquaredFlux(surf_plas, field_wf).J()
 
         assert np.allclose(SqFlux_mat, SqFlux_ref)
+
+if __name__ == "__main__":
+    unittest.main()
 
