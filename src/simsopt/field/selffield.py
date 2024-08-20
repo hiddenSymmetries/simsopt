@@ -291,7 +291,7 @@ class SelfField(Optimizable):
         grad0 = self.dB_by_dgamma_vjp_impl(v)
         grad1 = self.dB_by_dgammadash_vjp_impl(v)
         grad2 = self.dB_by_dgammadashdash_vjp_impl(v)
-        grad3 = self.dB_by_dcurrent_vjp_impl(v)
+        grad3 = jnp.array([self.dB_by_dcurrent_vjp_impl(v)])
 
         return self._curve.dgamma_by_dcoeff_vjp(grad0) \
             + self._curve.dgammadash_by_dcoeff_vjp(grad1) \
