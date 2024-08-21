@@ -117,51 +117,52 @@ class StepSizeStoppingCriterion : public StoppingCriterion {
     private:
         int min_dt;
     public:
-        StepSizeStoppingCriterion(int min_dt) : min_dt(min_dt) {};
-        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
-        // bool operator()(int iter, double t, Array& y) override {
-            return dt<min_dt;
-        };
-};
+			  StepSizeStoppingCriterion(int min_dt) : min_dt(min_dt) {};
+			  bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
+			  // bool operator()(int iter, double t, Array& y) override {
+					return dt<min_dt;
+			  };
+	};
 
-template<class Array>
-class LevelsetStoppingCriterion : public StoppingCriterion {
-    private:
-        shared_ptr<RegularGridInterpolant3D<Array>> levelset;
-    public:
-        LevelsetStoppingCriterion(shared_ptr<RegularGridInterpolant3D<Array>> levelset) : levelset(levelset) { };
-        // bool operator()(int iter, double t, Array2& y) override {
-        bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
-            double r = std::sqrt(x*x + y*y);
-            // double r = std::sqrt(y[0]*y[0] + y[1]*y[1]);
-            double phi = std::atan2(y, x);
-            // double phi = std::atan2(y[1],y[0]);
-            if(phi < 0)
-                phi += 2*M_PI;
-            double f = levelset->evaluate(r, phi, z)[0];
-            // double f = levelset->evaluate(r, phi, y[2])[0];
-            //fmt::print("Levelset at xyz=({}, {}, {}), rphiz=({}, {}, {}), f={}\n", x, y, z, r, phi, z, f);
-            return f<0;
-        };
-};
+	template<class Array>
+	class LevelsetStoppingCriterion : public StoppingCriterion {
+		 private:
+			  shared_ptr<RegularGridInterpolant3D<Array>> levelset;
+		 public:
+			  LevelsetStoppingCriterion(shared_ptr<RegularGridInterpolant3D<Array>> levelset) : levelset(levelset) { };
+			  // bool operator()(int iter, double t, Array2& y) override {
+			  bool operator()(int iter, double dt, double t, double x, double y, double z, double vpar=0) override {
+					double r = std::sqrt(x*x + y*y);
+					// double r = std::sqrt(y[0]*y[0] + y[1]*y[1]);
+					double phi = std::atan2(y, x);
+					// double phi = std::atan2(y[1],y[0]);
+					if(phi < 0)
+						 phi += 2*M_PI;
+					double f = levelset->evaluate(r, phi, z)[0];
+					// double f = levelset->evaluate(r, phi, y[2])[0];
+					//fmt::print("Levelset at xyz=({}, {}, {}), rphiz=({}, {}, {}), f={}\n", x, y, z, r, phi, z, f);
+					return f<0;
+			  };
+	};
 
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<array<double, 6>>, vector<array<double, 7>>>
-particle_guiding_center_boozer_perturbed_tracing(
-        shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
-        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool zetas_stop=false, bool vpars_stop=false,
-        double alphahat=0, double omega=0, int alpham=0, int alphan=0, double phase=0,
-        bool forget_exact_path=false, int axis=0);
+	template<template<class, std::size_t, xt::layout_type> class T>
+	tuple<vector<array<double, 6>>, vector<array<double, 7>>>
+	particle_guiding_center_boozer_perturbed_tracing(
+			  shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
+			  double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
+			  bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
+			  vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+			  bool zetas_stop=false, bool vpars_stop=false,
+			  double alphahat=0, double omega=0, int alpham=0, int alphan=0, double phase=0,
+			  bool forget_exact_path=false, int axis=0,  vector<double> vpars={});
 
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-particle_guiding_center_boozer_tracing(
-        shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
+	template<template<class, std::size_t, xt::layout_type> class T>
+	tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+	particle_guiding_center_boozer_tracing(
+			  shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
+        bool vacuum, bool noK, bool GPU, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false,
-        bool forget_exact_path=false, int axis=0, bool predictor_step=true);
+        bool forget_exact_path=false, int axis=0, bool predictor_step=true,
+        bool zetas_stop=false, bool vpars_stop=false, vector<double> vpars={});
+

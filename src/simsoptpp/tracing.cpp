@@ -1196,9 +1196,9 @@ particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         bool phis_stop, bool vpars_stop, double Phihat, double omega, int Phim,
-        int Phin, double phase, bool forget_exact_path, int axis)
+        int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1234,9 +1234,9 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
+        bool vacuum, bool noK, bool GPU, bool solveSympl, vector<double> zetas, vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1282,6 +1282,8 @@ particle_guiding_center_boozer_tracing(
         auto f = SymplField<T>(field, m, q, mu);
         return solve_sympl(f, y, tmax, dt, roottol, zetas, omegas, stopping_criteria,
         vpars, phis_stop, vpars_stop, forget_exact_path, predictor_step);
+    } else if (GPU) {
+        return;
     } else {
         if (vacuum) {
           auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu, axis);
@@ -1299,19 +1301,21 @@ particle_guiding_center_boozer_tracing(
     }
 }
 
-template
-tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 6>>, vector<array<double, 7>>>
+particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double Phihat,
-        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis);
+        bool phis_stop, bool vpars_stop, double Phihat,
+        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars);
 
-template
-tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
+        bool vacuum, bool noK, bool GPU, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step);
+        bool forget_exact_path, int axis, bool predictor_step, bool phis_stop, bool vpars_stop, vector<double> vpars);
