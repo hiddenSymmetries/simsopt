@@ -374,6 +374,23 @@ class Port(ABC):
         pass
 
     @abstractmethod
+    def mesh_representation(self):
+        """
+        Constructs a triangular mesh representation of the port for plotting
+        and visualization.
+
+        Returns
+        -------
+            x, y, z: 1D arrays
+                Cartesian x, y, and z coordinates of the vertices of the mesh.
+            triangles: 2D array
+                Indices of the vertices (as listed in the x, y, and z arrays)
+                surrounding each triangular face within the mesh. Each row
+                (dimension 1) represents a face.
+        """
+        pass
+
+    @abstractmethod
     def plot(self):
         """
         Returns handle to a three-dimensional plot with a visual depiction
