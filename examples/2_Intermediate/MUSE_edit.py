@@ -50,7 +50,7 @@ else:
     nIter_max = 10000
     nBacktracking = 200
     max_nMagnets = 1000
-    downsample = 1
+    downsample = 20
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
