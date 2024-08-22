@@ -3,7 +3,7 @@ import warnings
 
 import numpy as np
 from pyevtk.hl import pointsToVTK
-
+import math
 from .._core.descriptor import OneofStrings
 from . import Surface
 import simsoptpp as sopp
@@ -289,7 +289,7 @@ class PermanentMagnetGrid:
                     ForceRow = ForceRow + dipole_force(MagnetMatrix[r1], PositionMatrix[r1], MagnetMatrix[r2],
                                                       PositionMatrix[r2])
             ForceMatrix.append(ForceRow)
-        ForceMatrix = np.array(ForceMatrix, dtype=object)
+        ForceMatrix = np.array(ForceMatrix, dtype='double')
         return ForceMatrix
     @classmethod
     def geo_setup_between_toroidal_surfaces(

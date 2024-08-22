@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = ['SurfaceClassifier', 'LevelsetStoppingCriterion',
            'MinToroidalFluxStoppingCriterion','MaxToroidalFluxStoppingCriterion',
-           'MinRStoppingCriterion','MinZStoppingCriterion',
-           'MaxRStoppingCriterion','MaxZStoppingCriterion',
+          # 'MinRStoppingCriterion','MinZStoppingCriterion',
+         #  'MaxRStoppingCriterion','MaxZStoppingCriterion',
            'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
            'compute_fieldlines', 'compute_resonances',
            'compute_poloidal_transits', 'compute_toroidal_transits',
@@ -797,7 +797,7 @@ class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
     pass
 
-class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
+#class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
     """
     Stop the iteration once a particle falls below a critical value of
     ``R``, the radial cylindrical coordinate. 
@@ -810,9 +810,9 @@ class MinRStoppingCriterion(sopp.MinRStoppingCriterion):
 
     where ``crit_r`` is the value of the critical coordinate.
     """
-    pass
+   # pass
 
-class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
+#class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
     """
     Stop the iteration once a particle falls below a critical value of
     ``Z``, the cylindrical vertical coordinate. 
@@ -825,9 +825,9 @@ class MinZStoppingCriterion(sopp.MinZStoppingCriterion):
 
     where ``crit_z`` is the value of the critical coordinate.
     """
-    pass
+   # pass
 
-class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
+#class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
     """
     Stop the iteration once a particle goes above a critical value of
     ``R``, the radial cylindrical coordinate. 
@@ -840,9 +840,9 @@ class MaxRStoppingCriterion(sopp.MaxRStoppingCriterion):
 
     where ``crit_r`` is the value of the critical coordinate.
     """
-    pass
+   # pass
 
-class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
+#class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
     """
     Stop the iteration once a particle gove above a critical value of
     ``Z``, the cylindrical vertical coordinate. 
@@ -855,7 +855,7 @@ class MaxZStoppingCriterion(sopp.MaxZStoppingCriterion):
 
     where ``crit_z`` is the value of the critical coordinate.
     """
-    pass
+   # pass
 
 def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, aspect='equal', dpi=300, xlims=None, 
                        ylims=None, surf=None, s=2, marker='o'):
