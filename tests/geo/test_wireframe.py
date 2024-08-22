@@ -247,7 +247,7 @@ class WireframeTests(unittest.TestCase):
         # An isolated current-carrying segment violates continuity
         test_cur = 1e6
         wf.currents[0] = test_cur
-        self.assertFalse(wf.check_constraints(constraint_tol=test_cur*1e-12))
+        self.assertFalse(wf.check_constraints())
         wf.currents[0] = 0
         self.assertTrue(wf.check_constraints)
 

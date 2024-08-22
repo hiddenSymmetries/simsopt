@@ -207,8 +207,7 @@ class WireframeFieldTests(unittest.TestCase):
         # Set up the wireframe
         nPhi = 12
         nTheta = 4
-        test_wf = ToroidalWireframe(surf, nPhi, nTheta, \
-                                    constraint_tol=cur_pol*1e-12)
+        test_wf = ToroidalWireframe(surf, nPhi, nTheta)
 
         test_wf.set_poloidal_current(-cur_pol)
 
@@ -252,8 +251,7 @@ class WireframeFieldTests(unittest.TestCase):
         nTheta = 4
         surf_wf = SurfaceRZFourier.from_vmec_input(plas_fname)
         surf_wf.extend_via_normal(1.0)
-        test_wf = ToroidalWireframe(surf_wf, nPhi, nTheta, \
-                                    constraint_tol = cur_pol*1e-12)
+        test_wf = ToroidalWireframe(surf_wf, nPhi, nTheta)
         test_wf.currents[-test_wf.nPolSegments:] = -cur_pol/(2*nPhi*test_wf.nfp)
         test_wf.currents[:test_wf.nTorSegments] = -cur_tor/nTheta
         self.assertTrue(test_wf.check_constraints())

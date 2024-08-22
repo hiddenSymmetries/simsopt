@@ -34,13 +34,14 @@ class ToroidalWireframe(object):
         nTheta: integer
             Number of wireframe nodes in the poloidal dimension. Must be even;
             if an odd number is provided, it will be incremented by one.
-        constraint_tol: double (optional)
-            Tolerance against which constraint equations are to be evaluated
-            (see docstring for method check_constraints for more details).
-            Default is 1e-12.
+        constraint_atol, constraint_rtol: double (optional)
+            Absolute and relative tolerances against which constraint equations 
+            are to be evaluated (see docstring for method check_constraints for 
+            more details). Default for each is 1e-10.
     """
 
-    def __init__(self, surface, nPhi, nTheta, constraint_tol=1e-12):
+    def __init__(self, surface, nPhi, nTheta, constraint_atol=1e-10,
+                 constraint_rtol=1e-10):
 
         if not isinstance(surface, SurfaceRZFourier):
             raise ValueError('Surface must be a SurfaceRZFourier object')
@@ -58,10 +59,12 @@ class ToroidalWireframe(object):
         self.nTheta = nTheta 
         self.nPhi = nPhi
 
-        # Check the constraint tolerance
-        if not np.isscalar(constraint_tol) and not constraint_tol > 0:
-            raise ValueError('constraint_tol must be a positive scalar')
-        self.constraint_tol = constraint_tol
+        # Check the constraint tolerances
+        if (not np.isscalar(constraint_atol) and not constraint_atol > 0) \
+            or (not np.isscalar(constraint_rtol) and not constraint_rtol > 0):
+            raise ValueError('constraint_atol must be a positive scalar')
+        self.constraint_atol = constraint_atol
+        self.constraint_rtol = constraint_rtol
             
         # Make copy of surface with quadrature points according to nTheta, nPhi
         qpoints_phi = list(np.linspace(0, 0.5/surface.nfp, nPhi+1))
@@ -1102,16 +1105,17 @@ class ToroidalWireframe(object):
             raise ValueError('form parameter must be ''indices'' ' \
                              + 'or ''logical''')
 
-    def check_constraints(self, currents=None, constraint_tol=None):
+    def check_constraints(self, currents=None, atol=None, rtol=None):
         """
         Verify that every constraint is satisfied by the present values of
         the segment currents. Specifically, for each constraint equation,
         confirm that:
 
-            |B*x - d| < tol,
+            |B*x - d| < atol + mean(|x|)*rtol,
 
         where B is a vector of coefficients, x is the array of currents in
-        each segment, d is a constant, and tol is a tolerance.
+        each segment, d is a constant, and atol is an absolute tolerance, and
+        rtol is a relative tolerance.
 
         Parameters
         ----------
@@ -1119,10 +1123,11 @@ class ToroidalWireframe(object):
                 Array of segment currents to check against the constraints.
                 If none is supplied, the internal `currents` array of the
                 class instance will be checked against the constraints.
-            constraint_tol: double (optional)
-                Tolerance to apply when checking to ensure that the added
-                currents do not violate any existing constraints. Default is
-                to use the value already stored within the class instance.
+            atol, rtol: double (optional)
+                Absolute and relative tolerances to apply when checking to 
+                ensure that the added currents do not violate any existing 
+                constraints. Default is to use the values already stored within 
+                the class instance.
 
         Returns
         -------
@@ -1141,13 +1146,19 @@ class ToroidalWireframe(object):
         else:
             x[:,0] = self.currents.reshape((-1,1))[:,0]
 
-        # Check the constraint tolerance
-        if constraint_tol is not None:
-            if not np.isscalar(constraint_tol) and not constraint_tol > 0:
-                raise ValueError('constraint_tol must be a positive scalar')
+        # Check the constraint tolerances
+        if atol is not None:
+            if not np.isscalar(atol) and not atol > 0:
+                raise ValueError('atol must be a positive scalar')
         else:
-            constraint_tol = self.constraint_tol
-        
+            atol = self.constraint_atol
+
+        if rtol is not None:
+            if not np.isscalar(rtol) and not rtol > 0:
+                raise ValueError('rtol must be a positive scalar')
+        else:
+            rtol = self.constraint_rtol
+         
 
         # Set up the constraint matrices
         constraints_B_full, constraints_d_full = \
@@ -1156,13 +1167,17 @@ class ToroidalWireframe(object):
         # Evaluate the residuals of the constraint equations
         residuals = np.matmul(constraints_B_full, x) - constraints_d_full
 
+        # Total tolerance
+        tol = atol + rtol*np.mean(np.abs(x))
+
         # Check the residuals
-        if np.any(np.abs(residuals) >= constraint_tol):
+        if np.any(np.abs(residuals) >= tol):
             return False
         else:
             return True
 
-    def add_tfcoil_currents(self, n_tf, current_per_coil, constraint_tol=None):
+    def add_tfcoil_currents(self, n_tf, current_per_coil, constraint_atol=None, 
+                            constraint_rtol=None):
         """
         Adds current to certain poloidal segments in order to form a set of 
         planar TF coils. The loops will be spaced as evenly as possible within
@@ -1176,10 +1191,11 @@ class ToroidalWireframe(object):
                 Current carried by each of the coils; positive current flows
                 in the positive toroidal direction, thereby creating a negative 
                 toroidal magnetic field
-            constraint_tol: double (optional)
-                Tolerance to apply when checking to ensure that the added
-                currents do not violate any existing constraints. Default is
-                to use the value already stored within the class instance.
+            constraint_atol, constraint_rtol: double (optional)
+                Absolute and relative tolerances to apply when checking to 
+                ensure that the added currents do not violate any existing 
+                constraints. Default is to use the value already stored within 
+                the class instance.
         """
 
         if n_tf > self.nPhi:
@@ -1206,8 +1222,9 @@ class ToroidalWireframe(object):
         new_currents = tf_currents + self.currents
 
         # Check whether proposed new currents adhere to the constraints
-        valid = self.check_constraints(currents=new_currents, \
-                                       constraint_tol=constraint_tol)
+        valid = self.check_constraints(currents=new_currents, 
+                                       atol=constraint_atol, 
+                                       rtol=constraint_rtol)
 
         # Update currents with new values if they are within constraints
         if valid:
@@ -1639,8 +1656,9 @@ class ToroidalWireframe(object):
         ax.add_collection(pc)
 
 
-def windowpane_wireframe(surface, nCoils_tor, nCoils_pol, size_tor, size_pol, \
-                         gap_tor, gap_pol, constraint_tol=1e-12):
+def windowpane_wireframe(surface, nCoils_tor, nCoils_pol, size_tor, size_pol, 
+                         gap_tor, gap_pol, constraint_atol=1e-10, 
+                         constraint_rtol=1e-10):
     """
     Create a ToroidalWireframe class instance with the current constrained to
     flow only within regularly spaced rectangular loops in the grid, i.e.
@@ -1661,10 +1679,10 @@ def windowpane_wireframe(surface, nCoils_tor, nCoils_pol, size_tor, size_pol, \
         gap_tor, gap_pol: integers
             Number of wireframe grid cells between adjacent windowpane coils
             in the toroidal and poloidal dimensions; must be even
-        constraint_tol: double (optional)
-            Tolerance against which constraint equations are to be evaluated
-            (see docstring for method check_constraints for more details).
-            Default is 1e-12.
+        constraint_atol, constraint_rtol: double (optional)
+            Absolute and relative tolerances against which constraint equations 
+            are to be evaluated (see docstring for method check_constraints for 
+            more details). Default for each is 1e-10.
 
     Returns
     -------
@@ -1685,8 +1703,9 @@ def windowpane_wireframe(surface, nCoils_tor, nCoils_pol, size_tor, size_pol, \
     nPhi   = nCoils_tor*(size_tor + gap_tor)
     nTheta = nCoils_pol*(size_pol + gap_pol)
 
-    wframe = ToroidalWireframe(surface, nPhi, nTheta, \
-                               constraint_tol=constraint_tol)
+    wframe = ToroidalWireframe(surface, nPhi, nTheta, 
+                               constraint_atol=constraint_atol,
+                               constraint_rtol=constraint_rtol)
 
     unit_pol = size_pol + gap_pol
     unit_tor = size_tor + gap_tor
