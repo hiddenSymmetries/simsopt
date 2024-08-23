@@ -70,6 +70,14 @@ PYBIND11_MODULE(simsoptpp, m) {
 
     // Functions below are implemented for exact rectangular cube magnets
     m.def("heaviside", &heaviside);
+    m.def("Pd", &Pd);
+    m.def("iterate_over_corners", &iterate_over_corners, py::arg("corner"), py::arg("x"), py::arg("y"), py::arg("z"));
+    m.def("Hd_i_prime", &Hd_i_prime, py::arg("r"), py::arg("dims"));
+    m.def("B_direct", &B_direct, py::arg("points"), py::arg("magPos"), py::arg("M"), py::arg("dims"), py::arg("phiThetas"));
+    m.def("Bn_direct", &Bn_direct, py::arg("point"), py::arg("magPos"), py::arg("M"), py::arg("norms"), py::arg("dims"), py::arg("phiThetas"));
+    m.def("gd_i", &gd_i, py::arg("r_loc"), py::arg("n_i_loc"), py::arg("dims"));   
+    m.def("Acube", &Acube, py::arg("points"), py::arg("magPos"), py::arg("norms"), py::arg("dims"), py::arg("phiThetas"));    
+    m.def("Bn_fromMat", &Bn_fromMat, py::arg("points"), py::arg("magPos"), py::arg("M"), py::arg("norms"), py::arg("dims"), py::arg("phiThetas"));
 
     // Permanent magnet optimization algorithms have many default arguments
     m.def("MwPGP_algorithm", &MwPGP_algorithm, py::arg("A_obj"), py::arg("b_obj"), py::arg("ATb"), py::arg("m_proxy"), py::arg("m0"), py::arg("m_maxima"), py::arg("alpha"), py::arg("nu") = 1.0e100, py::arg("epsilon") = 1.0e-3, py::arg("reg_l0") = 0.0, py::arg("reg_l1") = 0.0, py::arg("reg_l2") = 0.0, py::arg("max_iter") = 500, py::arg("min_fb") = 1.0e-20, py::arg("verbose") = false);

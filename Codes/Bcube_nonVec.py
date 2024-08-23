@@ -46,7 +46,8 @@ def Hd_i_prime(r, dims):
 
     corners = [np.array(corn) for corn in itertools.product(lst, repeat=3)]
     H = np.sum([iterate_over_corners(corner, x, y, z) for corner in corners], axis=0)/(4*np.pi)
-    return H/(4*np.pi)
+    
+    return H
 
 def B_direct(points, magPos, M, dims, phiThetas):
     N = len(points)
@@ -56,15 +57,15 @@ def B_direct(points, magPos, M, dims, phiThetas):
     for n in range(N):
         for d in range(D):
             P = Pd(phiThetas[d,0],phiThetas[d,1])
+            r = points[n] - magPos[d]
             r_loc = P @ (points[n] - magPos[d])
 
             tx = np.heaviside(dims[0]/2 - np.abs(r_loc[0]),0.5)
             ty = np.heaviside(dims[1]/2 - np.abs(r_loc[1]),0.5)
             tz = np.heaviside(dims[2]/2 - np.abs(r_loc[2]),0.5)       
             tm = 2*tx*ty*tz
-            
-            B[n] += mu0 * P.T @ (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
 
+            B[n] += mu0 * P.T @ (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
     return B
 
 def Bn_direct(points, magPos, M, norms, dims, phiThetas): #solve Bnorm using analytic formula
@@ -98,7 +99,7 @@ def Acube(points, magPos, norms, dims, phiThetas):
             A[n,3*d : 3*d + 3] = g
 
             assert (N,3*D) == A.shape
-    return A
+    return A / np.prod(dims)
 
 def Bn_fromMat(points, magPos, M, norms, dims, phiThetas): #solving Bnorm using matrix formulation
     A = Acube(points, magPos, norms, dims, phiThetas)
@@ -151,4 +152,4 @@ def Bndip_fromMat(points, magPos, m, norms): #solve Bnorm using matrix formulati
     A = Adip(points, magPos, norms)
     ms = np.concatenate(m)
     return A @ ms
-    
+

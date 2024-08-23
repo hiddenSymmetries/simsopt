@@ -4,11 +4,18 @@ import numpy as np
 import sys
 sys.path.append('/Users/willhoffman/simsopt/Codes')
 import Bcube_nonVec as floop
-import simsoptopp as sopp
+import simsoptpp as sopp
 
-    
 
 class Testing(unittest.TestCase):
+
+    def Htest(self):
+        r = np.array([0,0,100])
+        dims = np.array([1,1,1])
+
+        Hcube4 = floop.Hd_i_prime(r, dims)
+        HcubeC = sopp.Hd_i_prime(r, dims)
+        assert np.allclose(Hcube4, HcubeC)
 
     def test_B_field_single(self):
         point = np.array([[0,0,100]])
