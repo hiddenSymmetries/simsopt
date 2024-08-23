@@ -32,7 +32,7 @@ Array Pd(double phi, double theta) {
     return P;
 }
 
-Array iterate_over_corners(Array corner, Array x, Array y, Array z) {
+Array iterate_over_corners(Array& corner, Array& x, Array& y, Array& z) {
     int i = corner[0], j = corner[1], k = corner[2];
     double summa = std::pow(-1, i+j+k);
     double rijk = std::sqrt(x[i]*x[i] + y[j]*y[j] + z[k]*z[k]);
@@ -57,7 +57,7 @@ Array iterate_over_corners(Array corner, Array x, Array y, Array z) {
     return summa * h;
 }
 
-Array Hd_i_prime(Array r, Array dims) {
+Array Hd_i_prime(Array& r, Array& dims) {
     
     Array H = xt::zeros<double>({3, 3});
 
@@ -89,18 +89,22 @@ Array Hd_i_prime(Array r, Array dims) {
 }
 
 
-Array B_direct(Array points, Array magPos, Array M, Array dims, Array phiThetas) {
+Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiThetas) {
     int N = points.shape(0);
     int D = M.shape(0);
 
     Array B = xt::zeros<double>({N, 3});
+    #pragma omp parallel for
     for (int n = 0; n < N; ++n) {
+        double x = points(n, 0);
+        double y = points(n, 1);
+        double z = points(n, 2);
         for (int d = 0; d < D; ++d) {
             Array P = Pd(phiThetas(d,0), phiThetas(d,1));
             Array r = xt::zeros<double>({3});
-            r[0] = points(n,0) - magPos(d,0);
-            r[1] = points(n,1) - magPos(d,1);
-            r[2] = points(n,2) - magPos(d,2);
+            r[0] = x - magPos(d,0);
+            r[1] = y - magPos(d,1);
+            r[2] = z - magPos(d,2);
             Array r_loc = xt::zeros<double>({3});
             Array M_loc = xt::zeros<double>({3});
             for (int i = 0; i < 3; ++i) {
@@ -112,20 +116,20 @@ Array B_direct(Array points, Array magPos, Array M, Array dims, Array phiThetas)
 
             Array H = Hd_i_prime(r_loc, dims);
 
-            double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]),0.5);
-            double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]),0.5);
-            double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]),0.5);    
+            double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]), 0.5);
+            double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]), 0.5);
+            double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]), 0.5);    
             double tm = 2*tx*ty*tz;
 
             Array B_loc = xt::zeros<double>({3});
             for (int i = 0; i < 3; ++i) {
                 for (int j = 0; j < 3; ++j) {
-                    B_loc(n,i) += mu0 * (H(i,j) * M_loc[j] + tm * M_loc[i]);
+                    B_loc(n, i) += mu0 * (H(i,j) * M_loc[j] + tm * M_loc[i]);
                 }                   
             }
             for (int i = 0; i < 3; ++i) {
                 for (int j = 0; j < 3; ++j) {
-                    B(n,i) += P(j,i) * B_loc[j];
+                    B(n, i) += P(j,i) * B_loc[j];
                 }
             }
         }
@@ -133,12 +137,13 @@ Array B_direct(Array points, Array magPos, Array M, Array dims, Array phiThetas)
     return B;
 }
 
-Array Bn_direct(Array points, Array magPos, Array M, Array norms, Array dims, Array phiThetas) {
+Array Bn_direct(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas) {
     int N = points.shape(0);
     
     Array B = B_direct(points, magPos, M, dims, phiThetas);
     Array Bn = xt::zeros<double>({N});
     
+    #pragma omp parallel for
     for (int n = 0; n < N; ++n) {
         for (int i = 0; i < 3; ++ i) {
             Bn[n] += B(n,i) * norms(n,i);
@@ -148,7 +153,7 @@ Array Bn_direct(Array points, Array magPos, Array M, Array norms, Array dims, Ar
 }
 
 
-Array gd_i(Array r_loc, Array n_i_loc, Array dims) {
+Array gd_i(Array& r_loc, Array& n_i_loc, Array& dims) {
     double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]),0.5);
     double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]),0.5);
     double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]),0.5);      
@@ -170,19 +175,23 @@ Array gd_i(Array r_loc, Array n_i_loc, Array dims) {
     return mu0 * g_loc;
 }
 
-Array Acube(Array points, Array magPos, Array norms, Array dims, Array phiThetas) {
+Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiThetas) {
     int N = points.shape(0);
     int D = magPos.shape(0);
     double magVol = dims[0] * dims[1] * dims[2];
     
-    Array A = xt::zeros<double>({N,3*D});
+    Array A = xt::zeros<double>({N, 3*D});
+    #pragma omp parallel for
     for (int n = 0; n < N; ++n) {
+        double x = points(n, 0);
+        double y = points(n, 1);
+        double z = points(n, 2);
         for (int d = 0; d < D; ++d) {
             Array P = Pd(phiThetas(d,0), phiThetas(d,1));
             Array r = xt::zeros<double>({3});
-            r[0] = points(n,0) - magPos(d,0);
-            r[1] = points(n,1) - magPos(d,1);
-            r[2] = points(n,2) - magPos(d,2);
+            // double rx = x - magPos(d,0);
+            // double ry = y - magPos(d,1);
+            // double rz = z - magPos(d,2);
             Array r_loc = xt::zeros<double>({3});
             Array n_loc = xt::zeros<double>({3});
             for (int i = 0; i < 3; ++i) {
@@ -191,6 +200,9 @@ Array Acube(Array points, Array magPos, Array norms, Array dims, Array phiThetas
                     n_loc[i] += P(i,j) * norms(n,j);
                 }
             }
+            // double rlocx = P(0, 0) * rx + P(0, 1) * ry + P(0, 2) * rz;
+            // double rlocy = P(1, 0) * rx + P(1, 1) * ry + P(1, 2) * rz;
+            // double rlocz = P(2, 0) * rx + P(2, 1) * ry + P(2, 2) * rz;
             Array g_loc = gd_i(r_loc, n_loc, dims);      
             Array g = xt::zeros<double>({3});
             // double magVol = dims(d,0) * dims(d,1) * dims(d,2);
@@ -199,25 +211,27 @@ Array Acube(Array points, Array magPos, Array norms, Array dims, Array phiThetas
                     g[i] += (P(j,i) * g_loc[j]) / magVol;
                 }
             }
-            A(n,3*d) = g[0];
-            A(n,3*d + 1) = g[1];
-            A(n,3*d + 2) = g[2];
+            A(n, 3*d) = g[0];
+            A(n, 3*d + 1) = g[1];
+            A(n, 3*d + 2) = g[2];
         }
     }
     return A;
 }
 
-Array Bn_fromMat(Array points, Array magPos, Array M, Array norms, Array dims, Array phiThetas) {
+Array Bn_fromMat(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas) {
     int N = points.shape(0);
     int D = M.shape(0);
     Array A = Acube(points, magPos, norms, dims, phiThetas);
     Array Ms = xt::zeros<double>({3*D});
+    #pragma omp parallel for
     for (int d = 0; d < D; ++d) {
         for (int i = 0; i < 3; ++i) {
             Ms(3*d + i) = M(d,i);
         }
     }
     Array Bn = xt::zeros<double>({N});
+    #pragma omp parallel for
     for (int n = 0; n < N; ++n) {
         for (int d = 0; d < 3*D; ++d) {
             Bn[n] += A(n,d) * Ms[d];

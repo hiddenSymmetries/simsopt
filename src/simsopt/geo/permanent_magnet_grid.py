@@ -1034,12 +1034,16 @@ class ExactMagnetGrid:
         self.b_obj = - self.Bn.reshape(self.nphi * self.ntheta)
 
         # Compute geometric factor with the C++ routine
-        self.A_obj = cub.Acube(
+        import time
+        t1 = time.time()
+        self.A_obj = sopp.Acube(
             np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3)),
             np.ascontiguousarray(self.pm_grid_xyz),
             np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3)),
             self.dims, self.phiThetas
         )
+        t2 = time.time()
+        print('Acube took ', t2 - t1, ' seconds')
 
         print('# points = ',len(np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3))))
         print('# mag points = ', len(np.ascontiguousarray(self.pm_grid_xyz)))

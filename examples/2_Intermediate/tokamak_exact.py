@@ -23,14 +23,14 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 50  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 40  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.5  # PM grid end offset ~ 15 cm from the plasma surface
+poff = 0.25  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.circular_tokamak'
 
 # Read in the plas/ma equilibrium file
