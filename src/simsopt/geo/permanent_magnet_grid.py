@@ -264,33 +264,73 @@ class PermanentMagnetGrid:
         pm_grid._optimization_setup()
         return pm_grid
 
+    # def net_force_matrix(self, MagnetMatrix):
+    #     PositionMatrix = self.dipole_grid_xyz
+    #     def dipole_force(dipoleMoment1, dipolePosition1, dipoleMoment2, dipolePosition2):
+    #         m1 = dipoleMoment1
+    #         m2 = dipoleMoment2
+    #         R = dipolePosition2 - dipolePosition1
+    #         mag_R = np.sqrt(R.dot(R))
+    #         mu = 4 * math.pi * pow(10, -7)
+    #         coefficient = (3 * mu) / (4 * math.pi * pow(mag_R, 5))
+    #         first_term = m1.dot(R) * m2
+    #         second_term = m2.dot(R) * m1
+    #         third_term = m1.dot(m2) * R
+    #         fourth_term = R * (5 * m1.dot(R) * m2.dot(R)) / (pow(mag_R, 2))
+    #         return coefficient * (first_term + second_term + third_term - fourth_term)
+
+    #     ForceMatrix = []
+    #     n_magnets = np.shape(MagnetMatrix)[0]
+    #     n_dimensions = np.shape(MagnetMatrix)[1]
+    #     for r1 in range(n_magnets):
+    #         ForceRow = [0] * n_dimensions
+    #         for r2 in range(n_magnets):
+    #             if r1 != r2:
+    #                 ForceRow = ForceRow + dipole_force(MagnetMatrix[r1], PositionMatrix[r1], MagnetMatrix[r2],
+    #                                                   PositionMatrix[r2])
+    #         ForceMatrix.append(ForceRow)
+    #     ForceMatrix = np.array(ForceMatrix, dtype='double')
+    #     return ForceMatrix
+
     def net_force_matrix(self, MagnetMatrix):
         PositionMatrix = self.dipole_grid_xyz
+
+        # each of the arguments is shape (nmagnets, 3)
         def dipole_force(dipoleMoment1, dipolePosition1, dipoleMoment2, dipolePosition2):
-            m1 = dipoleMoment1
-            m2 = dipoleMoment2
-            R = dipolePosition2 - dipolePosition1
-            mag_R = np.sqrt(R.dot(R))
+            # Turn everything into shape (nmagnets, nmagnets, 3)
+            m1 = dipoleMoment1[None, :, :]
+            m2 = dipoleMoment2[:, None, :]
+            # Takes two arrays of shape (nmagnets, 3)
+            # and makes an array R of shape (nmagnets, nmagnets, 3)
+            R = dipolePosition2[:, None, :] - dipolePosition1[None, :, :]
+            mag_R = np.sqrt(R ** 2)
             mu = 4 * math.pi * pow(10, -7)
-            coefficient = (3 * mu) / (4 * math.pi * pow(mag_R, 5))
-            first_term = m1.dot(R) * m2
-            second_term = m2.dot(R) * m1
-            third_term = m1.dot(m2) * R
-            fourth_term = R * (5 * m1.dot(R) * m2.dot(R)) / (pow(mag_R, 2))
+            coefficient = (3 * mu) / (4 * math.pi * mag_R ** 5)
+            first_term = np.sum(m1 * R, axis=-1)[:, :, None] * m2
+            second_term = np.sum(m2 * R, axis=-1)[:, :, None] * m1
+            third_term = np.sum(m1 * m2, axis=-1)[:, :, None] * R
+            fourth_term = R * (5 * np.sum(m1 * R, axis=-1) * np.sum(m2 * R, axis=-1))[:, :, None] / (mag_R ** 2)
             return coefficient * (first_term + second_term + third_term - fourth_term)
 
-        ForceMatrix = []
-        n_magnets = np.shape(MagnetMatrix)[0]
-        n_dimensions = np.shape(MagnetMatrix)[1]
-        for r1 in range(n_magnets):
-            ForceRow = [0] * n_dimensions
-            for r2 in range(n_magnets):
-                if r1 != r2:
-                    ForceRow = ForceRow + dipole_force(MagnetMatrix[r1], PositionMatrix[r1], MagnetMatrix[r2],
-                                                      PositionMatrix[r2])
-            ForceMatrix.append(ForceRow)
-        ForceMatrix = np.array(ForceMatrix, dtype='double')
-        return ForceMatrix
+        # returns (nmagnets, nmagnets, 3)
+        ForceMatrix = dipole_force(MagnetMatrix, PositionMatrix, MagnetMatrix, PositionMatrix)
+        ForceMatrix[:, :, 0] = ForceMatrix[:, :, 0] - np.diag(ForceMatrix[:, :, 0])
+        ForceMatrix[:, :, 1] = ForceMatrix[:, :, 1] - np.diag(ForceMatrix[:, :, 1])
+        ForceMatrix[:, :, 2] = ForceMatrix[:, :, 2] - np.diag(ForceMatrix[:, :, 2])
+        NetForce = np.sum(ForceMatrix, axis=1)
+        # ForceMatrix = []
+        # n_magnets = np.shape(MagnetMatrix)[0]
+        # n_dimensions = np.shape(MagnetMatrix)[1]
+        # for r1 in range(n_magnets):
+        #     ForceRow = [0] * n_dimensions
+        #     for r2 in range(n_magnets):
+        #         if r1 != r2:
+        #             ForceRow = ForceRow + dipole_force(MagnetMatrix[r1], PositionMatrix[r1], MagnetMatrix[r2],
+        #                                               PositionMatrix[r2])
+        #     ForceMatrix.append(ForceRow)
+        # ForceMatrix = np.array(ForceMatrix, dtype='double')
+        return NetForce
+    
     @classmethod
     def geo_setup_between_toroidal_surfaces(
         cls, 
