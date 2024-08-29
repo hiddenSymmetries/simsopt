@@ -262,7 +262,7 @@ class GuidingCenterNoKBoozerPerturbedRHS {
      * The state consists of :math:`[s, t, z, v_par]` with
      *
      *    \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
-     *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+     *    \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/xG
      *    \dot \zeta = v_{||}|B|/G
      *    \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
      *
@@ -825,6 +825,7 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
         }
         if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
             stop = true;
+            res.push_back(join<1, RHS::Size>({t_current}, ykeep));
             res_phi_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, ykeep));
             break;
         }
@@ -1360,9 +1361,9 @@ particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         bool phis_stop, bool vpars_stop, double Phihat, double omega, int Phim,
-        int Phin, double phase, bool forget_exact_path, int axis)
+        int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1399,8 +1400,8 @@ particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        bool forget_exact_path, int axis, bool predictor_step, bool phis_stop, bool vpars_stop, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1464,21 +1465,23 @@ particle_guiding_center_boozer_tracing(
 }
 
 template
-tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
+tuple<vector<array<double, 6>>, vector<array<double, 7>>>
+particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double Phihat,
-        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis);
+        bool phis_stop, bool vpars_stop, double Phihat,
+        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars);
 
 template
-tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step);
+        bool forget_exact_path, int axis, bool predictor_step, bool phis_stop, bool vpars_stop, vector<double> vpars);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing<xt::pytensor>(

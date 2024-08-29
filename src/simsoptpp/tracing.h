@@ -152,10 +152,10 @@ particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         bool zetas_stop=false, bool vpars_stop=false,
         double alphahat=0, double omega=0, int alpham=0, int alphan=0, double phase=0,
-        bool forget_exact_path=false, int axis=0);
+        bool forget_exact_path=false, int axis=0,  vector<double> vpars={});
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
@@ -164,8 +164,8 @@ particle_guiding_center_boozer_tracing(
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false,
-        bool forget_exact_path=false, int axis=0, bool predictor_step=true);
+        bool forget_exact_path=false, int axis=0, bool predictor_step=true,
+        bool zetas_stop=false, bool vpars_stop=false, vector<double> vpars={});
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
