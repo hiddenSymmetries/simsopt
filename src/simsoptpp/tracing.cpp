@@ -467,26 +467,6 @@ class GuidingCenterBoozerRHS {
         }
 };
 
-double get_phi(double x, double y, double phi_near){
-    double phi = std::atan2(y, x);
-    if(phi < 0)
-        phi += 2*M_PI;
-    double phi_near_mod = std::fmod(phi_near, 2*M_PI);
-    double nearest_multiple = std::round(phi_near/(2*M_PI))*2*M_PI;
-    double opt1 = nearest_multiple - 2*M_PI + phi;
-    double opt2 = nearest_multiple + phi;
-    double opt3 = nearest_multiple + 2*M_PI + phi;
-    double dist1 = std::abs(opt1-phi_near);
-    double dist2 = std::abs(opt2-phi_near);
-    double dist3 = std::abs(opt3-phi_near);
-    if(dist1 <= std::min(dist2, dist3))
-        return opt1;
-    else if(dist2 <= std::min(dist1, dist3))
-        return opt2;
-    else
-        return opt3;
-}
-
 template<std::size_t m, std::size_t n>
 std::array<double, m+n> join(const std::array<double, m>& a, const std::array<double, n>& b){
      std::array<double, m+n> res;
@@ -503,19 +483,16 @@ std::array<double, m+n> join(const std::array<double, m>& a, const std::array<do
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double abstol, double reltol,
-    vector<double> phis, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-    vector<double> vpars, bool phis_stop=false, bool vpars_stop=false, bool flux=false,
-    bool forget_exact_path=false) {
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double abstol, double reltol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false) {
     
-    if (phis.size() > 0 && omegas.size() == 0) {
-        omegas.insert(omegas.end(), phis.size(), 0.);
-    } else if (phis.size() !=  omegas.size()) {
-        throw std::invalid_argument("phis and omegas need to have matching length.");
+    if (zetas.size() > 0 && omegas.size() == 0) {
+        omegas.insert(omegas.end(), zetas.size(), 0.);
+    } else if (zetas.size() !=  omegas.size()) {
+        throw std::invalid_argument("zetas and omegas need to have matching length.");
     }
 
     vector<array<double, RHS::Size+1>> res = {};
-    vector<array<double, RHS::Size+2>> res_phi_hits = {};
+    vector<array<double, RHS::Size+2>> res_hits = {};
     array<double, RHS::Size> ykeep = {};
     typedef typename RHS::State State;
     typedef typename boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<State>>::type dense_stepper_type;
@@ -524,17 +501,13 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     dense.initialize(y, t, dt);
     int iter = 0;
     bool stop = false;
-    double phi_last;
+    double zeta_last;
     double vpar_last = 0;
     double t_last = 0;
-    if (flux) {
-      t_last = t;
-      phi_last = y[2];
-      vpar_last = y[3];
-    } else {
-      phi_last = get_phi(y[0], y[1], M_PI);
-    }
-    double phi_current, vpar_current, t_current;
+    t_last = t;
+    zeta_last = y[2];
+    vpar_last = y[3];
+    double zeta_current, vpar_current, t_current;
     State temp;
     do {
         if (!forget_exact_path || t==0) {
@@ -552,19 +525,14 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         iter++;
         t = dense.current_time();
         y = dense.current_state();
-        if (flux) {
-          phi_current = y[2];
-          vpar_current = y[3];
-      } else {
-          phi_current = get_phi(y[0], y[1], phi_last);
-      }
+        zeta_current = y[2];
+        vpar_current = y[3];
         double t_last = std::get<0>(step);
         double t_current = std::get<1>(step);
         dt = t_current - t_last;
-        stop = check_stopping_criteria(rhs, y, iter, res, res_phi_hits, dense, t_last, t_current, phi_last, phi_current, vpar_last, 
-                                vpar_current, abstol, phis, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, 
-                                flux, forget_exact_path);
-        phi_last = phi_current;
+        stop = check_stopping_criteria(rhs, y, iter, res, res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, 
+                                vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+        zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
     if(!stop){
@@ -579,15 +547,14 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         }      
         res.push_back(join<1, RHS::Size>({tmax}, ykeep));
     }
-    return std::make_tuple(res, res_phi_hits);
+    return std::make_tuple(res, res_hits);
 }
 
 template<class RHS, class DENSE>
-bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_phi_hits, 
-    DENSE dense, double t_last, double t_current, double phi_last, double phi_current, double vpar_last, 
-    double vpar_current, double abstol, vector<double> phis, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-    vector<double> vpars, bool phis_stop, bool vpars_stop, bool flux, bool forget_exact_path)
-{
+bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_hits, 
+    DENSE dense, double t_last, double t_current, double zeta_last, double zeta_current, double vpar_last, 
+    double vpar_current, double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+    vector<double> vpars, bool zetas_stop, bool vpars_stop, bool forget_exact_path) {
 
     typedef typename RHS::State State;
     // abstol?
@@ -599,56 +566,49 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
     array<double, RHS::Size> ykeep = {};
     double dt = t_current - t_last;
 
-    
-    if (flux) {
     // Now check whether we have hit any of the vpar planes
-        for (int i = 0; i < vpars.size(); ++i) {
-            double vpar = vpars[i];
-            if(t_last!=0 && (vpar_last-vpar != 0) && (vpar_current-vpar != 0) && (((vpar_last-vpar > 0) ? 1 : ((vpar_last-vpar < 0) ? -1 : 0)) != ((vpar_current-vpar > 0) ? 1 : ((vpar_current-vpar < 0) ? -1 : 0)))){ // check whether vpar = vpars[i] was crossed
-                std::function<double(double)> rootfun = [&dense, &temp, &vpar_last, &vpar](double t){
-                    dense.calc_state(t, temp);
-                    return temp[3]-vpar;
-                };
-                auto root = toms748_solve(rootfun, t_last, t_current, vpar_last-vpar, vpar_current-vpar, roottol, rootmaxit);
-                double f0 = rootfun(root.first);
-                double f1 = rootfun(root.second);
-                double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
-                dense.calc_state(troot, temp);
-                ykeep = temp;
-                if (rhs.axis==1) {
-                    ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
-                    ykeep[1] = atan2(temp[1],temp[0]);
-                } else if (rhs.axis==2) {
-                    ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
-                    ykeep[1] = atan2(temp[1],temp[0]);
-                }
-                res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i) + phis.size()}, ykeep));
-                if (vpars_stop) {
-                    res.push_back(join<1, RHS::Size>({troot}, ykeep));
-                    stop = true;
-                    break;
-                }
+    for (int i = 0; i < vpars.size(); ++i) {
+        double vpar = vpars[i];
+        if(t_last!=0 && (vpar_last-vpar != 0) && (vpar_current-vpar != 0) && (((vpar_last-vpar > 0) ? 1 : ((vpar_last-vpar < 0) ? -1 : 0)) != ((vpar_current-vpar > 0) ? 1 : ((vpar_current-vpar < 0) ? -1 : 0)))){ // check whether vpar = vpars[i] was crossed
+            std::function<double(double)> rootfun = [&dense, &temp, &vpar_last, &vpar](double t){
+                dense.calc_state(t, temp);
+                return temp[3]-vpar;
+            };
+            auto root = toms748_solve(rootfun, t_last, t_current, vpar_last-vpar, vpar_current-vpar, roottol, rootmaxit);
+            double f0 = rootfun(root.first);
+            double f1 = rootfun(root.second);
+            double troot = std::abs(f0) < std::abs(f1) ? root.first : root.second;
+            dense.calc_state(troot, temp);
+            ykeep = temp;
+            if (rhs.axis==1) {
+                ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
+                ykeep[1] = atan2(temp[1],temp[0]);
+            } else if (rhs.axis==2) {
+                ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
+                ykeep[1] = atan2(temp[1],temp[0]);
+            }
+            res_hits.push_back(join<2, RHS::Size>({troot, double(i) + zetas.size()}, ykeep));
+            if (vpars_stop) {
+                res.push_back(join<1, RHS::Size>({troot}, ykeep));
+                stop = true;
+                break;
             }
         }
     }
-    // Now check whether we have hit any of the (phi - omega t) planes
-    for (int i = 0; i < phis.size(); ++i) {
-        double phi = phis[i];
+    // Now check whether we have hit any of the (zeta - omega t) planes
+    for (int i = 0; i < zetas.size(); ++i) {
+        double zeta = zetas[i];
         double omega = omegas[i];
-        double phase_last = phi_last - omega*t_last;
-        double phase_current = phi_current - omega*t_current;
-        if(t_last!=0 && (std::floor((phase_last-phi)/(2*M_PI)) != std::floor((phase_current-phi)/(2*M_PI)))) { // check whether phi+k*2pi for some k was crossed
-            int fak = std::round(((phase_last+phase_current)/2-phi)/(2*M_PI));
-            double phase_shift = fak*2*M_PI + phi;
+        double phase_last = zeta_last - omega*t_last;
+        double phase_current = zeta_current - omega*t_current;
+        if(t_last!=0 && (std::floor((phase_last - zeta)/(2*M_PI)) != std::floor((phase_current-zeta)/(2*M_PI)))) { // check whether zeta+k*2pi for some k was crossed
+            int fak = std::round(((phase_last+phase_current)/2-zeta)/(2*M_PI));
+            double phase_shift = fak*2*M_PI + zeta;
             assert((phase_last <= phase_shift && phase_shift <= phase_current) || (phase_current <= phase_shift && phase_shift <= phase_last));
 
-            std::function<double(double)> rootfun = [&phase_shift, &phi_last, &omega, &dense, &temp, &flux](double t){
+            std::function<double(double)> rootfun = [&phase_shift, &zeta_last, &omega, &dense, &temp](double t){
                 dense.calc_state(t, temp);
-                if (flux) {
-                    return temp[2] - omega*t - phase_shift;
-                } else {
-                    return get_phi(temp[0], temp[1], phi_last) - omega*t - phase_shift;
-                }
+                return temp[2] - omega*t - phase_shift;
             };
             auto root = toms748_solve(rootfun, t_last, t_current, phase_last - phase_shift, phase_current - phase_shift, roottol, rootmaxit);
             double f0 = rootfun(root.first);
@@ -663,8 +623,8 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
                 ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
                 ykeep[1] = atan2(temp[1],temp[0]);
             }
-            res_phi_hits.push_back(join<2, RHS::Size>({troot, double(i)}, ykeep));
-            if (phis_stop && !stop) {
+            res_hits.push_back(join<2, RHS::Size>({troot, double(i)}, ykeep));
+            if (zetas_stop && !stop) {
                 res.push_back(join<1, RHS::Size>({troot}, ykeep));
                 stop = true;
                 break;
@@ -683,7 +643,7 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
         }
         if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
             stop = true;
-            res_phi_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, ykeep));
+            res_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, ykeep));
             break;
         }
     }
@@ -701,12 +661,11 @@ class SymplField
     double  modB;
     double ptheta;
 
-    // Derivatives of above quantities wrt (s, theta, phi)
+    // Derivatives of above quantities wrt (s, theta, zeta)
     double dAtheta[3], dAzeta[3];
     double dhtheta[3], dhzeta[3];
     double dmodB[3];
  
-
     // H = vpar^2/2 + mu B
     // vpar = (pzeta - q Azeta)/(m hzeta)
     // pzeta = m vpar * hzeta + q Azeta
@@ -743,7 +702,7 @@ class SymplField
         Atheta = s*field->psi0;
         Azeta =  -field->psip()(0);
         dAtheta[0] = field->psi0; // dAthetads
-        dAzeta[0] = -field->iota()(0)*field->psi0; // dAphids
+        dAzeta[0] = -field->iota()(0)*field->psi0; // dAzetads
         for (int i=1; i<3; i++)
         {
             dAtheta[i] = 0.0;
@@ -1000,20 +959,19 @@ struct sympl_dense {
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, SymplField<T>::Size+1>>, vector<array<double, SymplField<T>::Size+2>>>
-solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, double dt, double roottol, vector<double> phis, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-    vector<double> vpars, bool phis_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true)
+solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, double dt, double roottol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+    vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true)
 {
-    bool flux = true;
     double abstol = 0;
-    if (phis.size() > 0 && omegas.size() == 0) {
-        omegas.insert(omegas.end(), phis.size(), 0.);
-    } else if (phis.size() !=  omegas.size()) {
-        throw std::invalid_argument("phis and omegas need to have matching length.");
+    if (zetas.size() > 0 && omegas.size() == 0) {
+        omegas.insert(omegas.end(), zetas.size(), 0.);
+    } else if (zetas.size() !=  omegas.size()) {
+        throw std::invalid_argument("zetas and omegas need to have matching length.");
     }
 
     typedef typename SymplField<T>::State State;
     vector<array<double, SymplField<T>::Size+1>> res = {};
-    vector<array<double, SymplField<T>::Size+2>> res_phi_hits = {};
+    vector<array<double, SymplField<T>::Size+2>> res_hits = {};
     double t = 0.0;
     bool stop = false;
 
@@ -1033,7 +991,7 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
     double ptheta_old = f.ptheta;
 
     double t_last = t;
-    double phi_last = y[2];
+    double zeta_last = y[2];
     double vpar_last = y[3];
 
     // for interpolation
@@ -1102,7 +1060,6 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
               printf ("status = %s\n", gsl_strerror (status));
               break;
             }
-
             status = gsl_multiroot_test_residual(s_euler->f, roottol); //tolerance --> roottol ~ 1e-15
           }
         while (status == GSL_CONTINUE && root_iter < 20);
@@ -1160,15 +1117,14 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
         t += dt;
 
         double t_current = t;
-        double phi_current = y[2];
+        double zeta_current = y[2];
         double vpar_current = y[3];
 
-        stop = check_stopping_criteria(f, y, iter, res, res_phi_hits, dense, t_last, t_current, phi_last, phi_current, vpar_last, 
-                                vpar_current, abstol, phis, omegas, stopping_criteria, vpars, phis_stop, vpars_stop, 
-                                flux, forget_exact_path);
+        stop = check_stopping_criteria(f, y, iter, res, res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, 
+                                vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
 
         t_last = t_current;
-        phi_last = phi_current;
+        zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
     if(!stop){
@@ -1182,7 +1138,7 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
     // printf("total_root_iter = %7u\n",
     //                        total_root_iter);
     // std::cout << "=======" << std::flush;
-    return std::make_tuple(res, res_phi_hits);
+    return std::make_tuple(res, res_hits);
 }
 
 template<template<class, std::size_t, xt::layout_type> class T>
@@ -1192,7 +1148,7 @@ particle_guiding_center_boozer_perturbed_tracing(
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, double Phihat, double omega, int Phim,
+        bool zetas_stop, bool vpars_stop, double Phihat, double omega, int Phim,
         int Phin, double phase, bool forget_exact_path, int axis)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
@@ -1214,13 +1170,11 @@ particle_guiding_center_boozer_perturbed_tracing(
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
         Phim, Phin, phase, axis);
-      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria,
-        vpars, phis_stop, vpars_stop, true, forget_exact_path);
+      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
   } else {
       auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
         Phim, Phin, phase, axis);
-      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria,
-        vpars, phis_stop, vpars_stop, true, forget_exact_path);
+      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
   }
 }
 
@@ -1231,7 +1185,7 @@ particle_guiding_center_boozer_tracing(
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
+        bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1276,20 +1230,17 @@ particle_guiding_center_boozer_tracing(
         // }
         auto f = SymplField<T>(field, m, q, mu);
         return solve_sympl(f, y, tmax, dt, roottol, zetas, omegas, stopping_criteria,
-        vpars, phis_stop, vpars_stop, forget_exact_path, predictor_step);
+        vpars, zetas_stop, vpars_stop, forget_exact_path, predictor_step);
     } else {
         if (vacuum) {
           auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu, axis);
-          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria,
-            vpars, phis_stop, vpars_stop, true, forget_exact_path);
+          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
         } else if (noK) {
           auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu, axis);
-          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria,
-            vpars, phis_stop, vpars_stop, true, forget_exact_path);
+          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
         } else {
           auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu, axis);
-          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria,
-            vpars, phis_stop, vpars_stop, true, forget_exact_path);
+          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
         } 
     }
 }
@@ -1300,7 +1251,7 @@ tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_cente
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, double Phihat,
+        vector<double> vpars={}, bool zetas_stop, bool vpars_stop, double Phihat,
         double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis);
 
 template
@@ -1309,4 +1260,4 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_cente
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool phis_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step);
+        vector<double> vpars={}, bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step);

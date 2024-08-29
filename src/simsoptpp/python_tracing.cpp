@@ -11,8 +11,6 @@ using std::vector;
 #include "tracing.h"
 
 void init_tracing(py::module_ &m){
-
-
     py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");
     py::class_<IterationStoppingCriterion, shared_ptr<IterationStoppingCriterion>, StoppingCriterion>(m, "IterationStoppingCriterion")
         .def(py::init<int>());
@@ -21,13 +19,11 @@ void init_tracing(py::module_ &m){
     py::class_<MinToroidalFluxStoppingCriterion, shared_ptr<MinToroidalFluxStoppingCriterion>, StoppingCriterion>(m, "MinToroidalFluxStoppingCriterion")
         .def(py::init<double>());
     py::class_<ToroidalTransitStoppingCriterion, shared_ptr<ToroidalTransitStoppingCriterion>, StoppingCriterion>(m, "ToroidalTransitStoppingCriterion")
-        .def(py::init<int,bool>());
+        .def(py::init<int>());
     py::class_<VparStoppingCriterion, shared_ptr<VparStoppingCriterion>, StoppingCriterion>(m, "VparStoppingCriterion")
         .def(py::init<double>());
     py::class_<ZetaStoppingCriterion, shared_ptr<ZetaStoppingCriterion>, StoppingCriterion>(m, "ZetaStoppingCriterion")
         .def(py::init<int>());
-    py::class_<LevelsetStoppingCriterion<PyTensor>, shared_ptr<LevelsetStoppingCriterion<PyTensor>>, StoppingCriterion>(m, "LevelsetStoppingCriterion")
-        .def(py::init<shared_ptr<RegularGridInterpolant3D<PyTensor>>>());
     py::class_<StepSizeStoppingCriterion, shared_ptr<StepSizeStoppingCriterion>, StoppingCriterion>(m, "StepSizeStoppingCriterion")
         .def(py::init<double>());
 
@@ -50,7 +46,7 @@ void init_tracing(py::module_ &m){
         py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
         py::arg("vpars")=vector<double>{},
-        py::arg("phis_stop")=false,
+        py::arg("zetas_stop")=false,
         py::arg("vpars_stop")=false,
         py::arg("forget_exact_path")=false,
         py::arg("axis")=0,
@@ -74,7 +70,7 @@ void init_tracing(py::module_ &m){
         py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
         py::arg("vpars")=vector<double>{},
-        py::arg("phis_stop")=false,
+        py::arg("zetas_stop")=false,
         py::arg("vpars_stop")=false,
         py::arg("Phihat")=0,
         py::arg("omega")=0,
@@ -84,6 +80,4 @@ void init_tracing(py::module_ &m){
         py::arg("forget_exact_path")=false,
         py::arg("axis")=0
     );
-    
-    m.def("get_phi", &get_phi);
 }

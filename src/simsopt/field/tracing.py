@@ -141,7 +141,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
             field, stz_inits[i, :], m, charge, speed_total, speed_par[i], mus[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
             noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
-            phis_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
+            zetas_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
             Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
@@ -280,7 +280,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
     if options.get('vpars_stop') and (not len(vpars)):
         warn("No vpars provided for the vpar stopping criterion", RuntimeWarning)
     
-    options['phis_stop'] = options.pop('zetas_stop', False)
+    options['zetas_stop'] = options.pop('zetas_stop', False)
 
     if options.get('solveSympl'):
         for op in ['axis', 'reltol', 'abstol']:
@@ -336,7 +336,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
     return res_tys, res_zeta_hits
 
 
-def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
+def compute_resonances(res_tys, res_hits, ma=None, delta=1e-2):
     r"""
     Computes resonant particle orbits given the output of either
     :func:`trace_particles` or :func:`trace_particles_boozer`, ``res_tys`` and
@@ -375,102 +375,38 @@ def compute_resonances(res_tys, res_phi_hits, ma=None, delta=1e-2):
                 indicates the time of the  resonance, ``mpol`` is the number of
                 poloidal turns of the orbit, and ``ntor`` is the number of toroidal turns.
     """
-    flux = False
-    if ma is None:
-        flux = True
     nparticles = len(res_tys)
     resonances = []
     gamma = np.zeros((1, 3))
     # Iterate over particles
     for ip in range(nparticles):
-        nhits = len(res_phi_hits[ip])
-        if (flux):
-            s0 = res_tys[ip][0, 1]
-            theta0 = res_tys[ip][0, 2]
-            zeta0 = res_tys[ip][0, 3]
-            theta0_mod = theta0 % (2*np.pi)
-            zeta0_mod = zeta0 % (2*np.pi)
-            x0 = s0 * np.cos(theta0)
-            y0 = s0 * np.sin(theta0)
-        else:
-            X0 = res_tys[ip][0, 1]
-            Y0 = res_tys[ip][0, 2]
-            Z0 = res_tys[ip][0, 3]
-            R0 = np.sqrt(X0**2 + Y0**2)
-            phi0 = np.arctan2(Y0, X0)
-            ma.gamma_impl(gamma, phi0/(2*np.pi))
-            R_ma0 = np.sqrt(gamma[0, 0]**2 + gamma[0, 1]**2)
-            Z_ma0 = gamma[0, 2]
-            theta0 = np.arctan2(Z0-Z_ma0, R0-R_ma0)
+        nhits = len(res_hits[ip])
+        s0 = res_tys[ip][0, 1]
+        theta0 = res_tys[ip][0, 2]
+        zeta0 = res_tys[ip][0, 3]
+        theta0_mod = theta0 % (2*np.pi)
+        zeta0_mod = zeta0 % (2*np.pi)
+        x0 = s0 * np.cos(theta0)
+        y0 = s0 * np.sin(theta0)
         vpar0 = res_tys[ip][0, 4]
         for it in range(1, nhits):
             # Check whether phi hit or stopping criteria achieved
             if int(res_phi_hits[ip][it, 1]) >= 0:
-                if (flux):
-                    s = res_phi_hits[ip][it, 2]
-                    theta = res_phi_hits[ip][it, 3]
-                    zeta = res_phi_hits[ip][it, 4]
-                    theta_mod = theta % 2*np.pi
-                    x = s * np.cos(theta)
-                    y = s * np.sin(theta)
-                    dist = np.sqrt((x-x0)**2 + (y-y0)**2)
-                else:
-                    # Check that distance is less than delta
-                    X = res_phi_hits[ip][it, 2]
-                    Y = res_phi_hits[ip][it, 3]
-                    R = np.sqrt(X**2 + Y**2)
-                    Z = res_phi_hits[ip][it, 4]
-                    dist = np.sqrt((R-R0)**2 + (Z-Z0)**2)
+                s = res_phi_hits[ip][it, 2]
+                theta = res_phi_hits[ip][it, 3]
+                zeta = res_phi_hits[ip][it, 4]
+                theta_mod = theta % 2*np.pi
+                x = s * np.cos(theta)
+                y = s * np.sin(theta)
+                dist = np.sqrt((x-x0)**2 + (y-y0)**2)
                 t = res_phi_hits[ip][it, 0]
                 if dist < delta:
                     logger.debug('Resonance found.')
-                    if flux:
-                        logger.debug(f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
-                        mpol = np.rint((theta-theta0)/(2*np.pi))
-                        ntor = np.rint((zeta-zeta0)/(2*np.pi))
-                        resonances.append(np.asarray([s0, theta0, zeta0, vpar0, t, mpol, ntor]))
-                    else:
-                        # Find index of closest point along trajectory
-                        indexm = np.argmin(np.abs(res_tys[ip][:, 0]-t))
-                        # Compute mpol and ntor for neighboring points as well
-                        indexl = indexm-1
-                        indexr = indexm+1
-                        dtl = np.abs(res_tys[ip][indexl, 0]-t)
-                        trajlistl = []
-                        trajlistl.append(res_tys[ip][0:indexl+1, :])
-                        mpoll = np.abs(compute_poloidal_transits(trajlistl, ma, flux))
-                        ntorl = np.abs(compute_toroidal_transits(trajlistl, flux))
-                        logger.debug(f'dtl ={dtl}, mpoll = {mpoll}, ntorl = {ntorl}, tl={res_tys[ip][indexl,0]}')
-                        logger.debug(f'(R,Z)l = {np.sqrt(res_tys[ip][indexl,1]**2 + res_tys[ip][indexl,2]**2),res_tys[ip][indexl,3]}')
-
-                        trajlistm = []
-                        dtm = np.abs(res_tys[ip][indexm, 0]-t)
-                        trajlistm.append(res_tys[ip][0:indexm+1, :])
-                        mpolm = np.abs(compute_poloidal_transits(trajlistm, ma, flux))
-                        ntorm = np.abs(compute_toroidal_transits(trajlistm, flux))
-                        logger.debug(f'dtm ={dtm}, mpolm = {mpolm}, ntorm = {ntorm}, tm={res_tys[ip][indexm,0]}')
-                        logger.debug(f'(R,Z)m = {np.sqrt(res_tys[ip][indexm,1]**2 + res_tys[ip][indexm,2]**2),res_tys[ip][indexm,3]}')
-
-                        mpolr = 0
-                        ntorr = 0
-                        if indexr < len(res_tys[ip][:, 0]):
-                            trajlistr = []
-                            dtr = np.abs(res_tys[ip][indexr, 0]-t)
-                            trajlistr.append(res_tys[ip][0:indexr+1, :])
-                            # Take maximum over neighboring points to catch near resonances
-                            mpolr = np.abs(compute_poloidal_transits(trajlistr, ma, flux))
-                            ntorr = np.abs(compute_toroidal_transits(trajlistr, flux))
-                            logger.debug(f'dtr ={dtr}, mpolr = {mpolr}, ntorr = {ntorr}, tr={res_tys[ip][indexr,0]}')
-                            logger.debug(f'(R,Z)r = {np.sqrt(res_tys[ip][indexr,1]**2 + res_tys[ip][indexr,2]**2),res_tys[ip][indexr,3]}')
-
-                        mpol = np.amax([mpoll, mpolm, mpolr])
-                        index_mpol = np.argmax([mpoll, mpolm, mpolr])
-                        ntor = np.amax([ntorl, ntorm, ntorr])
-                        index_ntor = np.argmax([ntorl, ntorm, ntorr])
-                        index = np.amax([index_mpol, index_ntor])
-                        resonances.append(np.asarray([R0, Z0, phi0, vpar0, t, mpol, ntor]))
+                    logger.debug(f'theta = {theta_mod}, theta0 = {theta0_mod}, s = {s}, s0 = {s0}')
+                    mpol = np.rint((theta-theta0)/(2*np.pi))
+                    ntor = np.rint((zeta-zeta0)/(2*np.pi))
+                    resonances.append(np.asarray([s0, theta0, zeta0, vpar0, t, mpol, ntor]))
     return resonances
-
 
 def compute_toroidal_transits(res_tys, flux=True):
     r"""
@@ -532,40 +468,19 @@ def compute_poloidal_transits(res_tys, ma=None, flux=True):
         ntransits: array with length ``len(res_tys)``. Each element contains the
                 number of poloidal transits of the orbit.
     """
-    if not flux:
-        assert (ma is not None)
     nparticles = len(res_tys)
     ntransits = np.zeros((nparticles,))
     gamma = np.zeros((1, 3))
     for ip in range(nparticles):
         ntraj = len(res_tys[ip][:, 0])
-        if flux:
-            theta_init = res_tys[ip][0, 2]
-        else:
-            R_init = np.sqrt(res_tys[ip][0, 1]**2 + res_tys[ip][0, 2]**2)
-            Z_init = res_tys[ip][0, 3]
-            phi_init = np.arctan2(res_tys[ip][0, 2], res_tys[ip][0, 1])
-            ma.gamma_impl(gamma, phi_init/(2*np.pi))
-            R_ma = np.sqrt(gamma[0, 0]**2 + gamma[0, 1]**2)
-            Z_ma = gamma[0, 2]
-            theta_init = sopp.get_phi(R_init-R_ma, Z_init-Z_ma, np.pi)
+        theta_init = res_tys[ip][0, 2]
         theta_prev = theta_init
         for it in range(1, ntraj):
-            if flux:
-                theta = res_tys[ip][it, 2]
-            else:
-                phi = np.arctan2(res_tys[ip][it, 2], res_tys[ip][it, 1])
-                ma.gamma_impl(gamma, phi/(2*np.pi))
-                R_ma = np.sqrt(gamma[0, 0]**2 + gamma[0, 1]**2)
-                Z_ma = gamma[0, 2]
-                R = np.sqrt(res_tys[ip][it, 1]**2 + res_tys[ip][it, 2]**2)
-                Z = res_tys[ip][it, 3]
-                theta = sopp.get_phi(R-R_ma, Z-Z_ma, theta_prev)
+            theta = res_tys[ip][it, 2]
             theta_prev = theta
         if ntraj > 1:
             ntransits[ip] = np.round((theta - theta_init)/(2*np.pi))
     return ntransits
-
 
 class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
@@ -585,7 +500,6 @@ class MinToroidalFluxStoppingCriterion(sopp.MinToroidalFluxStoppingCriterion):
     """
     pass
 
-
 class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
     Stop the iteration once a particle falls above a critical value of
@@ -602,7 +516,6 @@ class MaxToroidalFluxStoppingCriterion(sopp.MaxToroidalFluxStoppingCriterion):
     """
     pass
 
-
 class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     """
     Stop the iteration once the maximum number of toroidal transits is reached.
@@ -617,7 +530,6 @@ class ToroidalTransitStoppingCriterion(sopp.ToroidalTransitStoppingCriterion):
     is a boolean indicating whether tracing is being performed in a flux coordinate system.
     """
     pass
-
 
 class IterationStoppingCriterion(sopp.IterationStoppingCriterion):
     """
