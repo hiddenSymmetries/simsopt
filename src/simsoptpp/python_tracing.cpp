@@ -42,15 +42,14 @@ void init_tracing(py::module_ &m){
         py::arg("vacuum"),
         py::arg("noK"),
         py::arg("solveSympl")=false,
-        py::arg("GPU")=false,
         py::arg("zetas")=vector<double>{},
         py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
-        py::arg("zetas_stop")=false,
-        py::arg("vpars_stop")=false,
         py::arg("forget_exact_path")=false,
         py::arg("axis")=0,
         py::arg("predictor_step")=true,
+        py::arg("zetas_stop")=false,
+        py::arg("vpars_stop")=false,
         py::arg("vpars")=vector<double>{}
         );
 
