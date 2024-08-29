@@ -2,11 +2,6 @@
 #include <xtensor/xarray.hpp>
 #include <xtensor/xnoalias.hpp>
 #include <stdexcept>
-#include <fmt/core.h>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
-
-
 #include "cachedarray.h"
 #include "cache.h"
 #include "cachedtensor.h"

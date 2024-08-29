@@ -2,8 +2,6 @@
 #include "simdhelpers.h"
 #include <unordered_map>
 #include <algorithm>
-#include <fmt/core.h>
-#include <fmt/ranges.h>
 #include <functional>
 #include <iostream>
 #include <random>

@@ -17,16 +17,11 @@ typedef xt::pyarray<double> Array;
 
 #include <boost/math/tools/roots.hpp>
 #include <boost/numeric/odeint.hpp>
-//#include <boost/numeric/odeint/stepper/bulirsch_stoer_dense_out.hpp>
 using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
 
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_multiroots.h>
-#include <fmt/core.h>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
-#include <fmt/os.h>
 #include <iomanip>
 
 template<template<class, std::size_t, xt::layout_type> class T>

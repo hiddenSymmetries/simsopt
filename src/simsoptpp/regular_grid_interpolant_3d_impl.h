@@ -3,7 +3,8 @@
 #include "xtensor/xlayout.hpp"
 #define _USE_MATH_DEFINES
 #include <math.h>
-
+#include <fmt/core.h>
+#include <fmt/ranges.h>
 
 #define _EPS_ 1e-13
 

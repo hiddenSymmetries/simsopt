@@ -4,6 +4,7 @@ import numpy as np
 import logging
 from booz_xform import Booz_xform
 from .._core.util import parallel_loop_bounds, align_and_pad, allocate_aligned_and_padded_array
+import os.path
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,6 @@ try:
 except ImportError as e:
     MPI = None
     logger.debug(str(e))
-
-from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.boozer import Boozer
 
 class BoozerMagneticField(sopp.BoozerMagneticField):
     r"""
@@ -351,7 +349,7 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             a filename specified by ``boozmn_name``. (defaults to ``True``)
         boozmn_name: (string) Filename to save booz_xform transformation if
             ``write_boozmn`` is ``True``.
-        mpi: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
+        comm: A :obj:`simsopt.util.mpi.MpiPartition` instance, from which
           the worker groups will be used for spline calculations. If ``None``,
           defaults to ``equil.mpi``. If ``equil`` is a ``Booz_xform`` instance,
           and ``mpi`` is ``None``, each MPI process will compute splines
@@ -360,59 +358,37 @@ class BoozerRadialInterpolant(BoozerMagneticField):
     """
 
     def __init__(self, equil, order, mpol=32, ntor=32, N=None, enforce_vacuum=False,
-                 rescale=False, ns_delete=0, no_K=False, write_boozmn=True, mpi=None,
+                 rescale=False, ns_delete=0, no_K=False, write_boozmn=True, comm=None,
                  boozmn_name="boozmn.nc", verbose=0, no_shear=False):
-        if (mpi is None and not isinstance(equil, Booz_xform)):
-            self.mpi = equil.mpi
-        else:
-            self.mpi = mpi
 
-        if self.mpi is not None:
+        self.comm = comm
+
+        if self.comm is not None:
             self.proc0 = False
-            if self.mpi.comm_world.rank==0:
+            if self.comm.rank==0:
                 self.proc0 = True
         else:
             self.proc0 = True
 
-        if isinstance(equil, Vmec):
+        if isinstance(equil, str):
             if self.proc0:
-                equil.run()
-                booz = Booz_xform()
-                booz.read_wout(equil.output_file,True)
-                booz.verbose = verbose
-                booz.mboz = mpol
-                booz.nboz = ntor
-                booz.run()
-                if write_boozmn:
-                    booz.write_boozmn(boozmn_name)
-                self.bx = booz
-        elif isinstance(equil, Boozer):
-            if self.proc0:
-                booz = equil
-                # Determine if radial grid for Boozer needs to be updated
-
-                # Grid not initialized
-                if len(booz.bx.s_b) == 0:
-                    booz.register(booz.equil.s_half_grid)
-                # Grid does not have correct size
-                elif (len(booz.bx.s_b) != len(booz.bx.s_b)):
-                    booz.register(booz.equil.s_half_grid)
-                # Grid does not match Vmec half grid
-                elif (np.any(booz.bx.s_b != booz.bx.s_b)):
-                    pass
-                elif (len(booz.bx.s_b) != len(booz.equil.s_half_grid)):
-                    booz.register(booz.equil.s_half_grid)
-                # Grid does not match Vmec half grid
-                elif (np.any(booz.bx.s_b != booz.equil.s_half_grid)):
-                    booz.register(booz.equil.s_half_grid)
-
-                # Run booz_xform if needed
-                if booz.need_to_run_code:
+                basename = os.path.basename(equil)
+                if basename[:4] == 'wout':
+                    booz = Booz_xform()
+                    booz.read_wout(equil,True)
+                    booz.verbose = verbose
+                    booz.mboz = mpol
+                    booz.nboz = ntor
                     booz.run()
-                    if (write_boozmn):
-                        if self.proc0:
-                            booz.bx.write_boozmn(boozmn_name)
-                self.bx = booz.bx
+                    if write_boozmn:
+                        booz.write_boozmn(boozmn_name)
+                    self.bx = booz
+                elif basename[:4] == 'booz':
+                    booz = Booz_xform()
+                    booz.read_boozmn(equil)
+                    self.bx = booz
+                else:
+                    raise ValueError('Invalid filename')
         elif (isinstance(equil, Booz_xform)):
             if self.proc0:
                 self.bx = equil
@@ -478,41 +454,41 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self.mpol = None
             self.ntor = None
             self.s_half_ext = None
-        if self.mpi is not None:
-            self.psi0 = self.mpi.comm_world.bcast(self.psi0, root=0)
-            self.nfp = self.mpi.comm_world.bcast(self.nfp, root=0)
-            self.mpol = self.mpi.comm_world.bcast(self.mpol, root=0)
-            self.ntor = self.mpi.comm_world.bcast(self.ntor, root=0)
-            self.asym = self.mpi.comm_world.bcast(self.asym, root=0)
-            self.psip_spline = self.mpi.comm_world.bcast(self.psip_spline, root=0)
-            self.G_spline = self.mpi.comm_world.bcast(self.G_spline, root=0)
-            self.I_spline = self.mpi.comm_world.bcast(self.I_spline, root=0)
-            self.dGds_spline = self.mpi.comm_world.bcast(self.dGds_spline, root=0)
-            self.dIds_spline = self.mpi.comm_world.bcast(self.dIds_spline, root=0)
-            self.iota_spline = self.mpi.comm_world.bcast(self.iota_spline, root=0)
-            self.diotads_spline = self.mpi.comm_world.bcast(self.diotads_spline, root=0)
-            self.numns_splines = self.mpi.comm_world.bcast(self.numns_splines, root=0)
-            self.rmnc_splines = self.mpi.comm_world.bcast(self.rmnc_splines, root=0)
-            self.zmns_splines = self.mpi.comm_world.bcast(self.zmns_splines, root=0)
-            self.dnumnsds_splines = self.mpi.comm_world.bcast(self.dnumnsds_splines, root=0)
-            self.drmncds_splines = self.mpi.comm_world.bcast(self.drmncds_splines, root=0)
-            self.dzmnsds_splines = self.mpi.comm_world.bcast(self.dzmnsds_splines, root=0)
-            self.bmnc_splines = self.mpi.comm_world.bcast(self.bmnc_splines, root=0)
-            self.dbmncds_splines = self.mpi.comm_world.bcast(self.dbmncds_splines, root=0)
-            self.d_mn_factor_splines = self.mpi.comm_world.bcast(self.d_mn_factor_splines, root=0)
-            self.mn_factor_splines = self.mpi.comm_world.bcast(self.mn_factor_splines, root=0)
-            self.xm_b = self.mpi.comm_world.bcast(self.xm_b, root=0)
-            self.xn_b = self.mpi.comm_world.bcast(self.xn_b, root=0)
-            self.s_half_ext = self.mpi.comm_world.bcast(self.s_half_ext, root=0)
+        if self.comm is not None:
+            self.psi0 = self.comm.bcast(self.psi0, root=0)
+            self.nfp = self.comm.bcast(self.nfp, root=0)
+            self.mpol = self.comm.bcast(self.mpol, root=0)
+            self.ntor = self.comm.bcast(self.ntor, root=0)
+            self.asym = self.comm.bcast(self.asym, root=0)
+            self.psip_spline = self.comm.bcast(self.psip_spline, root=0)
+            self.G_spline = self.comm.bcast(self.G_spline, root=0)
+            self.I_spline = self.comm.bcast(self.I_spline, root=0)
+            self.dGds_spline = self.comm.bcast(self.dGds_spline, root=0)
+            self.dIds_spline = self.comm.bcast(self.dIds_spline, root=0)
+            self.iota_spline = self.comm.bcast(self.iota_spline, root=0)
+            self.diotads_spline = self.comm.bcast(self.diotads_spline, root=0)
+            self.numns_splines = self.comm.bcast(self.numns_splines, root=0)
+            self.rmnc_splines = self.comm.bcast(self.rmnc_splines, root=0)
+            self.zmns_splines = self.comm.bcast(self.zmns_splines, root=0)
+            self.dnumnsds_splines = self.comm.bcast(self.dnumnsds_splines, root=0)
+            self.drmncds_splines = self.comm.bcast(self.drmncds_splines, root=0)
+            self.dzmnsds_splines = self.comm.bcast(self.dzmnsds_splines, root=0)
+            self.bmnc_splines = self.comm.bcast(self.bmnc_splines, root=0)
+            self.dbmncds_splines = self.comm.bcast(self.dbmncds_splines, root=0)
+            self.d_mn_factor_splines = self.comm.bcast(self.d_mn_factor_splines, root=0)
+            self.mn_factor_splines = self.comm.bcast(self.mn_factor_splines, root=0)
+            self.xm_b = self.comm.bcast(self.xm_b, root=0)
+            self.xn_b = self.comm.bcast(self.xn_b, root=0)
+            self.s_half_ext = self.comm.bcast(self.s_half_ext, root=0)
             if self.asym:
-                self.numnc_splines = self.mpi.comm_world.bcast(self.numnc_splines, root=0)
-                self.rmns_splines = self.mpi.comm_world.bcast(self.rmns_splines, root=0)
-                self.zmnc_splines = self.mpi.comm_world.bcast(self.zmnc_splines, root=0)
-                self.dnumncds_splines = self.mpi.comm_world.bcast(self.dnumncds_splines, root=0)
-                self.drmnsds_splines = self.mpi.comm_world.bcast(self.drmnsds_splines, root=0)
-                self.dzmncds_splines = self.mpi.comm_world.bcast(self.dzmncds_splines, root=0)
-                self.bmns_splines = self.mpi.comm_world.bcast(self.bmns_splines, root=0)
-                self.dbmnsds_splines = self.mpi.comm_world.bcast(self.dbmnsds_splines, root=0)
+                self.numnc_splines = self.comm.bcast(self.numnc_splines, root=0)
+                self.rmns_splines = self.comm.bcast(self.rmns_splines, root=0)
+                self.zmnc_splines = self.comm.bcast(self.zmnc_splines, root=0)
+                self.dnumncds_splines = self.comm.bcast(self.dnumncds_splines, root=0)
+                self.drmnsds_splines = self.comm.bcast(self.drmnsds_splines, root=0)
+                self.dzmncds_splines = self.comm.bcast(self.dzmncds_splines, root=0)
+                self.bmns_splines = self.comm.bcast(self.bmns_splines, root=0)
+                self.dbmnsds_splines = self.comm.bcast(self.dbmnsds_splines, root=0)
 
         if (not self.no_K):
             self.compute_K()
@@ -728,9 +704,9 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         thetas = thetas.flatten()
         zetas = zetas.flatten()
 
-        if (self.mpi is not None):
-            size = self.mpi.comm_world.size
-            rank = self.mpi.comm_world.rank
+        if (self.comm is not None):
+            size = self.comm.size
+            rank = self.comm.rank
 
             angle_idxs = np.array([i * len(thetas) // size for i in range(size + 1)])
             first, last = angle_idxs[rank], angle_idxs[rank + 1]
@@ -798,11 +774,11 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                              numns_half, dnumnsds_half, bmnc_half, iota_half, G_half, I_half,
                              xm_b, xn_b, thetas, zetas)
         kmns = kmns*dtheta*dzeta*self.nfp/self.psi0
-        if self.mpi is not None:
+        if self.comm is not None:
             if (self.asym):
-                self.mpi.comm_world.Allreduce([kmnc, MPI.DOUBLE], kmnc_buffer, op=MPI.SUM)
+                self.comm.Allreduce([kmnc, MPI.DOUBLE], kmnc_buffer, op=MPI.SUM)
                 kmnc = kmnc_buffer
-            self.mpi.comm_world.Allreduce([kmns, MPI.DOUBLE], kmns_buffer, op=MPI.SUM)
+            self.comm.Allreduce([kmns, MPI.DOUBLE], kmns_buffer, op=MPI.SUM)
             kmns = kmns_buffer
         if self.proc0:
             self.kmns_splines = []
@@ -820,10 +796,10 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     else:
                         self.kmnc_splines.append(InterpolatedUnivariateSpline(self.s_half_ext, self.mn_factor_splines[im](self.s_half_ext)*kmnc[:, im], k=self.order))
 
-        if self.mpi is not None:
-            self.kmns_splines = self.mpi.comm_world.bcast(self.kmns_splines, root=0)
+        if self.comm is not None:
+            self.kmns_splines = self.comm.bcast(self.kmns_splines, root=0)
             if self.asym:
-                self.kmnc_splines = self.mpi.comm_world.bcast(self.kmnc_splines, root=0)
+                self.kmnc_splines = self.comm.bcast(self.kmnc_splines, root=0)
 
     def _K_impl(self, K):
         K[:, 0] = 0.
@@ -1216,9 +1192,9 @@ class BoozerRadialInterpolant(BoozerMagneticField):
             self._compute_impl(dmodBds[:, 0], _harmonics, inverse_fourier)
 
     def _compute_impl(self, output, harmonics, inverse_fourier):
-        if (self.mpi is not None):
-            size = self.mpi.comm_world.size
-            rank = self.mpi.comm_world.rank
+        if (self.comm is not None):
+            size = self.comm.size
+            rank = self.comm.rank
 
             mn_idxs = np.array([i * len(self.xm_b) // size for i in range(size + 1)])
             first_mn, last_mn = mn_idxs[rank], mn_idxs[rank + 1]
@@ -1255,10 +1231,10 @@ class BoozerRadialInterpolant(BoozerMagneticField):
         inverse_fourier(padded_buffer, chunk_mn, xm, xn, padded_thetas, padded_zetas, self.ntor, self.nfp)
         chunk_mn, padded_thetas, padded_zetas =  None, None, None
 
-        if (self.mpi is not None):
+        if (self.comm is not None):
             # In place reduce is slightly slower
             # self.mpi.comm_world.Allreduce(MPI.IN_PLACE, [padded_buffer[:len(inv)], MPI.DOUBLE], op=MPI.SUM)
-            self.mpi.comm_world.Allreduce([padded_buffer[:len(inv)], MPI.DOUBLE], recv_buffer, op=MPI.SUM)
+            self.comm.Allreduce([padded_buffer[:len(inv)], MPI.DOUBLE], recv_buffer, op=MPI.SUM)
             output += recv_buffer
         else:
             output += padded_buffer[:len(inv)]

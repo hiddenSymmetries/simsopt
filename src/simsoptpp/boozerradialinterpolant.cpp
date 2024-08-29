@@ -8,8 +8,7 @@ typedef xt::pyarray<double> Array;
 #include <iostream>
 #include <string>
 #include <xsimd/xsimd.hpp>
-#include <fmt/core.h>
-#include <fmt/format.h>
+
 namespace xs = xsimd;
 #define ANGLE_RECOMPUTE 5
 

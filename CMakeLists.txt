@@ -59,7 +59,7 @@ else()
     endif()
 endif()
 # Ensure all code used from Eigen does not have LGPL license:
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
 message(STATUS "CMAKE_CXX_FLAGS are ${CMAKE_CXX_FLAGS}")
 
 if(DEFINED ENV{CONDA_PREFIX})
@@ -117,13 +117,10 @@ add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
-
 pybind11_add_module(${PROJECT_NAME}
-    src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp
+    src/simsoptpp/python.cpp 
     src/simsoptpp/python_tracing.cpp
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
-    src/simsoptpp/surface.cpp 
-    src/simsoptpp/surfacerzfourier.cpp 
     src/simsoptpp/tracing.cpp 
     src/simsoptpp/python_boozermagneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
@@ -134,14 +131,13 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
 endif()
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUDE_DIRS}")
-# target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::module Boost::headers)
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
@@ -150,23 +146,3 @@ endif()
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
 
-add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
-set_target_properties(profiling
-    PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON)
-target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
-target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
-
-
-
-#get_cmake_property(_variableNames VARIABLES)
-#list (SORT _variableNames)
-#foreach (_variableName ${_variableNames})
-#    message(STATUS "${_variableName}=${${_variableName}}")
-#endforeach()
-
-#install(TARGETS ${PROJECT_NAME}
-#        #LIBRARY
-#        DESTINATION src/${PROJECT_NAME})
-#install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
