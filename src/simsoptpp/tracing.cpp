@@ -551,10 +551,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 }
 
 template<class RHS, class DENSE>
-bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_hits, 
-    DENSE dense, double t_last, double t_current, double zeta_last, double zeta_current, double vpar_last, 
-    double vpar_current, double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-    vector<double> vpars, bool zetas_stop, bool vpars_stop, bool forget_exact_path) {
+bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double zeta_last, double zeta_current, double vpar_last, double vpar_current, double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop, bool vpars_stop, bool forget_exact_path) {
 
     typedef typename RHS::State State;
     // abstol?
@@ -959,8 +956,7 @@ struct sympl_dense {
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, SymplField<T>::Size+1>>, vector<array<double, SymplField<T>::Size+2>>>
-solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, double dt, double roottol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-    vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true)
+solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, double dt, double roottol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true)
 {
     double abstol = 0;
     if (zetas.size() > 0 && omegas.size() == 0) {
@@ -1147,9 +1143,9 @@ particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
         bool zetas_stop, bool vpars_stop, double Phihat, double omega, int Phim,
-        int Phin, double phase, bool forget_exact_path, int axis)
+        int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1184,8 +1180,8 @@ particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars,
-        bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
@@ -1245,19 +1241,21 @@ particle_guiding_center_boozer_tracing(
     }
 }
 
-template
-tuple<vector<array<double, 6>>, vector<array<double, 7>>> particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 6>>, vector<array<double, 7>>>
+particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool zetas_stop, bool vpars_stop, double Phihat,
-        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis);
+        bool zetas_stop, bool vpars_stop, double Phihat,
+        double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars={});
 
-template
-tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
-        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
+        bool vacuum, bool noK, bool GPU, bool solveSympl, vector<double> zetas, vector<double> omegas,
         vector<shared_ptr<StoppingCriterion>> stopping_criteria,
-        vector<double> vpars={}, bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step);
+        bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step, vector<double> vpars={});
