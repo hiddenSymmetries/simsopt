@@ -483,7 +483,7 @@ std::array<double, m+n> join(const std::array<double, m>& a, const std::array<do
 
 template<class RHS>
 tuple<vector<array<double, RHS::Size+1>>, vector<array<double, RHS::Size+2>>>
-solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double abstol, double reltol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false) {
+solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, double abstol, double reltol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false) {
     
     if (zetas.size() > 0 && omegas.size() == 0) {
         omegas.insert(omegas.end(), zetas.size(), 0.);
@@ -510,17 +510,6 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     double zeta_current, vpar_current, t_current;
     State temp;
     do {
-        if (!forget_exact_path || t==0) {
-            ykeep = y;
-            if (rhs.axis==1) {
-                ykeep[0] = pow(y[0],2) + pow(y[1],2);
-                ykeep[1] = atan2(y[1],y[0]);
-            } else if (rhs.axis==2) {
-                ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-                ykeep[1] = atan2(y[1],y[0]);
-            }
-            res.push_back(join<1, RHS::Size>({t}, ykeep));
-        }
         tuple<double, double> step = dense.do_step(rhs);
         iter++;
         t = dense.current_time();
@@ -535,8 +524,9 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
-    if(!stop){
-        dense.calc_state(tmax, y);
+    // Now populate res with time = 0 and t if forget_exact_path
+    if (forget_exact_path) {
+        dense.calc_state(0, y);
         ykeep = y;
         if (rhs.axis==1) {
             ykeep[0] = pow(y[0],2) + pow(y[1],2);
@@ -544,8 +534,36 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         } else if (rhs.axis==2) {
             ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
             ykeep[1] = atan2(y[1],y[0]);
-        }      
-        res.push_back(join<1, RHS::Size>({tmax}, ykeep));
+        }
+        res.push_back(join<1, RHS::Size>({0}, ykeep));
+
+        dense.calc_state(t, y);
+        ykeep = y;
+        if (rhs.axis==1) {
+            ykeep[0] = pow(y[0],2) + pow(y[1],2);
+            ykeep[1] = atan2(y[1],y[0]);
+        } else if (rhs.axis==2) {
+            ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+            ykeep[1] = atan2(y[1],y[0]);        
+        }
+        res.push_back(join<1, RHS::Size>({t}, ykeep));
+    } 
+    // Now populate res if forget_exact_path
+    else {
+        std::cout << "dt_save: " << dt_save << std::endl;
+        for (double t_save = 0; t_save += dt_save; t_save <= t) {
+            std::cout << "t_save: " << t_save << std::endl;
+            dense.calc_state(t_save, y);
+            ykeep = y;
+            if (rhs.axis==1) {
+                ykeep[0] = pow(y[0],2) + pow(y[1],2);
+                ykeep[1] = atan2(y[1],y[0]);
+            } else if (rhs.axis==2) {
+                ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+                ykeep[1] = atan2(y[1],y[0]);        
+            }
+            res.push_back(join<1, RHS::Size>({t_save}, ykeep));
+        }
     }
     return std::make_tuple(res, res_hits);
 }
@@ -640,6 +658,7 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
         }
         if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
             stop = true;
+            res.push_back(join<1, RHS::Size>({t_current}, ykeep));
             res_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, ykeep));
             break;
         }
@@ -1143,7 +1162,7 @@ particle_guiding_center_boozer_perturbed_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save,
         bool zetas_stop, bool vpars_stop, double Phihat, double omega, int Phim,
         int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars)
 {
@@ -1166,11 +1185,11 @@ particle_guiding_center_boozer_perturbed_tracing(
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
         Phim, Phin, phase, axis);
-      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
   } else {
       auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS<T>(field, m, q, mu, Phihat, omega,
         Phim, Phin, phase, axis);
-      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+      return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
   }
 }
 
@@ -1180,7 +1199,7 @@ particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool forget_exact_path, int axis, bool predictor_step,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, bool forget_exact_path, int axis, bool predictor_step,
         bool zetas_stop, bool vpars_stop, vector<double> vpars)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
@@ -1230,13 +1249,13 @@ particle_guiding_center_boozer_tracing(
     } else {
         if (vacuum) {
           auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu, axis);
-          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
         } else if (noK) {
           auto rhs_class = GuidingCenterNoKBoozerRHS<T>(field, m, q, mu, axis);
-          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
         } else {
           auto rhs_class = GuidingCenterBoozerRHS<T>(field, m, q, mu, axis);
-          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+          return solve(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
         } 
     }
 }
@@ -1247,11 +1266,11 @@ particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
         bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save,
         bool zetas_stop, bool vpars_stop, double Phihat,
         double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars);
 
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing<xt::pytensor>(
-        shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init, double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol, bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, bool forget_exact_path, int axis, bool predictor_step, bool zetas_stop, bool vpars_stop, vector<double> vpars);
+        shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init, double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol, bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, bool forget_exact_path, int axis, bool predictor_step, bool zetas_stop, bool vpars_stop, vector<double> vpars);

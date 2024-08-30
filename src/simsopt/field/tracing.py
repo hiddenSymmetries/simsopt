@@ -32,7 +32,7 @@ def compute_gc_radius(m, vperp, q, absb):
 def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: RealArray,
                            parallel_speeds: RealArray, mus: RealArray, tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], dt_save=1e-6, mode='gc_vac', 
                            forget_exact_path=False, zetas_stop=False, vpars_stop=False,
                            Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=0):
     r"""
@@ -140,7 +140,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
             field, stz_inits[i, :], m, charge, speed_total, speed_par[i], mus[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
+            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria, dt_save=dt_save, 
             zetas_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
             Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
         if not forget_exact_path:
@@ -165,7 +165,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
 def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
                            parallel_speeds: RealArray, tmax=1e-4,
                            mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], mode='gc_vac',
+                           tol=1e-9, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], dt_save=1e-6, mode='gc_vac',
                            forget_exact_path=False, solver_options=None):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. This is modeled after
@@ -316,7 +316,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
             m, charge, speed_total[i], speed_par[i], tmax, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria,
+            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars,  stopping_criteria=stopping_criteria, dt_save=dt_save,
             **options)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
