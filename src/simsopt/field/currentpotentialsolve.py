@@ -32,7 +32,6 @@ class CurrentPotentialSolve:
         self.nzeta_plasma = len(self.plasma_surface.quadpoints_phi)
         self.ntheta_coil = len(self.current_potential.quadpoints_theta)
         self.nzeta_coil = len(self.current_potential.quadpoints_phi)
-        self.Bnormal_plasma = Bnormal_plasma
         # Calculating B_GI
         cp_no_phi_sv = CurrentPotentialFourier(
             cp.winding_surface, mpol=cp.mpol, ntor=cp.ntor,
@@ -48,8 +47,17 @@ class CurrentPotentialSolve:
         B_GI_vector = Bfield.B()
         normal = plasma_surface.unitnormal().reshape(-1, 3)
         B_GI_winding_surface = np.sum(B_GI_vector*normal, axis=1)
-        if B_GI_winding_surface.shape != Bnormal_plasma.shape:
-            raise ValueError('The shape of Bnormal_plasma does not match with the quadrature points of plasma_surface.')
+        # Permitting Bnormal_plasma to be a scalar
+        if np.isscalar(Bnormal_plasma):
+            Bnormal_plasma = Bnormal_plasma * np.ones(normal.shape[0])
+        else:
+            # If Bnormal is not a scalar, try reshaping it into 
+            # the proper shape
+            try: 
+                Bnormal_plasma = Bnormal_plasma.reshape(normal.shape[0])
+            except:
+                raise ValueError('The shape of Bnormal_plasma does not match with the quadrature points of plasma_surface.')
+        self.Bnormal_plasma = Bnormal_plasma
         self.B_GI = B_GI_winding_surface
         # Save list of results for each L2 or L1 winding surface
         # optimization performed with this class object
