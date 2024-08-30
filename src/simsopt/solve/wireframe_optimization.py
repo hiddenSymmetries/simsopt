@@ -110,27 +110,29 @@ def optimize_wireframe(wframe, algorithm, params, \
         lambda_S: double
             Weighting factor for the objective function proportional to the
             number of active segments
-        no_crossing: boolean
-            If true, the solution will forbid currents from crossing within
-            the wireframe 
-        match_current: boolean
-            If true, added loops of current will match the current of the 
-            loop(s) adjacent to where they are added
-        default_current: double
-            Loop current to add during each iteration to empty loops or to any
-            loop if not matching existing current
-        max_current: double
-            Maximum magnitude for the current in each segment
         nIter: integer
             Number of iterations to perform
         nHistory: integer
             Number of intermediate solutions to record, evenly spaced among the 
             iterations
+        no_crossing: boolean (optional)
+            If true, the solution will forbid currents from crossing within
+            the wireframe; default is false
+        match_current: boolean (optional)
+            If true, added loops of current will match the current of the 
+            loop(s) adjacent to where they are added; default is false
+        default_current: double (optional)
+            Loop current to add during each iteration to empty loops or to any
+            loop if not matching existing current; default is 0
+        max_current: double (optional)
+            Maximum magnitude for the current in each segment; default is 
+            infinity
         max_loop_count: integer (optional)
             If nonzero, sets the maximum number of current increments to add
             to a given loop in the wireframe (default is zero)
         x_init: double array (optional)
-            Initial values of the segment currents; zero by default
+            Initial current values to impose on the wireframe segments; will
+            overwrite wframe.currents if used
         loop_count_init: integer array (optional)
             Signed number of loops of current added to each loop in the 
             wireframe prior to the optimization (optimization will
@@ -150,6 +152,30 @@ def optimize_wireframe(wframe, algorithm, params, \
                 area weighted if requested
             wframe_field: WireframeField class instance
                 Magnetic field produced by the wireframe
+
+            For GSCO optimizations only:
+
+            loop_count: integer array (1d columnn vector)
+                Signed number of current loops added to each loop in the 
+                wireframe
+            iter_history: integer array 
+                Array with the iteration numbers of the data recorded in the 
+                history arrays, spaced at intervals specified by the `nHistory` 
+                input parameter. The first index is 0, corresponding to the 
+                initial guess `x_init`; the last is the final iteration. 
+            x_history: 2d double array
+                Array with entries corresponding to the solution at the 
+                iterations given in `iter_history`
+                iteration.
+            f_B_history: 1d double array (column vector)
+                Array with values of the f_B objective function at iterations
+                given in `iter_history`
+            f_S_history: 1d double array (column vector)
+                Array with values of the f_S objective function at iterations
+                given in `iter_history`
+            f_history: 1d double array (column vector)
+                Array with values of the f_S objective function at iterations
+                given in `iter_history`
     """
 
     if not isinstance(wframe, ToroidalWireframe):
@@ -192,6 +218,10 @@ def optimize_wireframe(wframe, algorithm, params, \
             raise ValueError('Input `Amat` has inconsistent dimensions with ' \
                              'input `cvec` and/or `wframe`')
 
+    else:
+
+        raise ValueError('`surf_plas` or `Amat` and `cvec` must be supplied')
+
     results = dict()
 
     # Perform the optimization
@@ -213,31 +243,39 @@ def optimize_wireframe(wframe, algorithm, params, \
     elif algorithm.lower() == 'gsco':
 
         # Check supplied parameters
-        for v in ['lambda_S', 'no_crossing', 'match_current', \
-                  'default_current', 'max_current', 'nIter', 'nHistory']:
+        for v in ['lambda_S', 'nIter', 'nHistory']:
             if v not in params:
                 raise ValueError(('params dictionary must contain ''%s'' for ' \
                                   + 'the GSCO algorithm') % (v))
 
         # Set default values if necessary
-        no_new_coils = False if 'no_new_coils' not in params\
+        default_current = 0.0 if 'default_current' not in params \
+            else params['default_current']
+        max_current = np.inf if 'max_current' not in params \
+            else params['max_current']
+        match_current = False if 'match_current' not in params \
+            else params['match_current']
+        no_crossing = False if 'no_crossing' not in params \
+            else params['no_crossing']
+        no_new_coils = False if 'no_new_coils' not in params \
             else params['no_new_coils']
         max_loop_count = 0 if 'max_loop_count' not in params \
             else params['max_loop_count']
-        x_init = None if 'x_init' not in params else params['x_init']
+        x_init = None if 'x_init' not in params \
+            else params['x_init']
         loop_count_init = None if 'loop_count_init' not in params \
             else params['loop_count_init']
-       
-        x, loop_count, x_hist, f_B_hist, f_S_hist, f_hist = \
-            gsco_wireframe(wframe, A, c, params['lambda_S'], \
-                           params['no_crossing'], params['match_current'], \
-                           params['default_current'], params['max_current'], \
-                           params['nIter'], params['nHistory'], \
+
+        x, loop_count, iter_hist, x_hist, f_B_hist, f_S_hist, f_hist = \
+            gsco_wireframe(wframe, A, c, params['lambda_S'], no_crossing, 
+                           match_current, default_current, max_current, 
+                           params['nIter'], params['nHistory'], 
                            no_new_coils=no_new_coils,
-                           max_loop_count=max_loop_count, x_init=x_init, \
+                           max_loop_count=max_loop_count, x_init=x_init, 
                            loop_count_init=loop_count_init, verbose=verbose)
 
         results['loop_count'] = loop_count
+        results['iter_hist'] = iter_hist
         results['x_hist'] = x_hist
         results['f_B_hist'] = f_B_hist
         results['f_S_hist'] = f_S_hist
@@ -504,7 +542,8 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
             If nonzero, sets the maximum number of current increments to add
             to a given loop in the wireframe (default is zero)
         x_init: contiguous double array (optional)
-            Initial values of the segment currents; zero by default
+            Initial current values to impose on the wireframe segments; will
+            overwrite wframe.currents if used
         loop_count_init: contiguous integer array (optional)
             Signed number of loops of current added to each loop in the 
             wireframe prior to the optimization (optimization will
@@ -519,21 +558,24 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
             Solution (currents in each segment of the wirframe)
         loop_count: integer array (1d columnn vector)
             Signed number of current loops added to each loop in the wireframe
+        iter_history: integer array 
+            Array with the iteration numbers of the data recorded in the 
+            history arrays, spaced at intervals specified by the `nHistory` 
+            input parameter. The first index is 0, corresponding to the initial 
+            guess `x_init`; the last is the final iteration. 
         x_history: 2d double array
-            Array with entries corresponding to the solution at various 
-            iterations, collected with a frequency specified by the `nHistory` 
-            input parameter. The first column is always the initial guess 
-            `x_init`; the last column is always the solution from the final
+            Array with entries corresponding to the solution at the iterations
+            given in `iter_history`
             iteration.
         f_B_history: 1d double array (column vector)
             Array with values of the f_B objective function at iterations
-            corresponding to the columns of `x_history`
+            given in `iter_history`
         f_S_history: 1d double array (column vector)
             Array with values of the f_S objective function at iterations
-            corresponding to the columns of `x_history`
+            given in `iter_history`
         f_history: 1d double array (column vector)
             Array with values of the f_S objective function at iterations
-            corresponding to the columns of `x_history`
+            given in `iter_history`
     """
 
     # Obtain data from the wireframe class instance
@@ -542,11 +584,12 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     segments = wframe.segments
     connections = wframe.connected_segments
 
-    # Set default values if not provided
+    # Initialize x with wframe currents or user-provided values
     if x_init is None:
         x_init = np.ascontiguousarray(np.zeros((wframe.nSegments,1)))
+        x_init[:,0] = wframe.currents[:]
     else:
-        x_init = np.ascontiguousarray(x_init)
+        x_init = np.ascontiguousarray(np.reshape(x_init,(-1,1)))
 
     if loop_count_init is None:
         loop_count_init = np.ascontiguousarray(np.zeros(len(free_loops)).astype(np.int64))
@@ -557,12 +600,13 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     if verbose:
         print('    Running GSCO')
     t0 = time.time()
-    x, loop_count, x_history, f_B_history, f_S_history, f_history = \
-        sopp.GSCO(no_crossing, no_new_coils, match_current, A, c, \
-                  np.abs(default_current), np.abs(max_current), \
-                  np.abs(max_loop_count), loops, free_loops, \
-                  segments, connections, lambda_S, nIter, \
-                  x_init, loop_count_init, nHistory)
+    x, loop_count, iter_history, x_history, \
+        f_B_history, f_S_history, f_history = \
+            sopp.GSCO(no_crossing, no_new_coils, match_current, A, c, 
+                      np.abs(default_current), np.abs(max_current), 
+                      np.abs(max_loop_count), loops, free_loops, 
+                      segments, connections, lambda_S, nIter, 
+                      x_init, loop_count_init, nHistory)
     t1 = time.time()
     if verbose:
         print('        GSCO took %.2d seconds' % (t1 - t0))
@@ -571,7 +615,8 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     wframe.currents[:] = 0
     wframe.currents[:] = x.reshape((-1))[:]
 
-    return x, loop_count, x_history, f_B_history, f_S_history, f_history
+    return x, loop_count, iter_history, x_history, f_B_history, f_S_history, \
+           f_history
 
 def regularized_constrained_least_squares(A, c, T, B, d):
     """

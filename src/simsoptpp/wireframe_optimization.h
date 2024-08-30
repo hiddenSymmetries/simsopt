@@ -2,10 +2,11 @@
 
 #include <tuple>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include "xtensor/xview.hpp"
 typedef xt::pyarray<double> Array;
 typedef xt::pyarray<int> IntArray;
 
-std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
+std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
     bool no_crossing, bool no_new_coils, bool match_current,
     Array& A_obj, Array& b_obj, double default_current, double max_current, 
     int max_loop_count, IntArray& loops, IntArray& free_loops, 
@@ -14,8 +15,8 @@ std::tuple<Array,IntArray,Array,Array,Array,Array> GSCO(
 
 
 void record_history(int hist_ind, int iter, Array& x, double f_B, double f_S, 
-                    double f, Array& x_history, Array& f_B_history, 
-                    Array& f_S_history, Array& f_history);
+                    double f, IntArray& iter_history, Array& x_history, 
+                    Array& f_B_history, Array& f_S_history, Array& f_history);
 
 double compute_chi2_P(Array& x, double tol);
 
