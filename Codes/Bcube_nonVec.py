@@ -41,6 +41,7 @@ def Hd_i_prime(r, dims):
     x = np.array([xp + dims[0]/2, xp - dims[0]/2])
     y = np.array([yp + dims[1]/2, yp - dims[1]/2])
     z = np.array([zp + dims[2]/2, zp - dims[2]/2])
+
     
     lst = np.array([0,1])
 

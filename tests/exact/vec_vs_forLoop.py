@@ -6,7 +6,6 @@ sys.path.append('/Users/willhoffman/simsopt/Codes')
 import Bcube_nonVec as floop
 import simsopt.field as vec
 
-    
 
 class Testing(unittest.TestCase):
 
@@ -94,5 +93,4 @@ class Testing(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
     

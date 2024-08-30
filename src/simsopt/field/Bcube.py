@@ -57,8 +57,9 @@ def Hd_i_prime(r, dims):
 
 def B_direct(points, magPos, m, dims, phiThetas):
 
-    P = Pd(phiThetas[:, 0], phiThetas[:, 1])
-    P = np.transpose(P, axes=[2, 0, 1])
+    Pvec = Pd(phiThetas[:, 0], phiThetas[:, 1])
+    P = np.transpose(Pvec, axes=[2, 0, 1])
+    PT = np.transpose(Pvec, axes = [2, 1, 0])
     r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :])[:, :, None, :], axis=-1)
 
     tx = np.heaviside(dims[0]/2 - np.abs(r_loc[:, :, 0]),0.5)
@@ -71,7 +72,7 @@ def B_direct(points, magPos, m, dims, phiThetas):
     H_pm = np.sum(Hd_i_prime(r_loc, dims) * Pm[None, :, None, :], axis=-1)
 
     # Double sum because we are rotating by P and then summing over all the magnet locations
-    B = mu0 * np.sum(np.sum(P[None, :, :, :] * (H_pm + tm_Pm)[:, :, None, :], axis=-1), axis=1) / np.prod(dims)
+    B = mu0 * np.sum(np.sum(PT[None, :, :, :] * (H_pm + tm_Pm)[:, :, None, :], axis=-1), axis=1)
 
     return B
 
@@ -95,11 +96,13 @@ def Acube(points, magPos, norms, dims, phiThetas):
     N = len(points)
     print('beginning Acube calc: ')
     t1 = time.time()
-    P = Pd(phiThetas[:, 0], phiThetas[:, 1])
-    P = np.transpose(P, axes=[2, 0, 1])
+    Pvec = Pd(phiThetas[:, 0], phiThetas[:, 1])
+    P = np.transpose(Pvec, axes=[2, 0, 1])
+    PT = np.transpose(Pvec, axes = [2, 1, 0])
     r_loc = np.sum(P[None, :, :, :] * (points[:, None, :] - magPos[None, :, :])[:, :, None, :], axis=-1)
     n_loc = np.sum(P[None, :, :, :] * norms[:, None, None, :], axis=-1)
-    A = gd_i(r_loc, n_loc, dims).reshape(N, -1)
+    
+    A = np.sum(PT[None, :, :, :] * gd_i(r_loc, n_loc, dims)[:, :, None, :], axis=-1).reshape(N, -1)
     t2 = time.time()
     print('Acube calc took t = ', t2 - t1, ' s')
     return A / np.prod(dims)
