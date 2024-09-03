@@ -9,6 +9,7 @@ except:
     MPI = None
 
 from simsopt._core.optimizable import Optimizable
+from simsopt._core import ObjectiveFailure
 from simsopt.objectives.least_squares import LeastSquaresProblem
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
@@ -87,6 +88,12 @@ class TestFunction3(Optimizable):
     return_fn_map = {'f0': f0, 'f1': f1}
 
 
+class FailingOptimizable(Optimizable):
+    def residuals(self):
+        raise ObjectiveFailure("foo")
+        return self.x - np.array([10, 9, 8, 7])
+
+
 @unittest.skipIf(MPI is None, "Requires mpi4py")
 class MPISolveTests(unittest.TestCase):
 
@@ -137,3 +144,18 @@ class MPISolveTests(unittest.TestCase):
                             self.assertAlmostEqual(prob.x[0], 1)
                             self.assertAlmostEqual(prob.x[1], 1)
 
+    def test_objective_failure_with_mpi(self):
+        """
+        If the objective function fails on the first evaluation, make sure the code does not hang.
+        """
+        with ScratchDir("."):
+            for ngroups in range(1, 4):
+                mpi = MpiPartition(ngroups)
+
+                opt = FailingOptimizable(x0=np.array([5, 6, 7, 8.0]))
+
+                prob = LeastSquaresProblem.from_tuples(
+                    [(opt.residuals, 0, 1)]
+                )
+
+                least_squares_mpi_solve(prob, mpi, grad=True)
