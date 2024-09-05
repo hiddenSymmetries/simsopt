@@ -118,18 +118,18 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
 
             Array H = Hd_i_prime(rx_loc, ry_loc, rz_loc, dims);
 
-            double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]), 0.5);
-            double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]), 0.5);
-            double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]), 0.5);    
+            double tx = heaviside(dims[0]/2 - std::abs(rx_loc), 0.5);
+            double ty = heaviside(dims[1]/2 - std::abs(ry_loc), 0.5);
+            double tz = heaviside(dims[2]/2 - std::abs(rz_loc), 0.5);    
             double tm = 2*tx*ty*tz;
 
-            double Bx_loc = mu0 * (H(0, 0) * M_loc[0] + tm * M_loc[0] + H(0, 1) * M_loc[1] + tm * M_loc[0] + H(0, 2) * M_loc[2] + tm * M_loc[0]);
-            double By_loc = mu0 * (H(1, 0) * M_loc[0] + tm * M_loc[1] + H(0, 1) * M_loc[1] + tm * M_loc[1] + H(0, 2) * M_loc[2] + tm * M_loc[1]);
-            double Bz_loc = mu0 * (H(2, 0) * M_loc[0] + tm * M_loc[2] + H(0, 1) * M_loc[1] + tm * M_loc[2] + H(0, 2) * M_loc[2] + tm * M_loc[2]);
+            double Bx_loc = mu0 * (H(0, 0) * Mx_loc + tm * Mx_loc + H(0, 1) * My_loc + tm * Mx_loc + H(0, 2) * Mz_loc + tm * Mx_loc);
+            double By_loc = mu0 * (H(1, 0) * Mx_loc + tm * My_loc + H(0, 1) * My_loc + tm * My_loc + H(0, 2) * Mz_loc + tm * My_loc);
+            double Bz_loc = mu0 * (H(2, 0) * Mx_loc + tm * Mz_loc + H(0, 1) * My_loc + tm * Mz_loc + H(0, 2) * Mz_loc + tm * Mz_loc);
 
-            B(n, 0) = P(0, 0) * B_loc[0] + P(0, 1) * B_loc[1] + P(0, 2) * B_loc[2];
-            B(n, 1) = P(1, 0) * B_loc[0] + P(1, 1) * B_loc[1] + P(1, 2) * B_loc[2];
-            B(n, 2) = P(2, 0) * B_loc[0] + P(2, 1) * B_loc[1] + P(2, 2) * B_loc[2];
+            B(n, 0) = P(0, 0) * Bx_loc + P(0, 1) * By_loc + P(0, 2) * Bz_loc;
+            B(n, 1) = P(1, 0) * Bx_loc + P(1, 1) * By_loc + P(1, 2) * Bz_loc;
+            B(n, 2) = P(2, 0) * Bx_loc + P(2, 1) * By_loc + P(2, 2) * Bz_loc;
         }
     }
     return B;
@@ -150,9 +150,9 @@ Array Bn_direct(Array& points, Array& magPos, Array& M, Array& norms, Array& dim
 
 
 Array gd_i(double rx_loc, double ry_loc, double rz_loc, double nx_loc, double ny_loc, double nz_loc, Array& dims) {
-    double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]),0.5);
-    double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]),0.5);
-    double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]),0.5);      
+    double tx = heaviside(dims[0]/2 - std::abs(rx_loc),0.5);
+    double ty = heaviside(dims[1]/2 - std::abs(ry_loc),0.5);
+    double tz = heaviside(dims[2]/2 - std::abs(rz_loc),0.5);      
     double tm = 2*tx*ty*tz;
 
     // Hd.T = Hd, symmetric matrix
@@ -191,14 +191,7 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
             double rx_glob = x - magPos(d,0);
             double ry_glob = y - magPos(d,1);
             double rz_glob = z - magPos(d,2);
-            Array r_loc = xt::zeros<double>({3});
-            Array n_loc = xt::zeros<double>({3});
-            for (int i = 0; i < 3; ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    r_loc[i] += P(i,j) * r[j];
-                    n_loc[i] += P(i,j) * norms(n,j);
-                }
-            }
+
             double rx_loc = P(0, 0) * rx_glob + P(0, 1) * ry_glob + P(0, 2) * rz_glob;
             double ry_loc = P(1, 0) * rx_glob + P(1, 1) * ry_glob + P(1, 2) * rz_glob;
             double rz_loc = P(2, 0) * rx_glob + P(2, 1) * ry_glob + P(2, 2) * rz_glob;

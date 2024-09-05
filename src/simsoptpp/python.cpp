@@ -3,7 +3,7 @@
 #include "pybind11/functional.h"
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-// #include <Eigen/Core>
+#include <Eigen/Core>
 
 typedef xt::pyarray<double> PyArray;
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
