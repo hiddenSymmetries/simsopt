@@ -202,9 +202,9 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
 
             Array g_loc = gd_i(rx_loc, ry_loc, rz_loc, nx_loc, ny_loc, nz_loc, dims);      
 
-            gx_glob = (P(0, 0) * g_loc[0] + P(0, 1) * g_loc[1] + P(0, 2) * g_loc[2]) / magVol;
-            gy_glob = (P(1, 0) * g_loc[0] + P(1, 1) * g_loc[1] + P(1, 2) * g_loc[2]) / magVol;
-            gz_glob = (P(2, 0) * g_loc[0] + P(2, 1) * g_loc[1] + P(2, 2) * g_loc[2]) / magVol;
+            double gx_glob = (P(0, 0) * g_loc[0] + P(0, 1) * g_loc[1] + P(0, 2) * g_loc[2]) / magVol;
+            double gy_glob = (P(1, 0) * g_loc[0] + P(1, 1) * g_loc[1] + P(1, 2) * g_loc[2]) / magVol;
+            double gz_glob = (P(2, 0) * g_loc[0] + P(2, 1) * g_loc[1] + P(2, 2) * g_loc[2]) / magVol;
 
             A(n, 3*d) = gx_glob;
             A(n, 3*d + 1) = gy_glob;
