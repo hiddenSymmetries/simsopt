@@ -6,36 +6,15 @@ sys.path.append('/Users/willhoffman/simsopt/Codes')
 import Bcube_nonVec as floop
 import simsoptpp as sopp
 
-point = np.array([[0,0,100]])
-magPos = np.array([[0,0,0]])
-M = np.array([[0,0,1]])
-phiTheta = np.array([[np.radians(32),np.radians(144)]])
-dims = np.array([1,1,1])
-norm = np.array([[0,0,1]])
-
-import time
-
-Bcube4 = floop.B_direct(point, magPos, M, dims, phiTheta)
-t0 = time.time()
-BcubeC = sopp.B_direct(point, magPos, M, dims, phiTheta)
-t1 = time.time()
-print('c++ took', t1 - t0, 'seconds')
-print('B python = ', Bcube4)
-print('B c++ = ', BcubeC)
-
-A_cube4 = floop.Acube(point, magPos, norm, dims, phiTheta)
-A_cubeC = sopp.Acube(point, magPos, norm, dims, phiTheta)
-print('A python = ', A_cube4)
-print('A c++ = ', A_cubeC)
-
-BncubeMAT4 = floop.Bn_fromMat(point, magPos, M, norm, dims, phiTheta)
-BncubeMATC = sopp.Bn_fromMat(point, magPos, M, norm, dims, phiTheta)
-print('Bn_mat python = ', BncubeMAT4)
-print('Bn_mat c++ = ', BncubeMATC)
-
-"""
 class Testing(unittest.TestCase):
 
+    def Ptest(self):
+        phiTheta = np.array([[np.radians(32),np.radians(144)]])
+
+        P4 = floop.Pd(phiTheta[0,0], phiTheta[0,1])
+        PC = sopp.Pd(phiTheta[0,0], phiTheta[0,1])
+        assert np.allclose(P4, PC)
+    
     def Htest(self):
         r = np.array([0,0,100])
         dims = np.array([1,1,1])
@@ -128,4 +107,3 @@ class Testing(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-"""

@@ -92,6 +92,7 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
     int D = M.shape(0);
 
     Array B = xt::zeros<double>({N, 3});
+    Array B_loc = xt::zeros<double>({3});
     #pragma omp parallel for
     for (int n = 0; n < N; ++n) {
         double x = points(n, 0);
@@ -104,17 +105,17 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
             double ry_glob = y - magPos(d,1);
             double rz_glob = z - magPos(d,2);
 
-            double mx_glob = M(d, 0);
-            double my_glob = M(d, 1);
-            double mz_glob = M(d, 2);
+            double Mx_glob = M(d, 0);
+            double My_glob = M(d, 1);
+            double Mz_glob = M(d, 2);
 
             double rx_loc = P(0, 0) * rx_glob + P(0, 1) * ry_glob + P(0, 2) * rz_glob;
             double ry_loc = P(1, 0) * rx_glob + P(1, 1) * ry_glob + P(1, 2) * rz_glob;
             double rz_loc = P(2, 0) * rx_glob + P(2, 1) * ry_glob + P(2, 2) * rz_glob;
             
-            double Mx_loc = P(0, 0) * mx_glob + P(0, 1) * my_glob + P(0, 2) * mz_glob;
-            double My_loc = P(1, 0) * mx_glob + P(1, 1) * my_glob + P(1, 2) * mz_glob;
-            double Mz_loc = P(2, 0) * mx_glob + P(2, 1) * my_glob + P(2, 2) * mz_glob;
+            double Mx_loc = P(0, 0) * Mx_glob + P(0, 1) * My_glob + P(0, 2) * Mz_glob;
+            double My_loc = P(1, 0) * Mx_glob + P(1, 1) * My_glob + P(1, 2) * Mz_glob;
+            double Mz_loc = P(2, 0) * Mx_glob + P(2, 1) * My_glob + P(2, 2) * Mz_glob;
 
             Array H = Hd_i_prime(rx_loc, ry_loc, rz_loc, dims);
 
@@ -124,12 +125,16 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
             double tm = 2*tx*ty*tz;
 
             double Bx_loc = mu0 * (H(0, 0) * Mx_loc + tm * Mx_loc + H(0, 1) * My_loc + tm * Mx_loc + H(0, 2) * Mz_loc + tm * Mx_loc);
-            double By_loc = mu0 * (H(1, 0) * Mx_loc + tm * My_loc + H(0, 1) * My_loc + tm * My_loc + H(0, 2) * Mz_loc + tm * My_loc);
-            double Bz_loc = mu0 * (H(2, 0) * Mx_loc + tm * Mz_loc + H(0, 1) * My_loc + tm * Mz_loc + H(0, 2) * Mz_loc + tm * Mz_loc);
+            double By_loc = mu0 * (H(1, 0) * Mx_loc + tm * My_loc + H(1, 1) * My_loc + tm * My_loc + H(1, 2) * Mz_loc + tm * My_loc);
+            double Bz_loc = mu0 * (H(2, 0) * Mx_loc + tm * Mz_loc + H(2, 1) * My_loc + tm * Mz_loc + H(2, 2) * Mz_loc + tm * Mz_loc);
 
-            B(n, 0) = P(0, 0) * Bx_loc + P(0, 1) * By_loc + P(0, 2) * Bz_loc;
-            B(n, 1) = P(1, 0) * Bx_loc + P(1, 1) * By_loc + P(1, 2) * Bz_loc;
-            B(n, 2) = P(2, 0) * Bx_loc + P(2, 1) * By_loc + P(2, 2) * Bz_loc;
+            B_loc[0] = Bx_loc;
+            B_loc[1] = By_loc;
+            B_loc[2] = Bz_loc;
+
+            B(n, 0) += P(0, 0) * Bx_loc + P(1, 0) * By_loc + P(2, 0) * Bz_loc;
+            B(n, 1) += P(0, 1) * Bx_loc + P(1, 1) * By_loc + P(2, 1) * Bz_loc;
+            B(n, 2) += P(0, 2) * Bx_loc + P(1, 2) * By_loc + P(2, 2) * Bz_loc;
         }
     }
     return B;
@@ -202,9 +207,9 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
 
             Array g_loc = gd_i(rx_loc, ry_loc, rz_loc, nx_loc, ny_loc, nz_loc, dims);      
 
-            double gx_glob = (P(0, 0) * g_loc[0] + P(0, 1) * g_loc[1] + P(0, 2) * g_loc[2]) / magVol;
-            double gy_glob = (P(1, 0) * g_loc[0] + P(1, 1) * g_loc[1] + P(1, 2) * g_loc[2]) / magVol;
-            double gz_glob = (P(2, 0) * g_loc[0] + P(2, 1) * g_loc[1] + P(2, 2) * g_loc[2]) / magVol;
+            double gx_glob = (P(0, 0) * g_loc[0] + P(1, 0) * g_loc[1] + P(2, 0) * g_loc[2]) / magVol;
+            double gy_glob = (P(0, 1) * g_loc[0] + P(1, 1) * g_loc[1] + P(2, 1) * g_loc[2]) / magVol;
+            double gz_glob = (P(0, 2) * g_loc[0] + P(1, 2) * g_loc[1] + P(2, 2) * g_loc[2]) / magVol;
 
             A(n, 3*d) = gx_glob;
             A(n, 3*d + 1) = gy_glob;
