@@ -132,7 +132,7 @@ jobs:
         python -c "import py_spec; print('success')"
 
     - name: Install f90wrap
-      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
+      run: pip install f90wrap
 
     - name: Build SPEC python wrapper.
       run: |
