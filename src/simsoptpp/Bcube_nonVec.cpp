@@ -57,28 +57,26 @@ Array iterate_over_corners(Array& corner, Array& x, Array& y, Array& z) {
     return summa * h;
 }
 
-Array Hd_i_prime(Array& r, Array& dims) {
+Array Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, Array& dims) {
     
     Array H = xt::zeros<double>({3, 3});
 
-    double xp = r[0], yp = r[1], zp = r[2];
-
     Array X = xt::zeros<double>({2});
-    X[0] = xp + dims[0]/2;
-    X[1] = xp - dims[0]/2;
+    X[0] = rx_loc + dims[0]/2;
+    X[1] = rx_loc - dims[0]/2;
     Array Y = xt::zeros<double>({2});
-    Y[0] = yp + dims[1]/2;
-    Y[1] = yp - dims[1]/2;
+    Y[0] = ry_loc + dims[1]/2;
+    Y[1] = ry_loc - dims[1]/2;
     Array Z = xt::zeros<double>({2});
-    Z[0] = zp + dims[2]/2;
-    Z[1] = zp - dims[2]/2;
+    Z[0] = rz_loc + dims[2]/2;
+    Z[1] = rz_loc - dims[2]/2;
 
     for (int i = 0; i < 2; ++i) {
+        Array corner = xt::zeros<double>({3});
+        corner[0] = i;
         for (int j = 0; j < 2; ++j) {
+            corner[1] = j;
             for (int k = 0; k < 2; ++k) {
-                Array corner = xt::zeros<double>({3});
-                corner[0] = i;
-                corner[1] = j;
                 corner[2] = k;
 
                 H += iterate_over_corners(corner, X, Y, Z) / (4.0 * M_PI);
@@ -101,37 +99,37 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
         double z = points(n, 2);
         for (int d = 0; d < D; ++d) {
             Array P = Pd(phiThetas(d,0), phiThetas(d,1));
-            Array r = xt::zeros<double>({3});
-            r[0] = x - magPos(d,0);
-            r[1] = y - magPos(d,1);
-            r[2] = z - magPos(d,2);
-            Array r_loc = xt::zeros<double>({3});
-            Array M_loc = xt::zeros<double>({3});
-            for (int i = 0; i < 3; ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    r_loc[i] += P(i,j) * r[j];
-                    M_loc[i] += P(i,j) * M[j];
-                }
-            }
 
-            Array H = Hd_i_prime(r_loc, dims);
+            double rx_glob = x - magPos(d,0);
+            double ry_glob = y - magPos(d,1);
+            double rz_glob = z - magPos(d,2);
+
+            double mx_glob = M(d, 0);
+            double my_glob = M(d, 1);
+            double mz_glob = M(d, 2);
+
+            double rx_loc = P(0, 0) * rx_glob + P(0, 1) * ry_glob + P(0, 2) * rz_glob;
+            double ry_loc = P(1, 0) * rx_glob + P(1, 1) * ry_glob + P(1, 2) * rz_glob;
+            double rz_loc = P(2, 0) * rx_glob + P(2, 1) * ry_glob + P(2, 2) * rz_glob;
+            
+            double Mx_loc = P(0, 0) * mx_glob + P(0, 1) * my_glob + P(0, 2) * mz_glob;
+            double My_loc = P(1, 0) * mx_glob + P(1, 1) * my_glob + P(1, 2) * mz_glob;
+            double Mz_loc = P(2, 0) * mx_glob + P(2, 1) * my_glob + P(2, 2) * mz_glob;
+
+            Array H = Hd_i_prime(rx_loc, ry_loc, rz_loc, dims);
 
             double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]), 0.5);
             double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]), 0.5);
             double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]), 0.5);    
             double tm = 2*tx*ty*tz;
 
-            Array B_loc = xt::zeros<double>({3});
-            for (int i = 0; i < 3; ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    B_loc(n, i) += mu0 * (H(i,j) * M_loc[j] + tm * M_loc[i]);
-                }                   
-            }
-            for (int i = 0; i < 3; ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    B(n, i) += P(j,i) * B_loc[j];
-                }
-            }
+            double Bx_loc = mu0 * (H(0, 0) * M_loc[0] + tm * M_loc[0] + H(0, 1) * M_loc[1] + tm * M_loc[0] + H(0, 2) * M_loc[2] + tm * M_loc[0]);
+            double By_loc = mu0 * (H(1, 0) * M_loc[0] + tm * M_loc[1] + H(0, 1) * M_loc[1] + tm * M_loc[1] + H(0, 2) * M_loc[2] + tm * M_loc[1]);
+            double Bz_loc = mu0 * (H(2, 0) * M_loc[0] + tm * M_loc[2] + H(0, 1) * M_loc[1] + tm * M_loc[2] + H(0, 2) * M_loc[2] + tm * M_loc[2]);
+
+            B(n, 0) = P(0, 0) * B_loc[0] + P(0, 1) * B_loc[1] + P(0, 2) * B_loc[2];
+            B(n, 1) = P(1, 0) * B_loc[0] + P(1, 1) * B_loc[1] + P(1, 2) * B_loc[2];
+            B(n, 2) = P(2, 0) * B_loc[0] + P(2, 1) * B_loc[1] + P(2, 2) * B_loc[2];
         }
     }
     return B;
@@ -145,15 +143,13 @@ Array Bn_direct(Array& points, Array& magPos, Array& M, Array& norms, Array& dim
     
     #pragma omp parallel for
     for (int n = 0; n < N; ++n) {
-        for (int i = 0; i < 3; ++ i) {
-            Bn[n] += B(n,i) * norms(n,i);
-        }
+        Bn[n] = B(n, 0) * norms(n, 0) + B(n, 1) * norms(n, 1) + B(n, 2) * norms(n, 2);
     }
     return Bn;
 }
 
 
-Array gd_i(Array& r_loc, Array& n_i_loc, Array& dims) {
+Array gd_i(double rx_loc, double ry_loc, double rz_loc, double nx_loc, double ny_loc, double nz_loc, Array& dims) {
     double tx = heaviside(dims[0]/2 - std::abs(r_loc[0]),0.5);
     double ty = heaviside(dims[1]/2 - std::abs(r_loc[1]),0.5);
     double tz = heaviside(dims[2]/2 - std::abs(r_loc[2]),0.5);      
@@ -165,12 +161,11 @@ Array gd_i(Array& r_loc, Array& n_i_loc, Array& dims) {
     tmEye(0,0) = tm;
     tmEye(1,1) = tm;
     tmEye(2,2) = tm;
-    Array H_tmEye_sum = Hd_i_prime(r_loc,dims) + tmEye;
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            g_loc[i] += H_tmEye_sum(i,j) * n_i_loc[j];
-        }
-    }
+    Array H_tmEye_sum = Hd_i_prime(rx_loc, ry_loc, rz_loc, dims) + tmEye;
+
+    g_loc[0] = H_tmEye_sum(0, 0) * nx_loc + H_tmEye_sum(0, 1) * ny_loc + H_tmEye_sum(0, 2) * nz_loc;
+    g_loc[1] = H_tmEye_sum(1, 0) * nx_loc + H_tmEye_sum(1, 1) * ny_loc + H_tmEye_sum(1, 2) * nz_loc;
+    g_loc[2] = H_tmEye_sum(2, 0) * nx_loc + H_tmEye_sum(2, 1) * ny_loc + H_tmEye_sum(2, 2) * nz_loc;
 
     return mu0 * g_loc;
 }
@@ -186,12 +181,16 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
         double x = points(n, 0);
         double y = points(n, 1);
         double z = points(n, 2);
+
+        double nx_glob = norms(n, 0);
+        double ny_glob = norms(n, 1);
+        double nz_glob = norms(n, 2);
         for (int d = 0; d < D; ++d) {
             Array P = Pd(phiThetas(d,0), phiThetas(d,1));
-            Array r = xt::zeros<double>({3});
-            // double rx = x - magPos(d,0);
-            // double ry = y - magPos(d,1);
-            // double rz = z - magPos(d,2);
+
+            double rx_glob = x - magPos(d,0);
+            double ry_glob = y - magPos(d,1);
+            double rz_glob = z - magPos(d,2);
             Array r_loc = xt::zeros<double>({3});
             Array n_loc = xt::zeros<double>({3});
             for (int i = 0; i < 3; ++i) {
@@ -200,20 +199,23 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
                     n_loc[i] += P(i,j) * norms(n,j);
                 }
             }
-            // double rlocx = P(0, 0) * rx + P(0, 1) * ry + P(0, 2) * rz;
-            // double rlocy = P(1, 0) * rx + P(1, 1) * ry + P(1, 2) * rz;
-            // double rlocz = P(2, 0) * rx + P(2, 1) * ry + P(2, 2) * rz;
-            Array g_loc = gd_i(r_loc, n_loc, dims);      
-            Array g = xt::zeros<double>({3});
-            // double magVol = dims(d,0) * dims(d,1) * dims(d,2);
-            for (int i = 0; i < 3; ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    g[i] += (P(j,i) * g_loc[j]) / magVol;
-                }
-            }
-            A(n, 3*d) = g[0];
-            A(n, 3*d + 1) = g[1];
-            A(n, 3*d + 2) = g[2];
+            double rx_loc = P(0, 0) * rx_glob + P(0, 1) * ry_glob + P(0, 2) * rz_glob;
+            double ry_loc = P(1, 0) * rx_glob + P(1, 1) * ry_glob + P(1, 2) * rz_glob;
+            double rz_loc = P(2, 0) * rx_glob + P(2, 1) * ry_glob + P(2, 2) * rz_glob;
+            
+            double nx_loc = P(0, 0) * nx_glob + P(0, 1) * ny_glob + P(0, 2) * nz_glob;
+            double ny_loc = P(1, 0) * nx_glob + P(1, 1) * ny_glob + P(1, 2) * nz_glob;
+            double nz_loc = P(2, 0) * nx_glob + P(2, 1) * ny_glob + P(2, 2) * nz_glob;
+
+            Array g_loc = gd_i(rx_loc, ry_loc, rz_loc, nx_loc, ny_loc, nz_loc, dims);      
+
+            gx_glob = (P(0, 0) * g_loc[0] + P(0, 1) * g_loc[1] + P(0, 2) * g_loc[2]) / magVol;
+            gy_glob = (P(1, 0) * g_loc[0] + P(1, 1) * g_loc[1] + P(1, 2) * g_loc[2]) / magVol;
+            gz_glob = (P(2, 0) * g_loc[0] + P(2, 1) * g_loc[1] + P(2, 2) * g_loc[2]) / magVol;
+
+            A(n, 3*d) = gx_glob;
+            A(n, 3*d + 1) = gy_glob;
+            A(n, 3*d + 2) = gz_glob;
         }
     }
     return A;

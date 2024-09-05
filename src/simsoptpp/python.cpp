@@ -3,7 +3,7 @@
 #include "pybind11/functional.h"
 #define FORCE_IMPORT_ARRAY
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-#include <Eigen/Core>
+// #include <Eigen/Core>
 
 typedef xt::pyarray<double> PyArray;
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
@@ -72,10 +72,10 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("heaviside", &heaviside);
     m.def("Pd", &Pd);
     m.def("iterate_over_corners", &iterate_over_corners, py::arg("corner"), py::arg("x"), py::arg("y"), py::arg("z"));
-    m.def("Hd_i_prime", &Hd_i_prime, py::arg("r"), py::arg("dims"));
+    m.def("Hd_i_prime", &Hd_i_prime, py::arg("dims"));
     m.def("B_direct", &B_direct, py::arg("points"), py::arg("magPos"), py::arg("M"), py::arg("dims"), py::arg("phiThetas"));
     m.def("Bn_direct", &Bn_direct, py::arg("point"), py::arg("magPos"), py::arg("M"), py::arg("norms"), py::arg("dims"), py::arg("phiThetas"));
-    m.def("gd_i", &gd_i, py::arg("r_loc"), py::arg("n_i_loc"), py::arg("dims"));   
+    m.def("gd_i", &gd_i, py::arg("dims"));   
     m.def("Acube", &Acube, py::arg("points"), py::arg("magPos"), py::arg("norms"), py::arg("dims"), py::arg("phiThetas"));    
     m.def("Bn_fromMat", &Bn_fromMat, py::arg("points"), py::arg("magPos"), py::arg("M"), py::arg("norms"), py::arg("dims"), py::arg("phiThetas"));
 
