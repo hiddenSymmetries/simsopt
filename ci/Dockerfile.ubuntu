@@ -50,7 +50,7 @@ RUN git clone --depth 1 https://github.com/PrincetonUniversity/SPEC.git /src/SPE
     /venv/bin/pip install -r requirements.txt && \
     /venv/bin/pip install -v .
     
-RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
+RUN git clone --depth 1 -b fix_setuptoolsversion https://github.com/hiddenSymmetries/VMEC2000.git /src/VMEC && \
     cd /src/VMEC && \
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install -v . 2>&1 | tee vmec_build.log
