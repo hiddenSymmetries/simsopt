@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <iostream>
+#include <cmath>
+#include <omp.h>
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> Array;
 
