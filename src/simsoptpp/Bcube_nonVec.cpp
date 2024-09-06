@@ -183,14 +183,14 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
     
     Array A = xt::zeros<double>({N, 3*D});
     double* A_ptr = &(A(0, 0));
-    omp_set_dynamic(0);     // Explicitly disable dynamic teams
-    omp_set_num_threads(4); // Use 4 threads for all consecutive parallel regions
+    // omp_set_dynamic(0);     // Explicitly disable dynamic teams
+    // omp_set_num_threads(4); // Use 4 threads for all consecutive parallel regions
     #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
         double x = points_ptr[n];
         double y = points_ptr[n + 1];
         double z = points_ptr[n + 2];
-        std::cout << "threads=" << omp_get_num_threads() << std::endl;
+        // std::cout << "threads=" << omp_get_num_threads() << std::endl;
         double nx_glob = norms_ptr[n];
         double ny_glob = norms_ptr[n + 1];
         double nz_glob = norms_ptr[n + 2];
