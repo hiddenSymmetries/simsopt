@@ -152,7 +152,7 @@ def critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=None):
     return model(B_par, B_perp)
 
 
-def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=None):
+def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=None, threshold=0.5):
     """Evaluates the critical current objective, given by
     
     .. math::
@@ -181,7 +181,9 @@ def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=
     # TODO: clarify this thing.
     # Step 1: Maximize critical current for one winding.    
     # Step 1: P-norm approx of the critical current minimum
-    return jnp.mean(Ic**(1./p))**p
+
+    arc_length = jnp.linalg.norm(gammadash, axis=1)
+    return jnp.mean(arc_length * jnp.maximum(threshold-Ic,0)**2)
     
     # Step 2: Penalize current above critical current, given temperature and number of winds
     # Ic is the current in the coil
@@ -200,7 +202,7 @@ class CriticalCurrentOpt(Optimizable):
       - p: float, larger than 1. Used to approximate critical current minimum with a p-norm.
     """
 
-    def __init__(self, self_field, frame, biotsavart_ext, model=None, p=4):
+    def __init__(self, self_field, frame, biotsavart_ext, model=None, p=4, threshold=0.5):
         self.self_field = self_field
         self._curve = self_field._curve #shorthand
         self._current = self_field._current #shorthand
@@ -212,7 +214,7 @@ class CriticalCurrentOpt(Optimizable):
 
         self.critical_current_jax = lambda gamma, gammadash, alpha, Bself, Bext: critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=self.model)
 
-        self.J_jax = jit(lambda gamma, gammadash, alpha, Bself, Bext: critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=self.p, model=self.model))
+        self.J_jax = jit(lambda gamma, gammadash, alpha, Bself, Bext: critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=self.p, model=self.model, threshold=threshold))
 
         self.thisgrad0 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=0)(gamma, gammadash, alpha, Bself, Bext))
         self.thisgrad1 = jit(lambda gamma, gammadash, alpha, Bself, Bext: grad(self.J_jax, argnums=1)(gamma, gammadash, alpha, Bself, Bext))
