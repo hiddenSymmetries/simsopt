@@ -67,6 +67,7 @@ def B_direct(points, magPos, M, dims, phiThetas):
             tm = 2*tx*ty*tz
 
             B[n] += mu0 * P.T @ (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
+            B_loc = mu0 * (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
     return B
 
 def Bn_direct(points, magPos, M, norms, dims, phiThetas): #solve Bnorm using analytic formula
