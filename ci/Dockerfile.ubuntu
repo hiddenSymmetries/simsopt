@@ -55,7 +55,7 @@ RUN git clone --depth 1 https://github.com/hiddenSymmetries/VMEC2000.git /src/VM
     cp cmake/machines/ubuntu.json cmake_config_file.json && \
     /venv/bin/pip install -v . 2>&1 | tee vmec_build.log
 
-RUN /venv/bin/pip install pyoculus
+RUN /venv/bin/pip install git+https://github.com/zhisong/pyoculus
 RUN /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
 RUN /venv/bin/pip install mayavi
 RUN /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
