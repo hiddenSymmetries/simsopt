@@ -3,7 +3,7 @@
 import numpy as np
 import simsoptpp as sopp
 import sys
-sys.path.append('/Users/aak572/simsopt/Codes')
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
 import Bcube_nonVec as floop
 import simsopt.field as vec
 import time
@@ -17,7 +17,7 @@ points = pos_points * signs
 
 magPos = np.random.uniform(-10,10, size = (D,3))
 M = np.random.uniform(-2,2,size = (D,3))
-phiThetas = np.random.uniform(0,2*np.pi, size = (D,3))
+phiThetas = np.random.uniform(0,2*np.pi, size = (D,2))
 norms = np.random.uniform(-1,1, size = (N,3))
 dims = np.array([1,1,1])
 
@@ -31,12 +31,12 @@ Bv = vec.B_direct(points, magPos, M, dims, phiThetas)
 tv2 = time.time()
 print('vectorized B_direct took t = ', tv2 - tv1,' s')
 
-tc1 = time.time()
+#tc1 = time.time()
 contig = np.ascontiguousarray
-print(points.shape, magPos.shape, M.shape, dims.shape, phiThetas.shape)
-Bc = sopp.B_direct(contig(points), contig(magPos), contig(M), contig(dims), contig(phiThetas))
-tc2 = time.time()
-print('c++ B_direct took t = ', tc2 - tc1,' s')
+print(points.shape, magPos.shape, M.shape, dims.shape, phiThetas.shape, norms.shape)
+#Bc = sopp.B_direct(contig(points), contig(magPos), contig(M), contig(dims), contig(phiThetas))
+#tc2 = time.time()
+#print('c++ B_direct took t = ', tc2 - tc1,' s')
 
 # t41 = time.time()
 # B4 = floop.Acube(points, magPos, norms, dims, phiThetas)

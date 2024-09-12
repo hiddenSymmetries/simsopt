@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
 import Bcube_nonVec as floop
 import simsoptpp as sopp
 
