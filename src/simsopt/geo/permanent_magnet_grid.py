@@ -1030,7 +1030,7 @@ class ExactMagnetGrid:
         # Compute geometric factor with the C++ routine
         import time
         t1 = time.time()
-        self.A_obj = cub.Acube(
+        self.A_obj = sopp.Acube(
             np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3)),
             np.ascontiguousarray(self.pm_grid_xyz),
             np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3)),

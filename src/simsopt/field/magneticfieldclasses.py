@@ -966,7 +966,7 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
 
     def _B_impl(self, B): # check this is same as using B from grid
         points = self.get_points_cart_ref()
-        B[:] = cub.B_direct(points, self.dipole_grid, self.m_vec, self.dims, self.phiThetas)
+        B[:] = sopp.B_direct(points, self.dipole_grid, self.m_vec, self.dims, self.phiThetas)
 
     def _dB_by_dX_impl(self, dB):
         points = self.get_points_cart_ref()

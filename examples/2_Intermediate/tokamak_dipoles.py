@@ -25,7 +25,7 @@ if in_github_actions:
 else:
     nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 40  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 80  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
@@ -119,14 +119,14 @@ pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 10000
+nIter_max = 5000
 # max_nMagnets = 400
 algorithm = 'baseline'
 # algorithm = 'ArbVec_backtracking'
 # nBacktracking = 200 
 # nAdjacent = 10
 # thresh_angle = np.pi  # / np.sqrt(2)
-nHistory = 50
+nHistory = 20
 # angle = int(thresh_angle * 180 / np.pi)
 
 kwargs['K'] = nIter_max
@@ -154,8 +154,8 @@ if True:
         coordinate_flag=pm_opt.coordinate_flag,
         m_maxima=pm_opt.m_maxima,
     )
-    print('bfield = ',b_dipole)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+    print(b_dipole.set_points(s_plot.gamma().reshape((-1, 3))))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
     make_Bnormal_plots(bs + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
