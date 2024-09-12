@@ -56,31 +56,23 @@ Array iterate_over_corners(int i, int j, int k, Array& x, Array& y, Array& z) {
 
 Array Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, double dimx, double dimy, double dimz) {
     Array H = xt::zeros<double>({3, 3});
-    // Array X = xt::zeros<double>({2});
-    X0 = rx_loc + dimx/2;
-    X1 = rx_loc - dimx/2;
-    // Array Y = xt::zeros<double>({2});
-    Y0 = ry_loc + dimy/2;
-    Y1 = ry_loc - dimy/2;
-    // Array Z = xt::zeros<double>({2});
-    Z0 = rz_loc + dimz/2;
-    Z1 = rz_loc - dimz/2;
+    Array X = xt::zeros<double>({2});
+    X(0) = rx_loc + dimx/2;
+    X(1) = rx_loc - dimx/2;
+    Array Y = xt::zeros<double>({2});
+    Y(0) = ry_loc + dimy/2;
+    Y(1) = ry_loc - dimy/2;
+    Array Z = xt::zeros<double>({2});
+    Z(0) = rz_loc + dimz/2;
+    Z(1) = rz_loc - dimz/2;
 
-    // for (int i = 0; i < 2; ++i) {
-    //     for (int j = 0; j < 2; ++j) {
-    //         for (int k = 0; k < 2; ++k) {
-                // H += iterate_over_corners(i, j, k, X, Y, Z);
-    //         }
-    //     }
-    // }
-    H += iterate_over_corners(i, j, k, X0, Y0, Z0);
-    H += iterate_over_corners(i, j, k, X0, Y0, Z1);
-    H += iterate_over_corners(i, j, k, X0, Y1, Z1);
-    H += iterate_over_corners(i, j, k, X1, Y1, Z1);
-    H += iterate_over_corners(i, j, k, X0, Y1, Z0);
-    H += iterate_over_corners(i, j, k, X1, Y0, Z0);
-    H += iterate_over_corners(i, j, k, X0, Y0, Z0);
-    H += iterate_over_corners(i, j, k, X0, Y0, Z0);
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 0; j < 2; ++j) {
+            for (int k = 0; k < 2; ++k) {
+                H += iterate_over_corners(i, j, k, X, Y, Z);
+            }
+        }
+    }
     return H / (4.0 * M_PI);
 }
 

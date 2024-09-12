@@ -438,16 +438,10 @@ class PermanentMagnetGrid:
             self.R0
         )
 
-        print('# points = ',len(np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3))))
-        print('# mag points = ', len(np.ascontiguousarray(self.dipole_grid_xyz)))
-        print('# ponorms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
-        print('A shape = ',self.A_obj.shape)
-
         # Rescale the A matrix so that 0.5 * ||Am - b||^2 = f_b,
         # where f_b is the metric for Bnormal on the plasma surface
         Ngrid = self.nphi * self.ntheta
         self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
-        print('A after reshape = ',self.A_obj.shape)
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
             self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid)
@@ -1045,18 +1039,12 @@ class ExactMagnetGrid:
         t2 = time.time()
         print('Acube took ', t2 - t1, ' seconds')
 
-        print('# points = ',len(np.ascontiguousarray(self.plasma_boundary.gamma().reshape(-1, 3))))
-        print('# mag points = ', len(np.ascontiguousarray(self.pm_grid_xyz)))
-        print('# ponorms = ',len(np.ascontiguousarray(self.plasma_boundary.unitnormal().reshape(-1, 3))))
-        print('# (phi, theta) mag orientations = ',len(self.get_phiThetas()))
-        print('A shape = ',self.A_obj.shape)
         #HAVE TO ADD COORDINATE FLAG, NFP, STELLSYM, BOBJ, R0 TO MY A OBJECT
 
         # Rescale the A matrix so that 0.5 * ||Am - b||^2 = f_b,
         # where f_b is the metric for Bnormal on the plasma surface
         Ngrid = self.nphi * self.ntheta
         self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
-        print('A after reshape = ',self.A_obj.shape)
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
             self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid)

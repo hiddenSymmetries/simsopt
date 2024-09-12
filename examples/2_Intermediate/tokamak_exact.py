@@ -126,7 +126,7 @@ algorithm = 'baseline'
 # nBacktracking = 200 
 # nAdjacent = 10
 # thresh_angle = np.pi  # / np.sqrt(2)
-nHistory = 10
+nHistory = 20
 # angle = int(thresh_angle * 180 / np.pi)
 
 kwargs['K'] = nIter_max
@@ -157,10 +157,8 @@ if True:
         m_maxima=pm_opt.m_maxima,
     )
     b_exact.set_points(s_plot.gamma().reshape((-1, 3)))
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
     b_exact._toVTK(out_dir / "Exact_Fields")
-    # print('pm B = ', b_exact.B())
-    # print('pm B sum = ', np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1))
-    # print('tf coil B = ', bs.B())
     make_Bnormal_plots(bs + b_exact, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_exact.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)

@@ -72,7 +72,7 @@ def B_direct(points, magPos, m, dims, phiThetas):
     H_pm = np.sum(Hd_i_prime(r_loc, dims) * Pm[None, :, None, :], axis=-1)
 
     # Double sum because we are rotating by P and then summing over all the magnet locations
-    B = mu0 * np.sum(np.sum(PT[None, :, :, :] * (H_pm + tm_Pm)[:, :, None, :], axis=-1), axis=0)
+    B = mu0 * np.sum(np.sum(PT[None, :, :, :] * (H_pm + tm_Pm)[:, :, None, :], axis=-1), axis=1)
 
     return B
 

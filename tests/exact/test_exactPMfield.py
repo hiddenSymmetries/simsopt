@@ -16,6 +16,16 @@ def simBn(points, magPos, M, norms):
 
     return Bn
     
+point = np.array([[0,0,100]])
+magPos = np.array([[0,0,0]])
+M = np.array([[0,0,1]])
+phiTheta = np.array([[np.radians(32),np.radians(144)]])
+dims = np.array([1,1,1])
+
+Bcube = B_direct(point, magPos, M, dims, phiTheta)
+Bsim_dip = dipole_field_B(point, magPos, M)
+print(Bcube)
+print(Bsim_dip)
 
 class Testing(unittest.TestCase):
 
