@@ -23,9 +23,9 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 70  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 40  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
@@ -45,9 +45,9 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
-# s.stellsym=False
-# s_inner.stellsym=False
-# s_outer.stellsym=False
+s.stellsym=False
+s_inner.stellsym=False
+s_outer.stellsym=False
 
 # Make the output directory
 out_dir = Path("tokamak_exact")
@@ -156,6 +156,7 @@ if True:
         coordinate_flag=pm_opt.coordinate_flag,
         m_maxima=pm_opt.m_maxima,
     )
+    print('b field = ',b_exact)
     b_exact.set_points(s_plot.gamma().reshape((-1, 3)))
     b_exact._toVTK(out_dir / "Exact_Fields")
     make_Bnormal_plots(bs + b_exact, s_plot, out_dir, "biot_savart_optimized")

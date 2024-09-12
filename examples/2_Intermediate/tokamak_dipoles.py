@@ -23,14 +23,14 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 50  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 40  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.5  # PM grid end offset ~ 15 cm from the plasma surface
+poff = 0.25  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.circular_tokamak'
 
 # Read in the plas/ma equilibrium file
@@ -45,9 +45,9 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
 
-# s.stellsym=False
-# s_inner.stellsym=False
-# s_outer.stellsym=False
+s.stellsym=False
+s_inner.stellsym=False
+s_outer.stellsym=False
 
 # Make the output directory
 out_dir = Path("tokamak_dipole")
@@ -126,7 +126,7 @@ algorithm = 'baseline'
 # nBacktracking = 200 
 # nAdjacent = 10
 # thresh_angle = np.pi  # / np.sqrt(2)
-nHistory = 10
+nHistory = 50
 # angle = int(thresh_angle * 180 / np.pi)
 
 kwargs['K'] = nIter_max
@@ -154,11 +154,9 @@ if True:
         coordinate_flag=pm_opt.coordinate_flag,
         m_maxima=pm_opt.m_maxima,
     )
+    print('bfield = ',b_dipole)
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
-    print('pm B = ', b_dipole.B())
-    print('pm B sum = ', np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1))
-    print('tf coil B = ', bs.B())
     make_Bnormal_plots(bs + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
