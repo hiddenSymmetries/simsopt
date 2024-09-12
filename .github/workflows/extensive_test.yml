@@ -98,7 +98,7 @@ jobs:
     - name: Install python dependencies
       run: |
            sudo apt-get install graphviz graphviz-dev
-           pip install wheel "numpy<2.0.0" scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann
+           pip install wheel "numpy<2.0.0" scipy f90nml h5py scikit-build cmake qsc sympy pyevtk matplotlib ninja plotly networkx pygraphviz ground bentley_ottmann f90wrap
 
     - name: Install booz_xform
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
@@ -124,9 +124,6 @@ jobs:
         pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
-
-    - name: Install f90wrap
-      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
 
     - name: Build SPEC python wrapper.
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
@@ -166,8 +163,9 @@ jobs:
     - name: Install simsopt package
       if: contains(matrix.packages, 'spec') || contains(matrix.packages, 'all')
       run: |
+        pip install -v git+https://github.com/zhisong/pyoculus
         pip install -v .
-        pip install mpi4py py_spec pyoculus h5py
+        pip install mpi4py py_spec h5py
 
     - name: Install simsopt package
       if: contains(matrix.packages, 'none')
