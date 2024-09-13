@@ -235,7 +235,7 @@ jobs:
 
     - name: ls to see if coverage files were produced
       if: contains(matrix.test-type, 'unit')
-      run: ls
+      run: ls -al
 
     - name: Upload uncombined coverage to github
       if: contains(matrix.test-type, 'unit')

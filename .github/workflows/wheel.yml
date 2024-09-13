@@ -28,7 +28,7 @@ jobs:
           CIBW_SKIP: cp27-* cp36-* cp37-*
           CIBW_DEPENDENCY_VERSIONS: latest
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -56,7 +56,7 @@ jobs:
       - name: Build sdist
         run: python -m build -s -o dist .
         
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           path: dist/*.tar.gz
 
