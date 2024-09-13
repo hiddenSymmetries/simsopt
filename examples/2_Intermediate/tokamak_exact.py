@@ -45,10 +45,6 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
-# s.stellsym=False
-# s_inner.stellsym=False
-# s_outer.stellsym=False
-
 # Make the output directory
 out_dir = Path("tokamak_exact")
 out_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +98,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
-s_plot.stellsym=False
+# s_plot.stellsym=False
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")

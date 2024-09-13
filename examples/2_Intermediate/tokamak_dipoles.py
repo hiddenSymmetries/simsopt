@@ -23,9 +23,9 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 80  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 40  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
@@ -44,10 +44,6 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
-
-s.stellsym=False
-s_inner.stellsym=False
-s_outer.stellsym=False
 
 # Make the output directory
 out_dir = Path("tokamak_dipole")
@@ -102,7 +98,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
-s_plot.stellsym=False
+# s_plot.stellsym=False
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
@@ -155,7 +151,6 @@ if True:
         m_maxima=pm_opt.m_maxima,
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-    print(b_dipole.set_points(s_plot.gamma().reshape((-1, 3))))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
     make_Bnormal_plots(bs + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)

@@ -9,11 +9,16 @@ typedef xt::pyarray<double> Array;
 
 double heaviside(double x1, double x2);
 
-Array Pd(double phi, double theta);
+std::tuple<double, double, double, double, double, double, double, double, double> \
+    Pd(double phi, double theta);
 
-Array iterate_over_corners(int i, int j, int k, Array& x, Array& y, Array& z);
+void iterate_over_corners(int i, int j, int k, \
+    double x, double y, double z, \
+    double& h00, double& h01, double& h02, double& h10, double& h11, \
+    double& h12, double& h20, double& h21, double& h22);
 
-Array Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, double dimx, double dimy, double dimz);
+std::tuple<double, double, double, double, double, double, double, double, double> \
+    Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, double dimx, double dimy, double dimz);
 
 Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiThetas);
 
@@ -22,6 +27,8 @@ Array Bn_direct(Array& point, Array& magPos, Array& M, Array& norms, Array& dims
 std::tuple<double, double, double> gd_i(double rx_loc, double ry_loc, double rz_loc, double nx_loc, \
     double ny_loc, double nz_loc, double dimx, double dimy, double dimz);
 
-Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phithetas);
+Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \ 
+    Array& phiThetas, int nfp, int stellsym);
 
-Array Bn_fromMat(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas);
+Array Bn_fromMat(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas, \ 
+    int nfp, int stellsym);

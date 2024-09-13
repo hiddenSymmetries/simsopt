@@ -13,69 +13,86 @@ double heaviside(double x1, double x2) {
     };
 }
 
-Array Pd(double phi, double theta) {
+std::tuple<double, double, double, double, double, double, double, double, double> \
+    Pd(double phi, double theta) {
     double cosT = std::cos(theta);
     double sinT = std::sin(theta);
     double cosP = std::cos(phi);
     double sinP = std::sin(phi);
-    Array P = xt::zeros<double>({3, 3});
-    P(0, 0) = cosT * cosP;
-    P(0, 1) = -cosT * sinP;
-    P(0, 2) = sinT;
-    P(1, 0) = sinP;
-    P(1, 1) = cosP;
-    P(1, 2) = 0.0;
-    P(2, 0) = -sinT * cosP;
-    P(2, 1) = sinT * sinP;
-    P(2, 2) = cosT;
-    return P;
+    double p00 = cosT * cosP;
+    double p01 = -cosT * sinP;
+    double p02 = sinT;
+    double p10 = sinP;
+    double p11 = cosP;
+    double p12 = 0.0;
+    double p20 = -sinT * cosP;
+    double p21 = sinT * sinP;
+    double p22 = cosT;
+    return std::make_tuple(p00, p01, p02, p10, p11, p12, p20, p21, p22);
 }
 
-Array iterate_over_corners(int i, int j, int k, Array& x, Array& y, Array& z) {
+void iterate_over_corners(int i, int j, int k, \
+    double x, double y, double z, \
+    double& h00, double& h01, double& h02, double& h10, double& h11, \
+    double& h12, double& h20, double& h21, double& h22) {
+    //    
     double summa = std::pow(-1, i+j+k);
-    double rijk = std::sqrt(x(i)*x(i) + y(j)*y(j) + z(k)*z(k));
-    double atan_xy = std::atan2(y(j)*x(i),z(k)*rijk);
-    double atan_xz = std::atan2(z(k)*x(i),y(j)*rijk);
-    double atan_yz = std::atan2(y(j)*z(k),x(i)*rijk);
-    double log_x = std::log(x(i) + rijk);
-    double log_y = std::log(y(j) + rijk);
-    double log_z = std::log(z(k) + rijk);
-    
-    Array h = xt::zeros<double>({3, 3});
-    h(0,0) = atan_xy + atan_xz;
-    h(0,1) = log_z;
-    h(0,2) = log_y;
-    h(1,0) = log_z;
-    h(1,1) = atan_xy + atan_yz;
-    h(1,2) = log_x;
-    h(2,0) = log_y;
-    h(2,1) = log_x;
-    h(2,2) = atan_xz + atan_yz;
-    return summa * h;
+    double rijk = std::sqrt(x * x + y * y + z * z);
+    double atan_xy = summa * std::atan2(y * x, z * rijk);
+    double atan_xz = summa * std::atan2(z * x, y * rijk);
+    double atan_yz = summa * std::atan2(y * z, x * rijk);
+    double log_x = summa * std::log(x + rijk);
+    double log_y = summa * std::log(y + rijk);
+    double log_z = summa * std::log(z + rijk);
+    h00 += atan_xy + atan_xz;
+    h01 += log_z;
+    h02 += log_y;
+    h10 += log_z;
+    h11 += atan_xy + atan_yz;
+    h12 += log_x;
+    h20 += log_y;
+    h21 += log_x;
+    h22 += atan_xz + atan_yz;
+    return;
 }
 
-Array Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, double dimx, double dimy, double dimz) {
-    Array H = xt::zeros<double>({3, 3});
-    Array X = xt::zeros<double>({2});
-    X(0) = rx_loc + dimx/2;
-    X(1) = rx_loc - dimx/2;
-    Array Y = xt::zeros<double>({2});
-    Y(0) = ry_loc + dimy/2;
-    Y(1) = ry_loc - dimy/2;
-    Array Z = xt::zeros<double>({2});
-    Z(0) = rz_loc + dimz/2;
-    Z(1) = rz_loc - dimz/2;
-
-    for (int i = 0; i < 2; ++i) {
-        for (int j = 0; j < 2; ++j) {
-            for (int k = 0; k < 2; ++k) {
-                H += iterate_over_corners(i, j, k, X, Y, Z);
-            }
-        }
-    }
-    return H / (4.0 * M_PI);
+std::tuple<double, double, double, double, double, double, double, double, double> \
+    Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, double dimx, double dimy, double dimz) {
+    //
+    double X0 = rx_loc + dimx/2;
+    double X1 = rx_loc - dimx/2;
+    double Y0 = ry_loc + dimy/2;
+    double Y1 = ry_loc - dimy/2;
+    double Z0 = rz_loc + dimz/2;
+    double Z1 = rz_loc - dimz/2;
+    double H00 = 0.0;
+    double H01 = 0.0;
+    double H02 = 0.0;
+    double H10 = 0.0;
+    double H11 = 0.0;
+    double H12 = 0.0;
+    double H20 = 0.0;
+    double H21 = 0.0;
+    double H22 = 0.0;
+    iterate_over_corners(0, 0, 0, X0, Y0, Z0, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(0, 0, 1, X0, Y0, Z1, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(0, 1, 0, X0, Y1, Z0, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(1, 0, 0, X1, Y0, Z0, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(1, 1, 0, X1, Y1, Z0, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(0, 1, 1, X0, Y1, Z1, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(1, 0, 1, X1, Y0, Z1, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    iterate_over_corners(1, 1, 1, X1, Y1, Z1, H00, H01, H02, H10, H11, H12, H20, H21, H22);
+    H00 *= 1.0 / (4.0 * M_PI);
+    H01 *= 1.0 / (4.0 * M_PI);
+    H02 *= 1.0 / (4.0 * M_PI);
+    H10 *= 1.0 / (4.0 * M_PI);
+    H11 *= 1.0 / (4.0 * M_PI);
+    H12 *= 1.0 / (4.0 * M_PI);
+    H20 *= 1.0 / (4.0 * M_PI);
+    H21 *= 1.0 / (4.0 * M_PI);
+    H22 *= 1.0 / (4.0 * M_PI);
+    return std::make_tuple(H00, H01, H02, H10, H11, H12, H20, H21, H22);
 }
-
 
 Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiThetas) {
     int N = points.shape(0);
@@ -83,96 +100,84 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
     double dimx = dims(0);
     double dimy = dims(1);
     double dimz = dims(2);
-
+    double* points_ptr = &(points(0, 0));
+    double* magPos_ptr = &(magPos(0, 0));
+    double* phiThetas_ptr = &(phiThetas(0, 0));
+    double* M_ptr = &(M(0, 0));
     Array B = xt::zeros<double>({N, 3});
-    Array B_loc = xt::zeros<double>({3});
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
-        double x = points(n, 0);
-        double y = points(n, 1);
-        double z = points(n, 2);
+        double x = points_ptr[3 * n];
+        double y = points_ptr[3 * n + 1];
+        double z = points_ptr[3 * n + 2];
         for (int d = 0; d < D; ++d) {
-            Array P = Pd(phiThetas(d,0), phiThetas(d,1));
+            double p00, p01, p02, p10, p11, p12, p20, p21, p22;
+            std::tie(p00, p01, p02, p10, p11, p12, p20, p21, p22) = Pd( \
+                phiThetas_ptr[2 * d], phiThetas_ptr[2 * d + 1]);
+            double rx_glob = x - magPos_ptr[3 * d];
+            double ry_glob = y - magPos_ptr[3 * d + 1];
+            double rz_glob = z - magPos_ptr[3 * d + 2];
+            double Mx_glob = M_ptr[3 * d];
+            double My_glob = M_ptr[3 * d + 1];
+            double Mz_glob = M_ptr[3 * d + 2];
+            double rx_loc = p00 * rx_glob + p01 * ry_glob + p02 * rz_glob;
+            double ry_loc = p10 * rx_glob + p11 * ry_glob + p12 * rz_glob;
+            double rz_loc = p20 * rx_glob + p21 * ry_glob + p22 * rz_glob;
+            double Mx_loc = p00 * Mx_glob + p01 * My_glob + p02 * Mz_glob;
+            double My_loc = p10 * Mx_glob + p11 * My_glob + p12 * Mz_glob;
+            double Mz_loc = p20 * Mx_glob + p21 * My_glob + p22 * Mz_glob;
+            double h00, h01, h02, h10, h11, h12, h20, h21, h22;
+            std::tie(h00, h01, h02, h10, h11, h12, h20, h21, h22) = Hd_i_prime( \
+                rx_loc, ry_loc, rz_loc, dimx, dimy, dimz);
 
-            double rx_glob = x - magPos(d,0);
-            double ry_glob = y - magPos(d,1);
-            double rz_glob = z - magPos(d,2);
-
-            double Mx_glob = M(d, 0);
-            double My_glob = M(d, 1);
-            double Mz_glob = M(d, 2);
-
-            double rx_loc = P(0, 0) * rx_glob + P(0, 1) * ry_glob + P(0, 2) * rz_glob;
-            double ry_loc = P(1, 0) * rx_glob + P(1, 1) * ry_glob + P(1, 2) * rz_glob;
-            double rz_loc = P(2, 0) * rx_glob + P(2, 1) * ry_glob + P(2, 2) * rz_glob;
-            
-            double Mx_loc = P(0, 0) * Mx_glob + P(0, 1) * My_glob + P(0, 2) * Mz_glob;
-            double My_loc = P(1, 0) * Mx_glob + P(1, 1) * My_glob + P(1, 2) * Mz_glob;
-            double Mz_loc = P(2, 0) * Mx_glob + P(2, 1) * My_glob + P(2, 2) * Mz_glob;
-
-            Array H = Hd_i_prime(rx_loc, ry_loc, rz_loc, dimx, dimy, dimz);
-
-            double tx = heaviside(dims(0)/2 - std::abs(rx_loc), 0.5);
-            double ty = heaviside(dims(1)/2 - std::abs(ry_loc), 0.5);
-            double tz = heaviside(dims(2)/2 - std::abs(rz_loc), 0.5);    
-            double tm = 2*tx*ty*tz;
-
-            double Bx_loc = mu0 * (H(0, 0) * Mx_loc + tm * Mx_loc + H(0, 1) * My_loc + tm * Mx_loc + H(0, 2) * Mz_loc + tm * Mx_loc);
-            double By_loc = mu0 * (H(1, 0) * Mx_loc + tm * My_loc + H(1, 1) * My_loc + tm * My_loc + H(1, 2) * Mz_loc + tm * My_loc);
-            double Bz_loc = mu0 * (H(2, 0) * Mx_loc + tm * Mz_loc + H(2, 1) * My_loc + tm * Mz_loc + H(2, 2) * Mz_loc + tm * Mz_loc);
-
-            B_loc(0) = Bx_loc;
-            B_loc(1) = By_loc;
-            B_loc(2) = Bz_loc;
-
-            B(n, 0) += P(0, 0) * Bx_loc + P(1, 0) * By_loc + P(2, 0) * Bz_loc;
-            B(n, 1) += P(0, 1) * Bx_loc + P(1, 1) * By_loc + P(2, 1) * Bz_loc;
-            B(n, 2) += P(0, 2) * Bx_loc + P(1, 2) * By_loc + P(2, 2) * Bz_loc;
+            double tx = heaviside(dimx / 2.0 - std::abs(rx_loc), 0.5);
+            double ty = heaviside(dimy / 2.0 - std::abs(ry_loc), 0.5);
+            double tz = heaviside(dimz / 2.0 - std::abs(rz_loc), 0.5);    
+            double tm = 2.0 * tx * ty * tz;
+            double Bx_loc = (h00 * Mx_loc + tm * Mx_loc + h01 * My_loc + tm * Mx_loc + h02 * Mz_loc + tm * Mx_loc);
+            double By_loc = (h10 * Mx_loc + tm * My_loc + h11 * My_loc + tm * My_loc + h12 * Mz_loc + tm * My_loc);
+            double Bz_loc = (h20 * Mx_loc + tm * Mz_loc + h21 * My_loc + tm * Mz_loc + h22 * Mz_loc + tm * Mz_loc);
+            B(n, 0) += p00 * Bx_loc + p10 * By_loc + p20 * Bz_loc;
+            B(n, 1) += p01 * Bx_loc + p11 * By_loc + p21 * Bz_loc;
+            B(n, 2) += p02 * Bx_loc + p12 * By_loc + p22 * Bz_loc;
         }
     }
-    return B;
+    return B * mu0;
 }
 
 Array Bn_direct(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas) {
     int N = points.shape(0);
-    
     Array B = B_direct(points, magPos, M, dims, phiThetas);
     Array Bn = xt::zeros<double>({N});
-    
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
         Bn(n) = B(n, 0) * norms(n, 0) + B(n, 1) * norms(n, 1) + B(n, 2) * norms(n, 2);
     }
     return Bn;
 }
 
-
 std::tuple<double, double, double> gd_i(double rx_loc, double ry_loc, double rz_loc, \
     double nx_loc, double ny_loc, double nz_loc, double dimx, double dimy, double dimz) {
-    double gx_loc, gy_loc, gz_loc;
-    double tx = heaviside(dimx/2 - std::abs(rx_loc),0.5);
-    double ty = heaviside(dimy/2 - std::abs(ry_loc),0.5);
-    double tz = heaviside(dimz/2 - std::abs(rz_loc),0.5);      
-    double tm = 2*tx*ty*tz;
-
-    // Hd.T = Hd, symmetric matrix
-    Array tmEye = xt::zeros<double>({3,3});
-    tmEye(0,0) = tm;
-    tmEye(1,1) = tm;
-    tmEye(2,2) = tm;
-    Array H_tmEye_sum = Hd_i_prime(rx_loc, ry_loc, rz_loc, dimx, dimy, dimz) + tmEye;
-
-    gx_loc = H_tmEye_sum(0, 0) * nx_loc + H_tmEye_sum(0, 1) * ny_loc + H_tmEye_sum(0, 2) * nz_loc;
-    gy_loc = H_tmEye_sum(1, 0) * nx_loc + H_tmEye_sum(1, 1) * ny_loc + H_tmEye_sum(1, 2) * nz_loc;
-    gz_loc = H_tmEye_sum(2, 0) * nx_loc + H_tmEye_sum(2, 1) * ny_loc + H_tmEye_sum(2, 2) * nz_loc;
-
+    // 
+    double gx_loc, gy_loc, gz_loc, h00, h01, h02, h10, h11, h12, h20, h21, h22;
+    double tx = heaviside(dimx / 2.0 - std::abs(rx_loc), 0.5);
+    double ty = heaviside(dimy / 2.0 - std::abs(ry_loc), 0.5);
+    double tz = heaviside(dimz / 2.0 - std::abs(rz_loc), 0.5);   
+    double tm = 2 * tx * ty * tz;
+    std::tie(h00, h01, h02, h10, h11, h12, h20, h21, h22) = Hd_i_prime(rx_loc, ry_loc, rz_loc, dimx, dimy, dimz);
+    h00 += tm;
+    h11 += tm;
+    h22 += tm;
+    gx_loc = h00 * nx_loc + h01 * ny_loc + h02 * nz_loc;
+    gy_loc = h10 * nx_loc + h11 * ny_loc + h12 * nz_loc;
+    gz_loc = h20 * nx_loc + h21 * ny_loc + h22 * nz_loc;
     return std::make_tuple(gx_loc, gy_loc, gz_loc);
 }
 
-Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiThetas) {
+Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \ 
+    Array& phiThetas, int nfp, int stellsym) {
     int N = points.shape(0);
     int D = magPos.shape(0);
-    // double magVol = dimx * dims(1) * dims(2);
     double* points_ptr = &(points(0, 0));
     double* magPos_ptr = &(magPos(0, 0));
     double* phiThetas_ptr = &(phiThetas(0, 0));
@@ -181,20 +186,16 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
     double dimy = dims(1);
     double dimz = dims(2);
     
-    Array A = xt::zeros<double>({N, 3*D});
-    // omp_set_dynamic(0);     // Explicitly disable dynamic teams
-    // omp_set_num_threads(4); // Use 4 threads for all consecutive parallel regions
+    Array A = xt::zeros<double>({N, 3 * D});
     #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
         double x = points_ptr[3 * n];
         double y = points_ptr[3 * n + 1];
         double z = points_ptr[3 * n + 2];
-        // std::cout << "threads=" << omp_get_num_threads() << std::endl;
         double nx_glob = norms_ptr[3 * n];
         double ny_glob = norms_ptr[3 * n + 1];
         double nz_glob = norms_ptr[3 * n + 2];
         for (int d = 0; d < D; ++d) {
-            // Array P = Pd(phiThetas(d, 0), phiThetas(d, 1));
             double phi = phiThetas_ptr[2 * d];
             double theta = phiThetas_ptr[2 * d + 1];
             double cosT = std::cos(theta);
@@ -210,52 +211,60 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, Array& phiT
             double P20 = -sinT * cosP;
             double P21 = sinT * sinP;
             double P22 = cosT;
-            double rx_glob = x - magPos_ptr[3 * d];
-            double ry_glob = y - magPos_ptr[3 * d + 1];
-            double rz_glob = z - magPos_ptr[3 * d + 2];
-            double rx_loc = P00 * rx_glob + P01 * ry_glob + P02 * rz_glob;
-            double ry_loc = P10 * rx_glob + P11 * ry_glob + P12 * rz_glob;
-            double rz_loc = P20 * rx_glob + P21 * ry_glob + P22 * rz_glob;
-            double nx_loc = P00 * nx_glob + P01 * ny_glob + P02 * nz_glob;
-            double ny_loc = P10 * nx_glob + P11 * ny_glob + P12 * nz_glob;
-            double nz_loc = P20 * nx_glob + P21 * ny_glob + P22 * nz_glob;
-            double gx_loc, gy_loc, gz_loc;
-            std::tie(gx_loc, gy_loc, gz_loc) = gd_i( \
-                rx_loc, ry_loc, rz_loc, nx_loc, \
-                ny_loc, nz_loc, dimx, dimy, dimz);
-
-            // got rid of / magVol factor here so need to divide the matrix 
-            // in the Python code, after the call to this c++ function
-            // A_ptr[(n * D + d) * 3] = (P00 * gx_loc + P10 * gy_loc + P20 * gz_loc);
-            // A_ptr[(n * D + d) * 3 + 1] = (P01 * gx_loc + P11 * gy_loc + P21 * gz_loc);
-            // A_ptr[(n * D + d) * 3 + 2] = (P02 * gx_loc + P12 * gy_loc + P22 * gz_loc);
-            A(n, 3 * d) = (P00 * gx_loc + P10 * gy_loc + P20 * gz_loc);
-            A(n, 3 * d + 1) = (P01 * gx_loc + P11 * gy_loc + P21 * gz_loc);
-            A(n, 3 * d + 2) = (P02 * gx_loc + P12 * gy_loc + P22 * gz_loc);
-            // A(n, 3*d) = (P00 * g_loc[0] + P10 * g_loc[1] + P20 * g_loc[2]);
-            // A(n, 3*d + 1) = (P01 * g_loc[0] + P11 * g_loc[1] + P21 * g_loc[2]);
-            // A(n, 3*d + 2) = (P02 * g_loc[0] + P12 * g_loc[1] + P22 * g_loc[2]);
+            double mpx = magPos_ptr[3 * d];
+            double mpy = magPos_ptr[3 * d + 1];
+            double mpz = magPos_ptr[3 * d + 2];
+            for(int fp = 0; fp < nfp; ++fp) {
+                double phi0 = (2 * M_PI / ((double) nfp)) * fp;
+                auto sphi0 = std::sin(phi0);
+                auto cphi0 = std::cos(phi0);
+                for (int stell = 0; stell < (stellsym + 1); ++stell) {
+                    // Calculate new dipole location after accounting for the symmetries
+                    // reflect the y and z-components and then rotate by phi0
+                    auto mp_x_new = mpx * cphi0 - mpy * sphi0 * pow(-1, stell);
+                    auto mp_y_new = mpx * sphi0 + mpy * cphi0 * pow(-1, stell);
+                    auto mp_z_new = mpz * pow(-1, stell);
+                    double rx_glob = x - mp_x_new;
+                    double ry_glob = y - mp_y_new;
+                    double rz_glob = z - mp_z_new;
+                    double rx_loc = P00 * rx_glob + P01 * ry_glob + P02 * rz_glob;
+                    double ry_loc = P10 * rx_glob + P11 * ry_glob + P12 * rz_glob;
+                    double rz_loc = P20 * rx_glob + P21 * ry_glob + P22 * rz_glob;
+                    double nx_loc = P00 * nx_glob + P01 * ny_glob + P02 * nz_glob;
+                    double ny_loc = P10 * nx_glob + P11 * ny_glob + P12 * nz_glob;
+                    double nz_loc = P20 * nx_glob + P21 * ny_glob + P22 * nz_glob;
+                    double gx_loc, gy_loc, gz_loc;
+                    std::tie(gx_loc, gy_loc, gz_loc) = gd_i( \
+                        rx_loc, ry_loc, rz_loc, nx_loc, \
+                        ny_loc, nz_loc, dimx, dimy, dimz);
+                    auto Gx = (P00 * gx_loc + P10 * gy_loc + P20 * gz_loc);
+                    auto Gy = (P01 * gx_loc + P11 * gy_loc + P21 * gz_loc);
+                    auto Gz = (P02 * gx_loc + P12 * gy_loc + P22 * gz_loc);
+                    
+                    // rotate by -phi0 and then flip x component
+                    // This should be the reverse of what is done to the m vector and the dipole grid
+                    // because A * m = A * R^T * R * m and R is an orthogonal matrix both
+                    // for a reflection and a rotation.
+                    A(n, 3 * d) += (Gx * cphi0 + Gy * sphi0) * pow(-1, stell);
+                    A(n, 3 * d + 1) += (-Gx * sphi0 + Gy * cphi0);
+                    A(n, 3 * d + 2) += Gz;
+                }
+            }
         }
     }
     return A * mu0;
 }
 
-Array Bn_fromMat(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas) {
+Array Bn_fromMat(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, \
+    Array& phiThetas, int nfp, int stellsym) {
     int N = points.shape(0);
     int D = M.shape(0);
-    Array A = Acube(points, magPos, norms, dims, phiThetas);
-    Array Ms = xt::zeros<double>({3*D});
-    #pragma omp parallel for
-    for (int d = 0; d < D; ++d) {
-        for (int i = 0; i < 3; ++i) {
-            Ms(3*d + i) = M(d,i);
-        }
-    }
+    Array A = Acube(points, magPos, norms, dims, phiThetas, nfp, stellsym);
     Array Bn = xt::zeros<double>({N});
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
-        for (int d = 0; d < 3*D; ++d) {
-            Bn(n) += A(n,d) * Ms(d);
+        for (int d = 0; d < D; ++d) {
+            Bn(n) += A(n, 3 * d) * M(d, 0) + A(n, 3 * d + 1) * M(d, 1) + A(n, 3 * d + 2) * M(d, 2);
         }
     }
     return Bn;

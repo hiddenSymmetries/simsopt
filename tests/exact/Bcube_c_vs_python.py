@@ -56,7 +56,7 @@ class Testing(unittest.TestCase):
         norm = np.array([[0,0,1]])
 
         A_cube4 = floop.Acube(point, magPos, norm, dims, phiTheta)
-        A_cubeC = sopp.Acube(point, magPos, norm, dims, phiTheta)
+        A_cubeC = sopp.Acube(point, magPos, norm, dims, phiTheta, 1, 0)
         assert np.allclose(A_cube4, A_cubeC)
 
 
@@ -70,7 +70,7 @@ class Testing(unittest.TestCase):
 
         BncubeMAT4 = floop.Bn_fromMat(point, magPos, M, norm, dims, phiTheta)
         Bncube4 = floop.Bn_direct(point, magPos, M, norm, dims, phiTheta)
-        BncubeMATV = sopp.Bn_fromMat(point, magPos, M, norm, dims, phiTheta)
+        BncubeMATV = sopp.Bn_fromMat(point, magPos, M, norm, dims, phiTheta, 1, 0)
         BncubeC = sopp.Bn_direct(point, magPos, M, norm, dims, phiTheta)
         assert np.allclose(BncubeMAT4, Bncube4)
         assert np.allclose(BncubeMATV, BncubeC)
@@ -83,7 +83,7 @@ class Testing(unittest.TestCase):
         points = pos_points * signs
         
         magPos = np.random.uniform(-10,10, size = (100,3))
-        M = np.random.uniform(-2,2,size = (100,3))
+        M = 1e10 * np.random.uniform(-2,2,size = (100,3))
         phiThetas = np.random.uniform(0,2*np.pi, size = (100,3))
         norms = np.random.uniform(-1,1, size = (100,3))
         dims = np.array([1,1,1])
@@ -97,11 +97,11 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bncube4, BncubeC)
 
         A_cube4 = floop.Acube(points, magPos, norms, dims, phiThetas)
-        A_cubeC = sopp.Acube(points, magPos, norms, dims, phiThetas)
+        A_cubeC = sopp.Acube(points, magPos, norms, dims, phiThetas, 1, 0)
         assert np.allclose(A_cube4, A_cubeC)
 
         BncubeMAT4 = floop.Bn_fromMat(points, magPos, M, norms, dims, phiThetas)
-        BncubeMATV = sopp.Bn_fromMat(points, magPos, M, norms, dims, phiThetas)
+        BncubeMATV = sopp.Bn_fromMat(points, magPos, M, norms, dims, phiThetas, 1, 0)
         assert np.allclose(BncubeMAT4, BncubeMATV)
 
 

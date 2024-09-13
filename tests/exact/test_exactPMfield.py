@@ -2,10 +2,11 @@ import unittest
 import numpy as np
 
 import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
-from Bcube_nonVec import *
-from simsoptpp import dipole_field_Bn, dipole_field_B, dipole_field_dB, dipole_field_dA
-
+sys.path.append('/Users/akaptanoglu/simsopt/Codes')
+from Bcube_nonVec import Bndip_fromMat, Bndip_direct, Bdip_direct, Adip 
+from simsopt.field.Bgrad import gradr_Bcube, gradr_Bdip
+from simsoptpp import dipole_field_Bn, dipole_field_B, dipole_field_dB, \
+    dipole_field_dA, B_direct, Bn_fromMat, Bn_direct, Acube
 
 def simBn(points, magPos, M, norms):
     N = len(norms)    
@@ -72,7 +73,7 @@ class Testing(unittest.TestCase):
 
         A_sim = dipole_field_Bn(point, magPos, norm, 1, 0, np.array([0,0,0])).reshape(N,3*D)
         A_dip = Adip(point, magPos, norm)
-        A_cube = Acube(point, magPos, norm, dims, phiTheta)
+        A_cube = Acube(point, magPos, norm, dims, phiTheta, 1, 0)
 
         assert np.allclose(A_sim, A_cube)
         assert np.allclose(A_dip, A_cube)
@@ -89,7 +90,7 @@ class Testing(unittest.TestCase):
         N = len(norm)
         D = len(magPos)
 
-        BncubeMAT = Bn_fromMat(point, magPos, M, norm, dims, phiTheta)
+        BncubeMAT = Bn_fromMat(point, magPos, M, norm, dims, phiTheta, 1, 0)
         BndipMAT = Bndip_fromMat(point, magPos, M, norm)
         Bncube = Bn_direct(point, magPos, M, norm, dims, phiTheta)
         Bndip = Bndip_direct(point, magPos, M, norm)
@@ -141,10 +142,10 @@ class Testing(unittest.TestCase):
         D = len(magPos)
         
         A_sim = dipole_field_Bn(points, magPos, norms, 1, 0, np.array([0,0,0])).reshape(N,3*D) #what about w/ nfp neq 0? b neq vec(0)?
-        A_cube = Acube(points, magPos, norms, dims, phiThetas)
+        A_cube = Acube(points, magPos, norms, dims, phiThetas, 1, 0)
         assert np.allclose(A_sim, A_cube)
 
-        BncubeMAT = Bn_fromMat(points, magPos, M, norms, dims, phiThetas)
+        BncubeMAT = Bn_fromMat(points, magPos, M, norms, dims, phiThetas, 1, 0)
         BnsimMAT = dipole_field_Bn(points, magPos, norms, 1, 0, np.array([0,0,0])).reshape(N,3*D) @ np.concatenate(M)
         assert np.allclose(BncubeMAT, BnsimMAT)
         
