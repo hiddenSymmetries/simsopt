@@ -200,7 +200,7 @@ jobs:
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 3 --oversubscribe coverage run -m unittest discover -k "mpi" -s tests -v
 
-    - name: ls to see if coverage files were produced
+    - name: ls to see coverage files that were produced
       if: contains(matrix.test-type, 'unit')
       run: ls -al
 
