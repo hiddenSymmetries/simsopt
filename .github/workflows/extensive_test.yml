@@ -241,7 +241,7 @@ jobs:
       if: contains(matrix.test-type, 'unit')
       uses: actions/upload-artifact@v4
       with:
-        name: gh-actions-parallel-coverage
+        name: gh-actions-parallel-coverage-${{ matrix.packages }}-${{ matrix.python-version }}
         path: .coverage.*
         if-no-files-found: error
         include-hidden-files: true
@@ -266,10 +266,10 @@ jobs:
       run: pip install .
 
     - name: Download artifact
-      uses: actions/download-artifact@v4.1.7
+      uses: actions/download-artifact@v4
       with:
-        name: gh-actions-parallel-coverage
         path: ./
+        merge-multiple: true
 
     - name: Display coverage files before combine 
       run: ls -a
