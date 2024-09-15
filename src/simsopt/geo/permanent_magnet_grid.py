@@ -371,18 +371,18 @@ class PermanentMagnetGrid:
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
         pm_grid._setup_uniform_grid()
-        pm_grid.dipole_grid_xyz = define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            contig(normal_inner), 
-            contig(normal_outer), 
-            contig(pm_grid.xyz_uniform), 
-            contig(pm_grid.xyz_inner), 
-            contig(pm_grid.xyz_outer))
-        # pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+        # pm_grid.dipole_grid_xyz = define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
         #     contig(normal_inner), 
         #     contig(normal_outer), 
         #     contig(pm_grid.xyz_uniform), 
         #     contig(pm_grid.xyz_inner), 
         #     contig(pm_grid.xyz_outer))
+        pm_grid.dipole_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+            contig(normal_inner), 
+            contig(normal_outer), 
+            contig(pm_grid.xyz_uniform), 
+            contig(pm_grid.xyz_inner), 
+            contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
         pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
         pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
@@ -878,19 +878,19 @@ class ExactMagnetGrid:
         normal_inner = inner_toroidal_surface.unitnormal().reshape(-1, 3)   
         normal_outer = outer_toroidal_surface.unitnormal().reshape(-1, 3)   
         pm_grid._setup_uniform_grid()
-        pm_grid.pm_grid_xyz = define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-            contig(normal_inner), 
-            contig(normal_outer), 
-            contig(pm_grid.xyz_uniform), 
-            contig(pm_grid.xyz_inner), 
-            contig(pm_grid.xyz_outer))
-        
-        # pm_grid.pm_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+        # pm_grid.pm_grid_xyz = define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
         #     contig(normal_inner), 
         #     contig(normal_outer), 
         #     contig(pm_grid.xyz_uniform), 
         #     contig(pm_grid.xyz_inner), 
         #     contig(pm_grid.xyz_outer))
+        
+        pm_grid.pm_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+            contig(normal_inner), 
+            contig(normal_outer), 
+            contig(pm_grid.xyz_uniform), 
+            contig(pm_grid.xyz_inner), 
+            contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.pm_grid_xyz == 0.0, axis=-1)))
         pm_grid.pm_grid_xyz = pm_grid.pm_grid_xyz[inds, :]
         pm_grid.ndipoles = pm_grid.pm_grid_xyz.shape[0]

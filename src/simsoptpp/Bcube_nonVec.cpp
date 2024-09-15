@@ -168,9 +168,9 @@ std::tuple<double, double, double> gd_i(double rx_loc, double ry_loc, double rz_
     h00 += tm;
     h11 += tm;
     h22 += tm;
-    gx_loc = h00 * nx_loc + h01 * ny_loc + h02 * nz_loc;
-    gy_loc = h10 * nx_loc + h11 * ny_loc + h12 * nz_loc;
-    gz_loc = h20 * nx_loc + h21 * ny_loc + h22 * nz_loc;
+    gx_loc = h00 * nx_loc + h10 * ny_loc + h20 * nz_loc;
+    gy_loc = h01 * nx_loc + h11 * ny_loc + h21 * nz_loc;
+    gz_loc = h02 * nx_loc + h12 * ny_loc + h22 * nz_loc;
     return std::make_tuple(gx_loc, gy_loc, gz_loc);
 }
 
@@ -202,15 +202,17 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \
             double sinT = std::sin(theta);
             double cosP = std::cos(phi);
             double sinP = std::sin(phi);
-            double P00 = cosT * cosP;
-            double P01 = -cosT * sinP;
-            double P02 = sinT;
-            double P10 = sinP;
-            double P11 = cosP;
-            double P12 = 0.0;
-            double P20 = -sinT * cosP;
-            double P21 = sinT * sinP;
-            double P22 = cosT;
+            double P00, P01, P02, P10, P11, P12, P20, P21, P22;
+            std::tie(P00, P01, P02, P10, P11, P12, P20, P21, P22) = Pd(phi, theta);
+            // double P00 = cosT * cosP;
+            // double P01 = -cosT * sinP;
+            // double P02 = sinT;
+            // double P10 = sinP;
+            // double P11 = cosP;
+            // double P12 = 0.0;
+            // double P20 = -sinT * cosP;
+            // double P21 = sinT * sinP;
+            // double P22 = cosT;
             double mpx = magPos_ptr[3 * d];
             double mpy = magPos_ptr[3 * d + 1];
             double mpz = magPos_ptr[3 * d + 2];
@@ -230,9 +232,21 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \
                     double rx_loc = P00 * rx_glob + P01 * ry_glob + P02 * rz_glob;
                     double ry_loc = P10 * rx_glob + P11 * ry_glob + P12 * rz_glob;
                     double rz_loc = P20 * rx_glob + P21 * ry_glob + P22 * rz_glob;
+
+                    // auto nx_glob_new = nx_glob * cphi0 - ny_glob * sphi0 * pow(-1, stell);
+                    // auto ny_glob_new = nx_glob * sphi0 + ny_glob * cphi0 * pow(-1, stell);
+                    // auto nz_glob_new = nz_glob * pow(-1, stell);
+
+                    // double nx_loc = P00 * nx_glob_new + P01 * ny_glob_new + P02 * nz_glob_new;
+                    // double ny_loc = P10 * nx_glob_new + P11 * ny_glob_new + P12 * nz_glob_new;
+                    // double nz_loc = P20 * nx_glob_new + P21 * ny_glob_new + P22 * nz_glob_new;
+
+                    // very possible this isnt needed ^
+
                     double nx_loc = P00 * nx_glob + P01 * ny_glob + P02 * nz_glob;
                     double ny_loc = P10 * nx_glob + P11 * ny_glob + P12 * nz_glob;
                     double nz_loc = P20 * nx_glob + P21 * ny_glob + P22 * nz_glob;
+
                     double gx_loc, gy_loc, gz_loc;
                     std::tie(gx_loc, gy_loc, gz_loc) = gd_i( \
                         rx_loc, ry_loc, rz_loc, nx_loc, \
@@ -252,7 +266,8 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \
             }
         }
     }
-    return A * mu0;
+    double vol = dimx * dimy * dimz;
+    return mu0 * A / vol;
 }
 
 Array Bn_fromMat(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, \

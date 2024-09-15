@@ -5,6 +5,7 @@ r"""
 import time
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 from simsopt.field import BiotSavart, ExactField
 from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
@@ -22,10 +23,10 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 20  # bricks with radial extent 2 cm
+    Nx = 60 # bricks with radial extent 2 cm
 
-coff = 0.05  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plas/ma equilibrium file
@@ -155,4 +156,4 @@ num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.nd
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-# plt.show()
+plt.show()

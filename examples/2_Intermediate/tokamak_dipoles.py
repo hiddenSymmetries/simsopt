@@ -30,7 +30,7 @@ else:
     Nz = Nx
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.25  # PM grid end offset ~ 15 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.circular_tokamak'
 
 # Read in the plas/ma equilibrium file

@@ -5,6 +5,7 @@ r"""
 import time
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 from simsopt.field import BiotSavart, DipoleField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
@@ -153,4 +154,4 @@ num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.nd
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
-# plt.show()
+plt.show()
