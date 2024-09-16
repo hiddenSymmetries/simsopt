@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.field import BiotSavart, ExactField
+from simsopt.field import BiotSavart, ExactField, DipoleField
 from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
@@ -23,7 +23,7 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 60 # bricks with radial extent 2 cm
+    Nx = 50 # bricks with radial extent 2 cm
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
@@ -136,23 +136,10 @@ s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+
 print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume = ', total_volume)
-b_dipole = ExactField(
-    pm_opt.pm_grid_xyz,
-    pm_opt.m,
-    pm_opt.dims,
-    pm_opt.get_phiThetas,
-    stellsym=s_plot.stellsym,
-    nfp=s_plot.nfp,
-    m_maxima=pm_opt.m_maxima,
-)
-b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
-print('f_B_sparse = ', f_B_sp)
-dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
-num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.ndipoles * 100
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)

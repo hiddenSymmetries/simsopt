@@ -135,7 +135,14 @@ pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
+print('B_field shape = ',b_dipole.B().shape)
+print('B_field = ',b_dipole.B())
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+
+print('s_plot = ',s_plot)
+print('b_dipole = ',b_dipole)
+print('- Bnorm = ',-Bnormal)
+
 print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume = ', total_volume)
@@ -147,8 +154,6 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-f_B_sp = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
-print('f_B_sparse = ', f_B_sp)
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 num_nonzero_sparse = np.count_nonzero(np.sum(dipoles ** 2, axis=-1)) / pm_opt.ndipoles * 100
 

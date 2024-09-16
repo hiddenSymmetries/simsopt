@@ -6,16 +6,6 @@ sys.path.append('/Users/willhoffman/simsopt/Codes')
 import Bcube_nonVec as floop
 import simsopt.field as vec
 
-point = np.array([[0,0,100]])
-magPos = np.array([[0,0,0]])
-M = np.array([[0,0,1]])
-phiTheta = np.array([[np.radians(32),np.radians(144)]])
-dims = np.array([1,1,1])
-
-Bcube4 = floop.B_direct(point, magPos, M, dims, phiTheta)
-BcubeV = vec.B_direct(point, magPos, M, dims, phiTheta)
-print(Bcube4)
-print(BcubeV)
 
 class Testing(unittest.TestCase):
 
@@ -103,4 +93,3 @@ class Testing(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    

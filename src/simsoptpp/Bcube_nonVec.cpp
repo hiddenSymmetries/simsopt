@@ -38,12 +38,26 @@ void iterate_over_corners(int i, int j, int k, \
     //    
     double summa = std::pow(-1, i+j+k);
     double rijk = std::sqrt(x * x + y * y + z * z);
+
+    double epsx = 0.0;
+    double epsy = 0.0;
+    double epsz = 0.0;
+    if (rijk == std::abs(x) && x < 0) {
+        epsx = 1e-30;
+    }
+    if (rijk == std::abs(y) && x < 0) {
+        epsy = 1e-30;
+    }
+    if (rijk == std::abs(z) && x < 0) {
+        epsz = 1e-30;
+    }
+
     double atan_xy = summa * std::atan2(y * x, z * rijk);
     double atan_xz = summa * std::atan2(z * x, y * rijk);
     double atan_yz = summa * std::atan2(y * z, x * rijk);
-    double log_x = summa * std::log(x + rijk);
-    double log_y = summa * std::log(y + rijk);
-    double log_z = summa * std::log(z + rijk);
+    double log_x = summa * std::log(x + rijk + epsx);
+    double log_y = summa * std::log(y + rijk + epsy);
+    double log_z = summa * std::log(z + rijk + epsz);
     h00 += atan_xy + atan_xz;
     h01 += log_z;
     h02 += log_y;
@@ -105,6 +119,7 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
     double* phiThetas_ptr = &(phiThetas(0, 0));
     double* M_ptr = &(M(0, 0));
     Array B = xt::zeros<double>({N, 3});
+    // Array Bloc = xt::zeros<double>({3})
     #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
         double x = points_ptr[3 * n];
@@ -134,9 +149,12 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
             double ty = heaviside(dimy / 2.0 - std::abs(ry_loc), 0.5);
             double tz = heaviside(dimz / 2.0 - std::abs(rz_loc), 0.5);    
             double tm = 2.0 * tx * ty * tz;
-            double Bx_loc = (h00 * Mx_loc + tm * Mx_loc + h01 * My_loc + tm * Mx_loc + h02 * Mz_loc + tm * Mx_loc);
-            double By_loc = (h10 * Mx_loc + tm * My_loc + h11 * My_loc + tm * My_loc + h12 * Mz_loc + tm * My_loc);
-            double Bz_loc = (h20 * Mx_loc + tm * Mz_loc + h21 * My_loc + tm * Mz_loc + h22 * Mz_loc + tm * Mz_loc);
+            double Bx_loc = (h00 * Mx_loc + h01 * My_loc + h02 * Mz_loc) + tm * Mx_loc;
+            double By_loc = (h10 * Mx_loc + h11 * My_loc + h12 * Mz_loc) + tm * My_loc;
+            double Bz_loc = (h20 * Mx_loc + h21 * My_loc + h22 * Mz_loc) + tm * Mz_loc;
+            // Bloc[0] += Bx_loc;
+            // Bloc[1] += By_loc;
+            // Bloc[2] += Bz_loc;
             B(n, 0) += p00 * Bx_loc + p10 * By_loc + p20 * Bz_loc;
             B(n, 1) += p01 * Bx_loc + p11 * By_loc + p21 * Bz_loc;
             B(n, 2) += p02 * Bx_loc + p12 * By_loc + p22 * Bz_loc;
@@ -232,17 +250,6 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \
                     double rx_loc = P00 * rx_glob + P01 * ry_glob + P02 * rz_glob;
                     double ry_loc = P10 * rx_glob + P11 * ry_glob + P12 * rz_glob;
                     double rz_loc = P20 * rx_glob + P21 * ry_glob + P22 * rz_glob;
-
-                    // auto nx_glob_new = nx_glob * cphi0 - ny_glob * sphi0 * pow(-1, stell);
-                    // auto ny_glob_new = nx_glob * sphi0 + ny_glob * cphi0 * pow(-1, stell);
-                    // auto nz_glob_new = nz_glob * pow(-1, stell);
-
-                    // double nx_loc = P00 * nx_glob_new + P01 * ny_glob_new + P02 * nz_glob_new;
-                    // double ny_loc = P10 * nx_glob_new + P11 * ny_glob_new + P12 * nz_glob_new;
-                    // double nz_loc = P20 * nx_glob_new + P21 * ny_glob_new + P22 * nz_glob_new;
-
-                    // very possible this isnt needed ^
-
                     double nx_loc = P00 * nx_glob + P01 * ny_glob + P02 * nz_glob;
                     double ny_loc = P10 * nx_glob + P11 * ny_glob + P12 * nz_glob;
                     double nz_loc = P20 * nx_glob + P21 * ny_glob + P22 * nz_glob;

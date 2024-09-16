@@ -12,7 +12,8 @@ def simBn(points, magPos, M, norms):
         Bn[n] = B[n] @ norms[n]
 
     return Bn
-    
+
+
 class Testing(unittest.TestCase):
 
     def test_B_field_single(self):

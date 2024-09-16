@@ -23,7 +23,7 @@ def iterate_over_corners(corner, x, y, z):
     i,j,k = corner
     summa = (-1)**(i+j+k)
     rijk = np.sqrt(x[i, :, :]**2 + y[j, :, :]**2 + z[k, :, :]**2)
-
+    
     atan_xy = np.arctan2(y[j, :, :]*x[i, :, :],z[k, :, :]*rijk)
     atan_xz = np.arctan2(z[k, :, :]*x[i, :, :],y[j, :, :]*rijk)
     atan_yz = np.arctan2(z[k, :, :]*y[j, :, :],x[i, :, :]*rijk)
