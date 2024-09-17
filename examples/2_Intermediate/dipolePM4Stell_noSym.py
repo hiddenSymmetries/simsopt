@@ -39,9 +39,9 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # drastically downsample the grid if running CI
 else:
-    N = 16  # >= 64 for high-resolution runs
+    N = 8  # >= 64 for high-resolution runs
     nIter_max = 5000
-    # max_nMagnets = 400
+    max_nMagnets = 400
     downsample = 10
 
 nphi = N

@@ -16,14 +16,16 @@ def Pd(phi,theta): #goes from global to local
 def iterate_over_corners(corner, x, y, z):
     i,j,k = corner
     summa = (-1)**(i+j+k)
-    rijk = np.sqrt(x[i]**2 + y[j]**2 + z[k]**2)
+    r = np.array([x[i], y[j], z[k]])
+    r_norm = np.linalg.norm(r)
 
-    atan_xy = np.arctan2(y[j]*x[i],z[k]*rijk)
-    atan_xz = np.arctan2(z[k]*x[i],y[j]*rijk)
-    atan_yz = np.arctan2(y[j]*z[k],x[i]*rijk)
-    log_x = np.log(x[i] + rijk)
-    log_y = np.log(y[j] + rijk)
-    log_z = np.log(z[k] + rijk)
+    
+    atan_xy = np.arctan2(y[j]*x[i],z[k]*r_norm)
+    atan_xz = np.arctan2(z[k]*x[i],y[j]*r_norm)
+    atan_yz = np.arctan2(y[j]*z[k],x[i]*r_norm)
+    log_x = np.log(x[i] + r_norm)
+    log_y = np.log(y[j] + r_norm)
+    log_z = np.log(z[k] + r_norm)
 
     h = summa * np.array([
         [atan_xy + atan_xz, log_z, log_y],
@@ -67,7 +69,6 @@ def B_direct(points, magPos, M, dims, phiThetas):
             tm = 2*tx*ty*tz
 
             B[n] += mu0 * P.T @ (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
-            B_loc = mu0 * (Hd_i_prime(r_loc,dims) @ (P @ M[d]) + tm*P@M[d])
     return B
 
 def Bn_direct(points, magPos, M, norms, dims, phiThetas): #solve Bnorm using analytic formula

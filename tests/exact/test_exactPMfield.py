@@ -1,21 +1,18 @@
 import unittest
 import numpy as np
 
-import sys
-sys.path.append('/Users/willhoffman/simsopt/Codes')
-from Bcube_nonVec import *
-from simsoptpp import dipole_field_Bn, dipole_field_B, dipole_field_dB, dipole_field_dA
-
+import simsopt.field as pycub #note gradient functions are not vectorized
+import simsoptpp as sopp
 
 def simBn(points, magPos, M, norms):
     N = len(norms)    
-    B = dipole_field_B(points, magPos, M)    
+    B = sopp.dipole_field_B(points, magPos, M)    
     Bn = np.zeros(N)
     for n in range(N):
         Bn[n] = B[n] @ norms[n]
 
     return Bn
-    
+
 
 class Testing(unittest.TestCase):
 
@@ -26,13 +23,9 @@ class Testing(unittest.TestCase):
         phiTheta = np.array([[np.radians(32),np.radians(144)]])
         dims = np.array([1,1,1])
 
-        Bcube = B_direct(point, magPos, M, dims, phiTheta)
-        Bdip = Bdip_direct(point, magPos, M)
-        Bsim_dip = dipole_field_B(point, magPos, M)
-
-        assert np.allclose(Bcube, Bdip)
-        assert np.allclose(Bdip, Bsim_dip)
-        assert np.allclose(Bcube, Bsim_dip)
+        Bcube = sopp.B_direct(point, magPos, M, dims, phiTheta)
+        Bsim_dip = sopp.dipole_field_B(point, magPos, M)
+        assert np.allclose(Bcube, Bsim_dip, atol = 1e-15)
 
     def test_Bn_single(self):
         point = np.array([[0,0,100]])
@@ -42,13 +35,9 @@ class Testing(unittest.TestCase):
         dims = np.array([1,1,1])
         norm = np.array([[0,0,1]])
 
-        Bncube = Bn_direct(point, magPos, M, norm, dims, phiTheta)
-        Bndip = Bndip_direct(point, magPos, M, norm)
+        Bncube = sopp.Bn_direct(point, magPos, M, norm, dims, phiTheta)
         Bnsim_dip = simBn(point, magPos, M, norm)
-
-        assert np.allclose(Bncube, Bndip)
-        assert np.allclose(Bnsim_dip, Bndip)
-        assert np.allclose(Bnsim_dip, Bncube)
+        assert np.allclose(Bncube, Bnsim_dip, atol = 1e-15)
 
     def test_Amatrix_single(self):
         point = np.array([[0,0,100]])
@@ -60,13 +49,9 @@ class Testing(unittest.TestCase):
         N = len(norm)
         D = len(magPos)
 
-        A_sim = dipole_field_Bn(point, magPos, norm, 1, 0, np.array([0,0,0])).reshape(N,3*D)
-        A_dip = Adip(point, magPos, norm)
-        A_cube = Acube(point, magPos, norm, dims, phiTheta)
-
-        assert np.allclose(A_sim, A_cube)
-        assert np.allclose(A_dip, A_cube)
-        assert np.allclose(A_dip, A_sim)
+        A_sim = sopp.dipole_field_Bn(point, magPos, norm, 1, 0, np.array([0,0,0])).reshape(N,3*D)
+        A_cube = sopp.Acube(point, magPos, norm, dims, phiTheta, 1, 0)
+        assert np.allclose(A_sim, A_cube, atol = 1e-15)
 
     def test_matrixFormulation_single(self):
         point = np.array([[0,0,100]])
@@ -79,17 +64,11 @@ class Testing(unittest.TestCase):
         N = len(norm)
         D = len(magPos)
 
-        BncubeMAT = Bn_fromMat(point, magPos, M, norm, dims, phiTheta)
-        BndipMAT = Bndip_fromMat(point, magPos, M, norm)
-        Bncube = Bn_direct(point, magPos, M, norm, dims, phiTheta)
-        Bndip = Bndip_direct(point, magPos, M, norm)
-        BnsimMAT = dipole_field_Bn(point, magPos, norm, 1, 0, np.array([0,0,0])).reshape(N,3*D) @ np.concatenate(M)
-
-        assert np.allclose(BncubeMAT, BndipMAT)
-        assert np.allclose(BncubeMAT, Bncube)
-        assert np.allclose(BndipMAT, Bndip)
-        assert np.allclose(BncubeMAT, BnsimMAT)
-        assert np.allclose(BndipMAT, BnsimMAT)
+        BncubeMAT = sopp.Bn_fromMat(point, magPos, M, norm, dims, phiTheta, 1, 0)
+        Bncube = sopp.Bn_direct(point, magPos, M, norm, dims, phiTheta)
+        BnsimMAT = sopp.dipole_field_Bn(point, magPos, norm, 1, 0, np.array([0,0,0])).reshape(N,3*D) @ np.concatenate(M)
+        assert np.allclose(BncubeMAT, Bncube, atol = 1e-15)
+        assert np.allclose(BncubeMAT, BnsimMAT, atol = 1e-15)
 
     def test_Bgrad_single(self):
         point = np.array([[0,0,100]])
@@ -98,13 +77,12 @@ class Testing(unittest.TestCase):
         phiTheta = np.array([[np.radians(32),np.radians(144)]])
         dims = np.array([1,1,1])
 
-        dB_cube = gradr_Bcube(point, magPos, M, phiTheta, dims)
-        dB_dip = gradr_Bdip(point, magPos, M)
-        dBsim_dip = dipole_field_dB(point, magPos, M)
-
-        assert np.allclose(dB_cube, dB_dip)
-        assert np.allclose(dB_dip, dBsim_dip)
-        assert np.allclose(dB_cube, dBsim_dip)
+        dB_cube = pycub.gradr_Bcube(point, magPos, M, phiTheta, dims)
+        dB_dip = pycub.gradr_Bdip(point, magPos, M)
+        dBsim_dip = sopp.dipole_field_dB(point, magPos, M)
+        assert np.allclose(dB_cube, dB_dip, atol = 1e-15)
+        assert np.allclose(dB_dip, dBsim_dip, atol = 1e-15)
+        assert np.allclose(dB_cube, dBsim_dip, atol = 1e-15)
 
         # include test for vector potential and vector potential gradient
 
@@ -119,28 +97,28 @@ class Testing(unittest.TestCase):
         norms = np.random.uniform(-1,1, size = (100,3))
         dims = np.array([1,1,1])
 
-        Bcube = B_direct(points, magPos, M, dims, phiThetas)
-        Bsim_dip = dipole_field_B(points, magPos, M)
-        assert np.allclose(Bcube, Bsim_dip)
+        Bcube = sopp.B_direct(points, magPos, M, dims, phiThetas)
+        Bsim_dip = sopp.dipole_field_B(points, magPos, M)
+        assert np.allclose(Bcube, Bsim_dip, atol = 1e-15)
 
-        Bncube = Bn_direct(points, magPos, M, norms, dims, phiThetas)
+        Bncube = sopp.Bn_direct(points, magPos, M, norms, dims, phiThetas)
         Bnsim_dip = simBn(points, magPos, M, norms)
-        assert np.allclose(Bncube, Bnsim_dip)
+        assert np.allclose(Bncube, Bnsim_dip, atol = 1e-15)
 
         N = len(points)
         D = len(magPos)
         
-        A_sim = dipole_field_Bn(points, magPos, norms, 1, 0, np.array([0,0,0])).reshape(N,3*D) #what about w/ nfp neq 0? b neq vec(0)?
-        A_cube = Acube(points, magPos, norms, dims, phiThetas)
-        assert np.allclose(A_sim, A_cube)
+        A_sim = sopp.dipole_field_Bn(points, magPos, norms, 1, 0, np.array([0,0,0])).reshape(N,3*D) #what about w/ nfp neq 0? b neq vec(0)?
+        A_cube = sopp.Acube(points, magPos, norms, dims, phiThetas, 1, 0)
+        assert np.allclose(A_sim, A_cube, atol = 1e-15)
 
-        BncubeMAT = Bn_fromMat(points, magPos, M, norms, dims, phiThetas)
-        BnsimMAT = dipole_field_Bn(points, magPos, norms, 1, 0, np.array([0,0,0])).reshape(N,3*D) @ np.concatenate(M)
-        assert np.allclose(BncubeMAT, BnsimMAT)
+        BncubeMAT = sopp.Bn_fromMat(points, magPos, M, norms, dims, phiThetas, 1, 0)
+        BnsimMAT = sopp.dipole_field_Bn(points, magPos, norms, 1, 0, np.array([0,0,0])).reshape(N,3*D) @ np.concatenate(M)
+        assert np.allclose(BncubeMAT, BnsimMAT, atol = 1e-15)
         
-        dB_cube = gradr_Bcube(points, magPos, M, phiThetas, dims)
-        dBsim_dip = dipole_field_dB(points, magPos, M)
-        assert np.allclose(dB_cube, dBsim_dip)
+        dB_cube = pycub.gradr_Bcube(points, magPos, M, phiThetas, dims)
+        dBsim_dip = sopp.dipole_field_dB(points, magPos, M)
+        assert np.allclose(dB_cube, dBsim_dip, atol = 1e-15)
 
         #lastly add vector potential check and vector potential gradient check
 

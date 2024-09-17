@@ -23,14 +23,14 @@ if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 50  # cartesian bricks but note that we are not modelling the cubic geometry!
+    Nx = 40  # cartesian bricks but note that we are not modelling the cubic geometry!
     Ny = Nx
     Nz = Nx
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.5  # PM grid end offset ~ 15 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.circular_tokamak'
 
 # Read in the plas/ma equilibrium file
@@ -44,10 +44,6 @@ s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range=range_param, 
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_normal(poff)
 s_outer.extend_via_normal(poff + coff)
-
-# s.stellsym=False
-# s_inner.stellsym=False
-# s_outer.stellsym=False
 
 # Make the output directory
 out_dir = Path("tokamak_dipole")
@@ -102,7 +98,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
-s_plot.stellsym=False
+# s_plot.stellsym=False
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
@@ -119,14 +115,14 @@ pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 10000
+nIter_max = 5000
 # max_nMagnets = 400
 algorithm = 'baseline'
 # algorithm = 'ArbVec_backtracking'
 # nBacktracking = 200 
 # nAdjacent = 10
 # thresh_angle = np.pi  # / np.sqrt(2)
-nHistory = 10
+nHistory = 20
 # angle = int(thresh_angle * 180 / np.pi)
 
 kwargs['K'] = nIter_max
@@ -156,9 +152,6 @@ if True:
     )
     b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
     b_dipole._toVTK(out_dir / "Dipole_Fields")
-    print('pm B = ', b_dipole.B())
-    print('pm B sum = ', np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1))
-    print('tf coil B = ', bs.B())
     make_Bnormal_plots(bs + b_dipole, s_plot, out_dir, "biot_savart_optimized")
     Bnormal_coils = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)

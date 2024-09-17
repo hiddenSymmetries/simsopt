@@ -7,9 +7,16 @@ import itertools
 mu0 = 4*np.pi*10**-7
 dim = np.array([1,1,1])
 
-__all__ = ['iterate_over_corners_grad', 'grad_r_H',
+__all__ = ['Pd','iterate_over_corners_grad', 'grad_r_H',
            'gradr_Bcube', 'gradr_gcube', 'gradr_Acube',
            'gradr_Bdip', 'gradr_Adip']
+
+def Pd(phi,theta): #goes from global to local
+    return np.array([
+        [np.cos(theta)*np.cos(phi), -np.cos(theta)*np.sin(phi), np.sin(theta)],
+        [np.sin(phi), np.cos(phi), 0.0],
+        [-np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), np.cos(theta)]
+    ])
 
 def iterate_over_corners_grad(corner, s, rc, row, col, P):
     i,j,k = corner

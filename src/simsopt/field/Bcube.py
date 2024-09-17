@@ -23,7 +23,7 @@ def iterate_over_corners(corner, x, y, z):
     i,j,k = corner
     summa = (-1)**(i+j+k)
     rijk = np.sqrt(x[i, :, :]**2 + y[j, :, :]**2 + z[k, :, :]**2)
-
+    
     atan_xy = np.arctan2(y[j, :, :]*x[i, :, :],z[k, :, :]*rijk)
     atan_xz = np.arctan2(z[k, :, :]*x[i, :, :],y[j, :, :]*rijk)
     atan_yz = np.arctan2(z[k, :, :]*y[j, :, :],x[i, :, :]*rijk)
@@ -72,7 +72,7 @@ def B_direct(points, magPos, m, dims, phiThetas):
     H_pm = np.sum(Hd_i_prime(r_loc, dims) * Pm[None, :, None, :], axis=-1)
 
     # Double sum because we are rotating by P and then summing over all the magnet locations
-    B = mu0 * np.sum(np.sum(PT[None, :, :, :] * (H_pm + tm_Pm)[:, :, None, :], axis=-1), axis=0)
+    B = mu0 * np.sum(np.sum(PT[None, :, :, :] * (H_pm + tm_Pm)[:, :, None, :], axis=-1), axis=1)
 
     return B
 
