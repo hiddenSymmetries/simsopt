@@ -68,10 +68,25 @@ simsopt.geo.curveplanarfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.curveplanarfourier module
+-------------------------------------
+
+.. automodule:: simsopt.geo.curveplanarfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.curvexyzfourier module
 ----------------------------------
 
 .. automodule:: simsopt.geo.curvexyzfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.curvecwsfourier module
+----------------------------------
+.. automodule:: simsopt.geo.curvecwsfourier
    :members:
    :undoc-members:
    :show-inheritance:
@@ -100,6 +115,14 @@ simsopt.geo.framedcurve module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.framedcurve module
+------------------------------
+
+.. automodule:: simsopt.geo.framedcurve
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.jit module
 ----------------------
 
@@ -115,7 +138,6 @@ simsopt.geo.permanent\_magnet\_grid module
    :members:
    :undoc-members:
    :show-inheritance:
-
 simsopt.geo.plotting module
 ---------------------------
 
@@ -128,6 +150,14 @@ simsopt.geo.qfmsurface module
 -----------------------------
 
 .. automodule:: simsopt.geo.qfmsurface
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.strain_optimization module
+--------------------------------------
+
+.. automodule:: simsopt.geo.strain_optimization
    :members:
    :undoc-members:
    :show-inheritance:
