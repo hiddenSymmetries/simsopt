@@ -493,8 +493,10 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 
     vector<array<double, RHS::Size+1>> res = {};
     vector<array<double, RHS::Size+2>> res_hits = {};
-    array<double, RHS::Size> ykeep = {};
+    // array<double, RHS::Size> ykeep = {};
     typedef typename RHS::State State;
+    State temp;
+    State ykeep;
     typedef typename boost::numeric::odeint::result_of::make_dense_output<runge_kutta_dopri5<State>>::type dense_stepper_type;
     dense_stepper_type dense = make_dense_output(abstol, reltol, dtmax, runge_kutta_dopri5<State>());
     double t = 0;
@@ -507,8 +509,19 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     t_last = t;
     zeta_last = y[2];
     vpar_last = y[3];
+
+    // Save initial state
+    ykeep = y;
+    if (rhs.axis==1) {
+        ykeep[0] = pow(y[0],2) + pow(y[1],2);
+        ykeep[1] = atan2(y[1],y[0]);
+    } else if (rhs.axis==2) {
+        ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+        ykeep[1] = atan2(y[1],y[0]);
+    }
+    res.push_back(join<1, RHS::Size>({0}, ykeep));
+
     double zeta_current, vpar_current, t_current;
-    State temp;
     do {
         tuple<double, double> step = dense.do_step(rhs);
         iter++;
@@ -519,57 +532,28 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         double t_last = std::get<0>(step);
         double t_current = std::get<1>(step);
         dt = t_current - t_last;
-        stop = check_stopping_criteria(rhs, y, iter, res, res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, 
-                                vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+        stop = check_stopping_criteria(rhs, y, iter, res, res_hits, dense,      
+                                t_last, t_current, zeta_last, zeta_current, vpar_last, 
+                                vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
         zeta_last = zeta_current;
         vpar_last = vpar_current;
     } while(t < tmax && !stop);
-    // Now populate res with time = 0 and t if forget_exact_path
-    if (forget_exact_path) {
-        dense.calc_state(0, y);
-        ykeep = y;
-        if (rhs.axis==1) {
-            ykeep[0] = pow(y[0],2) + pow(y[1],2);
-            ykeep[1] = atan2(y[1],y[0]);
-        } else if (rhs.axis==2) {
-            ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-            ykeep[1] = atan2(y[1],y[0]);
-        }
-        res.push_back(join<1, RHS::Size>({0}, ykeep));
-
-        dense.calc_state(t, y);
-        ykeep = y;
-        if (rhs.axis==1) {
-            ykeep[0] = pow(y[0],2) + pow(y[1],2);
-            ykeep[1] = atan2(y[1],y[0]);
-        } else if (rhs.axis==2) {
-            ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-            ykeep[1] = atan2(y[1],y[0]);        
-        }
-        res.push_back(join<1, RHS::Size>({t}, ykeep));
-    } 
-    // Now populate res if forget_exact_path
-    else {
-        std::cout << "dt_save: " << dt_save << std::endl;
-        for (double t_save = 0; t_save += dt_save; t_save <= t) {
-            std::cout << "t_save: " << t_save << std::endl;
-            dense.calc_state(t_save, y);
-            ykeep = y;
-            if (rhs.axis==1) {
-                ykeep[0] = pow(y[0],2) + pow(y[1],2);
-                ykeep[1] = atan2(y[1],y[0]);
-            } else if (rhs.axis==2) {
-                ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
-                ykeep[1] = atan2(y[1],y[0]);        
-            }
-            res.push_back(join<1, RHS::Size>({t_save}, ykeep));
-        }
+    // Now save time = t 
+    ykeep = y;
+    if (rhs.axis==1) {
+        ykeep[0] = pow(y[0],2) + pow(y[1],2);
+        ykeep[1] = atan2(y[1],y[0]);
+    } else if (rhs.axis==2) {
+        ykeep[0] = sqrt(pow(y[0],2) + pow(y[1],2));
+        ykeep[1] = atan2(y[1],y[0]);        
     }
+    res.push_back(join<1, RHS::Size>({t}, {ykeep}));
+
     return std::make_tuple(res, res_hits);
 }
 
 template<class RHS, class DENSE>
-bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double zeta_last, double zeta_current, double vpar_last, double vpar_current, double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop, bool vpars_stop, bool forget_exact_path) {
+bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<array<double, RHS::Size+1>> &res, vector<array<double, RHS::Size+2>> &res_hits, DENSE dense, double t_last, double t_current, double zeta_last, double zeta_current, double vpar_last, double vpar_current, double abstol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop, bool vpars_stop, bool forget_exact_path, double dt_save) {
 
     typedef typename RHS::State State;
     // abstol?
@@ -580,6 +564,26 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
     bool stop = false;
     array<double, RHS::Size> ykeep = {};
     double dt = t_current - t_last;
+
+    // Save path if forget_exact_path = False
+    if (forget_exact_path == 0) {
+        // This will give the first save point after t_last
+        double t_save_last = dt_save * std::ceil(t_last/dt_save);
+        for (double t_save = t_save_last; t_save <= t_current; t_save += dt_save) {
+            if (t_save != 0) {
+                dense.calc_state(t_save, temp);
+                ykeep = temp;
+                if (rhs.axis==1) {
+                    ykeep[0] = pow(temp[0],2) + pow(temp[1],2);
+                    ykeep[1] = atan2(temp[1],temp[0]);
+                } else if (rhs.axis==2) {
+                    ykeep[0] = sqrt(pow(temp[0],2) + pow(temp[1],2));
+                    ykeep[1] = atan2(temp[1],temp[0]);        
+                }
+                res.push_back(join<1, RHS::Size>({t_save}, ykeep));
+            }
+        }
+    }
 
     // Now check whether we have hit any of the vpar planes
     for (int i = 0; i < vpars.size(); ++i) {
@@ -604,7 +608,6 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
             }
             res_hits.push_back(join<2, RHS::Size>({troot, double(i) + zetas.size()}, ykeep));
             if (vpars_stop) {
-                res.push_back(join<1, RHS::Size>({troot}, ykeep));
                 stop = true;
                 break;
             }
@@ -640,7 +643,6 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
             }
             res_hits.push_back(join<2, RHS::Size>({troot, double(i)}, ykeep));
             if (zetas_stop && !stop) {
-                res.push_back(join<1, RHS::Size>({troot}, ykeep));
                 stop = true;
                 break;
             }
@@ -658,7 +660,7 @@ bool check_stopping_criteria(RHS rhs, typename RHS::State y, int iter, vector<ar
         }
         if(stopping_criteria[i] && (*stopping_criteria[i])(iter, dt, t_current, ykeep[0], ykeep[1], ykeep[2], ykeep[3])){
             stop = true;
-            res.push_back(join<1, RHS::Size>({t_current}, ykeep));
+            // res.push_back(join<1, RHS::Size>({t_current}, ykeep));
             res_hits.push_back(join<2, RHS::Size>({t_current, -1-double(i)}, ykeep));
             break;
         }
@@ -975,7 +977,7 @@ struct sympl_dense {
 //         orbit_symplectic_quasi.f90:timestep_euler1_quasi
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, SymplField<T>::Size+1>>, vector<array<double, SymplField<T>::Size+2>>>
-solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, double dt, double roottol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true)
+solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, double dt, double roottol, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, vector<double> vpars, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path = false, bool predictor_step = true, double dt_save=1e-6)
 {
     double abstol = 0;
     if (zetas.size() > 0 && omegas.size() == 0) {
@@ -1136,7 +1138,7 @@ solve_sympl(SymplField<T> f, typename SymplField<T>::State y, double tmax, doubl
         double vpar_current = y[3];
 
         stop = check_stopping_criteria(f, y, iter, res, res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, 
-                                vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path);
+                                vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
 
         t_last = t_current;
         zeta_last = zeta_current;
@@ -1245,7 +1247,7 @@ particle_guiding_center_boozer_tracing(
         // }
         auto f = SymplField<T>(field, m, q, mu);
         return solve_sympl(f, y, tmax, dt, roottol, zetas, omegas, stopping_criteria,
-        vpars, zetas_stop, vpars_stop, forget_exact_path, predictor_step);
+        vpars, zetas_stop, vpars_stop, forget_exact_path, predictor_step, dt_save);
     } else {
         if (vacuum) {
           auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu, axis);
