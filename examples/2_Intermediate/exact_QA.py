@@ -23,7 +23,7 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 50 # bricks with radial extent 2 cm
+    Nx = 30 # bricks with radial extent 2 cm
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
@@ -41,7 +41,8 @@ s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
-out_dir = Path("exact_QA")
+out_str = "exact_QA"
+out_dir = Path(out_str)
 out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
@@ -79,10 +80,11 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"Nx": Nx}  
+kwargs_geo = {"Nx": Nx, "Ny": Nx * 2, "Nz": Nx * 3}  
 pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
+pm_opt._pms_to_vtk(out_str + "/magnet_geometry")
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
