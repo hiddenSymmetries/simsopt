@@ -1030,7 +1030,7 @@ class ExactField(MagneticField): #make dims and phiThetas class object?
         contig = np.ascontiguousarray
         self.dipole_grid = contig(np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T)
         self.m_vec = contig(m_vec)
-        self.phiThetas = contig(np.repeat(np.array([[0,0]]), self.m_vec.shape[0], axis = 0)) #works for now, will eventually have to use process above to make sure phiThetas are the same relatively, just rotated
+        self.phiThetas = contig(np.repeat(np.array([[0.0, 0.0]]), self.m_vec.shape[0], axis=0)) #works for now, will eventually have to use process above to make sure phiThetas are the same relatively, just rotated
         self.m_maxima = contig(m_max)
 
     def _toVTK(self, vtkname):

@@ -2,7 +2,8 @@ from pathlib import Path
 import warnings
 
 import numpy as np
-from pyevtk.hl import pointsToVTK
+from pyevtk.hl import pointsToVTK, unstructuredGridToVTK
+from pyevtk.vtk import VtkVoxel
 
 from .._core.descriptor import OneofStrings
 from . import Surface
@@ -399,7 +400,6 @@ class PermanentMagnetGrid:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
             pm_grid.m_maxima = B_max * cell_vol / mu0
-            print('here = ', cell_vol, pm_grid.m_maxima)
         else:
             if isinstance(m_maxima, float):
                 pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
@@ -701,6 +701,83 @@ class ExactMagnetGrid:
         contig = np.ascontiguousarray
         pointsToVTK('uniform_grid', contig(self.xyz_uniform[:, 0]),
                     contig(self.xyz_uniform[:, 1]), contig(self.xyz_uniform[:, 2]))
+        
+    def _pms_to_vtk(
+        self,
+        filename,
+        cellData=None,
+        pointData=None,
+        fieldData=None,
+    ):
+        """
+        Write a VTK file showing the individual cubes.
+
+        Args:
+        -------
+        filename: Name of the file to write.
+        points: Array of size ``(nmagnets, nquadpoints, 3)``
+            Here, ``nmagnets`` is the number of rectangular cubic magnets.
+            The last array dimension corresponds to Cartesian coordinates.
+            The max and min over the ``nquadpoints`` dimension will be used to
+            define the max and min coordinates of each magnet.
+        cellData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+        pointData: Data for each voxel's vertices to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+        fieldData: Data for each voxel to pass to ``pyevtk.hl.unstructuredGridToVTK``.
+        """
+        # Some references Matt L. used while writing this function for voxels 
+        # Function repurposed here for plotting 3D rectangular magnets
+        # https://vtk.org/doc/nightly/html/classvtkVoxel.html
+        # https://raw.githubusercontent.com/Kitware/vtk-examples/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellDemo.png
+        # https://github.com/pyscience-projects/pyevtk/blob/v1.2.0/pyevtk/hl.py
+        # https://python.hotexamples.com/examples/vtk/-/vtkVoxel/python-vtkvoxel-function-examples.html
+
+        points = np.zeros((self.pm_grid_xyz.shape[0], 2, 3))
+        points[:, 0, 0] = self.pm_grid_xyz[:, 0] - self.dx / 2.0
+        points[:, 1, 0] = self.pm_grid_xyz[:, 0] + self.dx / 2.0
+        points[:, 0, 1] = self.pm_grid_xyz[:, 1] - self.dy / 2.0
+        points[:, 1, 1] = self.pm_grid_xyz[:, 1] + self.dy / 2.0
+        points[:, 0, 2] = self.pm_grid_xyz[:, 2] - self.dz / 2.0
+        points[:, 1, 2] = self.pm_grid_xyz[:, 2] + self.dz / 2.0
+        nmagnets = points.shape[0]
+
+        cell_types = np.empty(nmagnets, dtype="uint8")
+        cell_types[:] = VtkVoxel.tid
+        connectivity = np.arange(8 * nmagnets, dtype=np.int64)
+        offsets = (np.arange(nmagnets, dtype=np.int64) + 1) * 8
+
+        base_x = np.array([0, 1, 0, 1, 0, 1, 0, 1])
+        base_y = np.array([0, 0, 1, 1, 0, 0, 1, 1])
+        base_z = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        x = np.zeros(8 * nmagnets)
+        y = np.zeros(8 * nmagnets)
+        z = np.zeros(8 * nmagnets)
+
+        for j in range(nmagnets):
+            x[8 * j: 8 * (j + 1)] = (
+                np.min(points[j, :, 0])
+                + (np.max(points[j, :, 0]) - np.min(points[j, :, 0])) * base_x
+            )
+            y[8 * j: 8 * (j + 1)] = (
+                np.min(points[j, :, 1])
+                + (np.max(points[j, :, 1]) - np.min(points[j, :, 1])) * base_y
+            )
+            z[8 * j: 8 * (j + 1)] = (
+                np.min(points[j, :, 2])
+                + (np.max(points[j, :, 2]) - np.min(points[j, :, 2])) * base_z
+            )
+
+        unstructuredGridToVTK(
+            filename,
+            x,
+            y,
+            z,
+            connectivity,
+            offsets,
+            cell_types,
+            cellData=cellData,
+            pointData=pointData,
+            fieldData=fieldData,
+        )
 
     @classmethod
     def geo_setup_from_famus(cls, plasma_boundary, Bn, famus_filename, **kwargs):
@@ -900,13 +977,12 @@ class ExactMagnetGrid:
                     contig(pm_grid.pm_grid_xyz[:, 0]),
                     contig(pm_grid.pm_grid_xyz[:, 1]),
                     contig(pm_grid.pm_grid_xyz[:, 2]))
-
+    
         pm_grid.dims = np.array([pm_grid.dx, pm_grid.dy, pm_grid.dz])
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
             pm_grid.m_maxima = B_max * cell_vol / mu0
-            print('here = ', cell_vol, pm_grid.m_maxima)
         else:
             if isinstance(m_maxima, float):
                 pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
