@@ -44,12 +44,27 @@ void iterate_over_corners(int i, int j, int k, \
     double epsz = 0.0;
     if (rijk == std::abs(x) && x < 0) {
         epsx = 1e-30;
+        // std::cout << "Begin list: " << std::endl;
+        // std::cout << i << ", " << j << ", " << k << std::endl;
+        // std::cout << x << std::endl;
+        // std::cout << y << std::endl;
+        // std::cout << z << std::endl;
     }
     if (rijk == std::abs(y) && x < 0) {
         epsy = 1e-30;
+        // std::cout << "Begin list: " << std::endl;
+        // std::cout << i << ", " << j << ", " << k << std::endl;
+        // std::cout << x << std::endl;
+        // std::cout << y << std::endl;
+        // std::cout << z << std::endl;
     }
     if (rijk == std::abs(z) && x < 0) {
         epsz = 1e-30;
+        // std::cout << "Begin list: " << std::endl;
+        // std::cout << i << ", " << j << ", " << k << std::endl;
+        // std::cout << x << std::endl;
+        // std::cout << y << std::endl;
+        // std::cout << z << std::endl;
     }
 
     double atan_xy = summa * std::atan2(y * x, z * rijk);
@@ -58,6 +73,9 @@ void iterate_over_corners(int i, int j, int k, \
     double log_x = summa * std::log(x + rijk + epsx);
     double log_y = summa * std::log(y + rijk + epsy);
     double log_z = summa * std::log(z + rijk + epsz);
+    // double log_x = summa * std::log(x + rijk);
+    // double log_y = summa * std::log(y + rijk);
+    // double log_z = summa * std::log(z + rijk);
     h00 += atan_xy + atan_xz;
     h01 += log_z;
     h02 += log_y;
@@ -73,12 +91,20 @@ void iterate_over_corners(int i, int j, int k, \
 std::tuple<double, double, double, double, double, double, double, double, double> \
     Hd_i_prime(double rx_loc, double ry_loc, double rz_loc, double dimx, double dimy, double dimz) {
     //
-    double X0 = rx_loc + dimx/2;
-    double X1 = rx_loc - dimx/2;
-    double Y0 = ry_loc + dimy/2;
-    double Y1 = ry_loc - dimy/2;
-    double Z0 = rz_loc + dimz/2;
-    double Z1 = rz_loc - dimz/2;
+    double X0 = rx_loc + dimx / 2.0;
+    double X1 = rx_loc - dimx / 2.0;
+    double Y0 = ry_loc + dimy / 2.0;
+    double Y1 = ry_loc - dimy / 2.0;
+    double Z0 = rz_loc + dimz / 2.0;
+    double Z1 = rz_loc - dimz / 2.0;
+    double eps = 1e-12;
+    if ((std::abs(X0 - X1) < eps) || (std::abs(Y0 - Y1) < eps) || (std::abs(Z0 - Z1) < eps)) {
+        std::cout << dimx << ", " << dimy << ", " << dimz << std::endl;
+        std::cout << rx_loc << ", " << ry_loc << ", " << rz_loc << std::endl;
+        std::cout << X0 << ", " << X1 << std::endl;
+        std::cout << Y0 << ", " << Y1 << std::endl;
+        std::cout << Z0 << ", " << Z1 << std::endl;
+    }
     double H00 = 0.0;
     double H01 = 0.0;
     double H02 = 0.0;
@@ -152,9 +178,6 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
             double Bx_loc = (h00 * Mx_loc + h01 * My_loc + h02 * Mz_loc) + tm * Mx_loc;
             double By_loc = (h10 * Mx_loc + h11 * My_loc + h12 * Mz_loc) + tm * My_loc;
             double Bz_loc = (h20 * Mx_loc + h21 * My_loc + h22 * Mz_loc) + tm * Mz_loc;
-            // Bloc[0] += Bx_loc;
-            // Bloc[1] += By_loc;
-            // Bloc[2] += Bz_loc;
             B(n, 0) += p00 * Bx_loc + p10 * By_loc + p20 * Bz_loc;
             B(n, 1) += p01 * Bx_loc + p11 * By_loc + p21 * Bz_loc;
             B(n, 2) += p02 * Bx_loc + p12 * By_loc + p22 * Bz_loc;
@@ -222,15 +245,6 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \
             double sinP = std::sin(phi);
             double P00, P01, P02, P10, P11, P12, P20, P21, P22;
             std::tie(P00, P01, P02, P10, P11, P12, P20, P21, P22) = Pd(phi, theta);
-            // double P00 = cosT * cosP;
-            // double P01 = -cosT * sinP;
-            // double P02 = sinT;
-            // double P10 = sinP;
-            // double P11 = cosP;
-            // double P12 = 0.0;
-            // double P20 = -sinT * cosP;
-            // double P21 = sinT * sinP;
-            // double P22 = cosT;
             double mpx = magPos_ptr[3 * d];
             double mpy = magPos_ptr[3 * d + 1];
             double mpz = magPos_ptr[3 * d + 2];
@@ -253,7 +267,6 @@ Array Acube(Array& points, Array& magPos, Array& norms, Array& dims, \
                     double nx_loc = P00 * nx_glob + P01 * ny_glob + P02 * nz_glob;
                     double ny_loc = P10 * nx_glob + P11 * ny_glob + P12 * nz_glob;
                     double nz_loc = P20 * nx_glob + P21 * ny_glob + P22 * nz_glob;
-
                     double gx_loc, gy_loc, gz_loc;
                     std::tie(gx_loc, gy_loc, gz_loc) = gd_i( \
                         rx_loc, ry_loc, rz_loc, nx_loc, \
