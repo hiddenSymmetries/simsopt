@@ -924,6 +924,11 @@ class ExactMagnetGrid:
             elif pol_vectors.shape[0] != pm_grid.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
+        else:
+            pol_vectors = np.zeros((pm_grid.ndipoles, 3, 3))
+            pol_vectors[:, 0, 0] = 1.0
+            pol_vectors[:, 1, 1] = 1.0
+            pol_vectors[:, 2, 2] = 1.0
         
         pm_grid.pol_vectors = pol_vectors
         pm_grid._optimization_setup()
