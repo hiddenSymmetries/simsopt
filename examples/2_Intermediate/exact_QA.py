@@ -23,10 +23,10 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 20 # bricks with radial extent 2 cm
+    Nx = 10 # bricks with radial extent 2 cm
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
+poff = 0.3  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plas/ma equilibrium file
@@ -80,11 +80,10 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"Nx": Nx, "Ny": Nx * 2, "Nz": Nx * 3}  
+kwargs_geo = {"Nx": Nx} #, "Ny": Nx * 2, "Nz": Nx * 3}  
 pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
-pm_opt._pms_to_vtk(out_str + "/magnet_geometry")
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
@@ -113,7 +112,7 @@ b_magnet = ExactField(
     m_maxima=pm_opt.m_maxima,
 )
 b_magnet.set_points(s_plot.gamma().reshape((-1, 3)))
-b_magnet._toVTK(out_dir / "magnet_fields")
+b_magnet._toVTK(out_dir / "magnet_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 # Print optimized metrics
 print("Total fB = ",
