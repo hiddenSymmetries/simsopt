@@ -51,7 +51,6 @@ void iterate_over_corners(int i, int j, int k, \
     if (rijk == std::abs(z) && x < 0) {
         epsz = 1e-20;
     }
-
     double atan_xy = summa * std::atan2(y * x, z * rijk);
     double atan_xz = summa * std::atan2(z * x, y * rijk);
     double atan_yz = summa * std::atan2(y * z, x * rijk);
