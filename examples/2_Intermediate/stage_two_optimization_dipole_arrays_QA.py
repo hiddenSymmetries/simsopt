@@ -1,30 +1,5 @@
 #!/usr/bin/env python
 r"""
-This coil optimization script is similar to stage_two_optimization.py. However
-in this version, the coils are constrained to be planar, by using the curve type
-CurvePlanarFourier. Also the LinkingNumber objective is used to prevent coils
-from becoming topologically linked with each other.
-
-In this example we solve a FOCUS like Stage II coil optimisation problem: the
-goal is to find coils that generate a specific target normal field on a given
-surface.  In this particular case we consider a vacuum field, so the target is
-just zero.
-
-The objective is given by
-
-    J = (1/2) \int |B dot n|^2 ds
-        + LENGTH_WEIGHT * (sum CurveLength)
-        + DISTANCE_WEIGHT * MininumDistancePenalty(DISTANCE_THRESHOLD)
-        + CURVATURE_WEIGHT * CurvaturePenalty(CURVATURE_THRESHOLD)
-        + MSC_WEIGHT * MeanSquaredCurvaturePenalty(MSC_THRESHOLD)
-        + LinkingNumber
-
-if any of the weights are increased, or the thresholds are tightened, the coils
-are more regular and better separated, but the target normal field may not be
-achieved as well. This example demonstrates the adjustment of weights and
-penalties via the use of the `Weight` class.
-
-The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
 import os
@@ -47,13 +22,13 @@ order = 1
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
+input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
 filename = TEST_DIR / input_name
 # input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
 # filename = TEST_DIR / input_name
 
 # Directory for output
-OUT_DIR = "./dipole_array_optimization/"
+OUT_DIR = "./dipole_array_optimization_QA/"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -86,7 +61,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 ### Initialize some TF coils
-def initialize_coils_QH(TEST_DIR, s):
+def initialize_coils_QA(TEST_DIR, s):
     """
     Initializes coils for each of the target configurations that are
     used for permanent magnet optimization.
@@ -114,8 +89,8 @@ def initialize_coils_QH(TEST_DIR, s):
 
     # qh needs to be scaled to 0.1 T on-axis magnetic field strength
     from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753 / 1.999
+    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.5
     print('Total current = ', total_current)
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
                                                R0=R0, R1=R1, order=order, numquadpoints=256)
@@ -135,7 +110,7 @@ def initialize_coils_QH(TEST_DIR, s):
     return base_curves, curves, coils
 
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF = initialize_coils_QH(TEST_DIR, s)
+base_curves_TF, curves_TF, coils_TF = initialize_coils_QA(TEST_DIR, s)
 # currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
 # Set up BiotSavart fields
@@ -323,6 +298,6 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_full_opt", extra_data=pointData)
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N / |B|": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_opt_normalizedBn", extra_data=pointData)
