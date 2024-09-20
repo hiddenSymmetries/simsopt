@@ -72,7 +72,7 @@ Stage: devel
     cd .. && \
     rm -rf VMEC2000
 
-    /venv/bin/pip install pyoculus
+    /venv/bin/pip install git+https://github.com/zhisong/pyoculus
     /venv/bin/pip install vtk==9.2.6 pyqt5 matplotlib pyevtk plotly
     /venv/bin/pip install mayavi
     /venv/bin/pip install  git+https://github.com/hiddenSymmetries/booz_xform
