@@ -160,9 +160,9 @@ for i in range(len(base_curves)):
     base_curves[i].set('x' + str(2 * order + 4), np.random.rand(1) - 0.5)
     for j in range(2 * order + 1):
         base_curves[i].fix('x' + str(j))
-    base_curves[i].fix('x' + str(2 * order + 5))
-    base_curves[i].fix('x' + str(2 * order + 6))
-    base_curves[i].fix('x' + str(2 * order + 7))
+    # base_curves[i].fix('x' + str(2 * order + 5))
+    # base_curves[i].fix('x' + str(2 * order + 6))
+    # base_curves[i].fix('x' + str(2 * order + 7))
 base_currents = [Current(1.0) * 1e6 for i in range(ncoils)]
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
@@ -302,7 +302,7 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-20)
+res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 print([c.current.get_value() for c in bs.coils], [c.current.get_value() for c in bs_TF.coils])
 curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_opt", scalar_data=[c.current.get_value() for c in bs.coils])
 curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_opt", 

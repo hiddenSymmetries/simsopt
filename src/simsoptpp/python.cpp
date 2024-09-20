@@ -19,7 +19,6 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "dommaschk.h"
 #include "integral_BdotN.h"
 #include "permanent_magnet_optimization.h"
-#include "psc.h"
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "boozerresidual_py.h"
@@ -59,32 +58,6 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart_vjp", &biot_savart_vjp);
     m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
     m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
-    
-    // Functions below are implemented for PSC optimization
-    m.def("L_matrix" , &L_matrix);
-    m.def("L_deriv" , &L_deriv);
-    m.def("L_deriv_simd" , &L_deriv_simd);
-    m.def("flux_xyz" , &flux_xyz);
-    m.def("flux_integration" , &flux_integration);
-    m.def("dB_by_dX_integration", &dB_by_dX_integration);
-
-    m.def("A_matrix" , &A_matrix);
-    m.def("A_matrix_simd" , &A_matrix_simd);
-    m.def("A_matrix_direct" , &A_matrix_direct);
-    m.def("B_PSC" , &B_PSC);
-    m.def("dA_dkappa" , &dA_dkappa);
-    m.def("dA_dkappa_simd" , &dA_dkappa_simd);
-    m.def("dpsi_dkappa" , &dpsi_dkappa);
-    m.def("dpsi_dkappa_xsimd" , &dpsi_dkappa_xsimd);
-    m.def("psi_check" , &psi_check);
-    m.def("B_TF" , &B_TF);
-    m.def("coil_forces" , &coil_forces);
-    m.def("coil_forces_A_matrix" , &coil_forces_A_matrix);
-    m.def("coil_forces_matrix" , &coil_forces_matrix);
-    m.def("Ellint1AGM" , &Ellint1AGM);
-    m.def("Ellint2AGM" , &Ellint2AGM);
-    m.def("update_alphas_deltas" , &update_alphas_deltas);
-    m.def("update_alphas_deltas_xsimd" , &update_alphas_deltas_xsimd);
     
     // Functions below are implemented for permanent magnet optimization
     m.def("dipole_field_B" , &dipole_field_B);
