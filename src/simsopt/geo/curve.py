@@ -11,7 +11,8 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_planar_curves']
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 
+            'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
 
 
 @jit
@@ -847,6 +848,164 @@ def curves_to_vtk(curves, filename, close=False, scalar_data=None):
         coil_data = np.ascontiguousarray(coil_data)
         polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data, 'I': coil_data, 'I_mag': np.abs(coil_data)})
 
+def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz):
+    # Get (X, Y, Z) coordinates of the two boundaries
+    nfp = s.nfp
+    stellsym = s.stellsym
+    xyz_inner = s_inner.gamma().reshape(-1, 3)
+    xyz_outer = s_outer.gamma().reshape(-1, 3)
+    x_outer = xyz_outer[:, 0]
+    y_outer = xyz_outer[:, 1]
+    z_outer = xyz_outer[:, 2]
+    x_max = np.max(x_outer)
+    x_min = np.min(x_outer)
+    y_max = np.max(y_outer)
+    y_min = np.min(y_outer)
+    z_max = np.max(z_outer)
+    z_min = np.min(z_outer)
+    z_max = max(z_max, abs(z_min))
+
+    # Initialize uniform grid
+    dx = (x_max - x_min) / (Nx - 1)
+    dy = (y_max - y_min) / (Ny - 1)
+    dz = 2 * z_max / (Nz - 1)
+    Nmin = min(dx, min(dy, dz))
+    
+    # This is not a guarantee that coils will not touch but inductance
+    # matrix blows up if they do so it is easy to tell when they do
+    if nfp == 2:
+        R = Nmin / 3
+    elif nfp == 3:
+        R = min(Nmin / 3.0, poff / 1.75)
+    else:
+        R = Nmin / 3
+
+    print('Major radius of the coils is R = ', R)
+    print('Coils are spaced so that every coil of radius R '
+            ' is at least 2R away from the next coil'
+    )
+
+    if nfp > 1:
+        # Throw away any points not in the section phi = [0, pi / n_p] and
+        # make sure all centers points are at least a distance R from the
+        # sector so that all the coil points are reflected correctly. 
+        X = np.linspace(
+            dx / 2.0 + x_min, x_max - dx / 2.0, 
+            Nx, endpoint=True
+        )
+        Y = np.linspace(
+            dy / 2.0 + y_min, y_max - dy / 2.0, 
+            Ny, endpoint=True
+        )
+    else:
+        X = np.linspace(x_min, x_max, Nx, endpoint=True)
+        Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+    Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+
+    # Make 3D mesh
+    X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+    xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+    
+    # Extra work for nfp > 1 to chop off points outside sector
+    # This is probably not robust for every stellarator but seems to work
+    # reasonably well for the Landreman/Paul QA/QH in the code. 
+    if nfp > 1:
+        inds = []
+        for i in range(Nx):
+            for j in range(Ny):
+                for k in range(Nz):
+                    phi = np.arctan2(Y[i, j, k], X[i, j, k])
+                    if nfp == 4:
+                        phi2 = np.arctan2(R / 1.4, X[i, j, k])
+                    elif nfp == 3:
+                        phi2 = np.arctan2(Y[i, j, k] + R / 2.0, X[i, j, k] - R / 2.0) - phi
+                    elif nfp == 2:
+                        phi2 = np.arctan2(R, s.get_rc(0, 0))
+                    # Add a little factor to avoid phi = pi / n_p degrees 
+                    # exactly, which can intersect with a symmetrized
+                    # coil if not careful 
+                    if phi >= (np.pi / nfp - phi2) or phi < 0.0:
+                        inds.append(int(i * Ny * Nz + j * Nz + k))
+        good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
+        xyz_uniform = xyz_uniform[good_inds, :]
+    return xyz_uniform, xyz_inner, xyz_outer, R
+
+def create_planar_curves_between_two_toroidal_surfaces(
+    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1
+):
+    from simsopt.geo import CurvePlanarFourier
+    from simsopt.field import apply_symmetries_to_curves
+
+    nfp = s.nfp
+    stellsym = s.stellsym
+    normal_inner = s_inner.unitnormal().reshape(-1, 3)   
+    normal_outer = s_outer.unitnormal().reshape(-1, 3)   
+    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz)
+    # Have the uniform grid, now need to loop through and eliminate cells.
+    contig = np.ascontiguousarray
+    grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
+        contig(normal_inner), 
+        contig(normal_outer), 
+        contig(xyz_uniform), 
+        contig(xyz_inner), 
+        contig(xyz_outer)
+    )
+    inds = np.ravel(np.logical_not(np.all(grid_xyz == 0.0, axis=-1)))
+    grid_xyz = np.array(grid_xyz[inds, :], dtype=float)
+    
+    # Check if the grid intersects a symmetry plane -- oops!
+    phi0 = 2 * np.pi / nfp * np.arange(nfp)
+    phi_grid = np.arctan2(grid_xyz[:, 1], grid_xyz[:, 0])
+    phi_dev = np.arctan2(R, np.sqrt(grid_xyz[:, 0] ** 2  + grid_xyz[:, 1] ** 2))
+    inds = []
+    eps = 1e-3
+    remove_inds = []
+    for i in range(nfp):
+        conflicts = np.ravel(np.where(np.abs(phi_grid - phi0[i]) < phi_dev))
+        if len(conflicts) > 0:
+            inds.append(conflicts[0])
+    if len(inds) > 0:
+        print('bad indices = ', inds)
+        raise ValueError('The PSC coils are initialized such that they may intersect with '
+                            'a discrete symmetry plane, preventing the proper symmetrization '
+                            'of the coils under stellarator and field-period symmetries. '
+                            'Please reinitialize the coils.')
+    for i in range(grid_xyz.shape[0]):
+        for j in range(i + 1, grid_xyz.shape[0]):
+            dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
+            conflict_bool = (dij < (2.0 + eps) * R)
+            if conflict_bool:
+                print('bad indices = ', i, j, dij)
+                raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                                    'of another PSC coil. Please reinitialize the coils.')
+
+    final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
+    grid_xyz = grid_xyz[final_inds, :]
+    ncoils = grid_xyz.shape[0]
+    curves = [CurvePlanarFourier(order*50, order, nfp=1, stellsym=False) for i in range(ncoils)]
+    for ic in range(ncoils):
+        alpha2 = np.pi / 2.0
+        delta2 = 0.0
+        calpha2 = np.cos(alpha2)
+        salpha2 = np.sin(alpha2)
+        cdelta2 = np.cos(delta2)
+        sdelta2 = np.sin(delta2)
+        dofs = np.zeros(10)
+        dofs[0] = R
+        # Conversion from Euler angles in 3-2-1 body sequence to 
+        # quaternions: 
+        # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        dofs[3] = calpha2 * cdelta2
+        dofs[4] = salpha2 * cdelta2
+        dofs[5] = calpha2 * sdelta2
+        dofs[6] = -salpha2 * sdelta2
+        # Now specify the center 
+        dofs[7:10] = grid_xyz[ic, :]
+        for j in range(10):
+            curves[ic].set('x' + str(j), dofs[j])
+    all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
+    return curves, all_curves
+
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
     """
     Create ``ncurves`` curves of type
@@ -884,7 +1043,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     return curves
 
 
-def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
@@ -896,10 +1055,14 @@ def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, 
     if numquadpoints is None:
         numquadpoints = 15 * order
     curves = []
-    from simsopt.geo.curveplanarfourier import CurvePlanarFourier
+    from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
     for k in range(ncurves):
         angle = (k+0.5)*(2*np.pi) / ((1+int(stellsym))*nfp*ncurves)
-        curve = CurvePlanarFourier(numquadpoints, order, nfp, stellsym)
+
+        if jax_flag:
+            curve = JaxCurvePlanarFourier(numquadpoints, order)
+        else:
+            curve = CurvePlanarFourier(numquadpoints, order, nfp, stellsym)
 
         rcCoeffs = np.zeros(order+1)
         rcCoeffs[0] = R1

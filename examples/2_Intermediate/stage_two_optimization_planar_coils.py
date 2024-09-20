@@ -48,15 +48,15 @@ ncoils = 4
 R0 = 1.0
 
 # Minor radius for the initial circular coils:
-R1 = 0.5
+R1 = 0.7
 
 # Number of Fourier modes describing each Cartesian component of each coil:
-order = 1
+order = 4
 
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(10)
+LENGTH_WEIGHT = Weight(0.1)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.08
@@ -64,24 +64,24 @@ CC_WEIGHT = 1000
 
 # Threshold and weight for the coil-to-surface distance penalty in the objective function:
 CS_THRESHOLD = 0.12
-CS_WEIGHT = 10
+CS_WEIGHT = 100
 
 # Threshold and weight for the curvature penalty in the objective function:
-CURVATURE_THRESHOLD = 10.
-CURVATURE_WEIGHT = 1e-6
+CURVATURE_THRESHOLD = 1.
+CURVATURE_WEIGHT = 1e-7
 
 # Threshold and weight for the mean squared curvature penalty in the objective function:
-MSC_THRESHOLD = 10
-MSC_WEIGHT = 1e-6
+MSC_THRESHOLD = 1
+MSC_WEIGHT = 1e-7
 
 # Number of iterations to perform:
-MAXITER = 50 if in_github_actions else 400
+MAXITER = 500 if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
-input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
-filename = TEST_DIR / input_name
+# input_name = 'wout_c09r00_fixedBoundary_0.5T_vacuum_ns201.nc'
+# filename = TEST_DIR / input_name
 
 # Directory for output
 OUT_DIR = "./output/"
@@ -94,21 +94,25 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Initialize the boundary magnetic surface:
 nphi = 32
 ntheta = 32
-s = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
+s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
+# s = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
-base_curves = create_equally_spaced_planar_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)
-for i in range(len(base_curves)):
-    base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)
-    base_curves[i].set('x' + str(2 * order + 2), np.random.rand(1) - 0.5)
-    base_curves[i].set('x' + str(2 * order + 3), np.random.rand(1) - 0.5)
-    base_curves[i].set('x' + str(2 * order + 4), np.random.rand(1) - 0.5)
-    for j in range(2 * order + 1):
-        base_curves[i].fix('x' + str(j))
-    base_curves[i].fix('x' + str(2 * order + 5))
-    base_curves[i].fix('x' + str(2 * order + 6))
-    base_curves[i].fix('x' + str(2 * order + 7))
-    print(i, base_curves[i].dof_names)
+base_curves = create_equally_spaced_planar_curves(
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order,
+    jax_flag=True
+)
+# for i in range(len(base_curves)):
+#     base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)
+#     base_curves[i].set('x' + str(2 * order + 2), np.random.rand(1) - 0.5)
+#     base_curves[i].set('x' + str(2 * order + 3), np.random.rand(1) - 0.5)
+#     base_curves[i].set('x' + str(2 * order + 4), np.random.rand(1) - 0.5)
+#     for j in range(2 * order + 1):
+#         base_curves[i].fix('x' + str(j))
+#     base_curves[i].fix('x' + str(2 * order + 5))
+#     base_curves[i].fix('x' + str(2 * order + 6))
+#     base_curves[i].fix('x' + str(2 * order + 7))
+#     print(i, base_curves[i].dof_names)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -186,7 +190,7 @@ dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    print("err", dJh, J1, J2, (J1-J2)/(2*eps), (J1-J2)/(2*eps) - dJh)  #(J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
+    print("err", (J1-J2)/(2*eps) - dJh)  #(J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
 
 print("""
 ################################################################################
@@ -197,17 +201,3 @@ res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXIT
 curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
-
-
-# We now use the result from the optimization as the initial guess for a
-# subsequent optimization with reduced penalty for the coil length. This will
-# result in slightly longer coils but smaller `B·n` on the surface.
-dofs = res.x
-LENGTH_WEIGHT *= 0.1
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
-
-# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
-bs.save(OUT_DIR + "biot_savart_opt.json")

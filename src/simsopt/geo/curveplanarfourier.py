@@ -1,10 +1,11 @@
 import numpy as np
+import jax.numpy as jnp
 
 import simsoptpp as sopp
-from .curve import Curve, RotatedCurve
+from .curve import Curve, RotatedCurve, JaxCurve
 from .._core.derivative import Derivative
 
-__all__ = ['CurvePlanarFourier', 'PSCCurve']
+__all__ = ['CurvePlanarFourier', 'JaxCurvePlanarFourier']
 
 
 class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
@@ -75,64 +76,149 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         self.local_x = dofs
         sopp.CurvePlanarFourier.set_dofs(self, dofs)
 
-class PSCCurve(CurvePlanarFourier):
-    def __init__(self, quadpoints, order, nfp, stellsym, index, npsc, dofs=None):
-        CurvePlanarFourier.__init__(self, quadpoints, order, nfp, stellsym, dofs=dofs)
-        self._index = index
-        names = self.local_dof_names
-        if len(names) > 0: 
-            for i in range(2 * self.order + 1):
-                self.fix(names[i])
-            self.fix(names[2 * self.order + 5])
-            self.fix(names[2 * self.order + 6])
-            self.fix(names[2 * self.order + 7])
-        self.npsc = npsc
-        
-    def dkappa_dcoef_vjp(self, v_current, dpsi, index):
-        dofs = self.get_dofs()  
-        dofs_unnormalized = dofs[2 * self.order + 1:2 * self.order + 5]
-        normalization = np.sqrt(np.sum(dofs_unnormalized ** 2))
-        dofs = dofs_unnormalized / normalization  # normalize the quaternion
-        w = dofs[0]
-        x = dofs[1]
-        y = dofs[2]
-        z = dofs[3]
-        dalpha_dw = (2 * x * (-2 * (x ** 2 + y ** 2) + 1)) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-        dalpha_dx = -(w * (-0.5 - x ** 2 + y ** 2) - 2 * x * y * z) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
-        dalpha_dy = -(z * (-0.5 + x ** 2 - y ** 2) - 2 * x * y * w) / \
-            (x ** 2 * (w ** 2 + 2 * y ** 2 - 1) + 2 * w * x * y * z + x ** 4 + y ** 4 + y ** 2 * (z ** 2 - 1) + 0.25)
-        dalpha_dz = (2 * y * (1 - 2 * (x ** 2 + y ** 2))) / \
-            (4 * (w * x + y * z) ** 2 + (1 - 2 * ( x ** 2 + y ** 2)) ** 2)
-        ddelta_dw = y / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dx = -z / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dy = w / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-        ddelta_dz = -x / np.sqrt(-(w * y - x * z - 0.5) * (w * y - x * z + 0.5))
-    
-        # So far this is dalpha with respect to the normalized variables 
-        # so need to convert to the original dof derivatives
-        dnormalization = np.zeros((4, 4))
-        for i in range(4):
-            eye = np.zeros(4)
-            eye[i] = 1.0
-            dnormalization[:, i] = eye / normalization - dofs_unnormalized * dofs_unnormalized[i] / normalization ** 3
-        dalpha = np.array([dalpha_dw, dalpha_dx, dalpha_dy, dalpha_dz]) @ dnormalization
-        ddelta = np.array([ddelta_dw, ddelta_dx, ddelta_dy, ddelta_dz]) @ dnormalization
+def jaxplanarcurve_pure(dofs, quadpoints, order):
+    coeffs = dofs[:2 * order + 1]
+    q = dofs[2 * order + 1: 2 * order + 5]
+    q_norm = q / jnp.linalg.norm(q)
+    center = dofs[2 * order + 5:]
+    points = quadpoints
+    gamma = jnp.zeros((len(points), 3))
+    r_curve = jnp.zeros(len(points))
+    xyz_curve_in_plane = jnp.zeros((len(points), 3))
+    phi = 2 * np.pi * points  # points is an angle in [0, 1]
 
-        # dalpha_total = self._psc_array.dpsi_full[index] * dalpha
-        # ddelta_total = self._psc_array.dpsi_full[index + self.npsc] * ddelta
-        
-        # dalpha_total = dpsi[self._index] * dalpha
-        # ddelta_total = dpsi[self._index + self.npsc] * ddelta
-        dalpha_total = dpsi[index] * dalpha
-        ddelta_total = dpsi[index + self.npsc] * ddelta
-        
-        dalpha = np.hstack((np.zeros(2 * self.order + 1), dalpha_total))
-        dalpha = np.hstack((dalpha, np.zeros(3)))
-        ddelta = np.hstack((np.zeros(2 * self.order + 1), ddelta_total))
-        ddelta = np.hstack((ddelta, np.zeros(3)))
-        deriv = dalpha + ddelta
-        # print(deriv, v_current)
-        # exit()
-        return deriv * v_current[0]
+    # Modes stored with all the cosines then all the sines
+    for j in range(order + 1):
+        r_curve = r_curve + coeffs[j] * jnp.cos(j * phi)
+    for j in range(1, order + 1):
+        r_curve = r_curve + coeffs[order + j] * jnp.sin(j * phi)
+    xyz_curve_in_plane = xyz_curve_in_plane.at[:, 0].add(r_curve * jnp.cos(phi))
+    xyz_curve_in_plane = xyz_curve_in_plane.at[:, 1].add(r_curve * jnp.sin(phi))
+
+    # Note z component, xyz_curve_in_plane[:, 2] = 0, always before rotation.
+    gamma = gamma.at[:, 0].add( 
+        (1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)) * xyz_curve_in_plane[:, 0] \
+        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * xyz_curve_in_plane[:, 1] \
+        + center[0]
+    )
+    gamma = gamma.at[:, 1].add( 
+        (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)) * xyz_curve_in_plane[:, 1] \
+        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * xyz_curve_in_plane[:, 0] \
+        + center[1]
+    )
+    gamma = gamma.at[:, 2].add( 
+        2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * xyz_curve_in_plane[:, 0] \
+        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * xyz_curve_in_plane[:, 1] \
+        + center[2]
+    )
+    return gamma
+
+class JaxCurvePlanarFourier(JaxCurve):
+
+    """
+    A Python+Jax implementation of the CurvePlanarFourier class.  There is
+    actually no reason why one should use this over the C++ implementation in
+    :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+    to define a geometric object class and calculate all the derivatives (both
+    with respect to dofs and with respect to the angle :math:`\theta`) automatically.
+
+    [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, 
+    q_0, q_i, q_j, q_k, 
+    x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
+    """
+
+    def __init__(self, quadpoints, order, dofs=None):
+        if isinstance(quadpoints, int):
+            quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
+        pure = lambda dofs, points: jaxplanarcurve_pure(dofs, points, order)
+        self.order = order
+        self.coefficients = [np.zeros((2 * order + 1,)), np.zeros((4,)), np.zeros((3,))]
+        if dofs is None:
+            super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+                             external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
+        else:
+            super().__init__(quadpoints, pure, dofs=dofs,
+                             external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
+
+    def num_dofs(self):
+        """
+        This function returns the number of dofs associated to this object.
+        """
+        return (2 * self.order + 1 + 4 + 3)
+
+    def get_dofs(self):
+        """
+        This function returns the dofs associated to this object.
+        """
+        return np.concatenate(self.coefficients)
+
+    def set_dofs_impl(self, dofs):
+        """
+        This function sets the dofs associated to this object.
+        """
+        # self.coefficients = dofs
+        for j in range(2 * self.order + 1):
+            self.coefficients[0][j] = dofs[j]
+        self.coefficients[1][:] = dofs[2 * self.order + 1:2 * self.order + 5]
+        self.coefficients[2][:] = dofs[2 * self.order + 5:]
+
+
+# class JaxCurvePlanarFourier(JaxCurve):
+
+#     """
+#     A Python+Jax implementation of the CurvePlanarFourier class.  There is
+#     actually no reason why one should use this over the C++ implementation in
+#     :mod:`simsoptpp`, but the point of this class is to illustrate how jax can be used
+#     to define a geometric object class and calculate all the derivatives (both
+#     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
+
+#     [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, 
+#     q_0, q_i, q_j, q_k, 
+#     x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
+#     """
+
+#     def __init__(self, quadpoints, order, dofs=None):
+#         if isinstance(quadpoints, int):
+#             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
+#         pure = lambda dofs, points: jaxplanarcurve_pure(dofs, points, order)
+#         self.order = order
+#         self.coefficients = [np.zeros((2 * order + 1,)), np.zeros((4,)), np.zeros((3,))]
+#         if dofs is None:
+#             super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+#                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
+#         else:
+#             super().__init__(quadpoints, pure, dofs=dofs,
+#                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
+#         # self.passive_current_jax = jit(lambda dofs: self.passive_current_pure(dofs, points))
+#         # self.passive_current_impl_jax = jit(lambda dofs, p: self.passive_current_pure(dofs, p))
+#         # self.dpassive_current_by_dcoeff_jax = jit(jacfwd(self.passive_current_jax))
+#         # self.dpassive_current_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.passive_current_jax, x)[1](v)[0])
+
+#     # def passive_current_pure(self, dofs, points):
+#     #     # To get the I_i passive current, need to compute (L^{-1} * psi)_i = Linv_{ij}psi_j
+#     #     # so just need the jth column of Linv here. 
+#     #     normal = self.normal
+#     #     psi = 
+       
+
+#     def num_dofs(self):
+#         """
+#         This function returns the number of dofs associated to this object.
+#         """
+#         return (2 * self.order + 1 + 4 + 3)
+
+#     def get_dofs(self):
+#         """
+#         This function returns the dofs associated to this object.
+#         """
+#         return np.concatenate(self.coefficients)
+
+#     def set_dofs_impl(self, dofs):
+#         """
+#         This function sets the dofs associated to this object.
+#         """
+#         # self.coefficients = dofs
+#         for j in range(2 * self.order + 1):
+#             self.coefficients[0][j] = dofs[j]
+#         self.coefficients[1][:] = dofs[2 * self.order + 1:2 * self.order + 5]
+#         self.coefficients[2][:] = dofs[2 * self.order + 5:]
