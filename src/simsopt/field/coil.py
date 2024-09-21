@@ -5,15 +5,13 @@ from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
-# from simsopt.geo.curveplanarfourier import RotatedPSCCurve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'PSCCoil',
+__all__ = ['Coil',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
-           'apply_symmetries_to_psc_curves', 'psc_coils_via_symmetries',
            'coils_to_makegrid', 'coils_to_focus']
 
 
@@ -31,38 +29,9 @@ class Coil(sopp.Coil, Optimizable):
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
-        # print('other derivs = ', v_current, self.curve.dgamma_by_dcoeff_vjp_impl(v_gamma), self.curve.dgammadash_by_dcoeff_vjp_impl(v_gammadash))
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
             + self.current.vjp(v_current)
-
-    def plot(self, **kwargs):
-        """
-        Plot the coil's curve. This method is just shorthand for calling
-        the :obj:`~simsopt.geo.curve.Curve.plot()` function on the
-        underlying Curve. All arguments are passed to
-        :obj:`simsopt.geo.curve.Curve.plot()`
-        """
-        return self.curve.plot(**kwargs)
-    
-class PSCCoil(sopp.Coil, Optimizable):
-    """
-    A :obj:`Coil` combines a :obj:`~simsopt.geo.curve.Curve` and a
-    :obj:`Current` and is used as input for a
-    :obj:`~simsopt.field.biotsavart.BiotSavart` field.
-    """
-
-    def __init__(self, curve, current):
-        self._curve = curve
-        current.fix_all()
-        self._current = current
-        sopp.Coil.__init__(self, curve, current)
-        Optimizable.__init__(self, depends_on=[curve, current])
-
-    def vjp(self, v_gamma, v_gammadash, v_current):
-        return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
-            + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
-            + Derivative({self.curve: v_current})
 
     def plot(self, **kwargs):
         """
@@ -167,34 +136,6 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
     def get_value(self):
         return self.current_a.get_value() + self.current_b.get_value()
 
-
-def apply_symmetries_to_psc_curves(base_curves, nfp, stellsym):
-    """
-    Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
-    (1+int(stellsym))`` :mod:`simsopt.geo.curve.Curve` objects obtained by
-    applying rotations and flipping corresponding to ``nfp`` fold rotational
-    symmetry and optionally stellarator symmetry.
-    """
-    flip_list = [False, True] if stellsym else [False]
-    curves = []
-    q = 0
-    for k in range(0, nfp):
-        for flip in flip_list:
-            for i in range(len(base_curves)):
-                if k == 0 and not flip:
-                    curves.append(base_curves[i])
-                else:
-                    rotcurve = RotatedCurve(base_curves[i], 2*pi*k/nfp, flip)
-                    try:
-                        rotcurve.order = base_curves[i].order
-                        rotcurve._index = base_curves[i]._index + base_curves[i].npsc * q
-                        rotcurve.dkappa_dcoef_vjp = base_curves[i].dkappa_dcoef_vjp
-                    except:
-                        'do nothing'
-                    curves.append(rotcurve)
-            q += 1
-    return curves
-
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
     """
     Take a list of ``n`` :mod:`simsopt.geo.curve.Curve`s and return ``n * nfp *
@@ -243,21 +184,6 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     currents = apply_symmetries_to_currents(currents, nfp, stellsym)
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
-
-def psc_coils_via_symmetries(curves, currents, nfp, stellsym):
-    """
-    Take a list of ``n`` curves and return ``n * nfp * (1+int(stellsym))``
-    ``Coil`` objects obtained by applying rotations and flipping corresponding
-    to ``nfp`` fold rotational symmetry and optionally stellarator symmetry.
-    """
-
-    assert len(curves) == len(currents)
-    curves = apply_symmetries_to_psc_curves(curves, nfp, stellsym)
-    # [currents[i].fix_all() for i in range(len(currents))]
-    currents = apply_symmetries_to_currents(currents, nfp, stellsym)
-    coils = [PSCCoil(curv, curr) for (curv, curr) in zip(curves, currents)]
-    return coils
-
 
 def load_coils_from_makegrid_file(filename, order, ppp=20):
     """

@@ -3,6 +3,7 @@ r"""
 """
 
 import os
+import shutil
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
@@ -29,6 +30,8 @@ filename = TEST_DIR / input_name
 
 # Directory for output
 OUT_DIR = "./dipole_array_optimization_QA/"
+if os.path.exists(OUT_DIR):
+    shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -39,8 +42,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 1.5
-coff = 1.5
+poff = 2.0
+coff = 1.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
@@ -85,32 +88,35 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 2
     R0 = s.get_rc(0, 0)
     R1 = s.get_rc(1, 0) * 5
-    order = 1
+    order = 4
 
-    # qh needs to be scaled to 0.1 T on-axis magnetic field strength
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.5
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.105
     print('Total current = ', total_current)
-    base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
-                                               R0=R0, R1=R1, order=order, numquadpoints=256)
-    base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
-    # base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
-    # base_currents[0].fix_all()
+    base_curves = create_equally_spaced_planar_curves(
+        ncoils, s.nfp, stellsym=True, 
+        R0=R0, R1=R1, order=order, numquadpoints=256)
+    # base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
+    base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils)]
+    base_currents[0].fix_all()
 
-    total_current = Current(total_current)
-    total_current.fix_all()
-    base_currents += [total_current - sum(base_currents)]
+    # total_current = Current(total_current)
+    # total_current.fix_all()
+    # base_currents += [total_current - sum(base_currents)]
     coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+    # for c in coils:
+    #     c.current.fix_all()
+    #     c.curve.fix_all()
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
     currents = [c.current.get_value() for c in coils]
-    curves_to_vtk(curves, OUT_DIR + "curves_TF_init", scalar_data=currents)
-    return base_curves, curves, coils
+    curves_to_vtk(curves, OUT_DIR + "curves_TF_0", scalar_data=currents)
+    return base_curves, curves, coils, currents
 
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF = initialize_coils_QA(TEST_DIR, s)
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
 # currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
 # Set up BiotSavart fields
@@ -119,7 +125,7 @@ bs_TF = BiotSavart(coils_TF)
 # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(bs_TF, s)
 
-Nx = 6
+Nx = 8
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -129,16 +135,17 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
 for i in range(len(base_curves)):
+    # UNCOMMENT BELOW IF WANT TO RANDOMIZE THE ORIENTATIONS
     base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)
     base_curves[i].set('x' + str(2 * order + 2), np.random.rand(1) - 0.5)
     base_curves[i].set('x' + str(2 * order + 3), np.random.rand(1) - 0.5)
     base_curves[i].set('x' + str(2 * order + 4), np.random.rand(1) - 0.5)
     for j in range(2 * order + 1):
         base_curves[i].fix('x' + str(j))
-    # base_curves[i].fix('x' + str(2 * order + 5))
-    # base_curves[i].fix('x' + str(2 * order + 6))
-    # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1.0) * 1e6 for i in range(ncoils)]
+    base_curves[i].fix('x' + str(2 * order + 5))
+    base_curves[i].fix('x' + str(2 * order + 6))
+    base_curves[i].fix('x' + str(2 * order + 7))
+base_currents = [Current(1) * 5e6 for i in range(ncoils)]
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
 
@@ -147,10 +154,11 @@ bs = BiotSavart(coils)
 btot = bs + bs_TF
 bs.set_points(s.gamma().reshape((-1, 3)))
 btot.set_points(s.gamma().reshape((-1, 3)))
+print(btot.dof_names, len(btot.dof_names))
 
 curves = [c.curve for c in coils]
 currents = [c.current.get_value() for c in coils]
-curves_to_vtk(curves, OUT_DIR + "curves_init", close=True, scalar_data=currents)
+curves_to_vtk(curves, OUT_DIR + "curves_0", close=True, scalar_data=currents)
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
 
@@ -165,20 +173,20 @@ s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
 
 btot.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_full_0", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.01)
-LINK_WEIGHT = 10
-CC_THRESHOLD = 0.2
-CC_WEIGHT = 1000
-CS_THRESHOLD = 1.3
-CS_WEIGHT = 1e2
-CURVATURE_THRESHOLD = 1.
-CURVATURE_WEIGHT = 1e-8
-MSC_THRESHOLD = 1
-MSC_WEIGHT = 1e-8
-MAXITER = 5000
+LENGTH_WEIGHT = Weight(0.001)
+LINK_WEIGHT = 1
+CC_THRESHOLD = 0.3
+CC_WEIGHT = 1e3
+# CC_THRESHOLD_TF = 0.3
+CS_THRESHOLD = 1.2
+CS_WEIGHT = 1
+CURVATURE_THRESHOLD = 1e5
+CURVATURE_WEIGHT = 1e-12
+MSC_THRESHOLD = 1e5
+MSC_WEIGHT = 1e-12
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
@@ -187,9 +195,12 @@ Jf = SquaredFlux(s, btot)
 Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 
+# Separate c-c distance objectives for now?
+Jccdist = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=ncoils)
+
 # coil-coil and coil-plasma distances should be between all coils
-Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=ncoils + len(coils_TF))
-Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
+# Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=ncoils + len(coils_TF))
+Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)  # + curves
 
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
@@ -197,6 +208,9 @@ linkNum = LinkingNumber(curves + curves_TF)
 
 # Jccdist_TF = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=ncoils)
 # Jcsdist_TF = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
+
+# Between TF coils, put on more aggressive coil-coil threshold
+# Jccdist_TF = CurveCurveDistance(curves_TF, CC_THRESHOLD_TF, num_basecurves=len(coils_TF))
 Jcs_TF = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves_TF]
 Jmscs_TF = [MeanSquaredCurvature(c) for c in base_curves_TF]
 
@@ -205,8 +219,9 @@ Jmscs_TF = [MeanSquaredCurvature(c) for c in base_curves_TF]
 # multiplied by scalars and added:
 
 # Coil shapes and center positions are fixed right now so not including this one below
-# + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), 2.6*ncoils) \
+    # + CC_WEIGHT * Jccdist_TF \
 JF = Jf \
+    + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), 2 * np.pi * 0.5) \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
@@ -229,28 +244,31 @@ def fun(dofs):
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN2 = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
         )) ** 2 * np.linalg.norm(s.normal(), axis=-1))
-    BdotN2_normalized = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
-        ).reshape(-1) / np.linalg.norm(btot.B(), axis=-1)) ** 2 * np.linalg.norm(s.normal(), axis=-1).reshape(-1))
-    Bn_over_B = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
-        )) ** 2 * np.linalg.norm(s.normal(), axis=-1)) / np.mean(
-            (np.linalg.norm(btot.B().reshape(-1, 3), axis=-1)
-            ) ** 2 * np.linalg.norm(s.normal(), axis=-1).reshape(-1))
+    BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+        ) / np.mean(btot.AbsB())
+    # BdotN2_normalized = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
+    #     ).reshape(-1) / np.linalg.norm(btot.B(), axis=-1)) ** 2 * np.linalg.norm(s.normal(), axis=-1).reshape(-1))
+    # Bn_over_B = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
+    #     )) ** 2 * np.linalg.norm(s.normal(), axis=-1)) / np.mean(
+    #         (np.linalg.norm(btot.B().reshape(-1, 3), axis=-1)
+    #         ) ** 2 * np.linalg.norm(s.normal(), axis=-1).reshape(-1))
     MaxBdotN = np.max(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(btot.AbsB())
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    outstr += f", 0.5⟨|B·n|^2⟩={BdotN2:.1e}, 0.5⟨(|B·n|/|B|)^2⟩={BdotN2_normalized:.1e}, 0.5⟨|B·n|^2⟩/⟨|B|^2⟩={Bn_over_B:.1e}"
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
+    # outstr += f", 0.5⟨|B·n|^2⟩={BdotN2:.1e}, 0.5⟨(|B·n|/|B|)^2⟩={BdotN2_normalized:.1e}, 0.5⟨|B·n|^2⟩/⟨|B|^2⟩={Bn_over_B:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
-    # kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    # msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    # outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
-    outstr += f", avg(L)={np.mean(np.array([J.J() for J in Jls])):.2f}"
-    outstr += f", Lengths=" + cl_string
-    outstr += f", avg(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
-    outstr += f", var(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
+    # # kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
+    # # msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.1f}"  
+    #, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    # outstr += f", avg(L)={np.mean(np.array([J.J() for J in Jls])):.2f}"
+    # outstr += f", Lengths=" + cl_string
+    # outstr += f", avg(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
+    # outstr += f", var(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    outstr += f", ⟨B·n⟩/|B|={BdotN/mean_AbsB:.1e}"
-    outstr += f", (Max B·n)/|B|={MaxBdotN/mean_AbsB:.1e}"
+    # outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    # outstr += f", ⟨B·n⟩/|B|={BdotN/mean_AbsB:.1e}"
+    # outstr += f", (Max B·n)/|B|={MaxBdotN/mean_AbsB:.1e}"
     outstr += f", Link Number = {linkNum.J()}"
     print(outstr)
     return J, grad
@@ -277,27 +295,40 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-print([c.current.get_value() for c in bs.coils], [c.current.get_value() for c in bs_TF.coils])
-curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_opt", scalar_data=[c.current.get_value() for c in bs.coils])
-curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_opt", 
-    scalar_data=[c.current.get_value() for c in bs_TF.coils])
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_DA", extra_data=pointData)
 
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_opt_DA", extra_data=pointData)
+n_saves = 40
+MAXITER = 20
+for i in range(1, n_saves + 1):
+    print('Iteration ' + str(i) + ' / ' + str(n_saves))
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 600}, tol=1e-10)
+    dofs = res.x
 
-# Repeat with total
-pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
+        scalar_data=[c.current.get_value() for c in bs.coils])
+    curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
+        scalar_data=[c.current.get_value() for c in bs_TF.coils])
+    # pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+    # s.to_vtk(OUT_DIR + "surf_opt_DA", extra_data=pointData)
 
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_opt", extra_data=pointData)
+    # bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    # pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+    # s_plot.to_vtk(OUT_DIR + "surf_full_opt_DA", extra_data=pointData)
 
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_opt_normalizedBn", extra_data=pointData)
+    # # Repeat with total
+    # pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+    # s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
+
+    btot.set_points(s_plot.gamma().reshape((-1, 3)))
+    pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "surf_full_{0:d}".format(i), extra_data=pointData)
+
+    pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
+
+    btot.set_points(s.gamma().reshape((-1, 3)))
+    print('Max I = ', np.max([c.current.get_value() for c in bs.coils]))
+    print('Min I = ', np.min([c.current.get_value() for c in bs.coils]))
+    # pointData = {"B_N^2 / B^2": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+    #     ) ** 2 / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1) ** 2)[:, :, None]}
+    # s_plot.to_vtk(OUT_DIR + "surf_full_opt_normalizedBn2", extra_data=pointData)

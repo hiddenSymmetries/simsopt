@@ -104,8 +104,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
         """
-        from simsopt.field.coil import PSCCoil
-
         coils = self._coils
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
@@ -228,44 +226,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         bs = cls(coils)
         bs.set_points_cart(xyz)
         return bs
-
-# class PSC_BiotSavart(BiotSavart):
-#     """
-#     """
-#     def __init__(self, psc_array):
-#         from simsopt.field import coils_via_symmetries, Current
-#         self.psc_array = psc_array
-#         self.npsc = psc_array.num_psc
-#         curves = [self.psc_array.curves[i] for i in range(self.npsc)]
-#         currents = [Current(self.psc_array.I[i] * 1e-5) * 1e5 for i in range(self.npsc)]
-#         [currents[i].fix_all() for i in range(self.npsc)]
-#         coils = coils_via_symmetries(curves, currents, psc_array.nfp, psc_array.stellsym)
-#         BiotSavart.__init__(self, coils)
-
-#     def B_vjp(self, v):
-#         r"""
-#         Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
-#         :math:`\{\mathbf{B}_i\}_{i=1}^n`.
-#         These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
-#         This function returns the vector Jacobian product of this dependency, i.e.
-
-#         .. math::
-
-#             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
-
-#         """
-#         coils = self._coils
-#         gammas = [coil.curve.gamma() for coil in coils]
-#         gammadashs = [coil.curve.gammadash() for coil in coils]
-#         currents = [coil.current.get_value() for coil in coils]
-#         res_gamma = [np.zeros_like(gamma) for gamma in gammas]
-#         res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
-#         points = self.get_points_cart_ref()
-#         sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
-#                                    res_gamma, res_gammadash, [], [], [])
-#         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
-#         res_current = [coil.curve.passive_current() for coil in coils]
-#         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], res_current[i]) for i in range(len(coils))])
 
 # def JaxBiotSavart(sopp.BiotSavart, MagneticField):
 #     r"""
@@ -408,8 +368,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 #             \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
 #         """
-#         from simsopt.field.coil import PSCCoil
-
 #         coils = self._coils
 #         gammas = [coil.curve.gamma() for coil in coils]
 #         gammadashs = [coil.curve.gammadash() for coil in coils]
