@@ -848,7 +848,7 @@ def curves_to_vtk(curves, filename, close=False, scalar_data=None):
         coil_data = np.ascontiguousarray(coil_data)
         polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data, 'I': coil_data, 'I_mag': np.abs(coil_data)})
 
-def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz):
+def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
     stellsym = s.stellsym
@@ -873,12 +873,10 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz):
     
     # This is not a guarantee that coils will not touch but inductance
     # matrix blows up if they do so it is easy to tell when they do
-    if nfp == 2:
+    if coil_coil_flag:
         R = Nmin / 3
-    elif nfp == 3:
-        R = min(Nmin / 3.0, poff / 1.75)
     else:
-        R = Nmin / 3
+        R = Nmin / 2
 
     print('Major radius of the coils is R = ', R)
     print('Coils are spaced so that every coil of radius R '
@@ -931,7 +929,7 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz):
     return xyz_uniform, xyz_inner, xyz_outer, R
 
 def create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1
+    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False
 ):
     from simsopt.geo import CurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
@@ -940,7 +938,8 @@ def create_planar_curves_between_two_toroidal_surfaces(
     stellsym = s.stellsym
     normal_inner = s_inner.unitnormal().reshape(-1, 3)   
     normal_outer = s_outer.unitnormal().reshape(-1, 3)   
-    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz)
+    xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(
+        s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag=coil_coil_flag)
     # Have the uniform grid, now need to loop through and eliminate cells.
     contig = np.ascontiguousarray
     grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
@@ -970,38 +969,44 @@ def create_planar_curves_between_two_toroidal_surfaces(
                             'a discrete symmetry plane, preventing the proper symmetrization '
                             'of the coils under stellarator and field-period symmetries. '
                             'Please reinitialize the coils.')
-    for i in range(grid_xyz.shape[0]):
-        for j in range(i + 1, grid_xyz.shape[0]):
-            dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
-            conflict_bool = (dij < (2.0 + eps) * R)
-            if conflict_bool:
-                print('bad indices = ', i, j, dij)
-                raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                    'of another PSC coil. Please reinitialize the coils.')
+    if coil_coil_flag:
+        for i in range(grid_xyz.shape[0]):
+            for j in range(i + 1, grid_xyz.shape[0]):
+                dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
+                conflict_bool = (dij < (2.0 + eps) * R)
+                if conflict_bool:
+                    print('bad indices = ', i, j, dij)
+                    raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+                                        'of another PSC coil. Please reinitialize the coils.')
 
     final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
     grid_xyz = grid_xyz[final_inds, :]
     ncoils = grid_xyz.shape[0]
-    curves = [CurvePlanarFourier(order*50, order, nfp=1, stellsym=False) for i in range(ncoils)]
+    curves = [CurvePlanarFourier((order + 1)*40, order, nfp=1, stellsym=False) for i in range(ncoils)]
     for ic in range(ncoils):
+        counter = 0
         alpha2 = np.pi / 2.0
         delta2 = 0.0
         calpha2 = np.cos(alpha2)
         salpha2 = np.sin(alpha2)
         cdelta2 = np.cos(delta2)
         sdelta2 = np.sin(delta2)
-        dofs = np.zeros(10)
-        dofs[0] = R
+        dofs = np.zeros(2 * order + 8)
+        dofs[counter] = R
         # Conversion from Euler angles in 3-2-1 body sequence to 
         # quaternions: 
         # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        dofs[3] = calpha2 * cdelta2
-        dofs[4] = salpha2 * cdelta2
-        dofs[5] = calpha2 * sdelta2
-        dofs[6] = -salpha2 * sdelta2
+        if order >= 1:
+            counter = 3
+        else: 
+            counter += 1
+        dofs[counter] = calpha2 * cdelta2
+        dofs[counter + 1] = salpha2 * cdelta2
+        dofs[counter + 2] = calpha2 * sdelta2
+        dofs[counter + 3] = -salpha2 * sdelta2
         # Now specify the center 
-        dofs[7:10] = grid_xyz[ic, :]
-        for j in range(10):
+        dofs[counter + 4:counter + 7] = grid_xyz[ic, :]
+        for j in range(2 * order + 8):
             curves[ic].set('x' + str(j), dofs[j])
     all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     return curves, all_curves

@@ -8,7 +8,7 @@ from simsopt.geo.curve import RotatedCurve
 import simsoptpp as sopp
 
 
-__all__ = ['Coil',
+__all__ = ['Coil', 'JaxCurrent',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
@@ -118,6 +118,34 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
 
+def current_pure(dofs):
+    return dofs
+
+class JaxCurrent(sopp.Current, CurrentBase):
+    def __init__(self, current, dofs=None, **kwargs):
+        sopp.Current.__init__(self, current)
+        if dofs is None:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                x0=self.get_dofs(), **kwargs)
+        else:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                dofs=dofs, **kwargs)
+
+        # def vjp(self, v_current):
+        #         return Derivative({self: v_current})
+
+        @property
+        def current(self):
+            return self.get_value()
+
+        self.current_pure = current_pure
+        self.current_jax = jit(lambda dofs: self.current_pure(dofs))
+        self.dcurrent_by_dcoeff_jax = jit(jacfwd(self.current_jax))
+        self.dcurrent_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
+
+    def set_dofs(self, dofs):
+        self.local_x = dofs
+        sopp.Current.set_dofs(self, dofs)
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """

@@ -11,7 +11,8 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber']
+           'MeanSquaredCurvature', 'LinkingNumber',
+           ]
 
 
 @jit
