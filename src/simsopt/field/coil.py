@@ -1,10 +1,13 @@
 from math import pi
 import numpy as np
+from jax import vjp, jacfwd, jvp
+import jax.numpy as jnp
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
+from simsopt.geo.jit import jit
 import simsoptpp as sopp
 
 
@@ -142,6 +145,7 @@ class JaxCurrent(sopp.Current, CurrentBase):
         self.current_jax = jit(lambda dofs: self.current_pure(dofs))
         self.dcurrent_by_dcoeff_jax = jit(jacfwd(self.current_jax))
         self.dcurrent_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
+        self.vjp = dcurrent_by_dcoeff_vjp_jax
 
     def set_dofs(self, dofs):
         self.local_x = dofs

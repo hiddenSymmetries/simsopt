@@ -29,7 +29,7 @@ filename = TEST_DIR / input_name
 # filename = TEST_DIR / input_name
 
 # Directory for output
-OUT_DIR = "./dipole_array_optimization_QA/"
+OUT_DIR = "./dipole_array_optimization_QA_debug/"
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -43,7 +43,7 @@ range_param = "half period"
 nphi = 64
 ntheta = 64
 poff = 2.0
-coff = 1.0
+coff = 2.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
