@@ -23,6 +23,7 @@ except ImportError:
     MPI = None
 
 from .._core.optimizable import Optimizable
+from .._core.util import Struct
 from ..util.mpi import MpiPartition
 from .._core.finite_difference import MPIFiniteDifference
 from ..objectives.least_squares import LeastSquaresProblem
@@ -209,8 +210,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
-                                       **kwargs)
+                try:
+                    result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
+                                           **kwargs)
+                except:
+                    print("Failure on proc0_world")
+                    result = Struct()
+                    result.x = x0
 
     else:
         leaders_action = lambda mpi, data: None
@@ -230,8 +236,9 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     if mpi.proc0_world:
         x = result.x
 
-        objective_file.close()
-        if save_residuals:
+        if objective_file is not None:
+            objective_file.close()
+        if save_residuals and residuals_file is not None:
             residuals_file.close()
 
     datalog_started = False
