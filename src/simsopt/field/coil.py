@@ -134,18 +134,19 @@ class JaxCurrent(sopp.Current, CurrentBase):
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
                                 dofs=dofs, **kwargs)
 
-        # def vjp(self, v_current):
-        #         return Derivative({self: v_current})
-
         @property
         def current(self):
             return self.get_value()
 
         self.current_pure = current_pure
         self.current_jax = jit(lambda dofs: self.current_pure(dofs))
-        self.dcurrent_by_dcoeff_jax = jit(jacfwd(self.current_jax))
-        self.dcurrent_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
-        self.vjp = dcurrent_by_dcoeff_vjp_jax
+        self.dcurrent_by_dcurrent_jax = jit(jacfwd(self.current_jax))
+        self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
+
+    def vjp(self, v):
+        r"""
+        """
+        return Derivative({self: self.dcurrent_by_dcurrent_vjp_jax(self.get_dofs(), v)})
 
     def set_dofs(self, dofs):
         self.local_x = dofs

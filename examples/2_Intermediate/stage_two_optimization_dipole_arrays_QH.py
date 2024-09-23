@@ -89,7 +89,7 @@ def initialize_coils_QH(TEST_DIR, s):
     ncoils = 1
     R0 = s.get_rc(0, 0)
     R1 = s.get_rc(1, 0) * 5
-    order = 3
+    order = 4
 
     # qh needs to be scaled to 0.1 T on-axis magnetic field strength
     from simsopt.mhd.vmec import Vmec
@@ -102,7 +102,7 @@ def initialize_coils_QH(TEST_DIR, s):
     base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
                                                R0=R0, R1=R1, order=order, numquadpoints=512)
     # base_currents = [(JaxCurrent(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
-    base_currents = [(JaxCurrent(total_current / ncoils * 1e-6) * 1e6) for _ in range(ncoils)]
+    base_currents = [(JaxCurrent(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils)]
     base_currents[0].fix_all()
 
     # total_current = JaxCurrent(total_current)
@@ -126,7 +126,7 @@ bs_TF = BiotSavart(coils_TF)
 # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(bs_TF, s)
 
-Nx = 3
+Nx = 6
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -145,7 +145,7 @@ for i in range(len(base_curves)):
     # base_curves[i].fix('x' + str(2 * order + 5))
     # base_curves[i].fix('x' + str(2 * order + 6))
     # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [JaxCurrent(1.0) * 2e7 for i in range(ncoils)]
+base_currents = [JaxCurrent(1.0e-1) * 2e7 for i in range(ncoils)]
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
 
@@ -175,13 +175,13 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.002)
+LENGTH_WEIGHT = Weight(0.1)
 # CURRENTS_WEIGHT = 10
 LINK_WEIGHT = 100
 LINK_WEIGHT2 = 0.1
 CC_THRESHOLD = 0.7
 CC_WEIGHT = 400
-CS_THRESHOLD = 1.2
+CS_THRESHOLD = 1.3
 CS_WEIGHT = 1e1
 # CURVATURE_THRESHOLD = 1.
 # CURVATURE_WEIGHT = 1e-12
@@ -234,7 +234,7 @@ linkNum2 = LinkingNumber(curves)
 
 # DipoleJaxCurrentsObj = currents_obj(base_currents)
 # DipoleJaxCurrentsObj = QuadraticPenalty(base_currents, 1e6, "max")
-LengthObj = QuadraticPenalty(sum(Jls_TF), 2.6*5)
+LengthObj = QuadraticPenalty(sum(Jls_TF), 90.0)
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
@@ -257,7 +257,7 @@ def fun(dofs):
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
-    length_val = 0.01 * LengthObj.J() / 2.0
+    length_val = LENGTH_WEIGHT.value * LengthObj.J() / 2.0
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val1 = LINK_WEIGHT * linkNum.J()
@@ -366,16 +366,6 @@ for i in range(1, n_saves + 1):
         scalar_data=[c.current.get_value() for c in bs.coils])
     curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
         scalar_data=[c.current.get_value() for c in bs_TF.coils])
-    # pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-    # s.to_vtk(OUT_DIR + "surf_opt_DA", extra_data=pointData)
-
-    # bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    # pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-    # s_plot.to_vtk(OUT_DIR + "surf_full_opt_DA", extra_data=pointData)
-
-    # # Repeat with total
-    # pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-    # s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData)
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
@@ -388,6 +378,5 @@ for i in range(1, n_saves + 1):
     btot.set_points(s.gamma().reshape((-1, 3)))
     print('Max I = ', np.max(np.abs([c.current.get_value() for c in bs.coils])))
     print('Min I = ', np.min(np.abs([c.current.get_value() for c in bs.coils])))
-    # pointData = {"B_N^2 / B^2": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-    #     ) ** 2 / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1) ** 2)[:, :, None]}
-    # s_plot.to_vtk(OUT_DIR + "surf_full_opt_normalizedBn2", extra_data=pointData)
+
+btot.save("biot_savart_optimized_QH.json")
