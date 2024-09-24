@@ -1201,15 +1201,14 @@ particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
         bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, bool forget_exact_path, int axis, bool predictor_step,
-        bool zetas_stop, bool vpars_stop, vector<double> vpars)
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,  double dt_save, vector<double> vpars,
+        bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step)
 {
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
     double modB = field->modB()(0);
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*modB);
-
     array<double, 4> y;
 
     double G0 = std::abs(field->G()(0));
@@ -1273,6 +1272,9 @@ particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>(
         double omega, int Phim, int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars);
 
 template
-tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-particle_guiding_center_boozer_tracing<xt::pytensor>(
-        shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init, double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol, bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas, vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save, bool forget_exact_path, int axis, bool predictor_step, bool zetas_stop, bool vpars_stop, vector<double> vpars);
+tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
+        shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
+        double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
+        bool vacuum, bool noK, bool solveSympl, vector<double> zetas, vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save,
+        vector<double> vpars, bool zetas_stop, bool vpars_stop, bool forget_exact_path, int axis, bool predictor_step);

@@ -46,12 +46,12 @@ void init_tracing(py::module_ &m){
         py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
         py::arg("dt_save")=1e-6,
-        py::arg("forget_exact_path")=false,
-        py::arg("axis")=0,
-        py::arg("predictor_step")=true,
+        py::arg("vpars")=vector<double>{},
         py::arg("zetas_stop")=false,
         py::arg("vpars_stop")=false,
-        py::arg("vpars")=vector<double>{}
+        py::arg("forget_exact_path")=false,
+        py::arg("axis")=0,
+        py::arg("predictor_step")=true
         );
 
     m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>,

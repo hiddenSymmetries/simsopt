@@ -316,7 +316,7 @@ def trace_particles_boozer(field: BoozerMagneticField, stz_inits: RealArray,
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_tracing(
             field, stz_inits[i, :],
             m, charge, speed_total[i], speed_par[i], tmax, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars,  stopping_criteria=stopping_criteria, dt_save=dt_save,
+            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, stopping_criteria=stopping_criteria, dt_save=dt_save, vpars=vpars, 
             **options)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
