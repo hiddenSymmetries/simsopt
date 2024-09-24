@@ -242,10 +242,56 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         self._coils = coils
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
+        points = self.get_points_cart_ref()
+        # ones = jnp.ones_like(points)
 
-        self.B_jax = jit(lambda dofs: self.B_pure())
-        self.B_impl_jax = jit(lambda dofs: self.B_pure())
-        self.dB_by_dX_jax = jit(jacfwd(self.B_jax))
+        dof_names = np.array(self.dof_names)
+        inds = np.arange(len(dof_names))
+        self.ncurves = len(self._coils)
+
+        # Find the current dofs and set the currents to these values
+        curr_indices = []
+        [curr_indices.append(i) for i, x in enumerate(dof_names) if ("Current" in x)]
+        self.curr_indices = np.array(curr_indices, dtype=int)
+        # print(self.curr_indices)
+        # exit()
+
+        assert len(self.curr_indices) == self.ncurves
+
+        # Find the curve dofs
+        curve_indices = np.array([item for item in inds if item not in self.curr_indices])
+
+        # Get all the sub-indices of the ith curve dofs
+        # Indexing for curves starts at 1 and not 0 I believe? 
+
+        # Find min coil number to start the indexing
+        curve_dof_names = dof_names[curve_indices]
+        i_min = int((curve_dof_names[0].split("Fourier"))[1].split(":")[0])
+
+        # Need list of lists because curves can have different number of modes in general
+        curve_subindices = []
+        len_dof_curves = len(dof_names[curve_indices]) // self.ncurves
+        # print(i_min, self.ncurves, len_dof_curves)
+        for i in range(i_min, self.ncurves + i_min):
+            inds_i = []
+            for j in range(len_dof_curves):
+                # print(i, j, (dof_names[curve_indices])[(i - i_min) * len_dof_curves + j])
+                ind_num = (dof_names[curve_indices])[(i - i_min) * len_dof_curves + j].find(
+                    'r' + str(i) + ':')
+                if ind_num >= 0:
+                    inds_i.append((i - i_min) * len_dof_curves + j)
+
+            assert (len(inds_i) % (self._coils[i-i_min].curve.order * 2 + 1)) == 0
+            curve_subindices.append(inds_i)
+        self.curve_subindices = curve_subindices
+        # print(curve_subindices)
+
+        self.B_jax = jit(lambda dofs: self.B_pure(dofs, points))
+        self.B_impl_jax = jit(lambda dofs, p: self.B_pure(dofs, p))
+        self.dB_by_dX_pure = lambda x, v, vones: jvp(lambda p: self.B_pure(x, p), (v,), (vones, ))
+        self.dB_by_dX_jax = jit(lambda x: self.dB_by_dX_pure(x, points, ones))
+        # self.dB_by_dX_jax = jit(jacfwd(self.B_jax))
+        self.dB_by_dX_impl_jax = jit(lambda x, p, vones: self.dB_by_dX_pure(x, p, vones))
         self.dB_by_dX_vjp_jax = jit(lambda x, v: vjp(self.B_jax, x)[1](v)[0])
         self.dB_by_dcoilcurrents_jax = jit(jacfwd(self.B_jax))
         self.dB_by_dcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.B_jax, x)[1](v)[0])
@@ -270,13 +316,25 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         self.d3A_by_dXdXdcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.d2A_by_dXdX_vjp_jax, x)[1](v)[0])
 
     # @jit
-    def B_pure(self):
+    def B_pure(self, dofs, points):
         """
         """
-        points = self.get_points_cart_ref()
-        I = jnp.array([coil.current.get_value() for coil in self._coils])
-        gammas = jnp.array([coil.curve.gamma() for coil in self._coils])
-        gammadashs = jnp.array([coil.curve.gammadash() for coil in self._coils])
+        # print(dofs, dofs[0])
+        # curr_dofs = np.array(dofs)[self.curr_indices]
+        I = jnp.array([coil.current.current_impl(dofs[i]) for i, coil in enumerate(self._coils)])
+
+        # Find the curve dofs and set the curves to these values
+        # curve_subindices[i] contains all the dof indices for the ith coil
+        # curve_subindices = self.curve_subindices  # 
+        
+        # I = jnp.array([coil.current.get_value() for coil in self._coils])
+        # print(dofs)
+        print([coil.curve.gamma_impl_jax(
+            dofs[self.ncurves + i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)])
+        gammas = jnp.array([coil.curve.gamma_impl_jax(
+            dofs[self.ncurves + i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)])
+        gammadashs = jnp.array([coil.curve.gammadash_impl_jax(
+            dofs[self.ncurves + i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)])
         # (2, 200, 3) (17, 3), (2,)
         # exit()
         B = jnp.zeros((len(points), 3))
@@ -310,14 +368,19 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     def dB_by_dcoilcurrents_vjp_impl(self, v):
         return self.dB_by_dcoilcurrents_vjp_jax(jnp.array([c.current.get_value() for c in self._coils]), v)
         
+    def get_dofs(self):
+        ll = [self._coils[i].current.get_dofs() for i in range(len(self._coils))]
+        lc = [self._coils[i].curve.get_dofs() for i in range(len(self._coils))]
+        return (ll + lc)
+
     def dB_by_dX(self):
         r"""
         """
         points = self.get_points_cart_ref()
-        print(jnp.shape(jnp.diagonal(self.dB_by_dX_jax(
-            points), axis1=0, axis2=2)))
-        # exit()
-        return jnp.diagonal(self.dB_by_dX_jax(points), axis1=0, axis2=2)
+        ones = jnp.ones_like(points)
+        print('dB shape = ', jnp.shape(self.dB_by_dX_impl_jax(self.get_dofs(), points, ones)))
+        return self.dB_by_dX_impl_jax(self.get_dofs(), points, ones)
+        
         
     def dB_by_dX_vjp_impl(self, v):
         return self.dB_by_dX_vjp_jax(jnp.array([c.curve.gamma() for c in self._coils]), v)
@@ -325,12 +388,13 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     def d2B_by_dXdcoilcurrents(self):
         r"""
         """
-        print(jnp.shape(self.d2B_by_dXdcoilcurrents_jax(
-            jnp.array([c.current.get_value() for c in self._coils]))))
-        exit()
+        points = self.get_points_cart_ref()
+        print('here = ', jnp.shape(self.d2B_by_dXdcoilcurrents_jax(
+            jnp.array([c.current.get_value() for c in self._coils]))), 
+            jnp.shape(jnp.array([c.current.get_value() for c in self._coils])))
         return jnp.transpose(self.d2B_by_dXdcoilcurrents_jax(
             jnp.array([c.current.get_value() for c in self._coils])
-        ), [1, 2, 3, 0])
+        )[:, :, :, 0], [2, 0, 1])
 
     def d2B_by_dXdcoilcurrents_vjp_impl(self, v):
         r"""
@@ -395,7 +459,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         d2B_by_dXdcoilcurrents = self.d2B_by_dXdcoilcurrents()
-        print(jnp.shape(d2B_by_dXdcoilcurrents), jnp.shape(d2B_by_dXdcoilcurrents[0]), jnp.shape(vgrad))
+        print('there = ', jnp.shape(dB_by_dcoilcurrents), jnp.shape(d2B_by_dXdcoilcurrents), jnp.shape(d2B_by_dXdcoilcurrents[0]), jnp.shape(vgrad))
         res_grad_current = [np.sum(vgrad * d2B_by_dXdcoilcurrents[i]) for i in range(len(d2B_by_dXdcoilcurrents))]
 
         res = (

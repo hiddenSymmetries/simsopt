@@ -429,6 +429,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         self.gammadash_pure = lambda x, q: jvp(lambda p: self.gamma_pure(x, p), (q,), (ones,))[1]
         self.gammadash_jax = jit(lambda x: self.gammadash_pure(x, points))
+        self.gammadash_impl_jax = jit(lambda x, p: self.gammadash_pure(x, p))
         self.dgammadash_by_dcoeff_jax = jit(jacfwd(self.gammadash_jax))
         self.dgammadash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadash_jax, x)[1](v)[0])
 

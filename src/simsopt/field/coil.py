@@ -143,6 +143,9 @@ class JaxCurrent(sopp.Current, CurrentBase):
         self.dcurrent_by_dcurrent_jax = jit(jacfwd(self.current_jax))
         self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
 
+    def current_impl(self, dofs):
+        return self.current_jax(dofs)
+
     def vjp(self, v):
         r"""
         """

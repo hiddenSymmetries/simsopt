@@ -190,13 +190,22 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
-    k = len(dofs)//3
+    print('dofs = ', dofs)
+    k = jnp.shape(dofs)[0]//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
     points = quadpoints
+    # print(k, coeffs)
+    # exit()
+    # exit()
     gamma = jnp.zeros((len(points), 3))
+    # print(gamma.at[:, 0].add(coeffs[0][0] * jnp.sin(2 * pi * 0 * points)))
+    # print(gamma[:, 0])
     for i in range(3):
         gamma = gamma.at[:, i].add(coeffs[i][0])
         for j in range(1, order+1):
+            # print(i, j, order, 2 * j - 1, gamma.at[:, i], coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points))
+            # print(gamma.at[:, i].add(coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points)))
+            # print(gamma.at[:, i] + (coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points)))
             gamma = gamma.at[:, i].add(coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points))
             gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.cos(2 * pi * j * points))
     return gamma
