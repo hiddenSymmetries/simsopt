@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
-set(CMAKE_CXX_COMPILER_WORKS 1)
-project(simsoptpp CXX)
+project(simsoptpp LANGUAGES CXX)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(Python_FIND_STRATEGY LOCATION)
-find_package(Python 3 COMPONENTS Interpreter Development.Module NumPy)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+find_package(pybind11 CONFIG REQUIRED)
 
 message(status "Python executable is ${Python_EXECUTABLE}")
 message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
@@ -39,11 +39,14 @@ set(_HAS_AUTO_PTR_ETC 1)
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-#include(CheckCXXCompilerFlag)
+include(CheckCXXCompilerFlag)
 IF(DEFINED ENV{CI})
-    message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
-    #set(CMAKE_CXX_FLAGS "-O3 -march=znver3")
-	 set(CMAKE_CXX_FLAGS "-O3 -march=westmere")
+    if (APPLE)
+    	set(CMAKE_CXX_FLAGS "-O3")
+    else()
+        message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
+        set(CMAKE_CXX_FLAGS "-O3 -march=westmere")
+    endif()
 elseif(DEFINED ENV{CONDA_BUILD})
     message(STATUS "conda build environment detected. Let conda set compilation flags accordingly.")
     # set(CMAKE_CXX_FLAGS "-O3 -march=ivybridge -mfma -ffp-contract=fast")
@@ -53,11 +56,11 @@ else()
     unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
     CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    	set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
-    elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")  
-    	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -march=native -ffp-contract=fast")
+    elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")
+        set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -ffp-contract=fast")
     else()
-    	set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
     endif()
 endif()
 # Ensure all code used from Eigen does not have LGPL license:
@@ -108,13 +111,7 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
-find_package(GSL)
-if(GSL_FOUND)
-   message(STATUS "GSL version is ${GSL_VERSION}")
-   message(STATUS "GSL include dirs are ${GSL_INCLUDE_DIR}")
-endif()
-
-add_subdirectory(thirdparty/pybind11)
+# add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
@@ -132,7 +129,6 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
     )
-
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
     CXX_STANDARD 17
@@ -150,9 +146,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUD
 if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
-
-target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
@@ -173,4 +166,4 @@ target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
 #install(TARGETS ${PROJECT_NAME}
 #        #LIBRARY
 #        DESTINATION src/${PROJECT_NAME})
-#install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION .)
