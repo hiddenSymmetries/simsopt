@@ -65,8 +65,8 @@ class Testing(unittest.TestCase):
         J0 = np.sum(B**2)
         dJ = bs.B_vjp(B)(curve)
         dJ2 = bs.B_vjp(B2)(curve)
-        # print('Bdiff_original = ', np.max(np.abs(B-B2)))
-        # print('Jdiff = ', np.max(np.abs(dJ-dJ2)))
+        assert np.allclose(B, B2)
+        assert np.allclose(dJ, dJ2)
 
         h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ_dh = 2*np.sum(dJ * h)
@@ -366,16 +366,22 @@ class Testing(unittest.TestCase):
     def test_dA_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
         curve = get_curve()
-        coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
+        coil = Coil(curve, Current(1e4))
         bs = JaxBiotSavart([coil])
+        bs2 = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
         bs.set_points(points)
+        bs2.set_points(points)
         coil_dofs = coil.x
         A = bs.A()
+        A2 = bs2.A()
         J0 = np.sum(A**2)
         dJ = bs.A_vjp(A)(coil)
+        dJ2 = bs.A_vjp(A2)(coil)
+        assert np.allclose(A, A2)
+        assert np.allclose(dJ, dJ2)
 
         h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
         dJ_dh = 2*np.sum(dJ * h)
