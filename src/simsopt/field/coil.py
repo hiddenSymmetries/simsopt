@@ -139,13 +139,13 @@ class JaxCurrent(sopp.Current, CurrentBase):
             return self.get_value()
 
         self.current_pure = current_pure
-        self.current_jax = jit(lambda dofs: self.current_pure(dofs))
+        self.current_jax = lambda dofs: self.current_pure(dofs)
         self.dcurrent_by_dcurrent_jax = jit(jacfwd(self.current_jax))
         self.dcurrent_by_dcurrent_vjp_jax = jit(lambda x, v: vjp(self.current_jax, x)[1](v)[0])
 
     def current_impl(self, dofs):
         return self.current_jax(dofs)
-
+    
     def vjp(self, v):
         r"""
         """
@@ -153,7 +153,7 @@ class JaxCurrent(sopp.Current, CurrentBase):
 
     def set_dofs(self, dofs):
         self.local_x = dofs
-        sopp.Current.set_dofs(self, dofs)
+        sopp.Current.set_dofs(self, dofs)        
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """

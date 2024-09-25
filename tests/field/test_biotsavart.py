@@ -325,6 +325,7 @@ class Testing(unittest.TestCase):
             Jh = np.sum(Ah**2)
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-dJ_dh)
+            print(err_new, err)
             assert err_new < 0.55 * err
             err = err_new
 
