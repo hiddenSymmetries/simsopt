@@ -236,208 +236,140 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     r"""
     """
-    def __init__(self, coils, **kwargs):
-        if "external_dof_setter" not in kwargs:
-            kwargs["external_dof_setter"] = sopp.Curve.set_dofs_impl
+    def __init__(self, coils):
         self._coils = coils
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
-        points = self.get_points_cart_ref()
-        # ones = jnp.ones_like(points)
+        
+        self.B_jax = lambda gammas, currents, p: self.B_pure(gammas, currents, p)
+        # self.B_impl = jit(lambda p: self.B_pure(self.get_gammas(), self.get_currents(), p))
+        self.dB_by_dgammas_jax = jit(jacfwd(self.B_jax, argnums=0))
+        self.dB_by_dcoilcurrents_jax = jit(jacfwd(self.B_jax, argnums=1))
+        self.dB_by_dX_jax = jacfwd(self.B_jax, argnums=2)  #jit(jacfwd(self.B_jax, argnums=2))
+        self.d2B_by_dXdX_jax = jit(jacfwd(self.dB_by_dX_jax, argnums=2))
+        self.d2B_by_dXdcoilcurrents_jax = jit(jacfwd(self.dB_by_dX_jax, argnums=1))
+        self.d3B_by_dXdXdcoilcurrents_jax = jit(jacfwd(self.d2B_by_dXdX_jax, argnums=1))
 
-        dof_names = np.array(self.dof_names)
-        inds = np.arange(len(dof_names))
-        self.ncurves = len(self._coils)
-
-        # Find the current dofs and set the currents to these values
-        curr_indices = []
-        [curr_indices.append(i) for i, x in enumerate(dof_names) if ("Current" in x)]
-        self.curr_indices = np.array(curr_indices, dtype=int)
-        # print(self.curr_indices)
-        # exit()
-
-        assert len(self.curr_indices) == self.ncurves
-
-        # Find the curve dofs
-        curve_indices = np.array([item for item in inds if item not in self.curr_indices])
-
-        # Get all the sub-indices of the ith curve dofs
-        # Indexing for curves starts at 1 and not 0 I believe? 
-
-        # Find min coil number to start the indexing
-        curve_dof_names = dof_names[curve_indices]
-        i_min = int((curve_dof_names[0].split("Fourier"))[1].split(":")[0])
-
-        # Need list of lists because curves can have different number of modes in general
-        curve_subindices = []
-        len_dof_curves = len(dof_names[curve_indices]) // self.ncurves
-        # print(i_min, self.ncurves, len_dof_curves)
-        for i in range(i_min, self.ncurves + i_min):
-            inds_i = []
-            for j in range(len_dof_curves):
-                # print(i, j, (dof_names[curve_indices])[(i - i_min) * len_dof_curves + j])
-                ind_num = (dof_names[curve_indices])[(i - i_min) * len_dof_curves + j].find(
-                    'r' + str(i) + ':')
-                if ind_num >= 0:
-                    inds_i.append((i - i_min) * len_dof_curves + j)
-
-            assert (len(inds_i) % (self._coils[i-i_min].curve.order * 2 + 1)) == 0
-            curve_subindices.append(inds_i)
-        self.curve_subindices = curve_subindices
-        # print(curve_subindices)
-
-        self.B_jax = jit(lambda dofs: self.B_pure(dofs, points))
-        self.B_impl_jax = jit(lambda dofs, p: self.B_pure(dofs, p))
-        self.dB_by_dX_pure = lambda x, v, vones: jvp(lambda p: self.B_pure(x, p), (v,), (vones, ))
-        self.dB_by_dX_jax = jit(lambda x: self.dB_by_dX_pure(x, points, ones))
-        # self.dB_by_dX_jax = jit(jacfwd(self.B_jax))
-        self.dB_by_dX_impl_jax = jit(lambda x, p, vones: self.dB_by_dX_pure(x, p, vones))
-        self.dB_by_dX_vjp_jax = jit(lambda x, v: vjp(self.B_jax, x)[1](v)[0])
-        self.dB_by_dcoilcurrents_jax = jit(jacfwd(self.B_jax))
-        self.dB_by_dcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.B_jax, x)[1](v)[0])
-        self.d2B_by_dXdX_jax = jit(hessian(self.B_jax))
-        self.d2B_by_dXdX_vjp_jax = jit(lambda x, v: vjp(self.dB_by_dX_jax, x)[1](v)[0])
-        self.d2B_by_dXdcoilcurrents_jax = jit(jacfwd(self.dB_by_dX_jax))
-        self.d2B_by_dXdcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.dB_by_dX_jax, x)[1](v)[0])
-        self.d3B_by_dXdXdcoilcurrents_jax = jit(jacfwd(self.d2B_by_dXdX_jax))
-        self.d3B_by_dXdXdcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.d2B_by_dXdX_vjp_jax, x)[1](v)[0])
-
-        self.A_jax = jit(lambda dofs: self.A_pure())
-        self.A_impl_jax = jit(lambda dofs: self.A_pure())
-        self.dA_by_dX_jax = jit(jacfwd(self.A_jax))
-        self.dA_by_dX_vjp_jax = jit(lambda x, v: vjp(self.A_jax, x)[1](v)[0])
-        self.dA_by_dcoilcurrents_jax = jit(jacfwd(self.A_jax))
-        self.dA_by_dcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.A_jax, x)[1](v)[0])
-        self.d2A_by_dXdX_jax = jit(hessian(self.A_jax))
-        self.d2A_by_dXdX_vjp_jax = jit(lambda x, v: vjp(self.dA_by_dX_jax, x)[1](v)[0])
-        self.d2A_by_dXdcoilcurrents_jax = jit(hessian(self.A_jax))
-        self.d2A_by_dXdcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.dA_by_dcoilcurrents_jax, x)[1](v)[0])
-        self.d3A_by_dXdXdcoilcurrents_jax = jit(jacrev(jacfwd(jacrev(self.A_jax))))
-        self.d3A_by_dXdXdcoilcurrents_vjp_jax = jit(lambda x, v: vjp(self.d2A_by_dXdX_vjp_jax, x)[1](v)[0])
+        # Seems like B_jax and A_jax should not use jit, since then
+        # it does not update correctly when the dofs change.
+        self.A_jax = lambda gammas, currents, p: self.A_pure(gammas, currents, p)
+        self.A_impl = jit(lambda p: self.A_pure(self.get_gammas(), self.get_currents(), p))
+        self.A_vjp_jax = jit(lambda x, v: vjp(self.A_pure, x)[1](v)[0])
+        self.dA_by_dgammas_jax = jit(jacfwd(self.A_jax, argnums=0))
+        self.dA_by_dcoilcurrents_jax = jit(jacfwd(self.A_jax, argnums=1))
+        self.dA_by_dX_jax = jacfwd(self.A_jax, argnums=2)  #jit(jacfwd(self.A_jax, argnums=2))
+        self.d2A_by_dXdX_jax = jit(hessian(self.A_jax, argnums=2))
+        self.d2A_by_dXdcoilcurrents_jax = jit(jacfwd(self.dA_by_dX_jax, argnums=1))
+        self.d3A_by_dXdXdcoilcurrents_jax = jit(jacfwd(self.d2A_by_dXdX_jax, argnums=1))
 
     # @jit
-    def B_pure(self, dofs, points):
+    def B_pure(self, gammas, currents, points):
         """
+        Assumes that the quadpoints are uniformly space on the curve!
         """
-        # print(dofs, dofs[0])
-        # curr_dofs = np.array(dofs)[self.curr_indices]
-        I = jnp.array([coil.current.current_impl(dofs[i]) for i, coil in enumerate(self._coils)])
-
-        # Find the curve dofs and set the curves to these values
-        # curve_subindices[i] contains all the dof indices for the ith coil
-        # curve_subindices = self.curve_subindices  # 
-        
-        # I = jnp.array([coil.current.get_value() for coil in self._coils])
-        # print(dofs)
-        print([coil.curve.gamma_impl_jax(
-            dofs[self.ncurves + i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)])
-        gammas = jnp.array([coil.curve.gamma_impl_jax(
-            dofs[self.ncurves + i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)])
-        gammadashs = jnp.array([coil.curve.gammadash_impl_jax(
-            dofs[self.ncurves + i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)])
-        # (2, 200, 3) (17, 3), (2,)
-        # exit()
-        B = jnp.zeros((len(points), 3))
+        # gammadashs = self.get_gammadashs()
         # First two axes, over the total number of coils and the integral over the coil 
         # points, should be summed
-        B = jnp.sum(I[:, None, None] * jnp.sum(jnp.cross(gammas[:, :, None, :] - points[None, None, :, :], 
-            gammadashs[:, :, None, :]) / jnp.linalg.norm(
-                gammas[:, :, None, :] - points[None, None, :, :], axis=-1)[:, :, :, None] ** 3, axis=1), axis=0)
-        # print(jnp.shape(gammas[:, :, None, :]), jnp.shape(B), jnp.shape(points[None, None, :, :]), jnp.shape(I[:, None, None]))
-        return B * 1e-7
+        # B = jnp.zeros((len(points), 3))
+        p_minus_g = points[None, None, :, :] - gammas[:, :, None, :]
+        denom = 1.0 / jnp.linalg.norm(p_minus_g
+                , axis=-1)[:, :, :, None] ** 3
+        B = jnp.sum(currents[:, None, None] * jnp.sum(jnp.cross(
+            -p_minus_g, 
+            self.get_gammadashs()[:, :, None, :]
+        ) * denom, axis=1), axis=0)
+        return B * 1e-7 / jnp.shape(gammas)[1]  # Divide by number of quadpoints
     
-    @jit
-    def A_pure(self):
+    # @jit
+    def A_pure(self, gammas, currents, points):
         """
         """
-        points = self.get_points_cart_ref()
-        I = jnp.array([c.current.get_value() for c in self._coils])
-        gammas = jnp.array([coil.curve.gamma() for coil in self._coils])
-        gammadashs = jnp.array([coil.curve.gammadash() for coil in self._coils])
-        A = jnp.zeros((len(points), 3))
-        A = jnp.sum(I[:, None, None] * jnp.sum(gammadashs / jnp.linalg.norm(
-                gammas[:, :, None, :] - points[None, None, :, :], axis=-1), axis=1), axis=0)
-        return A * 1e-7
+        gammadashs = self.get_gammadashs()
+        A = jnp.sum(currents[:, None, None] * jnp.sum(gammadashs[:, :, None, :] / jnp.linalg.norm(
+                gammas[:, :, None, :] - points[None, None, :, :], axis=-1)[:, :, :, None], axis=1), axis=0)
+        return A * 1e-7 / jnp.shape(gammas)[1]  # Divide by number of quadpoints
+
+    def B(self):
+        return self.B_jax(self.get_gammas(), self.get_currents(), self.get_points_cart_ref())
+
+    # def B_vjp(self, v):
+    #     return self.B_vjp_jax(self.get_gammas(), self.get_currents(), self.get_points_cart_ref(), v)
+
+    def A(self):
+        return self.A_jax(self.get_gammas(), self.get_currents(), self.get_points_cart_ref())
+
+    def A_vjp(self, v):
+        return self.A_vjp_jax(self.get_gammas(), self.get_currents(), self.get_points_cart_ref(), v)
     
-    def dB_by_dcoilcurrents(self):
-        r"""
-        """
-        return jnp.transpose(self.dB_by_dcoilcurrents_jax(
-            jnp.array([c.current.get_value() for c in self._coils])), [2, 0, 1])
-    
-    def dB_by_dcoilcurrents_vjp_impl(self, v):
-        return self.dB_by_dcoilcurrents_vjp_jax(jnp.array([c.current.get_value() for c in self._coils]), v)
-        
     def get_dofs(self):
         ll = [self._coils[i].current.get_dofs() for i in range(len(self._coils))]
         lc = [self._coils[i].curve.get_dofs() for i in range(len(self._coils))]
         return (ll + lc)
 
+    def get_gammas(self):
+        return jnp.array([c.curve.gamma() for c in self._coils])
+
+    def get_currents(self):
+        return jnp.array([c.current.get_value() for c in self._coils])
+
+    def get_gammadashs(self):
+        curve_dofs = [self._coils[i].curve.get_dofs() for i in range(len(self._coils))]
+        return jnp.array([coil.curve.gammadash_impl_jax(
+            curve_dofs[i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)]
+        )
+
     def dB_by_dX(self):
         r"""
         """
-        points = self.get_points_cart_ref()
-        ones = jnp.ones_like(points)
-        print('dB shape = ', jnp.shape(self.dB_by_dX_impl_jax(self.get_dofs(), points, ones)))
-        return self.dB_by_dX_impl_jax(self.get_dofs(), points, ones)
-        
-        
-    def dB_by_dX_vjp_impl(self, v):
-        return self.dB_by_dX_vjp_jax(jnp.array([c.curve.gamma() for c in self._coils]), v)
+        temp = jnp.transpose(jnp.diagonal(self.dB_by_dX_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()), 
+            axis1=0, axis2=2), axes=[2, 1, 0])
+        return temp
+
+    def dB_by_dcoilcurrents(self):
+        r"""
+        """
+        return jnp.transpose(self.dB_by_dcoilcurrents_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()),
+            [2, 0, 1])
+
+    def dB_by_dgammas(self):
+        r"""
+        """
+        return jnp.transpose(self.dB_by_dgammas_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()), 
+            axes=[2, 1, 0])
+
+    # def B_vjp(self, v):
+    #     return v @ self.dB_by_dgammas()
 
     def d2B_by_dXdcoilcurrents(self):
         r"""
         """
+        return jnp.transpose(jnp.diagonal(self.d2B_by_dXdcoilcurrents_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()
+        ), axis1=0, axis2=2), axes=[2, 3, 1, 0])
+
+    def d2B_by_dXdX(self):
+        return jnp.transpose(jnp.diagonal(
+            jnp.diagonal(self.d2B_by_dXdX_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()
+        ), axis1=0, axis2=2),
+           axis1=2, axis2=4
+        ),  axes=[3, 2, 1, 0])
+    
+    def d3B_by_dXdXdcoilcurrents(self):
+        r"""
+        """
         points = self.get_points_cart_ref()
-        print('here = ', jnp.shape(self.d2B_by_dXdcoilcurrents_jax(
-            jnp.array([c.current.get_value() for c in self._coils]))), 
-            jnp.shape(jnp.array([c.current.get_value() for c in self._coils])))
-        return jnp.transpose(self.d2B_by_dXdcoilcurrents_jax(
-            jnp.array([c.current.get_value() for c in self._coils])
-        )[:, :, :, 0], [2, 0, 1])
-
-    def d2B_by_dXdcoilcurrents_vjp_impl(self, v):
-        r"""
-        """
-        return self.d2B_by_dXdcoilcurrents_vjp_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]), 
-            jnp.array([c.current.get_value() for c in self._coils]),
-            v
+        npoints = points.shape[0]
+        temp1 = self.d3B_by_dXdXdcoilcurrents_jax(
+            self.get_gammas(), self.get_currents(), points
         )
-    
-    def d2B_by_dXdX_impl(self, d2B_by_dXdX):
-        r"""
-        """
-        d2B_by_dXdX[:, :, :, :] = self.d2B_by_dXdX_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils])
-        )
-
-    def d2B_by_dXdX_vjp_impl(self, v):
-        r"""
-        """
-        return self.d2B_by_dXdX_vjp_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            v
-        )
-    
-    def d3B_by_dXdXdcoilcurrents(self, d3B_by_dXdXdcoilcurrents):
-        r"""
-        """
-        return self.d3B_by_dXdXdcoilcurrents_jax(
-            jnp.array([c.current.get_value() for c in self._coils])
-        )
-
-    def d3B_by_dXdXdcoilcurrents_vjp_impl(self, v):
-        r"""
-        """
-        return self.d3B_by_dXdXdcoilcurrents_vjp_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.current.get_value() for c in self._coils]),
-            v
-        )
+        temp2 = jnp.zeros((npoints, 3, 3, 3, 2))
+        for i in range(npoints):
+            temp2 = temp2.at[i, :, :, :, :].add(temp1[i, :, i, :, i, :, :])
+        return jnp.transpose(temp2, axes=[4, 0, 3, 2, 1])
 
     def B_and_dB_vjp(self, v, vgrad):
         r"""
@@ -459,7 +391,6 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         d2B_by_dXdcoilcurrents = self.d2B_by_dXdcoilcurrents()
-        print('there = ', jnp.shape(dB_by_dcoilcurrents), jnp.shape(d2B_by_dXdcoilcurrents), jnp.shape(d2B_by_dXdcoilcurrents[0]), jnp.shape(vgrad))
         res_grad_current = [np.sum(vgrad * d2B_by_dXdcoilcurrents[i]) for i in range(len(d2B_by_dXdcoilcurrents))]
 
         res = (
@@ -494,76 +425,55 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
-    def dA_by_dcoilcurrents_impl(self, dA_by_dcoilcurrents):
+    def dA_by_dX(self):
         r"""
         """
-        dA_by_dcoilcurrents[:, :, :] = self.dA_by_dcoilcurrents_jax(
-            jnp.array([c.current.get_value() for c in self._coils]))
+        temp = jnp.transpose(jnp.diagonal(self.dA_by_dX_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()), 
+            axis1=0, axis2=2), axes=[2, 1, 0])
+        return temp
+
+    def dA_by_dcoilcurrents(self):
+        r"""
+        """
+        return jnp.transpose(self.dA_by_dcoilcurrents_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()),
+            [2, 0, 1])
+
+    def dA_by_dgammas(self):
+        r"""
+        """
+        return jnp.transpose(self.dA_by_dgammas_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()), 
+            axes=[2, 1, 0])
+
+    def d2A_by_dXdcoilcurrents(self):
+        r"""
+        """
+        return jnp.transpose(jnp.diagonal(self.d2A_by_dXdcoilcurrents_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()
+        ), axis1=0, axis2=2), axes=[2, 3, 1, 0])
+
+    def d2A_by_dXdX(self):
+        return jnp.transpose(jnp.diagonal(
+            jnp.diagonal(self.d2A_by_dXdX_jax(
+            self.get_gammas(), self.get_currents(), self.get_points_cart_ref()
+        ), axis1=0, axis2=2),
+           axis1=2, axis2=4
+        ),  axes=[3, 2, 1, 0])
     
-    def dA_by_dcoilcurrents_vjp_impl(self, v):
-        return self.dA_by_dcoilcurrents_vjp_jax(jnp.array([c.current.get_value() for c in self._coils]), v)
-        
-    def dA_by_dX_impl(self, dA_by_dX):
+    def d3A_by_dXdXdcoilcurrents(self):
         r"""
         """
-        dA_by_dX[:, :, :] = self.dA_by_dX_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]))
-        
-    def dA_by_dX_vjp_impl(self, v):
-        return self.dA_by_dX_vjp_jax(jnp.array([c.curve.gamma() for c in self._coils]), v)
-
-    def d2A_by_dXdcoilcurrents_impl(self, d2A_by_dXdcoilcurrents):
-        r"""
-        """
-        d2A_by_dXdcoilcurrents[:, :, :, :] = self.d2A_by_dXdcoilcurrents_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.current.get_value() for c in self._coils])
+        points = self.get_points_cart_ref()
+        npoints = points.shape[0]
+        temp1 = self.d3A_by_dXdXdcoilcurrents_jax(
+            self.get_gammas(), self.get_currents(), points
         )
-
-    def d2A_by_dXdcoilcurrents_vjp_impl(self, v):
-        r"""
-        """
-        return self.d2A_by_dXdcoilcurrents_vjp_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]), 
-            jnp.array([c.current.get_value() for c in self._coils]),
-            v
-        )
-    
-    def d2A_by_dXdX_impl(self, d2A_by_dXdX):
-        r"""
-        """
-        d2A_by_dXdX[:, :, :, :] = self.d2A_by_dXdX_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils])
-        )
-
-    def d2A_by_dXdX_vjp_impl(self, v):
-        r"""
-        """
-        return self.d2A_by_dXdX_vjp_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            v
-        )
-    
-    def d3A_by_dXdXdcoilcurrents_impl(self, d3A_by_dXdXdcoilcurrents):
-        r"""
-        """
-        d3A_by_dXdXdcoilcurrents_impl[:, :, :, :, :] = self.d3A_by_dXdXdcoilcurrents_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.current.get_value() for c in self._coils])
-        )
-
-    def d3A_by_dXdXdcoilcurrents_vjp_impl(self, v):
-        r"""
-        """
-        return self.d3A_by_dXdXdcoilcurrents_vjp_jax(
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.curve.gamma() for c in self._coils]),
-            jnp.array([c.current.get_value() for c in self._coils]),
-            v
-        )
+        temp2 = jnp.zeros((npoints, 3, 3, 3, 2))
+        for i in range(npoints):
+            temp2 = temp2.at[i, :, :, :, :].add(temp1[i, :, i, :, i, :, :])
+        return jnp.transpose(temp2, axes=[4, 0, 3, 2, 1])
 
     def A_and_dA_vjp(self, v, vgrad):
         r"""
@@ -643,3 +553,23 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         bs = cls(coils)
         bs.set_points_cart(xyz)
         return bs
+
+# @jit
+    def coil_coil_forces_pure(self):
+        """
+        """
+        points = 
+        currents_i = self.get_currents()
+        currents_j = currents_i
+        gammas_i = self.get_gammas()
+        gammas_j = gammas_i
+        gammadashs_i = self.get_gammadashs()
+        gammadashs_j = gammadashs_i
+        r_ij = gammas_i[None, :, :] - gammas_j[:, None, :]  # Note, do not use the i = j indices
+        jnp.diag(r_ij[:, :, 0]) = 1e100
+        jnp.diag(r_ij[:, :, 1]) = 1e100
+        jnp.diag(r_ij[:, :, 2]) = 1e100
+        F = jnp.cross(currents_i * gammadashs_i, 
+                      jnp.cross(currents_j * gammadashs_j, r_ij)
+        ) / jnp.linalg.norm(r_ij, axis=-1)[:, :, None] ** 3
+        return F * 1e-7 / 

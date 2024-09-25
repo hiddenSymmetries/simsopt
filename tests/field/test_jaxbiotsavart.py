@@ -1,15 +1,14 @@
 import unittest
 
 import numpy as np
-
-from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.field.biotsavart import BiotSavart
-from simsopt.field.coil import Coil, Current, ScaledCurrent
-
+from simsopt.geo.curvexyzfourier import JaxCurveXYZFourier as CurveXYZFourier
+from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart
+from simsopt.field.coil import Coil, ScaledCurrent
+from simsopt.field.coil import JaxCurrent as Current
 
 def get_curve(num_quadrature_points=200, perturb=False):
     coil = CurveXYZFourier(num_quadrature_points, 3)
-    coeffs = coil.dofs_matrix
+    coeffs = np.zeros((3, len(coil.get_dofs()) // 3))
     coeffs[1][0] = 1.
     coeffs[1][1] = 0.5
     coeffs[2][2] = 0.5
@@ -21,47 +20,53 @@ def get_curve(num_quadrature_points=200, perturb=False):
 
 class Testing(unittest.TestCase):
 
-    def test_biotsavart_both_interfaces_give_same_result(self):
+    def test_jaxbiotsavart_both_interfaces_give_same_result(self):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-        B1 = BiotSavart([coil]).set_points(points).B()
+        B1 = JaxBiotSavart([coil]).set_points(points).B()
         from simsoptpp import biot_savart_B
         B2 = biot_savart_B(points, [curve.gamma()], [curve.gammadash()], [1e4])
         assert np.linalg.norm(B1) > 1e-5
         assert np.allclose(B1, B2)
 
     def test_biotsavart_exponential_convergence(self):
-        BiotSavart([Coil(get_curve(), Current(1e4))])
+        JaxBiotSavart([Coil(get_curve(), Current(1e4))])
         points = np.asarray(10 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
-        btrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).B()
-        bcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).B()
-        bfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).B()
+        btrue = JaxBiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).B()
+        bcoarse = JaxBiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).B()
+        bfine = JaxBiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).B()
         assert np.linalg.norm(btrue-bfine) < 1e-4 * np.linalg.norm(bcoarse-bfine)
 
-        dbtrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).dB_by_dX()
-        dbcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).dB_by_dX()
-        dbfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).dB_by_dX()
+        dbtrue = JaxBiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).dB_by_dX()
+        dbcoarse = JaxBiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).dB_by_dX()
+        dbfine = JaxBiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).dB_by_dX()
         assert np.linalg.norm(dbtrue-dbfine) < 1e-4 * np.linalg.norm(dbcoarse-dbfine)
 
-        dbtrue = BiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).d2B_by_dXdX()
-        dbcoarse = BiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).d2B_by_dXdX()
-        dbfine = BiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).d2B_by_dXdX()
+        dbtrue = JaxBiotSavart([Coil(get_curve(1000), Current(1e4))]).set_points(points).d2B_by_dXdX()
+        dbcoarse = JaxBiotSavart([Coil(get_curve(10), Current(1e4))]).set_points(points).d2B_by_dXdX()
+        dbfine = JaxBiotSavart([Coil(get_curve(20), Current(1e4))]).set_points(points).d2B_by_dXdX()
         assert np.linalg.norm(dbtrue-dbfine) < 1e-4 * np.linalg.norm(dbcoarse-dbfine)
 
     def test_dB_by_dcoilcoeff_reverse_taylortest(self):
         np.random.seed(1)
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
+        bs2 = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
         bs.set_points(points)
-        curve_dofs = curve.x
+        bs2.set_points(points)
+        curve_dofs = curve.x 
         B = bs.B()
+        B2 = bs2.B()
         J0 = np.sum(B**2)
         dJ = bs.B_vjp(B)(curve)
+        dJ2 = bs.B_vjp(B2)(curve)
+        # print('Bdiff_original = ', np.max(np.abs(B-B2)))
+        # print('Jdiff = ', np.max(np.abs(dJ-dJ2)))
 
         h = 1e-2 * np.random.rand(len(curve_dofs)).reshape(curve_dofs.shape)
         dJ_dh = 2*np.sum(dJ * h)
@@ -70,6 +75,7 @@ class Testing(unittest.TestCase):
             eps = 0.5**i
             curve.x = curve_dofs + eps * h
             Bh = bs.B()
+            Bh2 = bs2.B()
             Jh = np.sum(Bh**2)
             deriv_est = (Jh-J0)/eps
             err_new = np.linalg.norm(deriv_est-dJ_dh)
@@ -80,7 +86,7 @@ class Testing(unittest.TestCase):
         np.random.seed(1)
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
@@ -107,7 +113,7 @@ class Testing(unittest.TestCase):
     def subtest_biotsavart_dBdX_taylortest(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
         bs.set_points(points)
@@ -133,7 +139,7 @@ class Testing(unittest.TestCase):
     def subtest_biotsavart_gradient_symmetric_and_divergence_free(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
         bs.set_points(points)
@@ -149,7 +155,7 @@ class Testing(unittest.TestCase):
     def subtest_d2B_by_dXdX_is_symmetric(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
         bs.set_points(points)
@@ -165,7 +171,7 @@ class Testing(unittest.TestCase):
     def subtest_biotsavart_d2B_by_dXdX_taylortest(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
         d2B_by_dXdX = bs.d2B_by_dXdX()
@@ -199,7 +205,7 @@ class Testing(unittest.TestCase):
     def test_biotsavart_B_is_curlA(self):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
         B, dA_by_dX = bs.B(), bs.dA_by_dX() 
@@ -213,7 +219,7 @@ class Testing(unittest.TestCase):
     def subtest_biotsavart_dAdX_taylortest(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
         bs.set_points(points)
@@ -240,7 +246,7 @@ class Testing(unittest.TestCase):
     def subtest_biotsavart_d2A_by_dXdX_taylortest(self, idx):
         curve = get_curve()
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
         d2A_by_dXdX = bs.d2A_by_dXdX()
@@ -278,8 +284,64 @@ class Testing(unittest.TestCase):
         current0 = Current(c0)
         curve1 = get_curve(perturb=True)
         current1 = Current(1e3)
-        bs = BiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+        bs = JaxBiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
+        bs.set_points(points)
+        gamma1 = bs._coils[0].curve.gamma()
+        gammadash1 = bs._coils[0].curve.gammadash()
+        B1 = bs.B()
+        A1 = bs.A()
+        dA1 = bs.dA_by_dcoilcurrents()
+        dAJ1 = bs.dA_by_dX()
+        dAH1 = bs.d2A_by_dXdX()
+        dAdJ1 = bs.d2A_by_dXdcoilcurrents()
+        dAdH1 = bs.d3A_by_dXdXdcoilcurrents()
+        J1 = bs.dB_by_dX()
+        H1 = bs.d2B_by_dXdX()
+        dB1 = bs.dB_by_dcoilcurrents()
+        dJ1 = bs.d2B_by_dXdcoilcurrents()
+        dH1 = bs.d3B_by_dXdXdcoilcurrents()
+        currents1 = [c.current.get_value() for c in bs._coils], 
+        gammas1 = [c.curve.gamma() for c in bs._coils], 
+        gammadashs1 = [c.curve.gammadash() for c in bs._coils]
+
+        # Check agreement with analytic form
+        bs = BiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+        bs.set_points(points)
+        currents2 = [c.current.get_value() for c in bs._coils], 
+        gammas2 = [c.curve.gamma() for c in bs._coils], 
+        gammadashs2 = [c.curve.gammadash() for c in bs._coils]
+        assert np.allclose(currents1, currents2)
+        assert np.allclose(gammas1, gammas2)
+        assert np.allclose(gammadashs1, gammadashs2)
+        B = bs.B()
+        A = bs.A()
+        dA = bs.dA_by_dcoilcurrents()
+        dAJ = bs.dA_by_dX()
+        dAH = bs.d2A_by_dXdX()
+        dAdJ = bs.d2A_by_dXdcoilcurrents()
+        dAdH = bs.d3A_by_dXdXdcoilcurrents()
+        J = bs.dB_by_dX()
+        H = bs.d2B_by_dXdX()
+        dB = bs.dB_by_dcoilcurrents()
+        dJ = bs.d2B_by_dXdcoilcurrents()
+        dH = bs.d3B_by_dXdXdcoilcurrents()
+        assert np.allclose(gamma1, bs._coils[0].curve.gamma())
+        assert np.allclose(gammadash1, bs._coils[0].curve.gammadash())
+        assert np.allclose(B1, B)
+        assert np.allclose(J1, J)
+        assert np.allclose(H1, H)
+        assert np.allclose(dB1, dB)
+        assert np.allclose(dJ1, dJ)
+        assert np.allclose(dH1, dH)  # Not quite in agreement?
+        assert np.allclose(A1, A)
+        assert np.allclose(dAJ1, dAJ)
+        assert np.allclose(dAH1, dAH)
+        assert np.allclose(dA1, dA)
+        assert np.allclose(dAdJ1, dAdJ)
+        assert np.allclose(dAdH1, dAdH)
+
+        bs = JaxBiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
         bs.set_points(points)
         B = bs.B()
         J = bs.dB_by_dX()
@@ -305,7 +367,7 @@ class Testing(unittest.TestCase):
         np.random.seed(1)
         curve = get_curve()
         coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
@@ -318,7 +380,7 @@ class Testing(unittest.TestCase):
         h = 1e-2 * np.random.rand(len(coil_dofs)).reshape(coil_dofs.shape)
         dJ_dh = 2*np.sum(dJ * h)
         err = 1e6
-        for i in range(5, 10):
+        for i in range(2, 10):
             eps = 0.5**i
             coil.x = coil_dofs + eps * h
             Ah = bs.A()
@@ -332,7 +394,7 @@ class Testing(unittest.TestCase):
         np.random.seed(1)
         curve = get_curve()
         coil = Coil(curve, ScaledCurrent(Current(1), 1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         points += 0.001 * (np.random.rand(*points.shape)-0.5)
 
@@ -366,7 +428,7 @@ class Testing(unittest.TestCase):
 
         curve = get_curve(perturb=True)
         coil = Coil(curve, Current(1e4))
-        bs = BiotSavart([coil])
+        bs = JaxBiotSavart([coil])
 
         # define the disk
         def f(t, r):
@@ -399,7 +461,7 @@ class Testing(unittest.TestCase):
         current0 = Current(c0)
         curve1 = get_curve(perturb=True)
         current1 = Current(1e3)
-        bs = BiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+        bs = JaxBiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
         A = bs.A()
