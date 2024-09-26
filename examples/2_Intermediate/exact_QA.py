@@ -21,9 +21,9 @@ if in_github_actions:
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 60 # bricks with radial extent ??? cm
+    Nx = 50 # bricks with radial extent ??? cm
 
 coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
@@ -87,26 +87,26 @@ pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 50000
+# nIter_max = 50000
 max_nMagnets = 20000
 algorithm = 'baseline'
-algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
-nAdjacent = 10
-thresh_angle = np.pi  # / np.sqrt(2)
-angle = int(thresh_angle * 180 / np.pi)
-kwargs['K'] = nIter_max
-if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
-    kwargs['backtracking'] = nBacktracking
-    kwargs['Nadjacent'] = nAdjacent
-    kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
-    if algorithm == 'ArbVec_backtracking':
-        kwargs['thresh_angle'] = thresh_angle
-        kwargs['max_nMagnets'] = max_nMagnets
+# algorithm = 'ArbVec_backtracking'
+# nBacktracking = 200 
+# nAdjacent = 10
+# thresh_angle = np.pi  # / np.sqrt(2)
+# angle = int(thresh_angle * 180 / np.pi)
+kwargs['K'] = max_nMagnets
+# if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+#     kwargs['backtracking'] = nBacktracking
+#     kwargs['Nadjacent'] = nAdjacent
+#     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
+#     if algorithm == 'ArbVec_backtracking':
+#         kwargs['thresh_angle'] = thresh_angle
+#         kwargs['max_nMagnets'] = max_nMagnets
     # Below line required for the backtracking to be backwards 
     # compatible with the PermanentMagnetGrid class
-    pm_opt.coordinate_flag = 'cartesian'  
-nHistory = 20
+    # pm_opt.coordinate_flag = 'cartesian'  
+nHistory = 100
 kwargs['nhistory'] = nHistory
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
