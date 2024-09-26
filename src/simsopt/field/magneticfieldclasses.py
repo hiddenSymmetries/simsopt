@@ -606,13 +606,17 @@ class DipoleField(MagneticField):
             coordinates.
     """
 
-    def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
+    def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, 
+                 coordinate_flag='cartesian', m_maxima=None, R0=1,
+                 net_forces=None):
         super().__init__()        
         if coordinate_flag == 'toroidal':
             warnings.warn('Note that if using simple toroidal coordinates, '
                           'the major radius must be specified through R0 argument.')
         self.R0 = R0
-        self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, nfp, coordinate_flag, m_maxima, R0)
+        self._dipole_fields_from_symmetries(dipole_grid, dipole_vectors, stellsym, 
+                                            nfp, coordinate_flag, m_maxima, R0,
+                                            net_forces=net_forces)
 
     def _B_impl(self, B):
         points = self.get_points_cart_ref()
@@ -630,7 +634,11 @@ class DipoleField(MagneticField):
         points = self.get_points_cart_ref()
         dA[:] = sopp.dipole_field_dA(points, self.dipole_grid, self.m_vec)
 
-    def _dipole_fields_from_symmetries(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
+    def _dipole_fields_from_symmetries(
+        self, dipole_grid, dipole_vectors, 
+        stellsym=True, nfp=1, coordinate_flag='cartesian', 
+        m_maxima=None, R0=1,
+        net_forces=None):
         """
         Takes the dipoles and grid initialized in a PermanentMagnetOptimizer (for a half-period surface)
         and generates the full dipole manifold so that the call to B() (the magnetic field from
@@ -657,6 +665,7 @@ class DipoleField(MagneticField):
         dipole_grid_z = np.zeros(ndipoles * nsym)
         m_vec = np.zeros((ndipoles * nsym, 3))
         m_max = np.zeros(ndipoles * nsym)
+        net_forces_full = np.zeros((ndipoles * nsym, 3))
 
         # Load in the dipole locations for a half-period surface
         ox = dipole_grid[:, 0]
@@ -687,6 +696,10 @@ class DipoleField(MagneticField):
             mmy = mmy_temp
             mmz = mmz_temp
 
+        fx = net_forces[:, 0]
+        fy = net_forces[:, 1]
+        fz = net_forces[:, 2]
+
         # Loop over stellarator and field-period symmetry contributions
         for stell in stell_list:
             for fp in range(nfp):
@@ -702,6 +715,11 @@ class DipoleField(MagneticField):
                 m_vec[index:index + n, 1] = mmx * np.sin(phi0) * stell + mmy * np.cos(phi0)
                 m_vec[index:index + n, 2] = mmz
 
+                # get new dipole forces by flipping the x component, then rotating by phi0
+                net_forces_full[index:index + n, 0] = fx * np.cos(phi0) * stell - fy * np.sin(phi0)
+                net_forces_full[index:index + n, 1] = fx * np.sin(phi0) * stell + fy * np.cos(phi0)
+                net_forces_full[index:index + n, 2] = fz
+
                 m_max[index:index + n] = m_maxima
                 index += n
 
@@ -709,6 +727,7 @@ class DipoleField(MagneticField):
         self.dipole_grid = contig(np.array([dipole_grid_x, dipole_grid_y, dipole_grid_z]).T)
         self.m_vec = contig(m_vec)
         self.m_maxima = contig(m_max)
+        self.net_forces_full = contig(net_forces_full)
 
     def _toVTK(self, vtkname):
         """
@@ -730,6 +749,9 @@ class DipoleField(MagneticField):
         mx = np.ascontiguousarray(self.m_vec[:, 0])
         my = np.ascontiguousarray(self.m_vec[:, 1])
         mz = np.ascontiguousarray(self.m_vec[:, 2])
+        fx = np.ascontiguousarray(self.net_forces_full[:, 0])
+        fy = np.ascontiguousarray(self.net_forces_full[:, 1])
+        fz = np.ascontiguousarray(self.net_forces_full[:, 2])
         mx_normalized = np.ascontiguousarray(mx / self.m_maxima)
         my_normalized = np.ascontiguousarray(my / self.m_maxima)
         mz_normalized = np.ascontiguousarray(mz / self.m_maxima)
@@ -743,7 +765,12 @@ class DipoleField(MagneticField):
         mtheta_normalized = np.ascontiguousarray(mtheta / self.m_maxima)
 
         # Save all the data to a vtk file which can be visualized nicely with ParaView
-        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), "m_rphiz": (mr, mphi, mz), "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), "m_rphitheta": (mrminor, mphi, mtheta), "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized)}
+        data = {"m": (mx, my, mz), "m_normalized": (mx_normalized, my_normalized, mz_normalized), 
+                "m_rphiz": (mr, mphi, mz), 
+                "m_rphiz_normalized": (mr_normalized, mphi_normalized, mz_normalized), 
+                "m_rphitheta": (mrminor, mphi, mtheta), 
+                "m_rphitheta_normalized": (mrminor_normalized, mphi_normalized, mtheta_normalized),
+                "NetForce": (fx, fy, fz)}
         from pyevtk.hl import pointsToVTK
         pointsToVTK(str(vtkname), ox, oy, oz, data=data)
 
