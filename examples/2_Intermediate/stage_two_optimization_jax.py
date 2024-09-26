@@ -22,6 +22,7 @@ The target equilibrium is the QA configuration of arXiv:2108.03711.
 """
 
 import os
+import shutil
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
@@ -48,7 +49,7 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-6)
+LENGTH_WEIGHT = Weight(1e-5)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -67,7 +68,8 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight for the Coil Coil forces term
-FORCES_WEIGHT = 1e-9  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCES_WEIGHT = 1e-14  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# And this term weights the NetForce^2 ~ 10^10-10^12 
 
 # Number of iterations to perform:
 MAXITER = 100
@@ -78,6 +80,8 @@ filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 # Directory for output
 OUT_DIR = "./stage_two_optimization_jax/"
+if os.path.exists(OUT_DIR):
+    shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 #######################################################
@@ -89,6 +93,17 @@ nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
+qphi = nphi * 2
+qtheta = ntheta * 2
+quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
+quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
+# Make high resolution, full torus version of the plasma boundary for plotting
+s_plot = SurfaceRZFourier.from_vmec_input(
+    filename, 
+    quadpoints_phi=quadpoints_phi, 
+    quadpoints_theta=quadpoints_theta
+)
+
 # Create the initial coils:
 base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
 base_currents = [JaxCurrent(1e5) for i in range(ncoils)]
@@ -99,13 +114,23 @@ base_currents[0].fix_all()
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 curves = [c.curve for c in coils]
-curves_to_vtk(curves, OUT_DIR + "curves_init")
+currents = [c.current.get_value() for c in coils]
 
 bs = JaxBiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
+curves_to_vtk(curves, OUT_DIR + "curves_0", I=np.array(currents), NetForces=np.array(bs.coil_coil_forces()))
 
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
+s.to_vtk(OUT_DIR + "surf_0", extra_data=pointData)
+
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_full_0", extra_data=pointData)
+
+pointData = {"B_N / B": (np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+    ) / np.linalg.norm(bs.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_0", extra_data=pointData)
+bs.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
@@ -140,6 +165,7 @@ def fun(dofs):
     length_val = LENGTH_WEIGHT.value * sum(J.J() for J in Jls)
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
+    curv_val = CURVATURE_WEIGHT * sum(J.J() for J in Jcs)
     forces_val = FORCES_WEIGHT * Jforces.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
@@ -147,6 +173,7 @@ def fun(dofs):
     valuestr += f", LenObj={length_val:.2e}" 
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 
+    valuestr += f", curvObj={curv_val:.2e}" 
     valuestr += f", forceObj={forces_val:.2e}" 
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
@@ -182,21 +209,38 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_short")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_short", extra_data=pointData)
+n_saves = 40
+MAXITER = 10
+for i in range(1, n_saves + 1):
+    print('Iteration ' + str(i) + ' / ' + str(n_saves))
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+    dofs = res.x
+
+    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
+                  I=[c.current.get_value() for c in bs.coils], NetForces=bs.coil_coil_forces())
+
+    bs.set_points(s_plot.gamma().reshape((-1, 3)))
+    pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "surf_full_{0:d}".format(i), extra_data=pointData)
+
+    pointData = {"B_N / B": (np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+        ) / np.linalg.norm(bs.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
+
+    bs.set_points(s.gamma().reshape((-1, 3)))
+    print('Max I = ', np.max(np.abs([c.current.get_value() for c in bs.coils])))
+    print('Min I = ', np.min(np.abs([c.current.get_value() for c in bs.coils])))
 
 
 # We now use the result from the optimization as the initial guess for a
 # subsequent optimization with reduced penalty for the coil length. This will
 # result in slightly longer coils but smaller `B·n` on the surface.
-dofs = res.x
-LENGTH_WEIGHT *= 0.1
-res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
-pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
+# dofs = res.x
+# LENGTH_WEIGHT *= 0.1
+# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+# curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
+# pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
+# s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
 
-# Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
-bs.save(OUT_DIR + "biot_savart_opt.json")
+# # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
+# bs.save(OUT_DIR + "biot_savart_opt.json")

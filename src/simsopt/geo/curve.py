@@ -822,7 +822,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
 
-def curves_to_vtk(curves, filename, close=False, scalar_data=None):
+def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -849,14 +849,33 @@ def curves_to_vtk(curves, filename, close=False, scalar_data=None):
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    if scalar_data is None:
-        polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data})
-    else:
+    pointData={'idx': data}
+    # cellData={}
+    contig = np.ascontiguousarray
+    if I is not None:
         coil_data = np.zeros(data.shape)
-        for i in range(len(scalar_data)):
-            coil_data[i * ppl[i]: (i + 1) * ppl[i]] = scalar_data[i]
+        for i in range(len(I)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i]] = I[i]
         coil_data = np.ascontiguousarray(coil_data)
-        polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data, 'I': coil_data, 'I_mag': np.abs(coil_data)})
+        pointData['I'] = coil_data
+        pointData['I_mag'] = contig(np.abs(coil_data))
+        # cellData['I'] = contig(I)
+        # cellData['I_mag'] = contig(np.abs(I))
+    if NetForces is not None:
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(NetForces)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetForces[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['NetForces'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+        pointData['NetForces_mag'] = contig(np.linalg.norm(coil_data, axis=-1))
+        # cellData['NetForces'] = (contig(NetForces[:, 0]), 
+        #                         contig(NetForces[:, 1]),
+        #                         contig(NetForces[:, 2]))
+        # cellData['NetForces_mag'] = contig(np.linalg.norm(NetForces, axis=-1))
+
+    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData) #, cellData=cellData)
 
 def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # Get (X, Y, Z) coordinates of the two boundaries
