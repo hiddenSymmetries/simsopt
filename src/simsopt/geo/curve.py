@@ -455,7 +455,6 @@ class JaxCurve(sopp.Curve, Curve):
         r"""
         This function returns the x,y,z coordinates of the curve :math:`\Gamma`.
         """
-
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
@@ -669,6 +668,11 @@ class RotatedCurve(sopp.Curve, Curve):
             self.curve.gamma_impl(gamma, quadpoints)
             gamma[:] = gamma @ self.rotmat
 
+    def gamma_impl_jax(self, dofs, quadpoints):
+        gamma = self.curve.gamma_impl_jax(dofs, quadpoints)
+        gamma = gamma @ self.rotmat
+        return gamma
+
     def gammadash_impl(self, gammadash):
         r"""
         This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z
@@ -677,6 +681,11 @@ class RotatedCurve(sopp.Curve, Curve):
         """
 
         gammadash[:] = self.curve.gammadash() @ self.rotmat
+
+    def gammadash_impl_jax(self, dofs, quadpoints):
+        gamma = self.curve.gammadash_impl_jax(dofs, quadpoints)
+        gamma = gamma @ self.rotmat
+        return gamma
 
     def gammadashdash_impl(self, gammadashdash):
         r"""

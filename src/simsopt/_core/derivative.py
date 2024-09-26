@@ -203,7 +203,6 @@ class Derivative:
                 if np.any(k.dofs_free_status):
                     local_derivs = np.zeros(k.local_dof_size)
                     for opt in k.dofs.dep_opts():
-                        print(opt, opt.local_dofs_free_status, k.local_dof_size, self.data[opt])
                         local_derivs += self.data[opt][opt.local_dofs_free_status]
                     derivs.append(local_derivs)
             return np.concatenate(derivs)

@@ -25,7 +25,7 @@ import os
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries
+from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries, CoilCoilNetForces
 from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
                          CurveLength, CurveCurveDistance, MeanSquaredCurvature,
                          LpCurveCurvature, CurveSurfaceDistance)
@@ -66,8 +66,11 @@ CURVATURE_WEIGHT = 1e-6
 MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
+# Weight for the Coil Coil forces term
+FORCES_WEIGHT = 1e-9  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+
 # Number of iterations to perform:
-MAXITER = 50 if in_github_actions else 400
+MAXITER = 100
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -111,7 +114,7 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-
+Jforces = CoilCoilNetForces(bs)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -121,7 +124,8 @@ JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
-    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs)
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
+    + FORCES_WEIGHT * Jforces
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -133,15 +137,27 @@ def fun(dofs):
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
+    length_val = LENGTH_WEIGHT.value * sum(J.J() for J in Jls)
+    cc_val = CC_WEIGHT * Jccdist.J()
+    cs_val = CS_WEIGHT * Jcsdist.J()
+    forces_val = FORCES_WEIGHT * Jforces.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
+    valuestr = f"J={J:.2e}, Jf={jf:.2e}"
+    valuestr += f", LenObj={length_val:.2e}" 
+    valuestr += f", ccObj={cc_val:.2e}" 
+    valuestr += f", csObj={cs_val:.2e}" 
+    valuestr += f", forceObj={forces_val:.2e}" 
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
+    # force_string = ", ".join(f"{Jforces.J():.1f}" for c in base_curves)
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+    outstr += f", C-C-Forces={Jforces.J():.1e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
+    print(valuestr)
     return J, grad
 
 

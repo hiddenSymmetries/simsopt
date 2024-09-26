@@ -1,14 +1,15 @@
 import numpy as np
-from jax import vjp, jacfwd, jvp, hessian, jacrev
+from jax import vjp, jacfwd, jvp, hessian, jacrev, grad
 import jax.numpy as jnp
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
-from .._core.derivative import Derivative
+from .._core.optimizable import Optimizable
+from .._core.derivative import derivative_dec, Derivative
 from ..geo.jit import jit
 
-__all__ = ['BiotSavart', 'JaxBiotSavart']
+__all__ = ['BiotSavart', 'JaxBiotSavart', 'CoilCoilNetForces']
 
 
 class BiotSavart(sopp.BiotSavart, MagneticField):
@@ -296,7 +297,9 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         dB_by_dcurvedofs = self.dB_by_dcurvedofs()
         res_curvedofs = [np.sum(np.sum(v[None, :, :] * dB_by_dcurvedofs[i], axis=-1), axis=-1) for i in range(len(dB_by_dcurvedofs))]
-        return sum([Derivative({coils[i].curve: res_curvedofs[i]}) + coils[i].current.vjp(np.array([res_current[i]])) for i in range(len(coils))])
+        curve_derivs = [Derivative({coils[i].curve: res_curvedofs[i]}) for i in range(len(res_curvedofs))]
+        current_derivs = [coils[i].current.vjp(np.array([res_current[i]])) for i in range(len(coils))]
+        return sum(curve_derivs + current_derivs)
     
     def A(self):
         return self.A_jax(self.get_curve_dofs(), self.get_currents(), self.get_points_cart_ref())
@@ -307,7 +310,9 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         res_current = [np.sum(v * dA_by_dcoilcurrents[i]) for i in range(len(dA_by_dcoilcurrents))]
         dA_by_dcurvedofs = self.dA_by_dcurvedofs()
         res_curvedofs = [np.sum(np.sum(v[None, :, :] * dA_by_dcurvedofs[i], axis=-1), axis=-1) for i in range(len(dA_by_dcurvedofs))]
-        return sum([Derivative({coils[i].curve: res_curvedofs[i]}) + coils[i].current.vjp(np.array([res_current[i]])) for i in range(len(coils))])
+        curve_derivs = [Derivative({coils[i].curve: res_curvedofs[i]}) for i in range(len(res_curvedofs))]
+        current_derivs = [coils[i].current.vjp(np.array([res_current[i]])) for i in range(len(coils))]
+        return sum(curve_derivs + current_derivs)
     
     def get_dofs(self):
         ll = [self._coils[i].current.get_value() for i in range(len(self._coils))]
@@ -315,27 +320,24 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         return (ll + lc)
     
     def get_curve_dofs(self):
-        print([self._coils[i].curve.get_dofs() for i in range(len(self._coils)
-            ) if jnp.size(self._coils[i].curve.get_dofs()) != 0])
         # get the dofs of the UNIQUE coils (the rest of the coils don't have dofs because
         # they are obtained by symmetries)
         return jnp.array([self._coils[i].curve.get_dofs() for i in range(len(self._coils)
             ) if jnp.size(self._coils[i].curve.get_dofs()) != 0])
 
     def get_gammas(self, dofs):
-        gammas = np.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
-        [c.curve.gamma_impl(gammas[i, :, :], self._coils[i].curve.quadpoints
-                                                    ) for i, c in enumerate(self._coils)]
-        # What to do with dofs parameter?
+        gammas = jnp.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
+        for i, c in enumerate(self._coils):
+            gammas = gammas.at[i, :, :].add(c.curve.gamma_impl_jax(dofs[i % len(dofs)], self._coils[i].curve.quadpoints))
         return jnp.array(gammas)
 
     def get_currents(self):
         return jnp.array([c.current.get_value() for c in self._coils])
 
     def get_gammadashs(self, dofs):
-        gammadashs = np.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
-        [c.curve.gammadash_impl(gammadashs[i, :, :]) for i, c in enumerate(self._coils)]
-        # What to do with dofs parameter?
+        gammadashs = jnp.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
+        for i, c in enumerate(self._coils):
+            gammadashs = gammadashs.at[i, :, :].add(c.curve.gammadash_impl_jax(dofs[i % len(dofs)], self._coils[i].curve.quadpoints))
         return jnp.array(gammadashs)
 
     def dB_by_dX(self):
@@ -505,24 +507,6 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         bs = cls(coils)
         bs.set_points_cart(xyz)
         return bs
-
-# @jit
-    def coil_coil_forces_pure(self, curve_dofs, currents):
-        """
-        """
-        eps = 1e-20  # small number to avoid blow up in the denominator when i = j
-        gammas = self.get_gammas(curve_dofs)
-        gammadashs = self.get_gammadashs(curve_dofs)
-        Ii_Ij = (currents[None, :] * currents[:, None])[:, :, None]
-        # gamma and gammadash are shape (ncoils, nquadpoints, 3)
-        r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :]  # Note, do not use the i = j indices
-        gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1) 
-        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-
-        # Double sum over each of the closed curves
-        F = Ii_Ij * jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
-        net_forces = -jnp.sum(F, axis=1) * 1e-7 / jnp.shape(gammas)[1] ** 2
-        return net_forces
     
     def coil_coil_forces(self):
         r"""
@@ -548,4 +532,66 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     def total_magnetic_energy_pure(self, curve_dofs, currents):
         return jnp.dot(currents, jnp.dot(self.coil_coil_inductances_pure(curve_dofs), currents)) * 0.5
     
+    # @jit
+    def coil_coil_forces_pure(self, curve_dofs, currents):
+        """
+        """
+        eps = 1e-20  # small number to avoid blow up in the denominator when i = j
+        gammas = self.get_gammas(curve_dofs)
+        gammadashs = self.get_gammadashs(curve_dofs)
+        Ii_Ij = (currents[None, :] * currents[:, None])[:, :, None]
+        # gamma and gammadash are shape (ncoils, nquadpoints, 3)
+        r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :]  # Note, do not use the i = j indices
+        gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1) 
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+
+        # Double sum over each of the closed curves
+        F = Ii_Ij * jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
+        net_forces = -jnp.sum(F, axis=1) * 1e-7 / jnp.shape(gammas)[1] ** 2
+        return net_forces
     
+    def net_forces_squared_pure(self, curve_dofs, currents):
+        # Minimize the sum of the net force magnitudes ^2 of every coil
+        return jnp.sum(jnp.linalg.norm(self.coil_coil_forces_pure(curve_dofs, currents), axis=-1) ** 2)
+
+class CoilCoilNetForces(Optimizable):
+    r"""
+    CurveLength is a class that computes the length of a curve, i.e.
+
+    .. math::
+        J = \int_{\text{curve}}~dl.
+
+    """
+    def __init__(self, biot_savart):
+        self.biot_savart = biot_savart
+        self.grad_curvedofs = jit(jacfwd(self.biot_savart.net_forces_squared_pure, argnums=0))
+        self.grad_currents = jit(jacfwd(self.biot_savart.net_forces_squared_pure, argnums=1))
+        super().__init__(depends_on=[biot_savart])
+
+    def J(self):
+        """
+        This returns the value of the quantity.
+        """
+        return self.biot_savart.net_forces_squared_pure(
+            self.biot_savart.get_curve_dofs(), 
+            self.biot_savart.get_currents()
+        )
+
+    @derivative_dec
+    def dJ(self):
+        """
+        This returns the derivative of the quantity with respect to the curve dofs.
+        """
+        dF_by_dcurvedofs = self.grad_curvedofs(
+            self.biot_savart.get_curve_dofs(), 
+            self.biot_savart.get_currents())
+        dF_by_dcurrents = self.grad_currents(
+            self.biot_savart.get_curve_dofs(), 
+            self.biot_savart.get_currents())
+                
+        coils = self.biot_savart._coils
+        curve_derivs = [Derivative({coils[i].curve: dF_by_dcurvedofs[i]}) for i in range(len(dF_by_dcurvedofs))]
+        current_derivs = [coils[i].current.vjp(np.array([dF_by_dcurrents[i]])) for i in range(len(coils))]
+        return sum(curve_derivs + current_derivs)
+
+    return_fn_map = {'J': J, 'dJ': dJ}
