@@ -146,15 +146,15 @@ mx = m0 * np.cos(mp)*np.sin(mt)
 my = m0 * np.sin(mp)*np.sin(mt)
 mz = m0 * np.cos(mt)
 m = np.array([mx, my, mz]).T
-print('Beginning Force Calculation')
 force_matrix = pm_opt.net_force_matrix(m)
-print('Completed Force Calculation')
+print(force_matrix)
+positions = pm_opt.dipole_grid_xyz
 Fx = np.ascontiguousarray(force_matrix[:,0])
 Fy = np.ascontiguousarray(force_matrix[:,1])
 Fz = np.ascontiguousarray(force_matrix[:,2])
-x = np.ascontiguousarray(Positions[:,0])
-y = np.ascontiguousarray(Positions[:,1])
-z = np.ascontiguousarray(Positions[:,2])
+x = np.ascontiguousarray(positions[:,0])
+y = np.ascontiguousarray(positions[:,1])
+z = np.ascontiguousarray(positions[:,2])
 data = {'Forces':(Fx,Fy,Fz)}
 pointsToVTK('MUSE_Force_visualization',x, y, z, data = data)
 '''
