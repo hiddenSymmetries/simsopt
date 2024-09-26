@@ -495,5 +495,54 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
 
+    def test_net_force_calculation(self):
+        from scipy.special import ellipk, ellipe
+        
+        ncoils = 2
+        I1 = 5.0e4
+        I2 = -3.0e4
+        Z1 = 1.0
+        Z2 = 4.0
+        R1 = 0.5
+        R2 = R1
+        # a = 1e-5
+        # points = np.array([[0.0, 0.0, Z1], [0.0, 0.0, Z2]])
+        # curve0 = get_curve()
+        curve0 = CurveXYZFourier(200, 3)
+        coeffs = np.zeros((3, len(curve0.get_dofs()) // 3))
+        coeffs[0][2] = R1
+        coeffs[1][1] = R1
+        coeffs[2][0] = Z1
+        curve0.set_dofs(np.concatenate(coeffs))
+        current0 = Current(I1)
+        curve1 = CurveXYZFourier(200, 3)
+        coeffs = np.zeros((3, len(curve1.get_dofs()) // 3))
+        coeffs[0][2] = R2
+        coeffs[1][1] = R2
+        coeffs[2][0] = Z2
+        curve1.set_dofs(np.concatenate(coeffs))
+        # from matplotlib import pyplot as plt
+        # plt.figure()
+        # plt.plot(curve1.gamma()[:, 0], curve1.gamma()[:, 1])
+        # plt.show()
+        current1 = Current(I2)
+        bs = JaxBiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+
+        # alphas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * np.pi
+        # deltas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        k = np.sqrt(4.0 * R1 * R2 / ((R1 + R2) ** 2 + (Z2 - Z1) ** 2))
+        mu0 = 4 * np.pi * 1e-7
+        # Jackson uses K(k) and E(k) but this corresponds to
+        # K(k^2) and E(k^2) in scipy library
+        F_analytic = mu0 * I1 * I2 * k * (Z2 - Z1) * (
+            (2  - k ** 2) * ellipe(k ** 2) / (1 - k ** 2) - 2.0 * ellipk(k ** 2)
+        ) / (4.0 * np.sqrt(R1 * R2))
+        
+        F_bs = bs.coil_coil_forces()
+        print(F_bs, F_analytic)
+        assert np.allclose(F_bs[:, 0], 0.0)
+        assert np.allclose(F_bs[:, 1], 0.0)
+        assert np.allclose(np.abs(F_bs[:, 2]), abs(F_analytic))
+
 if __name__ == "__main__":
     unittest.main()

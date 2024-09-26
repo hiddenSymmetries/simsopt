@@ -1012,7 +1012,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
     all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     return curves, all_curves
 
-def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curvexyzfourier.CurveXYZFourier` of order
@@ -1032,20 +1032,34 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     if numquadpoints is None:
         numquadpoints = 15 * order
     curves = []
-    from simsopt.geo.curvexyzfourier import CurveXYZFourier
-    for i in range(ncurves):
-        curve = CurveXYZFourier(numquadpoints, order)
-        angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
-        curve.set("xc(0)", cos(angle)*R0)
-        curve.set("xc(1)", cos(angle)*R1)
-        curve.set("yc(0)", sin(angle)*R0)
-        curve.set("yc(1)", sin(angle)*R1)
-        # The the next line, the minus sign is for consistency with
-        # Vmec.external_current(), so the coils create a toroidal field of the
-        # proper sign and free-boundary equilibrium works following stage-2 optimization.
-        curve.set("zs(1)", -R1)
-        curve.x = curve.x  # need to do this to transfer data to C++
-        curves.append(curve)
+    from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
+    if jax_flag:
+        for i in range(ncurves):
+            curve = JaxCurveXYZFourier(numquadpoints, order)
+            angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
+            coeffs = np.zeros((3, len(curve.get_dofs()) // 3))
+            coeffs[0][0] = cos(angle)*R0
+            coeffs[0][2] = cos(angle)*R1
+            coeffs[1][0] = sin(angle)*R0
+            coeffs[1][2] = sin(angle)*R1
+            coeffs[2][1] = -R1
+            curve.set_dofs(np.concatenate(coeffs))
+            curve.x = curve.x  # need to do this to transfer data to C++
+            curves.append(curve)
+    else:
+        for i in range(ncurves):
+            curve = CurveXYZFourier(numquadpoints, order)
+            angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
+            curve.set("xc(0)", cos(angle)*R0)
+            curve.set("xc(1)", cos(angle)*R1)
+            curve.set("yc(0)", sin(angle)*R0)
+            curve.set("yc(1)", sin(angle)*R1)
+            # The the next line, the minus sign is for consistency with
+            # Vmec.external_current(), so the coils create a toroidal field of the
+            # proper sign and free-boundary equilibrium works following stage-2 optimization.
+            curve.set("zs(1)", -R1)
+            curve.x = curve.x  # need to do this to transfer data to C++
+            curves.append(curve)
     return curves
 
 

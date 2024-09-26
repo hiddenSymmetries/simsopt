@@ -288,7 +288,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         return A * 1e-7 / jnp.shape(gammas)[1]  # Divide by number of quadpoints
 
     def B(self):
-        return self.B_jax(self.get_curve_dofs(), self.get_currents(), self.get_points_cart_ref())
+        return np.array(self.B_jax(self.get_curve_dofs(), self.get_currents(), self.get_points_cart_ref()))
     
     def B_vjp(self, v):
         coils = self._coils
@@ -315,18 +315,28 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         return (ll + lc)
     
     def get_curve_dofs(self):
-        return jnp.array([self._coils[i].curve.get_dofs() for i in range(len(self._coils))])
+        print([self._coils[i].curve.get_dofs() for i in range(len(self._coils)
+            ) if jnp.size(self._coils[i].curve.get_dofs()) != 0])
+        # get the dofs of the UNIQUE coils (the rest of the coils don't have dofs because
+        # they are obtained by symmetries)
+        return jnp.array([self._coils[i].curve.get_dofs() for i in range(len(self._coils)
+            ) if jnp.size(self._coils[i].curve.get_dofs()) != 0])
 
     def get_gammas(self, dofs):
-        return jnp.array([c.curve.gamma_jax(dofs[i]) for i, c in enumerate(self._coils)])
+        gammas = np.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
+        [c.curve.gamma_impl(gammas[i, :, :], self._coils[i].curve.quadpoints
+                                                    ) for i, c in enumerate(self._coils)]
+        # What to do with dofs parameter?
+        return jnp.array(gammas)
 
     def get_currents(self):
         return jnp.array([c.current.get_value() for c in self._coils])
 
     def get_gammadashs(self, dofs):
-        return jnp.array([coil.curve.gammadash_impl_jax(
-            dofs[i], coil.curve.quadpoints) for i, coil in enumerate(self._coils)]
-        )
+        gammadashs = np.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
+        [c.curve.gammadash_impl(gammadashs[i, :, :]) for i, c in enumerate(self._coils)]
+        # What to do with dofs parameter?
+        return jnp.array(gammadashs)
 
     def dB_by_dX(self):
         r"""
@@ -500,16 +510,25 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     def coil_coil_forces_pure(self, curve_dofs, currents):
         """
         """
-        gammas = self.get_gammadashs(curve_dofs)
+        eps = 1e-20  # small number to avoid blow up in the denominator when i = j
+        gammas = self.get_gammas(curve_dofs)
         gammadashs = self.get_gammadashs(curve_dofs)
-        r_ij = gammas[None, :, :] - gammas[:, None, :]  # Note, do not use the i = j indices
-        # jnp.diag(r_ij[:, :, 0]) = 1e100
-        # jnp.diag(r_ij[:, :, 1]) = 1e100
-        # jnp.diag(r_ij[:, :, 2]) = 1e100
-        F = jnp.cross(currents * gammadashs, 
-                      jnp.cross(currents * gammadashs, r_ij)
-        ) / jnp.linalg.norm(r_ij, axis=-1)[:, :, None] ** 3
-        return F * 1e-7 / jnp.shape(gammas)[1] ** 2
+        Ii_Ij = (currents[None, :] * currents[:, None])[:, :, None]
+        # gamma and gammadash are shape (ncoils, nquadpoints, 3)
+        r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :]  # Note, do not use the i = j indices
+        gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1) 
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+
+        # Double sum over each of the closed curves
+        F = Ii_Ij * jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
+        net_forces = -jnp.sum(F, axis=1) * 1e-7 / jnp.shape(gammas)[1] ** 2
+        return net_forces
+    
+    def coil_coil_forces(self):
+        r"""
+        This function implements the curvature, :math:`\kappa(\varphi)`.
+        """
+        return self.coil_coil_forces_pure(self.get_curve_dofs(), self.get_currents())
 
     def coil_coil_inductances_pure(self, curve_dofs):
         """
