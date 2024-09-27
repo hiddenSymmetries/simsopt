@@ -26,7 +26,8 @@ import shutil
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries, CoilCoilNetForces
+from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries
+from simsopt.field import CoilCoilNetForces, CoilCoilNetTorques, TotalVacuumEnergy
 from simsopt.geo import (SurfaceRZFourier, curves_to_vtk, create_equally_spaced_curves,
                          CurveLength, CurveCurveDistance, MeanSquaredCurvature,
                          LpCurveCurvature, CurveSurfaceDistance)
@@ -68,8 +69,12 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight for the Coil Coil forces term
-FORCES_WEIGHT = 1e-12  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # And this term weights the NetForce^2 ~ 10^10-10^12 
+
+TORQUES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+
+TVE_WEIGHT = 1e-10
 
 # Number of iterations to perform:
 MAXITER = 100
@@ -118,7 +123,9 @@ currents = [c.current.get_value() for c in coils]
 
 bs = JaxBiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
-curves_to_vtk(curves, OUT_DIR + "curves_0", I=np.array(currents), NetForces=np.array(bs.coil_coil_forces()))
+curves_to_vtk(curves, OUT_DIR + "curves_0", I=np.array(currents), 
+            NetForces=np.array(bs.coil_coil_forces()),
+            NetTorques=bs.coil_coil_torques())
 
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_0", extra_data=pointData)
@@ -140,6 +147,8 @@ Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jforces = CoilCoilNetForces(bs)
+Jtorques = CoilCoilNetTorques(bs)
+Jtve = TotalVacuumEnergy(bs)
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -150,7 +159,9 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + FORCES_WEIGHT * Jforces
+    + FORCES_WEIGHT * Jforces \
+    + TORQUES_WEIGHT * Jtorques \
+    + TVE_WEIGHT * Jtve
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -167,6 +178,8 @@ def fun(dofs):
     cs_val = CS_WEIGHT * Jcsdist.J()
     curv_val = CURVATURE_WEIGHT * sum(J.J() for J in Jcs)
     forces_val = FORCES_WEIGHT * Jforces.J()
+    torques_val = FORCES_WEIGHT * Jtorques.J()
+    tve_val = FORCES_WEIGHT * Jtve.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
@@ -175,6 +188,8 @@ def fun(dofs):
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", curvObj={curv_val:.2e}" 
     valuestr += f", forceObj={forces_val:.2e}" 
+    valuestr += f", torqueObj={torques_val:.2e}" 
+    valuestr += f", tveObj={tve_val:.2e}" 
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
@@ -182,6 +197,8 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", C-C-Forces={Jforces.J():.1e}"
+    outstr += f", C-C-Torques={Jtorques.J():.1e}"
+    outstr += f", TotalVacuumEnergy={Jtve.J():.1e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     print(valuestr)
@@ -217,7 +234,9 @@ for i in range(1, n_saves + 1):
     dofs = res.x
 
     curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
-                  I=[c.current.get_value() for c in bs.coils], NetForces=bs.coil_coil_forces())
+                  I=[c.current.get_value() for c in bs.coils], 
+                  NetForces=bs.coil_coil_forces(),
+                  NetTorques=bs.coil_coil_torques())
 
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}

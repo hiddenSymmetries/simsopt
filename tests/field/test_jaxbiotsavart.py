@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 from simsopt.geo.curvexyzfourier import JaxCurveXYZFourier as CurveXYZFourier
-from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart
+from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart, TotalVacuumEnergy
 from simsopt.field.coil import Coil, ScaledCurrent
 from simsopt.field.coil import JaxCurrent as Current
 
@@ -543,6 +543,107 @@ class Testing(unittest.TestCase):
         assert np.allclose(F_bs[:, 0], 0.0)
         assert np.allclose(F_bs[:, 1], 0.0)
         assert np.allclose(np.abs(F_bs[:, 2]), abs(F_analytic))
+
+        T_bs = bs.coil_coil_torques()
+        print(T_bs)
+        assert np.allclose(T_bs, 0.0)
+
+
+    def test_net_force_and_torque_calculation_far_field(self):       
+        from simsopt.geo import JaxCurvePlanarFourier 
+        ncoils = 2
+        I1 = 5.0e4
+        I2 = -3.0e4
+        Z1 = 0.0
+        Z2 = 100.0
+        R1 = 0.5
+        R2 = R1
+        # a = 1e-5
+        points = np.array([[0.0, 0.0, Z1], [0.0, 0.0, Z2]])
+        # curve0 = get_curve()
+        curve0 = JaxCurvePlanarFourier(200, 0)
+        dofs = np.zeros(8)
+        dofs[0] = R1
+        dofs[1:5] = (np.random.rand(4) - 0.5)
+        dofs[5:9] = points[0, :]
+        curve0.set_dofs(dofs)
+        q_norm = dofs[1:5] / np.linalg.norm(dofs[1:5])
+        normal_orig = np.array([0, 0, 1]).T
+        rot_mat = np.array(
+            [[(1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)), 
+            2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]), 
+            2 * (q_norm[1] * q_norm[3] + q_norm[0] * q_norm[2])], 
+            [2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]), 
+            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)),
+            2 * (q_norm[2] * q_norm[3] - q_norm[0] * q_norm[1])], 
+            [2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]), 
+            2 * (q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]),
+            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
+        normal0 = rot_mat @ normal_orig
+        current0 = Current(I1)
+        curve1 = JaxCurvePlanarFourier(200, 0)
+        dofs = np.zeros(8)
+        dofs[0] = R2
+        dofs[1:5] = (np.random.rand(4) - 0.5) * 2 * np.pi
+        dofs[5:9] = points[1, :]
+        curve1.set_dofs(dofs)
+        q_norm = dofs[1:5] / np.linalg.norm(dofs[1:5])
+        normal_orig = np.array([0, 0, 1]).T
+        rot_mat = np.array(
+            [[(1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)), 
+            2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]), 
+            2 * (q_norm[1] * q_norm[3] + q_norm[0] * q_norm[2])], 
+            [2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]), 
+            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)),
+            2 * (q_norm[2] * q_norm[3] - q_norm[0] * q_norm[1])], 
+            [2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]), 
+            2 * (q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]),
+            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
+        normal1 = rot_mat @ normal_orig
+        current1 = Current(I2)
+        bs = JaxBiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+
+        # alphas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * np.pi
+        # deltas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * 2 * np.pi
+        r12 = points[1, :] - points[0, :]
+        r12_mag = np.linalg.norm(r12)
+        m1 = np.pi * R1 ** 2 * I1 * normal0
+        m2 = np.pi * R2 ** 2 * I2 * normal1
+        B1 = 1e-7 * (3 * r12 * np.dot(r12, m1) / r12_mag ** 5 - m1 / r12_mag ** 3)
+        F_analytic = 3 * 1e-7 / r12_mag ** 5 * (np.dot(m1, r12) * m2 + \
+            np.dot(m2, r12) * m1 + np.dot(m1, m2) * r12 - 5 * np.dot(m1, r12
+            ) * np.dot(m2, r12) * r12 / r12_mag ** 2)
+        T_analytic = np.cross(m2, B1)
+        
+        F_bs = bs.coil_coil_forces()
+        print(F_bs, F_analytic)
+        assert np.allclose(F_bs[0, :], F_analytic)
+
+        T_bs = bs.coil_coil_torques()
+        print(T_bs, T_analytic)
+        assert np.allclose(T_bs[0, :], T_analytic)
+
+    def total_energy_test(self):       
+        from simsopt.geo import JaxCurvePlanarFourier 
+        ncoils = 1
+        I1 = 5.0e4
+        R1 = 1
+        # a = 1e-5
+        curve0 = JaxCurvePlanarFourier(200, 0)
+        dofs = np.zeros(8)
+        dofs[0] = R1
+        dofs[1:5] = np.ones(1)
+        dofs[5:9] = np.array([0.0, 0.0, 0.0])
+        curve0.set_dofs(dofs)
+        current0 = Current(I1)
+        bs = JaxBiotSavart([Coil(curve0, current0)])
+        E_dipoles = bs.total_vacuum_energy_pure(bs.get_curve_dofs(), bs.get_currents(), a=0.01, b=0.01)
+        print('U = ', E_dipoles)
+        dE_dipoles = bs.dtve_by_dX(bs.get_curve_dofs(), bs.get_currents(), a=0.01, b=0.01)
+        print('dU = ', dE_dipoles)
+        tve = TotalVacuumEnergy(bs)
+        print('J = ', tve.J())
+        print('dJ = ', tve.dJ())
 
 if __name__ == "__main__":
     unittest.main()

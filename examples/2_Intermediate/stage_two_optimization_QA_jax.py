@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries
+from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries, CoilCoilNetForces
 from simsopt.util import calculate_on_axis_B
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
@@ -126,7 +126,7 @@ bs_TF = JaxBiotSavart(coils_TF)
 # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(bs_TF, s)
 
-Nx = 7
+Nx = 3
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -187,6 +187,10 @@ CS_WEIGHT = 1e1
 # MSC_THRESHOLD = 1
 # MSC_WEIGHT = 1e-12
 
+# Weight for the Coil Coil forces term
+FORCES_WEIGHT = 1e-12  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# And this term weights the NetForce^2 ~ 10^10-10^12 
+
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
 # Separate length penalties on the dipole coils and the TF coils
@@ -208,6 +212,9 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 linkNum = LinkingNumber(curves_TF)
 linkNum2 = LinkingNumber(curves)
 
+# Sum of the net forces on every coil
+Jforces = CoilCoilNetForces(bs)
+
 # Jccdist_TF = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=ncoils)
 # Jcsdist_TF = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 # Jcs_TF = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves_TF]
@@ -220,26 +227,14 @@ linkNum2 = LinkingNumber(curves)
 # Coil shapes and center positions are fixed right now so not including this one below
 # + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), 2.6*ncoils) \
 
-# class currents_obj(Optimizable):
-#     def __init__(self, currents):
-#         self.currents = currents
-#         Optimizable.__init__(self, depends_on=[currents])
-
-#     def J(self):
-#         return np.sum((np.array(self.currents) - 1.0e6) ** 2)
-
-#     def dJ(self):
-#         return 2.0 * (np.array(self.currents) - 1.0e6)
-
-# DipoleJaxCurrentsObj = currents_obj(base_currents)
-# DipoleJaxCurrentsObj = QuadraticPenalty(base_currents, 1e6, "max")
-LengthObj = QuadraticPenalty(sum(Jls_TF), 80.0)
+# LengthObj = QuadraticPenalty(sum(Jls_TF), 80.0)
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
     + LINK_WEIGHT2 * linkNum2 \
-    + LENGTH_WEIGHT * LengthObj
+    + LENGTH_WEIGHT * sum(Jls_TF) \
+    + FORCES_WEIGHT * Jforces
     # + CURRENTS_WEIGHT * DipoleCurrentsObj
     # + CURVATURE_WEIGHT * sum(Jcs_TF) \
     # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs_TF) \
@@ -256,11 +251,12 @@ def fun(dofs):
     J = JF.J()
     grad = JF.dJ()
     jf = Jf.J()
-    length_val = LENGTH_WEIGHT.value * LengthObj.J() / 2.0
+    length_val = LENGTH_WEIGHT.value * sum(J.J() for J in Jls_TF)
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val1 = LINK_WEIGHT * linkNum.J()
     link_val2 = LINK_WEIGHT2 * linkNum2.J()
+    forces_val = FORCES_WEIGHT * Jforces.J()
     # curr_val = CURRENTS_WEIGHT * DipoleCurrentsObj.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     # BdotN2 = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
@@ -298,6 +294,7 @@ def fun(dofs):
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val1:.2e}" 
     valuestr += f", Lk2Obj={link_val2:.2e}" 
+    valuestr += f", forceObj={forces_val:.2e}" 
     # valuestr += f", currObj={curr_val:.2e}" 
     #, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     # outstr += f", avg(L)={np.mean(np.array([J.J() for J in Jls])):.2f}"
@@ -310,23 +307,7 @@ def fun(dofs):
     # outstr += f", (Max B·n)/|B|={MaxBdotN/mean_AbsB:.1e}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", Link Number 2 = {linkNum2.J()}"
-    # print(outstr)
-
-    # outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
-    # outstr += f", 0.5⟨|B·n|^2⟩={BdotN2:.1e}, 0.5⟨(|B·n|/|B|)^2⟩={BdotN2_normalized:.1e}, 0.5⟨|B·n|^2⟩/⟨|B|^2⟩={Bn_over_B:.1e}"
-    # cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
-    # kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
-    # msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    # outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
-    # outstr += f", avg(L)={np.mean(np.array([J.J() for J in Jls])):.2f}"
-    # outstr += f", Lengths=" + cl_string
-    # outstr += f", avg(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
-    # outstr += f", var(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
-    # outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
-    # outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    # outstr += f", ⟨B·n⟩/|B|={BdotN/mean_AbsB:.1e}"
-    # outstr += f", (Max B·n)/|B|={MaxBdotN/mean_AbsB:.1e}"
-    # outstr += f", Link Number = {linkNum.J()}"
+    outstr += f", C-C-Forces={Jforces.J():.1e}"
     print(outstr)
     print(valuestr)
     return J, grad
@@ -379,5 +360,5 @@ for i in range(1, n_saves + 1):
     print('Max I = ', np.max(np.abs(dipole_currents)))
     print('Min I = ', np.min(np.abs(dipole_currents)))
 
-btot.save("biot_savart_optimized_QA.json")
+# btot.save("biot_savart_optimized_QA.json")
 

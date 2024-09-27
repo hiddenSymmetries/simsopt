@@ -822,7 +822,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
 
-def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None):
+def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None, NetTorques=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -859,8 +859,6 @@ def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None):
         coil_data = np.ascontiguousarray(coil_data)
         pointData['I'] = coil_data
         pointData['I_mag'] = contig(np.abs(coil_data))
-        # cellData['I'] = contig(I)
-        # cellData['I_mag'] = contig(np.abs(I))
     if NetForces is not None:
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(NetForces)):
@@ -870,10 +868,15 @@ def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None):
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
         pointData['NetForces_mag'] = contig(np.linalg.norm(coil_data, axis=-1))
-        # cellData['NetForces'] = (contig(NetForces[:, 0]), 
-        #                         contig(NetForces[:, 1]),
-        #                         contig(NetForces[:, 2]))
-        # cellData['NetForces_mag'] = contig(np.linalg.norm(NetForces, axis=-1))
+    if NetTorques is not None:
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(NetTorques)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetTorques[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['NetTorques'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+        pointData['NetTorques_mag'] = contig(np.linalg.norm(coil_data, axis=-1))
 
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData) #, cellData=cellData)
 
