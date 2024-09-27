@@ -958,9 +958,9 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     return xyz_uniform, xyz_inner, xyz_outer, R
 
 def create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False
+    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False, jax_flag=False
 ):
-    from simsopt.geo import CurvePlanarFourier
+    from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
 
     nfp = s.nfp
@@ -1011,7 +1011,10 @@ def create_planar_curves_between_two_toroidal_surfaces(
     final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
     grid_xyz = grid_xyz[final_inds, :]
     ncoils = grid_xyz.shape[0]
-    curves = [CurvePlanarFourier((order + 1)*40, order, nfp=1, stellsym=False) for i in range(ncoils)]
+    if jax_flag:
+        curves = [JaxCurvePlanarFourier((order + 1)*40, order) for i in range(ncoils)]
+    else:
+        curves = [CurvePlanarFourier((order + 1)*40, order, nfp=1, stellsym=False) for i in range(ncoils)]
     for ic in range(ncoils):
         counter = 0
         alpha2 = np.pi / 2.0
@@ -1035,8 +1038,12 @@ def create_planar_curves_between_two_toroidal_surfaces(
         dofs[counter + 3] = -salpha2 * sdelta2
         # Now specify the center 
         dofs[counter + 4:counter + 7] = grid_xyz[ic, :]
-        for j in range(2 * order + 8):
-            curves[ic].set('x' + str(j), dofs[j])
+        if jax_flag:
+            curves[ic].set_dofs(dofs)
+        else:
+            for j in range(2 * order + 8):
+                curves[ic].set('x' + str(j), dofs[j])
+        curves[ic].x = curves[ic].x  # need to do this to transfer data to C++
     all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     return curves, all_curves
 
