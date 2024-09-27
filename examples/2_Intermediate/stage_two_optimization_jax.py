@@ -38,10 +38,10 @@ from simsopt.util import in_github_actions
 ncoils = 4
 
 # Major radius for the initial circular coils:
-R0 = 1.0
+R0 = 1.5
 
 # Minor radius for the initial circular coils:
-R1 = 0.5
+R1 = 1.0
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 5
@@ -49,7 +49,7 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-8)
+LENGTH_WEIGHT = Weight(1e-10)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -68,7 +68,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight for the Coil Coil forces term
-FORCES_WEIGHT = 1e-14  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCES_WEIGHT = 1e-12  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # And this term weights the NetForce^2 ~ 10^10-10^12 
 
 # Number of iterations to perform:
