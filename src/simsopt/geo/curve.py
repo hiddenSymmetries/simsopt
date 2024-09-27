@@ -435,6 +435,7 @@ class JaxCurve(sopp.Curve, Curve):
 
         self.gammadashdash_pure = lambda x, q: jvp(lambda p: self.gammadash_pure(x, p), (q,), (ones,))[1]
         self.gammadashdash_jax = jit(lambda x: self.gammadashdash_pure(x, points))
+        self.gammadashdash_impl_jax = jit(lambda x, p: self.gammadashdash_pure(x, p))
         self.dgammadashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdash_jax))
         self.dgammadashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdash_jax, x)[1](v)[0])
 
@@ -443,6 +444,7 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
+        self.kappa_pure = kappa_pure
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
 
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
@@ -683,9 +685,9 @@ class RotatedCurve(sopp.Curve, Curve):
         gammadash[:] = self.curve.gammadash() @ self.rotmat
 
     def gammadash_impl_jax(self, dofs, quadpoints):
-        gamma = self.curve.gammadash_impl_jax(dofs, quadpoints)
-        gamma = gamma @ self.rotmat
-        return gamma
+        gammadash = self.curve.gammadash_impl_jax(dofs, quadpoints)
+        gammadash = gammadash @ self.rotmat
+        return gammadash
 
     def gammadashdash_impl(self, gammadashdash):
         r"""
@@ -695,6 +697,11 @@ class RotatedCurve(sopp.Curve, Curve):
         """
 
         gammadashdash[:] = self.curve.gammadashdash() @ self.rotmat
+
+    def gammadashdash_impl_jax(self, dofs, quadpoints):
+        gammadashdash = self.curve.gammadashdash_impl_jax(dofs, quadpoints)
+        gammadashdash = gammadashdash @ self.rotmat
+        return gammadashdash
 
     def gammadashdashdash_impl(self, gammadashdashdash):
         r"""

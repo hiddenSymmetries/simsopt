@@ -39,10 +39,10 @@ from simsopt.util import in_github_actions
 ncoils = 4
 
 # Major radius for the initial circular coils:
-R0 = 1.5
+R0 = 1.0
 
 # Minor radius for the initial circular coils:
-R1 = 1.0
+R1 = 0.5
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 5
@@ -50,7 +50,7 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-10)
+LENGTH_WEIGHT = Weight(1e-7)
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
@@ -74,10 +74,7 @@ FORCES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6
 
 TORQUES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
-TVE_WEIGHT = 1e-10
-
-# Number of iterations to perform:
-MAXITER = 100
+TVE_WEIGHT = 0.0
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -178,8 +175,8 @@ def fun(dofs):
     cs_val = CS_WEIGHT * Jcsdist.J()
     curv_val = CURVATURE_WEIGHT * sum(J.J() for J in Jcs)
     forces_val = FORCES_WEIGHT * Jforces.J()
-    torques_val = FORCES_WEIGHT * Jtorques.J()
-    tve_val = FORCES_WEIGHT * Jtve.J()
+    torques_val = TORQUES_WEIGHT * Jtorques.J()
+    tve_val = TVE_WEIGHT * Jtve.J()
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
@@ -194,11 +191,11 @@ def fun(dofs):
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
     # force_string = ", ".join(f"{Jforces.J():.1f}" for c in base_curves)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}"  #, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", C-C-Forces={Jforces.J():.1e}"
     outstr += f", C-C-Torques={Jtorques.J():.1e}"
-    outstr += f", TotalVacuumEnergy={Jtve.J():.1e}"
+    outstr += f", TVE={Jtve.J():.1e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     print(valuestr)
@@ -226,8 +223,8 @@ print("""
 ### Run the optimisation #######################################################
 ################################################################################
 """)
-n_saves = 40
-MAXITER = 10
+n_saves = 100
+MAXITER = 5
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)

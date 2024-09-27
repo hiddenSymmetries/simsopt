@@ -346,7 +346,11 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         return jnp.array([c.curve.quadpoints for c in self._coils])
     
     def get_kappas(self):
-        return jnp.array([c.curve.kappa() for c in self._coils])
+        dofs = self.get_curve_dofs()
+        return jnp.array([c.curve.kappa_pure(
+            c.curve.gammadash_impl_jax(dofs[i], self._coils[i].curve.quadpoints), 
+            c.curve.gammadashdash_impl_jax(dofs[i], self._coils[i].curve.quadpoints)
+            ) for i, c in enumerate(self._coils)])
     
     def get_tangents(self):
         return jnp.array([c.curve.frenet_frame()[0] for c in self._coils])
@@ -360,7 +364,8 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     def get_gammadashs(self, dofs):
         gammadashs = jnp.zeros((len(self._coils), len(self._coils[0].curve.quadpoints), 3))
         for i, c in enumerate(self._coils):
-            gammadashs = gammadashs.at[i, :, :].add(c.curve.gammadash_impl_jax(dofs[i % len(dofs)], self._coils[i].curve.quadpoints))
+            gammadashs = gammadashs.at[i, :, :].add(
+                c.curve.gammadash_impl_jax(dofs[i % len(dofs)], self._coils[i].curve.quadpoints))
         return jnp.array(gammadashs)
     
     def get_gammadashdashs(self, dofs):
@@ -368,7 +373,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         for i, c in enumerate(self._coils):
             gammadashdashs = gammadashdashs.at[i, :, :].add(
                 c.curve.gammadashdash_impl_jax(dofs[i % len(dofs)], 
-                                               self._coils[i].curve.quadpoints))
+                                           self._coils[i].curve.quadpoints))
         return jnp.array(gammadashdashs)
 
     def dB_by_dX(self):
@@ -682,7 +687,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         binormals = self.get_binormals()
         gd_norm = jnp.linalg.norm(gammadashs, axis=-1)
         quadpoints = self.get_quadpoints()
-        quad_diff = quadpoints[None, :, :] - quadpoints[:, None, :]  # Note quadpoints are in [0, 1]
+        quad_diff = quadpoints[None, :, None, :] - quadpoints[:, None, :, None]  # Note quadpoints are in [0, 1]
         r_ii = jnp.diagonal(r_ij, axis1=0, axis2=1)
         Breg1 = 0.5 * kappas * binormals * (-2.0 + jnp.log(64.0 / (delta * a * b) * gd_norm ** 2))
         Breg_integrand1 = jnp.cross(gammadashs, r_ii) / jnp.sqrt(

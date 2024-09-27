@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 from simsopt.geo.curvexyzfourier import JaxCurveXYZFourier as CurveXYZFourier
-from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart, TotalVacuumEnergy
+from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart, TotalVacuumEnergy, CoilSelfNetForces
 from simsopt.field.coil import Coil, ScaledCurrent
 from simsopt.field.coil import JaxCurrent as Current
 
@@ -644,6 +644,8 @@ class Testing(unittest.TestCase):
         tve = TotalVacuumEnergy(bs)
         print('J = ', tve.J())
         print('dJ = ', tve.dJ())
+        sf = CoilSelfNetForces(bs)
+        print(sf.J(), sf.dJ())
 
 if __name__ == "__main__":
     unittest.main()
