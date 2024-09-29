@@ -23,9 +23,6 @@ from simsopt.util import in_github_actions
 
 t1 = time.time()
 
-# Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
-
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
@@ -34,7 +31,7 @@ filename = TEST_DIR / input_name
 # filename = TEST_DIR / input_name
 
 # Directory for output
-OUT_DIR = "./dipole_array_optimization_QA_reactorScale_jax/"
+OUT_DIR = "./dipole_array_optimization_QA_reactorScale_NoDipoles/"
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -142,55 +139,8 @@ calculate_on_axis_B(bs_TF, s)
 # a = 0.1
 # b = 0.1
 
-Nx = 5
-Ny = Nx
-Nz = Nx
-# Create the initial coils:
-base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=True,
-    numquadpoints=20  # Defaults is (order + 1) * 40 so this halves it
-)
-ncoils = len(base_curves)
-print('Ncoils = ', ncoils)
-for i in range(len(base_curves)):
-    # base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)
-    # base_curves[i].set('x' + str(2 * order + 2), np.random.rand(1) - 0.5)
-    # base_curves[i].set('x' + str(2 * order + 3), np.random.rand(1) - 0.5)
-    # base_curves[i].set('x' + str(2 * order + 4), np.random.rand(1) - 0.5)
-
-    # Fix shape of each coil
-    for j in range(2 * order + 1):
-        base_curves[i].fix('x' + str(j))
-    # Fix center points of each coil
-    # base_curves[i].fix('x' + str(2 * order + 5))
-    # base_curves[i].fix('x' + str(2 * order + 6))
-    # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [JaxCurrent(1e-1) * 2e7 for i in range(ncoils)]
-# Fix currents in each coil
-# for i in range(ncoils):
-#     base_currents[i].fix_all()
-
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-
-bs = JaxBiotSavart(coils)  # Include TF coils here
-btot = bs + bs_TF
+btot = bs_TF
 btot.set_points(s.gamma().reshape((-1, 3)))
-bs.set_points(s.gamma().reshape((-1, 3)))
-
-curves = [c.curve for c in coils]
-currents = [c.current.get_value() for c in coils]
-# print(len(curves))
-# print(CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12())
-# print(np.sum(CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12() ** 2, axis=-1))
-
-# exit()
-curves_to_vtk(curves, OUT_DIR + "curves_0", close=True, I=currents,
-            NetForces=bs.coil_coil_forces(),
-            NetTorques=bs.coil_coil_torques(),
-            MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
-            MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-            # NetSelfForces=bs.coil_self_forces(a, b)
-)
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
 
@@ -208,7 +158,7 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.025)
+LENGTH_WEIGHT = Weight(0.5)
 # CURRENTS_WEIGHT = 10
 LINK_WEIGHT = 100
 LINK_WEIGHT2 = 0.1
@@ -235,14 +185,14 @@ SF_WEIGHT = 0.0
 Jf = SquaredFlux(s, btot)
 # Separate length penalties on the dipole coils and the TF coils
 # since they have very different sizes
-Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
+# Jls_TF = LENGTH_WEIGHT * QuadraticPenalty(sum(Jls_TF), 2.6*ncoils) \
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
 # Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=ncoils + len(coils_TF))
 # Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
-Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
+Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 
 # Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 # Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
@@ -250,7 +200,6 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # While the coil array is not moving around, they cannot
 # interlink. 
 linkNum = LinkingNumber(curves_TF)
-linkNum2 = LinkingNumber(curves)
 # Jforces = CoilCoilNetForces(bs) + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
 # Jtorques = CoilCoilNetTorques(bs) + CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
 # Jtve = TotalVacuumEnergy(bs, a=a, b=b)
@@ -266,7 +215,7 @@ linkNum2 = LinkingNumber(curves)
 # multiplied by scalars and added:
 
 # Coil shapes and center positions are fixed right now so not including this one below
-# + LENGTH_WEIGHT * QuadraticPenalty(sum(Jls), 2.6*ncoils) \
+# + 
 
 # class currents_obj(Optimizable):
 #     def __init__(self, currents):
@@ -285,7 +234,6 @@ JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
-    + LINK_WEIGHT2 * linkNum2 \
     + LENGTH_WEIGHT * sum(Jls_TF) 
     # + FORCES_WEIGHT * Jforces \
     # + TORQUES_WEIGHT * Jtorques # \
@@ -311,7 +259,6 @@ def fun(dofs):
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val1 = LINK_WEIGHT * linkNum.J()
-    link_val2 = LINK_WEIGHT2 * linkNum2.J()
     # forces_val = FORCES_WEIGHT * Jforces.J()
     # torques_val = TORQUES_WEIGHT * Jtorques.J()
     # tve_val = TVE_WEIGHT * Jtve.J()
@@ -327,7 +274,6 @@ def fun(dofs):
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val1:.2e}" 
-    valuestr += f", Lk2Obj={link_val2:.2e}" 
     # valuestr += f", forceObj={forces_val:.2e}" 
     # valuestr += f", torqueObj={torques_val:.2e}" 
     # valuestr += f", tveObj={tve_val:.2e}" 
@@ -340,7 +286,6 @@ def fun(dofs):
     # outstr += f", var(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
-    outstr += f", Link Number 2 = {linkNum2.J()}"
     # outstr += f", C-C-Forces={Jforces.J():.1e}"
     # outstr += f", C-C-Torques={Jtorques.J():.1e}"
     # outstr += f", TVE={Jtve.J():.1e}"
@@ -381,21 +326,10 @@ for i in range(1, n_saves + 1):
         options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-10)
     dofs = res.x
 
-    dipole_currents = [c.current.get_value() for c in bs.coils]
-    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
-        I=dipole_currents,
-        NetForces=np.array(bs.coil_coil_forces()),
-        NetTorques=bs.coil_coil_torques(),
-        MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
-        MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-        # NetSelfForces=bs.coil_self_forces(a, b)
-        )
     curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
         I=[c.current.get_value() for c in bs_TF.coils],
         NetForces=np.array(bs_TF.coil_coil_forces()),
         NetTorques=bs_TF.coil_coil_torques(),
-        MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[len(curves):, :],
-        MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[len(curves):, :],
         # NetSelfForces=bs_TF.coil_self_forces(a, b)
     )
 
@@ -408,8 +342,6 @@ for i in range(1, n_saves + 1):
     s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
 
     btot.set_points(s.gamma().reshape((-1, 3)))
-    print('Max I = ', np.max(np.abs(dipole_currents)))
-    print('Min I = ', np.min(np.abs(dipole_currents)))
     # LENGTH_WEIGHT *= 0.01
     # JF = Jf \
     #     + CC_WEIGHT * Jccdist \

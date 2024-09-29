@@ -73,10 +73,10 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight for the Coil Coil forces term
-FORCES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCES_WEIGHT = 1e-18  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # And this term weights the NetForce^2 ~ 10^10-10^12 
 
-TORQUES_WEIGHT = 1e-16  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
 TVE_WEIGHT = 0.0
 
@@ -91,7 +91,7 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolv
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 # Directory for output
-OUT_DIR = "./stage_two_optimization_torque_scan/"
+OUT_DIR = "./stage_two_optimization_force_scan/"
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -268,7 +268,7 @@ for i in range(1, n_saves + 1):
 
     bs.set_points(s.gamma().reshape((-1, 3)))
 
-    TORQUES_WEIGHT *= 10
+    FORCES_WEIGHT *= 10
     JF = Jf \
         + LENGTH_WEIGHT * sum(Jls) \
         + CC_WEIGHT * Jccdist \
@@ -282,39 +282,3 @@ for i in range(1, n_saves + 1):
 
 t2 = time.time()
 print('Total run time, first loop = ', t2 - t1,' s')
-# t1 = time.time()
-# # We now use the result from the optimization as the initial guess for a
-# # subsequent optimization with reduced penalty for the coil length. This will
-# # result in slightly longer coils but smaller `B·n` on the surface.
-# dofs = res.x
-# LENGTH_WEIGHT *= 0.1
-
-# for i in range(1, n_saves + 1):
-#     print('Iteration ' + str(i) + ' / ' + str(n_saves))
-#     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-#     dofs = res.x
-
-#     curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(n_saves + 1 + i), 
-#                   I=[c.current.get_value() for c in bs.coils], 
-#                   NetForces=bs.coil_coil_forces(),
-#                   NetTorques=bs.coil_coil_torques())
-
-#     bs.set_points(s_plot.gamma().reshape((-1, 3)))
-#     pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-#     s_plot.to_vtk(OUT_DIR + "surf_full_{0:d}".format(n_saves + 1 + i), extra_data=pointData)
-
-#     # pointData = {"B_N / B": (np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-#     #     ) / np.linalg.norm(bs.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-#     # s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
-
-#     bs.set_points(s.gamma().reshape((-1, 3)))
-
-# t2 = time.time()
-# print('Total run time, second loop = ', t2 - t1,' s')
-# res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
-# curves_to_vtk(curves, OUT_DIR + "curves_opt_long")
-# pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-# s.to_vtk(OUT_DIR + "surf_opt_long", extra_data=pointData)
-
-# # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
-# bs.save(OUT_DIR + "biot_savart_opt.json")

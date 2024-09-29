@@ -445,6 +445,11 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
         self.kappa_pure = kappa_pure
+        self.kappa_jax = jit(lambda x, v: kappa_pure(x, v))
+        self.kappa_impl_jax = jit(lambda x, v: kappa_pure(x, v))
+        self.frenet_frame_jax = jit(lambda x: self.frenet_frame_pure(x))
+        self.incremental_arclength_jax = jit(lambda x: self.incremental_arclength_pure(x))
+        # self.incremental_arclength_jax = jit(lambda x: incremental_arclength_pure(x))
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
 
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
@@ -458,6 +463,38 @@ class JaxCurve(sopp.Curve, Curve):
         This function returns the x,y,z coordinates of the curve :math:`\Gamma`.
         """
         gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), quadpoints)
+
+    def incremental_arclength_pure(self, dofs):
+        gammadash = self.gammadash_jax(dofs)
+        return jnp.linalg.norm(gammadash, axis=1)
+
+    def incremental_arclength(self):
+        return self.incremental_arclength_jax(self.get_dofs())
+
+    # @jit
+    def frenet_frame_pure(self, dofs):
+        r"""
+        This function returns the Frenet frame, :math:`(\mathbf{t}, \mathbf{n}, \mathbf{b})`,
+        associated to the curve.
+        """
+        gammadash = self.gammadash_jax(dofs)
+        gammadashdash = self.gammadashdash_jax(dofs)
+        l = self.incremental_arclength()
+        norm = lambda a: jnp.linalg.norm(a, axis=1)
+        inner = lambda a, b: jnp.sum(a*b, axis=1)
+        N = len(self.quadpoints)
+        t, n, b = (jnp.zeros((N, 3)), jnp.zeros((N, 3)), jnp.zeros((N, 3)))
+        t = (1./l[:, None]) * gammadash
+
+        tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
+                                        - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
+                                        )
+        n = (1./norm(tdash))[:, None] * tdash
+        b = jnp.cross(t, n, axis=1)
+        return t, n, b
+
+    def frenet_frame(self):
+        return self.frenet_frame_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_impl(self, dgamma_by_dcoeff):
         r"""
@@ -675,6 +712,10 @@ class RotatedCurve(sopp.Curve, Curve):
         gamma = gamma @ self.rotmat
         return gamma
 
+    def kappa_impl_jax(self, d1gamma, d2gamma):
+        kappa = self.curve.kappa_jax(d1gamma, d2gamma)
+        return kappa
+
     def gammadash_impl(self, gammadash):
         r"""
         This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z
@@ -829,7 +870,9 @@ class RotatedCurve(sopp.Curve, Curve):
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
 
-def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None, NetTorques=None):
+def curves_to_vtk(curves, filename, close=False, I=None, 
+                  NetForces=None, NetTorques=None, NetSelfForces=None,
+                  MixedCoilForces=None, MixedCoilTorques=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -874,7 +917,6 @@ def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None, NetTorq
         pointData['NetForces'] = (contig(coil_data[:, 0]), 
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
-        pointData['NetForces_mag'] = contig(np.linalg.norm(coil_data, axis=-1))
     if NetTorques is not None:
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(NetTorques)):
@@ -883,7 +925,46 @@ def curves_to_vtk(curves, filename, close=False, I=None, NetForces=None, NetTorq
         pointData['NetTorques'] = (contig(coil_data[:, 0]), 
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
-        pointData['NetTorques_mag'] = contig(np.linalg.norm(coil_data, axis=-1))
+    if NetSelfForces is not None:
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(NetSelfForces)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetSelfForces[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['NetSelfForces'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+    if MixedCoilForces is not None:
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(MixedCoilForces)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilForces[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['MixedCoilForces'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+    if (MixedCoilForces is not None) and (NetForces is not None):
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(MixedCoilForces)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilForces[i, :] + NetForces[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['TotalCoilForces'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+    if MixedCoilTorques is not None:
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(MixedCoilTorques)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilTorques[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['MixedCoilTorques'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
+    if (MixedCoilTorques is not None) and (NetTorques is not None):
+        coil_data = np.zeros((data.shape[0], 3))
+        for i in range(len(MixedCoilTorques)):
+            coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilTorques[i, :] + NetTorques[i, :]
+        coil_data = np.ascontiguousarray(coil_data)
+        pointData['TotalCoilTorques'] = (contig(coil_data[:, 0]), 
+                                contig(coil_data[:, 1]),
+                                contig(coil_data[:, 2]))
 
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData) #, cellData=cellData)
 
@@ -968,7 +1049,8 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     return xyz_uniform, xyz_inner, xyz_outer, R
 
 def create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, coil_coil_flag=False, jax_flag=False
+    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, 
+    coil_coil_flag=False, jax_flag=False, numquadpoints=None
 ):
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
     from simsopt.field import apply_symmetries_to_curves
@@ -1021,10 +1103,14 @@ def create_planar_curves_between_two_toroidal_surfaces(
     final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
     grid_xyz = grid_xyz[final_inds, :]
     ncoils = grid_xyz.shape[0]
-    if jax_flag:
-        curves = [JaxCurvePlanarFourier((order + 1)*40, order) for i in range(ncoils)]
+    if numquadpoints is None:
+        nquad = (order + 1)*40
     else:
-        curves = [CurvePlanarFourier((order + 1)*40, order, nfp=1, stellsym=False) for i in range(ncoils)]
+        nquad = numquadpoints
+    if jax_flag:
+        curves = [JaxCurvePlanarFourier(nquad, order) for i in range(ncoils)]
+    else:
+        curves = [CurvePlanarFourier(nquad, order, nfp=1, stellsym=False) for i in range(ncoils)]
     for ic in range(ncoils):
         counter = 0
         alpha2 = np.pi / 2.0

@@ -2,7 +2,8 @@ import unittest
 
 import numpy as np
 from simsopt.geo.curvexyzfourier import JaxCurveXYZFourier as CurveXYZFourier
-from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart, TotalVacuumEnergy, CoilSelfNetForces
+from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart, TotalVacuumEnergy, \
+    CoilSelfNetForces, CoilCoilNetForces12, CoilCoilNetForces, CoilCoilNetTorques12
 from simsopt.field.coil import Coil, ScaledCurrent
 from simsopt.field.coil import JaxCurrent as Current
 
@@ -616,8 +617,18 @@ class Testing(unittest.TestCase):
         T_analytic = np.cross(m2, B1)
         
         F_bs = bs.coil_coil_forces()
-        print(F_bs, F_analytic)
+        F = CoilCoilNetForces(bs).J()
+        F_12 = CoilCoilNetForces12(bs, bs).J() / 2.0
+        T_12 = CoilCoilNetTorques12(bs, bs).J() / 2.0
+        print(F_bs, F_analytic, F_12, F, np.sum(F_bs ** 2))
+        print(T_12)
+
+        # dJ should not match anyways 
+        print('dJ = ', CoilCoilNetForces(bs).dJ(), CoilCoilNetForces12(bs, bs).dJ())
         assert np.allclose(F_bs[0, :], F_analytic)
+        assert np.allclose(np.sum(F_bs ** 2), F)
+        assert np.allclose(np.sum(F_bs ** 2), F_12)
+        # assert np.allclose(CoilCoilNetForces(bs).dJ(), CoilCoilNetForces12(bs, bs).dJ())
 
         T_bs = bs.coil_coil_torques()
         print(T_bs, T_analytic)
@@ -626,7 +637,7 @@ class Testing(unittest.TestCase):
     def total_energy_test(self):       
         from simsopt.geo import JaxCurvePlanarFourier 
         ncoils = 1
-        I1 = 5.0e4
+        I1 = 5.0e6
         R1 = 1
         # a = 1e-5
         curve0 = JaxCurvePlanarFourier(200, 0)
