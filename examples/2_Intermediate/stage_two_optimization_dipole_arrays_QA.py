@@ -47,8 +47,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 2.0
-coff = 2.0
+poff = 1.5
+coff = 2.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -208,10 +208,10 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.025)
+LENGTH_WEIGHT = Weight(0.005)
 # CURRENTS_WEIGHT = 10
 LINK_WEIGHT = 100
-LINK_WEIGHT2 = 0.1
+LINK_WEIGHT2 = 1e-5
 CC_THRESHOLD = 0.7
 CC_WEIGHT = 400
 CS_THRESHOLD = 1.3
@@ -374,7 +374,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 200
+MAXITER = 400
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
