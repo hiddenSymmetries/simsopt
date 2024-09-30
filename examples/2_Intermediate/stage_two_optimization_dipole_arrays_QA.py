@@ -47,8 +47,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 1.5
-coff = 2.5
+poff = 2.0
+coff = 2.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -139,10 +139,10 @@ calculate_on_axis_B(bs_TF, s)
 
 # wire cross section for the TF coils is a square 10 cm x 10 cm
 # Only need this if make self forces and TVE nonzero in the objective! 
-# a = 0.1
-# b = 0.1
+a = 0.1
+b = 0.1
 
-Nx = 5
+Nx = 3
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -189,7 +189,7 @@ curves_to_vtk(curves, OUT_DIR + "curves_0", close=True, I=currents,
             NetTorques=bs.coil_coil_torques(),
             MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
             MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-            # NetSelfForces=bs.coil_self_forces(a, b)
+            NetSelfForces=bs.coil_self_forces(a, b)
 )
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
@@ -388,7 +388,7 @@ for i in range(1, n_saves + 1):
         NetTorques=bs.coil_coil_torques(),
         MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
         MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-        # NetSelfForces=bs.coil_self_forces(a, b)
+        NetSelfForces=bs.coil_self_forces(a, b)
         )
     curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
         I=[c.current.get_value() for c in bs_TF.coils],
@@ -396,7 +396,7 @@ for i in range(1, n_saves + 1):
         NetTorques=bs_TF.coil_coil_torques(),
         MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[len(curves):, :],
         MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[len(curves):, :],
-        # NetSelfForces=bs_TF.coil_self_forces(a, b)
+        NetSelfForces=bs_TF.coil_self_forces(a, b)
     )
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))

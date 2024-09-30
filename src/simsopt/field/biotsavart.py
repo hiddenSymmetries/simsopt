@@ -658,7 +658,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     def coil_self_forces_pure(self, curve_dofs, currents, a=None, b=None):
         """
         """
-        eps = 1e-9  # small number to avoid blow up in the denominator when i = j
+        eps = 1e-20  # small number to avoid blow up in the denominator when i = j
         gammas = self.get_gammas(curve_dofs)
         gammadashs = self.get_gammadashs(curve_dofs)
         gammadashdashs = self.get_gammadashdashs(curve_dofs)
@@ -685,12 +685,19 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         Breg1 = 0.5 * kappas[:, :, None] * binormals * (-2.0 + jnp.log(64.0 / (delta * a * b) * gd_norm ** 2))[:, :, None]
         Breg_integrand1 = jnp.cross(gammadashs[:, :, None, :], r_ii) / jnp.sqrt(
             jnp.linalg.norm(r_ii + eps, axis=-1) ** 2 + delta * a * b)[:, :, :, None] ** 3
-        Breg_integrand2 = - jnp.cross(gammadashs, gammadashdashs)[:, :, None, :] * (
-            1.0 - jnp.cos(2 * np.pi * quad_diff)[:, :, :, None]
+        Breg_integrand2 = - jnp.cross(gammadashs, gammadashdashs)[:, :, None, :] * ((
+            1.0 - jnp.cos(2 * np.pi * quad_diff)
         ) / (jnp.sqrt((2 - 2 * jnp.cos(2 * np.pi * quad_diff)
-            ) * gd_norm[:, :, None] ** 2 + delta * a * b) ** 3)[:, :, :, None]
-        Breg = Breg1 + jnp.sum(Breg_integrand1 + Breg_integrand2, axis=1) / jnp.shape(gammas)[1]
+            ) * gd_norm[:, :, None] ** 2 + delta * a * b) ** 3))[:, :, :, None]
+        
+        # print(jnp.shape(gammadashs), jnp.shape(r_ii), r_ii)
+        Breg = jnp.sum(jnp.cross(gammadashs[:, :, None, :], r_ii) / jnp.sqrt(
+            jnp.linalg.norm(r_ii + eps, axis=-1) ** 2 + delta * a * b)[:, :, :, None] ** 3, axis=1)  / jnp.shape(gammas)[1]
+        Breg3 = Breg1 + jnp.sum(Breg_integrand1 + Breg_integrand2, axis=1) / jnp.shape(gammas)[1]
+        # print(jnp.shape(Breg))
+        print(Breg, Breg3)
         F_self = currents[:, None] ** 2 * jnp.sum(jnp.cross(tangents, Breg), axis=1) / jnp.shape(gammas)[1]
+        # print(F_self)
         return F_self * 1e-7
     
     def coil_self_forces(self, a, b):
