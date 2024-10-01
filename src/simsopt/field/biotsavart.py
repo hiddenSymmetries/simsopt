@@ -586,7 +586,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     
     def dtve_by_dX(self, curve_dofs, currents, a, b):
         temp = self.dtve_by_dX_jax(curve_dofs, currents, a=a, b=b)
-        print(temp)
+        # print(temp)
         return temp
     
     def coil_coil_inductances_pure(self, curve_dofs, a, b):
@@ -695,7 +695,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
             jnp.linalg.norm(r_ii + eps, axis=-1) ** 2 + delta * a * b)[:, :, :, None] ** 3, axis=1)  / jnp.shape(gammas)[1]
         Breg3 = Breg1 + jnp.sum(Breg_integrand1 + Breg_integrand2, axis=1) / jnp.shape(gammas)[1]
         # print(jnp.shape(Breg))
-        print(Breg, Breg3)
+        # print(Breg, Breg3)
         F_self = currents[:, None] ** 2 * jnp.sum(jnp.cross(tangents, Breg), axis=1) / jnp.shape(gammas)[1]
         # print(F_self)
         return F_self * 1e-7

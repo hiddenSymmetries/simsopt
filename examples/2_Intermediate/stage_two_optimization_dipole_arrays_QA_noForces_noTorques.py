@@ -34,7 +34,7 @@ filename = TEST_DIR / input_name
 # filename = TEST_DIR / input_name
 
 # Directory for output
-OUT_DIR = "./dipole_array_optimization_QA_reactorScale_ForceTorqueOptimization/"
+OUT_DIR = "./dipole_array_optimization_QA_reactorScale_noForceTorqueOptimization/"
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -222,10 +222,10 @@ CS_WEIGHT = 1e1
 # MSC_WEIGHT = 1e-12
 
 # Weight for the Coil Coil forces term
-FORCES_WEIGHT = 1e-20  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCES_WEIGHT = 0.0  # 1e-20  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # And this term weights the NetForce^2 ~ 10^10-10^12 
 
-TORQUES_WEIGHT = 1e-20  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUES_WEIGHT = 0.0  #1e-20  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
 # TVE_WEIGHT = 1e-19
 

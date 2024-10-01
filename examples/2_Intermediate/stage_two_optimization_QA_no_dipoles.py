@@ -200,8 +200,8 @@ Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 # While the coil array is not moving around, they cannot
 # interlink. 
 linkNum = LinkingNumber(curves_TF)
-# Jforces = CoilCoilNetForces(bs) + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
-# Jtorques = CoilCoilNetTorques(bs) + CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
+Jforces = CoilCoilNetForces(btot)  # + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
+Jtorques = CoilCoilNetTorques(btot)   #+ CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
 # Jtve = TotalVacuumEnergy(bs, a=a, b=b)
 # Jsf = CoilSelfNetForces(bs, a=a, b=b)
 
@@ -234,9 +234,9 @@ JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * sum(Jls_TF) 
-    # + FORCES_WEIGHT * Jforces \
-    # + TORQUES_WEIGHT * Jtorques # \
+    + LENGTH_WEIGHT * sum(Jls_TF) \
+    + FORCES_WEIGHT * Jforces \
+    + TORQUES_WEIGHT * Jtorques # \
     # + TVE_WEIGHT * Jtve
     # + SF_WEIGHT * Jsf
     # + CURRENTS_WEIGHT * DipoleJaxCurrentsObj
@@ -259,8 +259,8 @@ def fun(dofs):
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val1 = LINK_WEIGHT * linkNum.J()
-    # forces_val = FORCES_WEIGHT * Jforces.J()
-    # torques_val = TORQUES_WEIGHT * Jtorques.J()
+    forces_val = FORCES_WEIGHT * Jforces.J()
+    torques_val = TORQUES_WEIGHT * Jtorques.J()
     # tve_val = TVE_WEIGHT * Jtve.J()
     # sf_val = SF_WEIGHT * Jsf.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
@@ -274,8 +274,8 @@ def fun(dofs):
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val1:.2e}" 
-    # valuestr += f", forceObj={forces_val:.2e}" 
-    # valuestr += f", torqueObj={torques_val:.2e}" 
+    valuestr += f", forceObj={forces_val:.2e}" 
+    valuestr += f", torqueObj={torques_val:.2e}" 
     # valuestr += f", tveObj={tve_val:.2e}" 
     # valuestr += f", sfObj={sf_val:.2e}" 
     # valuestr += f", currObj={curr_val:.2e}" 
@@ -286,8 +286,8 @@ def fun(dofs):
     # outstr += f", var(kappa)={np.mean(np.array([c.kappa() for c in base_curves])):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
-    # outstr += f", C-C-Forces={Jforces.J():.1e}"
-    # outstr += f", C-C-Torques={Jtorques.J():.1e}"
+    outstr += f", C-C-Forces={Jforces.J():.1e}"
+    outstr += f", C-C-Torques={Jtorques.J():.1e}"
     # outstr += f", TVE={Jtve.J():.1e}"
     # outstr += f", TotalSelfForces={Jsf.J():.1e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
