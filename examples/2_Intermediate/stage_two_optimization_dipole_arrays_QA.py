@@ -121,6 +121,7 @@ def initialize_coils_QA(TEST_DIR, s):
     curves = [c.curve for c in coils]
     currents = [c.current.get_value() for c in coils]
     curves_to_vtk(curves, OUT_DIR + "curves_TF_0", I=currents,
+            close=True,
             # NetForces=np.array(bs.coil_coil_forces()),
             # NetTorques=bs.coil_coil_torques(),
             # NetSelfForces=bs.coil_self_forces(a, b)
@@ -184,12 +185,13 @@ currents = [c.current.get_value() for c in coils]
 # print(np.sum(CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12() ** 2, axis=-1))
 
 # exit()
-curves_to_vtk(curves, OUT_DIR + "curves_0", close=True, I=currents,
+curves_to_vtk(curves, OUT_DIR + "curves_0", I=currents,
+            close=True,
             NetForces=bs.coil_coil_forces(),
             NetTorques=bs.coil_coil_torques(),
-            MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
-            MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-            NetSelfForces=bs.coil_self_forces(a, b)
+            # MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
+            # MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
+            # NetSelfForces=bs.coil_self_forces(a, b)
 )
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
@@ -208,10 +210,10 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.005)
+LENGTH_WEIGHT = Weight(0.0025)
 # CURRENTS_WEIGHT = 10
 LINK_WEIGHT = 100
-LINK_WEIGHT2 = 1e-5
+LINK_WEIGHT2 = 1e-3
 CC_THRESHOLD = 0.7
 CC_WEIGHT = 400
 CS_THRESHOLD = 1.3
@@ -222,10 +224,10 @@ CS_WEIGHT = 1e1
 # MSC_WEIGHT = 1e-12
 
 # Weight for the Coil Coil forces term
-FORCES_WEIGHT = 1e-20  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCES_WEIGHT = 1e-18  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # And this term weights the NetForce^2 ~ 10^10-10^12 
 
-TORQUES_WEIGHT = 1e-20  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUES_WEIGHT = 1e-18  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
 # TVE_WEIGHT = 1e-19
 
@@ -383,20 +385,22 @@ for i in range(1, n_saves + 1):
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
     curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
+        close=True,
         I=dipole_currents,
         NetForces=np.array(bs.coil_coil_forces()),
         NetTorques=bs.coil_coil_torques(),
-        MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
-        MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-        NetSelfForces=bs.coil_self_forces(a, b)
+        # MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
+        # MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
+        # NetSelfForces=bs.coil_self_forces(a, b)
         )
     curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
+        close=True,
         I=[c.current.get_value() for c in bs_TF.coils],
         NetForces=np.array(bs_TF.coil_coil_forces()),
         NetTorques=bs_TF.coil_coil_torques(),
-        MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[len(curves):, :],
-        MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[len(curves):, :],
-        NetSelfForces=bs_TF.coil_self_forces(a, b)
+        # MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[len(curves):, :],
+        # MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[len(curves):, :],
+        # NetSelfForces=bs_TF.coil_self_forces(a, b)
     )
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))

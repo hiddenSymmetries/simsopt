@@ -121,6 +121,7 @@ def initialize_coils_QA(TEST_DIR, s):
     curves = [c.curve for c in coils]
     currents = [c.current.get_value() for c in coils]
     curves_to_vtk(curves, OUT_DIR + "curves_TF_0", I=currents,
+            close=True,
             # NetForces=np.array(bs.coil_coil_forces()),
             # NetTorques=bs.coil_coil_torques(),
             # NetSelfForces=bs.coil_self_forces(a, b)
@@ -184,7 +185,8 @@ currents = [c.current.get_value() for c in coils]
 # print(np.sum(CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12() ** 2, axis=-1))
 
 # exit()
-curves_to_vtk(curves, OUT_DIR + "curves_0", close=True, I=currents,
+curves_to_vtk(curves, OUT_DIR + "curves_0", I=currents,
+            close=True,
             NetForces=bs.coil_coil_forces(),
             NetTorques=bs.coil_coil_torques(),
             MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
@@ -251,8 +253,8 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink. 
 linkNum = LinkingNumber(curves_TF)
 linkNum2 = LinkingNumber(curves)
-Jforces = CoilCoilNetForces(bs) + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
-Jtorques = CoilCoilNetTorques(bs) + CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
+# Jforces = CoilCoilNetForces(bs) + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
+# Jtorques = CoilCoilNetTorques(bs) + CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
 # Jtve = TotalVacuumEnergy(bs, a=a, b=b)
 # Jsf = CoilSelfNetForces(bs, a=a, b=b)
 
@@ -286,9 +288,9 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
     + LINK_WEIGHT2 * linkNum2 \
-    + LENGTH_WEIGHT * sum(Jls_TF) \
-    + FORCES_WEIGHT * Jforces \
-    + TORQUES_WEIGHT * Jtorques 
+    + LENGTH_WEIGHT * sum(Jls_TF) # \
+    # + FORCES_WEIGHT * Jforces \
+    # + TORQUES_WEIGHT * Jtorques 
     # + TVE_WEIGHT * Jtve
     # + SF_WEIGHT * Jsf
     # + CURRENTS_WEIGHT * DipoleJaxCurrentsObj
@@ -312,8 +314,8 @@ def fun(dofs):
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val1 = LINK_WEIGHT * linkNum.J()
     link_val2 = LINK_WEIGHT2 * linkNum2.J()
-    forces_val = FORCES_WEIGHT * Jforces.J()
-    torques_val = TORQUES_WEIGHT * Jtorques.J()
+    # forces_val = FORCES_WEIGHT * Jforces.J()
+    # torques_val = TORQUES_WEIGHT * Jtorques.J()
     # tve_val = TVE_WEIGHT * Jtve.J()
     # sf_val = SF_WEIGHT * Jsf.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
@@ -328,8 +330,8 @@ def fun(dofs):
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val1:.2e}" 
     valuestr += f", Lk2Obj={link_val2:.2e}" 
-    valuestr += f", forceObj={forces_val:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
+    # valuestr += f", forceObj={forces_val:.2e}" 
+    # valuestr += f", torqueObj={torques_val:.2e}" 
     # valuestr += f", tveObj={tve_val:.2e}" 
     # valuestr += f", sfObj={sf_val:.2e}" 
     # valuestr += f", currObj={curr_val:.2e}" 
@@ -341,8 +343,8 @@ def fun(dofs):
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", Link Number 2 = {linkNum2.J()}"
-    outstr += f", C-C-Forces={Jforces.J():.1e}"
-    outstr += f", C-C-Torques={Jtorques.J():.1e}"
+    # outstr += f", C-C-Forces={Jforces.J():.1e}"
+    # outstr += f", C-C-Torques={Jtorques.J():.1e}"
     # outstr += f", TVE={Jtve.J():.1e}"
     # outstr += f", TotalSelfForces={Jsf.J():.1e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
@@ -383,6 +385,7 @@ for i in range(1, n_saves + 1):
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
     curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
+        close=True,
         I=dipole_currents,
         NetForces=np.array(bs.coil_coil_forces()),
         NetTorques=bs.coil_coil_torques(),
@@ -391,6 +394,7 @@ for i in range(1, n_saves + 1):
         NetSelfForces=bs.coil_self_forces(a, b)
         )
     curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
+        close=True,
         I=[c.current.get_value() for c in bs_TF.coils],
         NetForces=np.array(bs_TF.coil_coil_forces()),
         NetTorques=bs_TF.coil_coil_torques(),

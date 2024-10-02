@@ -1194,7 +1194,8 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     return curves
 
 
-def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
+def create_equally_spaced_planar_curves(
+    ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order

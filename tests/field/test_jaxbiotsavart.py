@@ -646,6 +646,10 @@ class Testing(unittest.TestCase):
         dofs[1:5] = np.ones(1)
         dofs[5:9] = np.array([0.0, 0.0, 0.0])
         curve0.set_dofs(dofs)
+        from matplotlib import pyplot as plt
+        # plt.figure()
+        # plt.plot(curve0.gamma()[:, 1], curve0.gamma()[:, 2])
+        # plt.show()
         current0 = Current(I1)
         bs = JaxBiotSavart([Coil(curve0, current0)])
         E_dipoles = bs.total_vacuum_energy_pure(bs.get_curve_dofs(), bs.get_currents(), a=0.01, b=0.01)
@@ -656,6 +660,39 @@ class Testing(unittest.TestCase):
         print('J = ', tve.J())
         print('dJ = ', tve.dJ())
         sf = CoilSelfNetForces(bs)
+        print(bs.coil_self_forces(0.01, 0.01))
+        print(sf.J(), sf.dJ())
+
+    def coil_objectives_symmetrized(self):       
+        from simsopt.geo import JaxCurvePlanarFourier, create_equally_spaced_planar_curves
+        ncoils = 2
+        I1 = 5.0e6
+        R0 = 1
+        # a = 1e-5
+        curves = create_equally_spaced_planar_curves(
+            ncoils, 2, True, R0=R0, R1=0.1, order=0, numquadpoints=None, jax_flag=True)
+        # curve0 = JaxCurvePlanarFourier(200, 0)
+        # dofs = np.zeros(8)
+        # dofs[0] = R1
+        # dofs[1:5] = np.ones(1)
+        # dofs[5:9] = np.array([0.0, 0.0, 0.0])
+        # curve0.set_dofs(dofs)
+        # from matplotlib import pyplot as plt
+        # plt.figure()
+        # plt.plot(curve0.gamma()[:, 1], curve0.gamma()[:, 2])
+        # plt.show()
+        currents = [Current(I1) for c in curves]
+        # current0 = Current(I1)
+        bs = JaxBiotSavart([Coil(c, currents[i]) for i, c in enumerate(curves)])
+        E_dipoles = bs.total_vacuum_energy_pure(bs.get_curve_dofs(), bs.get_currents(), a=0.01, b=0.01)
+        print('U = ', E_dipoles)
+        dE_dipoles = bs.dtve_by_dX(bs.get_curve_dofs(), bs.get_currents(), a=0.01, b=0.01)
+        print('dU = ', dE_dipoles)
+        tve = TotalVacuumEnergy(bs)
+        print('J = ', tve.J())
+        print('dJ = ', tve.dJ())
+        sf = CoilSelfNetForces(bs)
+        print(bs.coil_self_forces(0.01, 0.01))
         print(sf.J(), sf.dJ())
 
 if __name__ == "__main__":

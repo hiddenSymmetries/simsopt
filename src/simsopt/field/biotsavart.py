@@ -557,14 +557,13 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         eps = 1e-20  # small number to avoid blow up in the denominator when i = j
         gammas = self.get_gammas(curve_dofs)
         gammadashs = self.get_gammadashs(curve_dofs)
-        Ii_Ij = (currents[None, :] * currents[:, None])[:, :, None]
         # gamma and gammadash are shape (ncoils, nquadpoints, 3)
         r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :]  # Note, do not use the i = j indices
         gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1) 
         rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
 
         # Double sum over each of the closed curves
-        F = Ii_Ij * jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
+        F = (currents[None, :] * currents[:, None])[:, :, None] * jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
         net_forces = -jnp.sum(F, axis=1) * 1e-7 / jnp.shape(gammas)[1] ** 2
         return net_forces
     
@@ -722,10 +721,8 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         gammas_i = gammas[None, :, None, :, :]
         gammas_j = gammas[:, None, :, None, :]
         r_ij = gammas_i - gammas_j  # Note, do not use the i = j indices
-        gammadash_i = gammadashs[None, :, None, :, :]
-        gammadash_j = gammadashs[:, None, :, None, :]
-        cross1 = jnp.cross(gammadash_i, r_ij)
-        cross2 = jnp.cross(gammadash_j, cross1)
+        cross1 = jnp.cross(gammadashs[None, :, None, :, :], r_ij)
+        cross2 = jnp.cross(gammadashs[:, None, :, None, :], cross1)
         cross3 = jnp.cross(gammas_i, cross2)
         rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
 
