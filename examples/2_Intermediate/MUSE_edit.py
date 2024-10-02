@@ -81,7 +81,7 @@ qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
-    surface_filename,
+    surface_filename,1`
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
@@ -166,10 +166,12 @@ if save_plots:
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
-
+    print(m_history.shape)
     # Look through the solutions as function of K and make plots
     for k in range(0, m_history.shape[-1], 5):
-        mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
+        #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
+        mk = m_history[:, :, k]
+        print(mk.shape)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
             mk,
@@ -181,7 +183,7 @@ if save_plots:
         b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
         K_save = int(kwargs['K'] / kwargs['nhistory'] * k)
         b_dipole._toVTK(out_dir / f"Dipole_Fields_K{K_save}_nphi{nphi}_ntheta{ntheta}")
-        print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
+        #print("Total fB = ", 0.5 * np.sum((pm_opt.A_obj @ mk - pm_opt.b_obj) ** 2))
         Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
         Bnormal_total = Bnormal + Bnormal_dipoles
 
