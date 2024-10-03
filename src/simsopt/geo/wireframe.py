@@ -1271,7 +1271,7 @@ class ToroidalWireframe(object):
             nHalfPeriods = 1
         elif extent=='field period':
             nHalfPeriods = 2
-        elif extent=='torus':
+        elif extent=='torus' or extent=='full torus':
             nHalfPeriods = self.nfp * 2
         else:
             raise ValueError('extent must be \'half period\', ' \
@@ -1310,8 +1310,9 @@ class ToroidalWireframe(object):
                    pointData=extra_node_data)
         
 
-    def make_plot_3d(self, ax=None, engine='mayavi', to_show='all', \
-                     active_tol=1e-12, tube_radius=0.01, **kwargs):
+    def make_plot_3d(self, ax=None, engine='mayavi', extent='full torus',
+                     to_show='all', active_tol=1e-12, tube_radius=0.01, 
+                     colormap=None, **kwargs):
         """
         Make a 3d plot of the wireframe grid.
 
@@ -1320,6 +1321,9 @@ class ToroidalWireframe(object):
             engine: string (optional)
                 Plotting package to use, either 'mayavi' or 'matplotlib'.
                 Default is 'mayavi'. 'matplotlib' is not recommended.
+            extent: string (optional)
+                Portion of the torus to be plotted. Options are 'half period',
+                'field period' (default), and 'full torus'.
             to_show: string (optional)
                 If 'all', will plot all segments, including those that carry
                 no current. If 'active' will only show segments that carry
@@ -1333,6 +1337,9 @@ class ToroidalWireframe(object):
                 Radius of the tubes used to represent each segment in the 
                 mayavi rendering. Only used if `engine` is 'mayavi'. 
                 Default is 0.01.
+            colormap: 2d array (optional)
+                4-column array of red, green, blue, and alpha (opacity) values
+                on a scale of 0 to 255 applied to the coil currents
             ax: matplotlib.pyplot.axes class instance (optional)
                 Axes on which to make the plot. Only used if `engine` is 
                 'matplotlib'. If not provided, a new set of axes will be 
@@ -1348,10 +1355,20 @@ class ToroidalWireframe(object):
                 is 'matplotlib'. 
         """
 
-        pl_segments = np.zeros((2*self.nfp*self.nSegments, 2, 3))
-        pl_currents = np.zeros((2*self.nfp*self.nSegments))
+        if extent=='half period':
+            nHalfPeriods = 1
+        elif extent=='field period':
+            nHalfPeriods = 2
+        elif extent=='full torus':
+            nHalfPeriods = self.nfp * 2
+        else:
+            raise ValueError('extent must be \'half period\', ' \
+                             + '\'field period\', or \'full torus\'')
+
+        pl_segments = np.zeros((nHalfPeriods*self.nSegments, 2, 3))
+        pl_currents = np.zeros((nHalfPeriods*self.nSegments))
    
-        for i in range(2*self.nfp):
+        for i in range(nHalfPeriods):
             ind0 = i*self.nSegments
             ind1 = (i+1)*self.nSegments
             pl_segments[ind0:ind1,:,:] = self.nodes[i][:,:][self.segments[:,:]]
@@ -1392,7 +1409,7 @@ class ToroidalWireframe(object):
             surf = mlab.pipeline.surface(tube, **kwargs)
 
             # Define a colormap similar to matplotlib's "coolwarm"
-            if 'colormap' not in kwargs:
+            if colormap is None:
                 x_cmap = np.linspace(0,1,255).reshape((-1,1))
                 alpha = np.ones(x_cmap.shape)
                 r_cmap = 1 - np.abs(3*x_cmap - 1.5)
@@ -1409,10 +1426,13 @@ class ToroidalWireframe(object):
                 cmap = 255 * \
                     np.concatenate((f*r_cmap, f*g_cmap, f*b_cmap, alpha), \
                                     axis=1)
-                surf.module_manager.scalar_lut_manager.lut.table = cmap
-                curr_lim = np.max(np.abs(pl_currents[inds]))
-                surf.module_manager.scalar_lut_manager.data_range = \
-                    (-curr_lim, curr_lim)
+            else:
+                cmap = colormap
+
+            surf.module_manager.scalar_lut_manager.lut.table = cmap
+            curr_lim = np.max(np.abs(pl_currents[inds]))
+            surf.module_manager.scalar_lut_manager.data_range = \
+                (-curr_lim, curr_lim)
 
             return surf
 
@@ -1454,7 +1474,7 @@ class ToroidalWireframe(object):
         ----------
             extent: string (optional)
                 Portion of the torus to be plotted. Options are 'half period',
-                'field period' (default), and 'torus'.
+                'field period' (default), and 'full torus'.
             quantity: string (optional)
                 Quantity to be represented in the color of each segment.
                 Options are 'currents' (default), 'nonzero currents' (i.e. show
@@ -1479,7 +1499,7 @@ class ToroidalWireframe(object):
             nHalfPeriods = 1
         elif extent=='field period':
             nHalfPeriods = 2
-        elif extent=='torus':
+        elif extent=='torus' or extent=='full torus':
             nHalfPeriods = self.nfp * 2
         else:
             raise ValueError('extent must be \'half period\', ' \
