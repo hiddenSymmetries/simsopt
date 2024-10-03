@@ -20,7 +20,7 @@ import warnings
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
-__all__ = ['B_regularized_pure', 'regularization_rect', 'SelfField']
+__all__ = ['B_regularized_pure', 'regularization_rect']
 
 def rectangular_xsection_k(a, b):
     """Auxiliary function for field in rectangular conductor"""

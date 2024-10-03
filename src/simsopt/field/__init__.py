@@ -1,7 +1,6 @@
 from .biotsavart import *
 from .boozermagneticfield import *
 from .coil import *
-from .fieldalignment import *
 from .magneticfield import *
 from .magneticfieldclasses import *
 from .mgrid import *
@@ -19,7 +18,6 @@ __all__ = (
     + mgrid.__all__
     + normal_field.__all__
     + tracing.__all__
-    + fieldalignment.__all__
     + selffield.__all__
     + magnetic_axis_helpers.__all__
 )
