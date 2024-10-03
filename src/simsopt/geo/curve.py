@@ -518,7 +518,6 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
         of the curve.
         """
-
         return self.dgamma_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
     def gammadash_impl(self, gammadash):

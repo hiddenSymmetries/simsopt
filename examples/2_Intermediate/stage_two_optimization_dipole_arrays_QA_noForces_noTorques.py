@@ -34,7 +34,7 @@ filename = TEST_DIR / input_name
 # filename = TEST_DIR / input_name
 
 # Directory for output
-OUT_DIR = "./dipole_array_optimization_QA_reactorScale_noForceTorqueOptimization/"
+OUT_DIR = "./dipole_array_optimization_QA_reactorScale_debug/"
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -189,9 +189,9 @@ curves_to_vtk(curves, OUT_DIR + "curves_0", I=currents,
             close=True,
             NetForces=bs.coil_coil_forces(),
             NetTorques=bs.coil_coil_torques(),
-            MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
-            MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-            NetSelfForces=bs.coil_self_forces(a, b)
+            # MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
+            # MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
+            # NetSelfForces=bs.coil_self_forces(a, b)
 )
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
@@ -253,8 +253,8 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # interlink. 
 linkNum = LinkingNumber(curves_TF)
 linkNum2 = LinkingNumber(curves)
-# Jforces = CoilCoilNetForces(bs) + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
-# Jtorques = CoilCoilNetTorques(bs) + CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
+Jforces = CoilCoilNetForces(bs) + CoilCoilNetForces12(bs, bs_TF) + CoilCoilNetForces(bs_TF)
+Jtorques = CoilCoilNetTorques(bs) + CoilCoilNetTorques12(bs, bs_TF) + CoilCoilNetTorques(bs_TF)
 # Jtve = TotalVacuumEnergy(bs, a=a, b=b)
 # Jsf = CoilSelfNetForces(bs, a=a, b=b)
 
@@ -288,9 +288,9 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
     + LINK_WEIGHT2 * linkNum2 \
-    + LENGTH_WEIGHT * sum(Jls_TF) # \
-    # + FORCES_WEIGHT * Jforces \
-    # + TORQUES_WEIGHT * Jtorques 
+    + LENGTH_WEIGHT * sum(Jls_TF) \
+    + FORCES_WEIGHT * Jforces \
+    + TORQUES_WEIGHT * Jtorques 
     # + TVE_WEIGHT * Jtve
     # + SF_WEIGHT * Jsf
     # + CURRENTS_WEIGHT * DipoleJaxCurrentsObj
@@ -298,6 +298,51 @@ JF = Jf \
     # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs_TF) \
 #    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
     # + CURVATURE_WEIGHT * sum(Jcs) \
+
+print('Timing calls: ')
+t1 = time.time()
+Jf.J()
+t2 = time.time()
+print('Jf time = ', t2 - t1, ' s')
+t1 = time.time()
+Jf.dJ()
+t2 = time.time()
+print('dJf time = ', t2 - t1, ' s')
+t1 = time.time()
+Jccdist.J()
+Jccdist.dJ()
+t2 = time.time()
+print('Jcc time = ', t2 - t1, ' s')
+t1 = time.time()
+Jcsdist.J()
+Jcsdist.dJ()
+t2 = time.time()
+print('Jcs time = ', t2 - t1, ' s')
+t1 = time.time()
+linkNum.J()
+linkNum.dJ()
+t2 = time.time()
+print('linkNum time = ', t2 - t1, ' s')
+t1 = time.time()
+linkNum2.J()
+linkNum2.dJ()
+t2 = time.time()
+print('linkNum2 time = ', t2 - t1, ' s')
+t1 = time.time()
+sum(Jls_TF).J()
+sum(Jls_TF).dJ()
+t2 = time.time()
+print('sum(Jls_TF) time = ', t2 - t1, ' s')
+t1 = time.time()
+Jforces.J()
+Jforces.dJ()
+t2 = time.time()
+print('Jforces time = ', t2 - t1, ' s')
+t1 = time.time()
+Jtorques.J()
+Jtorques.dJ()
+t2 = time.time()
+print('Jtorques time = ', t2 - t1, ' s')
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -314,8 +359,8 @@ def fun(dofs):
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val1 = LINK_WEIGHT * linkNum.J()
     link_val2 = LINK_WEIGHT2 * linkNum2.J()
-    # forces_val = FORCES_WEIGHT * Jforces.J()
-    # torques_val = TORQUES_WEIGHT * Jtorques.J()
+    forces_val = FORCES_WEIGHT * Jforces.J()
+    torques_val = TORQUES_WEIGHT * Jtorques.J()
     # tve_val = TVE_WEIGHT * Jtve.J()
     # sf_val = SF_WEIGHT * Jsf.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
@@ -330,8 +375,8 @@ def fun(dofs):
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val1:.2e}" 
     valuestr += f", Lk2Obj={link_val2:.2e}" 
-    # valuestr += f", forceObj={forces_val:.2e}" 
-    # valuestr += f", torqueObj={torques_val:.2e}" 
+    valuestr += f", forceObj={forces_val:.2e}" 
+    valuestr += f", torqueObj={torques_val:.2e}" 
     # valuestr += f", tveObj={tve_val:.2e}" 
     # valuestr += f", sfObj={sf_val:.2e}" 
     # valuestr += f", currObj={curr_val:.2e}" 
@@ -343,8 +388,8 @@ def fun(dofs):
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", Link Number 2 = {linkNum2.J()}"
-    # outstr += f", C-C-Forces={Jforces.J():.1e}"
-    # outstr += f", C-C-Torques={Jtorques.J():.1e}"
+    outstr += f", C-C-Forces={Jforces.J():.1e}"
+    outstr += f", C-C-Torques={Jtorques.J():.1e}"
     # outstr += f", TVE={Jtve.J():.1e}"
     # outstr += f", TotalSelfForces={Jsf.J():.1e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
@@ -369,6 +414,52 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J2, _ = f(dofs - eps*h)
     print("err", (J1-J2)/(2*eps) - dJh)  #(J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
 
+print('Timing calls, Round Two: ')
+t1 = time.time()
+Jf.J()
+t2 = time.time()
+print('Jf time = ', t2 - t1, ' s')
+t1 = time.time()
+Jf.dJ()
+t2 = time.time()
+print('dJf time = ', t2 - t1, ' s')
+t1 = time.time()
+Jccdist.J()
+Jccdist.dJ()
+t2 = time.time()
+print('Jcc time = ', t2 - t1, ' s')
+t1 = time.time()
+Jcsdist.J()
+Jcsdist.dJ()
+t2 = time.time()
+print('Jcs time = ', t2 - t1, ' s')
+t1 = time.time()
+linkNum.J()
+linkNum.dJ()
+t2 = time.time()
+print('linkNum time = ', t2 - t1, ' s')
+t1 = time.time()
+linkNum2.J()
+linkNum2.dJ()
+t2 = time.time()
+print('linkNum2 time = ', t2 - t1, ' s')
+t1 = time.time()
+sum(Jls_TF).J()
+sum(Jls_TF).dJ()
+t2 = time.time()
+print('sum(Jls_TF) time = ', t2 - t1, ' s')
+t1 = time.time()
+Jforces.J()
+Jforces.dJ()
+t2 = time.time()
+print('Jforces time = ', t2 - t1, ' s')
+t1 = time.time()
+Jtorques.J()
+Jtorques.dJ()
+t2 = time.time()
+print('Jtorques time = ', t2 - t1, ' s')
+exit()
+
 print("""
 ################################################################################
 ### Run the optimisation #######################################################
@@ -389,18 +480,18 @@ for i in range(1, n_saves + 1):
         I=dipole_currents,
         NetForces=np.array(bs.coil_coil_forces()),
         NetTorques=bs.coil_coil_torques(),
-        MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
-        MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
-        NetSelfForces=bs.coil_self_forces(a, b)
+        # MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[:len(curves), :],
+        # MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[:len(curves), :],
+        # NetSelfForces=bs.coil_self_forces(a, b)
         )
     curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
         close=True,
         I=[c.current.get_value() for c in bs_TF.coils],
         NetForces=np.array(bs_TF.coil_coil_forces()),
         NetTorques=bs_TF.coil_coil_torques(),
-        MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[len(curves):, :],
-        MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[len(curves):, :],
-        NetSelfForces=bs_TF.coil_self_forces(a, b)
+        # MixedCoilForces=CoilCoilNetForces12(bs, bs_TF).coil_coil_forces12()[len(curves):, :],
+        # MixedCoilTorques=CoilCoilNetTorques12(bs, bs_TF).coil_coil_torques12()[len(curves):, :],
+        # NetSelfForces=bs_TF.coil_self_forces(a, b)
     )
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))

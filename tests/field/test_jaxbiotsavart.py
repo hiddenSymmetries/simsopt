@@ -353,12 +353,14 @@ class Testing(unittest.TestCase):
 
         # the B field is linear in the current, so a small stepsize is not necessary
         current0.x = [0]
+        # bs._coils[0].current.x = [0]
         B0 = bs.B()
         J0 = bs.dB_by_dX()
         H0 = bs.d2B_by_dXdX()
         dB_approx = (B-B0)/(c0)
         dJ_approx = (J-J0)/(c0)
         dH_approx = (H-H0)/(c0)
+        # print(dB[0], dB_approx, np.shape(dB), np.shape(dB_approx))
         assert np.linalg.norm(dB[0]-dB_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         print(f"H norm is {np.linalg.norm(dH[0]-dH_approx)}")
