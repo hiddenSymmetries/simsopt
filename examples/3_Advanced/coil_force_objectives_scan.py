@@ -41,7 +41,7 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-03)
+LENGTH_WEIGHT = Weight(1e-3)
 LENGTH_TARGET = 17.4
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
@@ -61,7 +61,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight on the mean squared force penalty in the objective function
-FORCE_WEIGHT = Weight(1e-14)
+FORCE_WEIGHT = Weight(1e-12)
 
 # Number of iterations to perform:
 MAXITER = 500
@@ -109,7 +109,7 @@ base_coils = coils[:ncoils]
 bs = BiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
-a = 0.05
+a = 0.02
 
 def pointData_forces_torques(coils):
     contig = np.ascontiguousarray
@@ -154,7 +154,10 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2, threshold=1e5) + SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
+Jforce = [SquaredMeanTorque(c, coils, regularization_circ(a)) for c in base_coils]
+# Jforce = [SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
+# Jforce = [SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
+# Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2) for c in base_coils]
 Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 # Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2) for c in base_coils]
 # Jforce1 = [SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
@@ -243,14 +246,14 @@ s.to_vtk(OUT_DIR + "surf_opt"+str(ii), extra_data=pointData_surf)
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_opt"+str(ii), extra_data=pointData)
-bs.set_points(s.gamma().reshape((-1, 3)))
-base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order) #, jax_flag=True)
-base_currents = [Current(1e5) for i in range(ncoils)]
-base_currents[0].fix_all()
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-base_coils = coils[:ncoils]
-bs = BiotSavart(coils)
-bs.set_points(s.gamma().reshape((-1, 3)))
+# bs.set_points(s.gamma().reshape((-1, 3)))
+# base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order) #, jax_flag=True)
+# base_currents = [Current(1e5) for i in range(ncoils)]
+# base_currents[0].fix_all()
+# coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
+# base_coils = coils[:ncoils]
+# bs = BiotSavart(coils)
+# bs.set_points(s.gamma().reshape((-1, 3)))
 
 # Save the optimized coil shapes and currents so they can be loaded into other scripts for analysis:
 # bs.save(OUT_DIR + "biot_savart_opt.json")
