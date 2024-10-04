@@ -339,7 +339,7 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         t2 = time.time()
         print('Current dJ time = ', t2 - t1)
         t1 = time.time()
-        # dB_by_dcurvedofs = self.dB_by_dcurvedofs()
+        dB_by_dcurvedofs = self.dB_by_dcurvedofs()
         # t2 = time.time()
         # print('Curve dJ time = ', t2 - t1)
         # print(jnp.shape(dB_by_dcurvedofs))
@@ -350,9 +350,9 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         #       jnp.shape(vjp(self.B_jax_reduced, self.get_curve_dofs())[1](v)))
         # res_curvedofs = self.dB_by_dcurvedofs_vjp_impl(v)
         # print('res_curvedofs size = ', jnp.shape(res_curvedofs))
-        print(jnp.shape(v), jnp.shape(self.dB_by_dcurvedofs()))
-        res_curvedofs = jnp.sum(jnp.sum(jnp.sum(v[None, None, :, :] * self.dB_by_dcurvedofs(), axis=-1), axis=-1), axis=-1)
-        print(jnp.shape(res_curvedofs), len(res_curvedofs))
+        # print(jnp.shape(v), jnp.shape(self.dB_by_dcurvedofs()))
+        res_curvedofs = [jnp.sum(jnp.sum(v[None, :, :] * dB_by_dcurvedofs[i], axis=-1), axis=-1) for i in range(len(dB_by_dcurvedofs))]
+        # print(jnp.shape(res_curvedofs), len(res_curvedofs))
         curve_derivs = [Derivative({coils[i].curve: res_curvedofs[i]}) for i in range(len(res_curvedofs))]
         current_derivs = [coils[i].current.vjp(np.array([res_current[i]])) for i in range(len(coils))]
         # t2 = time.time()
@@ -368,18 +368,18 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         t2 = time.time()
         print('Current dJ time = ', t2 - t1)
         t1 = time.time()
-        # dB_by_dcurvedofs = self.dB_by_dcurvedofs()
+        dB_by_dcurvedofs = self.dB_by_dcurvedofs()
         # t2 = time.time()
         # print('Curve dJ time = ', t2 - t1)
         # print(jnp.shape(dB_by_dcurvedofs))
         # t1 = time.time()
-        print(jnp.shape(v), jnp.shape(self.get_curve_dofs()))
+        # print(jnp.shape(v), jnp.shape(self.get_curve_dofs()))
         # print(jnp.shape(vjp(self.B_pure_reduced, self.get_curve_dofs())[1]))
         # print(vjp(self.B_pure_reduced, self.get_curve_dofs())[1](v),
         #       jnp.shape(vjp(self.B_jax_reduced, self.get_curve_dofs())[1](v)))
-        res_curvedofs = self.dB_by_dcurvedofs_vjp_impl(v)
-        print('res_curvedofs size = ', jnp.shape(res_curvedofs))
-        #res_curvedofs = [np.sum(np.sum(v[None, :, :] * dB_by_dcurvedofs[i], axis=-1), axis=-1) for i in range(len(dB_by_dcurvedofs))]
+        # res_curvedofs = self.dB_by_dcurvedofs_vjp_impl(v)
+        # print('res_curvedofs size = ', jnp.shape(res_curvedofs))
+        res_curvedofs = [np.sum(np.sum(v[None, :, :] * dB_by_dcurvedofs[i], axis=-1), axis=-1) for i in range(len(dB_by_dcurvedofs))]
         curve_derivs = [Derivative({coils[i].curve: res_curvedofs[i]}) for i in range(len(res_curvedofs))]
         current_derivs = [coils[i].current.vjp(np.array([res_current[i]])) for i in range(len(coils))]
         t2 = time.time()
