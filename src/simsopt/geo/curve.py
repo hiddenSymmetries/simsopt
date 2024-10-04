@@ -869,7 +869,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
 
-def curves_to_vtk(curves, filename, close=False, I=None, 
+def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
                   NetForces=None, NetTorques=None, NetSelfForces=None,
                   MixedCoilForces=None, MixedCoilTorques=None):
     """
@@ -964,8 +964,10 @@ def curves_to_vtk(curves, filename, close=False, I=None,
         pointData['TotalCoilTorques'] = (contig(coil_data[:, 0]), 
                                 contig(coil_data[:, 1]),
                                 contig(coil_data[:, 2]))
+    if extra_point_data is not None:
+        pointData = {**pointData, **extra_point_data}
 
-    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData) #, cellData=cellData)
+    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # Get (X, Y, Z) coordinates of the two boundaries
