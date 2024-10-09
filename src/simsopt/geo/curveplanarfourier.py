@@ -81,37 +81,21 @@ def jaxplanarcurve_pure(dofs, quadpoints, order):
     q = dofs[2 * order + 1: 2 * order + 5]
     q_norm = q / jnp.linalg.norm(q)
     center = dofs[2 * order + 5:]
-    points = quadpoints
-    gamma = jnp.zeros((len(points), 3))
-    r_curve = jnp.zeros(len(points))
-    xyz_curve_in_plane = jnp.zeros((len(points), 3))
-    phi = 2 * np.pi * points  # points is an angle in [0, 1]
+    phi = 2 * np.pi * quadpoints  # points is an angle in [0, 1]
+    jrange = jnp.arange(1, order + 1)[:, None]
+    jphi = jrange * phi[None, :]
+    r_curve = coeffs[0] + jnp.sum(coeffs[1:order + 1, None] * jnp.cos(jphi) \
+        + coeffs[order + 1: 2 * order + 1, None] * jnp.sin(jphi), axis=0)
 
-    # Modes stored with all the cosines then all the sines
-    for j in range(order + 1):
-        r_curve = r_curve + coeffs[j] * jnp.cos(j * phi)
-    for j in range(1, order + 1):
-        r_curve = r_curve + coeffs[order + j] * jnp.sin(j * phi)
-    xyz_curve_in_plane = xyz_curve_in_plane.at[:, 0].add(r_curve * jnp.cos(phi))
-    xyz_curve_in_plane = xyz_curve_in_plane.at[:, 1].add(r_curve * jnp.sin(phi))
-
-    # Note z component, xyz_curve_in_plane[:, 2] = 0, always before rotation.
-    gamma = gamma.at[:, 0].add( 
-        (1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)) * xyz_curve_in_plane[:, 0] \
-        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * xyz_curve_in_plane[:, 1] \
-        + center[0]
-    )
-    gamma = gamma.at[:, 1].add( 
-        (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)) * xyz_curve_in_plane[:, 1] \
-        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * xyz_curve_in_plane[:, 0] \
-        + center[1]
-    )
-    gamma = gamma.at[:, 2].add( 
-        2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * xyz_curve_in_plane[:, 0] \
-        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * xyz_curve_in_plane[:, 1] \
-        + center[2]
-    )
-    return gamma
+    x_curve_in_plane = r_curve * jnp.cos(phi)
+    y_curve_in_plane = r_curve * jnp.sin(phi)
+    return jnp.transpose(jnp.vstack((jnp.vstack(((1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane \
+        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane \
+        + center[0], (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane \
+        + center[1])), 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane \
+        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane \
+        + center[2])))
 
 class JaxCurvePlanarFourier(JaxCurve):
 

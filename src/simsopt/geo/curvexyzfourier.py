@@ -192,14 +192,18 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = jnp.shape(dofs)[0]//3
     coeffs = [dofs[:k], dofs[k:(2*k)], dofs[(2*k):]]
-    points = quadpoints
-    gamma = jnp.zeros((len(points), 3))
-    for i in range(3):
-        gamma = gamma.at[:, i].add(coeffs[i][0])
-        for j in range(1, order+1):
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j - 1] * jnp.sin(2 * pi * j * points))
-            gamma = gamma.at[:, i].add(coeffs[i][2 * j] * jnp.cos(2 * pi * j * points))
-    return gamma
+    points = 2 * np.pi * quadpoints
+    jrange = jnp.arange(1, order + 1)
+    jp = jrange[:, None] * points[None, :]
+    sjp = jnp.sin(jp)
+    cjp = jnp.cos(jp)
+    gamma_x = coeffs[0][0] + jnp.sum(coeffs[0][2 * jrange - 1, None] * sjp \
+        + coeffs[0][2 * jrange, None] * cjp, axis=0)
+    gamma_y = coeffs[1][0] + jnp.sum(coeffs[1][2 * jrange - 1, None] * sjp \
+        + coeffs[1][2 * jrange, None] * cjp, axis=0)
+    gamma_z = coeffs[2][0] + jnp.sum(coeffs[2][2 * jrange - 1, None] * sjp \
+        + coeffs[2][2 * jrange, None] * cjp, axis=0)
+    return jnp.transpose(jnp.vstack((jnp.vstack((gamma_x, gamma_y)), gamma_z)))
 
 
 class JaxCurveXYZFourier(JaxCurve):
