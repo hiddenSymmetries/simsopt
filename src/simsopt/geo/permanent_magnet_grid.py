@@ -346,15 +346,15 @@ class PermanentMagnetGrid:
         m_maxima = kwargs.pop("m_maxima", None)
         pm_grid = cls(plasma_boundary, Bn, coordinate_flag) 
         Nx = kwargs.pop("Nx", 10)
-        Ny = kwargs.pop("Ny", 10)
-        Nz = kwargs.pop("Nz", 10)
+        Ny = kwargs.pop("Ny", Nx)
+        Nz = kwargs.pop("Nz", Nx)
         dr = kwargs.pop("dr", 0.1)
         dz = kwargs.pop("dz", 0.1)
         if Nx <= 0 or Ny <= 0 or Nz <= 0:
             raise ValueError('Nx, Ny, and Nz should be positive integers')
         if dr <= 0 or dz <= 0:
             raise ValueError('dr and dz should be positive floats')
-        pm_grid.dr = dr
+        pm_grid.dr = dr # only used for cylindrical coordinates
         pm_grid.dz = dz
         pm_grid.Nx = Nx
         pm_grid.Ny = Ny
@@ -667,7 +667,7 @@ class ExactMagnetGrid:
         self.dx = (x_max - x_min) / (Nx - 1)
         self.dy = (y_max - y_min) / (Ny - 1)
         self.dz = 2 * z_max / (Nz - 1)
-        print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
+        print('grid dimensions = ',Nx, Ny, Nz, 'grid spacing = ',self.dx, self.dy, self.dz)
 
         # Extra work below so that the stitching with the symmetries is done in
         # such a way that the reflected cells are still dx and dy away from

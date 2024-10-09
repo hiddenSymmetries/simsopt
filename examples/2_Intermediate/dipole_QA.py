@@ -23,10 +23,12 @@ if in_github_actions:
 else:
     nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    dr = 0.02  # cylindrical bricks with radial extent 2 cm
+    # dr = 0.02  # cylindrical bricks with radial extent 2 cm
+    # how do I manipulate the density of the dipole grid?
+    Nx = 60
 
-coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 # Read in the plas/ma equilibrium file
@@ -79,7 +81,8 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}  
+# kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}  
+kwargs_geo = {"Nx": Nx}  
 pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
@@ -109,7 +112,7 @@ b_dipole = DipoleField(
     m_maxima=pm_opt.m_maxima
 )
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
-b_dipole._toVTK(out_dir / "Dipole_Fields")
+b_dipole._toVTK(out_dir / "Dipole_Fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 # Print optimized metrics
 print("Total fB = ",

@@ -21,9 +21,9 @@ if in_github_actions:
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 50 # bricks with radial extent ??? cm
+    Nx = 60 # bricks with radial extent ??? cm
 
 coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
@@ -41,9 +41,9 @@ s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
-out_str = "exact_QA"
+out_str = "exact_QA_nphi{64}_maxIter{20k}"
 out_dir = Path(out_str)
-out_dir.mkdir(parents=True, exist_ok=True)
+out_dir.mkdir(parents=True, exist_ok=False)
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
@@ -118,6 +118,9 @@ M_max = B_max / mu0
 magnets = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))))
+
+print('magnets have dimensions ',pm_opt.dims, ' with volume v = ',np.prod(pm_opt.dims))
+
 b_magnet = ExactField(
     pm_opt.pm_grid_xyz,
     pm_opt.m,
