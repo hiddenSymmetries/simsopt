@@ -242,6 +242,10 @@ class PermanentMagnetGrid:
             mu0 = 4 * np.pi * 1e-7
             cell_vol = M0s * mu0 / B_max
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
+
+            cubrt_vol = np.cbrt(cell_vol[0])
+            pm_grid.dims = np.array([cubrt_vol, cubrt_vol, cubrt_vol])
+            print('DIPOLE DIMS = ',pm_grid.dims)
         else:
             if isinstance(m_maxima, float):
                 pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
@@ -396,6 +400,9 @@ class PermanentMagnetGrid:
                     contig(pm_grid.dipole_grid_xyz[:, 0]),
                     contig(pm_grid.dipole_grid_xyz[:, 1]),
                     contig(pm_grid.dipole_grid_xyz[:, 2]))
+        
+        pm_grid.dims = np.array([pm_grid.dx, pm_grid.dy, pm_grid.dz])
+        print('DIPOLE DIMS = ',pm_grid.dims)
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -426,6 +433,9 @@ class PermanentMagnetGrid:
         return pm_grid
 
     def _optimization_setup(self):
+
+        # for now, set magnets all in the same direction
+        self.phiThetas = np.repeat(np.array([[0, 0]]), self.dipole_grid_xyz.shape[0], axis = 0)
 
         if self.Bn.shape != (self.nphi, self.ntheta):
             raise ValueError('Normal magnetic field surface data is incorrect shape.')
@@ -776,6 +786,7 @@ class ExactMagnetGrid:
             # Assumes that the magnets are all the same shape, and are perfect cubes!
             cube_root_vol = np.cbrt(cell_vol[0]) # Assume FAMUS magnets are cubes
             pm_grid.dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
+            print('MAG DIMS = ',pm_grid.dims)
             pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
             if isinstance(m_maxima, float):
@@ -902,6 +913,7 @@ class ExactMagnetGrid:
                     contig(pm_grid.pm_grid_xyz[:, 2]))
     
         pm_grid.dims = np.array([pm_grid.dx, pm_grid.dy, pm_grid.dz])
+        print('MAG DIMS = ',pm_grid.dims)
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -936,6 +948,7 @@ class ExactMagnetGrid:
     
     def _optimization_setup(self):
 
+        # for now, set all magnets in same direction
         self.phiThetas = np.repeat(np.array([[0, 0]]), self.pm_grid_xyz.shape[0], axis = 0)
 
         if self.Bn.shape != (self.nphi, self.ntheta):
@@ -1095,18 +1108,19 @@ class ExactMagnetGrid:
         return reg_l0, reg_l1, reg_l2, nu
 
     #transform grid_xyz to toroidal to get phiThetas of each grid point
-    def get_phiThetas(self):
-        grid = self.pm_grid_xyz
-        D = len(grid)
-        phiThetas = np.zeros((D,2))
+    # def get_phiThetas(self):
+    #     grid = self.pm_grid_xyz
+    #     D = len(grid)
+    #     phiThetas = np.zeros((D,2))
                              
-        for d in range(D):
-            phi = np.arctan2(grid[d][1], grid[d][0])
-            theta = np.arctan2(grid[d][2], np.sqrt(grid[d][1]**2 + grid[d][0]**2) - self.R0)
+    #     for d in range(D):
+    #         phi = np.arctan2(grid[d][1], grid[d][0])
+    #         theta = np.arctan2(grid[d][2], np.sqrt(grid[d][1]**2 + grid[d][0]**2) - self.R0)
             
-            phiThetas[d] = np.array([phi, theta])
+    #         phiThetas[d] = np.array([phi, theta])
 
-        return phiThetas
+    #     return phiThetas
+    # assume pm_grid is a perfect non-twisted torus. works for MUSE
 
 def define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
     normal_inner, 
