@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from simsopt.field import BiotSavart, DipoleField, ExactField
-from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
+from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier, ExactMagnetGrid
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import in_github_actions
@@ -86,14 +86,20 @@ kwargs_geo = {"Nx": Nx}
 pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
+kwargs_geo = {"Nx": Nx}  # will get popped out, so I think kwargs needs to be reset like this
+pm_shadow = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
+    s, Bnormal, s_inner, s_outer, **kwargs_geo
+)
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
 nIter_max = 5000
-algorithm = 'baseline'
+# algorithm = 'baseline'
+algorithm = 'baseline_shadow'
 nHistory = 20
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
+kwargs['shadow_grid'] = pm_shadow
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
