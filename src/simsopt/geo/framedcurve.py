@@ -4,7 +4,6 @@ from jax import vjp, jvp
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
-from .curve import Curve
 from .jit import jit
 
 __all__ = ['FramedCurve', 'FramedCurveFrenet', 'FramedCurveCentroid',

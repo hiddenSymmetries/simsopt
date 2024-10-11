@@ -14,7 +14,7 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance, 
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import MeanSquaredForce, coil_force, LpCurveForce
+from simsopt.field.force import coil_force, LpCurveForce
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions
 
