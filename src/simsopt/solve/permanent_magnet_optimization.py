@@ -376,11 +376,12 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     mmax_vec = contig(np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3))
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if algorithm == 'baseline_shadow' and 'shadow_grid' not in kwargs:
-        raise KeyError('must provide shadow_grid to use baseline_shadow algorithm')
+    if algorithm == 'baseline_shadow' and 'A_shadow' not in kwargs:
+        raise KeyError('must provide a shadow grid to use baseline_shadow algorithm')
 
-    shadow_grid = kwargs.pop("shadow_grid", None) # how can I be sure locations are even the same and that they are indexed in the same way?
-    A_shad = shadow_grid.A_obj * mmax_vec
+    shadow_grid = kwargs.pop("A_shadow", None) # how can I be sure locations are even the same and that they are indexed in the same way?
+    A_shad = shadow_grid * mmax_vec
+    print('KWARGS = ',kwargs)
 
     if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec' and algorithm != 'baseline_shadow') and 'dipole_grid_xyz' not in kwargs:
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')

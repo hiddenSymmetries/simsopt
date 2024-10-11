@@ -99,7 +99,8 @@ algorithm = 'baseline_shadow'
 nHistory = 20
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
-kwargs['shadow_grid'] = pm_shadow
+kwargs['A_shadow'] = pm_shadow.A_obj
+print('kwargs = ',kwargs)
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 

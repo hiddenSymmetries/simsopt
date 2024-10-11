@@ -1332,7 +1332,7 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 
 // uses a "shadow" matrix that takes magnets in all the same locations as the active one used by GPMO. Allows for direct comparison
 // between dipole and exact optimizations
-std::tuple<Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& A_shadow, int K, bool verbose, int nhistory, int single_direction) 
+std::tuple<Array, Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& A_shadow, int K, bool verbose, int nhistory, int single_direction) 
 {
     if (A_obj.shape() != A_shadow.shape()) {
         std::invalid_argument("A dipole and A shadow are not the samae shape");
@@ -1369,6 +1369,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj,
     double* R2s_ptr = &(R2s[0]);
     double* Aij_ptr = &(A_obj(0, 0));
     double* Gamma_ptr = &(Gamma_complement(0, 0));
+    
     double* Aij_shad_ptr = &(A_shadow(0, 0));
     
     // initialize running matrix-vector product
@@ -1379,7 +1380,7 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj,
     double* mmax_ptr = &(mmax(0));
 
     Array Aij_shad_mj_sum = -b_obj;
-    double* Aij_shad_mj_ptr = &(Aij_shad_mj_sum);
+    double* Aij_shad_mj_ptr = &(Aij_shad_mj_sum(0));
 
     // if using a single direction, increase j by 3 each iteration
     int j_update = 1;
@@ -1438,5 +1439,6 @@ std::tuple<Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj,
             print_GPMO(k, ngrid, print_iter, x, Aij_shad_mj_ptr, objShad_hist, BnShad_hist, m_history, mmax_sum, normal_norms_ptr);
 	}
     }
-    return std::make_tuple(objective_history, Bn_history, m_history, onjShad_hist, BnShad_hist, x);
+    // std::make_tuple(objective_history, Bn_history, m_history, x);
+    return std::make_tuple(objective_history, Bn_history, m_history, objShad_hist, BnShad_hist, x);
 }
