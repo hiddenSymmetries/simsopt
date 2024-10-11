@@ -46,7 +46,6 @@ class SpecialFunctionsTests(unittest.TestCase):
 
     def test_symmetry(self):
         """k and delta should be unchanged if a and b are swapped."""
-        n_ratio = 10
         d = 0.01  # Geometric mean of a and b
         for ratio in [0.1, 3.7]:
             a = d * ratio
@@ -190,25 +189,25 @@ class CoilForcesTest(unittest.TestCase):
         base_currents = [Current(I) for j in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        objective = float(ForceOpt(coils[0], coils[1:]).J())
+        objective = float(MeanSquaredForce(coils[0], coils[1:]).J()) 
         export = np.max(np.linalg.norm(
-            force_on_coil(coils[0], coils[1:]), axis=1))
+            coil_force(coils[0], coils[1:]), axis=1)) 
 
         self.assertAlmostEqual(objective, export)
 
         # This test is not working yet - remove @unittest.skip eventually
 
-    def test_update_points(self):
-        """Check whether quadrature points are updated"""
-        nfp = 4
-        ncoils = 3
-        I = 1.3
+    # def test_update_points(self):
+    #     """Check whether quadrature points are updated"""
+    #     nfp = 4
+    #     ncoils = 3
+    #     I = 1.3
 
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+    #     base_curves = create_equally_spaced_curves(ncoils, nfp, True)
+    #     base_currents = [Current(I) for j in range(ncoils)]
+    #     coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        # This test is incomplete.
+    #     # This test is incomplete.
 
     def test_meansquaredforces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""
