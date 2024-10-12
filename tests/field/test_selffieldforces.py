@@ -178,24 +178,45 @@ class CoilForcesTest(unittest.TestCase):
         F_x_test = self_force_rect(coil, a, b)[:, 0]
         np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
 
-    @unittest.skip
-    def test_force_objective(self):
+    def test_force_objectives(self):
         """Check whether objective function matches function for export"""
         nfp = 3
         ncoils = 4
-        I = 1.7
+        I = 1.7e4
+        regularization = regularization_circ(0.05)
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        objective = float(MeanSquaredForce(coils[0], coils[1:]).J()) 
-        export = np.max(np.linalg.norm(
-            coil_force(coils[0], coils[1:]), axis=1)) 
+        # Test LpCurveForce
 
-        self.assertAlmostEqual(objective, export)
+        p = 2.5
+        threshold = 1.0e3
+        objective = float(LpCurveForce(coils[0], coils[1:], regularization, p=p, threshold=threshold).J())
 
-        # This test is not working yet - remove @unittest.skip eventually
+        # Now compute the objective a different way, using the independent
+        # coil_force function
+        gammadash_norm = np.linalg.norm(coils[0].curve.gammadash(), axis=1)
+        force_norm = np.linalg.norm(coil_force(coils[0], coils[1:], regularization), axis=1)
+        print("force_norm mean:", np.mean(force_norm), "max:", np.max(force_norm))
+        objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm)
+
+        print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
+        np.testing.assert_allclose(objective, objective_alt)
+
+        # Test MeanSquaredForce
+
+        objective = float(MeanSquaredForce(coils[0], coils[1:], regularization).J())
+
+        # Now compute the objective a different way, using the independent
+        # coil_force function
+        force_norm = np.linalg.norm(coil_force(coils[0], coils[1:], regularization), axis=1)
+        objective_alt = np.sum(force_norm**2 * gammadash_norm) / np.sum(gammadash_norm)
+
+        print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
+        np.testing.assert_allclose(objective, objective_alt)
+
 
     # def test_update_points(self):
     #     """Check whether quadrature points are updated"""
