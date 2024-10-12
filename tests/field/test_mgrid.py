@@ -92,6 +92,7 @@ class VmecTests(unittest.TestCase):
         bs = BiotSavart(coils)
         eq = Vmec(input_file)
         nphi = 24
+        original_directory = os.getcwd()
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)  # Use temporary directory for vmec files
             filename = Path(tmpdir) / "mgrid.bfield.nc"
@@ -126,3 +127,6 @@ class VmecTests(unittest.TestCase):
             assert eq.wout.fsqz < ftol
             assert eq.wout.ier_flag == 0
 
+        # If we do not change back to the original directory, so the current
+        # directory no longer exists, then later tests involving get_*_data will fail.
+        os.chdir(original_directory)

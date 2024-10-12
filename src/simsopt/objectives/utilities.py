@@ -194,12 +194,15 @@ class QuadraticPenalty(Optimizable):
 
 
 class Weight(object):
-
     def __init__(self, value):
         self.value = float(value)
 
     def __float__(self):
         return float(self.value)
+
+    def __iadd__(self, alpha):
+        self.value += alpha
+        return self
 
     def __imul__(self, alpha):
         self.value *= alpha
