@@ -1,6 +1,7 @@
 """
 This module contains functions for computing the self-field of a coil using the
-method from Hurwitz, Landreman, & Antonsen, arXiv (2023).
+methods from Hurwitz, Landreman, & Antonsen, arXiv:2310.09313 (2023) and
+Landreman, Hurwitz, & Antonsen, arXiv:2310.12087 (2023).
 """
 
 from scipy import constants
