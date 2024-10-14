@@ -1,4 +1,5 @@
 import numpy as np
+import time
 import jax.numpy as jnp
 
 import simsoptpp as sopp
@@ -116,9 +117,9 @@ class JaxCurvePlanarFourier(JaxCurve):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
         pure = lambda dofs, points: jaxplanarcurve_pure(dofs, points, order)
         self.order = order
-        self.coefficients = [np.zeros((2 * order + 1,)), np.zeros((4,)), np.zeros((3,))]
+        self.dof_list = np.zeros(2 * order + 1 + 4 + 3)
         if dofs is None:
-            super().__init__(quadpoints, pure, x0=np.concatenate(self.coefficients),
+            super().__init__(quadpoints, pure, x0=self.dof_list,
                              external_dof_setter=JaxCurvePlanarFourier.set_dofs_impl)
         else:
             super().__init__(quadpoints, pure, dofs=dofs,
@@ -134,17 +135,13 @@ class JaxCurvePlanarFourier(JaxCurve):
         """
         This function returns the dofs associated to this object.
         """
-        return np.concatenate(self.coefficients)
+        return self.dof_list
 
     def set_dofs_impl(self, dofs):
         """
         This function sets the dofs associated to this object.
         """
-        # self.coefficients = dofs
-        for j in range(2 * self.order + 1):
-            self.coefficients[0][j] = dofs[j]
-        self.coefficients[1][:] = dofs[2 * self.order + 1:2 * self.order + 5]
-        self.coefficients[2][:] = dofs[2 * self.order + 5:]
+        self.dof_list = dofs
 
 
 # class JaxCurvePlanarFourier(JaxCurve):

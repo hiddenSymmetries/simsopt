@@ -1,4 +1,5 @@
 from math import pi
+import time
 import numpy as np
 from jax import vjp, jacfwd, jvp
 import jax.numpy as jnp
@@ -32,6 +33,18 @@ class Coil(sopp.Coil, Optimizable):
         Optimizable.__init__(self, depends_on=[curve, current])
 
     def vjp(self, v_gamma, v_gammadash, v_current):
+        # t1 = time.time()
+        # self.curve.dgamma_by_dcoeff_vjp(v_gamma)
+        # t2 = time.time()
+        # print('here = ', t2 - t1)
+        # t1 = time.time()
+        # self.curve.dgammadash_by_dcoeff_vjp(v_gammadash)
+        # t2 = time.time()
+        # print(t2 - t1)
+        # t1 = time.time()
+        # self.current.vjp(v_current)
+        # t2 = time.time()
+        # print(t2 - t1)
         return self.curve.dgamma_by_dcoeff_vjp(v_gamma) \
             + self.curve.dgammadash_by_dcoeff_vjp(v_gammadash) \
             + self.current.vjp(v_current)

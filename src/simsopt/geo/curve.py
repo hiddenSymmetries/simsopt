@@ -995,7 +995,7 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # This is not a guarantee that coils will not touch but inductance
     # matrix blows up if they do so it is easy to tell when they do
     if coil_coil_flag:
-        R = Nmin / 3
+        R = Nmin / 3.1
     else:
         R = Nmin / 2
 
