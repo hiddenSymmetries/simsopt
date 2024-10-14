@@ -61,7 +61,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Weight on the mean squared force penalty in the objective function
-FORCE_WEIGHT = Weight(1e-12)
+FORCE_WEIGHT = Weight(1e-100)
 
 # Number of iterations to perform:
 MAXITER = 500
@@ -97,7 +97,8 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Create the initial coils:
-base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order)   # , jax_flag=True)
+base_curves = create_equally_spaced_curves(
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -130,8 +131,8 @@ def pointData_forces_torques(coils):
 curves = [c.curve for c in coils]
 curves_to_vtk(
     curves, OUT_DIR + "curves_init", close=True, extra_point_data=pointData_forces_torques(coils),
-    NetForces=coil_net_forces(coils, regularization_circ(a)),
-    NetTorques=coil_net_torques(coils, regularization_circ(a))
+    NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
+    NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
     )
 pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init", extra_data=pointData)
@@ -158,6 +159,7 @@ Jforce = [SquaredMeanTorque(c, coils, regularization_circ(a)) for c in base_coil
 # Jforce = [SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
 # Jforce = [SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
 # Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2) for c in base_coils]
+# Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=1e4) for c in base_coils]
 Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
 # Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2) for c in base_coils]
 # Jforce1 = [SquaredMeanForce(c, coils, regularization_circ(a)) for c in base_coils]
@@ -237,8 +239,8 @@ print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={L
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 curves_to_vtk(curves, OUT_DIR + "curves_opt"+str(ii), close=True, extra_point_data=pointData_forces_torques(coils),
-    NetForces=coil_net_forces(coils, regularization_circ(a)),
-    NetTorques=coil_net_torques(coils, regularization_circ(a))
+    NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
+    NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
     )
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
