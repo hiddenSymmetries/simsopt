@@ -46,7 +46,6 @@ class SpecialFunctionsTests(unittest.TestCase):
 
     def test_symmetry(self):
         """k and delta should be unchanged if a and b are swapped."""
-        n_ratio = 10
         d = 0.01  # Geometric mean of a and b
         for ratio in [0.1, 3.7]:
             a = d * ratio
@@ -179,36 +178,85 @@ class CoilForcesTest(unittest.TestCase):
         F_x_test = self_force_rect(coil, a, b)[:, 0]
         np.testing.assert_allclose(F_x_benchmark, F_x_test, rtol=1e-9, atol=0)
 
-    @unittest.skip
-    def test_force_objective(self):
+    def test_force_objectives(self):
         """Check whether objective function matches function for export"""
         nfp = 3
         ncoils = 4
-        I = 1.7
+        I = 1.7e4
+        regularization = regularization_circ(0.05)
 
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
 
-        objective = float(ForceOpt(coils[0], coils[1:]).J())
-        export = np.max(np.linalg.norm(
-            force_on_coil(coils[0], coils[1:]), axis=1))
+        # Test LpCurveForce
 
-        self.assertAlmostEqual(objective, export)
+        p = 2.5
+        threshold = 1.0e3
+        objective = float(LpCurveForce(coils[0], coils, regularization, p=p, threshold=threshold).J())
 
-        # This test is not working yet - remove @unittest.skip eventually
+        # Now compute the objective a different way, using the independent
+        # coil_force function
+        gammadash_norm = np.linalg.norm(coils[0].curve.gammadash(), axis=1)
+        force_norm = np.linalg.norm(coil_force(coils[0], coils, regularization), axis=1)
+        print("force_norm mean:", np.mean(force_norm), "max:", np.max(force_norm))
+        objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm)
+
+        print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
+        np.testing.assert_allclose(objective, objective_alt)
+
+        # Test MeanSquaredForce
+
+        objective = float(MeanSquaredForce(coils[0], coils, regularization).J())
+
+        # Now compute the objective a different way, using the independent
+        # coil_force function
+        force_norm = np.linalg.norm(coil_force(coils[0], coils, regularization), axis=1)
+        objective_alt = np.sum(force_norm**2 * gammadash_norm) / np.sum(gammadash_norm)
+
+        print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
+        np.testing.assert_allclose(objective, objective_alt)
+
 
     def test_update_points(self):
-        """Check whether quadrature points are updated"""
+        """Confirm that Biot-Savart evaluation points are updated when the
+        curve shapes change."""
         nfp = 4
         ncoils = 3
-        I = 1.3
+        I = 1.7e4
+        regularization = regularization_circ(0.05)
 
-        base_curves = create_equally_spaced_curves(ncoils, nfp, True)
-        base_currents = [Current(I) for j in range(ncoils)]
-        coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+        for objective_class in [MeanSquaredForce, LpCurveForce]:
 
-        # This test is incomplete.
+            base_curves = create_equally_spaced_curves(ncoils, nfp, True, order=2)
+            base_currents = [Current(I) for j in range(ncoils)]
+            coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+
+            objective = objective_class(coils[0], coils, regularization)
+            old_objective_value = objective.J()
+            old_biot_savart_points = objective.biotsavart.get_points_cart()
+
+            # A deterministic random shift to the coil dofs:
+            shift = np.array([-0.06797948, -0.0808704 , -0.02680599, -0.02775893, -0.0325402 ,
+                0.04382695,  0.06629717,  0.05050437, -0.09781039, -0.07473099,
+                0.03492035,  0.08474462,  0.06076695,  0.02420473,  0.00388997,
+                0.06992079,  0.01505771, -0.09350505, -0.04637735,  0.00321853,
+                -0.04975992,  0.01802391,  0.09454193,  0.01964133,  0.09205931,
+                -0.09633654, -0.01449546,  0.07617653,  0.03008342,  0.00636141,
+                0.09065833,  0.01628199,  0.02683667,  0.03453558,  0.03439423,
+                -0.07455501,  0.08084003, -0.02490166, -0.05911573, -0.0782221 ,
+                -0.03001621,  0.01356862,  0.00085723,  0.06887564,  0.02843625,
+                -0.04448741, -0.01301828,  0.01511824])
+
+            objective.x = objective.x + shift
+            assert abs(objective.J() - old_objective_value) > 1e-6
+            new_biot_savart_points = objective.biotsavart.get_points_cart()
+            assert not np.allclose(old_biot_savart_points, new_biot_savart_points)
+            # Objective2 is created directly at the new points after they are moved:
+            objective2 = objective_class(coils[0], coils, regularization)
+            print("objective 1:", objective.J(), "objective 2:", objective2.J())
+            np.testing.assert_allclose(objective.J(), objective2.J())
+
 
     def test_meansquaredforces_taylor_test(self):
         """Verify that dJ matches finite differences of J"""

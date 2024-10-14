@@ -11,7 +11,7 @@ __all__ = ['FramedCurve', 'FramedCurveFrenet', 'FramedCurveCentroid',
            'FrameRotation', 'ZeroRotation', 'FramedCurve']
 
 
-class FramedCurve(Optimizable):
+class FramedCurve(sopp.Curve, Curve):
 
     def __init__(self, curve, rotation=None):
         """
@@ -22,13 +22,14 @@ class FramedCurve(Optimizable):
         with respect to this reference frame. 
         """
         self.curve = curve 
+        sopp.Curve.__init__(self, curve.quadpoints)
         deps = [curve]
         if rotation is not None:
             deps.append(rotation)
         if rotation is None:
             rotation = ZeroRotation(curve.quadpoints)
         self.rotation = rotation
-        super().__init__(depends_on=deps, x0=[], names=[])
+        Curve.__init__(self, depends_on=deps)
 
 
 class FramedCurveFrenet(FramedCurve):
@@ -128,9 +129,8 @@ class FramedCurveFrenet(FramedCurve):
         grad5 = self.torsiongrad_vjp5(gamma, d1gamma, d2gamma,
                                       d3gamma, alpha, alphadash, v)
 
-       
         return self.curve.dgamma_by_dcoeff_vjp(grad0) \
-               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
             + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
@@ -157,17 +157,8 @@ class FramedCurveFrenet(FramedCurve):
         grad5 = self.binormgrad_vjp5(gamma, d1gamma, d2gamma,
                                      d3gamma, alpha, alphadash, v)
 
-        # return Derivative({
-        #     self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
-        #     + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
-        #     + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
-        #     + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3),
-        #     self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
-        #     + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-        # })
-    
         return self.curve.dgamma_by_dcoeff_vjp(grad0) \
-               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
             + self.curve.dgammadashdashdash_by_dcoeff_vjp(grad3) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
@@ -354,9 +345,8 @@ class FramedCurveCentroid(FramedCurve):
         grad5 = self.binormgrad_vjp5(gamma, d1gamma, d2gamma,
                                      alpha, alphadash, v)
 
-        
         return self.curve.dgamma_by_dcoeff_vjp(grad0) \
-               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
@@ -379,18 +369,12 @@ class FramedCurveCentroid(FramedCurve):
         grad5 = self.torsiongrad_vjp5(gamma, d1gamma, d2gamma,
                                       alpha, alphadash, v)
 
-        # return Derivative({
-        #     self.curve: self.curve.dgamma_by_dcoeff_vjp(grad0) \
-        #     + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
-        #     + self.curve.dgammadashdash_by_dcoeff_vjp(grad2),
-        #     self.rotation: self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
-        #     + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
-        # })
         return self.curve.dgamma_by_dcoeff_vjp(grad0) \
-               + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
+            + self.curve.dgammadash_by_dcoeff_vjp(grad1) \
             + self.curve.dgammadashdash_by_dcoeff_vjp(grad2) \
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
+
 
 class FrameRotation(Optimizable):
 

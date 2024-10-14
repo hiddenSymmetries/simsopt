@@ -1,22 +1,14 @@
 """
 This module contains functions for computing the self-field of a coil using the
-method from Hurwitz, Landreman, & Antonsen, arXiv (2023).
+methods from Hurwitz, Landreman, & Antonsen, arXiv:2310.09313 (2023) and
+Landreman, Hurwitz, & Antonsen, arXiv:2310.12087 (2023).
 """
 
-import math
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
-from jax import grad, vjp
-from simsopt.geo.jit import jit
 from .biotsavart import BiotSavart
-from .magneticfield import MagneticField
-from .._core.optimizable import Optimizable
 from .coil import Coil
-from ..geo.jit import jit
-from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec, Derivative
-import warnings
 
 Biot_savart_prefactor = constants.mu_0 / (4 * np.pi)
 
@@ -114,6 +106,7 @@ def K(u, v, kappa_1, kappa_2, p, q, a, b):
         4 * a * u**2 * kappa_2 * p / b * \
         jnp.arctan(b * v / a * u) - 4 * b * v**2 * \
         kappa_1 * q / a * jnp.arctan(a * u / b * v)
+    return K
 
 
 def local_field(coil, rho, theta, a=0.05):
@@ -152,7 +145,7 @@ def local_field_rect(coil, u, v, a, b):
 
     for i in range(N_phi):
         b_b.at[i].set(kappa[i] * b[i] / 2 *
-                      (4 + 2*jnp.log(2) + jnp.log(delta(a, b))))
+                      (4 + 2*jnp.log(2) + jnp.log(rectangular_xsection_delta(a, b))))
         b_kappa.at[i].set(1 / 16 * (K(u - 1, v - 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b) + K(u + 1, v + 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b)
                                     - K(u - 1, v + 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b) - K(u + 1, v - 1, kappa_1[i], kappa_2[i], p[i], q[i], a, b)))
         b_0.at[i].set(1 / (a * b) * ((G(b * (v - 1), a * (u - 1)) + G(b * (v + 1), a * (u + 1)) - G(b * (v + 1), a * (u - 1)) - G(b * (v - 1), a * (u + 1))) * q -
