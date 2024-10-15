@@ -85,9 +85,9 @@ def initialize_coils_QA(TEST_DIR, s):
     from simsopt.geo import curves_to_vtk
 
     # generate planar TF coils
-    ncoils = 2
+    ncoils = 3
     R0 = s.get_rc(0, 0) * 1
-    R1 = s.get_rc(1, 0) * 5
+    R1 = s.get_rc(1, 0) * 3
     order = 5
 
     from simsopt.mhd.vmec import Vmec
@@ -132,7 +132,7 @@ calculate_on_axis_B(bs_TF, s)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective! 
-a = 0.75
+a = 0.05
 # b = 0.5
 
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm

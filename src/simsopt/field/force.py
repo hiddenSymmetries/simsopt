@@ -107,9 +107,9 @@ def lp_force_pure(gamma, gammadash, gammadashdash, quadpoints, current, regulari
     B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
     gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
-    force = jnp.cross(current * tangent, B_self)  # + B_mutual
+    force = jnp.cross(current * tangent, B_self + B_mutual)
     force_norm = jnp.linalg.norm(force, axis=1)[:, None]
-    return (jnp.sum(jnp.maximum(force_norm - threshold, 0)**p * gammadash_norm))   #/ jnp.shape(gammadash_norm)[0]
+    return (jnp.sum(jnp.maximum(force_norm - threshold, 0)**p * gammadash_norm)) * (1. / p)
 
 
 class LpCurveForce(Optimizable):
@@ -220,8 +220,8 @@ def mean_squared_force_pure(gamma, gammadash, gammadashdash, quadpoints, current
     gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
     tangent = gammadash / gammadash_norm
     force = jnp.cross(current * tangent, B_self + B_mutual)
-    force_norm = jnp.linalg.norm(force, axis=1)  #[:, None]
-    return jnp.sum(gammadash_norm * force_norm**2)  # / jnp.sum(gammadash_norm)
+    force_norm = jnp.linalg.norm(force, axis=1)[:, None]
+    return jnp.sum(gammadash_norm * force_norm**2) / jnp.sum(gammadash_norm)
 
 
 class MeanSquaredForce(Optimizable):

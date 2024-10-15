@@ -85,9 +85,9 @@ def initialize_coils_QA(TEST_DIR, s):
     from simsopt.geo import curves_to_vtk
 
     # generate planar TF coils
-    ncoils = 1
-    R0 = s.get_rc(0, 0) * 2
-    R1 = s.get_rc(1, 0) * 10
+    ncoils = 3
+    R0 = s.get_rc(0, 0) * 1
+    R1 = s.get_rc(1, 0) * 3
     order = 4
 
     from simsopt.mhd.vmec import Vmec
