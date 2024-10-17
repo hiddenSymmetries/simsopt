@@ -186,7 +186,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     return coils
 
 
-def load_coils_from_makegrid_file(filename, order, ppp=20):
+def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     """
     This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
@@ -209,12 +209,19 @@ def load_coils_from_makegrid_file(filename, order, ppp=20):
     for j in range(len(all_coils_values)-1):
         vals = all_coils_values[j].split()
         if flag:
-            currents.append(float(vals[3]))
+            curr = float(vals[3])
             flag = False
         if len(vals) > 4:
             flag = True
-
-    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp)
+            if group_names is None:
+                currents.append(curr)
+            else:
+                this_group_name = vals[5]
+                if this_group_name in group_names:
+                    currents.append(curr)  
+            
+            
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp, group_names=group_names)    
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
     return coils
