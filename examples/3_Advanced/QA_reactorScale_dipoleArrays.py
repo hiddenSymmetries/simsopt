@@ -42,7 +42,7 @@ range_param = "half period"
 nphi = 32
 ntheta = 32
 poff = 1.5
-coff = 2.0
+coff = 3.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -141,7 +141,7 @@ nturns_TF = 200
 aa = 0.04
 bb = 0.04
 
-Nx = 5
+Nx = 6
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -149,29 +149,29 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=True,
     # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
-# import warnings
+import warnings
 
-# keep_inds = []
-# for ii in range(len(base_curves)):
-#     for i in range(base_curves[0].gamma().shape[0]):
-#         counter = 0
-#         eps = 0.05
-#         for j in range(len(base_curves_TF)):
-#             for k in range(base_curves_TF[j].gamma().shape[0]):
-#                 dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
-#                 conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
-#                 if conflict_bool:
-#                     print('bad indices = ', i, j, dij, base_curves[0].x[0])
-#                     warnings.warn(
-#                         'There is a PSC coil initialized such that it is within a radius'
-#                         'of a TF coil. Deleting these PSCs now.')
-#                     counter += 1
-#                     break
-#     if counter == 0:
-#         keep_inds.append(ii)
+keep_inds = []
+for ii in range(len(base_curves)):
+    counter = 0
+    for i in range(base_curves[0].gamma().shape[0]):
+        eps = 0.05
+        for j in range(len(base_curves_TF)):
+            for k in range(base_curves_TF[j].gamma().shape[0]):
+                dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
+                conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
+                if conflict_bool:
+                    print('bad indices = ', i, j, dij, base_curves[0].x[0])
+                    warnings.warn(
+                        'There is a PSC coil initialized such that it is within a radius'
+                        'of a TF coil. Deleting these PSCs now.')
+                    counter += 1
+                    break
+    if counter == 0:
+        keep_inds.append(ii)
 
-# print(keep_inds)
-# base_curves = np.array(base_curves)[keep_inds]
+print(keep_inds)
+base_curves = np.array(base_curves)[keep_inds]
 
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
