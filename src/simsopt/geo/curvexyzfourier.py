@@ -116,6 +116,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             filename: file to load.
             order: maximum mode number in the Fourier series. 
             ppp: points-per-period: number of quadrature points per period.
+            group_names: List of coil group names (str). If not 'None', only get coils in coil groups that are in the list.
 
         Returns:
             A list of ``CurveXYZFourier`` objects.

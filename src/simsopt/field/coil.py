@@ -197,6 +197,7 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
         filename: file to load.
         order: maximum mode number in the Fourier expansion.
         ppp: points-per-period: number of quadrature points per period.
+        group_names: List of coil group names (str). Only get coils in coil groups that are in the list.
 
     Returns:
         A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
