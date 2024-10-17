@@ -42,7 +42,7 @@ range_param = "half period"
 nphi = 32
 ntheta = 32
 poff = 1.5
-coff = 3.0
+coff = 2.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -85,10 +85,10 @@ def initialize_coils_QA(TEST_DIR, s):
     from simsopt.geo import curves_to_vtk
 
     # generate planar TF coils
-    ncoils = 3
-    R0 = s.get_rc(0, 0) * 1
-    R1 = s.get_rc(1, 0) * 3
-    order = 4
+    ncoils = 1
+    R0 = s.get_rc(0, 0) * 2
+    R1 = s.get_rc(1, 0) * 5
+    order = 5
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -149,30 +149,6 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=True,
     # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
-import warnings
-
-keep_inds = []
-for ii in range(len(base_curves)):
-    for i in range(base_curves[0].gamma().shape[0]):
-        counter = 0
-        eps = 0.05
-        for j in range(len(base_curves_TF)):
-            for k in range(base_curves_TF[j].gamma().shape[0]):
-                dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
-                conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
-                if conflict_bool:
-                    print('bad indices = ', i, j, dij, base_curves[0].x[0])
-                    warnings.warn(
-                        'There is a PSC coil initialized such that it is within a radius'
-                        'of a TF coil. Deleting these PSCs now.')
-                    counter += 1
-                    break
-    if counter == 0:
-        keep_inds.append(ii)
-
-print(keep_inds)
-base_curves = np.array(base_curves)[keep_inds]
-
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
 for i in range(len(base_curves)):
@@ -234,19 +210,19 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
-LENGTH_WEIGHT = Weight(0.001)
-LENGTH_TARGET = 120
+LENGTH_WEIGHT = Weight(0.01)
+LENGTH_TARGET = 70
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e3
+CC_WEIGHT = 1e4
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-20) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QA_singleTF_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}/").format(
         ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
@@ -322,8 +298,7 @@ regularization_list = np.zeros(len(coils)) * regularization_rect(aa, bb)
 regularization_list2 = np.zeros(len(coils_TF)) * regularization_rect(a, b)
 # Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 40) for i, c in enumerate(base_coils + base_coils_TF)])
-Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 40) for i, c in enumerate(base_coils + base_coils_TF)])
+Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i])) for i, c in enumerate(base_coils + base_coils_TF)])
 # Jtorque = SquaredMeanTorque2(coils, coils_TF) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jtorque = [SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)]
 
@@ -336,9 +311,7 @@ JF = Jf \
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  #\
     # + FORCE_WEIGHT2.value * Jforce2
-
-if TORQUE_WEIGHT.value > 0.0:
-    JF += TORQUE_WEIGHT * Jtorque
+    # + TORQUE_WEIGHT * Jtorque
     # + TVE_WEIGHT * Jtve
     # + SF_WEIGHT * Jsf
     # + CURRENTS_WEIGHT * DipoleCurrentsObj
@@ -377,7 +350,7 @@ def fun(dofs):
     link_val = LINK_WEIGHT * linkNum.J()
     forces_val = FORCE_WEIGHT.value * Jforce.J()
     # forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
-    torques_val = TORQUE_WEIGHT.value * Jtorque.J()
+    # torques_val = TORQUE_WEIGHT.value * Jtorque.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
         ) / np.mean(btot.AbsB())
@@ -391,10 +364,10 @@ def fun(dofs):
     valuestr += f", Lk1Obj={link_val:.2e}" 
     valuestr += f", forceObj={forces_val:.2e}" 
     # valuestr += f", forceObj2={forces_val2:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
+    # valuestr += f", torqueObj={torques_val:.2e}" 
     outstr += f", F={Jforce.J():.2e}"
     # outstr += f", Fpointwise={Jforce2.J():.2e}"
-    outstr += f", T={Jtorque.J():.2e}"
+    # outstr += f", T={Jtorque.J():.2e}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
@@ -473,14 +446,14 @@ print('dJforces time = ', t2 - t1, ' s')
 # Jforce2.dJ()
 # t2 = time.time()
 # print('dJforces2 time = ', t2 - t1, ' s')
-t1 = time.time()
-Jtorque.J()
-t2 = time.time()
-print('Jtorques time = ', t2 - t1, ' s')
-t1 = time.time()
-Jtorque.dJ()
-t2 = time.time()
-print('dJtorques time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jtorque.J()
+# t2 = time.time()
+# print('Jtorques time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jtorque.dJ()
+# t2 = time.time()
+# print('dJtorques time = ', t2 - t1, ' s')
 
 n_saves = 1
 MAXITER = 600

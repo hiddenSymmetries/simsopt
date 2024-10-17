@@ -4,6 +4,7 @@
 Example script for the force metric in a stage-two coil optimization
 """
 import os
+import shutil
 from pathlib import Path
 from scipy.optimize import minimize
 import numpy as np
@@ -70,6 +71,8 @@ filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 # Directory for output
 OUT_DIR = "./coil_forces/"
+if os.path.exists(OUT_DIR):
+    shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -100,22 +103,26 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 a = 0.05
 
 def pointData_forces_torques(coils):
-    forces = []
-    torques = []
-    for c in coils:
-        force = np.linalg.norm(coil_force(c, coils, regularization_circ(a)), axis=1)
-        torque = np.linalg.norm(coil_torque(c, coils, regularization_circ(a)), axis=1)
-        force = np.append(force, force[0])
-        torque = np.append(torque, torque[0])
-        torques = np.concatenate([torques, torque])
-        forces = np.concatenate([forces, force])
-    point_data = {"Pointwise_Forces": forces, "Pointwise_Torques": torques}
+    contig = np.ascontiguousarray
+    forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
+    torques = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
+    for i, c in enumerate(coils):
+        forces[i, :-1, :] = coil_force(c, coils, regularization_circ(a))
+        torques[i, :-1, :] = coil_torque(c, coils, regularization_circ(a))
+    
+    forces[:, -1, :] = forces[:, 0, :]
+    torques[:, -1, :] = torques[:, 0, :]
+    forces = forces.reshape(-1, 3)
+    torques = torques.reshape(-1, 3)
+    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])), 
+                  "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
 curves = [c.curve for c in coils]
 a_list = regularization_circ(a) * np.ones(len(coils))
 curves_to_vtk(
-    curves, OUT_DIR + "curves_init", close=True, extra_point_data=pointData_forces_torques(coils),
+    curves, OUT_DIR + "curves_init", close=True, 
+    extra_point_data=pointData_forces_torques(coils),
     NetForces=coil_net_forces(coils, coils, a_list),
     NetTorques=coil_net_torques(coils, coils, a_list)
     )

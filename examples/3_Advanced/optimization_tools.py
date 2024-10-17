@@ -20,7 +20,7 @@ from simsopt.geo import (
     SurfaceRZFourier, 
     LinkingNumber)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
-from simsopt.field.force import coil_force, LpCurveForce
+from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
 from simsopt.field.selffield import regularization_circ
 
 
@@ -99,16 +99,17 @@ def continuation(N=10000, dx=0.05,
             
 
 def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
-                         OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
-                         INPUT_FILE="./inputs/input.LandremanPaul2021_QA", 
-                         ncoils=5):
+                        FORCE_OBJ=LpCurveForce,
+                        OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
+                        INPUT_FILE="./inputs/input.LandremanPaul2021_QA", 
+                        ncoils=5):
     
     """Performs a set of initial optimizations by scanning over parameters."""
     for i in range(N):
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT        = 0.01
         UUID_init_from          = None  # not starting from prev. optimization
-        order                   = 16
+        order                   = 4  # 16 is very high!!!
 
         # RANDOM PARAMETERS
         R1                      = rand(0.35, 0.75)
@@ -131,7 +132,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
             FORCE_WEIGHT        = 0
 
         # RUNNING THE JOBS
-        res, results, coils = optimization(
+        res, coils = optimization(
             OUTPUT_DIR,
             INPUT_FILE,
             R1,
@@ -150,10 +151,11 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
             CS_WEIGHT,
             FORCE_THRESHOLD,
             FORCE_WEIGHT,
+            FORCE_OBJ,
             ARCLENGTH_WEIGHT,
             MAXITER=MAXITER)
         
-        print(f"Job {i+1} completed with UUID={results['UUID']}")
+        print(f"Job {i+1} completed")
 
 
 def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
@@ -233,6 +235,7 @@ def optimization(
         CS_WEIGHT=1e+03,
         FORCE_THRESHOLD=2e+04,
         FORCE_WEIGHT=1e-10,
+        FORCE_OBJ=LpCurveForce,
         ARCLENGTH_WEIGHT=1e-2,
         dx=None,
         MAXITER=14000):
@@ -312,7 +315,12 @@ def optimization(
     Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
     Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-    Jforce = [LpCurveForce(c, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD) for c in base_coils]
+
+    try:
+        Jforce = [FORCE_OBJ(c, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD) for c in base_coils]
+    except:
+        Jforce = [FORCE_OBJ(c, coils) for c in base_coils]
+
     Jals = [ArclengthVariation(c) for c in base_curves]
 
     # Form the total objective function.
@@ -375,7 +383,12 @@ def optimization(
     mean_AbsB  = np.mean(bs.AbsB())
     max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
+    net_forces = coil_net_forces(c, coils, regularization_circ(0.05))
+    max_torques = [np.max(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
+    min_torques = [np.min(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
+    net_torques = coil_net_torques(c, coils, regularization_circ(0.05))
     RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
+    RMS_torques = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
     results = {
         "nfp":                      nfp,
         "ncoils":                   int(ncoils),
@@ -409,11 +422,19 @@ def optimization(
         "MSCs":                     [float(J.J()) for J in Jmscs],
         "max_MSC":                  max(float(J.J()) for J in Jmscs),
         "max_forces":               [float(f) for f in max_forces],
+        "net_forces":               [float(f) for f in net_forces],
         "max_max_force":            max(float(f) for f in max_forces),
         "min_forces":               [float(f) for f in min_forces],
         "min_min_force":            min(float(f) for f in min_forces),
         "RMS_forces":               [float(f) for f in RMS_forces],
-        "mean_RMS_force":            float(np.mean([f for f in RMS_forces])),
+        "mean_RMS_force":           float(np.mean([f for f in RMS_forces])),
+        "max_torques":              [float(f) for f in max_torques],
+        "net_torques":              [float(f) for f in net_torques],
+        "max_max_torque":           max(float(f) for f in max_torques),
+        "min_torques":              [float(f) for f in min_torques],
+        "min_min_torque":           min(float(f) for f in min_torques),
+        "RMS_torques":              [float(f) for f in RMS_torques],
+        "mean_RMS_torque":          float(np.mean([f for f in RMS_torques])),
         "arclength_variances":      [float(J.J()) for J in Jals],
         "max_arclength_variance":   max(float(J.J()) for J in Jals),
         "BdotN":                    BdotN,
@@ -435,7 +456,7 @@ def optimization(
         json.dump(results , outfile, indent=2)
     bs.save(OUTPUT_DIR + f"biot_savart.json")  # save the optimized coil shapes and currents
 
-    return res, results, base_coils
+    return res, base_coils
     
 
 def rand(min, max):

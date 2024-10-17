@@ -5,16 +5,15 @@ Example script for the force metric in a stage-two coil optimization
 """
 from analysis_tools import *
 from optimization_tools import *
-import imageio
+# import imageio
 import matplotlib
 import matplotlib.pyplot as plt
 import os
 
-# plt.ioff()
-initial_optimizations(N=10, with_force=False, MAXITER=400)
+# initial_optimizations(N=200, with_force=True, MAXITER=2000)
+
 df, df_filtered, df_pareto = get_dfs()
 success_plt(df, df_filtered).show()
-
 df, df_filtered, df_pareto = get_dfs()
 
 y_axes = ["max_max_force", "mean_RMS_force"]
@@ -56,5 +55,5 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
     plt.clim(0.17, 0.31)
     plt.legend(loc='upper right', fontsize='11')
     # plt.title('Pareto Front')
-    plt.savefig(f"./output/QA/with-force-penalty/4/pareto_{y_axis}.pdf", bbox_inches='tight')
+    # plt.savefig(f"./output/QA/with-force-penalty/4/pareto_{y_axis}.pdf", bbox_inches='tight')
     plt.show()
