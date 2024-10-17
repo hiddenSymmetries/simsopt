@@ -4,6 +4,7 @@ import numpy as np
 from simsopt.field.coil import coils_via_symmetries
 from simsopt.geo.boozersurface import BoozerSurface
 from simsopt.field.biotsavart import BiotSavart
+from simsopt.geo import SurfaceXYZTensorFourier, SurfaceRZFourier
 from simsopt.geo.surfaceobjectives import ToroidalFlux, Area
 from simsopt.configs.zoo import get_ncsx_data, get_hsx_data, get_giuliani_data
 from .surface_test_helpers import get_surface, get_exact_surface, get_boozer_surface
@@ -281,21 +282,22 @@ class BoozerSurfaceTests(unittest.TestCase):
             G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         else:
             G = None
-
+        
+        cw = (s.quadpoints_phi.size * s.quadpoints_theta.size * 3)
         # compute surface first using LBFGS exact and an area constraint
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-11, maxiter=700, constraint_weight=100., iota=iota, G=G,
+            tol=1e-12, maxiter=700, constraint_weight=100/cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', res['iter'], np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         if second_stage == 'ls':
             res = boozer_surface.minimize_boozer_penalty_constraints_ls(
-                tol=1e-11, maxiter=100, constraint_weight=1000.,
+                tol=1e-11, maxiter=100, constraint_weight=1000./cw,
                 iota=res['iota'], G=res['G'])
         elif second_stage == 'newton':
             res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-                tol=1e-10, maxiter=20, constraint_weight=100.,
+                tol=1e-10, maxiter=20, constraint_weight=100./cw,
                 iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
         elif second_stage == 'newton_exact':
             res = boozer_surface.minimize_boozer_exact_constraints_newton(
@@ -353,6 +355,33 @@ class BoozerSurfaceTests(unittest.TestCase):
         # check that BoozerSurface.surface and label.surface are the same surfaces
         assert bs_regen.label.surface is bs_regen.surface
     
+    def test_run_code(self):
+        """
+        This unit test verifies that the run_code portion of the BoozerSurface class is working as expected
+        """
+        bs, boozer_surface = get_boozer_surface(boozer_type='ls')
+        boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
+        
+        # this second time should not actually run
+        boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
+        
+        for c in bs.coils:
+            c.current.fix_all()
+
+        boozer_surface.need_to_run_code=True
+        # run without providing value of G
+        boozer_surface.run_code(boozer_surface.res['iota'])
+
+        bs, boozer_surface = get_boozer_surface(boozer_type='exact')
+        boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
+        
+        # this second time should not actually run
+        boozer_surface.run_code(boozer_surface.res['iota'], G=boozer_surface.res['G'])
+        
+        # run the BoozerExact algorithm without a guess for G
+        boozer_surface.need_to_run_code = True
+        boozer_surface.solve_residual_equation_exactly_newton(iota=boozer_surface.res['iota'])
+        
     def test_convergence_cpp_and_notcpp_same(self):
         """
         This unit test verifies that that the cpp and not cpp implementations converge to 
@@ -381,16 +410,17 @@ class BoozerSurfaceTests(unittest.TestCase):
 
         G = 2.*np.pi*current_sum*(4*np.pi*10**(-7)/(2 * np.pi))
         
+        cw = 3*s.quadpoints_phi.size * s.quadpoints_theta.size
         # vectorized solution first
         res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(
-            tol=1e-10, maxiter=600, constraint_weight=100., iota=iota, G=G,
+            tol=1e-10, maxiter=600, constraint_weight=100./cw, iota=iota, G=G,
             vectorize=vectorize)
         print('Residual norm after LBFGS', np.sqrt(2*res['fun']))
 
         boozer_surface.recompute_bell()
         res = boozer_surface.minimize_boozer_penalty_constraints_newton(
-            tol=1e-10, maxiter=20, constraint_weight=100.,
-            iota=res['iota'], G=res['G'], stab=1e-4, vectorize=vectorize)
+            tol=1e-10, maxiter=20, constraint_weight=100./cw,
+            iota=res['iota'], G=res['G'], stab=0., vectorize=vectorize)
 
         assert res['success']
         x = boozer_surface.surface.x.copy()
@@ -499,6 +529,69 @@ class BoozerSurfaceTests(unittest.TestCase):
             j2 = ij2[1][0]
             print(f'max err     ({i1:03}, {j1:03}): {np.max(diff):.6e}, {Ha[i1, j1]:.6e}\nmax rel err ({i2:03}, {j2:03}): {np.max(rel_diff):.6e}, {Ha[i2,j2]:.6e}\n')
         compute_differences(H0, H1)
+
+    def test_boozer_surface_quadpoints(self):
+        """ 
+        this unit test checks that the quadpoints mask for stellarator symmetric Boozer Surfaces are correctly initialized
+        """
+        for idx in range(4):
+            with self.subTest(idx=idx):
+                self.subtest_boozer_surface_quadpoints(idx)
+    
+    def subtest_boozer_surface_quadpoints(self, idx):
+        mpol = 6
+        ntor = 6
+        nfp = 3
+        
+        if idx == 0:
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+            mask_true = np.ones((phis.size, thetas.size), dtype=bool)
+            mask_true[:, mpol+1:] = False
+            mask_true[ntor+1:, 0] = False
+        elif idx == 1:
+            phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 0.5, mpol+1, endpoint=False)
+            mask_true = np.ones((phis.size, thetas.size), dtype=bool)
+            mask_true[ntor+1:, 0] = False
+        elif idx == 2:
+            phis = np.linspace(0, 1/(2*nfp), ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+            mask_true = np.ones((phis.size, thetas.size), dtype=bool)
+            mask_true[0, mpol+1:] = False
+        elif idx == 3:
+            phis = np.linspace(0, 1., 2*ntor+1, endpoint=False)
+            thetas = np.linspace(0, 1., 2*mpol+1, endpoint=False)
+
+        s = SurfaceXYZTensorFourier(mpol=mpol, ntor=ntor, stellsym=True, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+
+        if idx < 3: # the first three quadrature point sets should pass without issue.
+            mask = s.get_stellsym_mask()
+            assert np.all(mask == mask_true)
+        else:
+            with self.assertRaises(Exception):
+                mask = s.get_stellsym_mask()
+
+    def test_boozer_surface_type_assert(self):
+        """
+        this unit test checks that an exception is raised if a SurfaceRZFourier is passed to a BoozerSurface
+        """
+        mpol = 6
+        ntor = 6
+        nfp = 3
+        phis = np.linspace(0, 1/nfp, 2*ntor+1, endpoint=False)
+        thetas = np.linspace(0, 1, 2*mpol+1, endpoint=False)
+        s = SurfaceRZFourier(mpol=mpol, ntor=ntor, stellsym=True, nfp=nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
+        
+        base_curves, base_currents, ma = get_ncsx_data()
+        coils = coils_via_symmetries(base_curves, base_currents, 3, True)
+        bs = BiotSavart(coils)
+        
+        lab = Area(s)
+        lab_target = 0.1
+        
+        with self.assertRaises(Exception):
+            _ = BoozerSurface(bs, s, lab, lab_target)
 
 
 if __name__ == "__main__":

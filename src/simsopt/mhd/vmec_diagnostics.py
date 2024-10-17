@@ -720,6 +720,7 @@ def vmec_splines(vmec):
     """
     vmec.run()
     results = Struct()
+    stellsym = not vmec.wout.lasym
     rmnc = []
     zmns = []
     lmns = []
@@ -748,17 +749,15 @@ def vmec_splines(vmec):
             rmns.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.rmns[jmn, :]))
             zmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.zmnc[jmn, :]))
             lmnc.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.lmnc[jmn, 1:]))
-            d_rmns_d_s.append(rmns[-1].derivative())
-            d_zmnc_d_s.append(zmnc[-1].derivative())
-            d_lmnc_d_s.append(lmnc[-1].derivative())
         else:
             # if stellarator symmetric, set modes to zero
-            rmns.append(InterpolatedUnivariateSpline([0,1], [0, 0], k=1))
-            zmnc.append(InterpolatedUnivariateSpline([0,1], [0, 0], k=1))
-            lmnc.append(InterpolatedUnivariateSpline([0,1], [0, 0], k=1))
-            d_rmns_d_s.append(rmns[-1].derivative())
-            d_zmnc_d_s.append(zmnc[-1].derivative())
-            d_lmnc_d_s.append(lmnc[-1].derivative())
+            rmns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            zmnc.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            lmnc.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+
+        d_rmns_d_s.append(rmns[-1].derivative())
+        d_zmnc_d_s.append(zmnc[-1].derivative())
+        d_lmnc_d_s.append(lmnc[-1].derivative())
 
     # nyquist quantities
     gmnc = []
@@ -807,22 +806,19 @@ def vmec_splines(vmec):
             bsubsmnc.append(InterpolatedUnivariateSpline(vmec.s_full_grid, vmec.wout.bsubsmnc[jmn, :]))
             bsubumns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubumns[jmn, 1:]))
             bsubvmns.append(InterpolatedUnivariateSpline(vmec.s_half_grid, vmec.wout.bsubvmns[jmn, 1:]))
-            d_bmns_d_s.append(bmns[-1].derivative())
-            d_bsupumns_d_s.append(bsupumns[-1].derivative())
-            d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
         else:
             # if stellarator symmetric, set modes to zero
-            gmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            bmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            bsupumns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            bsupvmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            # Note that bsubsmns is on the full mesh, unlike the other components:
-            bsubsmnc.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            bsubumns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            bsubvmns.append(InterpolatedUnivariateSpline([0,1],[0, 0], k=1))
-            d_bmns_d_s.append(bmns[-1].derivative())
-            d_bsupumns_d_s.append(bsupumns[-1].derivative())
-            d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
+            gmns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            bmns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            bsupumns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            bsupvmns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            bsubsmnc.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            bsubumns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+            bsubvmns.append(InterpolatedUnivariateSpline([0, 1], [0, 0], k=1))
+
+        d_bmns_d_s.append(bmns[-1].derivative())
+        d_bsupumns_d_s.append(bsupumns[-1].derivative())
+        d_bsupvmns_d_s.append(bsupvmns[-1].derivative())
 
         
     # Handle 1d profiles:
@@ -839,7 +835,7 @@ def vmec_splines(vmec):
 
     variables = ['rmnc', 'zmns', 'lmns', 'd_rmnc_d_s', 'd_zmns_d_s', 'd_lmns_d_s',
                  'gmnc', 'bmnc', 'd_bmnc_d_s', 'bsupumnc', 'bsupvmnc', 'd_bsupumnc_d_s', 'd_bsupvmnc_d_s',
-                 'bsubsmns', 'bsubumnc', 'bsubvmnc']
+                 'bsubsmns', 'bsubumnc', 'bsubvmnc', 'stellsym']
     # stellarator non-symmetric
     variables = variables + \
         ['rmns', 'zmnc', 'lmnc', 'd_rmns_d_s', 'd_zmnc_d_s', 'd_lmnc_d_s',
@@ -903,6 +899,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     - ``grad_alpha_dot_grad_alpha``: :math:`|\nabla\alpha|^2 = \nabla\alpha\cdot\nabla\alpha`.
     - ``grad_alpha_dot_grad_psi``: :math:`\nabla\alpha\cdot\nabla\psi`.
     - ``grad_psi_dot_grad_psi``: :math:`|\nabla\psi|^2 = \nabla\psi\cdot\nabla\psi`.
+    - ``L_grad_B``: The scale length of the magnetic field, from Kappel et al, PPCF 66 025018 (2024).
     - ``iota``: The rotational transform :math:`\iota`. This array has shape ``(ns,)``.
     - ``shat``: The magnetic shear :math:`\hat s= (x/q) (d q / d x)` where 
       :math:`x = \mathrm{Aminor_p} \, \sqrt{s}` and :math:`q=1/\iota`. This array has shape ``(ns,)``.
@@ -950,6 +947,8 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     # If given a Vmec object, convert it to vmec_splines:
     if isinstance(vs, Vmec):
         vs = vmec_splines(vs)
+    if not vs.stellsym:
+        raise NotImplementedError("vmec_compute_geometry() does not yet support non-stellarator-symmetric configurations.")
 
     # Make sure s is an array:
     try:
@@ -1029,6 +1028,8 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     bsubsmns = np.zeros((ns, mnmax_nyq))
     bsubumnc = np.zeros((ns, mnmax_nyq))
     bsubvmnc = np.zeros((ns, mnmax_nyq))
+    d_bsupumnc_d_s = np.zeros((ns, mnmax_nyq))
+    d_bsupvmnc_d_s = np.zeros((ns, mnmax_nyq))
     for jmn in range(mnmax_nyq):
         gmnc[:, jmn] = vs.gmnc[jmn](s)
         bmnc[:, jmn] = vs.bmnc[jmn](s)
@@ -1038,6 +1039,8 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
         bsubsmns[:, jmn] = vs.bsubsmns[jmn](s)
         bsubumnc[:, jmn] = vs.bsubumnc[jmn](s)
         bsubvmnc[:, jmn] = vs.bsubvmnc[jmn](s)
+        d_bsupumnc_d_s[:, jmn] = vs.d_bsupumnc_d_s[jmn](s)
+        d_bsupvmnc_d_s[:, jmn] = vs.d_bsupvmnc_d_s[jmn](s)
 
     # Now that we know theta_vmec, compute all the geometric quantities
     angle = xm[:, None, None, None] * theta_vmec[None, :, :, :] - xn[:, None, None, None] * phi[None, :, :, :]
@@ -1045,25 +1048,40 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     sinangle = np.sin(angle)
     mcosangle = xm[:, None, None, None] * cosangle
     ncosangle = xn[:, None, None, None] * cosangle
+    mncosangle = xm[:, None, None, None] * xn[:, None, None, None] * cosangle
+    m2cosangle = xm[:, None, None, None]**2 * cosangle
+    n2cosangle = xn[:, None, None, None]**2 * cosangle
     msinangle = xm[:, None, None, None] * sinangle
     nsinangle = xn[:, None, None, None] * sinangle
+    mnsinangle = xm[:, None, None, None] * xn[:, None, None, None] * sinangle
+    m2sinangle = xm[:, None, None, None]**2 * sinangle
+    n2sinangle = xn[:, None, None, None]**2 * sinangle
     # Order of indices in cosangle and sinangle: mn, s, theta, phi
     # Order of indices in rmnc, bmnc, etc: s, mn
     R = np.einsum('ij,jikl->ikl', rmnc, cosangle)
     d_R_d_s = np.einsum('ij,jikl->ikl', d_rmnc_d_s, cosangle)
-    d_R_d_theta_vmec = -np.einsum('ij,jikl->ikl', rmnc, msinangle)
+    d_R_d_theta_vmec = np.einsum('ij,jikl->ikl', -rmnc, msinangle)
     d_R_d_phi = np.einsum('ij,jikl->ikl', rmnc, nsinangle)
-    
+    d2_R_d_phi2 = np.einsum('ij,jikl->ikl', -rmnc, n2cosangle)
+    d2_R_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -rmnc, m2cosangle)
+    d2_R_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', rmnc, mncosangle)
+    d2_R_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', -d_rmnc_d_s, msinangle)
+    d2_R_d_s_d_phi = np.einsum('ij,jikl->ikl', d_rmnc_d_s, nsinangle)
     
     Z = np.einsum('ij,jikl->ikl', zmns, sinangle)
     d_Z_d_s = np.einsum('ij,jikl->ikl', d_zmns_d_s, sinangle)
     d_Z_d_theta_vmec = np.einsum('ij,jikl->ikl', zmns, mcosangle)
-    d_Z_d_phi = -np.einsum('ij,jikl->ikl', zmns, ncosangle)
+    d_Z_d_phi = np.einsum('ij,jikl->ikl', -zmns, ncosangle)
+    d2_Z_d_theta_vmec2 = np.einsum('ij,jikl->ikl', -zmns, m2sinangle)
+    d2_Z_d_phi2 = np.einsum('ij,jikl->ikl', -zmns, n2sinangle)
+    d2_Z_d_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', zmns, mnsinangle)
+    d2_Z_d_s_d_theta_vmec = np.einsum('ij,jikl->ikl', d_zmns_d_s, mcosangle)
+    d2_Z_d_s_d_phi = np.einsum('ij,jikl->ikl', -d_zmns_d_s, ncosangle)
 
     lambd = np.einsum('ij,jikl->ikl', lmns, sinangle)
     d_lambda_d_s = np.einsum('ij,jikl->ikl', d_lmns_d_s, sinangle)
     d_lambda_d_theta_vmec = np.einsum('ij,jikl->ikl', lmns, mcosangle)
-    d_lambda_d_phi = -np.einsum('ij,jikl->ikl', lmns, ncosangle)
+    d_lambda_d_phi = np.einsum('ij,jikl->ikl', -lmns, ncosangle)
     theta_pest = theta_vmec + lambd
 
     # Now handle the Nyquist quantities:
@@ -1078,7 +1096,7 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     sqrt_g_vmec = np.einsum('ij,jikl->ikl', gmnc, cosangle)
     modB = np.einsum('ij,jikl->ikl', bmnc, cosangle)
     d_B_d_s = np.einsum('ij,jikl->ikl', d_bmnc_d_s, cosangle)
-    d_B_d_theta_vmec = -np.einsum('ij,jikl->ikl', bmnc, msinangle)
+    d_B_d_theta_vmec = np.einsum('ij,jikl->ikl', -bmnc, msinangle)
     d_B_d_phi = np.einsum('ij,jikl->ikl', bmnc, nsinangle)
 
     B_sup_theta_vmec = np.einsum('ij,jikl->ikl', bsupumnc, cosangle)
@@ -1087,6 +1105,12 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
     B_sub_theta_vmec = np.einsum('ij,jikl->ikl', bsubumnc, cosangle)
     B_sub_phi = np.einsum('ij,jikl->ikl', bsubvmnc, cosangle)
     B_sup_theta_pest = iota[:, None, None] * B_sup_phi
+    d_B_sup_phi_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupvmnc, msinangle)
+    d_B_sup_phi_d_phi = np.einsum('ij,jikl->ikl', bsupvmnc, nsinangle)
+    d_B_sup_theta_vmec_d_theta_vmec = np.einsum('ij,jikl->ikl', -bsupumnc, msinangle)
+    d_B_sup_theta_vmec_d_phi = np.einsum('ij,jikl->ikl', bsupumnc, nsinangle)
+    d_B_sup_theta_vmec_d_s = np.einsum('ij,jikl->ikl', d_bsupumnc_d_s, cosangle)
+    d_B_sup_phi_d_s = np.einsum('ij,jikl->ikl', d_bsupvmnc_d_s, cosangle)
 
     sqrt_g_vmec_alt = R * (d_Z_d_s * d_R_d_theta_vmec - d_R_d_s * d_Z_d_theta_vmec)
 
@@ -1225,6 +1249,119 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
 
     cvdrift0 = gbdrift0
 
+    # Quantities related to the grad \vec{B} tensor.
+    # See Appendix C of Kappel et al, "The Magnetic Gradient Scale Length
+    # Explains Why Certain Plasmas Require Close External Magnetic Coils"
+    # Plasma Phys. Control. Fusion 66 (2024) 025018
+    # https://doi.org/10.1088/1361-6587/ad1a3e
+
+    d_B_X_d_s = (
+        d_B_sup_theta_vmec_d_s * d_R_d_theta_vmec * cosphi
+        + B_sup_theta_vmec * d2_R_d_s_d_theta_vmec * cosphi
+        + d_B_sup_phi_d_s * d_R_d_phi * cosphi
+        + B_sup_phi * d2_R_d_s_d_phi * cosphi
+        - d_B_sup_phi_d_s * R * sinphi
+        - B_sup_phi * d_R_d_s * sinphi
+    )
+
+    d_B_X_d_theta = (
+        d_B_sup_theta_vmec_d_theta_vmec * d_R_d_theta_vmec * cosphi
+        + B_sup_theta_vmec * d2_R_d_theta_vmec2 * cosphi
+        + d_B_sup_phi_d_theta_vmec * d_R_d_phi * cosphi
+        + B_sup_phi * d2_R_d_theta_vmec_d_phi * cosphi
+        - d_B_sup_phi_d_theta_vmec * R * sinphi
+        - B_sup_phi * d_R_d_theta_vmec * sinphi
+    )
+
+    d_B_X_d_phi = (
+        d_B_sup_theta_vmec_d_phi * d_R_d_theta_vmec * cosphi
+        + B_sup_theta_vmec * d2_R_d_theta_vmec_d_phi * cosphi
+        - B_sup_theta_vmec * d_R_d_theta_vmec * sinphi
+        + d_B_sup_phi_d_phi * d_R_d_phi * cosphi
+        + B_sup_phi * d2_R_d_phi2 * cosphi
+        - B_sup_phi * d_R_d_phi * sinphi
+        - d_B_sup_phi_d_phi * R * sinphi
+        - B_sup_phi * d_R_d_phi * sinphi
+        - B_sup_phi * R * cosphi
+    )
+
+    d_B_Y_d_s = (
+        d_B_sup_theta_vmec_d_s * d_R_d_theta_vmec * sinphi
+        + B_sup_theta_vmec * d2_R_d_s_d_theta_vmec * sinphi
+        + d_B_sup_phi_d_s * d_R_d_phi * sinphi
+        + B_sup_phi * d2_R_d_s_d_phi * sinphi
+        + d_B_sup_phi_d_s * R * cosphi
+        + B_sup_phi * d_R_d_s * cosphi
+    )
+
+    d_B_Y_d_theta = (
+        d_B_sup_theta_vmec_d_theta_vmec * d_R_d_theta_vmec * sinphi
+        + B_sup_theta_vmec * d2_R_d_theta_vmec2 * sinphi
+        + d_B_sup_phi_d_theta_vmec * d_R_d_phi * sinphi
+        + B_sup_phi * d2_R_d_theta_vmec_d_phi * sinphi
+        + d_B_sup_phi_d_theta_vmec * R * cosphi
+        + B_sup_phi * d_R_d_theta_vmec * cosphi
+    )
+
+    d_B_Y_d_phi = (
+        d_B_sup_theta_vmec_d_phi * d_R_d_theta_vmec * sinphi
+        + B_sup_theta_vmec * d2_R_d_theta_vmec_d_phi * sinphi
+        + B_sup_theta_vmec * d_R_d_theta_vmec * cosphi
+        + d_B_sup_phi_d_phi * d_R_d_phi * sinphi
+        + B_sup_phi * d2_R_d_phi2 * sinphi
+        + B_sup_phi * d_R_d_phi * cosphi
+        + d_B_sup_phi_d_phi * R * cosphi
+        + B_sup_phi * d_R_d_phi * cosphi
+        - B_sup_phi * R * sinphi
+    )
+
+    d_B_Z_d_s = (
+        d_B_sup_theta_vmec_d_s * d_Z_d_theta_vmec
+        + B_sup_theta_vmec * d2_Z_d_s_d_theta_vmec
+        + d_B_sup_phi_d_s * d_Z_d_phi
+        + B_sup_phi * d2_Z_d_s_d_phi
+    )
+
+    d_B_Z_d_theta = (
+        d_B_sup_theta_vmec_d_theta_vmec * d_Z_d_theta_vmec
+        + B_sup_theta_vmec * d2_Z_d_theta_vmec2
+        + d_B_sup_phi_d_theta_vmec * d_Z_d_phi
+        + B_sup_phi * d2_Z_d_theta_vmec_d_phi
+    )
+
+    d_B_Z_d_phi = (
+        d_B_sup_theta_vmec_d_phi * d_Z_d_theta_vmec
+        + B_sup_theta_vmec * d2_Z_d_theta_vmec_d_phi
+        + d_B_sup_phi_d_phi * d_Z_d_phi
+        + B_sup_phi * d2_Z_d_phi2
+    )
+
+    grad_B__XX = d_B_X_d_s * grad_s_X + d_B_X_d_theta * grad_theta_vmec_X + d_B_X_d_phi * grad_phi_X
+    grad_B__XY = d_B_X_d_s * grad_s_Y + d_B_X_d_theta * grad_theta_vmec_Y + d_B_X_d_phi * grad_phi_Y
+    grad_B__XZ = d_B_X_d_s * grad_s_Z + d_B_X_d_theta * grad_theta_vmec_Z + d_B_X_d_phi * grad_phi_Z
+
+    grad_B__YX = d_B_Y_d_s * grad_s_X + d_B_Y_d_theta * grad_theta_vmec_X + d_B_Y_d_phi * grad_phi_X
+    grad_B__YY = d_B_Y_d_s * grad_s_Y + d_B_Y_d_theta * grad_theta_vmec_Y + d_B_Y_d_phi * grad_phi_Y
+    grad_B__YZ = d_B_Y_d_s * grad_s_Z + d_B_Y_d_theta * grad_theta_vmec_Z + d_B_Y_d_phi * grad_phi_Z
+
+    grad_B__ZX = d_B_Z_d_s * grad_s_X + d_B_Z_d_theta * grad_theta_vmec_X + d_B_Z_d_phi * grad_phi_X
+    grad_B__ZY = d_B_Z_d_s * grad_s_Y + d_B_Z_d_theta * grad_theta_vmec_Y + d_B_Z_d_phi * grad_phi_Y
+    grad_B__ZZ = d_B_Z_d_s * grad_s_Z + d_B_Z_d_theta * grad_theta_vmec_Z + d_B_Z_d_phi * grad_phi_Z
+
+    grad_B_double_dot_grad_B = (
+        grad_B__XX * grad_B__XX
+        + grad_B__XY * grad_B__XY
+        + grad_B__XZ * grad_B__XZ
+        + grad_B__YX * grad_B__YX
+        + grad_B__YY * grad_B__YY
+        + grad_B__YZ * grad_B__YZ
+        + grad_B__ZX * grad_B__ZX
+        + grad_B__ZY * grad_B__ZY
+        + grad_B__ZZ * grad_B__ZZ
+    )
+    norm_grad_B = np.sqrt(grad_B_double_dot_grad_B)
+    L_grad_B = modB * np.sqrt(2 / grad_B_double_dot_grad_B)
+
     # Package results into a structure to return:
     results = Struct()
     variables = ['ns', 'ntheta', 'nphi', 's', 'iota', 'd_iota_d_s', 'd_pressure_d_s', 'shat',
@@ -1232,6 +1369,10 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
                  'd_lambda_d_s', 'd_lambda_d_theta_vmec', 'd_lambda_d_phi', 'sqrt_g_vmec', 'sqrt_g_vmec_alt',
                  'modB', 'd_B_d_s', 'd_B_d_theta_vmec', 'd_B_d_phi', 'B_sup_theta_vmec', 'B_sup_theta_pest', 'B_sup_phi',
                  'B_sub_s', 'B_sub_theta_vmec', 'B_sub_phi', 'edge_toroidal_flux_over_2pi', 'sinphi', 'cosphi',
+                 'd2_R_d_phi2', 'd2_R_d_theta_vmec2', 'd2_R_d_theta_vmec_d_phi', 'd2_R_d_s_d_theta_vmec', 'd2_R_d_s_d_phi',
+                 'd2_Z_d_theta_vmec2', 'd2_Z_d_phi2', 'd2_Z_d_theta_vmec_d_phi', 'd2_Z_d_s_d_theta_vmec', 'd2_Z_d_s_d_phi',
+                 'd_B_sup_phi_d_theta_vmec', 'd_B_sup_phi_d_phi', 'd_B_sup_theta_vmec_d_theta_vmec',
+                 'd_B_sup_theta_vmec_d_phi', 'd_B_sup_theta_vmec_d_s', 'd_B_sup_phi_d_s',
                  'R', 'd_R_d_s', 'd_R_d_theta_vmec', 'd_R_d_phi', 'X', 'Y', 'Z', 'd_Z_d_s', 'd_Z_d_theta_vmec', 'd_Z_d_phi',
                  'd_X_d_theta_vmec', 'd_X_d_phi', 'd_X_d_s', 'd_Y_d_theta_vmec', 'd_Y_d_phi', 'd_Y_d_s',
                  'grad_s_X', 'grad_s_Y', 'grad_s_Z', 'grad_theta_vmec_X', 'grad_theta_vmec_Y', 'grad_theta_vmec_Z',
@@ -1243,7 +1384,10 @@ def vmec_compute_geometry(vs, s, theta, phi, phi_center=0):
                  'B_cross_grad_B_dot_grad_psi', 'B_cross_kappa_dot_grad_psi', 'B_cross_kappa_dot_grad_alpha',
                  'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
                  'L_reference', 'B_reference', 'toroidal_flux_sign',
-                 'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0']
+                 'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gds2', 'gds21', 'gds22', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0',
+                 'grad_B__XX', 'grad_B__XY', 'grad_B__XZ', 'grad_B__YX', 'grad_B__YY', 'grad_B__YZ', 'grad_B__ZX', 'grad_B__ZY', 'grad_B__ZZ',
+                 'grad_B_double_dot_grad_B', 'norm_grad_B', 'L_grad_B',
+                 ]
     for v in variables:
         results.__setattr__(v, eval(v))
 
@@ -1403,7 +1547,7 @@ def vmec_fieldlines(vs, s, alpha, theta1d=None, phi1d=None, phi_center=0, plot=F
         variables = ['modB', 'B_sup_theta_pest', 'B_sup_phi', 'B_cross_grad_B_dot_grad_alpha', 'B_cross_grad_B_dot_grad_psi',
                      'B_cross_kappa_dot_grad_alpha', 'B_cross_kappa_dot_grad_psi',
                      'grad_alpha_dot_grad_alpha', 'grad_alpha_dot_grad_psi', 'grad_psi_dot_grad_psi',
-                     'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22', 'X', 'Y', 'Z', 'grad_s_X', 'grad_s_Y', 'grad_s_Z']
+                     'bmag', 'gradpar_theta_pest', 'gradpar_phi', 'gbdrift', 'gbdrift0', 'cvdrift', 'cvdrift0', 'gds2', 'gds21', 'gds22']
         for j, variable in enumerate(variables):
             plt.subplot(nrows, ncols, j + 1)
             plt.plot(phi[0, 0, :], eval("results." + variable + '[0, 0, :]'))

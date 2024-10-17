@@ -732,6 +732,44 @@ class SurfaceRZFourierTests(unittest.TestCase):
             np.testing.assert_array_less(0, eq.wout.iotaf)
             np.testing.assert_allclose(eq.mean_iota(), 0.4291137962772453, rtol=1e-6)
 
+    def test_fourier_transform_scalar(self):
+        """
+        Test the Fourier transform of a field on a surface.
+        """
+        s = SurfaceRZFourier(mpol=4, ntor=5)
+        s.rc[0, 0] = 1.3
+        s.rc[1, 0] = 0.4
+        s.zs[1, 0] = 0.2
+
+        # Create the grid of quadpoints:
+        phi2d, theta2d = np.meshgrid(2 * np.pi * s.quadpoints_phi,
+                                     2 * np.pi * s.quadpoints_theta, 
+                                     indexing='ij')
+
+        # create a test field where only Fourier elements [m=2, n=3] 
+        # and [m=4,n=5] are nonzero:
+        field = 0.8 * np.sin(2*theta2d - 3*s.nfp*phi2d) + 0.2*np.sin(4*theta2d - 5*s.nfp*phi2d)+ 0.7*np.cos(3*theta2d - 3*s.nfp*phi2d)
+
+        # Transform the field to Fourier space:
+        ft_sines, ft_cosines = s.fourier_transform_scalar(field, stellsym=False)
+        self.assertAlmostEqual(ft_sines[2, 3+s.ntor], 0.8)
+        self.assertAlmostEqual(ft_sines[4, 5+s.ntor], 0.2)
+        self.assertAlmostEqual(ft_cosines[3, 3+s.ntor], 0.7)
+
+        # Test that all other elements are close to zero
+        sines_mask = np.ones_like(ft_sines, dtype=bool)
+        cosines_mask = np.copy(sines_mask)
+        sines_mask[2, 3 + s.ntor] = False
+        sines_mask[4, 5 + s.ntor] = False
+        cosines_mask[3, 3 + s.ntor] = False
+        self.assertEqual(np.all(np.abs(ft_sines[sines_mask]) < 1e-10), True)
+        self.assertEqual(np.all(np.abs(ft_cosines[cosines_mask]) < 1e-10), True)
+
+        # Transform back to real space:
+        field2 = s.inverse_fourier_transform_scalar(ft_sines, ft_cosines, stellsym=False, normalization=1/2*np.pi**2)
+
+        # Check that the result is the same as the original field:
+        np.testing.assert_allclose(field/2*np.pi**2, field2)
 
 class SurfaceRZPseudospectralTests(unittest.TestCase):
     def test_names(self):

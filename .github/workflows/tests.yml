@@ -93,7 +93,10 @@ jobs:
     - name: Install python dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install numpy cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py py_spec pyoculus h5py ground bentley_ottmann
+        pip install "numpy<2.0.0" cmake scikit-build f90nml ninja wheel setuptools sympy qsc pyevtk matplotlib plotly networkx pygraphviz mpi4py py_spec h5py ground bentley_ottmann f90wrap
+
+    - name: Install pyoculus
+      run: pip install -v git+https://github.com/zhisong/pyoculus
 
     - name: Install booz_xform
       run: pip install -v git+https://github.com/hiddenSymmetries/booz_xform
@@ -127,9 +130,6 @@ jobs:
         pip install -r SPEC/Utilities/pythontools/requirements.txt
         pip install -e SPEC/Utilities/pythontools
         python -c "import py_spec; print('success')"
-
-    - name: Install f90wrap
-      run: pip install -U git+https://github.com/zhucaoxiang/f90wrap
 
     - name: Build SPEC python wrapper.
       run: |
@@ -200,6 +200,10 @@ jobs:
         mpiexec -n 2 coverage run -m unittest discover -k "mpi" -s tests -v
         mpiexec -n 3 --oversubscribe coverage run -m unittest discover -k "mpi" -s tests -v
 
+    - name: ls to see coverage files that were produced
+      if: contains(matrix.test-type, 'unit')
+      run: ls -al
+
     - name: Combine coverage reports
       if: contains(matrix.test-type, 'unit')
       run: | 
@@ -209,7 +213,7 @@ jobs:
 
     - name: Upload coverage to github
       if: contains(matrix.test-type, 'unit')
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tox-gh-actions-coverage
         path: coverage.xml
