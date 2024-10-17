@@ -135,9 +135,9 @@ def critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=None):
 
     # Evaluate field
     field = Bself + Bext
-    B_proj = field - inner(field, tangent)[:, None] * tangent
-    B_perp = inner(B_proj, normal)
-    B_par = inner(B_proj, binormal)
+    #B_proj = field #- inner(field, tangent)[:, None] * tangent # No need to remove the tangent part of the field; (t,n,b) is an orthogonal coordinate system
+    B_perp = inner(field, normal)
+    B_par = inner(field, binormal)
 
     # Fit parameters for reduced Kim-like model of the critical current (doi:10.1088/0953-2048/24/6/065005)
     if model is None:
@@ -152,7 +152,7 @@ def critical_current_pure(gamma, gammadash, alpha, Bself, Bext, model=None):
     return model(B_par, B_perp)
 
 
-def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=None, threshold=0.5):
+def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=-2.0, model=None, threshold=0.5):
     """Evaluates the critical current objective, given by
     
     .. math::
@@ -182,9 +182,12 @@ def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=10, model=
     # Step 1: Maximize critical current for one winding.    
     # Step 1: P-norm approx of the critical current minimum
 
-    arc_length = jnp.linalg.norm(gammadash, axis=1)
-    return jnp.mean(arc_length * jnp.maximum(threshold-Ic,0)**2)
-    
+    #arc_length = jnp.linalg.norm(gammadash, axis=1)
+    #return jnp.mean(arc_length * jnp.maximum(threshold-Ic,0)**2)
+
+    return jnp.sum(Ic**p)**(1./p)
+    #return jnp.mean(jnp.maximum(threshold-Ic, 0)**p * arc_length)
+
     # Step 2: Penalize current above critical current, given temperature and number of winds
     # Ic is the current in the coil
     # Ic0 is the critical current along the coil
