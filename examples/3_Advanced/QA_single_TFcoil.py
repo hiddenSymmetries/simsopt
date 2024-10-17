@@ -87,8 +87,8 @@ def initialize_coils_QA(TEST_DIR, s):
     # generate planar TF coils
     ncoils = 1
     R0 = s.get_rc(0, 0) * 2
-    R1 = s.get_rc(1, 0) * 5
-    order = 5
+    R1 = s.get_rc(1, 0) * 10
+    order = 4
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -211,10 +211,10 @@ base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_T
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 70
+LENGTH_TARGET = 90
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e4
+CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term

@@ -149,26 +149,26 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=True,
     # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
-import warnings
+# import warnings
 
-keep_inds = []
-for ii in range(len(base_curves)):
-    for i in range(base_curves[0].gamma().shape[0]):
-        counter = 0
-        eps = 0.05
-        for j in range(len(base_curves_TF)):
-            for k in range(base_curves_TF[j].gamma().shape[0]):
-                dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
-                conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
-                if conflict_bool:
-                    print('bad indices = ', i, j, dij, base_curves[0].x[0])
-                    warnings.warn(
-                        'There is a PSC coil initialized such that it is within a radius'
-                        'of a TF coil. Deleting these PSCs now.')
-                    counter += 1
-                    break
-    if counter == 0:
-        keep_inds.append(ii)
+# keep_inds = []
+# for ii in range(len(base_curves)):
+#     for i in range(base_curves[0].gamma().shape[0]):
+#         counter = 0
+#         eps = 0.05
+#         for j in range(len(base_curves_TF)):
+#             for k in range(base_curves_TF[j].gamma().shape[0]):
+#                 dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
+#                 conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
+#                 if conflict_bool:
+#                     print('bad indices = ', i, j, dij, base_curves[0].x[0])
+#                     warnings.warn(
+#                         'There is a PSC coil initialized such that it is within a radius'
+#                         'of a TF coil. Deleting these PSCs now.')
+#                     counter += 1
+#                     break
+#     if counter == 0:
+#         keep_inds.append(ii)
 
 print(keep_inds)
 base_curves = np.array(base_curves)[keep_inds]
@@ -238,7 +238,7 @@ LENGTH_WEIGHT = Weight(0.001)
 LENGTH_TARGET = 120
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e3
+CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
