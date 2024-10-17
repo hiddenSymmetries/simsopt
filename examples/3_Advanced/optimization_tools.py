@@ -383,10 +383,10 @@ def optimization(
     mean_AbsB  = np.mean(bs.AbsB())
     max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    net_forces = coil_net_forces(c, coils, regularization_circ(0.05))
+    net_forces = coil_net_forces(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))
     max_torques = [np.max(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_torques = [np.min(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
-    net_torques = coil_net_torques(c, coils, regularization_circ(0.05))
+    net_torques = coil_net_torques(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))
     RMS_forces = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
     RMS_torques = [np.sqrt(np.mean(np.square(np.linalg.norm(coil_torque(c, coils, regularization_circ(0.05)), axis=1)))) for c in base_coils]
     results = {
