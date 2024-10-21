@@ -124,3 +124,6 @@ class VmecTests(unittest.TestCase):
             assert eq.wout.fsqz < ftol
             assert eq.wout.ier_flag == 0
 
+        # If we do not change back to the original directory, so the current
+        # directory no longer exists, then later tests involving get_*_data will fail.
+        os.chdir(original_directory)

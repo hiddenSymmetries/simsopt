@@ -33,7 +33,6 @@ from .._core.descriptor import Integer
 
 __all__ = ['Boozer', 'Quasisymmetry']
 
-
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -124,10 +123,6 @@ class Boozer(Optimizable):
         if isinstance(self.equil, Vmec):
             #partake in parallel VMEC job
             self.equil.run()
-            #skedaddle if you are not proc0 of your group
-            if (self.mpi is not None) and (not self.mpi.proc0_groups):
-                logger.info("This proc is skipping the rest of boozer.run since it is not a group leader.")
-                return
 
             wout = self.equil.wout  # Shorthand
 
@@ -178,8 +173,8 @@ class Boozer(Optimizable):
             self.bx.mnmax = wout.mnmax
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
-            logger.info('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
-            logger.info('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            logger.info(f'mnmax: {wout.mnmax} len(xm): {len(wout.xm)} len(xn): {len(wout.xn)}')
+            logger.info(f'mnmax_nyq: {wout.mnmax_nyq} len(xm_nyq): {len(wout.xm_nyq)} len(xn_nyq): {len(wout.xn_nyq)}')
             assert len(wout.xm) == wout.mnmax
             assert len(wout.xn) == wout.mnmax
             assert len(self.bx.xm) == self.bx.mnmax

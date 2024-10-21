@@ -94,7 +94,6 @@ class Current(sopp.Current, CurrentBase):
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
-
     @property
     def current(self):
         return self.get_value()
