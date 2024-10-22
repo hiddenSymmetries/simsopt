@@ -152,6 +152,7 @@ jobs:
       if: contains(matrix.packages, 'vmec') || contains(matrix.packages, 'all')
       run: |
         cd VMEC2000
+        git checkout numpy2
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
         pip install .
