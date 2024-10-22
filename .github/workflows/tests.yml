@@ -154,7 +154,7 @@ jobs:
     - name: Configure and install VMEC2000 module
       run: |
         cd VMEC2000
-        git checkout numpy2
+        git checkout -t origin/numpy2
         cp cmake/machines/ubuntu.json cmake_config_file.json
         cat cmake_config_file.json
         pip install .
