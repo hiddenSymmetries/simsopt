@@ -66,7 +66,8 @@ jobs:
 
     # We must run actions/checkout before downloading and building VMEC, since checkout deletes the contents of the directory.
     - name: Download the VMEC2000 standalone repository
-      run: git clone --depth=1 https://github.com/hiddensymmetries/VMEC2000.git
+      # run: git clone --depth=1 https://github.com/hiddensymmetries/VMEC2000.git
+      run: git clone https://github.com/hiddensymmetries/VMEC2000.git
 
     - name: ls -l again
       run: |
