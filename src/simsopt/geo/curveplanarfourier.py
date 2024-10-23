@@ -141,7 +141,7 @@ class JaxCurvePlanarFourier(JaxCurve):
         """
         This function sets the dofs associated to this object.
         """
-        self.dof_list = dofs
+        self.dof_list = np.array(dofs)
 
 
 # class JaxCurvePlanarFourier(JaxCurve):
