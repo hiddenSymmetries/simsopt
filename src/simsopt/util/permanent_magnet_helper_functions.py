@@ -537,7 +537,10 @@ def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal"):
     nphi = len(s_plot.quadpoints_phi)
     ntheta = len(s_plot.quadpoints_theta)
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
-    pointData = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
+    Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s_plot.unitnormal(), axis=2)[:, :, None]
+    modB = np.linalg.norm(bs.B().reshape(nphi, ntheta, 3), axis=-1)[:, :, None]
+    pointData = {"B_N": Bn,
+                 "B_N / B": Bn / modB}
     s_plot.to_vtk(out_dir / bs_filename, extra_data=pointData)
 
 
