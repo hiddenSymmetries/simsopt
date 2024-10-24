@@ -185,7 +185,7 @@ def critical_current_obj_pure(gamma, gammadash, alpha, Bself, Bext, p=-2.0, mode
     #arc_length = jnp.linalg.norm(gammadash, axis=1)
     #return jnp.mean(arc_length * jnp.maximum(threshold-Ic,0)**2)
 
-    return jnp.sum(Ic**p)**(1./p)
+    return -jnp.sum(Ic**p)**(1./p)
     #return jnp.mean(jnp.maximum(threshold-Ic, 0)**p * arc_length)
 
     # Step 2: Penalize current above critical current, given temperature and number of winds
