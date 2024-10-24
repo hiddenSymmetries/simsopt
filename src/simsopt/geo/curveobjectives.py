@@ -1,7 +1,7 @@
 from deprecated import deprecated
 
 import numpy as np
-from jax import grad
+from jax import grad, vjp, lax
 import jax.numpy as jnp
 
 from .jit import jit
