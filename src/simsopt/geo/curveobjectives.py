@@ -11,7 +11,7 @@ import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber']
+           'MeanSquaredCurvature', 'LinkingNumber', 'FramedCurveTwist']
 
 
 @jit
@@ -522,3 +522,163 @@ class LinkingNumber(Optimizable):
     @derivative_dec
     def dJ(self):
         return Derivative({})
+
+
+
+@jit
+def frametwist_pure(n1,n2,b1,b2,b1dash,n2dash):
+    dot1 = b1dash[:,0]*n2[:,0] + b1dash[:,1]*n2[:,1] + b1dash[:,2]*n2[:,2]
+    dot2 = n2dash[:,0]*b1[:,0] + n2dash[:,1]*b1[:,1] + n2dash[:,2]*b1[:,2]
+    dot3 = n1[:,0]*n2[:,0] + n1[:,1]*n2[:,1] + n1[:,2]*n2[:,2]
+    dot4 = n1[:,0]*b2[:,0] + n1[:,1]*b2[:,1] + n1[:,2]*b2[:,2]
+    size = jnp.size(n1[:,0])
+    dphi = 1/(size)
+    data0 = jnp.arctan2(-dot4[0],dot3[0])
+    data = jnp.zeros((size,))
+    integrand = dphi*0.5*(dot1 + dot2)/dot3
+    data = data.at[0].set(data0)
+    def body_fun(i, val):
+        val = val.at[i].set(val[i-1] + (integrand[i-1] + integrand[i]))
+        return val
+    data = lax.fori_loop(1, len(n1[:,0]), body_fun, data)
+    data = data.at[-1].set(data[-2] + (integrand[-1] + integrand[1]))
+    return data
+
+@jit
+def frametwist_net_pure(frametwist):
+    return frametwist[-1] - frametwist[0]
+
+@jit 
+def frametwist_range_pure(frametwist):
+    return jnp.max(frametwist) - jnp.min(frametwist)
+
+@jit 
+def frametwist_max_pure(frametwist):
+    return jnp.max(jnp.abs(frametwist))
+
+@jit
+def frametwist_lp_pure(frametwist,gammadash,p):
+    arc_length = jnp.linalg.norm(gammadash, axis=1)
+    return (jnp.mean(frametwist**p * arc_length)/jnp.mean(arc_length))**(1/p)
+
+class FramedCurveTwist(Optimizable):
+
+    def __init__(self, framedcurve, f="lp", p=2):
+        r"""
+        Computes the maximum relative twist angle between the framedcurve
+        and the centroid frame. If the frame is evaluated with respect to 
+        the centroid frame, the frame twist is equivalent to the rotation,
+        alpha. If not, then the net rotation is evaluated by integrating
+        along the curve. The frame rotation can be used within the context
+        of HTS strain optimization to avoid 180-degree or 360-degree turns, 
+        which can be challenging to wind. 
+
+        Args:
+            framedcurve: A FramedCurve from which the twist angle is evaluated
+        
+        """
+        Optimizable.__init__(self, depends_on=[framedcurve])
+        assert f in ["net","range","lp","max"]
+        self.f = f
+        self.p = p 
+        self.framedcurve = framedcurve 
+        self.framedcurve_centroid = FramedCurveCentroid(framedcurve.curve)
+        self.framedcurve_centroid.rotation.fix_all()
+        self.frametwist_vjp0 = jit(lambda n1,n2,b1,b2,b1dash,n2dash,v: vjp(
+            lambda g: frametwist_pure(g,n2,b1,b2,b1dash,n2dash), n1)[1](v)[0])
+        self.frametwist_vjp1 = jit(lambda n1,n2,b1,b2,b1dash,n2dash,v: vjp(
+            lambda g: frametwist_pure(n1,g,b1,b2,b1dash,n2dash), n2)[1](v)[0])
+        self.frametwist_vjp2 = jit(lambda n1,n2,b1,b2,b1dash,n2dash,v: vjp(
+            lambda g: frametwist_pure(n1,n2,g,b2,b1dash,n2dash), b1)[1](v)[0])
+        self.frametwist_vjp3 = jit(lambda n1,n2,b1,b2,b1dash,n2dash,v: vjp(
+            lambda g: frametwist_pure(n1,n2,b1,g,b1dash,n2dash), b2)[1](v)[0])
+        self.frametwist_vjp4 = jit(lambda n1,n2,b1,b2,b1dash,n2dash,v: vjp(
+            lambda g: frametwist_pure(n1,n2,b1,b2,g,n2dash), b1dash)[1](v)[0])
+        self.frametwist_vjp5 = jit(lambda n1,n2,b1,b2,b1dash,n2dash,v: vjp(
+            lambda g: frametwist_pure(n1,n2,b1,b2,b1dash,g), n2dash)[1](v)[0])
+        self.range_grad = jit(lambda twist: grad(frametwist_range_pure, argnums=0)(twist))
+        self.net_grad = jit(lambda twist: grad(frametwist_net_pure, argnums=0)(twist))
+        self.lp_grad0 = jit(lambda twist, gammadash, p: grad(frametwist_lp_pure, argnums=0)(twist,gammadash,p))
+        self.lp_grad1 = jit(lambda twist, gammadash, p: grad(frametwist_lp_pure, argnums=1)(twist,gammadash,p))
+
+    def angle_profile(self,endpoint=False):
+        """
+        Returns the value of alpha
+        """
+        _, n1, b1 = self.framedcurve.rotated_frame()
+        _, n2, b2 = self.framedcurve_centroid.rotated_frame()
+        _, n1dash, b1dash = self.framedcurve.rotated_frame_dash()
+        _, n2dash, b2dash = self.framedcurve_centroid.rotated_frame_dash()
+        if endpoint:
+            n1 = np.concatenate((n1,n1[0:1,:]))
+            n2 = np.concatenate((n2,n2[0:1,:]))
+            b1 = np.concatenate((b1,b1[0:1,:]))
+            b2 = np.concatenate((b2,b2[0:1,:]))
+            b1dash = np.concatenate((b1dash,b1dash[0:1,:]),axis=0)
+            n2dash = np.concatenate((n2dash,n2dash[0:1,:]),axis=0)        
+        return frametwist_pure(n1,n2,b1,b2,b1dash,n2dash)
+
+    def J(self,f=None,p=None):
+        if f is None:
+            f = self.f
+        else:
+            assert f in ["net","range","lp","max"]
+        data = self.angle_profile()
+        if (f == "net"):
+            return frametwist_net_pure(data)
+        elif (f == "range"):
+            return frametwist_range_pure(data)
+        elif (f == "max"):
+            return frametwist_max_pure(data)            
+        elif (f == "lp"):
+            if p is None:
+                p = self.p 
+            data = self.angle_profile()
+            gammadash = self.framedcurve.curve.gammadash()
+            return frametwist_lp_pure(data,gammadash,p)
+        else:
+            raise Exception('incorrect wrapping function f provided')
+
+    @derivative_dec
+    def dJ(self):
+        # if (self.f == "net"):
+        #     return Derivative({})
+        #     # endpoint = True
+        #     # data = self.angle_profile(endpoint=endpoint)
+        #     # grad0 = self.net_grad(data)
+        # elif (self.f == "range"):
+        #     return Derivative({})
+
+            # endpoint = False
+            # data = self.angle_profile(endpoint=endpoint)
+            # grad0 = self.range_grad(data)
+        if (self.f == "lp"):
+            endpoint = False
+            data = self.angle_profile(endpoint=endpoint)
+            gammadash = self.framedcurve.curve.gammadash()
+            grad0 = self.lp_grad0(data,gammadash,self.p)
+            grad1 = self.lp_grad1(data,gammadash,self.p)
+        else:
+            return Derivative({})
+            # raise Exception('incorrect wrapping function f provided')
+        _, n1, b1 = self.framedcurve.rotated_frame()
+        _, n2, b2 = self.framedcurve_centroid.rotated_frame()
+        _, _, b1dash = self.framedcurve.rotated_frame_dash()
+        _, n2dash, _ = self.framedcurve_centroid.rotated_frame_dash()
+
+        vjp0 = self.frametwist_vjp0(n1,n2,b1,b2,b1dash,n2dash,grad0)
+        vjp1 = self.frametwist_vjp1(n1,n2,b1,b2,b1dash,n2dash,grad0)
+        vjp2 = self.frametwist_vjp2(n1,n2,b1,b2,b1dash,n2dash,grad0)
+        vjp3 = self.frametwist_vjp3(n1,n2,b1,b2,b1dash,n2dash,grad0)
+        vjp4 = self.frametwist_vjp4(n1,n2,b1,b2,b1dash,n2dash,grad0)
+        vjp5 = self.frametwist_vjp5(n1,n2,b1,b2,b1dash,n2dash,grad0)
+        zero = np.zeros_like(vjp0)
+
+        grad = self.framedcurve.rotated_frame_dcoeff_vjp(zero,vjp0,vjp2) \
+            +  self.framedcurve.rotated_frame_dash_dcoeff_vjp(zero,zero,vjp4) \
+            +  self.framedcurve_centroid.rotated_frame_dcoeff_vjp(zero,vjp1,vjp3) \
+            +  self.framedcurve_centroid.rotated_frame_dash_dcoeff_vjp(zero,vjp5,zero) 
+        if (self.f == "lp"):
+            grad += self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
+
+        return grad 
