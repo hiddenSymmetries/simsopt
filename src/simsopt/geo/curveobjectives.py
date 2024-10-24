@@ -7,6 +7,7 @@ import jax.numpy as jnp
 from .jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
+from simsopt.geo.framedcurve import FramedCurveCentroid
 import simsoptpp as sopp
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
