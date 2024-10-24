@@ -392,6 +392,7 @@ class FramedCurveCentroid(FramedCurve):
             + self.rotation.dalpha_by_dcoeff_vjp(self.curve.quadpoints, grad4) \
             + self.rotation.dalphadash_by_dcoeff_vjp(self.curve.quadpoints, grad5)
 
+
 class FrameRotation(Optimizable):
 
     def __init__(self, quadpoints, order, scale=1., dofs=None):
