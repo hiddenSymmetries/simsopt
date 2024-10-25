@@ -41,8 +41,8 @@ filename = TEST_DIR / input_name
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 1.5
-coff = 3.0
+poff = 2.25
+coff = 3.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -307,8 +307,10 @@ Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
-Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=len(coils + coils_TF))
-Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
+
+### Jcc below removed the dipoles!
+Jccdist = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
+Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
 # interlink. 

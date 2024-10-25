@@ -41,15 +41,21 @@ filename = TEST_DIR / input_name
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 1.5
-coff = 0.5
+poff = 2.5
+coff = 3.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(TEST_DIR / 'input.circular_tokamak', range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(TEST_DIR / 'input.circular_tokamak', range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s_inner.set_rc(0, 0, s.get_rc(0, 0))
+s_inner.set_rc(1, 0, s.get_rc(1, 0) * poff)
+s_inner.set_zs(1, 0, s.get_zs(1, 0) * poff)
+s_outer.set_rc(0, 0, s.get_rc(0, 0))
+s_outer.set_rc(1, 0, s.get_rc(1, 0) * coff)
+s_outer.set_zs(1, 0, s.get_zs(1, 0) * coff)
 
 # Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_normal(poff)
-s_outer.extend_via_normal(poff + coff)
+# s_inner.extend_via_normal(poff)
+# s_outer.extend_via_normal(poff + coff)
 
 qphi = nphi * 2
 qtheta = ntheta * 2
@@ -142,12 +148,12 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 9
+Nx = 6
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=True,
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=True,
     # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
 import warnings
@@ -183,29 +189,29 @@ for i in range(ncoils):
     point = (base_curves[i].get_dofs()[-3:])
     dists = np.sum((point - plasma_points) ** 2, axis=-1)
     min_ind = np.argmin(dists)
-    coil_normals[i, :] = plasma_unitnormals[min_ind, :]
-    # coil_normals[i, :] = -(plasma_points[min_ind, :] - point)
-alphas = np.arctan2(
-                -coil_normals[:, 1], 
-                np.sqrt(coil_normals[:, 0] ** 2 + coil_normals[:, 2] ** 2))
-deltas = np.arcsin(coil_normals[:, 0] / \
-                            np.sqrt(coil_normals[:, 0] ** 2 + coil_normals[:, 2] ** 2))
+    # coil_normals[i, :] = plasma_unitnormals[min_ind, :]
+    coil_normals[i, :] = (plasma_points[min_ind, :] - point)
+# alphas = np.arctan2(
+#                 -coil_normals[:, 1], 
+#                 np.sqrt(coil_normals[:, 0] ** 2 + coil_normals[:, 2] ** 2))
+# deltas = np.arcsin(coil_normals[:, 0] / \
+#                             np.sqrt(coil_normals[:, 0] ** 2 + coil_normals[:, 2] ** 2))
 for i in range(len(base_curves)):
-    alpha2 = alphas[i] / 2.0
-    delta2 = deltas[i] / 2.0
-    calpha2 = np.cos(alpha2)
-    salpha2 = np.sin(alpha2)
-    cdelta2 = np.cos(delta2)
-    sdelta2 = np.sin(delta2)
-    base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-    base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
+    # alpha2 = alphas[i] / 2.0
+    # delta2 = deltas[i] / 2.0
+    # calpha2 = np.cos(alpha2)
+    # salpha2 = np.sin(alpha2)
+    # cdelta2 = np.cos(delta2)
+    # sdelta2 = np.sin(delta2)
+    # base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
+    # base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
+    # base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
+    # base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
     # Fix orientations of each coil
-    base_curves[i].fix('x' + str(2 * order + 1))
-    base_curves[i].fix('x' + str(2 * order + 2))
-    base_curves[i].fix('x' + str(2 * order + 3))
-    base_curves[i].fix('x' + str(2 * order + 4))
+    # base_curves[i].fix('x' + str(2 * order + 1))
+    # base_curves[i].fix('x' + str(2 * order + 2))
+    # base_curves[i].fix('x' + str(2 * order + 3))
+    # base_curves[i].fix('x' + str(2 * order + 4))
 
     # Fix shape of each coil
     for j in range(2 * order + 1):
@@ -273,7 +279,7 @@ FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QA_fixeddipoles_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
         ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
@@ -283,6 +289,9 @@ OUT_DIR = ("./QA_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
+
+s_inner.to_vtk(OUT_DIR + "s_inner")
+s_outer.to_vtk(OUT_DIR + "s_outer")
 
 curves_to_vtk(
     curves_TF, 
@@ -333,7 +342,7 @@ Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils + coils_TF))
-Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
+Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
 # interlink. 
@@ -522,7 +531,7 @@ print('sum(Jls_TF) time = ', t2 - t1, ' s')
 # print('dJtorques time = ', t2 - t1, ' s')
 
 n_saves = 1
-MAXITER = 60
+MAXITER = 200
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
