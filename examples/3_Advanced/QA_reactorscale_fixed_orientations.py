@@ -273,7 +273,7 @@ base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_T
 
 LENGTH_WEIGHT = Weight(0.001)
 LENGTH_TARGET = 130
-LINK_WEIGHT = 0.0
+LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
