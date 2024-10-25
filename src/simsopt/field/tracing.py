@@ -883,7 +883,7 @@ def plot_poincare_data(fieldlines_phi_hits, phis, filename, mark_lost=False, asp
     for i in range(len(phis)):
         row = i//nrowcol
         col = i % nrowcol
-        if i != len(phis) - 1:
+        if i != len(phis) - 1 and i != 0:
             axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='left', y=0.0)
         else:
             axs[row, col].set_title(f"$\\phi = {phis[i]/np.pi:.2f}\\pi$ ", loc='right', y=0.0)
