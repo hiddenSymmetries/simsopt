@@ -10,7 +10,8 @@ import simsoptpp as sopp
 
 __all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
-           'coils_to_makegrid', 'coils_to_focus']
+           'coils_to_makegrid', 'coils_to_focus'
+           ]
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -93,7 +94,6 @@ class Current(sopp.Current, CurrentBase):
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
-
     @property
     def current(self):
         return self.get_value()

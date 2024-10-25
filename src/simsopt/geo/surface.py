@@ -841,6 +841,22 @@ class Surface(Optimizable):
             function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
 
         return function_interpolated
+    
+    @property
+    def deduced_range(self):
+        """
+        The quadpoints of a surface can be anything, but are often set to 
+        'full torus', 'field period' or 'half period'. 
+        Since this is not stored in the object, but often useful to know
+        this function deduces the range from the quadpoints
+        """
+        if np.isclose(self.quadpoints_phi[-1], 1-1/len(self.quadpoints_phi), atol=1e-10):
+            return Surface.RANGE_FULL_TORUS
+        elif self.quadpoints_phi[0] == 0:
+            return Surface.RANGE_FIELD_PERIOD
+        else:
+            return Surface.RANGE_HALF_PERIOD
+
 
 
 
