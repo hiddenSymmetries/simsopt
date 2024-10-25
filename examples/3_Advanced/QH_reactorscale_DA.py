@@ -39,10 +39,10 @@ filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 64
-ntheta = 64
+nphi = 32
+ntheta = 32
 poff = 2.0
-coff = 2.0
+coff = 3.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -87,7 +87,7 @@ def initialize_coils_QH(TEST_DIR, s):
     # generate planar TF coils
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1
-    R1 = s.get_rc(1, 0) * 3
+    R1 = s.get_rc(1, 0) * 4
     order = 4
 
     from simsopt.mhd.vmec import Vmec
@@ -142,7 +142,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 6
+Nx = 7
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -263,17 +263,21 @@ base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_T
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.001)
-LENGTH_TARGET = 130
+LENGTH_TARGET = 70
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# FORCE_WEIGHT = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
 OUT_DIR = ("./QH_reactorscale_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
@@ -338,6 +342,7 @@ Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 ### Jcc below removed the dipoles!
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=len(coils + coils_TF))
 Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
+Jcsdist2 = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
 # interlink. 
@@ -438,7 +443,7 @@ def fun(dofs):
     outstr += f", Fnet={Jforce2.J():.2e}"
     outstr += f", T={Jtorque.J():.2e}"
     outstr += f", Tnet={Jtorque2.J():.2e}"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist2.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
@@ -500,37 +505,37 @@ Jlength.J()
 Jlength.dJ()
 t2 = time.time()
 print('sum(Jls_TF) time = ', t2 - t1, ' s')
-t1 = time.time()
-Jforce.J()
-t2 = time.time()
-print('Jforces time = ', t2 - t1, ' s')
-t1 = time.time()
-Jforce.dJ()
-t2 = time.time()
-print('dJforces time = ', t2 - t1, ' s')
-t1 = time.time()
-Jforce2.J()
-t2 = time.time()
-print('Jforces2 time = ', t2 - t1, ' s')
-t1 = time.time()
-Jforce2.dJ()
-t2 = time.time()
-print('dJforces2 time = ', t2 - t1, ' s')
-t1 = time.time()
-Jtorque.J()
-t2 = time.time()
-print('Jtorques time = ', t2 - t1, ' s')
-t1 = time.time()
-Jtorque.dJ()
-t2 = time.time()
-print('dJtorques time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jforce.J()
+# t2 = time.time()
+# print('Jforces time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jforce.dJ()
+# t2 = time.time()
+# print('dJforces time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jforce2.J()
+# t2 = time.time()
+# print('Jforces2 time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jforce2.dJ()
+# t2 = time.time()
+# print('dJforces2 time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jtorque.J()
+# t2 = time.time()
+# print('Jtorques time = ', t2 - t1, ' s')
+# t1 = time.time()
+# Jtorque.dJ()
+# t2 = time.time()
+# print('dJtorques time = ', t2 - t1, ' s')
 
 n_saves = 1
 MAXITER = 400
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
+        options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
