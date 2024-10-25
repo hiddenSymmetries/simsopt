@@ -187,6 +187,30 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(B, loaded_B)
         np.testing.assert_allclose(gamma, loaded_gamma)
 
+    def test_load_coils_from_makegrid_file_group(self):
+        order = 25
+        ppp = 10
+
+        # Coil group_names is a list of strings
+        coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp, group_names = ["245th-coil","100th-coil"])
+        all_coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp)
+        #     NOTE: coils will be returned in order they appear in the file, not in order of listed groups.
+        #     So group_names = ["245th-coil","100th-coil"] gives the array [<coil nr 100>, <coil nr 245>]
+        compare_coils = [all_coils[99],all_coils[244]]
+        gamma = [coil.curve.gamma() for coil in coils]
+        compare_gamma = [coil.curve.gamma() for coil in compare_coils]
+        np.testing.assert_allclose(gamma, compare_gamma)
+
+        # Coil group_names is a single string
+        coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp, group_names = "256th-coil")
+        all_coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp)
+        compare_coils = [all_coils[255]]
+        gamma = [coil.curve.gamma() for coil in coils]
+        compare_gamma = [coil.curve.gamma() for coil in compare_coils]
+        np.testing.assert_allclose(gamma, compare_gamma)
+
+        
+        
     def test_equally_spaced_planar_curves(self):
         ncoils = 4
         nfp = 4

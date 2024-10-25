@@ -202,6 +202,11 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     Returns:
         A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
     """
+
+    if isinstance(group_names,str):
+        # Handle case of a single string
+        group_names = [group_names]
+    
     with open(filename, 'r') as f:
         all_coils_values = f.read().splitlines()[3:] 
 
