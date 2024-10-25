@@ -34,7 +34,7 @@ order = 0
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
+input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
@@ -44,18 +44,12 @@ ntheta = 32
 poff = 2.25
 coff = 3.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_vmec_input(TEST_DIR / 'input.circular_tokamak', range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_vmec_input(TEST_DIR / 'input.circular_tokamak', range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_inner.set_rc(0, 0, s.get_rc(0, 0))
-s_inner.set_rc(1, 0, s.get_rc(1, 0) * poff)
-s_inner.set_zs(1, 0, s.get_zs(1, 0) * poff)
-s_outer.set_rc(0, 0, s.get_rc(0, 0))
-s_outer.set_rc(1, 0, s.get_rc(1, 0) * coff)
-s_outer.set_zs(1, 0, s.get_zs(1, 0) * coff)
+s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
 # Make the inner and outer surfaces by extending the plasma surface
-# s_inner.extend_via_normal(poff)
-# s_outer.extend_via_normal(poff + coff)
+s_inner.extend_via_normal(poff)
+s_outer.extend_via_normal(poff + coff)
 
 qphi = nphi * 2
 qtheta = ntheta * 2
@@ -70,7 +64,7 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 ### Initialize some TF coils
-def initialize_coils_QA(TEST_DIR, s):
+def initialize_coils_QH(TEST_DIR, s):
     """
     Initializes coils for each of the target configurations that are
     used for permanent magnet optimization.
@@ -93,12 +87,12 @@ def initialize_coils_QA(TEST_DIR, s):
     # generate planar TF coils
     ncoils = 3
     R0 = s.get_rc(0, 0) * 1
-    R1 = s.get_rc(1, 0) * 4
+    R1 = s.get_rc(1, 0) * 3
     order = 4
 
     from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.2
+    vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.4
     print('Total current = ', total_current)
 
     # Only need Jax flag for CurvePlanarFourier class
@@ -126,7 +120,7 @@ def initialize_coils_QA(TEST_DIR, s):
     return base_curves, curves, coils, base_currents
 
 # initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QH(TEST_DIR, s)
 num_TF_unique_coils = len(coils_TF) // 4
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -148,12 +142,12 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 8
+Nx = 6
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=True,
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=True,
     # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
 import warnings
@@ -182,44 +176,19 @@ base_curves = np.array(base_curves)[keep_inds]
 
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
-coil_normals = np.zeros((ncoils, 3))
-plasma_points = s_inner.gamma().reshape(-1, 3)
-plasma_unitnormals = s_inner.unitnormal().reshape(-1, 3)
-for i in range(ncoils):
-    point = (base_curves[i].get_dofs()[-3:])
-    dists = np.sum((point - plasma_points) ** 2, axis=-1)
-    min_ind = np.argmin(dists)
-    # coil_normals[i, :] = plasma_unitnormals[min_ind, :]
-    coil_normals[i, :] = (plasma_points[min_ind, :] - point)
-# alphas = np.arctan2(
-#                 -coil_normals[:, 1], 
-#                 np.sqrt(coil_normals[:, 0] ** 2 + coil_normals[:, 2] ** 2))
-# deltas = np.arcsin(coil_normals[:, 0] / \
-#                             np.sqrt(coil_normals[:, 0] ** 2 + coil_normals[:, 2] ** 2))
 for i in range(len(base_curves)):
-    # alpha2 = alphas[i] / 2.0
-    # delta2 = deltas[i] / 2.0
-    # calpha2 = np.cos(alpha2)
-    # salpha2 = np.sin(alpha2)
-    # cdelta2 = np.cos(delta2)
-    # sdelta2 = np.sin(delta2)
-    # base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-    # base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-    # base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-    # base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
-    # Fix orientations of each coil
-    # base_curves[i].fix('x' + str(2 * order + 1))
-    # base_curves[i].fix('x' + str(2 * order + 2))
-    # base_curves[i].fix('x' + str(2 * order + 3))
-    # base_curves[i].fix('x' + str(2 * order + 4))
+    # base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)
+    # base_curves[i].set('x' + str(2 * order + 2), np.random.rand(1) - 0.5)
+    # base_curves[i].set('x' + str(2 * order + 3), np.random.rand(1) - 0.5)
+    # base_curves[i].set('x' + str(2 * order + 4), np.random.rand(1) - 0.5)
 
     # Fix shape of each coil
     for j in range(2 * order + 1):
         base_curves[i].fix('x' + str(j))
     # Fix center points of each coil
-    base_curves[i].fix('x' + str(2 * order + 5))
-    base_curves[i].fix('x' + str(2 * order + 6))
-    base_curves[i].fix('x' + str(2 * order + 7))
+    # base_curves[i].fix('x' + str(2 * order + 5))
+    # base_curves[i].fix('x' + str(2 * order + 6))
+    # base_curves[i].fix('x' + str(2 * order + 7))
 base_currents = [Current(1e-1) * 2e7 for i in range(ncoils)]
 # Fix currents in each coil
 # for i in range(ncoils):
@@ -268,30 +237,28 @@ base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_T
 
 LENGTH_WEIGHT = Weight(0.001)
 LENGTH_TARGET = 130
-LINK_WEIGHT = 1e4
+LINK_WEIGHT = 0.0
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_fixeddipoles_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
-    "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
-        CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
-        FORCE_WEIGHT2.value,
-        TORQUE_WEIGHT.value,
-        TORQUE_WEIGHT2.value)
+OUT_DIR = ("./QH_reactorscale/")
+    #        n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+    # "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
+    #     ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
+    #     CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
+    #     FORCE_WEIGHT2.value,
+    #     TORQUE_WEIGHT.value,
+    #     TORQUE_WEIGHT2.value)
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
-
-s_inner.to_vtk(OUT_DIR + "s_inner")
-s_outer.to_vtk(OUT_DIR + "s_outer")
 
 curves_to_vtk(
     curves_TF, 
@@ -341,13 +308,14 @@ Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
+
+### Jcc below removed the dipoles!
 Jccdist = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
 Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
 # interlink. 
-linkNum = LinkingNumber(curves_TF)
-linkNum2 = LinkingNumber(curves + curves_TF)
+linkNum = LinkingNumber(curves + curves_TF)
 
 ##### Note need coils_TF + coils below!!!!!!!
 # Jforce2 = sum([LpCurveForce(c, coils + coils_TF, 
@@ -420,7 +388,7 @@ def fun(dofs):
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
-    link_val = LINK_WEIGHT * linkNum2.J()
+    link_val = LINK_WEIGHT * linkNum.J()
     forces_val = FORCE_WEIGHT.value * Jforce.J()
     forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
     torques_val = TORQUE_WEIGHT.value * Jtorque.J()
@@ -506,37 +474,37 @@ Jlength.J()
 Jlength.dJ()
 t2 = time.time()
 print('sum(Jls_TF) time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce.J()
-# t2 = time.time()
-# print('Jforces time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce.dJ()
-# t2 = time.time()
-# print('dJforces time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce2.J()
-# t2 = time.time()
-# print('Jforces2 time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce2.dJ()
-# t2 = time.time()
-# print('dJforces2 time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jtorque.J()
-# t2 = time.time()
-# print('Jtorques time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jtorque.dJ()
-# t2 = time.time()
-# print('dJtorques time = ', t2 - t1, ' s')
+t1 = time.time()
+Jforce.J()
+t2 = time.time()
+print('Jforces time = ', t2 - t1, ' s')
+t1 = time.time()
+Jforce.dJ()
+t2 = time.time()
+print('dJforces time = ', t2 - t1, ' s')
+t1 = time.time()
+Jforce2.J()
+t2 = time.time()
+print('Jforces2 time = ', t2 - t1, ' s')
+t1 = time.time()
+Jforce2.dJ()
+t2 = time.time()
+print('dJforces2 time = ', t2 - t1, ' s')
+t1 = time.time()
+Jtorque.J()
+t2 = time.time()
+print('Jtorques time = ', t2 - t1, ' s')
+t1 = time.time()
+Jtorque.dJ()
+t2 = time.time()
+print('dJtorques time = ', t2 - t1, ' s')
 
 n_saves = 1
-MAXITER = 400
+MAXITER = 300
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
+        options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
@@ -582,6 +550,6 @@ for i in range(1, n_saves + 1):
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
-btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
+btot.save("biot_savart_optimized_QA.json")
 print(OUT_DIR)
 
