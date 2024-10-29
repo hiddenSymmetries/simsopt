@@ -57,7 +57,8 @@ def coil_net_forces(coils, allcoils, regularization, nturns=None):
 
 def coil_torque(coil, allcoils, regularization, nturns=1):
     gamma = coil.curve.gamma()
-    return np.cross(gamma, coil_force(coil, allcoils, regularization, nturns))
+    center = coil.curve.center(coil.curve.gamma(), coil.curve.gammadash())
+    return np.cross(gamma - center, coil_force(coil, allcoils, regularization, nturns))
 
 def coil_net_torques(coils, allcoils, regularization, nturns=None):
     net_torques = np.zeros((len(coils), 3))
@@ -717,60 +718,6 @@ class MixedLpCurveForce(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-@jit
-def mixed_lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, 
-                        quadpoints, quadpoints2,
-                        currents, currents2, regularizations, regularizations2, p, threshold):
-    r"""
-    """
-    B_self = [B_regularized_pure(gammas[i], gammadashs[i], gammadashdashs[i], quadpoints, currents[i], regularizations[i]) for i in range(jnp.shape(gammas)[0])]
-    B_self2 = [B_regularized_pure(gammas2[i], gammadashs2[i], gammadashdashs2[i], quadpoints2, currents2[i], regularizations2[i]) for i in range(jnp.shape(gammas2)[0])]
-    gammadash_norms = jnp.linalg.norm(gammadashs, axis=-1)[:, :, None]
-    tangents = gammadashs / gammadash_norms
-    gammadash_norms2 = jnp.linalg.norm(gammadashs2, axis=-1)[:, :, None]
-    tangents2 = gammadashs2 / gammadash_norms2
-    selftorque = jnp.array([jnp.cross(gammas[i], jnp.cross(currents[i] * tangents[i], B_self[i])) for i in range(jnp.shape(gammas)[0])])
-    selftorque2 = jnp.array([jnp.cross(gammas2[i], jnp.cross(currents2[i] * tangents2[i], B_self2[i])) for i in range(jnp.shape(gammas2)[0])])
-     
-    eps = 1e-10  # small number to avoid blow up in the denominator when i = j
-    r_ij = gammas[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
-
-    ### Note that need to do dl1 x dl2 x r12 here instead of just (dl1 * dl2)r12
-    # because these are not equivalent expressions if we are squaring the pointwise forces
-    # before integration over coil i! 
-    cross_prod = jnp.cross(gammas[:, None, :, None, :], jnp.cross(tangents[:, None, :, None, :], jnp.cross(gammadashs[None, :, None, :, :], r_ij)))
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents[:, None] * currents[None, :]
-    Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    T = jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas)[1]
-
-    # repeat with gamma, gamma2
-    r_ij = gammas[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross_prod = jnp.cross(gammas[:, None, :, None, :], jnp.cross(tangents[:, None, :, None, :], jnp.cross(gammadashs2[None, :, None, :, :], r_ij)))
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents[:, None] * currents2[None, :]
-    T += jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas2)[1]
-    torque_norm = jnp.linalg.norm(T * 1e-7 + selftorque, axis=-1)
-    summ = jnp.sum(jnp.maximum(torque_norm[:, :, None] - threshold, 0) ** p * gammadash_norms)
-
-    # repeat with gamma2, gamma
-    r_ij = gammas2[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross_prod = jnp.cross(gammas2[:, None, :, None, :], jnp.cross(tangents2[:, None, :, None, :], jnp.cross(gammadashs[None, :, None, :, :], r_ij)))
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents2[:, None] * currents[None, :]
-    T = jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas)[1]
-
-    # repeat with gamma2, gamma2
-    r_ij = gammas2[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross_prod = jnp.cross(gammas2[:, None, :, None, :], jnp.cross(tangents2[:, None, :, None, :], jnp.cross(gammadashs2[None, :, None, :, :], r_ij)))
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents2[:, None] * currents2[None, :]
-    Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    T += jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas2)[1]
-    torque_norm2 = jnp.linalg.norm(T * 1e-7 + selftorque2, axis=-1)
-    summ += jnp.sum(jnp.maximum(torque_norm2[:, :, None] - threshold, 0) ** p * gammadash_norms2)
-    return summ * (1 / p)
-
 class MixedLpCurveTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
 
@@ -783,15 +730,73 @@ class MixedLpCurveTorque(Optimizable):
     along the coil.
     """
 
+    # @jit
+    def mixed_lp_torque_pure(self, gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, 
+                            quadpoints, quadpoints2,
+                            currents, currents2, regularizations, regularizations2, p, threshold):
+        r"""
+        """
+        B_self = [B_regularized_pure(gammas[i], gammadashs[i], gammadashdashs[i], quadpoints, currents[i], regularizations[i]) for i in range(jnp.shape(gammas)[0])]
+        B_self2 = [B_regularized_pure(gammas2[i], gammadashs2[i], gammadashdashs2[i], quadpoints2, currents2[i], regularizations2[i]) for i in range(jnp.shape(gammas2)[0])]
+        gammadash_norms = jnp.linalg.norm(gammadashs, axis=-1)[:, :, None]
+        tangents = gammadashs / gammadash_norms
+        gammadash_norms2 = jnp.linalg.norm(gammadashs2, axis=-1)[:, :, None]
+        tangents2 = gammadashs2 / gammadash_norms2
+        centers = jnp.array([c.curve.center(gammas[i], gammadashs[i]) for i, c in enumerate(self.allcoils)])[:, None, :]
+        centers2 = jnp.array([c.curve.center(gammas2[i], gammadashs2[i]) for i, c in enumerate(self.allcoils2)])[:, None, :]
+        selftorque = jnp.array([jnp.cross((gammas - centers)[i], jnp.cross(currents[i] * tangents[i], B_self[i])) for i in range(jnp.shape(gammas)[0])])
+        selftorque2 = jnp.array([jnp.cross((gammas2 - centers2)[i], jnp.cross(currents2[i] * tangents2[i], B_self2[i])) for i in range(jnp.shape(gammas2)[0])])
+        
+        eps = 1e-10  # small number to avoid blow up in the denominator when i = j
+        r_ij = gammas[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
+
+        ### Note that need to do dl1 x dl2 x r12 here instead of just (dl1 * dl2)r12
+        # because these are not equivalent expressions if we are squaring the pointwise forces
+        # before integration over coil i! 
+        cross_prod = jnp.cross((gammas - centers)[:, None, :, None, :], jnp.cross(tangents[:, None, :, None, :], jnp.cross(gammadashs[None, :, None, :, :], r_ij)))
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents[:, None] * currents[None, :]
+        Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
+        T = jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas)[1]
+
+        # repeat with gamma, gamma2
+        r_ij = gammas[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
+        cross_prod = jnp.cross((gammas - centers)[:, None, :, None, :], jnp.cross(tangents[:, None, :, None, :], jnp.cross(gammadashs2[None, :, None, :, :], r_ij)))
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents[:, None] * currents2[None, :]
+        T += jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas2)[1]
+        torque_norm = jnp.linalg.norm(T * 1e-7 + selftorque, axis=-1)
+        summ = jnp.sum(jnp.maximum(torque_norm[:, :, None] - threshold, 0) ** p * gammadash_norms)
+
+        # repeat with gamma2, gamma
+        r_ij = gammas2[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
+        cross_prod = jnp.cross((gammas2 - centers2)[:, None, :, None, :], jnp.cross(tangents2[:, None, :, None, :], jnp.cross(gammadashs[None, :, None, :, :], r_ij)))
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents2[:, None] * currents[None, :]
+        T = jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas)[1]
+
+        # repeat with gamma2, gamma2
+        r_ij = gammas2[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
+        cross_prod = jnp.cross((gammas2 - centers2)[:, None, :, None, :], jnp.cross(tangents2[:, None, :, None, :], jnp.cross(gammadashs2[None, :, None, :, :], r_ij)))
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents2[:, None] * currents2[None, :]
+        Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
+        T += jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas2)[1]
+        torque_norm2 = jnp.linalg.norm(T * 1e-7 + selftorque2, axis=-1)
+        summ += jnp.sum(jnp.maximum(torque_norm2[:, :, None] - threshold, 0) ** p * gammadash_norms2)
+        return summ * (1 / p)
+
     def __init__(self, allcoils, allcoils2, regularizations, regularizations2, p=2.0, threshold=0.0):
         self.allcoils = allcoils
         self.allcoils2 = allcoils2
         quadpoints = self.allcoils[0].curve.quadpoints
         quadpoints2 = self.allcoils2[0].curve.quadpoints
+        centers = self.allcoils[0].curve.center
+        centers2 = self.allcoils2[0].curve.center
 
         self.J_jax = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, currents, currents2:
-            mixed_lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, quadpoints, quadpoints2, 
+            self.mixed_lp_torque_pure(gammas, gammas2, gammadashs, gammadashs2, gammadashdashs, gammadashdashs2, quadpoints, quadpoints2, 
                                 currents, currents2, regularizations, regularizations2, p, threshold)
         )
 
@@ -891,56 +896,6 @@ class MixedLpCurveTorque(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-
-@jit
-def mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2):
-    r"""
-    """
-    eps = 1e-10  # small number to avoid blow up in the denominator when i = j
-    r_ij = gammas[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross1 = jnp.cross(gammadashs[None, :, None, :, :], r_ij)
-    cross2 = jnp.cross(gammadashs[:, None, :, None, :], cross1)
-    cross3 = jnp.cross(gammas[:, None, :, None, :], cross2)
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents[:, None] * currents[None, :]
-    Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-    net_torques = -jnp.sum(T, axis=1) / jnp.shape(gammas)[1]   # ** 2
-
-    # repeat with gamma, gamma2
-    r_ij = gammas[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross1 = jnp.cross(gammadashs2[None, :, None, :, :], r_ij)
-    cross2 = jnp.cross(gammadashs[:, None, :, None, :], cross1)
-    cross3 = jnp.cross(gammas[:, None, :, None, :], cross2)
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents[:, None] * currents2[None, :]
-    T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-    net_torques += -jnp.sum(T, axis=1) / jnp.shape(gammas2)[1]
-    summ = jnp.sum(jnp.linalg.norm(net_torques, axis=-1) ** 2)
-
-    # repeat with gamma2, gamma
-    r_ij = gammas2[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross1 = jnp.cross(gammadashs[None, :, None, :, :], r_ij)
-    cross2 = jnp.cross(gammadashs2[:, None, :, None, :], cross1)
-    cross3 = jnp.cross(gammas2[:, None, :, None, :], cross2)
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents2[:, None] * currents[None, :]
-    T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-    net_torques = -jnp.sum(T, axis=1)/ jnp.shape(gammas)[1]  # / jnp.shape(gammas2)[1]
-
-    # repeat with gamma2, gamma2
-    r_ij = gammas2[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
-    cross1 = jnp.cross(gammadashs2[None, :, None, :, :], r_ij)
-    cross2 = jnp.cross(gammadashs2[:, None, :, None, :], cross1)
-    cross3 = jnp.cross(gammas2[:, None, :, None, :], cross2)
-    rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
-    Ii_Ij = currents2[:, None] * currents2[None, :]
-    Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-    net_torques += -jnp.sum(T, axis=1)/ jnp.shape(gammas2)[1]  #** 2   
-    summ += jnp.sum(jnp.linalg.norm(net_torques, axis=-1) ** 2)
-    return summ * 1e-14
-
 class MixedSquaredMeanTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
 
@@ -953,13 +908,67 @@ class MixedSquaredMeanTorque(Optimizable):
     along the coil.
     """
 
+    # @jit
+    def mixed_squared_mean_torque(self, gammas, gammas2, gammadashs, gammadashs2, currents, currents2):
+        r"""
+        """
+        eps = 1e-10  # small number to avoid blow up in the denominator when i = j
+        r_ij = gammas[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
+        centers = jnp.array([c.curve.center(gammas[i], gammadashs[i]) for i, c in enumerate(self.allcoils)])[:, None, :]
+        centers2 = jnp.array([c.curve.center(gammas2[i], gammadashs2[i]) for i, c in enumerate(self.allcoils2)])[:, None, :]
+        cross1 = jnp.cross(gammadashs[None, :, None, :, :], r_ij)
+        cross2 = jnp.cross(gammadashs[:, None, :, None, :], cross1)
+        cross3 = jnp.cross((gammas - centers)[:, None, :, None, :], cross2)
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents[:, None] * currents[None, :]
+        Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
+        T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
+        net_torques = -jnp.sum(T, axis=1) / jnp.shape(gammas)[1]   # ** 2
+
+        # repeat with gamma, gamma2
+        r_ij = gammas[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
+        cross1 = jnp.cross(gammadashs2[None, :, None, :, :], r_ij)
+        cross2 = jnp.cross(gammadashs[:, None, :, None, :], cross1)
+        cross3 = jnp.cross((gammas - centers)[:, None, :, None, :], cross2)
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents[:, None] * currents2[None, :]
+        T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
+        net_torques += -jnp.sum(T, axis=1) / jnp.shape(gammas2)[1]
+        summ = jnp.sum(jnp.linalg.norm(net_torques, axis=-1) ** 2)
+
+        # repeat with gamma2, gamma
+        r_ij = gammas2[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
+        cross1 = jnp.cross(gammadashs[None, :, None, :, :], r_ij)
+        cross2 = jnp.cross(gammadashs2[:, None, :, None, :], cross1)
+        cross3 = jnp.cross((gammas2 - centers2)[:, None, :, None, :], cross2)
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents2[:, None] * currents[None, :]
+        T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
+        net_torques = -jnp.sum(T, axis=1)/ jnp.shape(gammas)[1]  # / jnp.shape(gammas2)[1]
+
+        # repeat with gamma2, gamma2
+        r_ij = gammas2[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
+        cross1 = jnp.cross(gammadashs2[None, :, None, :, :], r_ij)
+        cross2 = jnp.cross(gammadashs2[:, None, :, None, :], cross1)
+        cross3 = jnp.cross((gammas2 - centers2)[:, None, :, None, :], cross2)
+        rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
+        Ii_Ij = currents2[:, None] * currents2[None, :]
+        Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
+        T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
+        net_torques += -jnp.sum(T, axis=1)/ jnp.shape(gammas2)[1]  #** 2   
+        summ += jnp.sum(jnp.linalg.norm(net_torques, axis=-1) ** 2)
+        return summ * 1e-14
+
+
     def __init__(self, allcoils, allcoils2):
         self.allcoils = allcoils
         self.allcoils2 = allcoils2
+        centers = self.allcoils[0].curve.center
+        centers2 = self.allcoils2[0].curve.center
 
         self.J_jax = jit(
             lambda gammas, gammas2, gammadashs, gammadashs2, currents, currents2:
-            mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2)
+            self.mixed_squared_mean_torque(gammas, gammas2, gammadashs, gammadashs2, currents, currents2)
         )
 
         self.dJ_dgamma = jit(
@@ -1129,16 +1138,6 @@ class SquaredMeanForce(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
-@jit
-def squared_mean_torque_pure(current, gamma, gammadash, B_mutual):
-    r"""
-    """
-    # gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
-    # tangent = gammadash / gammadash_norm
-    # force = jnp.cross(gammadash, B_mutual)
-    # torque = jnp.cross(gamma, force)
-    return (current * jnp.linalg.norm(jnp.sum(jnp.cross(gamma, jnp.cross(gammadash, B_mutual)), axis=0))) ** 2  # / jnp.sum(gammadash_norm)  # factor for the integral
-
 class SquaredMeanTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
 
@@ -1151,6 +1150,13 @@ class SquaredMeanTorque(Optimizable):
     along the coil.
     """
 
+    # @jit
+    def squared_mean_torque_pure(self, current, gamma, gammadash, B_mutual):
+        r"""
+        """
+        return (current * jnp.linalg.norm(jnp.sum(jnp.cross(gamma - self.coil.curve.center(gamma, gammadash), jnp.cross(gammadash, B_mutual)), axis=0))) ** 2  # / jnp.sum(gammadash_norm)  # factor for the integral
+
+
     def __init__(self, coil, allcoils):
         self.coil = coil
         self.allcoils = allcoils
@@ -1158,7 +1164,7 @@ class SquaredMeanTorque(Optimizable):
 
         self.J_jax = jit(
             lambda current, gamma, gammadash, B_mutual:
-            squared_mean_torque_pure(current, gamma, gammadash, B_mutual)
+            self.squared_mean_torque_pure(current, gamma, gammadash, B_mutual)
         )
 
         self.dJ_dcurrent = jit(
@@ -1221,18 +1227,6 @@ class SquaredMeanTorque(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
-@jit
-def mean_squared_torque_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual):
-    r"""
-    """
-    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
-    gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
-    tangent = gammadash / gammadash_norm
-    force = jnp.cross(current * tangent, B_self + B_mutual)
-    torque = jnp.cross(gamma, force)
-    torque_norm = jnp.linalg.norm(torque, axis=1)[:, None]
-    return jnp.sum(gammadash_norm * torque_norm ** 2) / jnp.sum(gammadash_norm)
-
 class MeanSquaredTorque(Optimizable):
     r"""Optimizable class to minimize the net Lorentz force on a coil.
 
@@ -1245,16 +1239,29 @@ class MeanSquaredTorque(Optimizable):
     along the coil.
     """
 
+    # @jit
+    def mean_squared_torque_pure(self, gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual):
+        r"""
+        """
+        B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
+        gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
+        tangent = gammadash / gammadash_norm
+        force = jnp.cross(current * tangent, B_self + B_mutual)
+        torque = jnp.cross(gamma - self.coil.curve.center(gamma, gammadash), force)
+        torque_norm = jnp.linalg.norm(torque, axis=1)[:, None]
+        return jnp.sum(gammadash_norm * torque_norm ** 2) / jnp.sum(gammadash_norm)
+
     def __init__(self, coil, allcoils, regularization):
         self.coil = coil
         self.allcoils = allcoils
         self.othercoils = [c for c in allcoils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
         quadpoints = self.coil.curve.quadpoints
+        center = self.coil.curve.center
 
         self.J_jax = jit(
             lambda gamma, gammadash, gammadashdash, current, B_mutual:
-            mean_squared_torque_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual)
+            self.mean_squared_torque_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual)
         )
 
         self.dJ_dgamma = jit(
@@ -1292,7 +1299,7 @@ class MeanSquaredTorque(Optimizable):
             self.coil.curve.gammadash(),
             self.coil.curve.gammadashdash(),
             self.coil.current.get_value(),
-            self.biotsavart.B()
+            self.biotsavart.B(),
         ]     
 
         return self.J_jax(*args)
@@ -1306,7 +1313,7 @@ class MeanSquaredTorque(Optimizable):
             self.coil.curve.gammadash(),
             self.coil.curve.gammadashdash(),
             self.coil.current.get_value(),
-            self.biotsavart.B()
+            self.biotsavart.B(),
         ]
 
         dJ_dB = self.dJ_dB_mutual(*args)
@@ -1323,26 +1330,6 @@ class MeanSquaredTorque(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
-@jit
-def lp_torque_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold):
-    r"""Pure function for minimizing the Lorentz force on a coil.
-
-    The function is
-
-     .. math::
-        J = \frac{1}{p}\left(\int \text{max}(|\vec{T}| - T_0, 0)^p d\ell\right)
-
-    where :math:`\vec{T}` is the Lorentz torque, :math:`T_0` is a threshold torque,  
-    and :math:`\ell` is arclength along the coil.
-    """
-    B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
-    gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
-    tangent = gammadash / gammadash_norm
-    force = jnp.cross(current * tangent, B_self + B_mutual)
-    torque = jnp.cross(gamma, force)
-    torque_norm = jnp.linalg.norm(torque, axis=1)[:, None]
-    return (jnp.sum(jnp.maximum(torque_norm - threshold, 0)**p * gammadash_norm)) * (1 / p)  #/ jnp.sum(gammadash_norm)
-
 
 class LpCurveTorque(Optimizable):
     r"""  Optimizable class to minimize the Lorentz force on a coil.
@@ -1356,16 +1343,37 @@ class LpCurveTorque(Optimizable):
     and :math:`\ell` is arclength along the coil.
     """
 
+    # @jit
+    def lp_torque_pure(self, gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold):
+        r"""Pure function for minimizing the Lorentz force on a coil.
+
+        The function is
+
+        .. math::
+            J = \frac{1}{p}\left(\int \text{max}(|\vec{T}| - T_0, 0)^p d\ell\right)
+
+        where :math:`\vec{T}` is the Lorentz torque, :math:`T_0` is a threshold torque,  
+        and :math:`\ell` is arclength along the coil.
+        """
+        B_self = B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization)
+        gammadash_norm = jnp.linalg.norm(gammadash, axis=1)[:, None]
+        tangent = gammadash / gammadash_norm
+        force = jnp.cross(current * tangent, B_self + B_mutual)
+        torque = jnp.cross(gamma - self.coil.curve.center(gamma, gammadash), force)
+        torque_norm = jnp.linalg.norm(torque, axis=1)[:, None]
+        return (jnp.sum(jnp.maximum(torque_norm - threshold, 0)**p * gammadash_norm)) * (1 / p)  #/ jnp.sum(gammadash_norm)
+
     def __init__(self, coil, allcoils, regularization, p=2.0, threshold=0.0):
         self.coil = coil
         self.allcoils = allcoils
         self.othercoils = [c for c in allcoils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
         quadpoints = self.coil.curve.quadpoints
+        center = self.coil.curve.center
 
         self.J_jax = jit(
             lambda gamma, gammadash, gammadashdash, current, B_mutual:
-            lp_torque_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold)
+            self.lp_torque_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization, B_mutual, p, threshold)
         )
 
         self.dJ_dgamma = jit(
@@ -1403,7 +1411,7 @@ class LpCurveTorque(Optimizable):
             self.coil.curve.gammadash(),
             self.coil.curve.gammadashdash(),
             self.coil.current.get_value(),
-            self.biotsavart.B()
+            self.biotsavart.B(),
         ]     
 
         return self.J_jax(*args)
@@ -1417,7 +1425,7 @@ class LpCurveTorque(Optimizable):
             self.coil.curve.gammadash(),
             self.coil.curve.gammadashdash(),
             self.coil.current.get_value(),
-            self.biotsavart.B()
+            self.biotsavart.B(),
         ]
 
         dJ_dB = self.dJ_dB_mutual(*args)

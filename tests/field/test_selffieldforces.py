@@ -311,6 +311,8 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective_mixed, rtol=1e-2)
 
         # # Test MixedLpCurveTorque
+        # for i in range(len(coils)):
+        #     print(coils[i].curve.center())
         objective = 0.0
         objective_alt = 0.0
         threshold = 0.0

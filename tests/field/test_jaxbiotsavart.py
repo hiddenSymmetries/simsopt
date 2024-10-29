@@ -563,6 +563,7 @@ class Testing(unittest.TestCase):
         R2 = R1
         # a = 1e-5
         points = np.array([[0.0, 0.0, Z1], [0.0, 0.0, Z2]])
+        print(points.shape)
         # curve0 = get_curve()
         curve0 = JaxCurvePlanarFourier(200, 0)
         dofs = np.zeros(8)
@@ -570,6 +571,7 @@ class Testing(unittest.TestCase):
         dofs[1:5] = (np.random.rand(4) - 0.5)
         dofs[5:9] = points[0, :]
         curve0.set_dofs(dofs)
+        print('center = ', curve0.center(curve0.gamma(), curve0.gammadash()))
         q_norm = dofs[1:5] / np.linalg.norm(dofs[1:5])
         normal_orig = np.array([0, 0, 1]).T
         rot_mat = np.array(
@@ -590,6 +592,7 @@ class Testing(unittest.TestCase):
         dofs[1:5] = (np.random.rand(4) - 0.5) * 2 * np.pi
         dofs[5:9] = points[1, :]
         curve1.set_dofs(dofs)
+        print('center = ', curve1.center(curve1.gamma(), curve1.gammadash()))
         q_norm = dofs[1:5] / np.linalg.norm(dofs[1:5])
         normal_orig = np.array([0, 0, 1]).T
         rot_mat = np.array(
@@ -604,7 +607,9 @@ class Testing(unittest.TestCase):
             (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
         normal1 = rot_mat @ normal_orig
         current1 = Current(I2)
-        bs = JaxBiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
+        coil1 = Coil(curve0, current0)
+        coil2 = Coil(curve1, current1)
+        bs = JaxBiotSavart([coil1, coil2])
 
         # alphas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * np.pi
         # deltas = np.zeros(ncoils)  # (np.random.rand(ncoils) - 0.5) * 2 * np.pi

@@ -77,6 +77,14 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         self.local_x = dofs
         sopp.CurvePlanarFourier.set_dofs(self, dofs)
 
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        quadpoints = self.quadpoints
+        N = len(quadpoints)
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
+        return barycenter
+
 def jaxplanarcurve_pure(dofs, quadpoints, order):
     coeffs = dofs[:2 * order + 1]
     q = dofs[2 * order + 1: 2 * order + 5]
@@ -142,6 +150,14 @@ class JaxCurvePlanarFourier(JaxCurve):
         This function sets the dofs associated to this object.
         """
         self.dof_list = np.array(dofs)
+
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        quadpoints = self.quadpoints
+        N = len(quadpoints)
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
+        return barycenter
 
 
 # class JaxCurvePlanarFourier(JaxCurve):
