@@ -294,7 +294,7 @@ CS_WEIGHT = 1e2
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-20) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-19) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -380,9 +380,9 @@ regularization_list = np.zeros(len(coils)) * regularization_rect(aa, bb)
 regularization_list2 = np.zeros(len(coils_TF)) * regularization_rect(a, b)
 # Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 Jforce2 = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
 
 # Jtorque = SquaredMeanTorque2(coils, coils_TF) # [SquaredMeanForce2(c, coils) for c in (base_coils)]

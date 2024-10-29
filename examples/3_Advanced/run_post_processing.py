@@ -88,10 +88,10 @@ from simsopt.util import proc0_print
 
 
 # set fieldline tracer parameters
-nfieldlines = 16
+nfieldlines = 20
 tmax_fl = 20000
 
-R0 = np.linspace(12.25, 13.1, nfieldlines)  # np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
+R0 = np.linspace(12.25, 13.15, nfieldlines)  # np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
 Z0 = np.zeros(nfieldlines)
 phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 print(rrange, zrange, phirange)

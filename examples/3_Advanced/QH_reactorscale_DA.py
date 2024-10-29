@@ -88,7 +88,7 @@ def initialize_coils_QH(TEST_DIR, s):
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 4
-    order = 4
+    order = 7
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
@@ -98,7 +98,7 @@ def initialize_coils_QH(TEST_DIR, s):
     # Only need Jax flag for CurvePlanarFourier class
     base_curves = create_equally_spaced_curves(
         ncoils, s.nfp, stellsym=True, 
-        R0=R0, R1=R1, order=order, numquadpoints=512,
+        R0=R0, R1=R1, order=order, numquadpoints=256,
         jax_flag=True,
     )
 
@@ -274,14 +274,14 @@ CS_WEIGHT = 1e2
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-19) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QH_reactorscale_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QH_reactorscale_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
+        curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
         FORCE_WEIGHT2.value,
         TORQUE_WEIGHT.value,
@@ -359,9 +359,9 @@ regularization_list = np.zeros(len(coils)) * regularization_rect(aa, bb)
 regularization_list2 = np.zeros(len(coils_TF)) * regularization_rect(a, b)
 # Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 Jforce2 = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 # Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
 
