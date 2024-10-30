@@ -7,6 +7,8 @@ import jax.numpy as jnp
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
+from .surfacerzfourier import SurfaceRZFourier
+from .surfacexyztensorfourier import SurfaceXYZTensorFourier
 
 from .jit import jit
 from .._core.derivative import derivative_dec
@@ -964,7 +966,8 @@ def gamma_2d(modes, qpts, order, G:int=0, H:int=0):
      - order: Maximum Fourier series order.
 
     Returns:
-     - gamma: Array of size N x 3.
+     - phi: Array of size N x 1.
+     - theta: Array of size N x 1.
     """
     # Unpack dofs
     phic = modes[:order+1]
@@ -988,15 +991,12 @@ def gamma_2d(modes, qpts, order, G:int=0, H:int=0):
     # Add secular terms
     theta = theta + G * qpts
     phi = phi + H * qpts
-            
-    gamma = jnp.zeros((qpts.size, 2))
-    gamma = gamma.at[:,0].set( phi   )
-    gamma = gamma.at[:,1].set( theta )
 
-    return gamma
+    return phi, theta
 
 
-def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp):
+#def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
+def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, gamma_lin):
     """Returns position in 3D space of a curve lying on a surface
 
     Args:
@@ -1010,23 +1010,36 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor,
     Returns:
      - gamma: Position in 3D space. Array of size N x 3.
     """
-    gamma2d = gamma_2d(curve_dofs, qpts, order, G, H)
+    phi, theta = gamma_2d(curve_dofs, qpts, order, G, H)
+    print(f'Phi={phi}')
+    print(f'Theta={theta}')
+    
+    gamma = jnp.zeros((qpts.size,3))
+    for ii in range(qpts.size):
+        gamma_lin(gamma[ii], phi[ii], theta[ii])
 
-    phi = gamma2d[:,0]
-    theta = gamma2d[:,1]
+    # if surf_type=='RZ_Fourier':
+    #     gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
+    # elif surf_type=='XYZ_Tensor_Fourier':
+    #     gamma = surfxyztensor_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
+    # elif surf_type is None:
+    #     return phi, theta
+
+    return gamma
+
+def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp):
+    npts = quadpoints_phi.size
+    th = quadpoints_theta * 2.0 * jnp.pi
+    ph = quadpoints_phi   * 2.0 * jnp.pi
 
     # Construct curve on surface
-    r = jnp.zeros((qpts.size,))
-    z = jnp.zeros((qpts.size,))
+    r = jnp.zeros((npts,))
+    z = jnp.zeros((npts,))
 
     nmn = ntor+1 + mpol*(2*ntor+1)
     rc = surf_dofs[:nmn]
     zs = surf_dofs[nmn:]
 
-    th = theta * 2.0 * jnp.pi
-    ph = phi   * 2.0 * jnp.pi * nfp
-    
-    #ph = (1.0+phi) * jnp.pi / (2.0*nfp)
 
     counter = -1
     for mm in range(mpol+1):
@@ -1034,7 +1047,7 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor,
             if mm==0 and nn<0:
                 continue
             counter = counter+1
-            r = r + rc[counter] * jnp.cos(mm*th - nn*ph)
+            r = r + rc[counter] * jnp.cos(mm*th - nn*ph*nfp)
 
 
     counter = -1
@@ -1043,16 +1056,92 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor,
             if mm==0 and nn<=0:
                 continue
             counter = counter+1
-            z = z + zs[counter] * jnp.sin(mm*th - nn*ph)
+            z = z + zs[counter] * jnp.sin(mm*th - nn*ph*nfp)
             
-    gamma = jnp.zeros((qpts.size, 3))
-    gamma = gamma.at[:,0].set( r * jnp.cos( phi*jnp.pi*2 ) )
-    gamma = gamma.at[:,1].set( r * jnp.sin( phi*jnp.pi*2 ) )
+    gamma = jnp.zeros((quadpoints_phi.size, 3))
+    gamma = gamma.at[:,0].set( r * jnp.cos( ph ) )
+    gamma = gamma.at[:,1].set( r * jnp.sin( ph ) )
     gamma = gamma.at[:,2].set( z                 )
 
     return gamma
 
-def normal(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp):
+def surfxyztensor_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp, stellsym=True):
+    numquadpoints_phi = len(quadpoints_phi)
+    numquadpoints_theta = len(quadpoints_theta)
+    if numquadpoints_phi!=numquadpoints_theta:
+        raise ValueError('numquadpoints_theta and numquadpoints_phi should have the same size')
+    data = jnp.zeros((numquadpoints_phi,3))
+
+    shift = (mpol + 1) * (2 * ntor + 1)
+    counter = 0
+
+    xc = jnp.zeros((shift,))
+    ys = jnp.zeros((shift,))
+    zs = jnp.zeros((shift,))
+    xs = jnp.zeros((shift,))
+    yc = jnp.zeros((shift,))
+    zc = jnp.zeros((shift,))
+
+    if stellsym:
+        for i in range(ntor, shift):
+            xc = xc.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor + 1, shift):
+            zs = ys.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor + 1, shift):
+            zs = zs.at[i].set( surf_dofs[counter] )
+            counter += 1
+    else:
+        for i in range(ntor, shift):
+            xc = xc.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor + 1, shift):
+            xs = xs.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor, shift):
+            yc = yc.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor + 1, shift):
+            ys = ys.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor, shift):
+            zc = zc.at[i].set( surf_dofs[counter] )
+            counter += 1
+        for i in range(ntor + 1, shift):
+            zs = zs.at[i].set( surf_dofs[counter] )
+            counter += 1
+
+    xc = jnp.reshape(xc, (mpol+1,2*ntor+1))
+    xs = jnp.reshape(xs, (mpol+1,2*ntor+1))
+    yc = jnp.reshape(yc, (mpol+1,2*ntor+1))
+    ys = jnp.reshape(ys, (mpol+1,2*ntor+1))
+    zc = jnp.reshape(zc, (mpol+1,2*ntor+1))
+    zs = jnp.reshape(zs, (mpol+1,2*ntor+1))
+
+    phi = 2 * jnp.pi * quadpoints_phi
+    theta = 2 * jnp.pi * quadpoints_theta
+    x, y, z = 0, 0, 0
+    
+    for m in range(mpol + 1):
+        for i in range(2 * ntor + 1):
+            n = i - ntor
+            
+            xhat = (xc[m,i] * jnp.cos(m * theta - n * nfp * phi) + xs[m,i] * jnp.sin(m * theta - n * nfp * phi))
+            yhat = (yc[m,i] * jnp.cos(m * theta - n * nfp * phi) + ys[m,i] * jnp.sin(m * theta - n * nfp * phi))
+            
+            x += xhat * jnp.cos(phi) - yhat * jnp.sin(phi)
+            y += xhat * jnp.sin(phi) + yhat * jnp.cos(phi)
+            z += (zc[m,i] * jnp.cos(m * theta - n * nfp * phi) + zs[m,i] * jnp.sin(m * theta - n * nfp * phi))
+
+    data = data.at[:, 0].set( x )
+    data = data.at[:, 1].set( y )
+    data = data.at[:, 2].set( z )
+
+    return data
+
+
+def normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
     """Returns the unitary vector normal to the surface on a curve that lies on the surface
     
     Args:
@@ -1066,6 +1155,8 @@ def normal(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp):
     Returns:
      - n: Nx3 array; unitary normal vector.
     """
+    if not surf_type=='RZ_Fourier':
+        raise NotImplementedError('Normal only implemented for SurfaceRZFourier')
     gamma2d = gamma_2d(curve_dofs, qpts, order, G, H)
     phi = gamma2d[:,0]
     theta = gamma2d[:,1]
@@ -1112,7 +1203,7 @@ def normal(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp):
     
     return n
 
-def nfactor(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp, direction='z'):
+def nfactor(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp, direction='z'):
     """Compute the scalar product between the unitary vector normal to the surface and some direction.
     
     Args:
@@ -1128,9 +1219,9 @@ def nfactor(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp, direction
      - Scalar product between the unitary normal vector and the access direction.
     """
     if direction=='z':
-        return normal(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp)[:,2]
+        return normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp)[:,2]
     elif direction=='r':
-        return normal(curve_dofs, qpts, order, G, H, surf_dofs, mpol, ntor, nfp)[:,0]
+        return normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp)[:,0]
 
 class CurveCWSFourier( Curve, sopp.Curve ):
     """Curve that lies on a surface
@@ -1155,6 +1246,13 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
         #self.quadpoints = quadpoints
         self.surf = surf
+
+        if isinstance(surf, SurfaceRZFourier):
+            self.surf_type='RZ_Fourier'
+        elif isinstance(surf, SurfaceXYZTensorFourier):
+            self.surf_type='XYZ_Tensor_Fourier'
+        else:
+            raise NotImplementedError('CurveCWSFourier is only implemented for SurfaceRZFourier and SurfaceXYZTensorFourier classes.')
         
         # We are not doing the same search for x0       
         sopp.Curve.__init__(self, quadpoints)
@@ -1163,7 +1261,11 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         #Curve.__init__(self, x0=self.get_dofs(), depends_on=[self.surf], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
         #super().__init__()
 
-        self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf.mpol, self.surf.ntor, self.surf.nfp))
+        # curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp
+        #self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp)
+        self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, self.surf.gamma_lin)
+        #self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp))
+        self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, self.surf.gamma_lin))
 
         # GAMMA
         points = np.asarray(self.quadpoints)
@@ -1215,8 +1317,8 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
 
         # NORMAL
-        self.snz = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='z')
-        self.snr = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='r')
+        self.snz = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='z')
+        self.snr = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='r')
 
         self.dsnz_by_dcoeff_vjp_jax = lambda cdofs, sdofs, v: vjp(lambda x: self.snz(x, sdofs), cdofs)[1](v)[0]
         self.dsnr_by_dcoeff_vjp_jax = lambda cdofs, sdofs, v: vjp(lambda x: self.snr(x, sdofs), cdofs)[1](v)[0]
@@ -1254,12 +1356,15 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
     # GAMMA
     # =====
+    def gamma_2d(self):
+        return self.gamma_2d_pure(self.get_dofs(), self.surf.get_dofs(), self.quadpoints)
+    
     def gamma_impl(self, gamma, quadpoints):
         r"""
         This function returns the x,y,z coordinates of the curve :math:`\Gamma`.
         """
-
-        gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), self.surf.get_dofs(), quadpoints)
+        sdofs = self.surf.get_dofs()
+        gamma[:, :] = self.gamma_impl_jax(self.get_dofs(), sdofs, quadpoints)
 
     def dgamma_by_dcoeff_vjp(self, v):
         return Derivative({
