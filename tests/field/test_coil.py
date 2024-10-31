@@ -14,6 +14,8 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
 
+from . import TEST_DIR
+
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     np.random.seed(2)
@@ -192,8 +194,9 @@ class CoilFormatConvertTesting(unittest.TestCase):
         ppp = 10
 
         # Coil group_names is a list of strings
-        coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp, group_names = ["245th-coil","100th-coil"])
-        all_coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp)
+        filecoils = os.path.join(TEST_DIR, "coils.M16N08")   
+        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names = ["245th-coil","100th-coil"])
+        all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
         #     NOTE: coils will be returned in order they appear in the file, not in order of listed groups.
         #     So group_names = ["245th-coil","100th-coil"] gives the array [<coil nr 100>, <coil nr 245>]
         compare_coils = [all_coils[99],all_coils[244]]
@@ -202,8 +205,8 @@ class CoilFormatConvertTesting(unittest.TestCase):
         np.testing.assert_allclose(gamma, compare_gamma)
 
         # Coil group_names is a single string
-        coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp, group_names = "256th-coil")
-        all_coils = load_coils_from_makegrid_file("../test_files/coils.M16N08", order, ppp)
+        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names = "256th-coil")
+        all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
         compare_coils = [all_coils[255]]
         gamma = [coil.curve.gamma() for coil in coils]
         compare_gamma = [coil.curve.gamma() for coil in compare_coils]
