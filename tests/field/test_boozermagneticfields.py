@@ -9,15 +9,12 @@ filename_mhd = str((TEST_DIR / 'wout_n3are_R7.75B5.7.nc').resolve())
 filename_mhd_lowres = str((TEST_DIR / 'wout_n3are_R7.75B5.7_lowres.nc').resolve())
 filename_mhd_lasym = str((TEST_DIR / 'wout_10x10.nc').resolve())
 
-from simsopt.mhd.vmec import Vmec
-from simsopt.mhd.boozer import Boozer
 from simsopt._core.util import align_and_pad, allocate_aligned_and_padded_array
 
 try:
-    from simsopt.util.mpi import MpiPartition
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
-    mpi = MpiPartition(comm_world=comm)
+    mpi = comm
 except ImportError as e:
     mpi = None
     logger.debug(str(e))
@@ -121,8 +118,8 @@ class TestingVmec(unittest.TestCase):
         This first loop tests a finite-beta equilibria
         """
         # This one is stellarator symmetric
-        vmec_sym = Vmec(filename_mhd)
-        vmec_asym = Vmec(filename_mhd_lasym)
+        vmec_sym = filename_mhd
+        vmec_asym = filename_mhd_lasym
         order = 3
         ns_delete = 1
         ntheta = 21
