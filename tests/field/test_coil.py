@@ -14,6 +14,7 @@ from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
 
+import os
 from . import TEST_DIR
 
 
