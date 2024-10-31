@@ -124,6 +124,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
     src/simsoptpp/tracing.cpp 
     src/simsoptpp/python_boozermagneticfield.cpp
+    src/simsoptpp/python_magneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
     )
 
