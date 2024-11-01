@@ -270,6 +270,11 @@ CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
+
+
+
+######## Seems to be that the main leakage of weak references to child processes seems to be coming
+# from the jacobian calculation of Jforce! 
 FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -284,27 +289,27 @@ if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
-curves_to_vtk(
-    curves_TF, 
-    OUT_DIR + "curves_TF_0", 
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=currents_TF,
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
-)
-curves_to_vtk(
-    curves, 
-    OUT_DIR + "curves_0", 
-    close=True, 
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=currents,
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
-)
+# curves_to_vtk(
+#     curves_TF, 
+#     OUT_DIR + "curves_TF_0", 
+#     close=True,
+#     extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
+#     I=currents_TF,
+#     NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
+#     NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
+# )
+# curves_to_vtk(
+#     curves, 
+#     OUT_DIR + "curves_0", 
+#     close=True, 
+#     extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
+#     I=currents,
+#     NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
+#     NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
+# )
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
-for c in (coils + coils_TF):
-    c._children = set()
+# for c in (coils + coils_TF):
+#     c._children = set()
 
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
 s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
@@ -427,11 +432,11 @@ Jlength.J()
 Jlength.dJ()
 t2 = time.time()
 print('sum(Jls_TF) time = ', t2 - t1, ' s')
-t1 = time.time()
-print(Jforce.J())
-print(Jforce.dJ())
-t2 = time.time()
-print('Jforce time = ', t2 - t1, ' s')
+# t1 = time.time()
+# print(Jforce.J())
+# print(Jforce.dJ())
+# t2 = time.time()
+# print('Jforce time = ', t2 - t1, ' s')
 t1 = time.time()
 JF.J()
 JF.dJ()
@@ -481,7 +486,7 @@ def fun(dofs):
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist2.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
-    print(coils[0]._children, coils_TF[0]._children, JF._children, Jforce._children)
+    # print(coils[0]._children, coils_TF[0]._children, JF._children, Jforce._children)
     print(outstr)
     print(valuestr)
     pr.disable()
@@ -552,11 +557,11 @@ Jlength.J()
 Jlength.dJ()
 t2 = time.time()
 print('sum(Jls_TF) time = ', t2 - t1, ' s')
-t1 = time.time()
-print(Jforce.J())
-print(Jforce.dJ())
-t2 = time.time()
-print('Jforce time = ', t2 - t1, ' s')
+# t1 = time.time()
+# print(Jforce.J())
+# print(Jforce.dJ())
+# t2 = time.time()
+# print('Jforce time = ', t2 - t1, ' s')
 t1 = time.time()
 JF.J()
 JF.dJ()
@@ -596,24 +601,24 @@ for i in range(1, n_saves + 1):
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
-    curves_to_vtk(
-        [c.curve for c in bs.coils], 
-        OUT_DIR + "curves_{0:d}".format(i), 
-        close=True,
-        extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-        I=dipole_currents,
-        NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-        NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    )
-    curves_to_vtk(
-        [c.curve for c in bs_TF.coils], 
-        OUT_DIR + "curves_TF_{0:d}".format(i), 
-        close=True, 
-        extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-        I=[c.current.get_value() for c in bs_TF.coils],
-        NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-        NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    )
+    # curves_to_vtk(
+    #     [c.curve for c in bs.coils], 
+    #     OUT_DIR + "curves_{0:d}".format(i), 
+    #     close=True,
+    #     extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
+    #     I=dipole_currents,
+    #     NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
+    #     NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
+    # )
+    # curves_to_vtk(
+    #     [c.curve for c in bs_TF.coils], 
+    #     OUT_DIR + "curves_TF_{0:d}".format(i), 
+    #     close=True, 
+    #     extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
+    #     I=[c.current.get_value() for c in bs_TF.coils],
+    #     NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
+    #     NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
+    # )
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
