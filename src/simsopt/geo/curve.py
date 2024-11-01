@@ -470,6 +470,15 @@ class JaxCurve(sopp.Curve, Curve):
     def incremental_arclength_pure(self, dofs):
         gammadash = self.gammadash_jax(dofs)
         return jnp.linalg.norm(gammadash, axis=1)
+    
+    @property
+    def qps(self):
+        return self.quadpoints
+    
+    @qps.setter
+    def qps(self, new_quadpoints):
+        self.quadpoints = new_quadpoints
+        self.numquadpoints = len(new_quadpoints)
 
     def incremental_arclength(self):
         return self.incremental_arclength_jax(self.get_dofs())

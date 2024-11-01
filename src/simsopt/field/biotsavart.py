@@ -34,7 +34,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         self._coils = coils
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
-        self.B_vjp_jax = jit(lambda v: self.B_vjp_pure(v))
+        # self.B_vjp_jax = jit(lambda v: self.B_vjp_pure(v))
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()

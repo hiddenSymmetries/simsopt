@@ -159,6 +159,8 @@ class JaxCurvePlanarFourier(JaxCurve):
         barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
         return barycenter
 
+    def set_quadpoints(self, quadpoints):
+        self.quadpoints = quadpoints
 
 # class JaxCurvePlanarFourier(JaxCurve):
 

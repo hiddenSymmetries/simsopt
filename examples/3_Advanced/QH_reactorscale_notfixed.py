@@ -207,18 +207,18 @@ for i in range(len(base_curves)):
     base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
     base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
     # Fix orientations of each coil
-    # base_curves[i].fix('x' + str(2 * order + 1))
-    # base_curves[i].fix('x' + str(2 * order + 2))
-    # base_curves[i].fix('x' + str(2 * order + 3))
-    # base_curves[i].fix('x' + str(2 * order + 4))
+    base_curves[i].fix('x' + str(2 * order + 1))
+    base_curves[i].fix('x' + str(2 * order + 2))
+    base_curves[i].fix('x' + str(2 * order + 3))
+    base_curves[i].fix('x' + str(2 * order + 4))
 
     # Fix shape of each coil
     for j in range(2 * order + 1):
         base_curves[i].fix('x' + str(j))
     # Fix center points of each coil
-    # base_curves[i].fix('x' + str(2 * order + 5))
-    # base_curves[i].fix('x' + str(2 * order + 6))
-    # base_curves[i].fix('x' + str(2 * order + 7))
+    base_curves[i].fix('x' + str(2 * order + 5))
+    base_curves[i].fix('x' + str(2 * order + 6))
+    base_curves[i].fix('x' + str(2 * order + 7))
 base_currents = [Current(1e-1) * 2e7 for i in range(ncoils)]
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
@@ -270,22 +270,16 @@ CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-# FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT2 = Weight(4e-27) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QH_reactorscale_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
-    "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
-        CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
-        FORCE_WEIGHT2.value,
-        TORQUE_WEIGHT.value,
-        TORQUE_WEIGHT2.value)
+OUT_DIR = ("./QH_debug/")
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -340,13 +334,13 @@ Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 # coil-coil and coil-plasma distances should be between all coils
 
 ### Jcc below removed the dipoles!
-Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=len(coils + coils_TF))
+Jccdist = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
 Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 Jcsdist2 = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
 # interlink. 
-linkNum = LinkingNumber(curves + curves_TF)
+linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
 ##### Note need coils_TF + coils below!!!!!!!
 # Jforce2 = sum([LpCurveForce(c, coils + coils_TF, 
@@ -359,13 +353,14 @@ regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
 regularization_list2 = np.ones(len(coils_TF)) * regularization_rect(a, b)
 # Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
-Jforce2 = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+# Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2, p=4, threshold=4e5 * 100, downsample=4)
+Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=4) for i, c in enumerate(base_coils + base_coils_TF)])
+# Jforce2 = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
+# Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 # Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 
 
-Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils_TF)])
+# Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils_TF)])
 
 # Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
 
@@ -382,14 +377,14 @@ JF = Jf \
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  #\
 
-if FORCE_WEIGHT2.value > 0.0:
-    JF += FORCE_WEIGHT2.value * Jforce2  #\
+# if FORCE_WEIGHT2.value > 0.0:
+#     JF += FORCE_WEIGHT2.value * Jforce2  #\
 
-if TORQUE_WEIGHT.value > 0.0:
-    JF += TORQUE_WEIGHT * Jtorque
+# if TORQUE_WEIGHT.value > 0.0:
+#     JF += TORQUE_WEIGHT * Jtorque
 
-if TORQUE_WEIGHT2.value > 0.0:
-    JF += TORQUE_WEIGHT2 * Jtorque2
+# if TORQUE_WEIGHT2.value > 0.0:
+#     JF += TORQUE_WEIGHT2 * Jtorque2
     # + TVE_WEIGHT * Jtve
     # + SF_WEIGHT * Jsf
     # + CURRENTS_WEIGHT * DipoleCurrentsObj
@@ -402,6 +397,46 @@ if TORQUE_WEIGHT2.value > 0.0:
 # are not in least-squares form, so we write a little wrapper function that we
 # pass directly to scipy.optimize.minimize
 
+
+print('Timing calls: ')
+t1 = time.time()
+Jf.J()
+t2 = time.time()
+print('Jf time = ', t2 - t1, ' s')
+t1 = time.time()
+Jf.dJ()
+t2 = time.time()
+print('dJf time = ', t2 - t1, ' s')
+t1 = time.time()
+Jccdist.J()
+Jccdist.dJ()
+t2 = time.time()
+print('Jcc time = ', t2 - t1, ' s')
+t1 = time.time()
+Jcsdist.J()
+Jcsdist.dJ()
+t2 = time.time()
+print('Jcs time = ', t2 - t1, ' s')
+t1 = time.time()
+linkNum.J()
+linkNum.dJ()
+t2 = time.time()
+print('linkNum time = ', t2 - t1, ' s')
+t1 = time.time()
+Jlength.J()
+Jlength.dJ()
+t2 = time.time()
+print('sum(Jls_TF) time = ', t2 - t1, ' s')
+t1 = time.time()
+print(Jforce.J())
+print(Jforce.dJ())
+t2 = time.time()
+print('Jforce time = ', t2 - t1, ' s')
+t1 = time.time()
+JF.J()
+JF.dJ()
+t2 = time.time()
+print('JF time = ', t2 - t1, ' s')
 import pstats, io
 from pstats import SortKey
 # print(btot.ancestors,len(btot.ancestors))
@@ -409,27 +444,21 @@ from pstats import SortKey
 
 
 def fun(dofs):
+    pr = cProfile.Profile() 
+    pr.enable()
     JF.x = dofs
-    # pr = cProfile.Profile() 
-    # pr.enable()
     J = JF.J()
     grad = JF.dJ()
-    # pr.disable()
-    # sio = io.StringIO()
-    # sortby = SortKey.CUMULATIVE
-    # ps = pstats.Stats(pr, stream=sio).sort_stats(sortby)
-    # ps.print_stats(20)
-    # print(sio.getvalue())
-    # exit()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
     forces_val = FORCE_WEIGHT.value * Jforce.J()
-    forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
-    torques_val = TORQUE_WEIGHT.value * Jtorque.J()
-    torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
+    # Jforce3.dJ()
+    # forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
+    # torques_val = TORQUE_WEIGHT.value * Jtorque.J()
+    # torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
         ) / np.mean(btot.AbsB())
@@ -442,18 +471,26 @@ def fun(dofs):
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val:.2e}" 
     valuestr += f", forceObj={forces_val:.2e}" 
-    valuestr += f", forceObj2={forces_val2:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
-    valuestr += f", torqueObj2={torques_val2:.2e}" 
+    # valuestr += f", forceObj2={forces_val2:.2e}" 
+    # valuestr += f", torqueObj={torques_val:.2e}" 
+    # valuestr += f", torqueObj2={torques_val2:.2e}" 
     outstr += f", F={Jforce.J():.2e}"
-    outstr += f", Fnet={Jforce2.J():.2e}"
-    outstr += f", T={Jtorque.J():.2e}"
-    outstr += f", Tnet={Jtorque2.J():.2e}"
+    # outstr += f", Fnet={Jforce2.J():.2e}"
+    # outstr += f", T={Jtorque.J():.2e}"
+    # outstr += f", Tnet={Jtorque2.J():.2e}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist2.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    print(coils[0]._children, coils_TF[0]._children, JF._children, Jforce._children)
     print(outstr)
     print(valuestr)
+    pr.disable()
+    sio = io.StringIO()
+    sortby = SortKey.CUMULATIVE
+    ps = pstats.Stats(pr, stream=sio).sort_stats(sortby)
+    ps.print_stats(20)
+    print(sio.getvalue())
+    # exit()
     return J, grad
 
 
@@ -466,6 +503,10 @@ f = fun
 dofs = JF.x
 np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
+
+print("""
+Calling f now
+""")
 J0, dJ0 = f(dofs)
 dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
@@ -511,6 +552,16 @@ Jlength.J()
 Jlength.dJ()
 t2 = time.time()
 print('sum(Jls_TF) time = ', t2 - t1, ' s')
+t1 = time.time()
+print(Jforce.J())
+print(Jforce.dJ())
+t2 = time.time()
+print('Jforce time = ', t2 - t1, ' s')
+t1 = time.time()
+JF.J()
+JF.dJ()
+t2 = time.time()
+print('JF time = ', t2 - t1, ' s')
 # t1 = time.time()
 # Jforce.J()
 # t2 = time.time()
