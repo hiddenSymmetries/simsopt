@@ -111,6 +111,12 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
+find_package(GSL)
+if(GSL_FOUND)
+   message(STATUS "GSL version is ${GSL_VERSION}")
+   message(STATUS "GSL include dirs are ${GSL_INCLUDE_DIR}")
+endif()
+
 # add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
@@ -146,6 +152,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-I${Boost_INCLUD
 if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
 
 add_executable(profiling EXCLUDE_FROM_ALL src/profiling/profiling.cpp src/simsoptpp/biot_savart_c.cpp src/simsoptpp/biot_savart_vjp_c.cpp src/simsoptpp/regular_grid_interpolant_3d_c.cpp)
 set_target_properties(profiling
