@@ -142,7 +142,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 7
+Nx = 5
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -263,7 +263,7 @@ base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_T
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.001)
-LENGTH_TARGET = 70
+LENGTH_TARGET = 80
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
@@ -535,7 +535,7 @@ MAXITER = 400
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
+        options={'maxiter': MAXITER, 'maxcor': 400}, tol=1e-15)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
