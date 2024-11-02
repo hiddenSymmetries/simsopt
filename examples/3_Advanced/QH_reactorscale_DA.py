@@ -88,7 +88,7 @@ def initialize_coils_QH(TEST_DIR, s):
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 4
-    order = 4
+    order = 8
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
@@ -142,7 +142,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 5
+Nx = 6
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -207,18 +207,18 @@ for i in range(len(base_curves)):
     base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
     base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
     # Fix orientations of each coil
-    base_curves[i].fix('x' + str(2 * order + 1))
-    base_curves[i].fix('x' + str(2 * order + 2))
-    base_curves[i].fix('x' + str(2 * order + 3))
-    base_curves[i].fix('x' + str(2 * order + 4))
+    # base_curves[i].fix('x' + str(2 * order + 1))
+    # base_curves[i].fix('x' + str(2 * order + 2))
+    # base_curves[i].fix('x' + str(2 * order + 3))
+    # base_curves[i].fix('x' + str(2 * order + 4))
 
     # Fix shape of each coil
     for j in range(2 * order + 1):
         base_curves[i].fix('x' + str(j))
     # Fix center points of each coil
-    base_curves[i].fix('x' + str(2 * order + 5))
-    base_curves[i].fix('x' + str(2 * order + 6))
-    base_curves[i].fix('x' + str(2 * order + 7))
+    # base_curves[i].fix('x' + str(2 * order + 5))
+    # base_curves[i].fix('x' + str(2 * order + 6))
+    # base_curves[i].fix('x' + str(2 * order + 7))
 base_currents = [Current(1e-1) * 2e7 for i in range(ncoils)]
 
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
@@ -270,18 +270,18 @@ CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-# FORCE_WEIGHT = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+# TORQUE_WEIGHT2 = Weight(4e-27) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QH_reactorscale_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QH_reactorscale_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
+        curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
         FORCE_WEIGHT2.value,
         TORQUE_WEIGHT.value,
@@ -355,14 +355,20 @@ linkNum = LinkingNumber(curves + curves_TF)
 # Jforce2 = LpCurveForce2(coils, coils_TF, p=2, threshold=1e8)
 # Jforce = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
         
-regularization_list = np.zeros(len(coils)) * regularization_rect(aa, bb)
-regularization_list2 = np.zeros(len(coils_TF)) * regularization_rect(a, b)
+regularization_list = np.ones(len(coils)) * regularization_rect(aa, bb)
+regularization_list2 = np.ones(len(coils_TF)) * regularization_rect(a, b)
 # Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 40) for i, c in enumerate(base_coils + base_coils_TF)])
+Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
 Jforce2 = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 40) for i, c in enumerate(base_coils + base_coils_TF)])
-Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
+Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+# Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
+
+
+Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils_TF)])
+
+# Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
+
 
 # Jtorque = SquaredMeanTorque2(coils, coils_TF) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jtorque = [SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)]
@@ -370,8 +376,8 @@ Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + ba
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CS_WEIGHT * Jcsdist \
-    + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength 
+    + LENGTH_WEIGHT * Jlength \
+    + LINK_WEIGHT * linkNum
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  #\
@@ -531,7 +537,7 @@ print('sum(Jls_TF) time = ', t2 - t1, ' s')
 # print('dJtorques time = ', t2 - t1, ' s')
 
 n_saves = 1
-MAXITER = 400
+MAXITER = 200
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 

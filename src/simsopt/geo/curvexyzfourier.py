@@ -188,6 +188,13 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             coils[ic].local_x = np.concatenate(dofs)
         return coils
 
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        quadpoints = self.quadpoints
+        N = len(quadpoints)
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
+        return barycenter
 
 def jaxfouriercurve_pure(dofs, quadpoints, order):
     k = jnp.shape(dofs)[0]//3
@@ -254,3 +261,11 @@ class JaxCurveXYZFourier(JaxCurve):
                 counter += 1
                 self.coefficients[i][2*j] = dofs[counter]
                 counter += 1
+
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        quadpoints = self.quadpoints
+        N = len(quadpoints)
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
+        return barycenter

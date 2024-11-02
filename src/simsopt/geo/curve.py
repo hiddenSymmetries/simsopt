@@ -444,6 +444,9 @@ class JaxCurve(sopp.Curve, Curve):
         self.dgammadashdashdash_by_dcoeff_jax = jit(jacfwd(self.gammadashdashdash_jax))
         self.dgammadashdashdash_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(self.gammadashdashdash_jax, x)[1](v)[0])
 
+        self.center_jax = jit(lambda x, v: self.center(x, v))
+        self.dcenter_dgamma = jit(jacfwd(self.center_jax, argnums=0))
+        self.dcenter_dgammadash = jit(jacfwd(self.center_jax, argnums=1))
         self.kappa_pure = kappa_pure
         self.kappa_jax = jit(lambda x, v: kappa_pure(x, v))
         self.kappa_impl_jax = jit(lambda x, v: kappa_pure(x, v))
@@ -467,6 +470,15 @@ class JaxCurve(sopp.Curve, Curve):
     def incremental_arclength_pure(self, dofs):
         gammadash = self.gammadash_jax(dofs)
         return jnp.linalg.norm(gammadash, axis=1)
+    
+    @property
+    def qps(self):
+        return self.quadpoints
+    
+    @qps.setter
+    def qps(self, new_quadpoints):
+        self.quadpoints = new_quadpoints
+        self.numquadpoints = len(new_quadpoints)
 
     def incremental_arclength(self):
         return self.incremental_arclength_jax(self.get_dofs())
@@ -691,6 +703,14 @@ class RotatedCurve(sopp.Curve, Curve):
         This function returns the number of dofs associated to the curve.
         """
         return self.curve.num_dofs()
+    
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        quadpoints = self.quadpoints
+        N = len(quadpoints)
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
+        return barycenter
 
     def gamma_impl(self, gamma, quadpoints):
         r"""

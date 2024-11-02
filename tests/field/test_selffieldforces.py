@@ -211,7 +211,7 @@ class CoilForcesTest(unittest.TestCase):
         gammadash_norm = np.linalg.norm(coils[0].curve.gammadash(), axis=1)
         force_norm = np.linalg.norm(coil_force(coils[0], coils, regularization), axis=1)
         print("force_norm mean:", np.mean(force_norm), "max:", np.max(force_norm))
-        objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm)
+        objective_alt = (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / np.shape(gammadash_norm)[0]
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt)
@@ -260,21 +260,35 @@ class CoilForcesTest(unittest.TestCase):
 
         # # Test MixedLpCurveForce
         objective = 0.0
+        objective2 = 0.0
         objective_alt = 0.0
         for i in range(len(coils)):
             objective += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold).J())
+            objective2 += float(LpCurveForce(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             force_norm = np.linalg.norm(coil_force(coils[i], coils, regularization), axis=1)
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
-            objective_alt += (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm)
+            objective_alt += (1 / p) * np.sum(np.maximum(force_norm - threshold, 0)**p * gammadash_norm) / np.shape(gammadash_norm)[0]
 
         regularization_list = np.ones(len(coils)) * regularization
-        objective_mixed = float(MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1], regularization_list[1:], p=p, threshold=threshold).J())
+        objective_mixed = float(MixedLpCurveForce(coils[0:1], coils[1:], regularization_list[0:1], 
+                                                  regularization_list[1:], p=p, threshold=threshold).J())
 
         print("objective:", objective, "objective_alt:", objective_alt, "diff:", objective - objective_alt)
         np.testing.assert_allclose(objective, objective_alt)
 
+    
+        print("objective:", objective, "objective2:", objective2, "diff:", objective - objective2)
+        np.testing.assert_allclose(objective, objective2, rtol=1e-2)
+
         print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed)
+
+        objective_mixed = float(MixedLpCurveForce(coils[0:1], coils[1:], 
+                                                  regularization_list[0:1], regularization_list[1:], p=p, 
+                                                  threshold=threshold, downsample=2).J())
+
+        print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
+        np.testing.assert_allclose(objective, objective_mixed, rtol=1e-2)
 
         # Test SquaredMeanTorque
 
@@ -311,6 +325,8 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective_mixed, rtol=1e-2)
 
         # # Test MixedLpCurveTorque
+        # for i in range(len(coils)):
+        #     print(coils[i].curve.center())
         objective = 0.0
         objective_alt = 0.0
         threshold = 0.0
@@ -457,6 +473,7 @@ class CoilForcesTest(unittest.TestCase):
     def test_update_points(self):
         """Confirm that Biot-Savart evaluation points are updated when the
         curve shapes change."""
+        from simsopt.field import BiotSavart
         nfp = 4
         ncoils = 3
         I = 1.7e4
@@ -470,7 +487,8 @@ class CoilForcesTest(unittest.TestCase):
 
             objective = objective_class(coils[0], coils, regularization)
             old_objective_value = objective.J()
-            old_biot_savart_points = objective.biotsavart.get_points_cart()
+            biotsavart = BiotSavart(objective.othercoils)
+            old_biot_savart_points = biotsavart.get_points_cart()
 
             # A deterministic random shift to the coil dofs:
             shift = np.array([-0.06797948, -0.0808704 , -0.02680599, -0.02775893, -0.0325402 ,
@@ -486,7 +504,8 @@ class CoilForcesTest(unittest.TestCase):
 
             objective.x = objective.x + shift
             assert abs(objective.J() - old_objective_value) > 1e-6
-            new_biot_savart_points = objective.biotsavart.get_points_cart()
+            biotsavart = BiotSavart(objective.othercoils)
+            new_biot_savart_points = biotsavart.get_points_cart()
             assert not np.allclose(old_biot_savart_points, new_biot_savart_points)
             # Objective2 is created directly at the new points after they are moved:
             objective2 = objective_class(coils[0], coils, regularization)
