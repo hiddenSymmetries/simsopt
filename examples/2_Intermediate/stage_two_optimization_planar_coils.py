@@ -100,7 +100,7 @@ s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, n
 # Create the initial coils:
 base_curves = create_equally_spaced_planar_curves(
     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order,
-    jax_flag=True
+    jax_flag=False
 )
 # for i in range(len(base_curves)):
 #     base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)

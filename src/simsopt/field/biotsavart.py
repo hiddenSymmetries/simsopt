@@ -37,14 +37,16 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         # self.B_vjp_jax = jit(lambda v: self.B_vjp_pure(v))
 
     def dB_by_dcoilcurrents(self, compute_derivatives=0):
-        points = self.get_points_cart_ref()
-        npoints = len(points)
-        ncoils = len(self._coils)
-        if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
-            assert compute_derivatives >= 0
-            self.compute(compute_derivatives)
-        self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
-        return self._dB_by_dcoilcurrents
+        # points = self.get_points_cart_ref()
+        npoints = len(self.get_points_cart_ref())
+        # ncoils = len(self._coils)
+        # print(any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]))
+        # if any([not self.fieldcache_get_status(f'B_{i}') for i in range(ncoils)]):
+        #     assert compute_derivatives >= 0
+        #     self.compute(compute_derivatives)
+        # self._dB_by_dcoilcurrents = [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(ncoils)]
+        # print(self._dB_by_dcoilcurrents)
+        return [self.fieldcache_get_or_create(f'B_{i}', [npoints, 3]) for i in range(len(self._coils))]  #self._dB_by_dcoilcurrents
 
     def d2B_by_dXdcoilcurrents(self, compute_derivatives=1):
         points = self.get_points_cart_ref()
@@ -113,7 +115,6 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         """
         coils = self._coils
-        # t1 = time.time()
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
         currents = [coil.current.get_value() for coil in coils]
@@ -123,18 +124,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         points = self.get_points_cart_ref()
         sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
                                    res_gamma, res_gammadash, [], [], [])
-        # t2 = time.time()
-        # print(t2 - t1)
-        # t1 = time.time()
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
-        # # res_current = np.sum(np.sum(v[None, :, :] * np.array(self.dB_by_dcoilcurrents()), axis=-1), axis=-1)
         res_current = [np.sum(v * self.dB_by_dcoilcurrents()[i]) for i in range(len(dB_by_dcoilcurrents))]
-        # t2 = time.time()
-        # print(t2 - t1)
-        # t1 = time.time()
-        # sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
-        # t2 = time.time()
-        # print(t2 - t1)
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
     def B_vjp_pure(self, v):

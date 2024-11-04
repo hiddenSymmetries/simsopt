@@ -16,10 +16,9 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
     double sinphi, cosphi, siniphi, cosiphi;
     int numquadpoints = quadpoints.size();
     data *= 0;
-
     Array q_norm = q * inv_magnitude();
 
-
+#pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -33,6 +32,7 @@ void CurvePlanarFourier<Array>::gamma_impl(Array& data, Array& quadpoints) {
             data(k, 1) += (rc[i] * cosiphi + rs[i-1] * siniphi) * sinphi;
         }
     }
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -53,6 +53,7 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
     Array q_norm = q * inv_sqrt_s;
 
     double cosiphi, siniphi;
+#pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -70,6 +71,7 @@ void CurvePlanarFourier<Array>::gammadash_impl(Array& data) {
     }
         
     data *= (2*M_PI);
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -90,6 +92,7 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosiphi, siniphi;
+#pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -106,6 +109,7 @@ void CurvePlanarFourier<Array>::gammadashdash_impl(Array& data) {
         }
     }
     data *= 2*M_PI*2*M_PI;
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -126,6 +130,7 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosiphi, siniphi;
+#pragma omp parallel for schedule(static) 
     for (int k = 0; k < numquadpoints; ++k) {
         double phi = 2 * M_PI * quadpoints[k];
         double cosphi = cos(phi);
@@ -153,6 +158,7 @@ void CurvePlanarFourier<Array>::gammadashdashdash_impl(Array& data) {
         }
     }
     data *= 2*M_PI*2*M_PI*2*M_PI;
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double i = data(m, 0);
         double j = data(m, 1);
@@ -173,6 +179,7 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         int counter = 0;
@@ -211,6 +218,7 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
             counter++;
         }
 
+        // i and j represent X0 and Y0 here before applying rotation
         i = rc[0] * cosphi;
         j = rc[0] * sinphi;
         k = 0;
@@ -224,279 +232,57 @@ void CurvePlanarFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
         double inv_sqrt_s = inv_magnitude();
         
         data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+                            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0] + 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[0] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[0] + 0.5 * q_norm[2])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[0] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                    - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                    * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[1]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[1] - 0.5 * q_norm[3])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[1] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            + 
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[2]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2] + 0.5 * q_norm[0])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[2] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            + (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +                            
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3] + 0.5 * q_norm[0]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[3] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[3] - 0.5 * q_norm[1])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[3] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
         counter++;
 
 
@@ -517,6 +303,7 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         double cosphi = cos(phi);
@@ -577,279 +364,57 @@ void CurvePlanarFourier<Array>::dgammadash_by_dcoeff_impl(Array& data) {
         double inv_sqrt_s = inv_magnitude();
 
         data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+                            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0] + 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[0] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[0] + 0.5 * q_norm[2])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[0] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                    - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                    * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[1]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[1] - 0.5 * q_norm[3])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[1] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            + 
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[2]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2] + 0.5 * q_norm[0])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[2] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            + (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +                            
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3] + 0.5 * q_norm[0]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[3] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[3] - 0.5 * q_norm[1])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[3] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
         counter++;
 
         for (int i = 0; i < 2; ++i) {
@@ -870,6 +435,7 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         double cosphi = cos(phi);
@@ -931,279 +497,57 @@ void CurvePlanarFourier<Array>::dgammadashdash_by_dcoeff_impl(Array& data) {
         double inv_sqrt_s = inv_magnitude();
         
         data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+                            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0] + 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[0] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[0] + 0.5 * q_norm[2])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[0] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                    - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                    * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[1]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[1] - 0.5 * q_norm[3])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[1] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            + 
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[2]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2] + 0.5 * q_norm[0])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[2] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            + (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +                            
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3] + 0.5 * q_norm[0]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[3] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[3] - 0.5 * q_norm[1])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[3] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
         counter++;
 
         for (int i = 0; i < 3; ++i) {
@@ -1223,6 +567,7 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
     Array q_norm = q * inv_magnitude();
 
     double cosnphi, sinnphi;
+#pragma omp parallel for schedule(static) 
     for (int m = 0; m < numquadpoints; ++m) {
         double phi = 2 * M_PI * quadpoints[m];
         double cosphi = cos(phi);
@@ -1306,279 +651,57 @@ void CurvePlanarFourier<Array>::dgammadashdashdash_by_dcoeff_impl(Array& data) {
         double inv_sqrt_s = inv_magnitude();
         
         data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+                            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0] + 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[0] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (inv_sqrt_s - q[0] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[0] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[0] + 0.5 * q_norm[2])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[0] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
+                    - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                    * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[1]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[1] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[1] - 0.5 * q_norm[3])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[1] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (inv_sqrt_s - q[1] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[1] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            + 
-                            (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[2]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[2] - 0.5 * q_norm[1]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2] + 0.5 * q_norm[0])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[2] - 0.5 * q_norm[3]))
+                            * inv_sqrt_s;
 
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (inv_sqrt_s - q[2] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (- q[3] * q[2] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
         counter++;
 
-        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[0] 
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[0]
-                            - 2 * j * q_norm[3]) 
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            + (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[2]) 
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[0] * q_norm[0] + q_norm[1] * q_norm[1]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[1]) 
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +                            
-                            (- 4 * i * (q_norm[1] * q_norm[1] + q_norm[0] * q_norm[0]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3]
-                            - 2 * j * q_norm[0]) 
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 0, counter) = (4 * i * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+            - 4 * j * ((q_norm[1] * q_norm[2] - q_norm[0] * q_norm[3]) * q_norm[3] + 0.5 * q_norm[0]))
+            * inv_sqrt_s;
 
+        data(m, 1, counter) = (4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3] - 1.0) * q_norm[3]
+                            - 4 * i * ((q_norm[1] * q_norm[2] + q_norm[0] * q_norm[3]) * q_norm[3] - 0.5 * q_norm[0]))
+                            * inv_sqrt_s;
 
-        data(m, 1, counter) = (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[0]
-                            + 2 * i * q_norm[3]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[0])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[2]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[1]
-                            - 4 * j * q_norm[1])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[2]
-                            + 2 * i * q_norm[1]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[2])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]) * q_norm[3]
-                            + 2 * i * q_norm[0]
-                            + 4 * j * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3]) * q_norm[3]
-                            - 4 * j * q_norm[3])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
-
-
-        data(m, 2, counter) = (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[0]
-                            - 2 * i * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[0]
-                            + 2 * j * q_norm[1])
-                            * (- q[0] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 4 * i * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]) * q_norm[1]
-                            + 2 * i * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[1]
-                            + 2 * j * q_norm[0])
-                            * (- q[1] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (- 2 * i * q_norm[0]
-                            - 4 * i * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[2]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[2]
-                            + 2 * j * q_norm[3])
-                            * (- q[2] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s)
-                            +
-                            (2 * i * q_norm[1]
-                            + 4 * i * (q_norm[2] * q_norm[0] - q_norm[1] * q_norm[3]) * q_norm[3]
-                            - 4 * j * (q_norm[1] * q_norm[0] + q_norm[2] * q_norm[3]) * q_norm[3]
-                            + 2 * j * q_norm[2])
-                            * (inv_sqrt_s - q[3] * q[3] * inv_sqrt_s * inv_sqrt_s * inv_sqrt_s);
+        data(m, 2, counter) = (- 4 * i * ((q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * q_norm[3] - 0.5 * q_norm[1])
+                            - 4 * j * ((q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]) * q_norm[3] - 0.5 * q_norm[2]))
+                            * inv_sqrt_s;
         counter++;
 
         for (int i = 0; i < 3; ++i) {
