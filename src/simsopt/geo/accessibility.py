@@ -1,5 +1,5 @@
 import numpy as np
-from jax import grad
+from jax import grad, hessian, jacfwd, jacrev
 import jax.numpy as jnp
 from .hull import hull2D
 import matplotlib.pyplot as plt
@@ -544,7 +544,6 @@ def zphi_enclosed_area(gamma):
 
     return PolyArea(x,y)
 
-
 class ProjectedEnclosedArea( Optimizable ):
     def __init__(self, curve, projection='xy'):
         self.curve = curve
@@ -556,9 +555,9 @@ class ProjectedEnclosedArea( Optimizable ):
             self.J_jax = jit(lambda gamma: zphi_enclosed_area(gamma))
             
         self.thisgrad0 = jit(lambda gamma: grad(self.J_jax, argnums=0)(gamma))
+        self.hessian = jit(lambda gamma: hessian(self.J_jax, argnums=0)(gamma))
 
         super().__init__(depends_on=[curve])
-
 
     def J(self):
         gamma = self.curve.gamma()
@@ -571,6 +570,19 @@ class ProjectedEnclosedArea( Optimizable ):
 
         dcurve = self.curve.dgamma_by_dcoeff_vjp(grad0)
         return dcurve
+    
+    def ddJ_ddport(self):
+        gamma = self.curve.gamma()
+        hess = self.hessian(gamma) # this is d^2J/dgamma_i dgamma_j. Size npts x 3 x npts x 3
+        dgdx = self.curve.dgamma_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+
+        grad0 = self.thisgrad0(gamma) # this is dJ/dgamma, size npts x 3
+        curve_hessian = self.curve.gamma_hessian() # this is d^2 gamma / dx_i dx_2, size 128 x 3 x ndofs x ndofs
+
+        return np.einsum('ijkl,ijm,kln->mn', hess, dgdx, dgdx) + np.einsum('ij,ijkl->kl',grad0,curve_hessian) # this should be size ndofs x ndofs
+    
+    def ddJ_dportdcoil(self):
+        return 0 #Does not depend on coils
 
 
 
@@ -584,6 +596,7 @@ class DirectedFacingPort(Optimizable):
 
         self.J_jax = lambda nz: upward_facing_pure(nz)
         self.thisgrad = lambda nz: grad(self.J_jax)(nz)
+        self.hessian = lambda nz: hessian(self.J_jax)(nz) 
 
         super().__init__(depends_on=[curve])
 
@@ -605,6 +618,23 @@ class DirectedFacingPort(Optimizable):
 
         return f(self.thisgrad(n))
     
+    def ddJ_ddport(self):
+        if self.projection=='z':
+            dgdx = self.curve.dzfactor_by_dcoeff()
+            curve_hessian = self.curve.zfactor_hessian()
+            n = self.curve.zfactor()
+        elif self.projection=='r':
+            dgdx = self.curve.drfactor_by_dcoeff()
+            curve_hessian = self.curve.rfactor_hessian()
+            n = self.curve.rfactor()
+            
+        hess = self.hessian(n) # this is d^2J/dgamma_i dgamma_j. Size npts x npts 
+        grad0 = self.thisgrad(n) # this is dJ/dgamma, size npts 
+
+        return np.einsum('ij,il,jm->lm', hess, dgdx, dgdx) + np.einsum('i,ilm->lm',grad0,curve_hessian) # this should be size ndofs x ndofs
+
+    def ddJ_dportdcoil(self):
+        return 0 # does not depend on coils
 
 
 def min_xy_distance(gamma1, gamma2):
@@ -703,6 +733,17 @@ class ProjectedCurveCurveDistance( Optimizable ):
         self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
         self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
 
+        self.ddJdg1dg1 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=0)(g1,l1,g2,l2))
+        self.ddJdg1dl1 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=1)(g1,l1,g2,l2))
+        self.ddJdg1dg2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=2)(g1,l1,g2,l2))
+        self.ddJdg1dl2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=3)(g1,l1,g2,l2))
+        self.ddJdl1dl1 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=1), argnums=1)(g1,l1,g2,l2))
+        self.ddJdl1dg2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=1), argnums=2)(g1,l1,g2,l2))
+        self.ddJdl1dl2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=1), argnums=3)(g1,l1,g2,l2))
+        self.ddJdg2dg2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=2), argnums=2)(g1,l1,g2,l2))
+        self.ddJdg2dl2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=2), argnums=3)(g1,l1,g2,l2))
+        self.ddJdl2dl2 = jit(lambda g1, l1, g2, l2: jacfwd(jacrev(self.J_jax, argnums=3), argnums=3)(g1,l1,g2,l2))
+
         self.num_basecurves = len(base_curves)
         super().__init__(depends_on=base_curves + [curve])
 
@@ -754,7 +795,68 @@ class ProjectedCurveCurveDistance( Optimizable ):
         )
         return sum(res)
 
+    def ddJ_ddport(self):
+        g1 = self.curve.gamma()
+        l1 = self.curve.gammadash()
+        dg1dx = self.curve.dgamma_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+        dl1dx = self.curve.dgammadash_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+        gamma_hessian = self.curve.gamma_hessian() # this is d^2 gamma / dx_i dx_2, size 128 x 3 x ndofs x ndofs
+        gammadash_hessian = self.curve.gammadash_hessian() # this is d^2 gamma / dx_i dx_2, size 128 x 3 x ndofs x ndofs
 
+        ndofs_port = self.curve.num_dofs()
+        res = np.zeros((ndofs_port,ndofs_port))
+        for c in self.base_curves:
+            g2 = c.gamma()
+            l2 = c.gammadash()
+            hess00 = self.ddJdg1dg1(g1, l1, g2, l2) 
+            hess01 = self.ddJdg1dl1(g1, l1, g2, l2) 
+            hess11 = self.ddJdl1dl1(g1, l1, g2, l2) 
+
+            grad0 = self.thisgrad0(g1, l1, g2, l2) # this is dJ/dgamma, size npts x 3
+            grad1 = self.thisgrad1(g1, l1, g2, l2) # this is dJ/dgammadash, size npts x 3
+
+            res += np.einsum('ijkl,ijm,kln->mn', hess00, dg1dx, dg1dx) \
+                +  np.einsum('ijkl,ijm,kln->mn', hess11, dl1dx, dl1dx)\
+                +  np.einsum('ij,ijkl->kl',grad0,gamma_hessian) \
+                +  np.einsum('ij,ijkl->kl',grad1,gammadash_hessian) \
+                +  np.einsum('kilj,kim,ljn->mn', hess01, dg1dx, dl1dx) \
+                +  np.einsum('kilj,kin,ljm->mn', hess01, dg1dx, dl1dx)
+
+        return res
+
+    def ddJ_dportdcoil(self):
+        g1 = self.curve.gamma()
+        l1 = self.curve.gammadash()
+        dg1dx = self.curve.dgamma_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+        dl1dx = self.curve.dgammadash_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+        ndofs_c1 = self.curve.num_dofs()
+        ndofs_bc = [c.num_dofs() for c in self.base_curves]
+        res = np.zeros((sum(ndofs_bc),ndofs_c1))
+        counter=0
+        for ii, c in enumerate(self.base_curves):
+            g2 = c.gamma()
+            l2 = c.gammadash()
+            dg2dx = c.dgamma_by_dcoeff()
+            dl2dx = c.dgammadash_by_dcoeff()
+
+            hg1g2 = self.ddJdg1dg2(g1,l1,g2,l2)
+            hl1g2 = self.ddJdl1dg2(g1,l1,g2,l2)
+            hg1l2 = self.ddJdg1dl2(g1,l1,g2,l2)
+            hl1l2 = self.ddJdl1dl2(g1,l1,g2,l2)
+
+            res[counter:counter+ndofs_bc[ii],:] = \
+                   np.einsum('ijkl,ijm,kln->nm', hg1g2, dg1dx, dg2dx) \
+                +  np.einsum('ijkl,ijm,kln->nm', hl1g2, dl1dx, dg2dx) \
+                +  np.einsum('ijkl,ijm,kln->nm', hg1l2, dg1dx, dl2dx) \
+                +  np.einsum('ijkl,ijm,kln->nm', hl1l2, dl1dx, dl2dx)
+            counter += ndofs_bc[ii]
+
+        # /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\
+        # This is considering all coils independent from one another... Forgot to apply symmetry!
+        # /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\
+
+        return res
+        
 
 
 
@@ -786,7 +888,6 @@ def zphi_convexity( pts, g, gd, gdd):
 
     # Allow 5% margin of error for numerical integration error
     return jnp.max( jnp.array([integral_of_kappa - 1.05*2.0*jnp.pi]), 0 )**2
-
 
 class ProjectedCurveConvexity( Optimizable ):
     def __init__(self, curve, projection='xy'):
@@ -823,5 +924,33 @@ class ProjectedCurveConvexity( Optimizable ):
 
         return self.curve.dgamma_by_dcoeff_vjp(grad0) + self.curve.dgammadash_by_dcoeff_vjp(grad1) + self.curve.dgammadashdash_by_dcoeff_vjp(grad2)
     
+    def ddJ_ddport(self):
+        gamma = self.curve.gamma()
+        gammadash = self.curve.gammadash()
+        gammadashdash = self.curve.gammadashdash()
+        hess0 = hessian(self.J_jax, argnums=0)(gamma, gammadash, gammadashdash) # this is d^2J/dgamma_i dgamma_j. Size npts x 3 x npts x 3
+        hess1 = hessian(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash) # this is d^2J/dgamma_i dgamma_j. Size npts x 3 x npts x 3
+        hess2 = hessian(self.J_jax, argnums=2)(gamma, gammadash, gammadashdash) # this is d^2J/dgamma_i dgamma_j. Size npts x 3 x npts x 3
+        dgdx = self.curve.dgamma_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+        dgdxdash = self.curve.dgammadash_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
+        dgdxdashdash = self.curve.dgammadashdash_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
 
+        grad0 = self.thisgrad0(gamma, gammadash, gammadashdash) # this is dJ/dgamma, size npts x 3
+        grad1 = self.thisgrad1(gamma, gammadash, gammadashdash) # this is dJ/dgamma, size npts x 3
+        grad2 = self.thisgrad2(gamma, gammadash, gammadashdash) # this is dJ/dgamma, size npts x 3
+        gamma_hessian = self.curve.gamma_hessian() # this is d^2 gamma / dx_i dx_2, size 128 x 3 x ndofs x ndofs
+        gammadash_hessian = self.curve.gammadash_hessian() # this is d^2 gamma / dx_i dx_2, size 128 x 3 x ndofs x ndofs
+        gammadashdash_hessian = self.curve.gammadashdash_hessian() # this is d^2 gamma / dx_i dx_2, size 128 x 3 x ndofs x ndofs
+
+        # Contribution for derivatives w.r.t gamma
+        ddJ_dpport_1 = np.einsum('ijkl,ijm,kln->mn', hess0, dgdx, dgdx) + np.einsum('ij,ijkl->kl',grad0,gamma_hessian) # this should be size ndofs x ndofs
+        ddJ_dpport_2 = np.einsum('ijkl,ijm,kln->mn', hess1, dgdxdash, dgdx) + np.einsum('ij,ijkl->kl',grad1,gammadash_hessian) # this should be size ndofs x ndofs
+        ddJ_dpport_3 = np.einsum('ijkl,ijm,kln->mn', hess2, dgdxdashdash, dgdx) + np.einsum('ij,ijkl->kl',grad2,gammadashdash_hessian) # this should be size ndofs x ndofs
+
+        raise NotImplementedError("Missing mixed terms")
+
+        return ddJ_dpport_1 + ddJ_dpport_2 + ddJ_dpport_3
+
+    def ddJ_dportdcoil(self):
+        return 0 #Does not depend on coils
 

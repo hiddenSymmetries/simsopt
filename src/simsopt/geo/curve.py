@@ -1,7 +1,7 @@
 from math import sin, cos
 
 import numpy as np
-from jax import vjp, jacfwd, jvp
+from jax import vjp, jacfwd, jvp, hessian
 import jax.numpy as jnp
 
 import simsoptpp as sopp
@@ -995,8 +995,8 @@ def gamma_2d(modes, qpts, order, G:int=0, H:int=0):
     return phi, theta
 
 
-#def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
-def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, gamma_lin):
+def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
+#def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, gamma_lin):
     """Returns position in 3D space of a curve lying on a surface
 
     Args:
@@ -1011,19 +1011,13 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, gamma_lin):
      - gamma: Position in 3D space. Array of size N x 3.
     """
     phi, theta = gamma_2d(curve_dofs, qpts, order, G, H)
-    print(f'Phi={phi}')
-    print(f'Theta={theta}')
     
-    gamma = jnp.zeros((qpts.size,3))
-    for ii in range(qpts.size):
-        gamma_lin(gamma[ii], phi[ii], theta[ii])
-
-    # if surf_type=='RZ_Fourier':
-    #     gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
-    # elif surf_type=='XYZ_Tensor_Fourier':
-    #     gamma = surfxyztensor_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
-    # elif surf_type is None:
-    #     return phi, theta
+    if surf_type=='RZ_Fourier':
+        gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
+    elif surf_type=='XYZ_Tensor_Fourier':
+        gamma = surfxyztensor_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
+    elif surf_type is None:
+        return phi, theta
 
     return gamma
 
@@ -1157,9 +1151,7 @@ def normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp)
     """
     if not surf_type=='RZ_Fourier':
         raise NotImplementedError('Normal only implemented for SurfaceRZFourier')
-    gamma2d = gamma_2d(curve_dofs, qpts, order, G, H)
-    phi = gamma2d[:,0]
-    theta = gamma2d[:,1]
+    phi, theta = gamma_2d(curve_dofs, qpts, order, G, H)
 
     # Construct normal on surface
     r = jnp.zeros((qpts.size,))
@@ -1261,11 +1253,11 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         #Curve.__init__(self, x0=self.get_dofs(), depends_on=[self.surf], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
         #super().__init__()
 
-        # curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp
-        #self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp)
-        self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, self.surf.gamma_lin)
-        #self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp))
-        self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, self.surf.gamma_lin))
+        
+        self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp)
+        #self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, self.surf.gamma_lin)
+        self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp))
+        #self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, self.surf.gamma_lin))
 
         # GAMMA
         points = np.asarray(self.quadpoints)
@@ -1320,6 +1312,10 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         self.snz = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='z')
         self.snr = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='r')
 
+        self.dsnz_by_dcoeff_jax = lambda cdofs, sdofs: jacfwd(self.snz)(cdofs, sdofs)
+        self.dsnr_by_dcoeff_jax = lambda cdofs, sdofs: jacfwd(self.snr)(cdofs, sdofs)
+        self.snr_hessian_jax = lambda cdofs, sdofs: hessian(self.snr)(cdofs, sdofs)
+        self.snz_hessian_jax = lambda cdofs, sdofs: hessian(self.snz)(cdofs, sdofs)
         self.dsnz_by_dcoeff_vjp_jax = lambda cdofs, sdofs, v: vjp(lambda x: self.snz(x, sdofs), cdofs)[1](v)[0]
         self.dsnr_by_dcoeff_vjp_jax = lambda cdofs, sdofs, v: vjp(lambda x: self.snr(x, sdofs), cdofs)[1](v)[0]
 
@@ -1358,6 +1354,16 @@ class CurveCWSFourier( Curve, sopp.Curve ):
     # =====
     def gamma_2d(self):
         return self.gamma_2d_pure(self.get_dofs(), self.surf.get_dofs(), self.quadpoints)
+    
+    def gamma_hessian(self):
+        cdofs = self.get_dofs()
+        return hessian(self.gammac_jax)(cdofs)
+    def gammadash_hessian(self):
+        cdofs = self.get_dofs()
+        return hessian(self.gammacdash_jax)(cdofs)
+    def gammadashdash_hessian(self):
+        cdofs = self.get_dofs()
+        return hessian(self.gammacdashdash_jax)(cdofs)
     
     def gamma_impl(self, gamma, quadpoints):
         r"""
@@ -1689,17 +1695,37 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         sdofs = self.surf.get_dofs()
         return self.snz(cdofs, sdofs)
     
+    def dzfactor_by_dcoeff(self):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        return self.dsnz_by_dcoeff_jax(cdofs, sdofs)
+
     def dzfactor_by_dcoeff_vjp(self, v):
         cdofs = self.get_dofs()
         sdofs = self.surf.get_dofs()
         return Derivative({self: self.dsnz_by_dcoeff_vjp_jax(cdofs, sdofs, v)})
+    
+    def zfactor_hessian(self):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        return self.snz_hessian_jax(cdofs, sdofs)
     
     def rfactor(self):
         cdofs = self.get_dofs()
         sdofs = self.surf.get_dofs()
         return self.snr(cdofs, sdofs)
 
+    def drfactor_by_dcoeff(self):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        return self.dsnr_by_dcoeff_jax(cdofs, sdofs)
+        
     def drfactor_by_dcoeff_vjp(self, v):
         cdofs = self.get_dofs()
         sdofs = self.surf.get_dofs()
         return Derivative({self: self.dsnr_by_dcoeff_vjp_jax(cdofs, sdofs, v)})
+
+    def rfactor_hessian(self):
+        cdofs = self.get_dofs()
+        sdofs = self.surf.get_dofs()
+        return self.snr_hessian_jax(cdofs, sdofs)
