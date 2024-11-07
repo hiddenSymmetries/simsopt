@@ -148,10 +148,14 @@ class LpCurveTorsion(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
+def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, downsample=1):
     """
     This function is used in a Python+Jax implementation of the curve-curve distance formula.
     """
+    gamma1 = gamma1[::downsample, :]
+    gamma2 = gamma2[::downsample, :]
+    l1 = l1[::downsample, :]
+    l2 = l2[::downsample, :]
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
     alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
@@ -179,15 +183,16 @@ class CurveCurveDistance(Optimizable):
 
     """
 
-    def __init__(self, curves, minimum_distance, num_basecurves=None):
+    def __init__(self, curves, minimum_distance, num_basecurves=None, downsample=1):
         self.curves = curves
         self.minimum_distance = minimum_distance
-
-        self.J_jax = jit(lambda gamma1, l1, gamma2, l2: cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance))
-        self.thisgrad0 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2))
-        self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2))
-        self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
-        self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
+        self.downsample = downsample
+        args = {"static_argnums": (4,)}
+        self.J_jax = jit(lambda gamma1, l1, gamma2, l2, dsample: cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance, dsample), **args)
+        self.thisgrad0 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=0)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.thisgrad1 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=1)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2, dsample), **args)
+        self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2, dsample: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2, dsample), **args)
         self.candidates = None
         self.num_basecurves = num_basecurves or len(curves)
         super().__init__(depends_on=curves)
@@ -198,20 +203,22 @@ class CurveCurveDistance(Optimizable):
     def compute_candidates(self):
         if self.candidates is None:
             candidates = sopp.get_pointclouds_closer_than_threshold_within_collection(
-                [c.gamma() for c in self.curves], self.minimum_distance, self.num_basecurves)
+                [c.gamma()[::self.downsample, :] for c in self.curves], self.minimum_distance, self.num_basecurves)
             self.candidates = candidates
 
     def shortest_distance_among_candidates(self):
         self.compute_candidates()
         from scipy.spatial.distance import cdist
-        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i, j in self.candidates])
+        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma()[::self.downsample, :], 
+            self.curves[j].gamma()[::self.downsample, :])) for i, j in self.candidates])
 
     def shortest_distance(self):
         self.compute_candidates()
         if len(self.candidates) > 0:
             return self.shortest_distance_among_candidates()
         from scipy.spatial.distance import cdist
-        return min([np.min(cdist(self.curves[i].gamma(), self.curves[j].gamma())) for i in range(len(self.curves)) for j in range(i)])
+        return min([np.min(cdist(self.curves[i].gamma()[::self.downsample, :], 
+            self.curves[j].gamma()[::self.downsample, :])) for i in range(len(self.curves)) for j in range(i)])
 
     def J(self):
         """
@@ -224,7 +231,7 @@ class CurveCurveDistance(Optimizable):
             l1 = self.curves[i].gammadash()
             gamma2 = self.curves[j].gamma()
             l2 = self.curves[j].gammadash()
-            res += self.J_jax(gamma1, l1, gamma2, l2)
+            res += self.J_jax(gamma1, l1, gamma2, l2, self.downsample)
 
         return res
 
@@ -242,10 +249,10 @@ class CurveCurveDistance(Optimizable):
             l1 = self.curves[i].gammadash()
             gamma2 = self.curves[j].gamma()
             l2 = self.curves[j].gammadash()
-            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2)
-            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2)
-            dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2)
-            dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2)
+            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad0(gamma1, l1, gamma2, l2, self.downsample)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad1(gamma1, l1, gamma2, l2, self.downsample)
+            dgamma_by_dcoeff_vjp_vecs[j] += self.thisgrad2(gamma1, l1, gamma2, l2, self.downsample)
+            dgammadash_by_dcoeff_vjp_vecs[j] += self.thisgrad3(gamma1, l1, gamma2, l2, self.downsample)
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
         return sum(res)

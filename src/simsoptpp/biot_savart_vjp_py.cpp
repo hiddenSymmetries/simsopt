@@ -67,6 +67,7 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
     auto pointsx = AlignedPaddedVec(points.shape(0), 0);
     auto pointsy = AlignedPaddedVec(points.shape(0), 0);
     auto pointsz = AlignedPaddedVec(points.shape(0), 0);
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < points.shape(0); ++i) {
         pointsx[i] = points(i, 0);
         pointsy[i] = points(i, 1);
@@ -77,24 +78,23 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
     bool compute_dB = res_grad_gamma.size() > 0;
     Array dummy = Array();
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(static)
     for(int i=0; i<num_coils; i++) {
-        if(compute_dB)
+        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        if(compute_dB) {
             biot_savart_vjp_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],
                     v, res_gamma[i], res_dgamma_by_dphi[i],
                     vgrad, res_grad_gamma[i], res_grad_dgamma_by_dphi[i]);
+            res_grad_gamma[i] *= fak;
+            res_grad_dgamma_by_dphi[i] *= fak;
+        }
         else
             biot_savart_vjp_kernel<Array, 0>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],
                     v, res_gamma[i], res_dgamma_by_dphi[i],
                     dummy, dummy, dummy);
 
-        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
         res_gamma[i] *= fak;
         res_dgamma_by_dphi[i] *= fak;
-        if(compute_dB) {
-            res_grad_gamma[i] *= fak;
-            res_grad_dgamma_by_dphi[i] *= fak;
-        }
     }
 }
 

@@ -33,7 +33,9 @@ def regularization_rect(a, b):
     """Regularization for a rectangular conductor"""
     return a * b * rectangular_xsection_delta(a, b)
 
+from ..geo.jit import jit
 
+@jit
 def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
     """The term in the regularized Biot-Savart law in which the near-singularity
     has been integrated analytically.
@@ -51,7 +53,7 @@ def B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization):
         0.5 * (-2 + jnp.log(64 * norm_rc_prime * norm_rc_prime / regularization)) / (norm_rc_prime**3)
     )[:, None]
 
-
+@jit
 def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, regularization):
     # The factors of 2π in the next few lines come from the fact that simsopt
     # uses a curve parameter that goes up to 1 rather than 2π.
@@ -59,26 +61,24 @@ def B_regularized_pure(gamma, gammadash, gammadashdash, quadpoints, current, reg
     rc = gamma 
     rc_prime = gammadash / 2 / jnp.pi
     rc_prime_prime = gammadashdash / 4 / jnp.pi**2
-    n_quad = phi.shape[0]
-    dphi = 2 * jnp.pi / n_quad
+    dphi = 2 * jnp.pi / phi.shape[0]
 
-    analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
+    # analytic_term = B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization)
     dr = rc[:, None] - rc[None, :]    
     first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
     cos_fac = 2.0 - 2.0 * jnp.cos(phi[None, :] - phi[:, None])
     second_term = jnp.cross(rc_prime_prime, rc_prime)[:, None, :] * (
         0.5 * cos_fac / (cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization)**1.5)[:, :, None]
+    first_term = jnp.cross(rc_prime[None, :], dr) / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]
+    # cos_fac = 2.0 - 2.0 * jnp.cos(phi[None, :] - phi[:, None])
+    # integral_term = dphi * jnp.sum(jnp.cross(rc_prime, (dr / ((jnp.sum(dr * dr, axis=2) + regularization) ** 1.5)[:, :, None]) \
+    #     - rc_prime_prime * (
+    #     0.5 * cos_fac / (cos_fac * jnp.sum(rc_prime * rc_prime, axis=1)[:, None] + regularization)**1.5)[:, :, None]),
+    #     axis=1
+    # )
     integral_term = dphi * jnp.sum(first_term + second_term, 1)
-    # print(jnp.any(jnp.isnan(first_term)))
-    # print(jnp.any(jnp.isnan(second_term)))
-    # print(jnp.any(jnp.isnan(integral_term)))
-    # print(jnp.any(jnp.isnan(analytic_term)))
-
-    # print(jnp.max(jnp.abs(first_term)))
-    # print(jnp.max(jnp.abs(second_term)))
-    # print(jnp.max(jnp.abs(integral_term)))
-    # print(jnp.max(jnp.abs(analytic_term)))
-    return current * Biot_savart_prefactor * (analytic_term + integral_term)
+    return current * Biot_savart_prefactor * (
+        B_regularized_singularity_term(rc_prime, rc_prime_prime, regularization) + integral_term)
 
 
 def B_regularized(coil, regularization):

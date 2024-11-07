@@ -408,6 +408,12 @@ class Curve(Optimizable):
             )
         return dkappadash_by_dcoeff
 
+    def center(self, gamma, gammadash):
+        # Compute the centroid of the curve
+        arclength = jnp.linalg.norm(gammadash, axis=-1)
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / gamma.shape[0] / np.pi
+        return barycenter
+
 
 class JaxCurve(sopp.Curve, Curve):
     def __init__(self, quadpoints, gamma_pure, **kwargs):
@@ -696,10 +702,8 @@ class RotatedCurve(sopp.Curve, Curve):
     
     def center(self, gamma, gammadash):
         # Compute the centroid of the curve
-        quadpoints = self.quadpoints
-        N = len(quadpoints)
         arclength = jnp.linalg.norm(gammadash, axis=-1)
-        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / N / np.pi
+        barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / gamma.shape[0] / np.pi
         return barycenter
 
     def gamma_impl(self, gamma, quadpoints):

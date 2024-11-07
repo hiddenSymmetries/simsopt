@@ -125,45 +125,45 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
                                    res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
-        res_current = [np.sum(v * self.dB_by_dcoilcurrents()[i]) for i in range(len(dB_by_dcoilcurrents))]
+        res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
 
-    def B_vjp_pure(self, v):
-        r"""
-        Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
-        :math:`\{\mathbf{B}_i\}_{i=1}^n`.
-        These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
-        This function returns the vector Jacobian product of this dependency, i.e.
+    # def B_vjp_pure(self, v):
+    #     r"""
+    #     Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
+    #     :math:`\{\mathbf{B}_i\}_{i=1}^n`.
+    #     These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
+    #     This function returns the vector Jacobian product of this dependency, i.e.
 
-        .. math::
+    #     .. math::
 
-            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
+    #         \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
 
-        """
-        coils = self._coils
-        t1 = time.time()
-        gammas = [coil.curve.gamma() for coil in coils]
-        gammadashs = [coil.curve.gammadash() for coil in coils]
-        currents = [coil.current.get_value() for coil in coils]
-        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
-        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+    #     """
+    #     coils = self._coils
+    #     t1 = time.time()
+    #     gammas = [coil.curve.gamma() for coil in coils]
+    #     gammadashs = [coil.curve.gammadash() for coil in coils]
+    #     currents = [coil.current.get_value() for coil in coils]
+    #     res_gamma = [np.zeros_like(gamma) for gamma in gammas]
+    #     res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
 
-        points = self.get_points_cart_ref()
-        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, np.array(v),
-                                   res_gamma, res_gammadash, [], [], [])
-        # t2 = time.time()
-        # print(t2 - t1)
-        # t1 = time.time()
-        # dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
-        # # res_current = np.sum(np.sum(v[None, :, :] * np.array(self.dB_by_dcoilcurrents()), axis=-1), axis=-1)
-        res_current = [jnp.sum(v * self.dB_by_dcoilcurrents()[i]) for i in range(len(coils))]
-        # t2 = time.time()
-        # print(t2 - t1)
-        # t1 = time.time()
-        # sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
-        # t2 = time.time()
-        # print(t2 - t1)
-        return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], jnp.asarray([res_current[i]])) for i in range(len(coils))])
+    #     points = self.get_points_cart_ref()
+    #     sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, np.array(v),
+    #                                res_gamma, res_gammadash, [], [], [])
+    #     # t2 = time.time()
+    #     # print(t2 - t1)
+    #     # t1 = time.time()
+    #     # dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
+    #     # # res_current = np.sum(np.sum(v[None, :, :] * np.array(self.dB_by_dcoilcurrents()), axis=-1), axis=-1)
+    #     res_current = [jnp.sum(v * self.dB_by_dcoilcurrents()[i]) for i in range(len(coils))]
+    #     # t2 = time.time()
+    #     # print(t2 - t1)
+    #     # t1 = time.time()
+    #     # sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+    #     # t2 = time.time()
+    #     # print(t2 - t1)
+    #     return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], jnp.asarray([res_current[i]])) for i in range(len(coils))])
 
     def dA_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()

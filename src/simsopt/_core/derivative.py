@@ -115,11 +115,16 @@ class Derivative:
         x = self.data
         y = other.data
         z = copy_numpy_dict(x)
+        # for k, yk in y.items():
+        #     if k in z:
+        #         z[k] += yk
+        #     else:
+        #         z[k] = yk
         for k in y:
             if k in z:
                 z[k] += y[k]
             else:
-                z[k] = y[k].copy()
+                z[k] = y[k].copy()  # why copy here but not in subtract?
         return Derivative(z)
 
     def __sub__(self, other):
