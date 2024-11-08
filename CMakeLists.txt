@@ -121,10 +121,10 @@ set(XTENSOR_USE_TBB 0)
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp 
     src/simsoptpp/python_tracing.cpp
+    src/simsoptpp/python_interpolant.cpp
     src/simsoptpp/regular_grid_interpolant_3d_py.cpp
     src/simsoptpp/tracing.cpp 
     src/simsoptpp/python_boozermagneticfield.cpp
-    src/simsoptpp/python_magneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
     )
 
