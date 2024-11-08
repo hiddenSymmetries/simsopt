@@ -88,7 +88,7 @@ def initialize_coils_QH(TEST_DIR, s):
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 4
-    order = 8
+    order = 14
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
@@ -98,7 +98,7 @@ def initialize_coils_QH(TEST_DIR, s):
     # Only need Jax flag for CurvePlanarFourier class
     base_curves = create_equally_spaced_curves(
         ncoils, s.nfp, stellsym=True, 
-        R0=R0, R1=R1, order=order, numquadpoints=256,
+        R0=R0, R1=R1, order=order, numquadpoints=128,
         jax_flag=False,
     )
 
@@ -148,7 +148,7 @@ Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
-    # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
+    numquadpoints=20  # Defaults is (order + 1) * 40 so this halves it
 )
 import warnings
 
@@ -262,7 +262,7 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
-LENGTH_WEIGHT = Weight(0.001)
+LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 80
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
@@ -270,10 +270,10 @@ CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-33) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-21) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -531,7 +531,7 @@ print('dJforces time = ', t2 - t1, ' s')
 # print('dJtorques time = ', t2 - t1, ' s')
 
 n_saves = 1
-MAXITER = 200
+MAXITER = 400
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
