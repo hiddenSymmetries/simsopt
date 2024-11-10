@@ -21,7 +21,7 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
     # how do I manipulate the density of the dipole grid?
@@ -86,20 +86,15 @@ kwargs_geo = {"Nx": Nx}
 pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
-kwargs_geo = {"Nx": Nx}  # will get popped out, so I think kwargs needs to be reset like this
-pm_shadow = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
-    s, Bnormal, s_inner, s_outer, **kwargs_geo
-)
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 5000
+nIter_max = 10000
 # algorithm = 'baseline'
-algorithm = 'baseline_shadow'
+algorithm = 'baseline'
 nHistory = 20
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
-kwargs['A_shadow'] = pm_shadow.A_obj
 print('kwargs = ',kwargs)
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -111,6 +106,8 @@ M_max = B_max / mu0
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
+print('dip_Ms = ',pm_opt.m)
+
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,
@@ -146,12 +143,12 @@ s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 print('B_field shape = ',b_dipole.B().shape)
-print('B_field = ',b_dipole.B())
+# print('B_field = ',b_dipole.B())
 f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
 
-print('s_plot = ',s_plot)
-print('b_dipole = ',b_dipole)
-print('- Bnorm = ',-Bnormal)
+# print('s_plot = ',s_plot)
+# print('b_dipole = ',b_dipole)
+# print('- Bnorm = ',-Bnormal)
 
 print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
@@ -159,7 +156,7 @@ print('Total volume = ', total_volume)
 
 
 # field for cubic magents in dipole optimization positions
-b_test = ExactField(
+b_comp = ExactField(
     pm_opt.dipole_grid_xyz,
     pm_opt.m,
     pm_opt.dims,
@@ -169,27 +166,29 @@ b_test = ExactField(
     m_maxima = pm_opt.m_maxima
 )
 
-b_test.set_points(s_plot.gamma().reshape((-1, 3)))
-b_test._toVTK(out_dir / "Test_Fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
+print('dip_grid = ',pm_opt.dipole_grid_xyz)
+
+b_comp.set_points(s_plot.gamma().reshape((-1, 3)))
+b_comp._toVTK(out_dir / "comp_Fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 # Print optimized metrics
 # print("Total test fB = ",
 #       0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
-# in order to get a correct fB, have to have an exact grid that shadows the dipole optimzation, placing magnets
+# in order to get a correct fB, have to have an exact grid that compows the dipole optimzation, placing magnets
 # in all the same positions. Actually, do I need this even for the correct field?
 
 # For plotting Bn on the full torus surface at the end with just the dipole fields
-make_Bnormal_plots(b_test, s_plot, out_dir, "only_m_optimized")
-s_plot.to_vtk(out_dir / "mtest_optimized", extra_data=pointData)
+make_Bnormal_plots(b_comp, s_plot, out_dir, "only_m__comp_optimized")
+s_plot.to_vtk(out_dir / "m_comp_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
-print('B_testField shape = ',b_test.B().shape)
-print('B_testField = ',b_test.B())
-f_Btest_sf = SquaredFlux(s_plot, b_test, -Bnormal).J()
+print('B_Field_comp shape = ',b_comp.B().shape)
+# print('B_Field_comp = ',b_comp.B())
+f_Btest_sf = SquaredFlux(s_plot, b_comp, -Bnormal).J()
 
-print('b_test = ',b_test)
+print('b_comp = ',b_comp)
 
-print('f_testB = ', f_Btest_sf)
+print('f_B_comp = ', f_Btest_sf)
 
 # b_dipole = DipoleField(
 #     pm_opt.dipole_grid_xyz,

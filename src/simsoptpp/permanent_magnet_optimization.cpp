@@ -1332,113 +1332,123 @@ std::tuple<Array, Array, Array, Array> GPMO_baseline(Array& A_obj, Array& b_obj,
 
 // uses a "shadow" matrix that takes magnets in all the same locations as the active one used by GPMO. Allows for direct comparison
 // between dipole and exact optimizations
-std::tuple<Array, Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& A_shadow, int K, bool verbose, int nhistory, int single_direction) 
-{
-    if (A_obj.shape() != A_shadow.shape()) {
-        std::invalid_argument("A dipole and A shadow are not the samae shape");
-    }
+// std::tuple<Array, Array, Array, Array, Array, Array> GPMO_baseline_shadow(Array& A_obj, Array& b_obj, Array& mmax, Array& normal_norms, Array& A_shadow, int K, bool verbose, int nhistory, int single_direction) 
+// {
+//     if (A_obj.shape() != A_shadow.shape()) {
+//         std::invalid_argument("A dipole and A shadow are not the samae shape");
+//     }
 
-    int ngrid = A_obj.shape(1);
-    int N = int(A_obj.shape(0) / 3);
-    int N3 = 3 * N;
-    int print_iter = 0;
+//     int ngrid = A_obj.shape(1);
+//     int N = int(A_obj.shape(0) / 3);
+//     int N3 = 3 * N;
+//     int print_iter = 0;
 
-    Array x = xt::zeros<double>({N, 3});
+//     Array x = xt::zeros<double>({N, 3});
 
-    // record the history of the algorithm iterations
-    Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
-    Array objective_history = xt::zeros<double>({nhistory + 1});
-    Array Bn_history = xt::zeros<double>({nhistory + 1});
+//     // record the history of the algorithm iterations
+//     Array m_history = xt::zeros<double>({N, 3, nhistory + 1});
+//     Array objective_history = xt::zeros<double>({nhistory + 1});
+//     Array Bn_history = xt::zeros<double>({nhistory + 1});
 
-    Array objShad_hist = xt::zeros<double>({nhistory + 1});
-    Array BnShad_hist = xt::zeros<double>({nhistory + 1});
+//     Array objShad_hist = xt::zeros<double>({nhistory + 1});
+//     Array BnShad_hist = xt::zeros<double>({nhistory + 1});
 
-    // print out the names of the error columns
-    if (verbose)
-        printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
+//     // print out the names of the error columns
+//     if (verbose)
+//         printf("Iteration ... |Am - b|^2 ... lam*|m|^2\n");
 
-    // initialize Gamma_complement with all indices available
-    Array Gamma_complement = xt::ones<bool>({N, 3});
+//     // initialize Gamma_complement with all indices available
+//     Array Gamma_complement = xt::ones<bool>({N, 3});
 	
-    // initialize least-square values to large numbers    
-    vector<double> R2s(6 * N, 1e50);
-    vector<int> skj(K);
-    vector<int> skjj(K);
-    vector<double> sign_fac(K);
+//     // initialize least-square values to large numbers    
+//     vector<double> R2s(6 * N, 1e50);
+//     vector<int> skj(K);
+//     vector<int> skjj(K);
+//     vector<double> sign_fac(K);
     
-    double* R2s_ptr = &(R2s[0]);
-    double* Aij_ptr = &(A_obj(0, 0));
-    double* Gamma_ptr = &(Gamma_complement(0, 0));
+//     double* R2s_ptr = &(R2s[0]);
+//     double* Aij_ptr = &(A_obj(0, 0));
+//     double* Gamma_ptr = &(Gamma_complement(0, 0));
     
-    double* Aij_shad_ptr = &(A_shadow(0, 0));
+//     double* Aij_shad_ptr = &(A_shadow(0, 0));
+//     vector<double> R2s_shad(6 * N, 1e50);
+//     double* R2s_shad_ptr = &(R2s[0]);
     
-    // initialize running matrix-vector product
-    Array Aij_mj_sum = -b_obj;
-    double mmax_sum = 0.0;
-    double* Aij_mj_ptr = &(Aij_mj_sum(0));
-    double* normal_norms_ptr = &(normal_norms(0));
-    double* mmax_ptr = &(mmax(0));
+//     // initialize running matrix-vector product
+//     Array Aij_mj_sum = -b_obj;
+//     double mmax_sum = 0.0;
+//     double* Aij_mj_ptr = &(Aij_mj_sum(0));
+//     double* normal_norms_ptr = &(normal_norms(0));
+//     double* mmax_ptr = &(mmax(0));
 
-    Array Aij_shad_mj_sum = -b_obj;
-    double* Aij_shad_mj_ptr = &(Aij_shad_mj_sum(0));
+//     Array Aij_shad_mj_sum = -b_obj;
+//     double* Aij_shad_mj_ptr = &(Aij_shad_mj_sum(0));
 
-    // if using a single direction, increase j by 3 each iteration
-    int j_update = 1;
-    if (single_direction >= 0) j_update = 3;
+//     // if using a single direction, increase j by 3 each iteration
+//     int j_update = 1;
+//     if (single_direction >= 0) j_update = 3;
     
-    // Main loop over the optimization iterations
-    for (int k = 0; k < K; ++k) {
-#pragma omp parallel for schedule(static)
-	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
+//     // Main loop over the optimization iterations
+//     for (int k = 0; k < K; ++k) {
+// #pragma omp parallel for schedule(static)
+// 	for (int j = std::max(0, single_direction); j < N3; j += j_update) {
 
-	    // Check all the allowed dipole positions
-	    if (Gamma_ptr[j]) {
-		double R2 = 0.0;
-		double R2minus = 0.0;
-		int nj = ngrid * j;
+// 	    // Check all the allowed dipole positions
+// 	    if (Gamma_ptr[j]) {
+// 		double R2 = 0.0;
+// 		double R2minus = 0.0;
+//         double R2_shad = 0.0;
+//         double R2minus_shad = 0.0;
+// 		int nj = ngrid * j;
 
-		// Compute contribution of jth dipole component, either with +- orientation
-		for(int i = 0; i < ngrid; ++i) {
-		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
-		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]); 
-		}
-		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
-		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
-	    }
-	}
+// 		// Compute contribution of jth dipole component, either with +- orientation
+// 		for(int i = 0; i < ngrid; ++i) {
+// 		    R2 += (Aij_mj_ptr[i] + Aij_ptr[i + nj]) * (Aij_mj_ptr[i] + Aij_ptr[i + nj]);
+// 		    R2minus += (Aij_mj_ptr[i] - Aij_ptr[i + nj]) * (Aij_mj_ptr[i] - Aij_ptr[i + nj]);
+//             R2_shad += (Aij_shad_mj_ptr[i] + Aij_shad_ptr[i + nj]) * (Aij_shad_mj_ptr[i] + Aij_shad_ptr[i + nj]);
+//             R2minus_shad += (Aij_shad_mj_ptr[i] - Aij_shad_ptr[i + nj]) * (Aij_shad_mj_ptr[i] - Aij_shad_ptr[i + nj]);
+// 		}
+// 		R2s_ptr[j] = R2 + (mmax_ptr[j] * mmax_ptr[j]);
+// 		R2s_ptr[j + N3] = R2minus + (mmax_ptr[j] * mmax_ptr[j]);
+//         R2s_shad_ptr[j] = R2_shad + (mmax_ptr[j] * mmax_ptr[j]);
+// 		R2s_shad_ptr[j + N3] = R2minus_shad + (mmax_ptr[j] * mmax_ptr[j]);
+// 	    }
+// 	}
 
-	// find the dipole that most minimizes the least-squares term
-        skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
-	if (skj[k] >= N3) {
-	    skj[k] -= N3;
-	    sign_fac[k] = -1.0;
-	}
-	else {
-            sign_fac[k] = 1.0;
-	}
-	skjj[k] = (skj[k] % 3); 
-	skj[k] = int(skj[k] / 3.0);
-        x(skj[k], skjj[k]) = sign_fac[k];
+// 	// find the dipole that most minimizes the least-squares term
+//         skj[k] = int(std::distance(R2s.begin(), std::min_element(R2s.begin(), R2s.end())));
+// 	if (skj[k] >= N3) {
+// 	    skj[k] -= N3;
+// 	    sign_fac[k] = -1.0;
+// 	}
+// 	else {
+//             sign_fac[k] = 1.0;
+// 	}
+// 	skjj[k] = (skj[k] % 3); 
+// 	skj[k] = int(skj[k] / 3.0);
+//         x(skj[k], skjj[k]) = sign_fac[k];
 
-	// Add binary magnet and get rid of the magnet (all three components)
-        // from the complement of Gamma 
-	int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
-#pragma omp parallel for schedule(static)
-	for(int i = 0; i < ngrid; ++i) {
-            Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
-            Aij_shad_mj_ptr[i] += sign_fac[k] * Aij_shad_ptr[i + skj_inds];
-	}
-        for (int j = 0; j < 3; ++j) {
-            Gamma_complement(skj[k], j) = false;
-	    R2s[3 * skj[k] + j] = 1e50;
-	    R2s[N3 + 3 * skj[k] + j] = 1e50;
-        }
+// 	// Add binary magnet and get rid of the magnet (all three components)
+//         // from the complement of Gamma 
+// 	int skj_inds = (3 * skj[k] + skjj[k]) * ngrid;
+// #pragma omp parallel for schedule(static)
+// 	for(int i = 0; i < ngrid; ++i) {
+//             Aij_mj_ptr[i] += sign_fac[k] * Aij_ptr[i + skj_inds];
+//             Aij_shad_mj_ptr[i] += sign_fac[k] * Aij_shad_ptr[i + skj_inds];
+// 	}
+//         for (int j = 0; j < 3; ++j) {
+//             Gamma_complement(skj[k], j) = false;
+// 	    R2s[3 * skj[k] + j] = 1e50;
+// 	    R2s[N3 + 3 * skj[k] + j] = 1e50;
+//         R2s_shad[3 * skj[k] + j] = 1e50;
+// 	    R2s_shad[N3 + 3 * skj[k] + j] = 1e50;
+//         }
 
-	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
-            print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
-            print_GPMO(k, ngrid, print_iter, x, Aij_shad_mj_ptr, objShad_hist, BnShad_hist, m_history, mmax_sum, normal_norms_ptr);
-	}
-    }
-    // std::make_tuple(objective_history, Bn_history, m_history, x);
-    return std::make_tuple(objective_history, Bn_history, m_history, objShad_hist, BnShad_hist, x);
-}
+// 	if (verbose && (((k % int(K / nhistory)) == 0) || k == 0 || k == K - 1)) {
+//             print_GPMO(k, ngrid, print_iter, x, Aij_mj_ptr, objective_history, Bn_history, m_history, mmax_sum, normal_norms_ptr);
+//             print_GPMO(k, ngrid, print_iter, x, Aij_shad_mj_ptr, objShad_hist, BnShad_hist, m_history, mmax_sum, normal_norms_ptr);
+// 	}
+//     }
+//     // std::make_tuple(objective_history, Bn_history, m_history, x);
+//     return std::make_tuple(objective_history, Bn_history, m_history, objShad_hist, BnShad_hist, x);
+// }

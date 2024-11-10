@@ -390,6 +390,7 @@ class PermanentMagnetGrid:
             contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.dipole_grid_xyz == 0.0, axis=-1)))
         pm_grid.dipole_grid_xyz = pm_grid.dipole_grid_xyz[inds, :]
+        print('DIPOLE GRID LOOKS LIKE ',pm_grid.dipole_grid_xyz)
         pm_grid.ndipoles = pm_grid.dipole_grid_xyz.shape[0]
         pm_grid.pm_phi = np.arctan2(pm_grid.dipole_grid_xyz[:, 1], pm_grid.dipole_grid_xyz[:, 0])
         if coordinate_flag == 'cylindrical':
@@ -434,7 +435,6 @@ class PermanentMagnetGrid:
 
     def _optimization_setup(self):
 
-        # for now, set magnets all in the same direction
         self.phiThetas = np.repeat(np.array([[0, 0]]), self.dipole_grid_xyz.shape[0], axis = 0)
 
         if self.Bn.shape != (self.nphi, self.ntheta):
@@ -904,6 +904,7 @@ class ExactMagnetGrid:
             contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.pm_grid_xyz == 0.0, axis=-1)))
         pm_grid.pm_grid_xyz = pm_grid.pm_grid_xyz[inds, :]
+        print('GRID LOOKS LIKE',pm_grid.pm_grid_xyz)
         pm_grid.ndipoles = pm_grid.pm_grid_xyz.shape[0]
         pm_grid.pm_phi = np.arctan2(pm_grid.pm_grid_xyz[:, 1], pm_grid.pm_grid_xyz[:, 0])
         cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles)     

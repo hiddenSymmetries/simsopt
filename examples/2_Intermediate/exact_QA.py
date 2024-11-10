@@ -21,7 +21,7 @@ if in_github_actions:
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     Nx = 60 # bricks with radial extent ??? cm
 
@@ -29,7 +29,7 @@ coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-max_nMagnets = 5000
+max_nMagnets = 10000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -45,7 +45,7 @@ s_outer.extend_via_projected_normal(poff + coff)
 # Make the output directory
 out_str = f"exact_QA_nphi{nphi}_maxIter{max_nMagnets}"
 out_dir = Path(out_str)
-out_dir.mkdir(parents=True, exist_ok=False)
+out_dir.mkdir(parents=True, exist_ok=True)
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
@@ -87,6 +87,8 @@ pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
 
+print(pm_opt.phiThetas)
+
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
 # nIter_max = 50000
@@ -108,7 +110,7 @@ kwargs['K'] = max_nMagnets
     # Below line required for the backtracking to be backwards 
     # compatible with the PermanentMagnetGrid class
     # pm_opt.coordinate_flag = 'cartesian'  
-nHistory = 100
+nHistory = 20
 kwargs['nhistory'] = nHistory
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
