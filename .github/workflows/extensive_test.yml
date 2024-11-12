@@ -290,7 +290,7 @@ jobs:
     - name: Upload coverage to Codecov
       # The next line prevents github from trying to upload to Codecov on forks of the repository, avoiding a permissions error
       if: github.repository_owner == 'hiddenSymmetries'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
