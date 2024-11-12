@@ -198,21 +198,27 @@ def get_w7x_data(Nt_coils=48, Nt_ma=10, ppp=2):
 
 
 @SimsoptRequires(requests is not None, "You need to install the requests library to use this function. Run 'pip install requests'")
-def get_QUASR_data(ID, return_style='default'): 
+def get_QUASR_data(ID, return_style='quasr-style'): 
     """
-    Download a configuration from the QUASAR database.
+    Download a configuration from the QUASR database.
 
     Args:
         ID: the ID of the configuration to download.  The database is navigatable at https://quasr.flatironinstitute.org/
             Alternatively, you can download the latest full set of devices from https://zenodo.org/doi/10.5281/zenodo.10050655
         
-        return_style: 'default' or 'json'. If 'default', the function will return the curves, currents and magnetic axis
-                      like the other configurations in the zoo. 
-                      If 'json' the function will return the full set of coils, magnetic axis and a number of surfaces
-                      parametrized in Boozer coordinates.
+        return_style: 'simsopt-style' or 'quasr-style'. '. 
+                      simsopt-style: [coils_1fp, surface], similar to get_ncsx_data(), gives the curves and currenst for one field period,
+                      which you can copy and rotate using simsopt methods (allows finer control over degrees-of-freedom). 
+                      NOTE: this does not return the magnetic axis. 
+                      quasr-style: [coils_all, surfaces], returns all coils and all surfaces in the object. 
+
+        returns: depending on return_style: 
+           simsopt-style: [list of simsopt.geo.Coil objects, list of simsopt.field.Current objects]
+           quasr-style: [list of simsopt.geo.SurfaceXYZTensorFourier objects, list of simsopt.field.COIL objects]
     """
     
-    assert return_style in ['default', 'json']
+    if return_style not in ['simsopt-style', 'quasr-style']:
+        raise ValueError(f"invalid return_style: {return_style}, must be either simsopt-style or quasr-style")
     
     id_str = f"{ID:07d}"
     # string to 7 digits
@@ -221,18 +227,20 @@ def get_QUASR_data(ID, return_style='default'):
     with requests.get(url) as r:
         if r.status_code == 200:
             print(f"Configuration with ID {ID:07} downloaded successfully")
-            surfaces, ma, coils = json.loads(r.content, cls=GSONDecoder)
+            surfaces, coils = json.loads(r.content, cls=GSONDecoder)
         else:
-            raise ValueError(f"Configuration ID {ID:07d} does not exist. Status code: {r.status_code}")
+            raise ValueError(f"Download of ID {ID:07d} failed. Status code: {r.status_code}\n Check if the confituration exists")
     
-    if return_style == 'default':
-        nfp = ma.nfp
-        nc_per_hp = len(coils) // nfp // (1 + ma.stellsym)
+    if return_style == 'simsopt-style':
+        nfp = surfaces[0].nfp
+        nc_per_hp = len(coils) // nfp // (1 + surfaces[0].stellsym)
         coils = coils[:nc_per_hp]
 
         curves = [coil.curve for coil in coils]
         currents = [coil.current for coil in coils]
-        return curves, currents, ma
+        return curves, currents
+    elif return_style == 'quasr-style':
+        return surfaces, coils
+    else: 
+        raise ValueError  #should not be reached as we check before download to avoid clobbering the database. 
 
-    elif return_style == 'json':
-        return coils, ma, surfaces
