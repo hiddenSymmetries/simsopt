@@ -129,6 +129,7 @@ using AlignedPaddedVec = std::vector<double, AlignedPaddedAllocator<double>>;
 #endif
 
 #if defined(USE_XSIMD)
+/*
 #if __AVX512F__ 
 // On skylake _mm512_sqrt_pd takes 24 CPI and _mm512_div_pd takes 16 CPI, so
 // 1/sqrt(vec) takes 40 CPI. Instead we can use the approximate inverse square
@@ -147,6 +148,7 @@ inline simd_t rsqrt(simd_t r2){
   return rinv;
 }
 #else
+*/
 inline simd_t rsqrt(const simd_t& r2){
     //On my avx2 machine, computing the sqrt and then the inverse is actually a
     //bit faster. just keeping this line here to remind myself how to compute
@@ -155,7 +157,7 @@ inline simd_t rsqrt(const simd_t& r2){
     return 1./sqrt(r2);
 }
 
-#endif
+//#endif
 #endif
 
 inline double rsqrt(const double& r2){

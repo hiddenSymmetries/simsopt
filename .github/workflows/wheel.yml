@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-11, ubuntu-20.04]
+        os: [macos-12, ubuntu-20.04]
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
     # alternatively, to publish when a GitHub Release is created, use the following rule:
     # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: artifact
           path: dist

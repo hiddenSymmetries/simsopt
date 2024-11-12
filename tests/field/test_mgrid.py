@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
 import unittest
-import os
 from pathlib import Path
-import tempfile
+from monty.tempfile import ScratchDir
 import numpy as np
 from scipy.io import netcdf_file
 
@@ -18,7 +17,7 @@ from simsopt.mhd import Vmec
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
 test_file = TEST_DIR / 'mgrid.pnas-qa-test-lowres-standard.nc'
-
+test_file2 = TEST_DIR / 'mgrid_ncsx_lowres_test.nc'
 
 class Testing(unittest.TestCase):
 
@@ -36,6 +35,13 @@ class Testing(unittest.TestCase):
         assert mgrid.br_arr.shape == (1, 6, 11, 11)
         assert mgrid.br[0, 0, 0] == -1.0633399551863771  # -0.9946816978184079
 
+        mgrid = MGrid.from_file(test_file2)
+        assert mgrid.rmin == 1.0
+        assert mgrid.bvec.shape == (10, 12, 4, 3)
+        assert mgrid.bz[1, 1, 1] == -1.012339153040808
+        assert mgrid.ap[1, 1, 1] == -0.3719177477496187
+
+
     def test_add_field_cylinder(self):
         N_points = 5
         br = np.ones(N_points)
@@ -51,8 +57,8 @@ class Testing(unittest.TestCase):
 
     def test_write(self):
         mgrid = MGrid.from_file(test_file)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filename = Path(tmpdir) / 'mgrid.test.nc'
+        with ScratchDir("."):
+            filename =  'mgrid.test.nc'
             mgrid.write(filename)
 
             with netcdf_file(filename, mmap=False) as f:
@@ -85,9 +91,8 @@ class VmecTests(unittest.TestCase):
         bs = BiotSavart(coils)
         eq = Vmec(input_file)
         nphi = 24
-        with tempfile.TemporaryDirectory() as tmpdir:
-            os.chdir(tmpdir)  # Use temporary directory for vmec files
-            filename = Path(tmpdir) / "mgrid.bfield.nc"
+        with ScratchDir("."):
+            filename =  "mgrid.bfield.nc"
             bs.to_mgrid(
                 filename,
                 nphi=nphi,

@@ -33,7 +33,6 @@ from .._core.descriptor import Integer
 
 __all__ = ['Boozer', 'Quasisymmetry']
 
-
 class Boozer(Optimizable):
     """
     This class handles the transformation to Boozer coordinates.
@@ -114,10 +113,6 @@ class Boozer(Optimizable):
         Run booz_xform on all the surfaces that have been registered.
         """
 
-        if (self.mpi is not None) and (not self.mpi.proc0_groups):
-            logger.info("This proc is skipping Boozer.run since it is not a group leader.")
-            return
-
         if not self.need_to_run_code:
             logger.info("Boozer.run() called but no need to re-run Boozer transformation.")
             return
@@ -126,7 +121,9 @@ class Boozer(Optimizable):
         logger.info("Preparing to run Boozer transformation. Registry:{}".format(s))
 
         if isinstance(self.equil, Vmec):
+            #partake in parallel VMEC job
             self.equil.run()
+
             wout = self.equil.wout  # Shorthand
 
             # Get the half-grid points that are closest to the requested values
@@ -176,8 +173,8 @@ class Boozer(Optimizable):
             self.bx.mnmax = wout.mnmax
             self.bx.xm = wout.xm
             self.bx.xn = wout.xn
-            logger.info('mnmax:', wout.mnmax, ' len(xm):', len(wout.xm), ' len(xn):', len(wout.xn))
-            logger.info('mnmax_nyq:', wout.mnmax_nyq, ' len(xm_nyq):', len(wout.xm_nyq), ' len(xn_nyq):', len(wout.xn_nyq))
+            logger.info(f'mnmax: {wout.mnmax} len(xm): {len(wout.xm)} len(xn): {len(wout.xn)}')
+            logger.info(f'mnmax_nyq: {wout.mnmax_nyq} len(xm_nyq): {len(wout.xm_nyq)} len(xn_nyq): {len(wout.xn_nyq)}')
             assert len(wout.xm) == wout.mnmax
             assert len(wout.xn) == wout.mnmax
             assert len(self.bx.xm) == self.bx.mnmax
@@ -303,14 +300,14 @@ class Quasisymmetry(Optimizable):
             1D numpy array listing all the normalized mode amplitudes of
             symmetry-breaking Fourier modes of ``|B|``.
         """
+        # run on all mpi processes (will skip if recompute bell not rung)
+        self.boozer.run()
 
-        # Only group leaders do anything:
+        # Group leaders calculate metric, workers participate in job:
         if (self.boozer.mpi is not None) and (not self.boozer.mpi.proc0_groups):
             logger.info("This proc is skipping Quasisymmetry.J since it is not a group leader.")
             return np.array([])
 
-        # The next line is the expensive part of the calculation:
-        self.boozer.run()
 
         symmetry_error = []
         for js, s in enumerate(self.s):
