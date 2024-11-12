@@ -442,11 +442,11 @@ class Spec(Optimizable):
 
         # Check inputs
         if not isinstance(pressure_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if pressure_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         # Update pressure profile
         if pressure_profile is not self._pressure_profile:
@@ -478,17 +478,17 @@ class Spec(Optimizable):
         """
 
         if not isinstance(volume_current_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if volume_current_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         # Volume current is a cumulative property
         volume_current_profile.cumulative = True
 
         if volume_current_profile is not self._volume_current_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing volume_current_profile in setter')
             if self._volume_current_profile is not None:
                 self.remove_parent(self._volume_current_profile)
             self._volume_current_profile = volume_current_profile
@@ -516,14 +516,14 @@ class Spec(Optimizable):
         """
 
         if not isinstance(interface_current_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if interface_current_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         if interface_current_profile is not self._interface_current_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing interface_current_profile in setter')
             if self._interface_current_profile is not None:
                 self.remove_parent(self._interface_current_profile)
             self._interface_current_profile = interface_current_profile
@@ -551,14 +551,14 @@ class Spec(Optimizable):
         """
 
         if not isinstance(iota_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if iota_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         if iota_profile is not self._iota_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing iota_profile in setter')
             if self._iota_profile is not None:
                 self.remove_parent(self._iota_profile)
             self._iota_profile = iota_profile
@@ -586,14 +586,14 @@ class Spec(Optimizable):
         """
 
         if not isinstance(oita_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if oita_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         if oita_profile is not self._oita_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing oita_profile in setter')
             if self._oita_profile is not None:
                 self.remove_parent(self._oita_profile)
             self._oita_profile = oita_profile
@@ -621,14 +621,14 @@ class Spec(Optimizable):
         """
 
         if not isinstance(mu_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if mu_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         if mu_profile is not self._mu_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing mu_profile in setter')
             if self._mu_profile is not None:
                 self.remove_parent(self._mu_profile)
             self._mu_profile = mu_profile
@@ -656,17 +656,17 @@ class Spec(Optimizable):
         """
 
         if not isinstance(pflux_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if pflux_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         # pflux is a cumulative property
         pflux_profile.cumulative = True
 
         if pflux_profile is not self._pflux_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing pflux_profile in setter')
             if self._pflux_profile is not None:
                 self.remove_parent(self._pflux_profile)
             self._pflux_profile = pflux_profile
@@ -692,19 +692,18 @@ class Spec(Optimizable):
         Args:
             ProfileSpec instance for the toroidal flux profile
         """
-
         if not isinstance(tflux_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if tflux_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         # pflux is a cumulative property
         tflux_profile.cumulative = True
 
         if tflux_profile is not self._tflux_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing tflux_profile in setter')
             if self._tflux_profile is not None:
                 self.remove_parent(self._tflux_profile)
             self._tflux_profile = tflux_profile
@@ -732,14 +731,14 @@ class Spec(Optimizable):
         """
 
         if not isinstance(helicity_profile, ProfileSpec):
-            ValueError('Input should be a ProfileSpec')
+            raise ValueError('Input should be a ProfileSpec')
 
         # Check size
         if helicity_profile.dofs.full_x.size != self.mvol:
-            ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
 
         if helicity_profile is not self._helicity_profile:
-            logging.debug('Replacing pressure_profile in setter')
+            logging.debug('Replacing helicity_profile in setter')
             if self._helicity_profile is not None:
                 self.remove_parent(self._tflux_profile)
             self._helicity_profile = helicity_profile
@@ -942,7 +941,7 @@ class Spec(Optimizable):
         # Check that number of volumes in internal memory is consistent with
         # the input file
         if self.nvol != si.nvol:
-            ValueError('Inconsistent Nvol')
+            raise ValueError('Inconsistent Nvol')
 
         # nfp must be consistent between the surface and SPEC. The surface's
         # value trumps.
@@ -1029,10 +1028,10 @@ class Spec(Optimizable):
             si.curtor = si.ivolume[self.nvol - 1] + np.sum(si.isurf)
 
         if self.iota_profile is not None:
-            si.iota[0:self.nvol+1] = self.iota_profile.get(np.arange(0, self.nvol))
+            si.iota[0:self.nvol+1] = self.iota_profile.get(np.arange(0, self.nvol+1))
 
         if self.oita_profile is not None:
-            si.oita[0:self.nvol+1] = self.oita_profile.get(np.arange(0, self.nvol))
+            si.oita[0:self.nvol+1] = self.oita_profile.get(np.arange(0, self.nvol+1))
 
         if self.mu_profile is not None:
             si.mu[0:self.nvol] = self.mu_profile.get(np.arange(0, self.nvol))
