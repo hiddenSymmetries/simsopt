@@ -17,7 +17,7 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.11.4
+        uses: pypa/cibuildwheel@v2.21.3
         # To supply options, put them in 'env'
         env:
           # Only build for python 3.{9,10,11,12}
