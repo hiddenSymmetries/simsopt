@@ -353,10 +353,10 @@ all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
 Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
     ) for i, c in enumerate(all_base_coils)])
-Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=4) for c in all_base_coils])
+Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
 
 # Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=4
+Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
     ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 

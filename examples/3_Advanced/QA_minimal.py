@@ -29,9 +29,6 @@ import re
 
 t1 = time.time()
 
-# Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
-
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
@@ -88,7 +85,7 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 3
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 3
-    order = 8
+    order = 16
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -103,6 +100,7 @@ def initialize_coils_QA(TEST_DIR, s):
     )
 
     base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
+
     total_current = Current(total_current)
     total_current.fix_all()
     base_currents += [total_current - sum(base_currents)]
@@ -115,7 +113,7 @@ def initialize_coils_QA(TEST_DIR, s):
 
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
-num_TF_unique_coils = len(coils_TF) // 4
+num_TF_unique_coils = len(base_curves_TF) 
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
@@ -152,12 +150,10 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
 btot = bs_TF
 calculate_on_axis_B(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
-a_list = np.ones(len(coils_TF)) * a
-b_list = np.ones(len(coils_TF)) * b
 
-LENGTH_WEIGHT = Weight(0.001)
-LENGTH_TARGET = 180
-LINK_WEIGHT = 1e4
+LENGTH_WEIGHT = Weight(0.01)
+LENGTH_TARGET = 100
+LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
@@ -168,7 +164,7 @@ FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_nodipoles_lowerror/")
+OUT_DIR = ("./QA_minimal/")
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -185,10 +181,6 @@ curves_to_vtk(
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils_TF):
     c._children = set()
-
-pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
-btot.set_points(s.gamma().reshape((-1, 3)))
 
 # Repeat for whole B field
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -213,19 +205,17 @@ Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
 # interlink. 
-# While the coil array is not moving around, they cannot
-# interlink. 
 linkNum = LinkingNumber(curves_TF, downsample=2)
 
 # Currently, all force terms involve all the coils
 all_coils = coils_TF
 all_base_coils = base_coils_TF
-Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
+Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a, b), p=4, threshold=4e5 * 100, downsample=1
     ) for i, c in enumerate(all_base_coils)])
 Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
 
 # Errors creep in when downsample = 2
-Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
+Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a, b), p=2, threshold=4e5 * 100, downsample=1
     ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
@@ -349,6 +339,6 @@ for i in range(1, n_saves + 1):
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
-btot.save("biot_savart_optimized_QA.json")
+btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
 print(OUT_DIR)
 

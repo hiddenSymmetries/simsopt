@@ -105,13 +105,10 @@ def initialize_coils_QA(TEST_DIR, s):
     base_curves = create_equally_spaced_curves(
         ncoils, s.nfp, stellsym=True, 
         R0=R0, R1=R1, order=order, numquadpoints=256,
-        jax_flag=True,
+        jax_flag=False,
     )
 
     base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    # base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils)]
-    # base_currents[0].fix_all()
-
     total_current = Current(total_current)
     total_current.fix_all()
     base_currents += [total_current - sum(base_currents)]
@@ -127,7 +124,7 @@ def initialize_coils_QA(TEST_DIR, s):
 
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
-num_TF_unique_coils = len(coils_TF) // 4
+num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
@@ -153,7 +150,7 @@ Ny = Nx
 Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=True,
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
     # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
 import warnings
@@ -190,6 +187,27 @@ for i in range(4):
 
 print(keep_inds)
 base_curves = np.array(base_curves)[keep_inds]
+
+# keep_inds = []
+# dists = np.zeros(len(base_curves))
+# for ii in range(len(base_curves)):
+#     counter = 0
+#     for i in range(base_curves[0].gamma().shape[0]):
+#         eps = 0.05
+#         for j in range(len(base_curves)):
+#             for k in range(base_curves[j].gamma().shape[0]):
+#                 dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves[j].gamma()[k, :]) ** 2))
+#                 conflict_bool = (dij < eps)
+#                 if conflict_bool:
+#                     print('bad indices = ', i, j, dij, base_curves[0].x[0])
+#                     warnings.warn(
+#                         'There is a PSC coil initialized such that it is within a radius'
+#                         'of another PSC coil. Deleting these PSCs now.')
+#                     counter += 1
+#                     break
+#     dists[ii] = np.min(np.linalg.norm(base_curves[ii].gamma(), axis=-1))
+#     if counter == 0:
+#         keep_inds.append(ii)
 
 ncoils = len(base_curves)
 print('Ncoils = ', ncoils)
@@ -251,15 +269,7 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     for i, c in enumerate(coils):
         aprime = aprimes[i]
         bprime = bprimes[i]
-        # print(np.shape(bs._coils), np.shape(coils))
-        # B_other = BiotSavart([cc for j, cc in enumerate(bs._coils) if i != j]).set_points(c.curve.gamma()).B()
-        # print(np.shape(bs._coils))
-        # B_other = bs.set_points(c.curve.gamma()).B()
-        # print(B_other)
-        # exit()
         forces[i, :-1, :] = coil_force(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
-        # print(i, forces[i, :-1, :])
-        # bs._coils = coils
         torques[i, :-1, :] = coil_torque(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
     
     forces[:, -1, :] = forces[:, 0, :]
@@ -270,7 +280,7 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
-bs = BiotSavart(coils)  # + coils_TF)
+bs = BiotSavart(coils) 
 btot = bs + bs_TF
 calculate_on_axis_B(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
@@ -294,10 +304,10 @@ CS_WEIGHT = 1e2
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-19) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-32) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
 OUT_DIR = ("./QA_fixed_orientations_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
@@ -363,30 +373,19 @@ Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=len(coils + coils_TF))
 Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
+linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
-# While the coil array is not moving around, they cannot
-# interlink. 
-# linkNum = LinkingNumber(curves_TF)
-linkNum = LinkingNumber(curves + curves_TF)
+# Currently, all force terms involve all the coils
+all_coils = coils + coils_TF
+all_base_coils = base_coils + base_coils_TF
+Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
+    ) for i, c in enumerate(all_base_coils)])
+Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
 
-##### Note need coils_TF + coils below!!!!!!!
-# Jforce2 = sum([LpCurveForce(c, coils + coils_TF, 
-#     regularization=regularization_rect(base_a_list[i], base_b_list[i]), 
-#     p=2, threshold=1e8) for i, c in enumerate(base_coils + base_coils_TF)])
-# Jforce2 = LpCurveForce2(coils, coils_TF, p=2, threshold=1e8)
-# Jforce = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-        
-regularization_list = np.zeros(len(coils)) * regularization_rect(aa, bb)
-regularization_list2 = np.zeros(len(coils_TF)) * regularization_rect(a, b)
-# Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
-# Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
-Jforce2 = sum([SquaredMeanForce(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-Jtorque = sum([LpCurveTorque(c, coils + coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100) for i, c in enumerate(base_coils + base_coils_TF)])
-Jtorque2 = sum([SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)])
-
-# Jtorque = SquaredMeanTorque2(coils, coils_TF) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
-# Jtorque = [SquaredMeanTorque(c, coils + coils_TF) for c in (base_coils + base_coils_TF)]
+# Errors creep in when downsample = 2
+Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
+    ) for i, c in enumerate(all_base_coils)])
+Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
 JF = Jf \
     + CC_WEIGHT * Jccdist \
@@ -405,46 +404,20 @@ if TORQUE_WEIGHT.value > 0.0:
 
 if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
-    # + TVE_WEIGHT * Jtve
-    # + SF_WEIGHT * Jsf
-    # + CURRENTS_WEIGHT * DipoleCurrentsObj
-    # + CURVATURE_WEIGHT * sum(Jcs_TF) \
-    # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs_TF) \
-#    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
-    # + CURVATURE_WEIGHT * sum(Jcs) \
-
-# We don't have a general interface in SIMSOPT for optimisation problems that
-# are not in least-squares form, so we write a little wrapper function that we
-# pass directly to scipy.optimize.minimize
-
-import pstats, io
-from pstats import SortKey
-# print(btot.ancestors,len(btot.ancestors))
-# print(JF.ancestors,len(JF.ancestors))
-
-
+    
 def fun(dofs):
     JF.x = dofs
-    # pr = cProfile.Profile() 
-    # pr.enable()
     J = JF.J()
     grad = JF.dJ()
-    # pr.disable()
-    # sio = io.StringIO()
-    # sortby = SortKey.CUMULATIVE
-    # ps = pstats.Stats(pr, stream=sio).sort_stats(sortby)
-    # ps.print_stats(20)
-    # print(sio.getvalue())
-    # exit()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
-    forces_val = FORCE_WEIGHT.value * Jforce.J()
-    forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
-    torques_val = TORQUE_WEIGHT.value * Jtorque.J()
-    torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
+    forces_val = Jforce.J()
+    forces_val2 = Jforce2.J()
+    torques_val = Jtorque.J()
+    torques_val2 = Jtorque2.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
         ) / np.mean(btot.AbsB())
@@ -456,14 +429,14 @@ def fun(dofs):
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val:.2e}" 
-    valuestr += f", forceObj={forces_val:.2e}" 
-    valuestr += f", forceObj2={forces_val2:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
-    valuestr += f", torqueObj2={torques_val2:.2e}" 
-    outstr += f", F={Jforce.J():.2e}"
-    outstr += f", Fnet={Jforce2.J():.2e}"
-    outstr += f", T={Jtorque.J():.2e}"
-    outstr += f", Tnet={Jtorque2.J():.2e}"
+    valuestr += f", forceObj={FORCE_WEIGHT.value * forces_val:.2e}" 
+    valuestr += f", forceObj2={FORCE_WEIGHT2.value * forces_val2:.2e}" 
+    valuestr += f", torqueObj={TORQUE_WEIGHT.value * torques_val:.2e}" 
+    valuestr += f", torqueObj2={TORQUE_WEIGHT2.value * torques_val2:.2e}" 
+    outstr += f", F={forces_val:.2e}"
+    outstr += f", Fnet={forces_val2:.2e}"
+    outstr += f", T={torques_val:.2e}"
+    outstr += f", Tnet={torques_val2:.2e}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
@@ -496,67 +469,12 @@ print("""
 ################################################################################
 """)
 
-
-print('Timing calls: ')
-t1 = time.time()
-Jf.J()
-t2 = time.time()
-print('Jf time = ', t2 - t1, ' s')
-t1 = time.time()
-Jf.dJ()
-t2 = time.time()
-print('dJf time = ', t2 - t1, ' s')
-t1 = time.time()
-Jccdist.J()
-Jccdist.dJ()
-t2 = time.time()
-print('Jcc time = ', t2 - t1, ' s')
-t1 = time.time()
-Jcsdist.J()
-Jcsdist.dJ()
-t2 = time.time()
-print('Jcs time = ', t2 - t1, ' s')
-t1 = time.time()
-linkNum.J()
-linkNum.dJ()
-t2 = time.time()
-print('linkNum time = ', t2 - t1, ' s')
-t1 = time.time()
-Jlength.J()
-Jlength.dJ()
-t2 = time.time()
-print('sum(Jls_TF) time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce.J()
-# t2 = time.time()
-# print('Jforces time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce.dJ()
-# t2 = time.time()
-# print('dJforces time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce2.J()
-# t2 = time.time()
-# print('Jforces2 time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jforce2.dJ()
-# t2 = time.time()
-# print('dJforces2 time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jtorque.J()
-# t2 = time.time()
-# print('Jtorques time = ', t2 - t1, ' s')
-# t1 = time.time()
-# Jtorque.dJ()
-# t2 = time.time()
-# print('dJtorques time = ', t2 - t1, ' s')
-
 n_saves = 1
 MAXITER = 400
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 100}, tol=1e-15)
+        options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
     dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]

@@ -121,7 +121,7 @@ def initialize_coils_QH(TEST_DIR, s):
 
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QH(TEST_DIR, s)
-num_TF_unique_coils = len(coils_TF) // 4
+num_TF_unique_coils = len(base_curves_TF) 
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
