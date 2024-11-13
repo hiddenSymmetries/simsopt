@@ -46,11 +46,10 @@ jobs:
 
       - name: Build  for branches
         uses: docker/build-push-action@v3
-        if: ${{ startsWith(github.ref, 'refs/heads') && github.ref != 'refs/heads/master' }}
         with:
           context: ci
           file: ci/Dockerfile.ubuntu
-          push: false
+          push: true
           tags: hiddensymmetries/simsopt:test
 
       - name: Build and push for tag
