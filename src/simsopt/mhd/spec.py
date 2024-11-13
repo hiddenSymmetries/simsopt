@@ -1285,7 +1285,7 @@ class Spec(Optimizable):
         
         @as_spec.setter
         def as_spec(self, array):
-            if array.shape != [2*self.mntor+1, 2*self.mmpol+1]:
+            if array.shape != (2*self._mntor+1, 2*self._mmpol+1):
                 raise ValueError('Array size is not consistent witn mmpol and mntor')
             self._array = array
 
