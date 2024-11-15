@@ -424,8 +424,14 @@ def count_inside_points(gamma_port, gammadash_port, projection, gamma_curve, thr
         gport_2d[:,1:3], gportdash_2d[:,1:3], gamma_curve_2d[:,1:3]
     )
 
+    # Find closest point, evaluate if curve is in front or behind port
+    dists = np.linalg.norm(gport_2d[:,None,:]-gamma_curve_2d[None,:,:], axis=2)
+    min_dists_index = np.argmin(dists, axis=0)
+    test = gamma_curve_2d[:,0]>gport_2d[min_dists_index,0]
+
+
     # Return integral along curve of winding numbers, with some threshold
-    return np.sum( [((np.abs(w)>threshold) and (gn>0)) for w, gn in zip(winding_numbers, gamma_curve_2d[:,0])] )
+    return np.sum( [((np.abs(w)>threshold) and (t)) for w, t in zip(winding_numbers, test)] )
 
 class CurveInPortPenalty(Optimizable):
     def __init__(self, port, curves, threshold, projection='zphi'):
