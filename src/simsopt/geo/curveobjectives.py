@@ -1,11 +1,9 @@
 from deprecated import deprecated
 
-from .._core.util import ObjectiveFailure
 import numpy as np
 from jax import grad, vjp, lax
 import jax.numpy as jnp
-from jax.lax import dynamic_slice
-from .hull import hull2D
+import jax
 
 from .jit import jit
 from .._core.optimizable import Optimizable
@@ -15,7 +13,8 @@ from simsopt.geo.framedcurve import FramedCurveCentroid
 
 __all__ = ['CurveLength', 'LpCurveCurvature', 'LpCurveTorsion',
            'CurveCurveDistance', 'CurveSurfaceDistance', 'ArclengthVariation',
-           'MeanSquaredCurvature', 'LinkingNumber', 'CurveCylinderDistance', 'FramedCurveTwist', 'MinCurveCurveDistance']
+           'MeanSquaredCurvature', 'LinkingNumber', 'FramedCurveTwist',
+           'MinCurveCurveDistance']
 
 
 @jit
@@ -111,6 +110,11 @@ def Lp_torsion_pure(torsion, gammadash, p, threshold):
     This function is used in a Python+Jax implementation of the formula for the torsion penalty term.
     """
     arc_length = jnp.linalg.norm(gammadash, axis=1)
+    # jax.debug.print("arc_length: {arc_length}",arc_length=arc_length)
+    # jax.debug.print('p: {p}',p=p)
+    # jax.debug.print('threshold: {threshold}',threshold=threshold)
+    # jax.debug.print('binorm: {binorm}',binorm=torsion)
+    # jax.debug.print('integrand: {integrand}',integrand=jnp.maximum(jnp.abs(torsion)-threshold, 0)**p)
     return (1./p)*jnp.mean(jnp.maximum(jnp.abs(torsion)-threshold, 0)**p * arc_length)
 
 
@@ -158,6 +162,7 @@ def cc_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     dists = jnp.sqrt(jnp.sum((gamma1[:, None, :] - gamma2[None, :, :])**2, axis=2))
     alen = jnp.linalg.norm(l1, axis=1)[:, None] * jnp.linalg.norm(l2, axis=1)[None, :]
     return jnp.sum(alen * jnp.maximum(minimum_distance-dists, 0)**2)/(gamma1.shape[0]*gamma2.shape[0])
+
 
 class CurveCurveDistance(Optimizable):
     r"""
@@ -255,8 +260,6 @@ class CurveCurveDistance(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-
-
 def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
     """
     This function is used in a Python+Jax implementation of the curve-surface distance
@@ -266,8 +269,7 @@ def cs_distance_pure(gammac, lc, gammas, ns, minimum_distance):
         (gammac[:, None, :] - gammas[None, :, :])**2, axis=2))
     integralweight = jnp.linalg.norm(lc, axis=1)[:, None] \
         * jnp.linalg.norm(ns, axis=1)[None, :]
-    
-    return jnp.mean(integralweight * jnp.maximum( minimum_distance-dists, 0)**2)
+    return jnp.mean(integralweight * jnp.maximum(minimum_distance-dists, 0)**2)
 
 
 class CurveSurfaceDistance(Optimizable):
@@ -287,6 +289,7 @@ class CurveSurfaceDistance(Optimizable):
     minimum coil-to-surface distance.  This penalty term is zero when the
     points on all coils :math:`i` and on the surface lie more than
     :math:`d_\min` away from one another.
+
     """
 
     def __init__(self, curves, surface, minimum_distance):
@@ -347,6 +350,7 @@ class CurveSurfaceDistance(Optimizable):
         dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in self.curves]
         gammas = self.surface.gamma().reshape((-1, 3))
 
+        gammas = self.surface.gamma().reshape((-1, 3))
         ns = self.surface.normal().reshape((-1, 3))
         for i, _ in self.candidates:
             gammac = self.curves[i].gamma()
@@ -526,43 +530,6 @@ class LinkingNumber(Optimizable):
     @derivative_dec
     def dJ(self):
         return Derivative({})
-    
-
-@jit
-def curve_cylinder_distance_pure(g, R0):
-    R = jnp.sqrt(g[:,0]**2 + g[:,1]**2)
-    npts = g.shape[0]
-    return jnp.sqrt(jnp.sum((R-R0)**2)) / npts
-
-@jit
-def curve_centroid_cylinder_distance_pure(g, R0):
-    c = jnp.mean(g,axis=0)
-    Rc = jnp.sqrt(c[0]**2+c[1]**2)
-    return Rc-R0
-
-class CurveCylinderDistance(Optimizable):
-    def __init__(self, curve, R0, mth='pts'):
-        self.curve = curve
-        self.R0 = R0
-        self.mth = mth
-
-        if mth=='pts':
-            self._Jlocal = curve_cylinder_distance_pure
-        elif mth=='ctr':
-            self._Jlocal = curve_centroid_cylinder_distance_pure
-        else:
-            raise ValueError('Unknown mth')
-        
-        self.thisgrad = jit(lambda g, R: grad(self._Jlocal, argnums=0)(g, R))
-        super().__init__(depends_on=[curve])
-
-    def J(self):
-        return self._Jlocal(self.curve.gamma(), self.R0)
-    
-    @derivative_dec
-    def dJ(self):
-        grad0 = self.thisgrad(self.curve.gamma(), self.R0)
-        return self.curve.dgamma_by_dcoeff_vjp(grad0)
 
 @jit
 def frametwist_pure(n1,n2,b1,b2,b1dash,n2dash):
@@ -722,8 +689,6 @@ class FramedCurveTwist(Optimizable):
 
         return grad 
 
-
-
 def max_distance_pure(g1, g2, dmax, p):
     """
     This returns 0 if all points of g1 have at least one point of g2 at a distance smaller or equal to dmax
@@ -734,7 +699,6 @@ def max_distance_pure(g1, g2, dmax, p):
 
     # Estimate min of dists using p-norm. The minimum is taken along the axis=1. mindists is then an array of length g1.size, where mindists[i]=min_j(|g1[i]-g2[j]|)
     mindists = jnp.sum(dists**p, axis=1)**(1./p)
-
 
     # We now evaluate if any of mindists is larger than dmax. If yes, we add the value of (mindists[i]-dmax)**2 to the output. 
     # We normalize by the number of quadrature points along the first curve g1.
@@ -750,7 +714,7 @@ class MinCurveCurveDistance(Optimizable):
         self.curve1 = curve1
         self.curve2 = curve2
         self.maximum_distance = maximum_distance
-
+        self.p = p
         self.J_jax = lambda g1, g2: max_distance_pure(g1, g2, self.maximum_distance, p)
         self.this_grad_0 = jit(lambda g1, g2: grad(self.J_jax, argnums=0)(g1, g2))
         self.this_grad_1 = jit(lambda g1, g2: grad(self.J_jax, argnums=1)(g1, g2))
@@ -759,18 +723,38 @@ class MinCurveCurveDistance(Optimizable):
 
     def max_distance(self):
         """
-        returns the distance the most isolated point of curve1 to curve2
+        returns the max distance between curve1 and curve2
         """
         g1 = self.curve1.gamma()
         g2 = self.curve2.gamma()
+        dists = jnp.sqrt(jnp.sum( (g1[:, None, :] - g2[None, :, :])**2, axis=2))
+        mindists = jnp.min(dists,axis=1)
 
-        # Evaluate all distances
-        dists = np.sqrt(np.sum( (g1[:, None, :] - g2[None, :, :])**2, axis=2))
+        return jnp.max(mindists)
 
-        # Find all min distances
-        mindists = np.min(dists, axis=1)
+    def min_dists(self):
+        """
+        returns the an array of the minimum distance between curve1 and curve2
+        """
+        g1 = self.curve1.gamma()
+        g2 = self.curve2.gamma()
+        dists = jnp.sqrt(jnp.sum( (g1[:, None, :] - g2[None, :, :])**2, axis=2))
+        print(np.shape(dists))
+        mindists = jnp.min(dists,axis=1)
 
-        return np.max(mindists)
+        return mindists 
+
+    def min_dists_p(self):
+        """
+        returns the an array of the minimum distance between curve1 and curve2 (approximated w/ p norm)
+        """
+        p = self.p
+        g1 = self.curve1.gamma()
+        g2 = self.curve2.gamma()
+        dists = jnp.sqrt(jnp.sum( (g1[:, None, :] - g2[None, :, :])**2, axis=2))
+        mindists = jnp.sum(dists**p, axis=1)**(1./p)
+
+        return mindists
 
     def J(self):
         g1 = self.curve1.gamma()

@@ -1,506 +1,235 @@
 import numpy as np
 from jax import grad, hessian, jacfwd, jacrev
 import jax.numpy as jnp
-from .hull import hull2D
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import cm
+from .curve import Curve, CurveCWSFourier
+from .curveobjectives import ArclengthVariation
 
 from .jit import jit
 from .._core.optimizable import Optimizable
 from .._core.derivative import derivative_dec, Derivative
 
-__all__ = ['PortSize', 'VerticalPortDiscrete', 'ProjectedEnclosedArea', 'ProjectedCurveCurveDistance', 'ProjectedCurveConvexity', 'DirectedFacingPort']
+from scipy.linalg import lu
+from scipy.optimize import minimize
 
+__all__ = ['PortSize', 'ProjectedEnclosedArea', 'ProjectedCurveCurveDistance', 'ProjectedCurveConvexity', 'DirectedFacingPort', 'CurveInPortPenalty']
 
-
-def coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p):
-    """Find the maximum port size given surface and coils
-    
-    Heaviside, min and max functions are approximated with differentiable functions so that this function can be used in an optimization.
-
-    Args:
-        - gamma_curves: np.array of size (ncurves, npts, 3). List of points defining the coils
-        - gamma_surf: np.array of size (nphi, ntheta, 3). List of points on the surface
-        - unit_normal: np.array of size (nphi, ntheta, 3). Unit vector normal to gamma_surf
-        - unit_tangent: np.array of size (nphi, ntheta, 3). Unit vector tangent to gamma_surf
-        - phi_ind: List of phi-indices for points on gamma_surf that are candidate for a port access. Shape is (np,)
-        - theta_ind: List of theta-indices for points on gamma_surf that are candidates for a port access. Shape is (np,)
-        - max_sizes:: Maximum size for port at position iphi, itheta. Shape should be (nphi,ntheta)
-        - ftop: list of polynomials to fit the upper envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
-        - fbot: list of polynomials to fit the lower envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
-        - p: coefficient for p-norm
-    Output:
-        - rp: largest circular port size on gamma_surf.
-    """
-    hv = lambda x: logistic(x, k=4)
-    min = lambda x: np.sum(x**(-p))**(-1./p)
-    max = lambda x: np.sum(x**( p))**( 1./p)
-
-    return coil_normal_distance(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, hv, min, max, False)
-
-def coil_normal_distance(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, hv, min, max, return_pos ):
-    """ Return largest circular port access size, with normal access
-
-    For each quadrature point on the surface, evaluate the smallest distance
-    from the coils to the line normal to the surface at this point. Return then
-    largest of these minimum radii.
-
-    Args:
-        - gamma_curves: np.array of size (ncurves, npts, 3). List of points defining the coils
-        - gamma_surf: np.array of size (nphi, ntheta, 3). List of points on the surface
-        - unit_normal: np.array of size (nphi, ntheta, 3). Unit vector normal to gamma_surf
-        - unit_tangent: np.array of size (nphi, ntheta, 3). Unit vector tangent to gamma_surf
-        - phi_ind: List of phi-indices for points on gamma_surf that are candidate for a port access. Shape is (np,)
-        - theta_ind: List of theta-indices for points on gamma_surf that are candidates for a port access. Shape is (np,)
-        - max_sizes:: Maximum size for port at position iphi, itheta. Shape should be (nphi,ntheta)
-        - ftop: list of polynomials to fit the upper envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
-        - fbot: list of polynomials to fit the lower envelop of the surface projected on the plane tangent to gamma_surf at iphi, itheta. Should be of shape (nphi, ntheta, deg+1)
-        - hv: Heaviside function, or a differentiable approximation
-        - min: Minimum function, or a differentiable approximation 
-        - max: Maximum function, or a differentiable approximation 
-        - return_pos: Flag to control output
-
-    Output:
-        - rp: Maximum circular port size on gamma_surf.
-        - pos: (iphi, itheta) index of the maximum port size position. Only returned if return_pos is True.
-    """
-    nn = phi_ind.size
-    port_sizes = jnp.zeros((nn,))
-
-    for counter, (itheta, iphi) in enumerate(zip(theta_ind,phi_ind)):
-        upper_envelop = lambda x: jnp.polyval(ftop[iphi,itheta], x)
-        lower_envelop = lambda x: jnp.polyval(fbot[iphi,itheta], x)
-
-        min_dist = find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal[iphi,itheta], unit_tangent[iphi,itheta], hv, max_sizes[iphi,itheta], upper_envelop, lower_envelop, min)
-
-        port_sizes = port_sizes.at[counter].set(min_dist)
-
-    if return_pos:
-        ind = np.argmax(port_sizes)
-        pos = (phi_ind[ind], theta_ind[ind])
-        return max(port_sizes), pos
-    else:
-        return max(port_sizes)
-
-def find_port_size(gamma_curves, gamma_surf, iphi, itheta, unit_normal, unit_tangent, hv, max_size, ftop, fbot, min):    
-    """"Find the maximum port size to access a toroidal volume from a given position
-    
-    Args:
-        - gamma_curves: Collection of points in cartesian coordinates that represents all coils. Shape should be (ncurve, npts, 3)
-        - gamma_surf: Collection of points in cartesian coordinates that represents the boundary of the toroidal volume. Shape should be (nphi, ntheta, 3)
-        - iphi: toroidal index of the access point on gamma_surf. Should satisfy 0<=iphi<=nphi
-        - itheta: Poloidal index of the access point on gamma_surf. Should satisfy 0<=itheta<=ntheta
-        - unit_normal: unit vector normal to gamma_surf at gamma_surf(iphi,itheta), pointing outwards. Should have shape (3,)
-        - unit_tangent: unit vector tangent to gamma_surf at gamma_surf(iphi,itheta), pointing in the toroidal direction. Should be obtained by calling surface.dgammadphi. Should have shape (3,)
-        - hv: function that should either be the heaviside function, or a differentiable approximation of the heaviside function (required for optimization)
-        - max_size: maximum port size
-        - ftop: function that return the upper envelop
-        - fbot: same as ftop, but for the lower envelop.
-        - min: function to evaluate the minimum of a np.array. Use np.min if you don't need differentiability, instead consider the p-norm.
-    Returns:
-        - rp: float, port size at position gamma_surf(iphi,itheta)
-    """
-    # Evaluate position on surface
-    xsurf = gamma_surf[iphi,itheta]
-    # Construct coordinate associated to xsurf, and build projection operatore
-    bnorm = jnp.cross(unit_normal, unit_tangent)
-    M = jnp.array([unit_normal,unit_tangent,bnorm]).transpose()
-    invM = jnp.linalg.inv(M)
-    def project(x):
-        return jnp.einsum('ij,...j->...i',invM,x-xsurf[...,:])
-
-    nphi, _, _ = gamma_surf.shape
-    nphi = int(nphi/3)
-    phi_start = iphi-int(nphi/2)
-    phi_end = iphi+int(nphi/2)+1
-    gamma_surf = gamma_surf[phi_start:phi_end]
-
-    gamma_coil_proj = project(gamma_curves)
-    ncurves, npts, _ = gamma_curves.shape
-
-
-    distances = jnp.zeros((1+ncurves*npts,))
-    distances = distances.at[0].set( max_size )
-    counter = 1
-    
-    # Consider all curve pts
-    x = gamma_coil_proj.reshape((-1,3))
-
-    # Evaluate the upper and lower envelop for this toroidal plane            
-    tn = ftop(x[:,1])
-    bn = fbot(x[:,1])
-
-    # Read coordinate of the point and of the upper and lower envelop in the (n,t,b) coordinate system
-    dd = x[:,1]**2 + x[:,2]**2
-
-    # All logical tests are replaced by an approximated Heaviside function to make the port size evaluation differentiable. 
-    # here hv(max_size-dd) checks that the point is not further than the maximum port size, hv(-cb)*hv(cn-bn) checks if the point is in front of the surface, and below the point xsurf, and hv(cb)*hv(cn-tn) checks if the point is in front of the surface, and above the point xsurf
-    # test is 1 only if the point is closer than max_size, and if the point is in front of the surface.
-    test = hv(max_size-dd) * (hv(-x[:,2])*hv(x[:,0]-bn) + hv(x[:,2])*hv(x[:,0]-tn))
-
-    # We shift test and multiply it by a large number, so that if the point does not satisfy test, we associate to it a large distance. Here we chose a multiplication factor of 1E2 - larger number make the target function more stiff
-    distances = distances.at[1:].set( (-1e2*(test-1) +1) * dd )
-    counter += 1
-
-    # Return port size
-    return jnp.sqrt(min(distances))
-
-def heaviside(x):
-    """Just the regular Heaviside function
-    """
-    f = jnp.zeros(x.shape)
-    f = f.at[jnp.where(x>0)].set(1.0)
-    f = f.at[jnp.where(x==0)].set(0.5) 
-    return f
-  
-def logistic(x, k=10):
-    """Differentiable approximation to the Heaviside function
-    
-    Args:
-        - x: function argument
-        - k: if k large, this function approaches the Heaviside function.
-
-    Output:
-        - y: np.array of the same shape as x.
-    """
-    return 0.5 + 0.5*jnp.tanh(k*x)
 
 class PortSize(Optimizable):
-    r"""
-    Evaluate the largest port size given some coils and a boundary. The porte size is defined as the radius of the largest straight cylinder that can fit within the coils and connect to the boundary along its normal direction
-
-    Boundary should span 3/2 field periods, and curves should be all coils spanning the same 3/2 field periods.
-    """
-    def __init__(self, curves, surf, p=4):
+    def __init__(self, port, curves, curve_port_distance_threshold, direction, solver='jax', port_coil_distance_weight=1e2, port_arc_penalty_weight=1e-2, port_forward_facing_weight=1e2):
+        if not isinstance(port, CurveCWSFourier):
+            raise ValueError("Port should be a CurveCWSFourier instance")
+        if not isinstance(curves, list):
+            raise ValueError("Curves should be a list")
+        if len(curves)<1:
+            raise ValueError("Should have at least one curve")
+        if any([not isinstance(c, Curve) for c in curves]):
+            raise ValueError("Curves elements should be instances of curves")
+        if not isinstance(curve_port_distance_threshold, (int, float)):
+            raise ValueError("Threshold value for curve to port distance should be an integer or a float")
+        if not ((direction=='radial') or (direction=='vertical')):
+            raise ValueError("Only radial and vertical directions are implemented")
+        if not ((solver=='jax') or (solver=='explicit')):
+            raise ValueError("Solver should be either 'jax' or 'explicit'")
+        
+        self.port = port    
         self.curves = curves
+        self.solver = solver
+        self.curve_port_distance_threshold = curve_port_distance_threshold
+        self.direction = direction
 
-        # Every surface dependent quantity is only evaluated once for speed
-        self.update_surface(surf)
+        self.port_arc_penalty_weight = port_arc_penalty_weight
+        self.port_coil_distance_weight = port_coil_distance_weight
+        self.port_forward_facing_weight = port_forward_facing_weight
 
-        # I don't know how to get derivatives of unit_normal wrt boundary dofs; for now this class only depends on curves. Should not be used in any kind of combined approach, excepted if finite differences are implemented
-        # Also, if the port size is made dependent on the surface, the objective function might not be differentiable anymore. 
-        super().__init__(depends_on=curves)
+        # Define objective
+        if self.direction == 'radial':
+            projection='zphi'
+        elif self.direction == 'vertical':
+            projection='xy'
 
-        self.J_jax=lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: coil_normal_distance_pure(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, p)
-        self.thisgrad0 =lambda gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot: grad(self.J_jax, argnums=0)(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot)
-        #self.thisgrad1 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=1)(gamma_curves, gamma_surf, unit_normal))
-        #self.thisgrad2 = jit(lambda gamma_curves, gamma_surf, unit_normal: grad(self.J_jax, argnums=2)(gamma_curves, gamma_surf, unit_normal))
+        self.Jxyarea = ProjectedEnclosedArea( self.port, projection=projection )
+        self.Jccxydist = ProjectedCurveCurveDistance( self.curves, self.port, self.curve_port_distance_threshold, projection=projection )
+        self.Jarc = ArclengthVariation( self.port )
+        self.Jufp = DirectedFacingPort( self.port, projection=projection)
 
-    def update_surface(self, surf):
-        """Update all surface dependent quantities.
-        
-        This should be used only to set the problem, and not in an optimization loop (this class assumes the boundary dofs to be fixed)
+        # self.Jport = -1*self.Jxyarea \
+        #     + self.port_coil_distance_weight * self.Jccxydist \
+        #     + self.port_forward_facing_weight * self.Jufp 
+            #+ self.port_arc_penalty_weight * self.Jarc \
 
-        Args:
-            - surf: Surface object describing a toroidal volume to be accessed with a port.
+        # Initialize parent
+        # Does NOT depend on port! Port is specified by this inner
+        # optimization.
+        super().__init__(depends_on=self.curves)
 
-        Exceptions:
-            - ValueError: if the number of toroidal quadrature points of the surface is not a multiple of 3.
-        """
-        self.boundary = surf
-        R = surf.major_radius()
-        Nfp = surf.nfp
-        # Only consider points on the outboard side
-        self.gamma_boundary = self.boundary.gamma()
-        nphi, ntheta, _ = self.gamma_boundary.shape
-        if np.mod(nphi,3)!=0:
-            raise ValueError('Boundary should have quadpoints_phi be a multiple of 3')
-        nphi = int(nphi/3)
-        dmax = 2*np.pi*R/Nfp * 1/nphi
+        # Some cache boolean
+        self.need_to_run_code = True
 
-        # self.phi_ind and self.theta_ind are arrays that store which point on the surface are to be considered when evaluating the port access. We set phi_ind such that all points are in the central half field period of the surface, and theta_ind such that only outboard points are considered.
-        phi_ind = jnp.array([], dtype=int)
-        theta_ind = jnp.array([], dtype=int)
-        for iphi in range(nphi,2*nphi): #only consider one half field period
-            for itheta in range(ntheta):
-                Rsurf_square = self.gamma_boundary[iphi,itheta,0]**2+self.gamma_boundary[iphi,itheta,1]**2
-                R0 = jnp.sum(self.gamma_boundary[iphi,:,0]**2 + self.gamma_boundary[iphi,:,1]**2) / ntheta
-                if Rsurf_square>=R0:
-                    phi_ind = jnp.append(phi_ind, iphi)
-                    theta_ind = jnp.append(theta_ind, itheta)
-        self.phi_ind = phi_ind
-        self.theta_ind = theta_ind
+    def recompute_bell(self, parent=None):
+        self.need_to_run_code = True
+         
+    def objective(self, dofs, hessian_bool):
+        self.port.x = dofs # We only optimize the port dofs
 
-        # Pre-compute the unit normal and unit tangent on each point of the surface
-        self.unit_normal = self.boundary.unitnormal()
-        tangent = self.boundary.dgammadphi()
-        norm = np.linalg.norm(tangent, axis=2)
-        self.unit_tangent = tangent / norm[:,:,None]
+        if hessian_bool: # Don't include the arclength penalty here
+            J = -1*self.Jxyarea.J() \
+                + self.port_coil_distance_weight * self.Jccxydist.J() \
+                + self.port_forward_facing_weight * self.Jufp.J() 
 
-        # Prepare all max port size and prepare polynomial fits
-        # For each point x=(phi,theta) on the surface, the maximal port size is defined as the max radius of a circle centered at x that fits within the surface projected on the plane tangent to the surface at x
-        # Furthermore, to evaluate whether a coil is in front, above, behind, or below the surface, we need to fit the upper and lower "envelop" of the prohected surface
-        self.max_port_size = np.zeros((3*nphi,ntheta))
-        deg = 5 # Degree of polynomial fit
-        # self.bot_fits = np.zeros((3*nphi,ntheta,3,deg+1)) # upper envelop fit
-        # self.top_fits = np.zeros((3*nphi,ntheta,3,deg+1)) # lower envelop fit
-        self.bot_fits = np.zeros((3*nphi,ntheta,deg+1))
-        self.top_fits = np.zeros((3*nphi,ntheta,deg+1))
-        to_pop = []
-        for ii, (iphi, itheta) in enumerate(zip(self.phi_ind, self.theta_ind)):
-            # Construct coordinate system with normal, and tangent vectors. 
-            bnorm = jnp.cross(self.unit_normal[iphi,itheta], self.unit_tangent[iphi,itheta])
+            dJ = -1*self.Jxyarea.dJ(partials=True).data[self.port] \
+                + self.port_coil_distance_weight * self.Jccxydist.dJ(partials=True).data[self.port] \
+                + self.port_forward_facing_weight * self.Jufp.dJ(partials=True).data[self.port]
             
-            # Build operator to project any point (x,y,z) on the new coordinate system (n,t,b)
-            M = jnp.array([self.unit_normal[iphi,itheta], self.unit_tangent[iphi,itheta],bnorm]).transpose()
-            invM = jnp.linalg.inv(M)
-            xsurf = self.gamma_boundary[iphi,itheta]
-
-            # Only consider points on a half field period centered around x.
-            # These indices are different from phi_ind!
-            phi_start = iphi-int(nphi/2)
-            phi_end = iphi+int(nphi/2)+1
-            surf = self.gamma_boundary[phi_start:phi_end,:,:]
-            gamma_surf_proj = np.einsum('ij,lmj->lmi', invM, surf - xsurf[None,None,:]) # This is the section of the surface projected on the tangent plane (i.e. in coord system (n,t,b)) 
-
-            xproj = gamma_surf_proj.reshape((-1,3))
-            xflat = xproj[:,1:]
-            try:
-                hull = hull2D( xflat, surf )
-                uenv = hull.envelop(dmax, 'upper')
-                lenv = hull.envelop(dmax, 'lower')
-            except BaseException:
-                print(f'Popping point (phi,theta)={(iphi,itheta)}')
-                to_pop.append(ii)
-                continue
-
-            xyztop = xproj[uenv,:]
-            xyzbot = xproj[lenv,:]
-
-            # Evaluate closest point from the envelop. This sets the maximum port size
-            tt = np.append(xyztop,xyzbot,axis=0)
-            self.max_port_size[iphi,itheta] = np.min(tt[:,1]**2 + tt[:,2]**2)
-
-            # Interpolate lower and upper envelop - this is a linear interpolation, does it keep the C1 property? I don't think so. Smooth interpolation would be better
-            #self.bot_fits[iphi,itheta] = lambda x: np.interp(x, xyzbot[:,1], xyzbot[:,2] )
-            #self.top_fits[iphi,itheta] = lambda x: np.interp(x, xyztop[:,1], xyztop[:,2] )
-            self.bot_fits[iphi,itheta] = np.polyfit(xyzbot[:,1], xyzbot[:,2], deg)
-            self.top_fits[iphi,itheta] = np.polyfit(xyztop[:,1], xyztop[:,2], deg)
+            hess = -1*self.Jxyarea.ddJ_ddport() \
+                + self.port_coil_distance_weight * self.Jccxydist.ddJ_ddport() \
+                + self.port_forward_facing_weight * self.Jufp.ddJ_ddport() 
+            
+            return J, dJ, hess
         
-        if len(to_pop)>0:
-            to_pop = np.array(to_pop)
-            self.phi_ind = np.delete(self.phi_ind, to_pop)
-            self.theta_ind = np.delete(self.theta_ind, to_pop)
+        else:
+            J = -1*self.Jxyarea.J() \
+                + self.port_coil_distance_weight * self.Jccxydist.J() \
+                + self.port_forward_facing_weight * self.Jufp.J() 
+                #+ self.port_arc_penalty_weight * self.Jarc.J() \
 
+            dJ = -1*self.Jxyarea.dJ(partials=True).data[self.port] \
+                + self.port_coil_distance_weight * self.Jccxydist.dJ(partials=True).data[self.port] \
+                + self.port_forward_facing_weight * self.Jufp.dJ(partials=True).data[self.port]
+                #+ self.port_arc_penalty_weight * self.Jarc.dJ(partials=True).data[self.port] \
+
+
+            return J, dJ
+    
+    def objective_with_hessian(self, dofs):
+        self.port.x = dofs
+
+    def explicit_solve(self, verbose=True):
+        if not self.need_to_run_code:
+            return
+        
+        # Pre-conditioning. Move port s.t. constraints port-coil distance is satisfied.
+        # This is necessary, otherwise results of optimization below will not satisfy constraints
+        counter = 0
+        while self.Jccxydist.J()>0:
+            print("Port intersect coils... reducing toroidal extend of port")
+            for oo in range(1, self.port.order+1):
+                for par in ['c','s']:
+                    key = f'phi{par}({oo})'
+                    self.port.set(key, self.port.get(key)*(0.9**oo))
+                    key = f'theta{par}({oo})'
+                    self.port.set(key, self.port.get(key)*(0.9**oo))
+
+            if counter==20:
+                raise ValueError('Initial port does not satisfy constraints')
+
+
+        # First, L-BFGS solve
+        fun = lambda x: self.objective(x, hessian_bool=False)
+        dofs = self.port.x
+        maxiter = 1000
+        res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': maxiter, 'gtol': 1e-08})
+
+        res_bfgs = {
+            "fun": res.fun, "gradient": res.jac, "iter": res.nit, "info": res, "success": res.success
+        }
+
+        if verbose:
+            print(f"L-BFGS-B solve - {res_bfgs['success']}  iter={res_bfgs['iter']}, ||grad||_inf = {np.linalg.norm(res_bfgs['gradient'], ord=np.inf):.3e}", flush=True)
+
+        # Then, Newton step
+        fun = lambda x: self.objective(x, hessian_bool=True)
+        x = res.x
+        maxiter = 10
+        stab = 0.
+        tol = 1e-12
+        J, dJ, d2J = fun(x)
+        norm = np.linalg.norm(d2J)
+        i = 0
+        while i < maxiter and norm > tol:
+            d2J += stab*np.identity(d2J.shape[0])
+            dx = np.linalg.solve(d2J, dJ)
+            if norm < 1e-9:
+                dx += np.linalg.solve(d2J, dJ - d2J@dx)
+            x = x - dx
+            J, dJ, d2J = fun(x)
+            norm = np.linalg.norm(dJ)
+            i = i+1
+
+        P, L, U = lu(d2J)
+        res_newton = {
+            "residual": J, "jacobian": dJ, "hessian": d2J, "iter": i, "success": norm <= tol, "G": None, 
+            "PLU" : (P, L, U), "vjp": None
+        }
+
+        if verbose:
+            print(f"NEWTON solve - {res_newton['success']}  iter={res_newton['iter']}, ||grad||_inf = {np.linalg.norm(res_newton['jacobian'], ord=np.inf):.3e}", flush=True)
+
+        self.need_to_run_code = False
+        
+        return res_bfgs, res_newton
+    
     def J(self):
-        gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
-
-        return self.J_jax(gamma_curves, self.gamma_boundary, self.unit_normal, self.unit_tangent, self.phi_ind, self.theta_ind, self.max_port_size, self.top_fits, self.bot_fits)
+        self.explicit_solve()
+        return self.Jxyarea.J()
     
     @derivative_dec
     def dJ(self):
-        gamma_curves = jnp.array([curve.gamma() for curve in self.curves])
+        self.explicit_solve()
+        U1 = self.Jxyarea.ddJ_ddport()
+        U2 = self.port_coil_distance_weight * self.Jccxydist.ddJ_ddport()
+        U3 = self.port_forward_facing_weight * self.Jufp.ddJ_ddport()
+        U = -U1 + U2 + U3
 
-        grad0 = self.thisgrad0(gamma_curves, self.gamma_boundary, self.unit_normal, self.unit_tangent, self.phi_ind, self.theta_ind, self.max_port_size, self.top_fits, self.bot_fits)
-        #grad1 = self.thisgrad1(gamma_curves, gamma_boundary, unit_normal)
-        #grad2 = self.thisgrad2(gamma_curves, gamma_boundary, unit_normal)
+        x = np.linalg.solve( U, self.Jxyarea.dJ() )
 
-        return np.sum([curve.dgamma_by_dcoeff_vjp(gg) for curve, gg in zip(self.curves, grad0)])
-    
-    def find_max_port_size_and_position(self, smooth=False):
-        gamma_curves = np.array([curve.gamma() for curve in self.curves])
-        gamma_surf = self.gamma_boundary
-        unit_normal = self.unit_normal
-        unit_tangent = self.unit_tangent
-        phi_ind = self.phi_ind
-        theta_ind = self.theta_ind
-        max_sizes = self.max_port_size
-        ftop = self.top_fits
-        fbot = self.bot_fits
+        d = Derivative()
+        for c in self.curves:
+            V1 = self.Jxyarea.ddJ_dportdcoil(c)
+            V2 = self.port_coil_distance_weight * self.Jccxydist.ddJ_dportdcoil(c)
+            V3 = self.port_forward_facing_weight * self.Jufp.ddJ_dportdcoil(c)
+            V = -V1 + V2 + V3
 
-        if smooth:
-            hv = logistic
-            p =10
-            min = lambda x: np.sum(x**(-p))**(-1./p)
-            max = lambda x: np.sum(x**( p))**( 1./p)
-        else:
-            hv = heaviside
-            min = np.min
-            max = np.max
+            dAdxc = np.matmul(V, x)
+            d += Derivative({c: dAdxc})
 
-        rp, pos =  coil_normal_distance(gamma_curves, gamma_surf, unit_normal, unit_tangent, phi_ind, theta_ind, max_sizes, ftop, fbot, hv, min, max, True)
-        return rp, pos
-    
-    def get_port_size_at_position(self, iphi, itheta):
-        if iphi not in self.phi_ind:
-            raise ValueError('Toroidal plane is excluded')
-        if itheta not in self.theta_ind:
-            raise ValueError('Point is not on the outboard side of the surface')
-        gamma_curves = np.stack([curve.gamma() for curve in self.curves])
-        gamma_boundary = self.gamma_boundary
-        unit_normal = self.unit_normal[iphi,itheta]
-        unit_tangent = self.unit_tangent[iphi,itheta]
-        msize = self.max_port_size[iphi,itheta]
-        ftop = self.top_fits[iphi,itheta]
-        fbot = self.bot_fits[iphi,itheta]
+        return d
 
-        lower_envelop = lambda x: np.polyval(fbot, x)
-        upper_envelop = lambda x: np.polyval(ftop, x)
 
-        min = lambda x: np.sum(x**(-10))**(-1./10)
+    def plot(self):
+        _, ax = plt.subplots()
 
-        return find_port_size(gamma_curves, gamma_boundary, iphi, itheta, unit_normal, unit_tangent, heaviside, msize, upper_envelop, lower_envelop, np.min)
-    
-    def plot(self, iphi, itheta, rp=None, ax=None):
+        # Plot surface
+        if self.direction=='radial':
+            x0 = np.mean(self.port.gamma(),axis=0)
+            gproj = project(self.port.surf.gamma().reshape((-1,3)), x0)
+            gport = project(self.port.gamma(), x0)
+        elif self.direction=='vertical':
+            # Rerorganizing indices to be compatible with the projection in the case of radial access. Not very elegant, but I don't won't to reimplement the project function to order dimensions differently
+            gproj = self.port.surf.gamma()[:,:,[2,0,1]]
+            gport = self.port.gamma()[:,[2,0,1]]
+        ind = np.argsort(gproj[:,0])
+        ax.scatter(gproj[ind,1],gproj[ind,2],c=gproj[ind,0],s=10)
 
-        if rp is None:
-            rp = self.get_port_size_at_position( iphi, itheta )
+        # Plot port
+        ax.fill(gport[:,1], gport[:,2], color='r', alpha=.8)
 
-        gamma_bnd = self.gamma_boundary
-        unit_normal = self.unit_normal[iphi,itheta]
-        unit_tangent = self.unit_tangent[iphi,itheta]
+        # Plot coils
+        for c in self.curves:
+            if self.direction=='radial':
+                g = project(c.gamma(), x0)
+            elif self.direction=='vertical':
+                g = c.gamma()[:,[2,0,1]]
+            zcurves = g[:,0]
 
-        bnorm = jnp.cross(unit_normal, unit_tangent)
-        M = jnp.array([unit_normal,unit_tangent,bnorm]).transpose()
-        invM = jnp.linalg.inv(M)
-        def project(x):
-            return jnp.einsum('ij,...j->...i',invM,x-gamma_bnd[iphi,itheta,:])
-        
-        nphi, _, _ = gamma_bnd.shape
-        nphi = int(nphi/3)
-        phi_start = iphi-int(nphi/2)
-        phi_end = iphi+int(nphi/2)+1
-        gamma_surf = gamma_bnd[phi_start:phi_end,:,:]
+            ind = np.where( zcurves>0 )[0]
+            g = g[ind,:]
 
-        gamma_surf_proj = project(gamma_surf).reshape((-1,3))
+            ax.scatter(g[:,1], g[:,2], color='k', marker='o', s=15)
 
-        ftop = self.top_fits[iphi,itheta]
-        fbot = self.bot_fits[iphi,itheta]
-
-        lower_envelop = lambda x: np.polyval(fbot, x)
-        upper_envelop = lambda x: np.polyval(ftop, x)
-
-        if ax is None:
-            fig, ax = plt.subplots()
-
-        plt.scatter(gamma_surf_proj[:,1], gamma_surf_proj[:,2], s=1, color='k')
-        xmin = np.min(gamma_surf_proj[:,1])
-        xmax = np.max(gamma_surf_proj[:,1])
-        xplot = np.linspace(xmin,xmax,128)
-        plt.plot(xplot, lower_envelop(xplot), linewidth=3, color='g')
-        plt.plot(xplot, upper_envelop(xplot), linewidth=3, color='r')
-
-        color = cm.rainbow(np.linspace(0, 1, len(self.curves)))
-        for c, col in zip(self.curves, color):
-            gamma_proj = project(c.gamma())
-            npts, _ = gamma_proj.shape
-            ind_above = []
-            ind_below = []
-            ind_front = []
-            for ii in range(npts):
-                if gamma_proj[ii,2]>upper_envelop(gamma_proj[ii,1]):
-                    ind_above.append(ii)
-                elif gamma_proj[ii,2]<lower_envelop(gamma_proj[ii,1]):
-                    ind_below.append(ii)
-                elif gamma_proj[ii,0]>=0:
-                    ind_front.append(ii)
-
-            plt.scatter(gamma_proj[ind_below,1], gamma_proj[ind_below,2], s=5, marker='^', c=col)
-            plt.scatter(gamma_proj[ind_above,1], gamma_proj[ind_above,2], s=5, marker='o', c=col)
-            plt.scatter(gamma_proj[ind_front,1], gamma_proj[ind_front,2], s=5, marker='v', c=col)
-
-        l = np.linspace(0,2*np.pi,64)
-        ax.plot(rp*np.cos(l), rp*np.sin(l), 'k-', linewidth=3)
         ax.set_aspect('equal')
-         
-
-
-
-
-
-def vertical_access(gamma_surf, gamma_curves, phi_ind, theta_ind, dmax):
-    
-    xflat = gamma_surf.reshape((-1,3))
-
-    xcurves = gamma_curves[:,0]
-    ycurves = gamma_curves[:,1]
-    zcurves = gamma_curves[:,2]
-
-    rports = []
-    for iphi, itheta, dd in zip(phi_ind, theta_ind, dmax):
-        xx = gamma_surf[iphi,itheta,0]
-        yy = gamma_surf[iphi,itheta,1]
-
-        surf_dist_to_pt = np.sqrt((xx-xflat[:,0])**2 + (yy-xflat[:,1])**2)
-        ind = np.where(surf_dist_to_pt<=dd)
-        mean_z = np.mean( xflat[ind,2] )
-
-        ind = np.where( zcurves>mean_z )[0]
-
-        min_dist_to_curve = np.min(
-            np.sqrt((xx-xcurves[ind])**2 + (yy-ycurves[ind])**2)
-        )
-
-        rports.append( np.min( [min_dist_to_curve, dd] ) )
-
-    ii = np.argmax( rports )
-    return rports[ii], phi_ind[ii], theta_ind[ii], ii
-
-class VerticalPortDiscrete( Optimizable ):
-    def __init__(self, surface, curves=None ):
-        self.surface = surface
-        self.curves = curves
-
-        self.update_surface()
-
-        super().__init__(depends_on=curves)
-
-    def update_surface(self):
-        self.gamma_surf = self.surface.gamma()
-        nphi, ntheta, _ = self.gamma_surf.shape
-
-        phi_ind = []
-        theta_ind = []
-        dmax = []
-        for iphi in range(nphi):
-            for itheta in range(ntheta):
-
-                x = self.gamma_surf[iphi,itheta,0]
-                y = self.gamma_surf[iphi,itheta,1]
-                z = self.gamma_surf[iphi,itheta,2]
-        
-                r = np.sqrt(x**2 + y**2)
-                phi = np.arctan2( y, x )
-
-                cs = self.surface.cross_section( phi )
-                Rcs = np.sqrt(cs[:,0]**2 + cs[:,1]**2)
-                irmin = np.argmin(Rcs)
-                irmax = np.argmax(Rcs)
-
-                izmax = np.argmax(cs[:,2])
-
-                r = np.sqrt(x**2 + y**2)
-                if r>=Rcs[izmax]:
-                    if z>cs[irmax,2]:
-                        phi_ind.append( iphi )
-                        theta_ind.append( itheta )
-                        
-                        dmax.append(np.min([
-                            np.sqrt((x-cs[irmin,0])**2+(y-cs[irmin,1])**2),
-                            np.sqrt((x-cs[irmax,0])**2+(y-cs[irmax,1])**2)
-                        ]))
-
-                if r<Rcs[izmax]:
-                    if z>cs[irmin,2]:
-                        phi_ind.append( iphi )
-                        theta_ind.append( itheta )
-
-                        dmax.append(np.min([
-                            np.sqrt((x-cs[irmin,0])**2+(y-cs[irmin,1])**2),
-                            np.sqrt((x-cs[irmax,0])**2+(y-cs[irmax,1])**2)
-                        ]))
-
-
-        self.phi_ind = np.asarray( phi_ind )
-        self.theta_ind = np.asarray( theta_ind )
-        self.dmax = np.asarray( dmax )
-
-
-    def find_max_port_size_and_position(self):
-
-        gamma_curves = np.stack([curve.gamma() for curve in self.curves]).reshape((-1,3))
-
-        return vertical_access( self.gamma_surf, gamma_curves, self.phi_ind, self.theta_ind, self.dmax )
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
 
 
 def PolyArea(x,y):
@@ -581,7 +310,7 @@ class ProjectedEnclosedArea( Optimizable ):
 
         return np.einsum('ijkl,ijm,kln->mn', hess, dgdx, dgdx) + np.einsum('ij,ijkl->kl',grad0,curve_hessian) # this should be size ndofs x ndofs
     
-    def ddJ_dportdcoil(self):
+    def ddJ_dportdcoil(self, curve=None):
         return 0 #Does not depend on coils
 
 
@@ -590,40 +319,40 @@ def upward_facing_pure( nznorm ):
     return jnp.sum(jnp.maximum(-nznorm, 0)**2)
 
 class DirectedFacingPort(Optimizable):
-    def __init__(self, curve, projection='z'):
+    def __init__(self, curve, projection='xy'):
         self.curve = curve
         self.projection = projection
 
-        self.J_jax = lambda nz: upward_facing_pure(nz)
-        self.thisgrad = lambda nz: grad(self.J_jax)(nz)
-        self.hessian = lambda nz: hessian(self.J_jax)(nz) 
+        self.J_jax = jit(lambda nz: upward_facing_pure(nz))
+        self.thisgrad = jit(lambda nz: grad(self.J_jax)(nz))
+        self.hessian = jit(lambda nz: hessian(self.J_jax)(nz) )
 
         super().__init__(depends_on=[curve])
 
     def J(self):
-        if self.projection=='z':
+        if self.projection=='xy':
             n=self.curve.zfactor()
-        elif self.projection=='r':
+        elif self.projection=='zphi':
             n=self.curve.rfactor()
         return self.J_jax(n)
     
     @derivative_dec
     def dJ(self):
-        if self.projection=='z':
+        if self.projection=='xy':
             f = self.curve.dzfactor_by_dcoeff_vjp
             n = self.curve.zfactor()
-        elif self.projection=='r':
+        elif self.projection=='zphi':
             f = self.curve.drfactor_by_dcoeff_vjp
             n = self.curve.rfactor()
 
         return f(self.thisgrad(n))
     
     def ddJ_ddport(self):
-        if self.projection=='z':
+        if self.projection=='xy':
             dgdx = self.curve.dzfactor_by_dcoeff()
             curve_hessian = self.curve.zfactor_hessian()
             n = self.curve.zfactor()
-        elif self.projection=='r':
+        elif self.projection=='zphi':
             dgdx = self.curve.drfactor_by_dcoeff()
             curve_hessian = self.curve.rfactor_hessian()
             n = self.curve.rfactor()
@@ -633,23 +362,195 @@ class DirectedFacingPort(Optimizable):
 
         return np.einsum('ij,il,jm->lm', hess, dgdx, dgdx) + np.einsum('i,ilm->lm',grad0,curve_hessian) # this should be size ndofs x ndofs
 
-    def ddJ_dportdcoil(self):
+    def ddJ_dportdcoil(self, curve=None):
         return 0 # does not depend on coils
+
+
+
+def winding_number_2d_pure(g2, g2dash, pts):
+    x = pts[:,None,0]-g2[None,:,0]
+    y = pts[:,None,1]-g2[None,:,1]
+    rsquared = x**2 + y**2
+
+    # icurve, iport
+    integrand = x/rsquared * g2dash[None,:,1] - y/rsquared * g2dash[None,:,0]
+    return (np.mean(integrand, axis=1) / (2*np.pi))
+
+def winding_number_2d_squared(g2, g2dash, pts):
+    x = pts[:,None,0]-g2[None,:,0]
+    y = pts[:,None,1]-g2[None,:,1]
+    rsquared = x**2 + y**2
+
+    # icurve, iport
+    integrand = x/rsquared * g2dash[None,:,1] - y/rsquared * g2dash[None,:,0]
+    return (jnp.mean(integrand, axis=1) / (2*jnp.pi))**2
+
+def curve_inside_port_penalty_pure(gamma_port, gammadash_port, projection, gamma_curve, gammadash_curve, threshold=0.1):
+    # Project
+    if projection=='zphi':
+        local_project = lambda x: project(x, gamma_port)
+    elif projection=='xy':
+        local_project = lambda x: x[:,[2,0,1]]
+
+    gport_2d = local_project(gamma_port)
+    gportdash_2d = local_project(gammadash_port)
+    gamma_curve_2d = local_project(gamma_curve)
+    gammadash_curve_2d = local_project(gammadash_curve)
+    gammadash_curve_2d = gammadash_curve_2d.at[:,0].set(1E-14)
+    dlcurve = jnp.linalg.norm(gammadash_curve_2d, axis=1) 
+
+    # For each point of the curve, evaluate the winding number weighted by wether they are behind or in front of the port
+    weights = jnp.maximum(gamma_curve_2d[:,0], 0)**2
+    winding_numbers = winding_number_2d_squared(
+        gport_2d[:,1:3], gportdash_2d[:,1:3], gamma_curve_2d[:,1:3]
+    )
+
+    # Return integral along curve of winding numbers, with some threshold
+    return jnp.sum( dlcurve * weights * jnp.maximum(winding_numbers - threshold, 0)**2 )
+
+def count_inside_points(gamma_port, gammadash_port, projection, gamma_curve, threshold=0.1):
+    # Project
+    if projection=='zphi':
+        local_project = lambda x: project(x, gamma_port)
+    elif projection=='xy':
+        local_project = lambda x: x[:,[2,0,1]]
+
+    gport_2d = local_project(gamma_port)
+    gportdash_2d = local_project(gammadash_port)
+    gamma_curve_2d = local_project(gamma_curve)
+
+    # For each point of the curve, evaluate the winding number weighted by wether they are behind or in front of the port
+    winding_numbers = winding_number_2d_pure(
+        gport_2d[:,1:3], gportdash_2d[:,1:3], gamma_curve_2d[:,1:3]
+    )
+
+    # Return integral along curve of winding numbers, with some threshold
+    return np.sum( [((np.abs(w)>threshold) and (gn>0)) for w, gn in zip(winding_numbers, gamma_curve_2d[:,0])] )
+
+class CurveInPortPenalty(Optimizable):
+    def __init__(self, port, curves, threshold, projection='zphi'):
+        self.port = port
+        self.curves = curves
+        self.threshold = threshold
+        self.projection = projection
+
+        self.J_jax = jit(lambda gp, l1, gc, l2: curve_inside_port_penalty_pure(gp, l1, self.projection, gc, l2, self.threshold))
+        self.thisgrad0 = jit(lambda gp, l1, gc, l2: grad(self.J_jax, argnums=0)(gp, l1, gc, l2))
+        self.thisgrad1 = jit(lambda gp, l1, gc, l2: grad(self.J_jax, argnums=1)(gp, l1, gc, l2))
+        self.thisgrad2 = jit(lambda gp, l1, gc, l2: grad(self.J_jax, argnums=2)(gp, l1, gc, l2))
+        self.thisgrad3 = jit(lambda gp, l1, gc, l2: grad(self.J_jax, argnums=3)(gp, l1, gc, l2))
+
+        self.ddJdgpdgp = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=0)(gp,l1,gc,l2))
+        self.ddJdgpdl1 = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=1)(gp,l1,gc,l2))
+        self.ddJdgpdgc = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=2)(gp,l1,gc,l2))
+        self.ddJdgpdl2 = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=0), argnums=3)(gp,l1,gc,l2))
+        self.ddJdl1dl1 = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=1), argnums=1)(gp,l1,gc,l2))
+        self.ddJdl1dgc = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=1), argnums=2)(gp,l1,gc,l2))
+        self.ddJdl1dl2 = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=1), argnums=3)(gp,l1,gc,l2))
+        self.ddJdgcdgc = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=2), argnums=2)(gp,l1,gc,l2))
+        self.ddJdgcdl2 = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=2), argnums=3)(gp,l1,gc,l2))
+        self.ddJdl2dl2 = jit(lambda gp, l1, gc, l2: jacfwd(jacrev(self.J_jax, argnums=3), argnums=3)(gp,l1,gc,l2))
+
+        super().__init__(depends_on=curves+[port])
+
+    def count_inside_points(self):
+        gp = self.port.gamma()
+        l1 = self.port.gammadash()
+
+        N = 0
+        for c in self.curves:
+            gc = c.gamma()
+            N += count_inside_points(
+                gp, l1, self.projection, gc, threshold=self.threshold
+            )
+
+        return N
+
+
+
+    def J(self):
+        gp = self.port.gamma()
+        l1 = self.port.gammadash()
+
+        out = 0
+        for c in self.curves:
+            gc = c.gamma()
+            l2 = c.gammadash()
+            out += self.J_jax(gp, l1, gc, l2)
+
+        return out
+    
+    @derivative_dec
+    def dJ(self):
+        cc = self.curves + [self.port]
+
+        dgamma_by_dcoeff_vjp_vecs = [np.zeros_like(c.gamma()) for c in cc]
+        dgammadash_by_dcoeff_vjp_vecs = [np.zeros_like(c.gammadash()) for c in cc]  
+        
+        gp = self.port.gamma()
+        l1 = self.port.gammadash()
+        for i, c in enumerate(self.curves):
+            gc = c.gamma()
+            l2 = c.gammadash()
+
+            # derivatives w.r.t port
+            dgamma_by_dcoeff_vjp_vecs[-1] += self.thisgrad0(gp, l1, gc, l2)
+            dgammadash_by_dcoeff_vjp_vecs[-1] += self.thisgrad1(gp, l1, gc, l2)
+
+            # derivatives w.r.t curves
+            dgamma_by_dcoeff_vjp_vecs[i] += self.thisgrad2(gp, l1, gc, l2)
+            dgammadash_by_dcoeff_vjp_vecs[i] += self.thisgrad3(gp, l1, gc, l2)
+        
+        
+        res = [
+            self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i])\
+          + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))
+        ]
+        res.append(
+            self.port.dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[-1]) + self.port.dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[-1])
+        )
+        return sum(res)
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def min_xy_distance(gamma1, gamma2):
     """
     This function is used in a Python+Jax implementation of the curve-curve distance formula in xy plane.
     """
+    g1cyl = gamma1[:, [2,0,1]]
+    g2cyl = gamma2[:, [2,0,1]]
+
     g1 = gamma1[:,:2]
     g2 = gamma2[:,:2]
 
-    ind = np.where(gamma2[:,2]>0)[0]
-    if len(ind)==0: # Then the curve is behind the port - ignore this
+    dists = np.linalg.norm(g1[:,None,:]-g2[None,:,:], axis=2)
+    f = np.maximum(g2cyl[None,:,0]-g1cyl[:,None,0], 0) / (g2cyl[None,:,0]-g1cyl[:,None,0])
+
+    if (f==0).all():
         return np.nan
     else:
-        dists = np.sqrt(np.sum((g1[:, None, :] - g2[None, ind, :])**2, axis=2))
-        return np.min(dists)
+        return -np.min(-dists*f)
 
 def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     """
@@ -676,18 +577,22 @@ def cc_xy_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
 def min_zphi_distance(gamma1, gamma2):
     local_project = lambda x: project(x, gamma1)
 
-    g1 = local_project(gamma1)
-    g2 = local_project(gamma2)
-    ind = np.where(g2[:,1]>0)[0]
+    g1cyl = local_project(gamma1)
+    g2cyl = local_project(gamma2)
+    g1 = g1cyl[:,1:]
+    g2 = g2cyl[:,1:]
 
-    g1 = g1.at[:,1].set(0)
-    g2 = g2.at[:,1].set(0)
+    dists = np.linalg.norm(g1[:,None,:]-g2[None,:,:], axis=2)
+    f = np.maximum(g2cyl[None,:,0]-g1cyl[:,None,0], 0) / (g2cyl[None,:,0]-g1cyl[:,None,0])
 
-    if len(ind)==0:
+    test = all([k==0 for k in f.flatten()])
+
+    if test:
         return np.nan
     else:
-        dists = np.sqrt(np.sum((g1[:, None, :] - g2[None, ind, :])**2, axis=2))
-        return np.min(dists)
+        return -np.min(-dists*f)
+
+
 
 def cc_zphi_distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
     local_project = lambda x: project(x, gamma1)
@@ -757,7 +662,10 @@ class ProjectedCurveCurveDistance( Optimizable ):
             elif self.projection=='zphi':
                 res[ii] = min_zphi_distance(gamma, gamma2)
 
-        return np.min(res[~np.isnan(res)])
+        if all([np.isnan(k) for k in res]):
+            raise RuntimeError("No curves in front of port")
+        else:
+            return np.min(res[~np.isnan(res)])
 
     def J(self):
         res = 0
@@ -824,7 +732,7 @@ class ProjectedCurveCurveDistance( Optimizable ):
 
         return res
 
-    def ddJ_dportdcoil(self):
+    def ddJ_dportdcoil(self, curve=None):
         g1 = self.curve.gamma()
         l1 = self.curve.gammadash()
         dg1dx = self.curve.dgamma_by_dcoeff() # this is dgamma/dx, size npts x 3 x ndofs
@@ -832,32 +740,45 @@ class ProjectedCurveCurveDistance( Optimizable ):
         ndofs_c1 = self.curve.num_dofs()
         ndofs_bc = [c.num_dofs() for c in self.base_curves]
         res = np.zeros((sum(ndofs_bc),ndofs_c1))
-        counter=0
-        for ii, c in enumerate(self.base_curves):
-            g2 = c.gamma()
-            l2 = c.gammadash()
-            dg2dx = c.dgamma_by_dcoeff()
-            dl2dx = c.dgammadash_by_dcoeff()
+        hess = []
+        for k in self.unique_dof_lineage:
+            if not isinstance(k,Curve): # only consider coils
+                continue
+            if k is self.curve: # skip dep on port
+                continue
 
-            hg1g2 = self.ddJdg1dg2(g1,l1,g2,l2)
-            hl1g2 = self.ddJdl1dg2(g1,l1,g2,l2)
-            hg1l2 = self.ddJdg1dl2(g1,l1,g2,l2)
-            hl1l2 = self.ddJdl1dl2(g1,l1,g2,l2)
+            if (not curve is None):
+                if k is not curve:
+                    continue 
 
-            res[counter:counter+ndofs_bc[ii],:] = \
-                   np.einsum('ijkl,ijm,kln->nm', hg1g2, dg1dx, dg2dx) \
-                +  np.einsum('ijkl,ijm,kln->nm', hl1g2, dl1dx, dg2dx) \
-                +  np.einsum('ijkl,ijm,kln->nm', hg1l2, dg1dx, dl2dx) \
-                +  np.einsum('ijkl,ijm,kln->nm', hl1l2, dl1dx, dl2dx)
-            counter += ndofs_bc[ii]
+            if np.any(k.dofs_free_status):
 
-        # /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\
-        # This is considering all coils independent from one another... Forgot to apply symmetry!
-        # /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\ /!\
+                shape = (k.local_dof_size,self.curve.num_dofs())
+                res = np.zeros(shape)
+                
+                if k.local_dof_size>0:
+                    for opt in k.dofs.dep_opts():
+                        g2 = opt.gamma()
+                        l2 = opt.gammadash()
+                        dg2dx = opt.dgamma_by_dcoeff()
+                        dl2dx = opt.dgammadash_by_dcoeff()
 
-        return res
+                        hg1g2 = self.ddJdg1dg2(g1,l1,g2,l2)
+                        hl1g2 = self.ddJdl1dg2(g1,l1,g2,l2)
+                        hg1l2 = self.ddJdg1dl2(g1,l1,g2,l2)
+                        hl1l2 = self.ddJdl1dl2(g1,l1,g2,l2)
+
+                        a = np.einsum('ijkl,ijm,kln->nm', hg1g2, dg1dx, dg2dx)
+                        b = np.einsum('ijkl,ijm,kln->nm', hl1g2, dl1dx, dg2dx)
+                        c = np.einsum('ijkl,ijm,kln->nm', hg1l2, dg1dx, dl2dx)
+                        d = np.einsum('ijkl,ijm,kln->nm', hl1l2, dl1dx, dl2dx)
+
+                        res[:,:] += a + b + c + d
+                
+                hess.append(res)
+
+        return np.concatenate(hess)
         
-
 
 
 def xy_convexity( pts, g, gd, gdd ):
@@ -951,6 +872,6 @@ class ProjectedCurveConvexity( Optimizable ):
 
         return ddJ_dpport_1 + ddJ_dpport_2 + ddJ_dpport_3
 
-    def ddJ_dportdcoil(self):
+    def ddJ_dportdcoil(self, curve=None):
         return 0 #Does not depend on coils
 

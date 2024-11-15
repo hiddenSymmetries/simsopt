@@ -995,7 +995,7 @@ def gamma_2d(modes, qpts, order, G:int=0, H:int=0):
     return phi, theta
 
 
-def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
+def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp, stellsym=True):
 #def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, gamma_lin):
     """Returns position in 3D space of a curve lying on a surface
 
@@ -1013,15 +1013,18 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, 
     phi, theta = gamma_2d(curve_dofs, qpts, order, G, H)
     
     if surf_type=='RZ_Fourier':
-        gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
+        gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp, stellsym)
     elif surf_type=='XYZ_Tensor_Fourier':
-        gamma = surfxyztensor_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp)
+        gamma = surfxyztensor_gamma_lin(phi, theta, mpol, ntor, surf_dofs, nfp, stellsym)
     elif surf_type is None:
         return phi, theta
 
     return gamma
 
-def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp):
+def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp, stellsym):
+    if not stellsym:
+        raise NotImplementedError('Only available for stellarator symmetric boundaries')
+
     npts = quadpoints_phi.size
     th = quadpoints_theta * 2.0 * jnp.pi
     ph = quadpoints_phi   * 2.0 * jnp.pi
@@ -1059,80 +1062,90 @@ def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nf
 
     return gamma
 
-def surfxyztensor_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp, stellsym=True):
-    numquadpoints_phi = len(quadpoints_phi)
-    numquadpoints_theta = len(quadpoints_theta)
-    if numquadpoints_phi!=numquadpoints_theta:
-        raise ValueError('numquadpoints_theta and numquadpoints_phi should have the same size')
-    data = jnp.zeros((numquadpoints_phi,3))
+def skip(ii, m, n, stellsym, mpol, ntor):
+    if not stellsym:
+        pass
+    if ii==0:
+        return (n<=ntor and m>mpol) or (n>ntor and m<=mpol)
+    if ii==1:
+        return (n<=ntor and m<=mpol) or (n>ntor and m>mpol)
+    if ii==2:
+        return (n<=ntor and m<=mpol) or (n>ntor and m>mpol)
 
-    shift = (mpol + 1) * (2 * ntor + 1)
+def read_dofs(dofs, mpol, ntor, stellsym):
+    xcs = jnp.zeros((2*mpol+1, 2*ntor+1))
+    ycs = jnp.zeros((2*mpol+1, 2*ntor+1))
+    zcs = jnp.zeros((2*mpol+1, 2*ntor+1))
+
     counter = 0
+    for m in range(2*mpol+1):
+        for n in range(2*ntor+1):
+            if skip(0, m, n, stellsym, mpol, ntor):
+                continue
+            xcs = xcs.at[m,n].set(dofs[counter])
+            counter += 1
+    for m in range(2*mpol+1):
+        for n in range(2*ntor+1):
+            if skip(1, m, n, stellsym, mpol, ntor):
+                continue
+            ycs = ycs.at[m,n].set(dofs[counter])
+            counter += 1
+    for m in range(2*mpol+1):
+        for n in range(2*ntor+1):
+            if skip(2, m, n, stellsym, mpol, ntor):
+                continue
+            zcs = zcs.at[m,n].set(dofs[counter])
+            counter += 1
 
-    xc = jnp.zeros((shift,))
-    ys = jnp.zeros((shift,))
-    zs = jnp.zeros((shift,))
-    xs = jnp.zeros((shift,))
-    yc = jnp.zeros((shift,))
-    zc = jnp.zeros((shift,))
+    return xcs, ycs, zcs
 
-    if stellsym:
-        for i in range(ntor, shift):
-            xc = xc.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor + 1, shift):
-            zs = ys.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor + 1, shift):
-            zs = zs.at[i].set( surf_dofs[counter] )
-            counter += 1
+def get_coeff(ii, m, n, stellsym, mpol, ntor, xcs, ycs, zcs):
+    if skip(ii, m, n, stellsym, mpol, ntor):
+        return 0
+    if ii==0:
+        return xcs[m, n]
+    if ii==1:
+        return ycs[m, n]
+    if ii==2:
+        return zcs[m, n]
+
+def basis_fun(n, phi, m, theta, mpol, ntor, nfp):
+    if n<=ntor:
+        a = jnp.cos(nfp*n*phi)
     else:
-        for i in range(ntor, shift):
-            xc = xc.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor + 1, shift):
-            xs = xs.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor, shift):
-            yc = yc.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor + 1, shift):
-            ys = ys.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor, shift):
-            zc = zc.at[i].set( surf_dofs[counter] )
-            counter += 1
-        for i in range(ntor + 1, shift):
-            zs = zs.at[i].set( surf_dofs[counter] )
-            counter += 1
-
-    xc = jnp.reshape(xc, (mpol+1,2*ntor+1))
-    xs = jnp.reshape(xs, (mpol+1,2*ntor+1))
-    yc = jnp.reshape(yc, (mpol+1,2*ntor+1))
-    ys = jnp.reshape(ys, (mpol+1,2*ntor+1))
-    zc = jnp.reshape(zc, (mpol+1,2*ntor+1))
-    zs = jnp.reshape(zs, (mpol+1,2*ntor+1))
-
-    phi = 2 * jnp.pi * quadpoints_phi
-    theta = 2 * jnp.pi * quadpoints_theta
-    x, y, z = 0, 0, 0
+        a = jnp.sin(nfp*(n-ntor)*phi)
+    if m<=mpol:
+        b = jnp.cos(m*theta)
+    else:
+        b = jnp.sin((m-mpol)*theta)
+        
+    return a * b
     
-    for m in range(mpol + 1):
-        for i in range(2 * ntor + 1):
-            n = i - ntor
-            
-            xhat = (xc[m,i] * jnp.cos(m * theta - n * nfp * phi) + xs[m,i] * jnp.sin(m * theta - n * nfp * phi))
-            yhat = (yc[m,i] * jnp.cos(m * theta - n * nfp * phi) + ys[m,i] * jnp.sin(m * theta - n * nfp * phi))
-            
-            x += xhat * jnp.cos(phi) - yhat * jnp.sin(phi)
-            y += xhat * jnp.sin(phi) + yhat * jnp.cos(phi)
-            z += (zc[m,i] * jnp.cos(m * theta - n * nfp * phi) + zs[m,i] * jnp.sin(m * theta - n * nfp * phi))
+def surfxyztensor_gamma_lin(qpts_phi, qpts_theta, mpol, ntor, dofs, nfp, stellsym):
+    numqpts = qpts_phi.size
+    if numqpts!=qpts_theta.size:
+        raise ValueError('quadpoint_theta and phi should have the same size')
 
-    data = data.at[:, 0].set( x )
-    data = data.at[:, 1].set( y )
+    xcs, ycs, zcs = read_dofs(dofs, mpol, ntor, stellsym)
+
+    data = jnp.zeros((numqpts, 3))
+    theta = jnp.pi * 2 * qpts_theta
+    phi = jnp.pi * 2 * qpts_phi
+    xhat = jnp.zeros((numqpts,))
+    yhat = jnp.zeros((numqpts,))
+    z = jnp.zeros((numqpts,))
+    for m in range(2*mpol+1):
+        for n in range(2*ntor+1):
+            xhat += get_coeff(0, m, n, stellsym, mpol, ntor, xcs, ycs, zcs) * basis_fun(n, phi, m, theta, mpol, ntor, nfp)
+            yhat += get_coeff(1, m, n, stellsym, mpol, ntor, xcs, ycs, zcs) * basis_fun(n, phi, m, theta, mpol, ntor, nfp)
+            z    += get_coeff(2, m, n, stellsym, mpol, ntor, xcs, ycs, zcs) * basis_fun(n, phi, m, theta, mpol, ntor, nfp)
+
+    data = data.at[:, 0].set( xhat * jnp.cos(phi) - yhat * jnp.sin(phi) )
+    data = data.at[:, 1].set( xhat * jnp.sin(phi) + yhat * jnp.cos(phi) )
     data = data.at[:, 2].set( z )
 
     return data
+
 
 
 def normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
@@ -1254,9 +1267,9 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         #super().__init__()
 
         
-        self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp)
+        self.gamma_2d_pure =  jit(lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, self.order, self.G, self.H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, self.surf.gamma_lin))
         #self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, self.surf.gamma_lin)
-        self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp))
+        self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, self.surf.gamma_lin))
         #self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, self.surf.gamma_lin))
 
         # GAMMA
@@ -1274,7 +1287,7 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         self.dgamma_by_dsurf_jax = jit(jacfwd(self.gammas_jax))
         self.dgamma_by_dsurf_vjp_jax = jit(lambda sdofs, v: vjp(self.gammas_jax, sdofs)[1](v)[0]) # derivative w.r.t to surface dofs
 
-        self.gammadash_pure = lambda cdofs, sdofs, q: jvp(lambda p: self.gamma_pure(cdofs, sdofs, p), (q,), (ones,))[1]
+        self.gammadash_pure = jit(lambda cdofs, sdofs, q: jvp(lambda p: self.gamma_pure(cdofs, sdofs, p), (q,), (ones,))[1])
         self.gammadash_jax = jit(lambda cdofs, sdofs: self.gammadash_pure(cdofs, sdofs, points))
         self.gammacdash_jax = jit(lambda cdofs: self.gammadash_pure(cdofs, self.surf.get_dofs(), points))
         self.gammasdash_jax = jit(lambda sdofs: self.gammadash_pure(self.get_dofs(), sdofs, points))
@@ -1283,7 +1296,7 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         self.dgammadash_by_dsurf_jax = jit(jacfwd(self.gammasdash_jax))
         self.dgammadash_by_dsurf_vjp_jax = jit(lambda sdofs, v: vjp(self.gammasdash_jax, sdofs)[1](v)[0])
 
-        self.gammadashdash_pure = lambda cdofs, sdofs, q: jvp(lambda p: self.gammadash_pure(cdofs, sdofs, p), (q,), (ones,))[1]
+        self.gammadashdash_pure = jit(lambda cdofs, sdofs, q: jvp(lambda p: self.gammadash_pure(cdofs, sdofs, p), (q,), (ones,))[1])
         self.gammadashdash_jax = jit(lambda cdofs, sdofs: self.gammadashdash_pure(cdofs, sdofs, points))
         self.gammacdashdash_jax = jit(lambda cdofs: self.gammadashdash_pure(cdofs, self.surf.get_dofs(), points))
         self.gammasdashdash_jax = jit(lambda sdofs: self.gammadashdash_pure(self.get_dofs(), sdofs, points))
@@ -1292,7 +1305,7 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         self.dgammadashdash_by_dsurf_jax = jit(jacfwd(self.gammasdashdash_jax))
         self.dgammadashdash_by_dsurf_vjp_jax = jit(lambda sdofs, v: vjp(self.gammasdashdash_jax, sdofs)[1](v)[0])
 
-        self.gammadashdashdash_pure = lambda cdofs, sdofs, q: jvp(lambda p: self.gammadashdash_pure(cdofs, sdofs, p), (q,), (ones,))[1]
+        self.gammadashdashdash_pure = jit(lambda cdofs, sdofs, q: jvp(lambda p: self.gammadashdash_pure(cdofs, sdofs, p), (q,), (ones,))[1])
         self.gammadashdashdash_jax = jit(lambda cdofs, sdofs: self.gammadashdashdash_pure(cdofs, sdofs, points))
         self.gammacdashdashdash_jax = jit(lambda cdofs: self.gammadashdashdash_pure(cdofs, self.surf.get_dofs(), points))
         self.gammasdashdashdash_jax = jit(lambda sdofs: self.gammadashdashdash_pure(self.get_dofs(), sdofs, points))
