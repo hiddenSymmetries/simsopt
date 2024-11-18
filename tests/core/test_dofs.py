@@ -168,7 +168,7 @@ class DOFsTests(unittest.TestCase):
                     names=np.array(['x', 'y', 'z']),
                     free=np.array([True, True, False]))
         self.assertTrue(np.allclose(dofs.free_lower_bounds,
-                                    np.array([np.NINF, np.NINF])))
+                                    np.array([-np.inf, -np.inf])))
 
         with self.assertRaises(DofLengthMismatchError):
             dofs.free_lower_bounds = np.array([-1000.0, -1001.0, -1002.0])
@@ -180,7 +180,7 @@ class DOFsTests(unittest.TestCase):
 
         dofs.unfix_all()
         self.assertTrue(np.allclose(dofs.free_lower_bounds,
-                                    np.array([-1000.0, -1001.0, np.NINF])))
+                                    np.array([-1000.0, -1001.0, -np.inf])))
 
         dofs.free_lower_bounds = np.array([-1000.0, -1001.0, -1002.])
         self.assertTrue(np.allclose(dofs.free_lower_bounds,
