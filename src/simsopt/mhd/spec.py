@@ -446,7 +446,7 @@ class Spec(Optimizable):
 
         # Check size
         if pressure_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         # Update pressure profile
         if pressure_profile is not self._pressure_profile:
@@ -482,7 +482,7 @@ class Spec(Optimizable):
 
         # Check size
         if volume_current_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         # Volume current is a cumulative property
         volume_current_profile.cumulative = True
@@ -520,7 +520,7 @@ class Spec(Optimizable):
 
         # Check size
         if interface_current_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         if interface_current_profile is not self._interface_current_profile:
             logging.debug('Replacing interface_current_profile in setter')
@@ -555,7 +555,7 @@ class Spec(Optimizable):
 
         # Check size
         if iota_profile.dofs.full_x.size != self.nvol+1:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to nvol+1!')
+            raise ValueError('Invalid number of dofs. Should be equal to nvol+1!')
 
         if iota_profile is not self._iota_profile:
             logging.debug('Replacing iota_profile in setter')
@@ -590,7 +590,7 @@ class Spec(Optimizable):
 
         # Check size
         if oita_profile.dofs.full_x.size != self.nvol+1:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to nvol+1!')
+            raise ValueError('Invalid number of dofs. Should be equal to nvol+1!')
 
         if oita_profile is not self._oita_profile:
             logging.debug('Replacing oita_profile in setter')
@@ -625,7 +625,7 @@ class Spec(Optimizable):
 
         # Check size
         if mu_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         if mu_profile is not self._mu_profile:
             logging.debug('Replacing mu_profile in setter')
@@ -660,7 +660,7 @@ class Spec(Optimizable):
 
         # Check size
         if pflux_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         # pflux is a cumulative property
         pflux_profile.cumulative = True
@@ -697,7 +697,7 @@ class Spec(Optimizable):
 
         # Check size
         if tflux_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         # pflux is a cumulative property
         tflux_profile.cumulative = True
@@ -735,7 +735,7 @@ class Spec(Optimizable):
 
         # Check size
         if helicity_profile.dofs.full_x.size != self.mvol:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Should be equal to Mvol!')
 
         if helicity_profile is not self._helicity_profile:
             logging.debug('Replacing helicity_profile in setter')
