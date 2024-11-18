@@ -555,7 +555,7 @@ class Spec(Optimizable):
 
         # Check size
         if iota_profile.dofs.full_x.size != self.nvol+1:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to nvol+1!')
 
         if iota_profile is not self._iota_profile:
             logging.debug('Replacing iota_profile in setter')
@@ -590,7 +590,7 @@ class Spec(Optimizable):
 
         # Check size
         if oita_profile.dofs.full_x.size != self.nvol+1:
-            raise ValueError('Invalid number of dofs. Shoudl be equal to Mvol!')
+            raise ValueError('Invalid number of dofs. Shoudl be equal to nvol+1!')
 
         if oita_profile is not self._oita_profile:
             logging.debug('Replacing oita_profile in setter')
