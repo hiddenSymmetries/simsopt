@@ -100,9 +100,6 @@ class PortSize(Optimizable):
 
 
             return J, dJ
-    
-    def objective_with_hessian(self, dofs):
-        self.port.x = dofs
 
     def explicit_solve(self, verbose=True):
         if not self.need_to_run_code:
@@ -589,14 +586,12 @@ def min_zphi_distance(gamma1, gamma2):
     g2 = g2cyl[:,1:]
 
     dists = np.linalg.norm(g1[:,None,:]-g2[None,:,:], axis=2)
-    f = np.maximum(g2cyl[None,:,0]-g1cyl[:,None,0], 0) / (g2cyl[None,:,0]-g1cyl[:,None,0])
+    mask = g2cyl[None,:,0]>g1cyl[:,None,0]
 
-    test = all([k==0 for k in f.flatten()])
-
-    if test:
-        return np.nan
+    if mask.any():
+        return -np.min(-dists*mask)
     else:
-        return -np.min(-dists*f)
+        return np.nan
 
 
 

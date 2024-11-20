@@ -1,7 +1,7 @@
 from math import sin, cos
 
 import numpy as np
-from jax import vjp, jacfwd, jvp, hessian
+from jax import vjp, jacfwd, jvp, hessian, grad
 import jax.numpy as jnp
 
 import simsoptpp as sopp
@@ -1022,9 +1022,6 @@ def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, 
     return gamma
 
 def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp, stellsym):
-    if not stellsym:
-        raise NotImplementedError('Only available for stellarator symmetric boundaries')
-
     npts = quadpoints_phi.size
     th = quadpoints_theta * 2.0 * jnp.pi
     ph = quadpoints_phi   * 2.0 * jnp.pi
@@ -1034,17 +1031,13 @@ def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nf
     z = jnp.zeros((npts,))
 
     nmn = ntor+1 + mpol*(2*ntor+1)
-    rc = surf_dofs[:nmn]
-    zs = surf_dofs[nmn:]
-
-
     counter = -1
     for mm in range(mpol+1):
         for nn in range(-ntor,ntor+1):
             if mm==0 and nn<0:
                 continue
             counter = counter+1
-            r = r + rc[counter] * jnp.cos(mm*th - nn*ph*nfp)
+            r = r + surf_dofs[counter] * jnp.cos(mm*th - nn*ph*nfp)
 
 
     counter = -1
@@ -1053,7 +1046,7 @@ def surfrz_gamma_lin(quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nf
             if mm==0 and nn<=0:
                 continue
             counter = counter+1
-            z = z + zs[counter] * jnp.sin(mm*th - nn*ph*nfp)
+            z = z + surf_dofs[nmn+ counter] * jnp.sin(mm*th - nn*ph*nfp)
             
     gamma = jnp.zeros((quadpoints_phi.size, 3))
     gamma = gamma.at[:,0].set( r * jnp.cos( ph ) )
@@ -1148,9 +1141,37 @@ def surfxyztensor_gamma_lin(qpts_phi, qpts_theta, mpol, ntor, dofs, nfp, stellsy
 
 
 
+#def normal(cdofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, dgamma_dtheta, dgamma_dphi, surf_type):
+    # if not surf_type=='RZ_Fourier':
+    #     raise NotImplementedError('Normal only implemented for SurfaceRZFourier')
+    # if surf_type=='RZ_Fourier' and (not stellsym):
+    #     raise NotImplementedError('Only stellsym boundary are available')
+    
+    # phi, theta = gamma_2d(cdofs, qpts, order, G, H)
+    # gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, sdofs, nfp, stellsym)
+    # r = np.sqrt(gamma[:,0]**2 + gamma[:,1]**2)
+
+    # dgdt = jnp.diagonal(dgamma_dtheta(phi, theta), axis1=0, axis2=2)
+    # dgdp = jnp.diagonal(dgamma_dphi(phi, theta), axis1=0, axis2=2)
+
+    # drdt = np.sqrt(dgdt[:,0]**2 + dgdt[:,1]**2)
+    # dzdt = dgdt[:,2]
+    # drdp = np.sqrt(dgdp[:,0]**2 + dgdp[:,1]**2)
+    # dzdp = dgdp[:,2]
+
+    # n = jnp.zeros((qpts.size, 3))
+    # nnorm = jnp.sqrt(r**2 * (drdt**2 + dzdt**2) + (drdp*dzdt-drdt*dzdp)**2)
+    
+    # n = n.at[:,0].set(  r*dzdt / nnorm )
+    # n = n.at[:,1].set( -(drdp*dzdt-drdt*dzdp) / nnorm )
+    # n = n.at[:,2].set( -r*drdt / nnorm )
+    
+    # return n
+
+#curve_dofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, surf_type
 def normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
     """Returns the unitary vector normal to the surface on a curve that lies on the surface
-    
+
     Args:
      - gamma2d: Curve position in 2D space. 
      - surf_dofs: Surface dofs. The surface is assumed to be a surfaceRZFourier object.
@@ -1201,14 +1222,14 @@ def normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp)
 
     n = jnp.zeros((qpts.size, 3))
     nnorm = jnp.sqrt(r**2 * (drdt**2 + dzdt**2) + (drdp*dzdt-drdt*dzdp)**2)
-    
+
     n = n.at[:,0].set(  r*dzdt / nnorm )
     n = n.at[:,1].set( -(drdp*dzdt-drdt*dzdp) / nnorm )
     n = n.at[:,2].set( -r*drdt / nnorm )
-    
+
     return n
 
-def nfactor(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp, direction='z'):
+def nfactor(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp, stellsym, direction='z'):
     """Compute the scalar product between the unitary vector normal to the surface and some direction.
     
     Args:
@@ -1224,9 +1245,11 @@ def nfactor(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp
      - Scalar product between the unitary normal vector and the access direction.
     """
     if direction=='z':
-        return normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp)[:,2]
+        # return normal(curve_dofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, dgamma_dtheta, dgamma_dphi, surf_type)[:,2]
+        return normal(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp)[:,2]
     elif direction=='r':
-        return normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp)[:,0]
+        # return normal(curve_dofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, dgamma_dtheta, dgamma_dphi, surf_type)[:,0]
+        return normal(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp)[:,0]
 
 class CurveCWSFourier( Curve, sopp.Curve ):
     """Curve that lies on a surface
@@ -1322,15 +1345,25 @@ class CurveCWSFourier( Curve, sopp.Curve ):
 
 
         # NORMAL
-        self.snz = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='z')
-        self.snr = lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, direction='r')
+        if self.surf_type=='RZ_Fourier':
+            fun = lambda qphi, qtheta: surfrz_gamma_lin(qphi, qtheta, self.surf.mpol, self.surf.ntor, self.surf.get_dofs(), self.surf.nfp, self.surf.stellsym)
+        elif self.surf_type=='XYZ_Tensor_Fourier':
+            fun = lambda qphi, qtheta: surfxyztensor_gamma_lin(qphi, qtheta, self.surf.mpol, self.surf.ntor, self.surf.get_dofs(), self.surf.nfp, self.surf.stellsym)
+
+        #quadpoints_phi, quadpoints_theta, mpol, ntor, surf_dofs, nfp, stellsym
+        self.dgammalin_by_dtheta = jit(lambda quadpoints_phi, quadpoints_theta: jacfwd(fun, argnums=1)(quadpoints_phi, quadpoints_theta))
+        self.dgammalin_by_dphi = jit(lambda quadpoints_phi, quadpoints_theta: jacfwd(fun, argnums=0)(quadpoints_phi, quadpoints_theta))
+
+        # curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp, stellsym, dgamma_dtheta, dgamma_dphi, direction
+        self.snz = jit(lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, self.surf.stellsym, direction='z'))
+        self.snr = jit(lambda cdofs, sdofs: nfactor(cdofs, quadpoints, order, G, H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, self.surf.stellsym, direction='r'))
 
         self.dsnz_by_dcoeff_jax = lambda cdofs, sdofs: jacfwd(self.snz)(cdofs, sdofs)
         self.dsnr_by_dcoeff_jax = lambda cdofs, sdofs: jacfwd(self.snr)(cdofs, sdofs)
         self.snr_hessian_jax = lambda cdofs, sdofs: hessian(self.snr)(cdofs, sdofs)
         self.snz_hessian_jax = lambda cdofs, sdofs: hessian(self.snz)(cdofs, sdofs)
-        self.dsnz_by_dcoeff_vjp_jax = lambda cdofs, sdofs, v: vjp(lambda x: self.snz(x, sdofs), cdofs)[1](v)[0]
-        self.dsnr_by_dcoeff_vjp_jax = lambda cdofs, sdofs, v: vjp(lambda x: self.snr(x, sdofs), cdofs)[1](v)[0]
+        self.dsnz_by_dcoeff_vjp_jax = jit(lambda cdofs, sdofs, v: vjp(lambda x: self.snz(x, sdofs), cdofs)[1](v)[0])
+        self.dsnr_by_dcoeff_vjp_jax = jit(lambda cdofs, sdofs, v: vjp(lambda x: self.snr(x, sdofs), cdofs)[1](v)[0])
 
     def set_dofs(self, dofs):
         self.local_x = dofs
