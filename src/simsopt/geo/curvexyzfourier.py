@@ -111,7 +111,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         return coils
 
     @staticmethod
-    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20):
+    def load_curves_from_makegrid_file(filename: str, order: int, ppp=20, group_names = None):
         """
         This function loads a Makegrid input file containing the Cartesian
         coordinates for several coils and finds the corresponding Fourier
@@ -122,6 +122,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             filename: file to load.
             order: maximum mode number in the Fourier series. 
             ppp: points-per-period: number of quadrature points per period.
+            group_names: List of coil group names (str). If not 'None', only get coils in coil groups that are in the list.
 
         Returns:
             A list of ``CurveXYZFourier`` objects.
@@ -140,7 +141,12 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
                 single_curve_data.append(float_vals)
             elif n_vals == 6:
                 # This must be the last line of the coil
-                curve_data.append(single_curve_data)
+                if group_names is None:
+                    curve_data.append(single_curve_data)
+                else:
+                    this_group_name = vals[5]
+                    if this_group_name in group_names:
+                        curve_data.append(single_curve_data)
                 single_curve_data = []
             elif n_vals == 1:
                 # Presumably the line that is just "end"
