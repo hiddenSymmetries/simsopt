@@ -387,7 +387,7 @@ at the edge and magnetic axis, in order to prescribe the magnetic shear::
   prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
                                           (vmec.iota_axis, 0.465, 1),
                                           (vmec.iota_edge, 0.495, 1),
-                                          (qs.J, 0, 1)])
+                                          (qs.residuals, 0, 1)])
 
 It can be seen here that we are seeking a configuration with aspect
 ratio 6, and iota slightly below 0.5.
