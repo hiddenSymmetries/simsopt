@@ -254,7 +254,7 @@ for i in range(len(base_curves)):
     base_curves[i].fix('x' + str(2 * order + 5))
     base_curves[i].fix('x' + str(2 * order + 6))
     base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1e-1) * 2e7 for i in range(ncoils)]
+base_currents = [Current(1.0) * 2e6 for i in range(ncoils)]
 # Fix currents in each coil
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
@@ -293,7 +293,7 @@ base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_T
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.001)
-LENGTH_TARGET = 130
+LENGTH_TARGET = 100
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
@@ -304,14 +304,14 @@ CS_WEIGHT = 1e2
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-32) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_fixed_orientations_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QA_fixed_orientations_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
+        base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
         FORCE_WEIGHT2.value,
         TORQUE_WEIGHT.value,
@@ -371,7 +371,8 @@ Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
-Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD, num_basecurves=len(coils + coils_TF))
+Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
+Jccdist2 = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_TF))
 Jcsdist = CurveSurfaceDistance(curves_TF, s, CS_THRESHOLD)
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
@@ -389,6 +390,7 @@ Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_
 
 JF = Jf \
     + CC_WEIGHT * Jccdist \
+    + CC_WEIGHT * Jccdist2 \
     + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
     + LENGTH_WEIGHT * Jlength 
@@ -411,7 +413,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
-    cc_val = CC_WEIGHT * Jccdist.J()
+    cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
     forces_val = Jforce.J()
@@ -437,7 +439,7 @@ def fun(dofs):
     outstr += f", Fnet={forces_val2:.2e}"
     outstr += f", T={torques_val:.2e}"
     outstr += f", Tnet={torques_val2:.2e}"
-    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+    outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-C-Sep2={Jccdist2.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
@@ -470,7 +472,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 400
+MAXITER = 600
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 

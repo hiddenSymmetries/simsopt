@@ -40,7 +40,7 @@ range_param = "half period"
 nphi = 32
 ntheta = 32
 poff = 1.5
-coff = 3.0
+coff = 1.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -86,7 +86,7 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 3
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 3
-    order = 4
+    order = 8
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -135,7 +135,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 6
+Nx = 7
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -175,7 +175,7 @@ for i in range(len(base_curves)):
     # base_curves[i].fix('x' + str(2 * order + 5))
     # base_curves[i].fix('x' + str(2 * order + 6))
     # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1e-1) * 2e7 for i in range(ncoils)]
+base_currents = [Current(1.0) * 2e6 for i in range(ncoils)]
 # Fix currents in each coil
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
@@ -215,18 +215,18 @@ base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_T
 
 LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 100
-LINK_WEIGHT = 1e3
+LINK_WEIGHT = 1e1
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-34) # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-22) # 1e-20 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0) # 1e-20 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_TForder_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QA_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
         base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
@@ -389,7 +389,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 500
+MAXITER = 600
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
