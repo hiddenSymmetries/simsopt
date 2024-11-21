@@ -46,9 +46,9 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 16  # >= 64 for high-resolution runs
-    nIter_max = 1000
-    downsample = 20
+    nphi = 32  # >= 64 for high-resolution runs
+    nIter_max = 10000
+    downsample = 2
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -81,7 +81,7 @@ qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
-    surface_filename,1`
+    surface_filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
@@ -168,7 +168,7 @@ if save_plots:
     make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
     print(m_history.shape)
     # Look through the solutions as function of K and make plots
-    for k in range(0, m_history.shape[-1], 5):
+    for k in range(0, m_history.shape[-1], 100):
         #mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         mk = m_history[:, :, k]
         print(mk.shape)

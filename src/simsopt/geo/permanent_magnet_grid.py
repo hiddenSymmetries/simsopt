@@ -271,13 +271,14 @@ class PermanentMagnetGrid:
         # each of the arguments is shape (nmagnets, 3)
         def dipole_force(dipoleMoment1, dipolePosition1, dipoleMoment2, dipolePosition2):
             # Turn everything into shape (nmagnets, nmagnets, 3)
+            eps = 1e-10
             m1 = dipoleMoment1[None, :, :]
             m2 = dipoleMoment2[:, None, :]
             # Takes two arrays of shape (nmagnets, 3)
             # and makes an array R of shape (nmagnets, nmagnets, 3)
             R = dipolePosition2[:, None, :] - dipolePosition1[None, :, :]
             # print(R)
-            mag_R = np.sqrt(np.sum(R * R, axis=-1)[:, :, None])
+            mag_R = np.sqrt(np.sum(R * R + eps, axis=-1)[:, :, None])  # avoid the singularity
             mu = 4 * math.pi * pow(10, -7)
             coefficient = (3 * mu) / (4 * math.pi * mag_R ** 5)
             first_term = np.sum(m1 * R, axis=-1)[:, :, None] * m2
@@ -285,8 +286,8 @@ class PermanentMagnetGrid:
             third_term = np.sum(m1 * m2, axis=-1)[:, :, None] * R
             fourth_term = R * (5 * np.sum(m1 * R, axis=-1) * np.sum(m2 * R, axis=-1))[:, :, None] / (mag_R ** 2)
             force = coefficient * (first_term + second_term + third_term - fourth_term)
-            force_new = np.nan_to_num(force, nan=0)
-            return force_new
+            # force_new = np.nan_to_num(force, nan=0)
+            return force
 
         # returns (nmagnets, nmagnets, 3)
         ForceMatrix = dipole_force(MagnetMatrix, PositionMatrix, MagnetMatrix, PositionMatrix)
