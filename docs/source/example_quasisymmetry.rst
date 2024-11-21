@@ -268,7 +268,7 @@ axisymmetric::
   # Define objective function
   prob = LeastSquaresProblem.from_tuples([(vmec.aspect, 6, 1),
                                           (vmec.mean_iota, 0.42, 1),
-                                          (qs.J, 0, 1)])
+                                          (qs.residuals, 0, 1)])
 
 It can be seen here that we are seeking a configuration with aspect
 ratio 6, and average iota of 0.42, slightly above the resonance at 2 /
