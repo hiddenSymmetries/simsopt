@@ -47,9 +47,6 @@ class BoozerMagneticField {
         virtual void _R_derivs_impl(Tensor2& R_derivs) { throw logic_error("_R_derivs_impl was not implemented"); }
         virtual void _Z_derivs_impl(Tensor2& Z_derivs) { throw logic_error("_Z_derivs_impl was not implemented"); }
         virtual void _modB_impl(Tensor2& modB) { throw logic_error("_modB_impl was not implemented"); }
-        virtual void _d2modBdthetadzeta_impl(Tensor2& d2modBdthetadzeta) { throw logic_error("_d2modBdthetadzeta_impl was not implemented"); }
-        virtual void _d2modBdzeta2_impl(Tensor2& d2modBdzeta2) { throw logic_error("_d2modBdzeta2_impl was not implemented"); }
-        virtual void _d2modBdtheta2_impl(Tensor2& d2modBdtheta2) { throw logic_error("_d2modBdtheta2_impl was not implemented"); }
         virtual void _dmodBdtheta_impl(Tensor2& dmodBdtheta) { throw logic_error("_dmodBdtheta_impl was not implemented"); }
         virtual void _dmodBdzeta_impl(Tensor2& dmodBdzeta) { throw logic_error("_dmodBdzeta_impl was not implemented"); }
         virtual void _dmodBds_impl(Tensor2& dmodBds) { throw logic_error("_dmodBds_impl was not implemented"); }
@@ -69,7 +66,7 @@ class BoozerMagneticField {
           data_I, data_dIds, data_R, data_Z, data_nu, data_K, data_dRdtheta, data_dRdzeta, \
           data_dRds, data_R_derivs, data_dZdtheta, data_dZdzeta, data_dZds, data_Z_derivs, \
           data_dnudtheta, data_dnudzeta, data_dnuds, data_nu_derivs, data_dKdtheta, \
-          data_dKdzeta, data_K_derivs, data_d2modBdtheta2, data_d2modBdzeta2, data_d2modBdthetadzeta;
+          data_dKdzeta, data_K_derivs;
         int npoints;
 
     public:
@@ -102,9 +99,6 @@ class BoozerMagneticField {
             data_dmodBdtheta.invalidate_cache();
             data_dmodBdzeta.invalidate_cache();
             data_dmodBds.invalidate_cache();
-            data_d2modBdtheta2.invalidate_cache();
-            data_d2modBdzeta2.invalidate_cache();
-            data_d2modBdthetadzeta.invalidate_cache();
             data_modB_derivs.invalidate_cache();
             data_I.invalidate_cache();
             data_G.invalidate_cache();
@@ -229,18 +223,6 @@ class BoozerMagneticField {
             return data_modB_derivs.get_or_create_and_fill({npoints, 3}, [this](Tensor2& modB_derivs) { return _modB_derivs_impl(modB_derivs);});
         }
 
-        Tensor2& d2modBdtheta2_ref() {
-            return data_d2modBdtheta2.get_or_create_and_fill({npoints, 1}, [this](Tensor2& d2modBdtheta2) { return _d2modBdtheta2_impl(d2modBdtheta2);});
-        }
-
-        Tensor2& d2modBdzeta2_ref() {
-            return data_d2modBdzeta2.get_or_create_and_fill({npoints, 1}, [this](Tensor2& d2modBdzeta2) { return _d2modBdzeta2_impl(d2modBdzeta2);});
-        }
-
-        Tensor2& d2modBdthetadzeta_ref() {
-            return data_d2modBdthetadzeta.get_or_create_and_fill({npoints, 1}, [this](Tensor2& d2modBdthetadzeta) { return _d2modBdthetadzeta_impl(d2modBdthetadzeta);});
-        }
-
         Tensor2& I_ref() {
             return data_I.get_or_create_and_fill({npoints, 1}, [this](Tensor2& I) { return _I_impl(I);});
         }
@@ -293,9 +275,6 @@ class BoozerMagneticField {
         Tensor2 dmodBdzeta() { return dmodBdzeta_ref(); }
         Tensor2 dmodBds() { return dmodBds_ref(); }
         Tensor2 modB_derivs() { return modB_derivs_ref(); }
-        Tensor2 d2modBdtheta2() { return d2modBdtheta2_ref(); }
-        Tensor2 d2modBdzeta2() { return d2modBdzeta2_ref(); }
-        Tensor2 d2modBdthetadzeta() { return d2modBdthetadzeta_ref(); }
         Tensor2 G() { return G_ref(); }
         Tensor2 I() { return I_ref(); }
         Tensor2 psip() { return psip_ref(); }

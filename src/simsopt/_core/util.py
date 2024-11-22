@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the MIT License
+# Distributed under the terms of the LGPL License
 
 """
 This module contains small utility functions and classes needed by *_core*
@@ -17,6 +17,8 @@ import numpy as np
 
 from .types import RealArray
 from simsoptpp import Curve   # To obtain pybind11 metaclass
+from simsoptpp import simd_alignment
+ALIGNMENT = simd_alignment()
 
 __all__ = ['ObjectiveFailure']
 
@@ -296,4 +298,40 @@ def parallel_loop_bounds(comm, n):
         assert idxs[0] == 0
         assert idxs[-1] == n
         return idxs[comm.rank], idxs[comm.rank+1]
+    
+def align_and_pad(array, alignment=ALIGNMENT, dtype=np.dtype(np.float64)): 
+    dims = array.ndim
+    assert dims <= 2
+    if array.shape[0] == 0:
+        return array
+    length = array.shape[1] if dims == 2 else len(array)
+    padded = (length % (alignment//dtype.itemsize)) == 0
 
+    if array.dtype == dtype:
+        aligned = (array.ctypes.data % alignment) == 0
+        contiguous = array.flags['C_CONTIGUOUS']
+        if aligned and padded and contiguous:
+            return array
+
+    buf = allocate_aligned_and_padded_array(array.shape, alignment=alignment, dtype=dtype)
+    if dims == 1:
+        buf[:length] = array.astype(dtype)
+    elif dims == 2:
+        buf[:, :length] = array.astype(dtype)
+    return buf
+
+def allocate_aligned_and_padded_array(shape, alignment=ALIGNMENT, dtype=np.dtype(np.float64)):
+    assert len(shape) <= 2
+    if shape[0] == 0:
+        return np.array([])
+    if len(shape) == 1:
+        padded_shape = (-shape[0]%(alignment//dtype.itemsize)+shape[0], )
+        padded_size = padded_shape[0]
+    elif len(shape) == 2:
+        padded_shape = (shape[0], -shape[1]%(alignment//dtype.itemsize)+shape[1])
+        padded_size = padded_shape[0] * padded_shape[1]
+    buf = np.zeros(padded_size + alignment//dtype.itemsize, dtype=dtype)
+    offset = (-buf.ctypes.data%alignment) // dtype.itemsize
+    buf = buf[offset:offset+padded_size].reshape(padded_shape)
+    assert (buf.ctypes.data%alignment) == 0
+    return buf

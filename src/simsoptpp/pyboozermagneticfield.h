@@ -111,18 +111,6 @@ template <class BoozerMagneticFieldBase = PyBoozerMagneticField> class PyBoozerM
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _modB_derivs_impl, data);
         }
 
-        virtual void _d2modBdtheta2_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
-            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _d2modBdtheta2_impl, data);
-        }
-
-        virtual void _d2modBdzeta2_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
-            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _d2modBdzeta2_impl, data);
-        }
-
-        virtual void _d2modBdthetadzeta_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
-            PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _d2modBdthetadzeta_impl, data);
-        }
-
         virtual void _G_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _G_impl, data);
         }
