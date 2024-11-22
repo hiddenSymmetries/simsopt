@@ -17,15 +17,15 @@ jobs:
         run: git fetch --prune --unshallow
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.11.4
+        uses: pypa/cibuildwheel@v2.21.3
         # To supply options, put them in 'env'
         env:
-          # Only build for python 3.{8,9,10,11}
-          CIBW_BUILD : cp38-* cp39-* cp310-* cp311-*
+          # Only build for python 3.{9,10,11,12}
+          CIBW_BUILD : cp39-* cp310-* cp311-* cp312-*
           # Supports only x86_64 arch for linux
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_SKIP: cp27-* cp36-* cp37-*
+          CIBW_SKIP: cp27-* cp36-* cp37-* cp38-*
           CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v3
@@ -68,7 +68,7 @@ jobs:
     # alternatively, to publish when a GitHub Release is created, use the following rule:
     # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v4
         with:
           name: artifact
           path: dist
