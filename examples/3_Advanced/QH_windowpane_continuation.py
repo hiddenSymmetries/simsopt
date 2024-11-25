@@ -22,6 +22,7 @@ from simsopt.geo import (
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
 from simsopt.util import in_github_actions
+from simsopt._core import Optimizable
 
 t1 = time.time()
 
@@ -35,9 +36,9 @@ filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 32
-ntheta = 32
-poff = 1.75
+nphi = 64
+ntheta = 64
+poff = 1.5
 coff = 2.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -59,49 +60,6 @@ s_plot = SurfaceRZFourier.from_vmec_input(
     quadpoints_theta=quadpoints_theta
 )
 
-def initialize_coils_QH(TEST_DIR, s):
-    # generate planar TF coils
-    ncoils = 2
-    R0 = s.get_rc(0, 0) * 1
-    R1 = s.get_rc(1, 0) * 4
-    order = 4
-
-    from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.4
-    print('Total current = ', total_current)
-
-    # Only need Jax flag for CurvePlanarFourier class
-    base_curves = create_equally_spaced_curves(
-        ncoils, s.nfp, stellsym=True, 
-        R0=R0, R1=R1, order=order, numquadpoints=256,
-        jax_flag=False,
-    )
-
-    base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    total_current = Current(total_current)
-    total_current.fix_all()
-    base_currents += [total_current - sum(base_currents)]
-    coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-
-    # Initialize the coil curves and save the data to vtk
-    curves = [c.curve for c in coils]
-    currents = [c.current.get_value() for c in coils]
-    return base_curves, curves, coils, base_currents
-
-# initialize the coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QH(TEST_DIR, s)
-num_TF_unique_coils = len(base_curves_TF)
-print('Ncoils = ', num_TF_unique_coils)
-base_coils_TF = coils_TF[:num_TF_unique_coils]
-currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
-
-# # Set up BiotSavart fields
-bs_TF = BiotSavart(coils_TF)
-
-# # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs_TF, s)
-
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective! 
 a = 0.2
@@ -112,80 +70,6 @@ nturns_TF = 200
 # wire cross section for the dipole coils should be more like 5 cm x 5 cm
 aa = 0.05
 bb = 0.05
-
-Nx = 6
-Ny = Nx
-Nz = Nx
-# Create the initial coils:
-base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
-    numquadpoints=40  # Defaults is (order + 1) * 40 so this halves it
-)
-import warnings
-
-keep_inds = []
-for ii in range(len(base_curves)):
-    counter = 0
-    for i in range(base_curves[0].gamma().shape[0]):
-        eps = 0.05
-        for j in range(len(base_curves_TF)):
-            for k in range(base_curves_TF[j].gamma().shape[0]):
-                dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
-                conflict_bool = (dij < (1.0 + eps) * base_curves[0].x[0])
-                if conflict_bool:
-                    print('bad indices = ', i, j, dij, base_curves[0].x[0])
-                    warnings.warn(
-                        'There is a PSC coil initialized such that it is within a radius'
-                        'of a TF coil. Deleting these PSCs now.')
-                    counter += 1
-                    break
-    if counter == 0:
-        keep_inds.append(ii)
-
-base_curves = np.array(base_curves)[keep_inds]
-ncoils = len(base_curves)
-print('Ncoils = ', ncoils)
-coil_normals = np.zeros((ncoils, 3))
-plasma_points = s.gamma().reshape(-1, 3)
-plasma_unitnormals = s.unitnormal().reshape(-1, 3)
-for i in range(ncoils):
-    point = (base_curves[i].get_dofs()[-3:])
-    dists = np.sum((point - plasma_points) ** 2, axis=-1)
-    min_ind = np.argmin(dists)
-    coil_normals[i, :] = plasma_unitnormals[min_ind, :]
-    # coil_normals[i, :] = (plasma_points[min_ind, :] - point)
-coil_normals = coil_normals / np.linalg.norm(coil_normals, axis=-1)[:, None]
-alphas = np.arcsin(
-                -coil_normals[:, 1], 
-                )
-deltas = np.arctan2(coil_normals[:, 0], coil_normals[:, 2])
-for i in range(len(base_curves)):
-    alpha2 = alphas[i] / 2.0
-    delta2 = deltas[i] / 2.0
-    calpha2 = np.cos(alpha2)
-    salpha2 = np.sin(alpha2)
-    cdelta2 = np.cos(delta2)
-    sdelta2 = np.sin(delta2)
-    base_curves[i].set('x' + str(2 * order + 1), calpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 2), salpha2 * cdelta2)
-    base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
-    base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
-    # Fix orientations of each coil
-    base_curves[i].fix('x' + str(2 * order + 1))
-    base_curves[i].fix('x' + str(2 * order + 2))
-    base_curves[i].fix('x' + str(2 * order + 3))
-    base_curves[i].fix('x' + str(2 * order + 4))
-
-    # Fix shape of each coil
-    for j in range(2 * order + 1):
-        base_curves[i].fix('x' + str(j))
-    # Fix center points of each coil
-    base_curves[i].fix('x' + str(2 * order + 5))
-    base_curves[i].fix('x' + str(2 * order + 6))
-    base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1.0) * 2e6 for i in range(ncoils)]
-coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
-base_coils = coils[:ncoils]
 
 def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     contig = np.ascontiguousarray
@@ -205,32 +89,47 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
-bs = BiotSavart(coils)
-btot = bs + bs_TF
-calculate_on_axis_B(btot, s)
+# btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-35_fww0.000000e+00_tw0.00e+00_tww1.000000e-23/"
+btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
+# btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
+# btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt8.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-36_fww0.000000e+00_tw0.00e+00_tww1.000000e-24/biot_savart_optimized_QH.json")
+bs = btot.Bfields[0]
+bs_TF = btot.Bfields[1]
+coils = bs.coils
+currents = [c.current.get_value() for c in coils]
+base_coils = coils[:len(coils) // 8]
+coils_TF = bs_TF.coils
+base_coils_TF = coils_TF[:len(coils) // 8]
+curves = [c.curve for c in coils]
+base_curves = curves[:len(curves) // 8]
+curves_TF = [c.curve for c in coils_TF]
+currents_TF = [c.current.get_value() for c in coils_TF]
+base_curves_TF = curves_TF[:len(curves_TF) // 8]
+ncoils = len(curves)
+
 btot.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
-curves = [c.curve for c in coils]
-currents = [c.current.get_value() for c in coils]
+bs_TF.set_points(s.gamma().reshape((-1, 3)))
+
 a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 90
-LINK_WEIGHT = 1e4
+LENGTH_TARGET = 120
+LINK_WEIGHT = 1e1
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e2
-CS_THRESHOLD = 1.5
-CS_WEIGHT = 1e2
+CC_WEIGHT = 1e-1
+CS_THRESHOLD = 1.45
+CS_WEIGHT = 1e0
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-34) # 1e-36 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-22) # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-23) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QH_minimal_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QH_continuation_fixed_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
         curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
