@@ -85,7 +85,7 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 3
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 3
-    order = 16
+    order = 20
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -151,8 +151,8 @@ btot = bs_TF
 calculate_on_axis_B(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 100
+LENGTH_WEIGHT = Weight(0.001)
+LENGTH_TARGET = 125
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
@@ -162,7 +162,7 @@ CS_WEIGHT = 1e2
 FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
 OUT_DIR = ("./QA_minimal/")
 if os.path.exists(OUT_DIR):
@@ -302,7 +302,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 500
+MAXITER = 600
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 

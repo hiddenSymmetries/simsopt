@@ -40,7 +40,7 @@ range_param = "half period"
 nphi = 32
 ntheta = 32
 poff = 1.5
-coff = 3.0
+coff = 1.5
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -86,7 +86,7 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 3
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 3
-    order = 4
+    order = 8
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -135,7 +135,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 6
+Nx = 7
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -175,7 +175,7 @@ for i in range(len(base_curves)):
     # base_curves[i].fix('x' + str(2 * order + 5))
     # base_curves[i].fix('x' + str(2 * order + 6))
     # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1e-1) * 2e7 for i in range(ncoils)]
+base_currents = [Current(1.0) * 2e6 for i in range(ncoils)]
 # Fix currents in each coil
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
@@ -215,7 +215,7 @@ base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_T
 
 LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 100
-LINK_WEIGHT = 1e3
+LINK_WEIGHT = 1e1
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
@@ -389,7 +389,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 500
+MAXITER = 600
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 

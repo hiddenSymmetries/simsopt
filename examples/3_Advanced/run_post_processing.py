@@ -33,19 +33,50 @@ print(BdotN, BdotN_over_B)
 # # Make the QFM surfaces
 # qfm_surf = make_qfm(s, Bfield)
 # qfm_surf = qfm_surf.surface
+# qfm_surf.save(filename='QA_qfm.json')
+# Bfield.set_points(qfm_surf.gamma().reshape((-1, 3)))
+# Bn = np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * qfm_surf.unitnormal(), axis=2)[:, :, None]
+# pointData = {"B_N": Bn, "B_N / B": Bn / np.linalg.norm(Bfield.B().reshape(nphi, ntheta, 3), axis=-1)[:, :, None]}
+# qfm_surf.to_vtk('qfm_surf', extra_data=pointData)
 # qfm_surf.plot()
+
+from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
+from simsopt.util import MpiPartition, proc0_print
 
 # # Run VMEC with new QFM surface
 # t1 = time.time()
 # print("VMEC beginning: ")
 # ### Always use the QA VMEC file and just change the boundary
-# vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA"
-# equil = Vmec(vmec_input, mpi)
+vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
+equil = Vmec(vmec_input, mpi)
+equil.indata.mpol = 9
+equil.indata.ntor = 9
+# equil.boundary = qfm_surf
+print(equil.indata.mpol, equil.indata.ntor)
+# exit()
+equil.run()
+# equil.indata.mpol = 6
+# equil.indata.ntor = 6
 # equil.boundary = qfm_surf
 # equil.run()
+# equil.indata.mpol = 8
+# equil.indata.ntor = 8
+# equil.boundary = qfm_surf
+# equil.run()
+# Configure quasisymmetry objective:
+qs = QuasisymmetryRatioResidual(equil,
+                                np.arange(0, 1.01, 0.1),  # Radii to target
+                                helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
+
+# Make sure all procs participate in computing the objective:
+# prob.objective()
+
+proc0_print("Quasisymmetry objective before optimization:", qs.total())
+# proc0_print("Total objective before optimization:", prob.objective())
 # t2 = time.time()
 # print("Running VMEC took ", t2 - t1, " s")
-    
+exit()
+
 from simsopt.field.magneticfieldclasses import InterpolatedField
 
 
@@ -91,7 +122,7 @@ from simsopt.util import proc0_print
 nfieldlines = 20
 tmax_fl = 20000
 
-R0 = np.linspace(12.25, 13.15, nfieldlines)  # np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
+R0 = np.linspace(12.25, 13.2, nfieldlines)  # np.linspace(s_plot.get_rc(0, 0) - s_plot.get_rc(1, 0) / 2.0, s_plot.get_rc(0, 0) + s_plot.get_rc(1, 0) / 2.0, nfieldlines)
 Z0 = np.zeros(nfieldlines)
 phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 print(rrange, zrange, phirange)
@@ -99,11 +130,11 @@ print(R0, Z0)
 
 t1 = time.time()
 # compute the fieldlines from the initial locations specified above
-sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
-sc_fieldline.to_vtk('levelset', h=0.02)
+sc_fieldline = SurfaceClassifier(s, h=0.02, p=2)
+# sc_fieldline.to_vtk('levelset', h=0.02)
 
 fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
-    bsh, R0, Z0, tmax=tmax_fl, tol=1e-8, comm=comm,
+    bsh, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
     # phis=phis,
     phis=phis, 
     stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
