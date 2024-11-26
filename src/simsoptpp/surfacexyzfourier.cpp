@@ -56,6 +56,152 @@ void SurfaceXYZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arr
     }
 }
 
+template<class Array>
+void SurfaceXYZFourier<Array>::gammadash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+    data *= 0.;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double dxdphi = 0;
+        double dydphi = 0;
+        double dzdphi = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
+                double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
+                double dxhatdphi = get_coeff(0, true, m, i) * n*nfp*sin(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+                double dyhatdphi = get_coeff(1, true, m, i) * n*nfp*sin(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+                dxdphi += dxhatdphi * cos(phi) - xhat * sin(phi) - dyhatdphi * sin(phi) - yhat * cos(phi);
+                dydphi += dxhatdphi * sin(phi) + xhat * cos(phi) + dyhatdphi * cos(phi) - yhat * sin(phi);
+                dzdphi += get_coeff(2, true , m, i) * n*nfp*sin(m*theta-n*nfp*phi) - get_coeff(2, false, m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = dxdphi;
+        data(k1, 1) = dydphi;
+        data(k1, 2) = dzdphi;
+    }
+}
+
+
+template<class Array>
+void SurfaceXYZFourier<Array>::gammadash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+    data *= 0.;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double dxdtheta = 0;
+        double dydtheta = 0;
+        double dzdtheta = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                double dxhatdtheta = - get_coeff(0, true, m, i) * m*sin(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * m*cos(m*theta-n*nfp*phi);
+                double dyhatdtheta = - get_coeff(1, true, m, i) * m*sin(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * m*cos(m*theta-n*nfp*phi);
+                dxdtheta += dxhatdtheta * cos(phi) - dyhatdtheta * sin(phi);
+                dydtheta += dxhatdtheta * sin(phi) + dyhatdtheta * cos(phi);
+                dzdtheta += - get_coeff(2, true , m, i) * m*sin(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * m*cos(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = dxdtheta;
+        data(k1, 1) = dydtheta;
+        data(k1, 2) = dzdtheta;
+    }
+}
+
+template<class Array>
+void SurfaceXYZFourier<Array>::gammadash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+    data *= 0.;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double dxdphidphi = 0;
+        double dydphidphi = 0;
+        double dzdphidphi = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                double xhat = get_coeff(0, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * sin(m*theta-n*nfp*phi);
+                double yhat = get_coeff(1, true, m, i) * cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * sin(m*theta-n*nfp*phi);
+                double dxhatdphi = get_coeff(0, true, m, i) * n*nfp*sin(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+                double dyhatdphi = get_coeff(1, true, m, i) * n*nfp*sin(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+                double dxhatdphidphi = - get_coeff(0, true, m, i) * pow(n*nfp,2)*cos(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * pow(n*nfp,2)*sin(m*theta-n*nfp*phi);
+                double dyhatdphidphi = - get_coeff(1, true, m, i) * pow(n*nfp,2)*cos(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * pow(n*nfp,2)*sin(m*theta-n*nfp*phi);
+                dxdphidphi += dxhatdphidphi * cos(phi) - 2 *dxhatdphi * sin(phi) - xhat * cos(phi) - dyhatdphidphi * sin(phi) - 2 * dyhatdphi * cos(phi) + yhat * sin(phi);
+                dydphidphi += dxhatdphidphi * sin(phi) + 2 * dxhatdphi * cos(phi) - xhat * sin(phi) + dyhatdphidphi * cos(phi) - 2 * dyhatdphi * sin(phi) - yhat * cos(phi);
+                dzdphidphi += - get_coeff(2, true , m, i) * pow(n*nfp,2)*cos(m*theta-n*nfp*phi) - get_coeff(2, false, m, i) * pow(n*nfp,2)*sin(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = dxdphidphi;
+        data(k1, 1) = dydphidphi;
+        data(k1, 2) = dzdphidphi;
+    }
+}
+
+template<class Array>
+void SurfaceXYZFourier<Array>::gammadash1dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+    data *= 0.;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double dxdphidtheta = 0;
+        double dydphidtheta = 0;
+        double dzdphidtheta = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                double dxhatdtheta = - get_coeff(0, true, m, i) * m*sin(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * m*cos(m*theta-n*nfp*phi);
+                double dyhatdtheta = - get_coeff(1, true, m, i) * m*sin(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * m*cos(m*theta-n*nfp*phi);
+                double dxhatdphidtheta = get_coeff(0, true, m, i) * m*n*nfp*cos(m*theta-n*nfp*phi) + get_coeff(0, false, m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
+                double dyhatdphidtheta = get_coeff(1, true, m, i) * m*n*nfp*cos(m*theta-n*nfp*phi) + get_coeff(1, false, m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
+                dxdphidtheta += dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) - dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi);
+                dydphidtheta += dxhatdphidtheta * sin(phi) + dxhatdtheta * cos(phi) + dyhatdphidtheta * cos(phi) - dyhatdtheta * sin(phi);
+                dzdphidtheta += get_coeff(2, true , m, i) * m*n*nfp*cos(m*theta-n*nfp*phi) + get_coeff(2, false, m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = dxdphidtheta;
+        data(k1, 1) = dydphidtheta;
+        data(k1, 2) = dzdphidtheta;
+    }
+}
+
+
+template<class Array>
+void SurfaceXYZFourier<Array>::gammadash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+    data *= 0.;
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double dxdthetadtheta = 0;
+        double dydthetadtheta = 0;
+        double dzdthetadtheta = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                double dxhatdthetadtheta = - get_coeff(0, true, m, i) * m*m*cos(m*theta-n*nfp*phi) - get_coeff(0, false, m, i) * m*m*sin(m*theta-n*nfp*phi);
+                double dyhatdthetadtheta = - get_coeff(1, true, m, i) * m*m*cos(m*theta-n*nfp*phi) - get_coeff(1, false, m, i) * m*m*sin(m*theta-n*nfp*phi);
+                dxdthetadtheta += dxhatdthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi);
+                dydthetadtheta += dxhatdthetadtheta * sin(phi) + dyhatdthetadtheta * cos(phi);
+                dzdthetadtheta += - get_coeff(2, true , m, i) * m*m*cos(m*theta-n*nfp*phi) - get_coeff(2, false, m, i) * m*m*sin(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = dxdthetadtheta;
+        data(k1, 1) = dydthetadtheta;
+        data(k1, 2) = dzdthetadtheta;
+    }
+}
+
+
 
 template<class Array>
 void SurfaceXYZFourier<Array>::gammadash1_impl(Array& data) {

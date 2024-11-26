@@ -30,6 +30,21 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
         virtual void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_lin, data, quadpoints_phi, quadpoints_theta);
         }
+        virtual void gammadash1_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash1_lin, data, quadpoints_phi, quadpoints_theta);
+        }
+        virtual void gammadash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash2_lin, data, quadpoints_phi, quadpoints_theta);
+        }
+        virtual void gammadash1dash1_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash1dash1_lin, data, quadpoints_phi, quadpoints_theta);
+        }
+        virtual void gammadash1dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash1dash2_lin, data, quadpoints_phi, quadpoints_theta);
+        }
+        virtual void gammadash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gammadash2dash2_lin, data, quadpoints_phi, quadpoints_theta);
+        }
         virtual void gammadash1_impl(PyArray& data) override {
             PYBIND11_OVERLOAD(void, SurfaceBase, gammadash1_impl, data);
         }

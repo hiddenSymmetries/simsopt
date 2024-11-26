@@ -166,6 +166,130 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             }
         }
 
+        void gammadash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double xhat = 0;
+                double yhat = 0;
+                double dxhatdphi = 0;
+                double dyhatdphi = 0;
+                double dzdphi = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        xhat += get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                        yhat += get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                        dxhatdphi += get_coeff(0, m, n) * basis_fun_dphi(0, n, phi, m, theta);
+                        dyhatdphi += get_coeff(1, m, n) * basis_fun_dphi(1, n, phi, m, theta);
+                        dzdphi += get_coeff(2, m, n) * basis_fun_dphi(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdphi * cos(phi) - xhat * sin(phi) - dyhatdphi * sin(phi) - yhat * cos(phi);
+                data(k1, 1) = dxhatdphi * sin(phi) + xhat * cos(phi) + dyhatdphi * cos(phi) - yhat * sin(phi);
+                data(k1, 2) = dzdphi;
+            }
+        }
+        void gammadash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double dxhatdtheta = 0;
+                double dyhatdtheta = 0;
+                double dzdtheta = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        dxhatdtheta += get_coeff(0, m, n) * basis_fun_dtheta(0, n, phi, m, theta);
+                        dyhatdtheta += get_coeff(1, m, n) * basis_fun_dtheta(1, n, phi, m, theta);
+                        dzdtheta += get_coeff(2, m, n) * basis_fun_dtheta(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdtheta * cos(phi) - dyhatdtheta * sin(phi);
+                data(k1, 1) = dxhatdtheta * sin(phi) + dyhatdtheta * cos(phi);
+                data(k1, 2) = dzdtheta;
+            }
+        }
+
+        void gammadash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double xhat = 0;
+                double yhat = 0;
+                double dxhatdphi = 0;
+                double dyhatdphi = 0;
+                double dxhatdphidphi = 0;
+                double dyhatdphidphi = 0;
+                double dzdphidphi = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        xhat += get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                        yhat += get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                        dxhatdphi += get_coeff(0, m, n) * basis_fun_dphi(0, n, phi, m, theta);
+                        dyhatdphi += get_coeff(1, m, n) * basis_fun_dphi(1, n, phi, m, theta);
+                        dxhatdphidphi += get_coeff(0, m, n) * basis_fun_dphidphi(0, n, phi, m, theta);
+                        dyhatdphidphi += get_coeff(1, m, n) * basis_fun_dphidphi(1, n, phi, m, theta);
+                        dzdphidphi += get_coeff(2, m, n) * basis_fun_dphidphi(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdphidphi * cos(phi) - 2*dxhatdphi * sin(phi) - xhat * cos(phi) - dyhatdphidphi * sin(phi) - 2*dyhatdphi * cos(phi) + yhat * sin(phi);
+                data(k1, 1) = dxhatdphidphi * sin(phi) + 2*dxhatdphi * cos(phi) - xhat * sin(phi) + dyhatdphidphi * cos(phi) - 2*dyhatdphi * sin(phi) - yhat * cos(phi);
+                data(k1, 2) = dzdphidphi;
+            }
+        }
+
+        void gammadash1dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double dxhatdtheta = 0;
+                double dyhatdtheta = 0;
+                double dxhatdphidtheta = 0;
+                double dyhatdphidtheta = 0;
+                double dzdphidtheta = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        dxhatdtheta += get_coeff(0, m, n) * basis_fun_dtheta(0, n, phi, m, theta);
+                        dyhatdtheta += get_coeff(1, m, n) * basis_fun_dtheta(1, n, phi, m, theta);
+                        dxhatdphidtheta += get_coeff(0, m, n) * basis_fun_dthetadphi(0, n, phi, m, theta);
+                        dyhatdphidtheta += get_coeff(1, m, n) * basis_fun_dthetadphi(1, n, phi, m, theta);
+                        dzdphidtheta += get_coeff(2, m, n) * basis_fun_dthetadphi(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) - dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi);
+                data(k1, 1) = dxhatdphidtheta * sin(phi) + dxhatdtheta * cos(phi) + dyhatdphidtheta * cos(phi) - dyhatdtheta * sin(phi);
+                data(k1, 2) = dzdphidtheta;
+            }
+        }
+
+        void gammadash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double dxhatdthetadtheta = 0;
+                double dyhatdthetadtheta = 0;
+                double dzdthetadtheta = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        dxhatdthetadtheta += get_coeff(0, m, n) * basis_fun_dthetadtheta(0, n, phi, m, theta);
+                        dyhatdthetadtheta += get_coeff(1, m, n) * basis_fun_dthetadtheta(1, n, phi, m, theta);
+                        dzdthetadtheta += get_coeff(2, m, n) * basis_fun_dthetadtheta(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi);
+                data(k1, 1) = dxhatdthetadtheta * sin(phi) + dyhatdthetadtheta * cos(phi);
+                data(k1, 2) = dzdthetadtheta;
+            }
+        }
 
         void gammadash1_impl(Array& data) override {
 #pragma omp parallel for
