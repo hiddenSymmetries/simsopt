@@ -89,8 +89,9 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
+btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-23/biot_savart_optimized_QH.json")
 # btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-35_fww0.000000e+00_tw0.00e+00_tww1.000000e-23/"
-btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
+# btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
 # btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
 # btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt8.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-36_fww0.000000e+00_tw0.00e+00_tww1.000000e-24/biot_savart_optimized_QH.json")
 bs = btot.Bfields[0]
@@ -117,17 +118,17 @@ base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_T
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 120
-LINK_WEIGHT = 1e1
+LENGTH_TARGET = 125
+LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e-1
+CC_WEIGHT = 1e0
 CS_THRESHOLD = 1.45
-CS_WEIGHT = 1e0
+CS_WEIGHT = 1e1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-23) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
 OUT_DIR = ("./QH_continuation_fixed_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
