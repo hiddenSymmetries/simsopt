@@ -370,7 +370,7 @@ class MeanSquaredForce(Optimizable):
 def direct_squared_mean_force_pure(gammas, gammadashs, currents):
     r"""
     """
-    eps = 1e-10  # small number to avoid blow up in the denominator when i = j
+    eps = 1e-5  # small number to avoid blow up in the denominator when i = j
     r_ij = gammas[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
     gammadash_prod = jnp.sum(gammadashs[:, None, :, None, :] * gammadashs[None, :, None, :, :], axis=-1) 
     # gammadash_norm = jnp.linalg.norm(gammadashs,axis=-1)[:, None]
@@ -378,7 +378,7 @@ def direct_squared_mean_force_pure(gammas, gammadashs, currents):
     F = jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
     Ii_Ij = currents[:, None] * currents[None, :]
     Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    net_forces = -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas)[1]  #** 2
+    net_forces = -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas)[1] ** 2
     return jnp.sum(jnp.linalg.norm(net_forces, axis=-1) ** 2) * 1e-14
 
 class DirectSquaredMeanForce(Optimizable):
@@ -462,7 +462,7 @@ def mixed_squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, curr
     F = jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
     Ii_Ij = currents[:, None] * currents[None, :]
     Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    net_forces = -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas)[1]   #** 2
+    net_forces = -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas)[1] ** 2
 
     # repeat with gamma, gamma2
     r_ij = gammas[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
@@ -471,7 +471,7 @@ def mixed_squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, curr
     F = jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
     Ii_Ij = currents[:, None] * currents2[None, :]
     # Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    net_forces += -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas2)[1] # jnp.shape(gammas)[1] / 
+    net_forces += -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas2)[1] / jnp.shape(gammas)[1]
     summ = jnp.sum(jnp.linalg.norm(net_forces, axis=-1) ** 2)
 
     # repeat with gamma2, gamma
@@ -481,7 +481,7 @@ def mixed_squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, curr
     F = jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
     Ii_Ij = currents2[:, None] * currents[None, :]
     # Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    net_forces = -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas)[1]  # / jnp.shape(gammas2)[1]
+    net_forces = -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas)[1] / jnp.shape(gammas2)[1]
 
     # repeat with gamma2, gamma2
     r_ij = gammas2[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
@@ -490,7 +490,7 @@ def mixed_squared_mean_force_pure(gammas, gammas2, gammadashs, gammadashs2, curr
     F = jnp.sum(jnp.sum((gammadash_prod / rij_norm3)[:, :, :, :, None] * r_ij, axis=3), axis=2)
     Ii_Ij = currents2[:, None] * currents2[None, :]
     Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
-    net_forces += -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas2)[1]   # ** 2
+    net_forces += -jnp.sum(Ii_Ij[:, :, None] * F, axis=1) / jnp.shape(gammas2)[1] ** 2
     summ += jnp.sum(jnp.linalg.norm(net_forces, axis=-1) ** 2)
     return summ * 1e-14  # factor of (mu0 / 4pi)^2
 
@@ -847,7 +847,7 @@ class MixedLpCurveTorque(Optimizable):
         Ii_Ij = currents[:, None] * currents2[None, :]
         T += jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas2)[1]
         torque_norm = jnp.linalg.norm(T * 1e-7 + selftorque, axis=-1)
-        summ = jnp.sum(jnp.maximum(torque_norm[:, :, None] - threshold, 0) ** p * gammadash_norms)
+        summ = jnp.sum(jnp.maximum(torque_norm[:, :, None] - threshold, 0) ** p * gammadash_norms) / jnp.shape(gammas)[1]
 
         # repeat with gamma2, gamma
         r_ij = gammas2[:, None, :, None, :] - gammas[None, :, None, :, :]  # Note, do not use the i = j indices
@@ -864,7 +864,7 @@ class MixedLpCurveTorque(Optimizable):
         Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
         T += jnp.sum(Ii_Ij[:, :, None, None] * jnp.sum(cross_prod / rij_norm3[:, :, :, :, None], axis=3), axis=1) / jnp.shape(gammas2)[1]
         torque_norm2 = jnp.linalg.norm(T * 1e-7 + selftorque2, axis=-1)
-        summ += jnp.sum(jnp.maximum(torque_norm2[:, :, None] - threshold, 0) ** p * gammadash_norms2)
+        summ += jnp.sum(jnp.maximum(torque_norm2[:, :, None] - threshold, 0) ** p * gammadash_norms2) / jnp.shape(gammas2)[1]
         return summ * (1 / p)
 
     def __init__(self, allcoils, allcoils2, regularizations, regularizations2, p=2.0, threshold=0.0):
@@ -1004,7 +1004,7 @@ class MixedSquaredMeanTorque(Optimizable):
         Ii_Ij = currents[:, None] * currents[None, :]
         Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
         T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-        net_torques = -jnp.sum(T, axis=1) / jnp.shape(gammas)[1]   # ** 2
+        net_torques = -jnp.sum(T, axis=1) / jnp.shape(gammas)[1] ** 2
 
         # repeat with gamma, gamma2
         r_ij = gammas[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
@@ -1014,7 +1014,7 @@ class MixedSquaredMeanTorque(Optimizable):
         rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
         Ii_Ij = currents[:, None] * currents2[None, :]
         T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-        net_torques += -jnp.sum(T, axis=1) / jnp.shape(gammas2)[1]
+        net_torques += -jnp.sum(T, axis=1) / jnp.shape(gammas2)[1] / jnp.shape(gammas2)[1]
         summ = jnp.sum(jnp.linalg.norm(net_torques, axis=-1) ** 2)
 
         # repeat with gamma2, gamma
@@ -1025,7 +1025,7 @@ class MixedSquaredMeanTorque(Optimizable):
         rij_norm3 = jnp.linalg.norm(r_ij + eps, axis=-1) ** 3
         Ii_Ij = currents2[:, None] * currents[None, :]
         T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-        net_torques = -jnp.sum(T, axis=1)/ jnp.shape(gammas)[1]  # / jnp.shape(gammas2)[1]
+        net_torques = -jnp.sum(T, axis=1)/ jnp.shape(gammas)[1] / jnp.shape(gammas2)[1]
 
         # repeat with gamma2, gamma2
         r_ij = gammas2[:, None, :, None, :] - gammas2[None, :, None, :, :]  # Note, do not use the i = j indices
@@ -1036,7 +1036,7 @@ class MixedSquaredMeanTorque(Optimizable):
         Ii_Ij = currents2[:, None] * currents2[None, :]
         Ii_Ij = Ii_Ij.at[:, :].add(-jnp.diag(jnp.diag(Ii_Ij)))
         T = Ii_Ij[:, :, None] * jnp.sum(jnp.sum(cross3 / rij_norm3[:, :, :, :, None], axis=3), axis=2)
-        net_torques += -jnp.sum(T, axis=1)/ jnp.shape(gammas2)[1]  #** 2   
+        net_torques += -jnp.sum(T, axis=1)/ jnp.shape(gammas2)[1] ** 2   
         summ += jnp.sum(jnp.linalg.norm(net_torques, axis=-1) ** 2)
         return summ * 1e-14
 
