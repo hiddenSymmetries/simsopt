@@ -30,7 +30,7 @@ import re
 t1 = time.time()
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
@@ -246,10 +246,10 @@ def fun(dofs):
     cc_val = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
-    forces_val = FORCE_WEIGHT.value * Jforce.J()
-    forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
-    torques_val = TORQUE_WEIGHT.value * Jtorque.J()
-    torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
+    forces_val = Jforce.J()
+    forces_val2 = Jforce2.J()
+    torques_val = Jtorque.J()
+    torques_val2 = Jtorque2.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
         ) / np.mean(btot.AbsB())
@@ -261,14 +261,14 @@ def fun(dofs):
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 
     valuestr += f", Lk1Obj={link_val:.2e}" 
-    valuestr += f", forceObj={forces_val:.2e}" 
-    valuestr += f", forceObj2={forces_val2:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
-    valuestr += f", torqueObj2={torques_val2:.2e}" 
-    outstr += f", F={Jforce.J():.2e}"
-    outstr += f", Fnet={Jforce2.J():.2e}"
-    outstr += f", T={Jtorque.J():.2e}"
-    outstr += f", Tnet={Jtorque2.J():.2e}"
+    valuestr += f", forceObj={FORCE_WEIGHT.value * forces_val:.2e}" 
+    valuestr += f", forceObj2={FORCE_WEIGHT2.value * forces_val2:.2e}" 
+    valuestr += f", torqueObj={TORQUE_WEIGHT.value * torques_val:.2e}" 
+    valuestr += f", torqueObj2={TORQUE_WEIGHT2.value * torques_val2:.2e}" 
+    outstr += f", F={forces_val:.2e}"
+    outstr += f", Fnet={forces_val2:.2e}"
+    outstr += f", T={torques_val:.2e}"
+    outstr += f", Tnet={torques_val2:.2e}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
