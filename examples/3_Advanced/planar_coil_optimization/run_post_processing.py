@@ -17,7 +17,7 @@ nphi = 256
 ntheta = 128
 quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
 filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_vmec_input(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
