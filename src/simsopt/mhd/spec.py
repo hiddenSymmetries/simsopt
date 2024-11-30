@@ -258,6 +258,9 @@ class Spec(Optimizable):
                          depends_on=depends_on,
                          external_dof_setter=Spec.set_dofs)
         
+        if self.freebound:
+            self._boundary.append_parent(self)
+        
     @classmethod
     def default_freeboundary(cls, copy_to_pwd, verbose=True):
         """
@@ -372,7 +375,7 @@ class Spec(Optimizable):
         return self._boundary
 
     @boundary.setter
-    def boundary(self, boundary):
+    def boundary(self, boundary: SurfaceRZFourier):
         """
         Setter for the geometry of the plasma boundary
         """
@@ -382,8 +385,11 @@ class Spec(Optimizable):
                 self._boundary = boundary
                 self.append_parent(boundary)
                 return
-        else:  # in freeboundary case, plasma boundary is is not a parent
+        else:  
+            # in freeboundary case, the plasma boundary is a child instead of a parent
+            self._boundary.remove_parent(self)
             self._boundary = boundary
+            boundary.append_parent(self)
     
     @property
     def normal_field(self):
@@ -1169,12 +1175,12 @@ class Spec(Optimizable):
             new_guess = None
             if self.mvol > 1:
                 new_guess = [
-                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0, self.mvol-1)
+                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0, self.nvol)
                 ]
 
                 for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
                     nnorm = (nn / si.nfp).astype('int')  # results.output.in_ is fourier number for 1 field period for reasons...
-                    for lvol in range(0, self.mvol-1):
+                    for lvol in range(0, self.nvol):
                         new_guess[lvol].set_rc(mm, nnorm, self.results.output.Rbc[lvol+1, ii])
                         new_guess[lvol].set_zs(mm, nnorm, self.results.output.Zbs[lvol+1, ii])
 
@@ -1186,6 +1192,16 @@ class Spec(Optimizable):
                 axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
                 axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
                 self.axis = copy.copy(axis)
+
+                if self.freebound:
+                    # We need to update the boundary shape to the result of the free-boundary calculation
+                    self._boundary.rc[:,:] = new_guess[-1].rc
+                    self._boundary.zs[:,:] = new_guess[-1].zs
+                    if not self.stellsym:
+                        self._boundary.rs[:,:] = new_guess[-1].rs
+                        self._boundary.zc[:,:] = new_guess[-1].zc
+                    self._boundary.recompute_bell()
+
 
             # Enforce SPEC to use initial guess, but only group leaders have the necessary arrays
             if self.mpi.proc0_groups:
