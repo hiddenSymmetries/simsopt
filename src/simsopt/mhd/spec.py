@@ -379,17 +379,17 @@ class Spec(Optimizable):
         """
         Setter for the geometry of the plasma boundary
         """
-        if not self.freebound: 
-            if self._boundary is not boundary:
+        if self._boundary is not boundary:
+            if not self.freebound: 
                 self.remove_parent(self._boundary)
                 self._boundary = boundary
                 self.append_parent(boundary)
-                return
-        else:  
-            # in freeboundary case, the plasma boundary is a child instead of a parent
-            self._boundary.remove_parent(self)
-            self._boundary = boundary
-            boundary.append_parent(self)
+            else:  
+                # in freeboundary case, the plasma boundary is a child instead of a parent
+                self._boundary.remove_parent(self)
+                self._boundary = boundary
+                self._boundary.append_parent(self)
+            return
     
     @property
     def normal_field(self):
@@ -1169,9 +1169,22 @@ class Spec(Optimizable):
             except AttributeError:
                 logger.info('Picard convergence not checked, please update SPEC version 3.22 or higher')
                 print("Picard convergence not checked, please update SPEC version 3.22 or higher")
-            
-        # Save geometry as initial guess for next iterations
+
+    
+        if self.freebound and self.mvol > 1:
+            # We need to update the boundary shape to the result of the free-boundary calculation
+            for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
+                nnorm = (nn / si.nfp).astype('int')  # results.output.in_ is fourier number for 1 field period for reasons...
+                self._boundary.set_rc(mm, nnorm, self.results.output.Rbc[self.nvol, ii])
+                self._boundary.set_zs(mm, nnorm, self.results.output.Zbs[self.nvol, ii])
+
+                if not si.istellsym:
+                    self._boundary.set_rs(mm, nnorm, self.results.output.Rbs[self.nvol, ii])
+                    self._boundary.set_zc(mm, nnorm, self.results.output.Zbc[self.nvol, ii])
+            self._boundary.recompute_bell()
+        
         if update_guess:
+            # Save geometry as initial guess for next iterations
             new_guess = None
             if self.mvol > 1:
                 new_guess = [
@@ -1192,16 +1205,6 @@ class Spec(Optimizable):
                 axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
                 axis['zas'] = self.results.output.Zbs[0, 0:si.ntor+1]
                 self.axis = copy.copy(axis)
-
-                if self.freebound:
-                    # We need to update the boundary shape to the result of the free-boundary calculation
-                    self._boundary.rc[:,:] = new_guess[-1].rc
-                    self._boundary.zs[:,:] = new_guess[-1].zs
-                    if not self.stellsym:
-                        self._boundary.rs[:,:] = new_guess[-1].rs
-                        self._boundary.zc[:,:] = new_guess[-1].zc
-                    self._boundary.recompute_bell()
-
 
             # Enforce SPEC to use initial guess, but only group leaders have the necessary arrays
             if self.mpi.proc0_groups:
