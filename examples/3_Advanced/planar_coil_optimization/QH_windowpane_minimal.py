@@ -309,9 +309,18 @@ Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list
     ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
+CURVATURE_THRESHOLD = 0.5
+MSC_THRESHOLD = 0.05
+CURVATURE_WEIGHT = 1e-2
+MSC_WEIGHT = 1e-3
+Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
+Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
+
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CC_WEIGHT * Jccdist2 \
+    + CURVATURE_WEIGHT * sum(Jcs) \
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + CS_WEIGHT * Jcsdist \
     + LENGTH_WEIGHT * Jlength \
     + LINK_WEIGHT * linkNum
@@ -347,6 +356,9 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
+    kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
+    msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
+    outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}" 
     valuestr += f", LenObj={length_val:.2e}" 
     valuestr += f", ccObj={cc_val:.2e}" 

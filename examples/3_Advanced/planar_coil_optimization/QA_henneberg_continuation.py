@@ -88,14 +88,20 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
-btot = Optimizable.from_file("QA_henneberg_TForder4_n41_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+03_cct8.00e-01_ccw1.00e+02_cst1.30e+00_csw1.00e+02_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-21/biot_savart_optimized_QA.json")
+btot = Optimizable.from_file("QA_henneberg_TForder16_n16_p1.50e+00_c1.50e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder16_n16_p1.50e+00_c1.50e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder4_n23_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder4_n13_p1.50e+00_c1.25e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder16_n13_p1.50e+00_c1.25e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-32_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder4_n23_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder4_n41_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+03_cct8.00e-01_ccw1.00e+02_cst1.30e+00_csw1.00e+02_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-21/biot_savart_optimized_QA.json")
 bs = btot.Bfields[0]
 bs_TF = btot.Bfields[1]
 coils = bs.coils
 currents = [c.current.get_value() for c in coils]
 base_coils = coils[:len(coils) // 4]
 coils_TF = bs_TF.coils
-base_coils_TF = coils_TF[:len(coils) // 4]
+base_coils_TF = coils_TF[:len(coils_TF) // 4]
 curves = [c.curve for c in coils]
 base_curves = curves[:len(curves) // 4]
 curves_TF = [c.curve for c in coils_TF]
@@ -107,10 +113,10 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 bs_TF.set_points(s.gamma().reshape((-1, 3)))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 70
+LENGTH_TARGET = 75
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e1
+CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e1
 # Weight for the Coil Coil forces term
@@ -182,10 +188,19 @@ Jtorque = sum([LpCurveTorque(c, coils_TF, regularization_rect(a, b), p=2, thresh
     ) for i, c in enumerate(base_coils_TF)])
 Jtorque2 = sum([SquaredMeanTorque(c, coils_TF, downsample=1) for c in base_coils_TF])
 
+CURVATURE_THRESHOLD = 0.5
+MSC_THRESHOLD = 0.05
+CURVATURE_WEIGHT = 1e-2
+MSC_WEIGHT = 1e-3
+Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
+Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
+
 JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CC_WEIGHT * Jccdist2 \
     + CS_WEIGHT * Jcsdist \
+    + CURVATURE_WEIGHT * sum(Jcs) \
+    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + LINK_WEIGHT * linkNum \
     + LENGTH_WEIGHT * Jlength 
 
@@ -221,6 +236,9 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
+    kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
+    msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
+    outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}" 
     valuestr += f", LenObj={length_val:.2e}" 
     valuestr += f", ccObj={cc_val:.2e}" 
@@ -268,11 +286,11 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 2000
+MAXITER = 10000
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-20)
+        options={'maxiter': MAXITER, 'maxcor': 2000}, tol=1e-16)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
