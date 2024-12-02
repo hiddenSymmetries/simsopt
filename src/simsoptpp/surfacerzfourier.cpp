@@ -176,9 +176,9 @@ void SurfaceRZFourier<Array>::gammadash1_lin(Array& data, Array& quadpoints_phi,
                 dzdphi -= zs(m, i) * n*nfp*cos(m*theta-n*nfp*phi);
             }
         }
-        data(k1, 0) = drdphi * cos(phi) - r * sin(phi);
-        data(k1, 1) = drdphi * sin(phi) + r * cos(phi);
-        data(k1, 2) = dzdphi;
+        data(k1, 0) = 2*M_PI*(drdphi * cos(phi) - r * sin(phi));
+        data(k1, 1) = 2*M_PI*(drdphi * sin(phi) + r * cos(phi));
+        data(k1, 2) = 2*M_PI*dzdphi;
     }
 }
 
@@ -203,9 +203,9 @@ void SurfaceRZFourier<Array>::gammadash2_lin(Array& data, Array& quadpoints_phi,
                 dzdtheta += zs(m, i) * m*cos(m*theta-n*nfp*phi);
             }
         }
-        data(k1, 0) = drdtheta * cos(phi);
-        data(k1, 1) = drdtheta * sin(phi);
-        data(k1, 2) = dzdtheta;
+        data(k1, 0) = 2*M_PI*drdtheta * cos(phi);
+        data(k1, 1) = 2*M_PI*drdtheta * sin(phi);
+        data(k1, 2) = 2*M_PI*dzdtheta;
     }
 }
 
@@ -239,11 +239,9 @@ void SurfaceRZFourier<Array>::gammadash1dash1_lin(Array& data, Array& quadpoints
                 dzdphidphi -= zs(m, i) * pow(n*nfp,2)*sin(m*theta-n*nfp*phi);
             }
         }
-        //data(k1, 0) = drdphi * cos(phi) - r * sin(phi);
-        data(k1, 0) = drdphidphi * cos(phi) - 2 * drdphi * sin(phi) - r * cos(phi);
-        //data(k1, 1) = drdphi * sin(phi) + r * cos(phi);
-        data(k1, 1) = drdphidphi * sin(phi) + 2 * drdphi * cos(phi) - r * sin(phi);
-        data(k1, 2) = dzdphidphi;
+        data(k1, 0) = 2*M_PI*2*M_PI*(drdphidphi * cos(phi) - 2 * drdphi * sin(phi) - r * cos(phi));
+        data(k1, 1) = 2*M_PI*2*M_PI*(drdphidphi * sin(phi) + 2 * drdphi * cos(phi) - r * sin(phi));
+        data(k1, 2) = 2*M_PI*2*M_PI*dzdphidphi;
     }
 }
 
@@ -274,9 +272,9 @@ void SurfaceRZFourier<Array>::gammadash1dash2_lin(Array& data, Array& quadpoints
                 dzdphidtheta += zs(m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
             }
         }
-        data(k1, 0) = drdphidtheta * cos(phi) - drdtheta * sin(phi);
-        data(k1, 1) = drdphidtheta * sin(phi) + drdtheta * cos(phi);
-        data(k1, 2) = dzdphidtheta;
+        data(k1, 0) = 2*M_PI*2*M_PI*(drdphidtheta * cos(phi) - drdtheta * sin(phi));
+        data(k1, 1) = 2*M_PI*2*M_PI*(drdphidtheta * sin(phi) + drdtheta * cos(phi));
+        data(k1, 2) = 2*M_PI*2*M_PI*dzdphidtheta;
     }
 }
 
@@ -301,9 +299,9 @@ void SurfaceRZFourier<Array>::gammadash2dash2_lin(Array& data, Array& quadpoints
                 dzdthetadtheta -= zs(m, i) * m*m*sin(m*theta-n*nfp*phi);
             }
         }
-        data(k1, 0) = drdthetadtheta * cos(phi);
-        data(k1, 1) = drdthetadtheta * sin(phi);
-        data(k1, 2) = dzdthetadtheta;
+        data(k1, 0) = 2*M_PI*2*M_PI*drdthetadtheta * cos(phi);
+        data(k1, 1) = 2*M_PI*2*M_PI*drdthetadtheta * sin(phi);
+        data(k1, 2) = 2*M_PI*2*M_PI*dzdthetadtheta;
     }
 }
 
