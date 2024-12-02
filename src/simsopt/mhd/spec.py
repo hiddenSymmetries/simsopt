@@ -167,7 +167,7 @@ class Spec(Optimizable):
         # Store initial guess data
         # The initial guess is a collection of SurfaceRZFourier instances,
         # stored in a list of size Mvol-1 (the number of inner interfaces)
-        read_initial_guess = self.inputlist.linitialize == 0 and self.nvol > 1 
+        read_initial_guess = self.inputlist.linitialize == 0 and self.mvol > 1 
         if read_initial_guess:
             self.initial_guess = self._read_initial_guess()
             # In general, initial guess is NOT a degree of freedom for the
@@ -389,7 +389,7 @@ class Spec(Optimizable):
                 self._boundary.remove_parent(self)
                 self._boundary = boundary
                 self._boundary.append_parent(self)
-            return
+            self.need_to_run_code = True
     
     @property
     def normal_field(self):
@@ -413,7 +413,7 @@ class Spec(Optimizable):
                 normal_field.surface = self._computational_boundary
             self._normal_field = normal_field
             self.append_parent(normal_field)
-            return
+            self.need_to_run_code = True
 
     @property
     def computational_boundary(self):
