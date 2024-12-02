@@ -209,6 +209,7 @@ void SurfaceRZFourier<Array>::gammadash2_lin(Array& data, Array& quadpoints_phi,
     }
 }
 
+
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     int numquadpoints = quadpoints_phi.size();
@@ -266,8 +267,8 @@ void SurfaceRZFourier<Array>::gammadash1dash2_lin(Array& data, Array& quadpoints
                 if(!stellsym) {
                     r += rs(m, i) * sin(m*theta-n*nfp*phi);
                     drdtheta += rs(m, i) * m*cos(m*theta-n*nfp*phi);
-                    drdphidtheta += rs(m, i) * m*n*nfp*cos(m*theta-n*nfp*phi);
-                    dzdphidtheta += zc(m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
+                    drdphidtheta += rs(m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
+                    dzdphidtheta += zc(m, i) * m*n*nfp*cos(m*theta-n*nfp*phi);
                 }
                 dzdphidtheta += zs(m, i) * m*n*nfp*sin(m*theta-n*nfp*phi);
             }
@@ -302,6 +303,143 @@ void SurfaceRZFourier<Array>::gammadash2dash2_lin(Array& data, Array& quadpoints
         data(k1, 0) = 2*M_PI*2*M_PI*drdthetadtheta * cos(phi);
         data(k1, 1) = 2*M_PI*2*M_PI*drdthetadtheta * sin(phi);
         data(k1, 2) = 2*M_PI*2*M_PI*dzdthetadtheta;
+    }
+}
+
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash1dash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double r = 0;
+        double drdphi = 0;
+        double dzdphi = 0;
+        double drdphidphi = 0;
+        double dzdphidphi = 0;
+        double drdphidphidphi = 0;
+        double dzdphidphidphi = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                r += rc(m, i) * cos(m*theta-n*nfp*phi);
+                drdphi += rc(m, i) * n*nfp*sin(m*theta-n*nfp*phi);
+                drdphidphi -= rc(m, i) * pow(n*nfp,2)*cos(m*theta-n*nfp*phi);
+                drdphidphidphi -= rc(m, i) * pow(n*nfp,3)*sin(m*theta-n*nfp*phi);
+                if(!stellsym) {
+                    r += rs(m, i) * sin(m*theta-n*nfp*phi);
+                    drdphi -= rs(m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+                    dzdphi += zc(m, i) * n*nfp*sin(m*theta-n*nfp*phi);
+                    drdphidphi -= rs(m, i) * pow(n*nfp,2)*sin(m*theta-n*nfp*phi);
+                    dzdphidphi -= zc(m, i) * pow(n*nfp,2)*cos(m*theta-n*nfp*phi);
+                    drdphidphidphi += rs(m, i) * pow(n*nfp,3)*cos(m*theta-n*nfp*phi);
+                    dzdphidphidphi -= zc(m, i) * pow(n*nfp,3)*sin(m*theta-n*nfp*phi);
+                }
+                dzdphi -= zs(m, i) * n*nfp*cos(m*theta-n*nfp*phi);
+                dzdphidphi -= zs(m, i) * pow(n*nfp,2)*sin(m*theta-n*nfp*phi);
+                dzdphidphidphi += zs(m, i) * pow(n*nfp,3)*cos(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = pow(2*M_PI,3)*(drdphidphidphi * cos(phi) - drdphidphi * sin(phi) - 2 * drdphidphi * sin(phi) - 2 * drdphi * cos(phi) - drdphi * cos(phi) + r * sin(phi) );
+        data(k1, 1) = pow(2*M_PI,3)*(drdphidphidphi * sin(phi) + drdphidphi * cos(phi) + 2 * drdphidphi * cos(phi) - 2 * drdphi * sin(phi) - drdphi * sin(phi) - r * cos(phi));
+        data(k1, 2) = pow(2*M_PI,3)*dzdphidphidphi;
+    }
+}
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash1dash1dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double drdtheta = 0;
+        double drdphidtheta = 0;
+        double dzdphidtheta = 0;
+        double drdphidphidtheta = 0;
+        double dzdphidphidtheta = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                drdtheta -= rc(m, i) * m * sin(m*theta-n*nfp*phi);
+                drdphidtheta += rc(m, i) * n*nfp*m*cos(m*theta-n*nfp*phi);
+                drdphidphidtheta += rc(m, i) * pow(n*nfp,2)*m*sin(m*theta-n*nfp*phi);
+                if(!stellsym) {
+                    drdtheta += rs(m, i) * m * cos(m*theta-n*nfp*phi);
+                    drdphidtheta += rs(m, i) * n*nfp*m*sin(m*theta-n*nfp*phi);
+                    dzdphidtheta += zc(m, i) * n*nfp*m*cos(m*theta-n*nfp*phi);
+                    drdphidphidtheta -= rs(m, i) * pow(n*nfp,2)*m*cos(m*theta-n*nfp*phi);
+                    dzdphidphidtheta += zc(m, i) * pow(n*nfp,2)*m*sin(m*theta-n*nfp*phi);
+                }
+                dzdphidtheta += zs(m, i) * n*nfp*m*sin(m*theta-n*nfp*phi);
+                dzdphidphidtheta -= zs(m, i) * pow(n*nfp,2)*m*cos(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = pow(2*M_PI,3)*(drdphidphidtheta * cos(phi) - 2 * drdphidtheta * sin(phi) - drdtheta * cos(phi));
+        data(k1, 1) = pow(2*M_PI,3)*(drdphidphidtheta * sin(phi) + 2 * drdphidtheta * cos(phi) - drdtheta * sin(phi));
+        data(k1, 2) = pow(2*M_PI,3)*dzdphidphidtheta;
+    }
+}
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash1dash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double drdthetadtheta = 0;
+        double dzdthetatheta = 0;
+        double drdphidthetadtheta = 0;
+        double dzdphidthetadtheta = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                drdthetadtheta -= rc(m, i) * m*m*cos(m*theta-n*nfp*phi);
+                drdphidthetadtheta -= rc(m, i) * m*m*n*nfp*sin(m*theta-n*nfp*phi);
+                if(!stellsym) {
+                    drdthetadtheta -= rs(m, i) * m*m*sin(m*theta-n*nfp*phi);
+                    drdphidthetadtheta += rs(m, i) * m*m*n*nfp*cos(m*theta-n*nfp*phi);
+                    dzdphidthetadtheta -= zc(m, i) * m*m*n*nfp*sin(m*theta-n*nfp*phi);
+                }
+                dzdphidthetadtheta += zs(m, i) * m*m*n*nfp*cos(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = pow(2*M_PI,3)*(drdphidthetadtheta * cos(phi) - drdthetadtheta * sin(phi));
+        data(k1, 1) = pow(2*M_PI,3)*(drdphidthetadtheta * sin(phi) + drdthetadtheta * cos(phi));
+        data(k1, 2) = pow(2*M_PI,3)*dzdphidthetadtheta;
+    }
+}
+
+template<class Array>
+void SurfaceRZFourier<Array>::gammadash2dash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
+    int numquadpoints = quadpoints_phi.size();
+
+#pragma omp parallel for
+    for (int k1 = 0; k1 < numquadpoints; ++k1) {
+        double phi  = 2*M_PI*quadpoints_phi[k1];
+        double theta  = 2*M_PI*quadpoints_theta[k1];
+        double drdthetadthetadtheta = 0;
+        double dzdthetadthetadtheta = 0;
+        for (int m = 0; m <= mpol; ++m) {
+            for (int i = 0; i < 2*ntor+1; ++i) {
+                int n  = i - ntor;
+                drdthetadthetadtheta += rc(m, i) * m*m*m*sin(m*theta-n*nfp*phi);
+                if(!stellsym) {
+                    drdthetadthetadtheta -= rs(m, i) * m*m*m*cos(m*theta-n*nfp*phi);
+                    dzdthetadthetadtheta += zc(m, i) * m*m*m*sin(m*theta-n*nfp*phi);
+                }
+                dzdthetadthetadtheta -= zs(m, i) * m*m*m*cos(m*theta-n*nfp*phi);
+            }
+        }
+        data(k1, 0) = pow(2*M_PI,3)*drdthetadthetadtheta * cos(phi);
+        data(k1, 1) = pow(2*M_PI,3)*drdthetadthetadtheta * sin(phi);
+        data(k1, 2) = pow(2*M_PI,3)*dzdthetadthetadtheta;
     }
 }
 

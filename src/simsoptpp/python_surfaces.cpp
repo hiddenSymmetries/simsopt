@@ -58,6 +58,18 @@ template <class PySurfaceRZFourierBase = PySurfaceRZFourier> class PySurfaceRZFo
         void gammadash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PySurfaceRZFourierBase::gammadash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
         }
+        void gammadash1dash1dash1_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gammadash1dash1dash1_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash1dash1dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gammadash1dash1dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash1dash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gammadash1dash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash2dash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceRZFourierBase::gammadash2dash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
 
 
         void fit_to_curve(PyCurve& curve, double radius) {
@@ -102,6 +114,19 @@ template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXY
         }
         void gammadash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PySurfaceXYZFourierBase::gammadash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gammadash1dash1dash1_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gammadash1dash1dash1_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash1dash1dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gammadash1dash1dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash1dash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gammadash1dash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash2dash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gammadash2dash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
         }
 
         void fit_to_curve(PyCurve& curve, double radius) {
@@ -149,6 +174,19 @@ template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class
         }
 
 
+        void gammadash1dash1dash1_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gammadash1dash1dash1_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash1dash1dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gammadash1dash1dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash1dash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gammadash1dash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+        void gammadash2dash2dash2_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZTensorFourierBase::gammadash2dash2dash2_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
         void fit_to_curve(PyCurve& curve, double radius) {
             PySurfaceXYZTensorFourierBase::fit_to_curve(curve, radius);
         }
@@ -162,6 +200,10 @@ template <typename T, typename S> void register_common_surface_methods(S &s) {
      .def("gammadash1dash1_lin", &T::gammadash1dash1_lin)
      .def("gammadash1dash2_lin", &T::gammadash1dash2_lin)
      .def("gammadash2dash2_lin", &T::gammadash2dash2_lin)
+     .def("gammadash1dash1dash1_lin", &T::gammadash1dash1dash1_lin)
+     .def("gammadash1dash1dash2_lin", &T::gammadash1dash1dash2_lin)
+     .def("gammadash1dash2dash2_lin", &T::gammadash1dash2dash2_lin)
+     .def("gammadash2dash2dash2_lin", &T::gammadash2dash2dash2_lin)
      .def("dgamma_by_dcoeff", &T::dgamma_by_dcoeff)
      .def("dgamma_by_dcoeff_vjp", &T::dgamma_by_dcoeff_vjp)
      .def("gammadash1", &T::gammadash1)

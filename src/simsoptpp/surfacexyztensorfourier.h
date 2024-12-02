@@ -41,14 +41,21 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         Array cache_basis_fun_phi;
         Array cache_basis_fun_phi_dash;
         Array cache_basis_fun_phi_dashdash;
+        Array cache_basis_fun_phi_dashdashdash;
         Array cache_basis_fun_theta;
         Array cache_basis_fun_theta_dash;
         Array cache_basis_fun_theta_dashdash;
+        Array cache_basis_fun_theta_dashdashdash;
         Array cache_enforcer;
         Array cache_enforcer_dphi;
         Array cache_enforcer_dtheta;
-        Array cache_enforcer_dphidphi;
         Array cache_enforcer_dthetadtheta;
+        Array cache_enforcer_dthetadphi;
+        Array cache_enforcer_dphidphi;
+        Array cache_enforcer_dthetadthetadtheta;
+        Array cache_enforcer_dthetadthetadphi;
+        Array cache_enforcer_dthetadphidphi;
+        Array cache_enforcer_dphidphidphi;
         int nfp;
         int mpol;
         int ntor;
@@ -191,6 +198,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 data(k1, 2) = dzdphi;
             }
         }
+        
         void gammadash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
             int numquadpoints_phi = quadpoints_phi.size();
 #pragma omp parallel for
@@ -212,6 +220,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 data(k1, 2) = dzdtheta;
             }
         }
+
 
         void gammadash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
             int numquadpoints_phi = quadpoints_phi.size();
@@ -290,6 +299,122 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 data(k1, 2) = dzdthetadtheta;
             }
         }
+
+
+        void gammadash1dash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double xhat = 0;
+                double yhat = 0;
+                double dxhatdphi = 0;
+                double dyhatdphi = 0;
+                double dxhatdphidphi = 0;
+                double dyhatdphidphi = 0;
+                double dzdphidphi = 0;
+                double dxhatdphidphidphi = 0;
+                double dyhatdphidphidphi = 0;
+                double dzdphidphidphi = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        xhat += get_coeff(0, m, n) * basis_fun(0, n, phi, m, theta);
+                        yhat += get_coeff(1, m, n) * basis_fun(1, n, phi, m, theta);
+                        dxhatdphi += get_coeff(0, m, n) * basis_fun_dphi(0, n, phi, m, theta);
+                        dyhatdphi += get_coeff(1, m, n) * basis_fun_dphi(1, n, phi, m, theta);
+                        dxhatdphidphi += get_coeff(0, m, n) * basis_fun_dphidphi(0, n, phi, m, theta);
+                        dyhatdphidphi += get_coeff(1, m, n) * basis_fun_dphidphi(1, n, phi, m, theta);
+                        dzdphidphi += get_coeff(2, m, n) * basis_fun_dphidphi(2, n, phi, m, theta);
+                        dxhatdphidphidphi += get_coeff(0, m, n) * basis_fun_dphidphidphi(0, n, phi, m, theta);
+                        dyhatdphidphidphi += get_coeff(1, m, n) * basis_fun_dphidphidphi(1, n, phi, m, theta);
+                        dzdphidphidphi += get_coeff(2, m, n) * basis_fun_dphidphidphi(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdphidphidphi * cos(phi) - 3*dxhatdphidphi * sin(phi) - 3*dxhatdphi * cos(phi) + xhat*sin(phi) - dyhatdphidphidphi * sin(phi) - 3*dyhatdphi * cos(phi) + 3*dyhatdphi * sin(phi) + yhat*cos(phi);
+                data(k1, 1) = dxhatdphidphidphi * sin(phi) + 3*dxhatdphidphi * cos(phi) - 3*dxhatdphi * sin(phi) + xhat*cos(phi) + dyhatdphidphidphi * cos(phi) - 3*dyhatdphidphi * sin(phi) - 3*dyhatdphi * cos(phi) + yhat*sin(phi);
+                data(k1, 2) = dzdphidphidphi;
+            }
+        }
+        
+        void gammadash1dash1dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double dxhatdtheta = 0;
+                double dyhatdtheta = 0;
+                double dxhatdphidtheta = 0;
+                double dyhatdphidtheta = 0;
+                double dxhatdphidphidtheta = 0;
+                double dyhatdphidphidtheta = 0;
+                double dzdphidphidtheta = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        dxhatdtheta += get_coeff(0, m, n) * basis_fun_dtheta(0, n, phi, m, theta);
+                        dyhatdtheta += get_coeff(1, m, n) * basis_fun_dtheta(1, n, phi, m, theta);
+                        dxhatdphidtheta += get_coeff(0, m, n) * basis_fun_dthetadphi(0, n, phi, m, theta);
+                        dyhatdphidtheta += get_coeff(1, m, n) * basis_fun_dthetadphi(1, n, phi, m, theta);
+                        dxhatdphidphidtheta += get_coeff(0, m, n) * basis_fun_dthetadphidphi(0, n, phi, m, theta);
+                        dyhatdphidphidtheta += get_coeff(1, m, n) * basis_fun_dthetadphidphi(1, n, phi, m, theta);
+                        dzdphidphidtheta += get_coeff(2, m, n) * basis_fun_dthetadphidphi(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdphidphidtheta * cos(phi) - 2*dxhatdphidtheta * sin(phi) - dxhatdtheta * cos(phi) - dyhatdphidphidtheta * sin(phi) - 2*dyhatdphidtheta * cos(phi) + dyhatdtheta * sin(phi);
+                data(k1, 1) = dxhatdphidphidtheta * sin(phi) + 2*dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) + dyhatdphidphidtheta * cos(phi) - 2*dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi);
+                data(k1, 2) = dzdphidphidtheta;
+            }
+        }
+
+        void gammadash1dash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double dxhatdthetadtheta = 0;
+                double dyhatdthetadtheta = 0;
+                double dxhatdphidthetadtheta = 0;
+                double dyhatdphidthetadtheta = 0;
+                double dzdphidthetadtheta = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        dxhatdthetadtheta += get_coeff(0, m, n) * basis_fun_dthetadtheta(0, n, phi, m, theta);
+                        dyhatdthetadtheta += get_coeff(1, m, n) * basis_fun_dthetadtheta(1, n, phi, m, theta);
+                        dxhatdphidthetadtheta += get_coeff(0, m, n) * basis_fun_dthetadthetadphi(0, n, phi, m, theta);
+                        dyhatdphidthetadtheta += get_coeff(1, m, n) * basis_fun_dthetadthetadphi(1, n, phi, m, theta);
+                        dzdphidthetadtheta += get_coeff(2, m, n) * basis_fun_dthetadthetadphi(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdphidthetadtheta * cos(phi) - dxhatdthetadtheta * sin(phi) - dyhatdphidthetadtheta * sin(phi) - dyhatdthetadtheta * cos(phi);
+                data(k1, 1) = dxhatdphidthetadtheta * sin(phi) + dxhatdthetadtheta * cos(phi) + dyhatdphidthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi);
+                data(k1, 2) = dzdphidthetadtheta;
+            }
+        }
+
+        void gammadash2dash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) override {
+            int numquadpoints_phi = quadpoints_phi.size();
+#pragma omp parallel for
+            for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
+                double phi  = 2*M_PI*quadpoints_phi[k1];
+                double theta  = 2*M_PI*quadpoints_theta[k1];
+                double dxhatdthetadthetadtheta = 0;
+                double dyhatdthetadthetadtheta = 0;
+                double dzdthetadthetadtheta = 0;
+                for (int m = 0; m <= 2*mpol; ++m) {
+                    for (int n = 0; n <= 2*ntor; ++n) {
+                        dxhatdthetadthetadtheta += get_coeff(0, m, n) * basis_fun_dthetadthetadtheta(0, n, phi, m, theta);
+                        dyhatdthetadthetadtheta += get_coeff(1, m, n) * basis_fun_dthetadthetadtheta(1, n, phi, m, theta);
+                        dzdthetadthetadtheta += get_coeff(2, m, n) * basis_fun_dthetadthetadtheta(2, n, phi, m, theta);
+                    }
+                }
+                data(k1, 0) = dxhatdthetadthetadtheta * cos(phi) - dyhatdthetadthetadtheta * sin(phi);
+                data(k1, 1) = dxhatdthetadthetadtheta * sin(phi) + dyhatdthetadthetadtheta * cos(phi);
+                data(k1, 2) = dzdthetadthetadtheta;
+            }
+        }
+
 
         void gammadash1_impl(Array& data) override {
 #pragma omp parallel for
@@ -751,6 +876,11 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             cache_enforcer_dtheta = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
             cache_enforcer_dphidphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
             cache_enforcer_dthetadtheta = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dthetadphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dthetadthetadtheta = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dthetadthetadphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dthetadphidphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
+            cache_enforcer_dphidphidphi = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta});
             for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
                 double phi  = 2*M_PI*quadpoints_phi[k1];
                 for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
@@ -790,6 +920,13 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 return 0;
         }
 
+        inline double bc_enforcer_dphidphidphi_fun(int dim, int n, double phi, int m, double theta){
+            if(apply_bc_enforcer(dim, n, m))
+                return -nfp*nfp*nfp*cos(nfp*phi/2)*sin(nfp*phi/2);
+            else
+                return 0;
+        }
+
         inline double bc_enforcer_dtheta_fun(int dim, int n, double phi, int m, double theta){
             if(apply_bc_enforcer(dim, n, m))
                 return cos(theta/2)*sin(theta/2);
@@ -804,12 +941,22 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 return 0;
         }
 
+        inline double bc_enforcer_dthetadthetadtheta_fun(int dim, int n, double phi, int m, double theta){
+            if(apply_bc_enforcer(dim, n, m))
+                return -(cos(theta/2),2 * sin(theta/2),2);
+            else
+                return 0;
+        }
+
+
+
         inline double basis_fun(int dim, int n, int phiidx, int m, int thetaidx){
             double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
             if(apply_bc_enforcer(dim, n, m))
                 fun *= cache_enforcer(phiidx, thetaidx);
             return fun;
         }
+
 
         inline double basis_fun_dphi(int dim, int n, int phiidx, int m, int thetaidx){
             double fun_dphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
@@ -820,6 +967,16 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
             return fun_dphi;
         }
 
+        inline double basis_fun_dtheta(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun_dtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m)){
+                double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                fun_dtheta = fun_dtheta*cache_enforcer(phiidx, thetaidx) + fun*cache_enforcer_dtheta(phiidx, thetaidx);
+            }
+            return fun_dtheta;
+        }
+
+
         inline double basis_fun_dphidphi(int dim, int n, int phiidx, int m, int thetaidx){
             double fun_dphidphi = cache_basis_fun_phi_dashdash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
             if(apply_bc_enforcer(dim, n, m)){
@@ -829,15 +986,6 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                             +  fun*cache_enforcer_dphidphi(phiidx, thetaidx);
             }
             return fun_dphidphi;
-        }
-
-        inline double basis_fun_dtheta(int dim, int n, int phiidx, int m, int thetaidx){
-            double fun_dtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
-            if(apply_bc_enforcer(dim, n, m)){
-                double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
-                fun_dtheta = fun_dtheta*cache_enforcer(phiidx, thetaidx) + fun*cache_enforcer_dtheta(phiidx, thetaidx);
-            }
-            return fun_dtheta;
         }
 
         inline double basis_fun_dthetadphi(int dim, int n, int phiidx, int m, int thetaidx){
@@ -864,6 +1012,72 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
           return fun_dthetadtheta;
         }
 
+
+        inline double basis_fun_dphidphidphi(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun_dphidphidphi = cache_basis_fun_phi_dashdashdash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m)){
+                double fun_dphidphi = cache_basis_fun_phi_dashdash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                double fun_dphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                fun_dphidphidphi = fun_dphidphidphi*cache_enforcer(phiidx, thetaidx) \
+                             + 3*fun_dphidphi*cache_enforcer_dphi(phiidx, thetaidx) \
+                             + 3*fun_dphi*cache_enforcer_dphidphi(phiidx, thetaidx) \
+                             +  fun*cache_enforcer_dphidphidphi(phiidx, thetaidx);
+            }
+            return fun_dphidphidphi;
+        }
+
+        inline double basis_fun_dthetadphidphi(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun_dthetadphidphi = cache_basis_fun_phi_dashdash(phiidx, n)* cache_basis_fun_theta_dash(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m)){
+                double fun_dphidphi = cache_basis_fun_phi_dashdash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                double fun_dphidtheta = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+                double fun_dphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                double fun_dtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+                fun_dthetadphidphi = fun_dthetadphidphi*cache_enforcer(phiidx, thetaidx) \
+                            +  fun_dphidphi*cache_enforcer_dtheta(phiidx, thetaidx)
+                            +2*fun_dphidtheta*cache_enforcer_dphi(phiidx, thetaidx) \
+                            +2*fun_dphi*cache_enforcer_dthetadphi(phiidx, thetaidx) \
+                            +  fun_dtheta*cache_enforcer_dphidphi(phiidx, thetaidx) \
+                            +  fun*cache_enforcer_dthetadphidphi(phiidx, thetaidx);
+            }
+            return fun_dthetadphidphi;
+        }
+
+        inline double basis_fun_dthetadthetadphi(int dim, int n, int phiidx, int m, int thetaidx){
+            double fun_dthetadthetadphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta_dashdash(thetaidx, m);
+            if(apply_bc_enforcer(dim, n, m)){
+                double fun_dtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+                double fun_dthetadtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dashdash(thetaidx, m);
+                double fun_dphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+                double fun_dthetadphi = cache_basis_fun_phi_dash(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+                fun_dthetadthetadphi = fun_dthetadthetadphi*cache_enforcer(phiidx, thetaidx) \
+                                + fun_dthetadphi*cache_enforcer_dtheta(phiidx, thetaidx) \
+                                + fun_dthetadtheta*cache_enforcer_dphi(phiidx, thetaidx) \
+                                + fun_dtheta*cache_enforcer_dthetadphi(phiidx, thetaidx) \
+                                + fun_dthetadphi*cache_enforcer_dtheta(phiidx, thetaidx) \
+                                + fun_dphi*cache_enforcer_dthetadtheta(phiidx, thetaidx);
+            }
+            return fun_dthetadthetadphi;
+        }
+
+        inline double basis_fun_dthetadthetadtheta(int dim, int n, int phiidx, int m, int thetaidx){
+          double fun_dthetadthetadtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dashdashdash(thetaidx, m);
+          if(apply_bc_enforcer(dim, n, m)){
+              double fun = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta(thetaidx, m);
+              double fun_dtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dash(thetaidx, m);
+              double fun_dthetadtheta = cache_basis_fun_phi(phiidx, n)*cache_basis_fun_theta_dashdash(thetaidx, m);
+              fun_dthetadthetadtheta = fun_dthetadthetadtheta*cache_enforcer(phiidx, thetaidx) \
+                              + 3*fun_dthetadtheta*cache_enforcer_dtheta(phiidx, thetaidx) \
+                              + 3*fun_dtheta*cache_enforcer_dthetadtheta(phiidx, thetaidx) \
+                              + fun*cache_enforcer_dthetadthetadtheta(phiidx, thetaidx);
+          }
+          return fun_dthetadthetadtheta;
+        }
+
+
+        /* Difference call signature ... */
         inline double basis_fun(int dim, int n, double phi, int m, double theta){
             double bc_enforcer = bc_enforcer_fun(dim, n, phi, m, theta);
             return basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer;
@@ -890,6 +1104,15 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                  +    basis_fun_theta(m, theta) * bc_enforcer_dthetadtheta);
         }
 
+        inline double basis_fun_dthetadphi(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
+            return basis_fun_phi_dash(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer \
+                 +  basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer_dphi \
+                 +  basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta;
+        }
+
         inline double basis_fun_dphidphi(int dim, int n, double phi, int m, double theta){
             double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
             double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
@@ -899,7 +1122,29 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                   + basis_fun_phi(n,phi) * bc_enforcer_dphidphi);
         }
 
-        inline double basis_fun_dthetadphi(int dim, int n, double phi, int m, double theta){
+        inline double basis_fun_dphidphidphi(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphidphi = bc_enforcer_dphidphi_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphidphidphi = bc_enforcer_dphidphidphi_fun(dim, n, phi, m, theta);
+            return basis_fun_theta(m, theta) * (basis_fun_phi_dashdashdash(n, phi) * bc_enforcer \
+                  + 3*basis_fun_phi_dashdash(n, phi)*bc_enforcer_dphi \
+                  + 3*basis_fun_phi_dash(n, phi)*bc_enforcer_dphidphi \
+                  + basis_fun_phi(n,phi) * bc_enforcer_dphidphidphi);
+        }
+
+        /* to implement*/
+        inline double basis_fun_dthetadphidphi(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dphidphi = bc_enforcer_dphidphi_fun(dim, n, phi, m, theta);
+            return basis_fun_theta(m, theta) * (basis_fun_phi_dashdash(n, phi) * bc_enforcer \
+                  + 2*basis_fun_phi_dash(n, phi)*bc_enforcer_dphi \
+                  + basis_fun_phi(n,phi) * bc_enforcer_dphidphi);
+        }
+
+        /* to implement*/
+        inline double basis_fun_dthetadthetadphi(int dim, int n, double phi, int m, double theta){
             double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
             double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
             double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
@@ -907,6 +1152,18 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                  +  basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer_dphi \
                  +  basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta;
         }
+
+        /* to implement*/
+        inline double basis_fun_dthetadthetadtheta(int dim, int n, double phi, int m, double theta){
+            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dthetadtheta = bc_enforcer_dthetadtheta_fun(dim, n, phi, m, theta);
+            return basis_fun_phi(n, phi) * (basis_fun_theta_dashdash(m, theta) * bc_enforcer \
+                 + 2* basis_fun_theta_dash(m, theta) * bc_enforcer_dtheta \
+                 +    basis_fun_theta(m, theta) * bc_enforcer_dthetadtheta);
+        }
+
+        
 
         inline double basis_fun_phi(int n, double phi){
             if(n <= ntor)
@@ -929,6 +1186,13 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 return -nfp*(n-ntor)*nfp*(n-ntor)*sin(nfp*(n-ntor)*phi);
         }
 
+        inline double basis_fun_phi_dashdashdash(int n, double phi){
+            if(n <= ntor)
+                return nfp*n*nfp*n*nfp*n*sin(nfp*n*phi);
+            else
+                return -nfp*(n-ntor)*nfp*(n-ntor)*nfp*(n-ntor)*cos(nfp*(n-ntor)*phi);
+        }
+
         inline double basis_fun_theta(int m, double theta){
             if(m <= mpol)
                 return cos(m*theta);
@@ -948,6 +1212,13 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                 return -m*m*cos(m*theta);
             else
                 return -(m-mpol)*(m-mpol)*sin((m-mpol)*theta);
+        }
+
+        inline double basis_fun_theta_dashdashdash(int m, double theta){
+            if(m <= mpol)
+                return m*m*m*sin(m*theta);
+            else
+                return -(m-mpol)*(m-mpol)*(m-mpol)*cos((m-mpol)*theta);
         }
 
         inline bool skip(int dim, int m, int n){

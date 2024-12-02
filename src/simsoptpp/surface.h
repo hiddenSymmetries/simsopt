@@ -109,6 +109,12 @@ class Surface {
         virtual void gammadash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gammadash1dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gammadash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+
+        virtual void gammadash1dash1dash1_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+        virtual void gammadash1dash1dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+        virtual void gammadash1dash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+        virtual void gammadash2dash2dash2_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
+
         virtual void gammadash1_impl(Array& data)  { throw logic_error("gammadash1_impl was not implemented"); };
         virtual void gammadash2_impl(Array& data)  { throw logic_error("gammadash2_impl was not implemented"); };
         virtual void gammadash1dash1_impl(Array& data)  { throw logic_error("gammadash1gammadash1_impl was not implemented"); };
