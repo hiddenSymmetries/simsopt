@@ -290,6 +290,7 @@ class NormalField(Optimizable):
         self.check_mn(m, n)
         ii = self.get_index_in_dofs(m, n)
         self.local_full_x[ii] = value
+        self.recompute_bell()
 
     def get_vnc(self, m, n):
         self.check_mn(m, n)
@@ -306,7 +307,7 @@ class NormalField(Optimizable):
         else:
             ii = self.get_index_in_dofs(m, n, even=True)
             self.local_full_x[ii] = value
-            i,j = self.get_index_in_array(m, n)
+        self.recompute_bell()
         
 
     def check_mn(self, m, n):
@@ -431,7 +432,8 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        vns = self.vns
+        vns = self.vns.copy()
+        vns.flags.writeable = True
 
         return vns[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
     
@@ -449,9 +451,8 @@ class NormalField(Optimizable):
         elif ntor > self.ntor:
             raise ValueError('ntor out of bound')
 
-        vnc = self.vnc
-        if vnc is None:
-            vnc = np.zeros((mpol, 2*ntor+1))
+        vnc = self.vnc.copy()
+        vnc.flags.writeable = True
 
         return vnc[0:mpol, self.ntor-ntor:self.ntor+ntor+1]
     
@@ -473,6 +474,59 @@ class NormalField(Optimizable):
         vnc = self.get_vnc_asarray(mpol, ntor)
         return vns, vnc
     
+    def set_vns_asarray(self, vns, mpol=None, ntor=None):
+        """
+        Set the vns from a single array
+        """
+        if mpol is None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor is None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+        
+        for i in range(mpol):
+            for j in range(-ntor, ntor+1):
+                self.set_vns(i, j, vns[i, self.ntor+j])
+
+    def set_vnc_asarray(self, vnc, mpol=None, ntor=None):
+        """
+        Set the vnc from a single array
+        """
+        if mpol is None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor is None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        for i in range(mpol):
+            for j in range(-ntor, ntor+1):
+                self.set_vnc(i, j, vnc[i, self.ntor+j])
+
+    def set_vns_vnc_asarray(self, vns, vnc, mpol=None, ntor=None):
+        """
+        Set the vns and vnc from two single arrays
+        """
+        if mpol is None:
+            mpol = self.mpol
+        elif mpol > self.mpol:
+            raise ValueError('mpol out of bound')
+
+        if ntor is None: 
+            ntor = self.ntor
+        elif ntor > self.ntor:
+            raise ValueError('ntor out of bound')
+
+        self.set_vns_asarray(vns, mpol, ntor)
+        self.set_vnc_asarray(vnc, mpol, ntor)
+
     def get_real_space_field(self):
         """
         Fourier transform the field and get the real-space values of the normal component of the externally

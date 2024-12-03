@@ -769,18 +769,19 @@ class Spec(Optimizable):
                 - 'helicity'
         """
         profile_dict = {
-            'pressure': {'specname': 'pressure', 'cumulative': False, 'length': self.nvol},
-            'volume_current': {'specname': 'ivolume', 'cumulative': True, 'length': self.nvol},
-            'interface_current': {'specname': 'isurf', 'cumulative': False, 'length': self.nvol-1},
-            'helicity': {'specname': 'helicity', 'cumulative': False, 'length': self.mvol},
-            'iota': {'specname': 'iota', 'cumulative': False, 'length': self.mvol},
-            'oita': {'specname': 'oita', 'cumulative': False, 'length': self.mvol},
-            'mu': {'specname': 'mu', 'cumulative': False, 'length': self.mvol},
-            'pflux': {'specname': 'pflux', 'cumulative': True, 'length': self.mvol},
-            'tflux': {'specname': 'tflux', 'cumulative': True, 'length': self.mvol}
+            'pressure': {'specname': 'pressure', 'cumulative': False, 'length': self.nvol, 'start_index':0},
+            'volume_current': {'specname': 'ivolume', 'cumulative': True, 'length': self.mvol-1, 'start_index':1},
+            'interface_current': {'specname': 'isurf', 'cumulative': False, 'length': self.nvol-1, 'start_index':0},
+            'helicity': {'specname': 'helicity', 'cumulative': False, 'length': self.mvol, 'start_index':0},
+            'iota': {'specname': 'iota', 'cumulative': False, 'length': self.nvol+1, 'start_index':0},
+            'oita': {'specname': 'oita', 'cumulative': False, 'length': self.nvol+1, 'start_index':0},
+            'mu': {'specname': 'mu', 'cumulative': False, 'length': self.nvol, 'start_index':0},
+            'pflux': {'specname': 'pflux', 'cumulative': True, 'length': self.mvol, 'start_index':0},
+            'tflux': {'specname': 'tflux', 'cumulative': True, 'length': self.mvol, 'start_index':0},
         }
-
-        profile_data = self.inputlist.__getattribute__(profile_dict[longname]['specname'])[0:profile_dict[longname]['length']]
+        istart = profile_dict[longname]['start_index']
+        iend = profile_dict[longname]['start_index'] + profile_dict[longname]['length']
+        profile_data = self.inputlist.__getattribute__(profile_dict[longname]['specname'])[istart:iend]
         profile = ProfileSpec(profile_data, cumulative=profile_dict[longname]['cumulative'], psi_edge=self.inputlist.phiedge)
         profile.unfix_all()
         self.__setattr__(longname + '_profile', profile)
@@ -804,7 +805,7 @@ class Spec(Optimizable):
             lvol: integer, from 0 to Mvol-1
             value: real, new value
         """
-        profile = self.__getattribute__(longname + "_profile")
+        profile : ProfileSpec = self.__getattribute__(longname + "_profile")
         if profile is None:
             return
 
@@ -814,7 +815,7 @@ class Spec(Optimizable):
             old_value = profile.f(lvol)
 
             profile.set(lvol, value)
-            for ivol in range(lvol + 1, self.mvol):
+            for ivol in range(lvol + 1, profile.local_full_x.size):
                 profile.set(ivol, profile.f(ivol) - old_value + value)
         else:
             profile.set(lvol, value)
@@ -840,7 +841,7 @@ class Spec(Optimizable):
             np.array of length lvol, with the profiles values.
         """
 
-        profile = self.__getattribute__(longname + "_profile")
+        profile : ProfileSpec = self.__getattribute__(longname + "_profile")
         if profile is None:
             return
 

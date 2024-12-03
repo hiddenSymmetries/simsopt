@@ -94,7 +94,8 @@ class ProfileSpec(Profile):
         if (lvol < 0).any():
             raise ValueError('lvol should be larger or equal than zero')
         if (lvol >= self.local_full_x.size).any():
-            raise ValueError('lvol should be smaller than Mvol')
+            raise ValueError('lvol out of bounds for the size of this profile. \
+                             Attempted to access index {} of {}'.format(lvol, self.local_full_x.size)) 
 
         # Return value
         return self.local_full_x[lvol]
