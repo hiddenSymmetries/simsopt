@@ -109,7 +109,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         # FIXED PARAMETERS
         ARCLENGTH_WEIGHT        = 0.01
         UUID_init_from          = None  # not starting from prev. optimization
-        order                   = 4  # 16 is very high!!!
+        order                   = 16  # 16 is very high!!!
 
         # RANDOM PARAMETERS
         R1                      = rand(0.35, 0.75)
@@ -132,7 +132,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
             FORCE_WEIGHT        = 0
 
         # RUNNING THE JOBS
-        res, coils = optimization(
+        optimization(
             OUTPUT_DIR,
             INPUT_FILE,
             R1,
@@ -217,7 +217,7 @@ def initial_optimizations_QH(N=10000, with_force=True, MAXITER=14000,
 
 
 def optimization(
-        OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
+        OUTPUT_DIR="./output/QA/with-force-penalty/2/optimizations/",
         INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
         R1 = 0.5,
         order = 5,
@@ -251,18 +251,18 @@ def optimization(
 
     # Create a copy of the surface that is closed in theta and phi, and covers the
     # full torus toroidally. This is nice for visualization.
-    nphi_big = nphi * 2 * nfp + 1
-    ntheta_big = ntheta + 1
-    quadpoints_theta = np.linspace(0, 1, ntheta_big)
-    quadpoints_phi = np.linspace(0, 1, nphi_big)
-    surf_big = SurfaceRZFourier(
-        dofs=s.dofs,
-        nfp=nfp,
-        mpol=s.mpol,
-        ntor=s.ntor,
-        quadpoints_phi=quadpoints_phi,
-        quadpoints_theta=quadpoints_theta,
-    )
+    # nphi_big = nphi * 2 * nfp + 1
+    # ntheta_big = ntheta + 1
+    # quadpoints_theta = np.linspace(0, 1, ntheta_big)
+    # quadpoints_phi = np.linspace(0, 1, nphi_big)
+    # surf_big = SurfaceRZFourier(
+    #     dofs=s.dofs,
+    #     nfp=nfp,
+    #     mpol=s.mpol,
+    #     ntor=s.ntor,
+    #     quadpoints_phi=quadpoints_phi,
+    #     quadpoints_theta=quadpoints_theta,
+    # )
 
     def initial_base_curves(R0, R1, order, ncoils):
         return create_equally_spaced_curves(
@@ -340,10 +340,11 @@ def optimization(
         JF.x = dofs
         J = JF.J()
         grad = JF.dJ()
+        # print(J)
         return J, grad
     
     res = minimize(fun, JF.x, jac=True, method='L-BFGS-B', 
-                   options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+                   options={'maxiter': MAXITER, 'maxcor': 200}, tol=1e-15)
     JF.x = res.x
 
     ###########################################################################
@@ -358,23 +359,23 @@ def optimization(
 
     # EXPORT VTKS
 
-    forces = []
-    for c in coils:
-        force = np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)
-        force = np.append(force, force[0])
-        forces = np.concatenate([forces, force])
-    pointData_forces = {"F": forces}
-    curves_to_vtk(curves, OUTPUT_DIR + "curves_opt", close=True, extra_point_data=pointData_forces)
+    # forces = []
+    # for c in coils:
+    #     force = np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)
+    #     force = np.append(force, force[0])
+    #     forces = np.concatenate([forces, force])
+    # pointData_forces = {"F": forces}
+    # curves_to_vtk(curves, OUTPUT_DIR + "curves_opt", close=True, extra_point_data=pointData_forces)
 
-    bs_big = BiotSavart(coils)
-    bs_big.set_points(surf_big.gamma().reshape((-1, 3)))
-    pointData = {
-        "B_N": np.sum(
-            bs_big.B().reshape((nphi_big, ntheta_big, 3)) * surf_big.unitnormal(),
-            axis=2,
-        )[:, :, None]
-    }
-    surf_big.to_vtk(OUTPUT_DIR + "surf_opt", extra_data=pointData)
+    # bs_big = BiotSavart(coils)
+    # bs_big.set_points(surf_big.gamma().reshape((-1, 3)))
+    # pointData = {
+    #     "B_N": np.sum(
+    #         bs_big.B().reshape((nphi_big, ntheta_big, 3)) * surf_big.unitnormal(),
+    #         axis=2,
+    #     )[:, :, None]
+    # }
+    # surf_big.to_vtk(OUTPUT_DIR + "surf_opt", extra_data=pointData)
 
 
     # SAVE DATA TO JSON
@@ -455,8 +456,8 @@ def optimization(
     with open(OUTPUT_DIR + "results.json", "w") as outfile:
         json.dump(results , outfile, indent=2)
     bs.save(OUTPUT_DIR + f"biot_savart.json")  # save the optimized coil shapes and currents
-
-    return res, base_coils
+    print(time.perf_counter() - start_time)
+    # return res, base_coils
     
 
 def rand(min, max):

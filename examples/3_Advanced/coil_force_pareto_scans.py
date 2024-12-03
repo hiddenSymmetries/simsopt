@@ -10,7 +10,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import os
 
-initial_optimizations(N=1000, with_force=True, MAXITER=400)
+initial_optimizations(N=10000, with_force=True, MAXITER=2000)
 
 # df, df_filtered, df_pareto = get_dfs()
 # success_plt(df, df_filtered).show()

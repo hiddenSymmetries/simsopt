@@ -42,16 +42,16 @@ order = 5
 # Weight on the curve lengths in the objective function. We use the `Weight`
 # class here to later easily adjust the scalar value and rerun the optimization
 # without having to rebuild the objective.
-LENGTH_WEIGHT = Weight(1e-3)
-LENGTH_TARGET = 17.4
+LENGTH_WEIGHT = Weight(1e-1)
+LENGTH_TARGET = 15.0
 
 # Threshold and weight for the coil-to-coil distance penalty in the objective function:
 CC_THRESHOLD = 0.1
-CC_WEIGHT = 1000
+CC_WEIGHT = 1e3
 
 # Threshold and weight for the coil-to-surface distance penalty in the objective function:
 CS_THRESHOLD = 0.3
-CS_WEIGHT = 10
+CS_WEIGHT = 1e2
 
 # Threshold and weight for the curvature penalty in the objective function:
 CURVATURE_THRESHOLD = 5.
@@ -95,8 +95,10 @@ s_plot = SurfaceRZFourier.from_vmec_input(
 )
 
 # Create the initial coils:
+# base_curves = create_equally_spaced_curves(
+#     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
 base_curves = create_equally_spaced_curves(
-    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=False)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -148,7 +150,7 @@ Jccdist = CurveCurveDistance(curves, CC_THRESHOLD, num_basecurves=ncoils)
 Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
-Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET, "max")
+Jlength = QuadraticPenalty(sum(Jls), LENGTH_TARGET)
 
 if sys.argv[1] == 'SquaredMeanForce':
     Jforce = [SquaredMeanForce(c, coils) for c in base_coils]
