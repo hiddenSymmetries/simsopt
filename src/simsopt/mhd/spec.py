@@ -372,6 +372,9 @@ class Spec(Optimizable):
         Returns:
             SurfaceRZFourier instance representing the plasma boundary
         """
+        # Freeboundary spec updates the boundary surface, so we need to run SPEC again
+        if self.freebound:
+            self.run()
         return self._boundary
 
     @boundary.setter
@@ -952,11 +955,11 @@ class Spec(Optimizable):
 
         # nfp must be consistent between the surface and SPEC. The surface's
         # value trumps.
-        si.nfp = self.boundary.nfp
-        si.istellsym = int(self.boundary.stellsym)
+        si.nfp = self._boundary.nfp
+        si.istellsym = int(self._boundary.stellsym)
 
         # Convert boundary to RZFourier if needed:
-        boundary_RZFourier = self.boundary.to_RZFourier()
+        boundary_RZFourier = self._boundary.to_RZFourier()
 
         # Transfer boundary data to fortran:
         si.rbc[:, :] = self.array_translator(boundary_RZFourier.rc, style='simsopt').as_spec
@@ -1341,6 +1344,7 @@ class Spec(Optimizable):
             self._array = np.zeros((2*self._mntor+1, 2*self._mmpol+1))
             self._array[n_start:n_end, m_start:m_end] = array.transpose()
 
+    return_fn_map = {'iota': iota, 'volume': volume}
 
 class Residue(Optimizable):
     """
@@ -1395,10 +1399,9 @@ class Residue(Optimizable):
 
     def J(self):
         """
-        Run Spec if needed, find the periodic field line, and return the residue
+        Run Spec, find the periodic field line, and return the residue
         """
-        if self.need_to_run_code:
-            self.spec.run()
+        self.spec.run()
         
         if not self.mpi.proc0_groups:
             logger.debug(
@@ -1424,3 +1427,5 @@ class Residue(Optimizable):
         logger.info(f"group {self.mpi.group} found residue {self.fixed_point.GreenesResidue} for {self.pp}/{self.qq} in {self.spec.allglobal.ext}")
 
         return self.fixed_point.GreenesResidue
+
+    return_fn_map = {'J': J}
