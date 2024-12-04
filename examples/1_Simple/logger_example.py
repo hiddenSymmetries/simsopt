@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-from simsopt.util.log import initialize_logging
+from simsopt.util import initialize_logging
 
 """
 Example file for transparently logging both MPI and serial jobs
@@ -24,7 +24,7 @@ except:
 
 if comm is not None:
     initialize_logging(mpi=True, filename='mpi.log')
-    for i in range(2):
+    for i in range(5):
         logging.warning("Hello (times %i) from mpi job" % (i+1))
 print("End of 1_Simple/logger_example.py")
 print("==================================")

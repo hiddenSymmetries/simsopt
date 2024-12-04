@@ -17,3 +17,4 @@ echo MPI_OPTIONS=$MPI_OPTIONS
 mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_fieldlines_NCSX.py
 mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_fieldlines_QA.py
 mpiexec $MPI_OPTIONS -n 2 ./1_Simple/tracing_particle.py
+mpiexec $MPI_OPTIONS -n 2 ./1_Simple/logger_example.py
