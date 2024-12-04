@@ -24,7 +24,7 @@ except:
 
 if comm is not None:
     initialize_logging(mpi=True, filename='mpi.log')
-    for i in range(5):
+    for i in range(2):
         logging.warning("Hello (times %i) from mpi job" % (i+1))
 print("End of 1_Simple/logger_example.py")
 print("==================================")
