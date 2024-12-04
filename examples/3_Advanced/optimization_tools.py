@@ -20,8 +20,13 @@ from simsopt.geo import (
     SurfaceRZFourier, 
     LinkingNumber)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
-from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
+from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
+    LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
 from simsopt.field.selffield import regularization_circ
+import cProfile
+import re
+import pstats, io
+from pstats import SortKey
 
 
 def continuation(N=10000, dx=0.05, 
@@ -127,11 +132,14 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         CC_WEIGHT               = 10.0 ** rand(2, 5)
 
         if with_force:
-            FORCE_WEIGHT        = 10.0 ** rand(-14, -9)
+            FORCE_WEIGHT        = 10.0 ** rand(-14, -5)
         else:
             FORCE_WEIGHT        = 0
 
         # RUNNING THE JOBS
+
+        # pr = cProfile.Profile() 
+        # pr.enable()
         optimization(
             OUTPUT_DIR,
             INPUT_FILE,
@@ -153,7 +161,14 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
             FORCE_WEIGHT,
             FORCE_OBJ,
             ARCLENGTH_WEIGHT,
+            with_force=with_force,
             MAXITER=MAXITER)
+        # pr.disable()
+        # sio = io.StringIO()
+        # sortby = SortKey.CUMULATIVE
+        # ps = pstats.Stats(pr, stream=sio).sort_stats(sortby)
+        # ps.print_stats(20)
+        # print(sio.getvalue())
         
         print(f"Job {i+1} completed")
 
@@ -238,6 +253,7 @@ def optimization(
         FORCE_OBJ=LpCurveForce,
         ARCLENGTH_WEIGHT=1e-2,
         dx=None,
+        with_force=True,
         MAXITER=14000):
     """Performs a stage II force optimization based on specified criteria. """
     start_time = time.perf_counter()
@@ -317,9 +333,9 @@ def optimization(
     Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
     try:
-        Jforce = [FORCE_OBJ(c, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD) for c in base_coils]
+        Jforce = [FORCE_OBJ(c, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD, downsample=1) for c in base_coils]
     except:
-        Jforce = [FORCE_OBJ(c, coils) for c in base_coils]
+        Jforce = [FORCE_OBJ(c, coils, downsample=1) for c in base_coils]
 
     Jals = [ArclengthVariation(c) for c in base_curves]
 
@@ -330,8 +346,10 @@ def optimization(
         + CS_WEIGHT * Jcsdist \
         + CURVATURE_WEIGHT * sum(Jcs) \
         + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-        + FORCE_WEIGHT * sum(Jforce) \
         + ARCLENGTH_WEIGHT * sum(Jals)
+    
+    if with_force:
+        JF += FORCE_WEIGHT * sum(Jforce)
     
     ###########################################################################
     ## PERFORM OPTIMIZATION ###################################################
@@ -458,6 +476,14 @@ def optimization(
     bs.save(OUTPUT_DIR + f"biot_savart.json")  # save the optimized coil shapes and currents
     print(time.perf_counter() - start_time)
     # return res, base_coils
+
+    JF._children = set()
+    Jf._children = set()
+    bs._children = set()
+    for c in coils:
+        c._children = set()
+        c.curve._children = set()
+        c.current._children = set()
     
 
 def rand(min, max):

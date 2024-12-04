@@ -1127,7 +1127,6 @@ def create_planar_curves_between_two_toroidal_surfaces(
     else:
         curves = [CurvePlanarFourier(nquad, order, nfp=1, stellsym=False) for i in range(ncoils)]
     for ic in range(ncoils):
-        counter = 0
         alpha2 = np.pi / 2.0
         delta2 = 0.0
         calpha2 = np.cos(alpha2)
@@ -1135,20 +1134,18 @@ def create_planar_curves_between_two_toroidal_surfaces(
         cdelta2 = np.cos(delta2)
         sdelta2 = np.sin(delta2)
         dofs = np.zeros(2 * order + 8)
-        dofs[counter] = R
+        dofs[0] = R
+        for j in range(1, 2 * order + 1):
+            dofs[j] = 0.0
         # Conversion from Euler angles in 3-2-1 body sequence to 
         # quaternions: 
         # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        if order >= 1:
-            counter = 3
-        else: 
-            counter += 1
-        dofs[counter] = calpha2 * cdelta2
-        dofs[counter + 1] = salpha2 * cdelta2
-        dofs[counter + 2] = calpha2 * sdelta2
-        dofs[counter + 3] = -salpha2 * sdelta2
+        dofs[2 * order + 1] = calpha2 * cdelta2
+        dofs[2 * order + 2] = salpha2 * cdelta2
+        dofs[2 * order + 3] = calpha2 * sdelta2
+        dofs[2 * order + 4] = -salpha2 * sdelta2
         # Now specify the center 
-        dofs[counter + 4:counter + 7] = grid_xyz[ic, :]
+        dofs[2 * order + 5:2 * order + 8] = grid_xyz[ic, :]
         if jax_flag:
             curves[ic].set_dofs(dofs)
         else:
