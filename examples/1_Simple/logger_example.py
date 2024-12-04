@@ -2,7 +2,6 @@
 
 import logging
 from simsopt.util import initialize_logging
-import simsopt.util.mpi_logger
 
 """
 Example file for transparently logging both MPI and serial jobs
