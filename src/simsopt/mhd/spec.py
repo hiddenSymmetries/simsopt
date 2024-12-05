@@ -920,6 +920,34 @@ class Spec(Optimizable):
         spec.preset()
         logger.debug("Done with init")
 
+    @staticmethod
+    def pyspec_to_simsopt_surf(results, lvol: int )->SurfaceRZFourier:
+        """
+        Convert a flux surface from the output of a py_spec SPECOut object to a SurfaceRZFourier object for simsopt.
+
+        Args:
+            results : SPECOut
+                The output of a py_spec SPECOut object.
+            lvol : int
+                The index of the volume to convert (0 is the first volume).
+        """
+        mpol =     results.input.physics.Mpol
+        ntor =     results.input.physics.Ntor
+        nfp =      results.input.physics.Nfp
+        stellsym = results.input.physics.Istellsym
+
+        surf = SurfaceRZFourier(nfp=nfp, stellsym=stellsym, mpol=mpol, ntor=ntor)
+
+        for ii, (mm, nn) in enumerate(zip(results.output.im, results.output.in_)):
+            nnorm = (nn / nfp).astype('int')  # results.output.in_ is fourier number for 1 field period for reasons...
+            surf.set_rc(mm, nnorm, results.output.Rbc[lvol+1, ii])
+            surf.set_zs(mm, nnorm, results.output.Zbs[lvol+1, ii])
+
+            if not stellsym:
+                surf.set_rs(mm, nnorm, results.output.Rbs[lvol+1, ii])
+                surf.set_zc(mm, nnorm, results.output.Zbc[lvol+1, ii])
+        return surf
+
     def run(self, update_guess: bool = True):
         """
         Run SPEC, if needed.
@@ -1192,18 +1220,8 @@ class Spec(Optimizable):
             new_guess = None
             if self.mvol > 1:
                 new_guess = [
-                    SurfaceRZFourier(nfp=si.nfp, stellsym=si.istellsym, mpol=si.mpol, ntor=si.ntor) for n in range(0, self.nvol)
+                    Spec.pyspec_to_simsopt_surf(self.results, lvol=n) for n in range(0, self.nvol)
                 ]
-
-                for ii, (mm, nn) in enumerate(zip(self.results.output.im, self.results.output.in_)):
-                    nnorm = (nn / si.nfp).astype('int')  # results.output.in_ is fourier number for 1 field period for reasons...
-                    for lvol in range(0, self.nvol):
-                        new_guess[lvol].set_rc(mm, nnorm, self.results.output.Rbc[lvol+1, ii])
-                        new_guess[lvol].set_zs(mm, nnorm, self.results.output.Zbs[lvol+1, ii])
-
-                        if not si.istellsym:
-                            new_guess[lvol].set_rs(mm, nnorm, self.results.output.Rbs[lvol+1, ii])
-                            new_guess[lvol].set_zc(mm, nnorm, self.results.output.Zbc[lvol+1, ii])
 
                 axis = {}
                 axis['rac'] = self.results.output.Rbc[0, 0:si.ntor+1]
