@@ -193,9 +193,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdphi += get_coeff(2, m, n) * basis_fun_dphi(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdphi * cos(phi) - xhat * sin(phi) - dyhatdphi * sin(phi) - yhat * cos(phi);
-                data(k1, 1) = dxhatdphi * sin(phi) + xhat * cos(phi) + dyhatdphi * cos(phi) - yhat * sin(phi);
-                data(k1, 2) = dzdphi;
+                data(k1, 0) = 2*M_PI*(dxhatdphi * cos(phi) - xhat * sin(phi) - dyhatdphi * sin(phi) - yhat * cos(phi));
+                data(k1, 1) = 2*M_PI*(dxhatdphi * sin(phi) + xhat * cos(phi) + dyhatdphi * cos(phi) - yhat * sin(phi));
+                data(k1, 2) = 2*M_PI*dzdphi;
             }
         }
         
@@ -215,9 +215,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdtheta += get_coeff(2, m, n) * basis_fun_dtheta(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdtheta * cos(phi) - dyhatdtheta * sin(phi);
-                data(k1, 1) = dxhatdtheta * sin(phi) + dyhatdtheta * cos(phi);
-                data(k1, 2) = dzdtheta;
+                data(k1, 0) = 2*M_PI*(dxhatdtheta * cos(phi) - dyhatdtheta * sin(phi));
+                data(k1, 1) = 2*M_PI*(dxhatdtheta * sin(phi) + dyhatdtheta * cos(phi));
+                data(k1, 2) = 2*M_PI*dzdtheta;
             }
         }
 
@@ -246,9 +246,11 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdphidphi += get_coeff(2, m, n) * basis_fun_dphidphi(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdphidphi * cos(phi) - 2*dxhatdphi * sin(phi) - xhat * cos(phi) - dyhatdphidphi * sin(phi) - 2*dyhatdphi * cos(phi) + yhat * sin(phi);
-                data(k1, 1) = dxhatdphidphi * sin(phi) + 2*dxhatdphi * cos(phi) - xhat * sin(phi) + dyhatdphidphi * cos(phi) - 2*dyhatdphi * sin(phi) - yhat * cos(phi);
-                data(k1, 2) = dzdphidphi;
+                data(k1, 0) = pow(2*M_PI,2)*(dxhatdphidphi * cos(phi) - 2*dxhatdphi * sin(phi) - xhat * cos(phi) - dyhatdphidphi * sin(phi) - 2*dyhatdphi * cos(phi) + yhat * sin(phi));
+
+                data(k1, 1) = pow(2*M_PI,2)*(dxhatdphidphi * sin(phi) + 2*dxhatdphi * cos(phi) - xhat * sin(phi) + dyhatdphidphi * cos(phi) - 2*dyhatdphi * sin(phi) - yhat * cos(phi));
+
+                data(k1, 2) = 2*M_PI*2*M_PI*dzdphidphi;
             }
         }
 
@@ -272,9 +274,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdphidtheta += get_coeff(2, m, n) * basis_fun_dthetadphi(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) - dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi);
-                data(k1, 1) = dxhatdphidtheta * sin(phi) + dxhatdtheta * cos(phi) + dyhatdphidtheta * cos(phi) - dyhatdtheta * sin(phi);
-                data(k1, 2) = dzdphidtheta;
+                data(k1, 0) = pow(2*M_PI,2)*(dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) - dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi));
+                data(k1, 1) = pow(2*M_PI,2)*(dxhatdphidtheta * sin(phi) + dxhatdtheta * cos(phi) + dyhatdphidtheta * cos(phi) - dyhatdtheta * sin(phi));
+                data(k1, 2) = pow(2*M_PI,2)*dzdphidtheta;
             }
         }
 
@@ -294,9 +296,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdthetadtheta += get_coeff(2, m, n) * basis_fun_dthetadtheta(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi);
-                data(k1, 1) = dxhatdthetadtheta * sin(phi) + dyhatdthetadtheta * cos(phi);
-                data(k1, 2) = dzdthetadtheta;
+                data(k1, 0) = pow(2*M_PI,2)*(dxhatdthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi));
+                data(k1, 1) = pow(2*M_PI,2)*(dxhatdthetadtheta * sin(phi) + dyhatdthetadtheta * cos(phi));
+                data(k1, 2) = pow(2*M_PI,2)*dzdthetadtheta;
             }
         }
 
@@ -331,9 +333,11 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdphidphidphi += get_coeff(2, m, n) * basis_fun_dphidphidphi(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdphidphidphi * cos(phi) - 3*dxhatdphidphi * sin(phi) - 3*dxhatdphi * cos(phi) + xhat*sin(phi) - dyhatdphidphidphi * sin(phi) - 3*dyhatdphi * cos(phi) + 3*dyhatdphi * sin(phi) + yhat*cos(phi);
-                data(k1, 1) = dxhatdphidphidphi * sin(phi) + 3*dxhatdphidphi * cos(phi) - 3*dxhatdphi * sin(phi) + xhat*cos(phi) + dyhatdphidphidphi * cos(phi) - 3*dyhatdphidphi * sin(phi) - 3*dyhatdphi * cos(phi) + yhat*sin(phi);
-                data(k1, 2) = dzdphidphidphi;
+                data(k1, 0) = pow(2*M_PI,3)*(dxhatdphidphidphi * cos(phi) - 3*dxhatdphidphi * sin(phi) - 3*dxhatdphi * cos(phi) + xhat*sin(phi) - dyhatdphidphidphi * sin(phi) - 3*dyhatdphidphi * cos(phi) + 3*dyhatdphi * sin(phi) + yhat*cos(phi));
+
+                data(k1, 1) = pow(2*M_PI,3)*(dxhatdphidphidphi * sin(phi) + 3*dxhatdphidphi * cos(phi) - 3*dxhatdphi * sin(phi) - xhat*cos(phi) + dyhatdphidphidphi * cos(phi) - 3*dyhatdphidphi * sin(phi) - 3*dyhatdphi * cos(phi) + yhat*sin(phi));
+
+                data(k1, 2) = pow(2*M_PI,3)*dzdphidphidphi;
             }
         }
         
@@ -361,9 +365,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdphidphidtheta += get_coeff(2, m, n) * basis_fun_dthetadphidphi(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdphidphidtheta * cos(phi) - 2*dxhatdphidtheta * sin(phi) - dxhatdtheta * cos(phi) - dyhatdphidphidtheta * sin(phi) - 2*dyhatdphidtheta * cos(phi) + dyhatdtheta * sin(phi);
-                data(k1, 1) = dxhatdphidphidtheta * sin(phi) + 2*dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) + dyhatdphidphidtheta * cos(phi) - 2*dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi);
-                data(k1, 2) = dzdphidphidtheta;
+                data(k1, 0) = pow(2*M_PI,3)*(dxhatdphidphidtheta * cos(phi) - 2*dxhatdphidtheta * sin(phi) - dxhatdtheta * cos(phi) - dyhatdphidphidtheta * sin(phi) - 2*dyhatdphidtheta * cos(phi) + dyhatdtheta * sin(phi));
+                data(k1, 1) = pow(2*M_PI,3)*(dxhatdphidphidtheta * sin(phi) + 2*dxhatdphidtheta * cos(phi) - dxhatdtheta * sin(phi) + dyhatdphidphidtheta * cos(phi) - 2*dyhatdphidtheta * sin(phi) - dyhatdtheta * cos(phi));
+                data(k1, 2) = pow(2*M_PI,3)*dzdphidphidtheta;
             }
         }
 
@@ -387,9 +391,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdphidthetadtheta += get_coeff(2, m, n) * basis_fun_dthetadthetadphi(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdphidthetadtheta * cos(phi) - dxhatdthetadtheta * sin(phi) - dyhatdphidthetadtheta * sin(phi) - dyhatdthetadtheta * cos(phi);
-                data(k1, 1) = dxhatdphidthetadtheta * sin(phi) + dxhatdthetadtheta * cos(phi) + dyhatdphidthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi);
-                data(k1, 2) = dzdphidthetadtheta;
+                data(k1, 0) = pow(2*M_PI,3)*(dxhatdphidthetadtheta * cos(phi) - dxhatdthetadtheta * sin(phi) - dyhatdphidthetadtheta * sin(phi) - dyhatdthetadtheta * cos(phi));
+                data(k1, 1) = pow(2*M_PI,3)*(dxhatdphidthetadtheta * sin(phi) + dxhatdthetadtheta * cos(phi) + dyhatdphidthetadtheta * cos(phi) - dyhatdthetadtheta * sin(phi));
+                data(k1, 2) = pow(2*M_PI,3)*dzdphidthetadtheta;
             }
         }
 
@@ -409,9 +413,9 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                         dzdthetadthetadtheta += get_coeff(2, m, n) * basis_fun_dthetadthetadtheta(2, n, phi, m, theta);
                     }
                 }
-                data(k1, 0) = dxhatdthetadthetadtheta * cos(phi) - dyhatdthetadthetadtheta * sin(phi);
-                data(k1, 1) = dxhatdthetadthetadtheta * sin(phi) + dyhatdthetadthetadtheta * cos(phi);
-                data(k1, 2) = dzdthetadthetadtheta;
+                data(k1, 0) = pow(2*M_PI,3)*(dxhatdthetadthetadtheta * cos(phi) - dyhatdthetadthetadtheta * sin(phi));
+                data(k1, 1) = pow(2*M_PI,3)*(dxhatdthetadthetadtheta * sin(phi) + dyhatdthetadthetadtheta * cos(phi));
+                data(k1, 2) = pow(2*M_PI,3)*dzdthetadthetadtheta;
             }
         }
 
@@ -1090,7 +1094,7 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
         }
 
         inline double basis_fun_dtheta(int dim, int n, double phi, int m, double theta){
-            double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
+            double bc_enforcer =  bc_enforcer_fun(dim , n, phi, m, theta);
             double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
             return basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer + basis_fun_phi(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta;
         }
@@ -1133,34 +1137,38 @@ class SurfaceXYZTensorFourier : public Surface<Array> {
                   + basis_fun_phi(n,phi) * bc_enforcer_dphidphidphi);
         }
 
-        /* to implement*/
         inline double basis_fun_dthetadphidphi(int dim, int n, double phi, int m, double theta){
             double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
             double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
             double bc_enforcer_dphidphi = bc_enforcer_dphidphi_fun(dim, n, phi, m, theta);
-            return basis_fun_theta(m, theta) * (basis_fun_phi_dashdash(n, phi) * bc_enforcer \
-                  + 2*basis_fun_phi_dash(n, phi)*bc_enforcer_dphi \
-                  + basis_fun_phi(n,phi) * bc_enforcer_dphidphi);
+            double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
+            return basis_fun_phi_dashdash(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer \
+                 + 2 * basis_fun_phi_dash(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer_dphi \
+                 + basis_fun_phi_dashdash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta \
+                 + basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer_dphidphi;
         }
 
         /* to implement*/
         inline double basis_fun_dthetadthetadphi(int dim, int n, double phi, int m, double theta){
             double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
             double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
+            double bc_enforcer_dthetadtheta = bc_enforcer_dthetadtheta_fun(dim, n, phi, m, theta);
             double bc_enforcer_dphi = bc_enforcer_dphi_fun(dim, n, phi, m, theta);
-            return basis_fun_phi_dash(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer \
-                 +  basis_fun_phi(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer_dphi \
-                 +  basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dtheta;
+            return basis_fun_phi_dash(n, phi) * basis_fun_theta_dashdash(m, theta) * bc_enforcer \
+                 + 2 * basis_fun_phi_dash(n, phi) * basis_fun_theta_dash(m, theta) * bc_enforcer_dtheta \
+                 + basis_fun_phi_dash(n, phi) * basis_fun_theta(m, theta) * bc_enforcer_dthetadtheta \
+                 + basis_fun_phi(n, phi) * basis_fun_theta_dashdash(m, theta) * bc_enforcer_dphi;
         }
 
-        /* to implement*/
         inline double basis_fun_dthetadthetadtheta(int dim, int n, double phi, int m, double theta){
             double bc_enforcer =  bc_enforcer_fun(dim, n, phi, m, theta);
             double bc_enforcer_dtheta = bc_enforcer_dtheta_fun(dim, n, phi, m, theta);
             double bc_enforcer_dthetadtheta = bc_enforcer_dthetadtheta_fun(dim, n, phi, m, theta);
-            return basis_fun_phi(n, phi) * (basis_fun_theta_dashdash(m, theta) * bc_enforcer \
-                 + 2* basis_fun_theta_dash(m, theta) * bc_enforcer_dtheta \
-                 +    basis_fun_theta(m, theta) * bc_enforcer_dthetadtheta);
+            double bc_enforcer_dthetadthetadtheta = bc_enforcer_dthetadthetadtheta_fun(dim, n, phi, m, theta);
+            return basis_fun_phi(n, phi) * (basis_fun_theta_dashdashdash(m, theta) * bc_enforcer \
+                 + 3* basis_fun_theta_dashdash(m, theta) * bc_enforcer_dtheta \
+                 + 3* basis_fun_theta_dash(m, theta) * bc_enforcer_dthetadtheta \
+                 +    basis_fun_theta(m, theta) * bc_enforcer_dthetadthetadtheta);
         }
 
         

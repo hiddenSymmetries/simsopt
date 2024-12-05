@@ -996,7 +996,6 @@ def gamma_2d(modes, qpts, order, G:int=0, H:int=0):
 
 
 def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp, stellsym=True):
-#def gamma_curve_on_surface(curve_dofs, qpts, order, G, H, gamma_lin):
     """Returns position in 3D space of a curve lying on a surface
 
     Args:
@@ -1139,36 +1138,6 @@ def surfxyztensor_gamma_lin(qpts_phi, qpts_theta, mpol, ntor, dofs, nfp, stellsy
 
     return data
 
-
-
-#def normal(cdofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, dgamma_dtheta, dgamma_dphi, surf_type):
-    # if not surf_type=='RZ_Fourier':
-    #     raise NotImplementedError('Normal only implemented for SurfaceRZFourier')
-    # if surf_type=='RZ_Fourier' and (not stellsym):
-    #     raise NotImplementedError('Only stellsym boundary are available')
-    
-    # phi, theta = gamma_2d(cdofs, qpts, order, G, H)
-    # gamma = surfrz_gamma_lin(phi, theta, mpol, ntor, sdofs, nfp, stellsym)
-    # r = np.sqrt(gamma[:,0]**2 + gamma[:,1]**2)
-
-    # dgdt = jnp.diagonal(dgamma_dtheta(phi, theta), axis1=0, axis2=2)
-    # dgdp = jnp.diagonal(dgamma_dphi(phi, theta), axis1=0, axis2=2)
-
-    # drdt = np.sqrt(dgdt[:,0]**2 + dgdt[:,1]**2)
-    # dzdt = dgdt[:,2]
-    # drdp = np.sqrt(dgdp[:,0]**2 + dgdp[:,1]**2)
-    # dzdp = dgdp[:,2]
-
-    # n = jnp.zeros((qpts.size, 3))
-    # nnorm = jnp.sqrt(r**2 * (drdt**2 + dzdt**2) + (drdp*dzdt-drdt*dzdp)**2)
-    
-    # n = n.at[:,0].set(  r*dzdt / nnorm )
-    # n = n.at[:,1].set( -(drdp*dzdt-drdt*dzdp) / nnorm )
-    # n = n.at[:,2].set( -r*drdt / nnorm )
-    
-    # return n
-
-#curve_dofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, surf_type
 def normal(curve_dofs, qpts, order, G, H, surf_dofs, surf_type, mpol, ntor, nfp):
     """Returns the unitary vector normal to the surface on a curve that lies on the surface
 
@@ -1286,14 +1255,10 @@ class CurveCWSFourier( Curve, sopp.Curve ):
         sopp.Curve.__init__(self, quadpoints)
 
         Curve.__init__(self, x0=self.get_dofs(), depends_on=[], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
-        #Curve.__init__(self, x0=self.get_dofs(), depends_on=[self.surf], names=self._make_names(), external_dof_setter=CurveCWSFourier.set_dofs_impl, **kwargs)
-        #super().__init__()
 
         
         self.gamma_2d_pure =  jit(lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, self.order, self.G, self.H, sdofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, self.surf.gamma_lin))
-        #self.gamma_2d_pure =  lambda cdofs, sdofs, pts: gamma_curve_on_surface(cdofs, pts, order, G, H, self.surf.gamma_lin)
         self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, surf_dofs, self.surf_type, self.surf.mpol, self.surf.ntor, self.surf.nfp, self.surf.gamma_lin))
-        #self.gamma_pure = jit(lambda dofs, surf_dofs, points: gamma_curve_on_surface(dofs, points, self.order, self.G, self.H, self.surf.gamma_lin))
 
         # GAMMA
         points = np.asarray(self.quadpoints)

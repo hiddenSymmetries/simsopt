@@ -30,6 +30,7 @@ from .hull import *
 from .permanent_magnet_grid import *
 from .orientedcurve import *
 from .accessibility import *
+from .curvecwsfourier import *
 
 __all__ = (curve.__all__ + curvehelical.__all__ +
            curverzfourier.__all__ + curvexyzfourier.__all__ +
@@ -44,4 +45,4 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
            permanent_magnet_grid.__all__ + orientedcurve.__all__ +
            strain_optimization.__all__ + framedcurve.__all__ + hull.__all__ +
-           accessibility.__all__) 
+           accessibility.__all__ + curvecwsfourier.__all__) 
