@@ -31,7 +31,7 @@ t1 = time.time()
 order = 0
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QA_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
@@ -86,7 +86,7 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 3
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 3
-    order = 8
+    order = 16
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -175,7 +175,7 @@ for i in range(len(base_curves)):
     # base_curves[i].fix('x' + str(2 * order + 5))
     # base_curves[i].fix('x' + str(2 * order + 6))
     # base_curves[i].fix('x' + str(2 * order + 7))
-base_currents = [Current(1.0) * 2e6 for i in range(ncoils)]
+base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
 # Fix currents in each coil
 # for i in range(ncoils):
 #     base_currents[i].fix_all()
@@ -215,13 +215,13 @@ base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_T
 
 LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 100
-LINK_WEIGHT = 1e1
+LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0) # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34) # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0) # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -307,8 +307,8 @@ Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-2
-MSC_WEIGHT = 1e-3
+CURVATURE_WEIGHT = 1e-3
+MSC_WEIGHT = 1e-4
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
@@ -316,8 +316,6 @@ JF = Jf \
     + CC_WEIGHT * Jccdist \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
-    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + CS_WEIGHT * Jcsdist \
     + LINK_WEIGHT * linkNum \
     + LENGTH_WEIGHT * Jlength 
 

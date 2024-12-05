@@ -12,9 +12,9 @@ import os
 
 # initial_optimizations(N=2000, with_force=True, MAXITER=2000, FORCE_OBJ=LpCurveForce, OUTPUT_DIR="./output/QA/LPF/optimizations/")
 
-df, df_filtered, df_pareto = get_dfs(INPUT_DIR="./output/QA/SMT/optimizations/")
+df, df_filtered, df_pareto = get_dfs(INPUT_DIR="./output/QA/LPT/optimizations/")
 success_plt(df, df_filtered).show()
-df, df_filtered, df_pareto = get_dfs(INPUT_DIR="./output/QA/SMT/optimizations/")
+df, df_filtered, df_pareto = get_dfs(INPUT_DIR="./output/QA/LPT/optimizations/")
 
 y_axes = ["max_max_force", "mean_RMS_force", "max_max_torque", "mean_RMS_torque", "net_forces", "net_torques"]
 labels = ["max force [N/m]", "mean force [N/m]", "max torque [N]", "mean torque [N]", "net force [N]", "net torque [N-m]"]
@@ -32,7 +32,8 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
     norm = plt.Normalize(min(df_filtered[color]), max(df_filtered[color]))
     # print(np.array(df_filtered[y_axis][0]), np.array(df_filtered[y_axis][0]).shape, len(np.array([df_filtered[y_axis][0]])))
     try: 
-        np.array(df_filtered[y_axis][0]).shape[0]
+        # print(df_filtered[y_axis], np.array(df_filtered[y_axis])[0].shape)
+        np.array(df_filtered[y_axis])[0].shape[0]
         N = np.array(df_filtered[y_axis]).shape[0]
         N2 = np.array(df_pareto[y_axis]).shape[0]
         new_array = np.zeros(N)
@@ -46,9 +47,24 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
             new_array[q] = np.mean(df_pareto[y_axis][i])
             q = q + 1
     except IndexError:
-        """do nothing"""
         new_array = df_filtered[y_axis] 
         new_array2 = df_pareto[y_axis]
+    except AttributeError:
+        N = np.array(df_filtered[y_axis]).shape[0]
+        N2 = np.array(df_pareto[y_axis]).shape[0]
+        new_array = np.zeros(N)
+        new_array2 = np.zeros(N2)
+        q = 0
+        for i in df_filtered[y_axis].keys():
+            new_array[q] = np.mean(df_filtered[y_axis][i])
+            q = q + 1
+        q = 0
+        for i in df_pareto[y_axis].keys():
+            new_array[q] = np.mean(df_pareto[y_axis][i])
+            q = q + 1
+    # except KeyError:
+    #     new_array = df_filtered[y_axis] 
+    #     new_array2 = df_pareto[y_axis]
     print(new_array)
     plt.scatter(
         df_filtered["normalized_BdotN"],

@@ -237,9 +237,9 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
-LENGTH_WEIGHT = Weight(0.01)
-LENGTH_WEIGHT2 = Weight(0.01)
-LENGTH_TARGET2 = len(base_curves) * 1.0 * 2 * np.pi
+LENGTH_WEIGHT = Weight(0.001)
+# LENGTH_WEIGHT2 = Weight(0.01)
+# LENGTH_TARGET2 = len(base_curves) * 1.0 * 2 * np.pi
 LENGTH_TARGET = 85
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 1.0
@@ -299,7 +299,7 @@ Jf = SquaredFlux(s, btot)
 Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
-Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
+# Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
@@ -335,8 +335,8 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength \
-    + LENGTH_WEIGHT2 * Jlength2
+    + LENGTH_WEIGHT * Jlength # \
+    # + LENGTH_WEIGHT2 * Jlength2
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  #\
@@ -356,7 +356,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
-    length_val2 = LENGTH_WEIGHT2.value * Jlength2.J()
+    # length_val2 = LENGTH_WEIGHT2.value * Jlength2.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     cc_val2 = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
@@ -371,14 +371,14 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
-    cl_string2 = ", ".join([f"{J.J():.1f}" for J in Jls])
+    # cl_string2 = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}" 
-    outstr += f", Len2=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}" 
+    # outstr += f", Len2=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}" 
     valuestr += f", LenObj={length_val:.2e}" 
-    valuestr += f", LenObj2={length_val2:.2e}" 
+    # valuestr += f", LenObj2={length_val2:.2e}" 
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", ccObj2={cc_val2:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 
