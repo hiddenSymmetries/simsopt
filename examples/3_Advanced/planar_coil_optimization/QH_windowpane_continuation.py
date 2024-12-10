@@ -26,27 +26,16 @@ from simsopt._core import Optimizable
 
 t1 = time.time()
 
-# Number of Fourier modes describing each Cartesian component of each coil:
-order = 0
-
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
 range_param = "half period"
-nphi = 64
-ntheta = 64
-poff = 1.5
-coff = 2.5
+nphi = 32
+ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-
-# Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_normal(poff)
-s_outer.extend_via_normal(poff + coff)
 
 qphi = nphi * 2
 qtheta = ntheta * 2
@@ -89,11 +78,11 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
-btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-23/biot_savart_optimized_QH.json")
+# btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-23/biot_savart_optimized_QH.json")
 # btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-35_fww0.000000e+00_tw0.00e+00_tww1.000000e-23/"
 # btot = Optimizable.from_file("QH_minimal_TForder4_n25_p1.75e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
 # btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
-# btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt8.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-36_fww0.000000e+00_tw0.00e+00_tww1.000000e-24/biot_savart_optimized_QH.json")
+btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt8.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-36_fww0.000000e+00_tw0.00e+00_tww1.000000e-24/biot_savart_optimized_QH.json")
 bs = btot.Bfields[0]
 bs_TF = btot.Bfields[1]
 coils = bs.coils
@@ -118,21 +107,21 @@ base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_T
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 125
+LENGTH_TARGET = 90
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e0
-CS_THRESHOLD = 1.45
+CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-36) # 1e-36 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-24) # 1e-24 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QH_continuation_fixed_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QH_continuation_fixed_TForder{:d}_n{:d}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
+        curves_TF[0].order, ncoils, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
         FORCE_WEIGHT2.value,
         TORQUE_WEIGHT.value,
@@ -162,14 +151,6 @@ curves_to_vtk(
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):
     c._children = set()
-
-pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_init_DA", extra_data=pointData)
-
-btot.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_init_DA", extra_data=pointData)
-btot.set_points(s.gamma().reshape((-1, 3)))
 
 # Repeat for whole B field
 pointData = {"B_N": np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
@@ -212,7 +193,7 @@ Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
 CURVATURE_WEIGHT = 1e-2
-MSC_WEIGHT = 1e-3
+MSC_WEIGHT = 1e-4
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
@@ -309,7 +290,7 @@ MAXITER = 5000
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-15)
+        options={'maxiter': MAXITER, 'maxcor': 1000}, tol=1e-20)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]

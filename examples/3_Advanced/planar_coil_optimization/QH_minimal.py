@@ -28,7 +28,7 @@ import re
 t1 = time.time()
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
@@ -160,14 +160,14 @@ btot.set_points(s.gamma().reshape((-1, 3)))
 # base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.001)
-LENGTH_TARGET = 80
+LENGTH_TARGET = 110
 LINK_WEIGHT = 1e3
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # TORQUE_WEIGHT2 = Weight(1e-24) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -241,7 +241,7 @@ linkNum = LinkingNumber(curves_TF)
 # regularization_list2 = np.zeros(len(coils_TF)) * regularization_rect(a, b)
 # Jforce = MixedLpCurveForce(coils, coils_TF, regularization_list, regularization_list2) # [SquaredMeanForce2(c, coils) for c in (base_coils)]
 # Jforce = MixedSquaredMeanForce(coils, coils_TF)
-Jforce = sum([LpCurveForce(c, coils_TF, regularization_rect(a, b), p=2, threshold=1e5 * 100) for i, c in enumerate(base_coils_TF)])
+Jforce = sum([LpCurveForce(c, coils_TF, regularization_rect(a, b), p=4, threshold=4e5 * 100) for i, c in enumerate(base_coils_TF)])
 # Jforce2 = sum([SquaredMeanForce(c, coils_TF) for c in (base_coils + base_coils_TF)])
 # Jtorque = sum([LpCurveTorque(c, coils_TF, regularization_rect(a_list[i], b_list[i]), p=2, threshold=1e5 * 40) for i, c in enumerate(base_coils + base_coils_TF)])
 # Jtorque2 = sum([SquaredMeanTorque(c, coils_TF) for c in (base_coils + base_coils_TF)])
