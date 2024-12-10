@@ -57,8 +57,8 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
     df = pd.concat(dfs, ignore_index=True) 
     
     ### STEP 2: Filter the data
-    margin_up   = 1.05
-    margin_low  = 0.95
+    margin_up   = 1.5
+    margin_low  = 0.5
 
     df_filtered = df.query(
         # ENGINEERING CONSTRAINTS:

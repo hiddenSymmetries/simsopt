@@ -33,7 +33,7 @@ from simsopt.util import MpiPartition, proc0_print
 # # Make the QFM surfaces
 qfm_surf = make_qfm(s, Bfield)
 qfm_surf = qfm_surf.surface
-vmec_input = "../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
+vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QH_reactorScale_lowres"
 equil = Vmec(vmec_input, mpi)
 equil.boundary = qfm_surf
 equil.run()

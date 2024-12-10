@@ -40,7 +40,7 @@ range_param = "half period"
 nphi = 32
 ntheta = 32
 poff = 1.5
-coff = 1.25
+coff = 1.5
 s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -86,7 +86,7 @@ def initialize_coils_QA(TEST_DIR, s):
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1.4
     R1 = s.get_rc(1, 0) * 4
-    order = 20
+    order = 16
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -144,7 +144,7 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
 )
 import warnings
 
-# Remove all the coils on the outboard side!
+# Remove all the coils on the inboard side!
 keep_inds = []
 for ii in range(len(base_curves)):
     counter = 0
@@ -237,7 +237,9 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 base_a_list = np.hstack((np.ones(len(base_coils)) * aa, np.ones(len(base_coils_TF)) * a))
 base_b_list = np.hstack((np.ones(len(base_coils)) * bb, np.ones(len(base_coils_TF)) * b))
 
-LENGTH_WEIGHT = Weight(0.01)
+LENGTH_WEIGHT = Weight(0.001)
+# LENGTH_WEIGHT2 = Weight(0.01)
+# LENGTH_TARGET2 = len(base_curves) * 1.0 * 2 * np.pi
 LENGTH_TARGET = 85
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 1.0
@@ -245,14 +247,14 @@ CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e1
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-33) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_henneberg_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
+OUT_DIR = ("./QA_henneberg_shape_TForder{:d}_DCorder_{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
+        base_curves_TF[0].order, order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
         CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
         FORCE_WEIGHT2.value,
         TORQUE_WEIGHT.value,
@@ -294,8 +296,10 @@ btot.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
+Jls = [CurveLength(c) for c in base_curves]
 Jls_TF = [CurveLength(c) for c in base_curves_TF]
 Jlength = QuadraticPenalty(sum(Jls_TF), LENGTH_TARGET, "max")
+# Jlength2 = QuadraticPenalty(sum(Jls), LENGTH_TARGET2, "max")
 
 # coil-coil and coil-plasma distances should be between all coils
 Jccdist = CurveCurveDistance(curves + curves_TF, CC_THRESHOLD / 2.0, num_basecurves=len(coils + coils_TF))
@@ -331,7 +335,8 @@ JF = Jf \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength 
+    + LENGTH_WEIGHT * Jlength # \
+    # + LENGTH_WEIGHT2 * Jlength2
 
 if FORCE_WEIGHT.value > 0.0:
     JF += FORCE_WEIGHT.value * Jforce  #\
@@ -351,6 +356,7 @@ def fun(dofs):
     grad = JF.dJ()
     jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
+    # length_val2 = LENGTH_WEIGHT2.value * Jlength2.J()
     cc_val = CC_WEIGHT * Jccdist.J()
     cc_val2 = CC_WEIGHT * Jccdist.J()
     cs_val = CS_WEIGHT * Jcsdist.J()
@@ -365,11 +371,14 @@ def fun(dofs):
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
+    # cl_string2 = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}" 
+    # outstr += f", Len2=sum([{cl_string2}])={sum(J.J() for J in Jls):.2f}" 
     valuestr += f", LenObj={length_val:.2e}" 
+    # valuestr += f", LenObj2={length_val2:.2e}" 
     valuestr += f", ccObj={cc_val:.2e}" 
     valuestr += f", ccObj2={cc_val2:.2e}" 
     valuestr += f", csObj={cs_val:.2e}" 

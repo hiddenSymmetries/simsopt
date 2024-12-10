@@ -92,8 +92,6 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     return point_data
 
 btot = Optimizable.from_file("QA_TForder_n4_p4.10e+01_c1.50e+00_lw1.50e+00_lt1.00e-02_lkw1.00e+02_cct1.00e+03_ccw8.00e-01_cst1.00e+02_csw1.50e+00_fw1.00e+02_fww1.000000e-34_tw0.00e+00_tww0.000000e+00/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-34_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QH.json")
-# btot = Optimizable.from_file("QH_minimal_TForder4_n27_p1.50e+00_c2.50e+00_lw1.00e-02_lt8.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+02_fw1.00e-36_fww0.000000e+00_tw0.00e+00_tww1.000000e-24/biot_savart_optimized_QH.json")
 bs = btot.Bfields[0]
 bs_TF = btot.Bfields[1]
 coils = bs.coils

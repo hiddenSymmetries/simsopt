@@ -89,12 +89,6 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     return point_data
 
 btot = Optimizable.from_file("QA_henneberg_TForder16_n16_p1.50e+00_c1.50e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QA_henneberg_TForder16_n16_p1.50e+00_c1.50e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QA_henneberg_TForder4_n23_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QA_henneberg_TForder4_n13_p1.50e+00_c1.25e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QA_henneberg_TForder16_n13_p1.50e+00_c1.25e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-32_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QA_henneberg_TForder4_n23_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
-# btot = Optimizable.from_file("QA_henneberg_TForder4_n41_p1.50e+00_c2.00e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+03_cct8.00e-01_ccw1.00e+02_cst1.30e+00_csw1.00e+02_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-21/biot_savart_optimized_QA.json")
 bs = btot.Bfields[0]
 bs_TF = btot.Bfields[1]
 coils = bs.coils
@@ -120,10 +114,10 @@ CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e1
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-32) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(4e-33) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(1e-22) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(1e-23) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
 OUT_DIR = ("./QA_henneberg_continuation_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
     "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
@@ -286,11 +280,11 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 10000
+MAXITER = 4000
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 2000}, tol=1e-16)
+        options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-16)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
