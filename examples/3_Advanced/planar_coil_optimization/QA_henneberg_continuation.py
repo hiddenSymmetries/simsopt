@@ -8,23 +8,18 @@ from pathlib import Path
 import time
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.field import BiotSavart, Current, coils_via_symmetries
 from simsopt.field import regularization_rect
-from simsopt.field.force import MeanSquaredForce, coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
+from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
-    MeanSquaredTorque, SquaredMeanTorque, LpCurveTorque, MixedSquaredMeanForce, MixedLpCurveForce
+    SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk, create_equally_spaced_planar_curves,
-    create_planar_curves_between_two_toroidal_surfaces
+    SurfaceRZFourier, curves_to_vtk
 )
 from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
-from simsopt.util import in_github_actions
 from simsopt._core import Optimizable
-import cProfile
-import re
 
 t1 = time.time()
 

@@ -4,7 +4,6 @@ from simsopt.util import comm_world
 from simsopt._core import Optimizable
 import time
 import sys
-from simsopt.util.permanent_magnet_helper_functions import make_qfm
 
 mpi = MpiPartition(ngroups=8)
 comm = comm_world

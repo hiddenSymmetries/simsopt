@@ -11,12 +11,10 @@ from simsopt.field import JaxBiotSavart, JaxCurrent, coils_via_symmetries, CoilC
 from simsopt.util import calculate_on_axis_B
 from simsopt.geo import (
     CurveLength, CurveCurveDistance,
-    MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
-    SurfaceRZFourier, curves_to_vtk, create_equally_spaced_planar_curves,
-    create_planar_curves_between_two_toroidal_surfaces
+    CurveSurfaceDistance, LinkingNumber,
+    SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
 )
-from simsopt.objectives import Weight, SquaredFlux, QuadraticPenalty
-from simsopt.util import in_github_actions
+from simsopt.objectives import Weight, SquaredFlux
 
 # Number of Fourier modes describing each Cartesian component of each coil:
 order = 0
@@ -83,7 +81,7 @@ def initialize_coils_QA(TEST_DIR, s):
         coils: List of Coil class objects.
     """
     from simsopt.geo import create_equally_spaced_curves
-    from simsopt.field import JaxCurrent, Coil, coils_via_symmetries
+    from simsopt.field import JaxCurrent, coils_via_symmetries
     from simsopt.geo import curves_to_vtk
 
     # generate planar TF coils

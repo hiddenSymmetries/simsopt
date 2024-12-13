@@ -1,10 +1,8 @@
 import numpy as np
-import time
 import jax.numpy as jnp
 
 import simsoptpp as sopp
-from .curve import Curve, RotatedCurve, JaxCurve
-from .._core.derivative import Derivative
+from .curve import Curve, JaxCurve
 
 __all__ = ['CurvePlanarFourier', 'JaxCurvePlanarFourier']
 

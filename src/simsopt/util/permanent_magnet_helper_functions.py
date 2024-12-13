@@ -558,7 +558,6 @@ def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal", B_axis=Non
         out_dir: Path or string for the output directory for saved files.
         bs_filename: String denoting the name of the output file. 
     """
-    from simsopt.field import BiotSavart, InterpolatedField, MagneticFieldSum
     out_dir = Path(out_dir)
     nphi = len(s_plot.quadpoints_phi)
     ntheta = len(s_plot.quadpoints_theta)

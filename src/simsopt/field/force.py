@@ -1,11 +1,8 @@
 """Implements the force on a coil in its own magnetic field and the field of other coils."""
 from scipy import constants
-import time
 import numpy as np
 import jax.numpy as jnp
 from jax import grad
-from simsopt._core.derivative import Derivative
-import simsoptpp as sopp
 from .biotsavart import BiotSavart
 from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
 from ..geo.jit import jit

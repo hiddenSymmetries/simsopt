@@ -654,7 +654,6 @@ class Testing(unittest.TestCase):
         dofs[1:5] = np.ones(1)
         dofs[5:9] = np.array([0.0, 0.0, 0.0])
         curve0.set_dofs(dofs)
-        from matplotlib import pyplot as plt
         # plt.figure()
         # plt.plot(curve0.gamma()[:, 1], curve0.gamma()[:, 2])
         # plt.show()
@@ -672,7 +671,7 @@ class Testing(unittest.TestCase):
         print(sf.J(), sf.dJ())
 
     def coil_objectives_symmetrized(self):
-        from simsopt.geo import JaxCurvePlanarFourier, create_equally_spaced_planar_curves
+        from simsopt.geo import create_equally_spaced_planar_curves
         ncoils = 2
         I1 = 5.0e6
         R0 = 1

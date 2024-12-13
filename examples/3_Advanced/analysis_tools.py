@@ -16,10 +16,7 @@ import subprocess
 from desc.grid import LinearGrid
 from desc.geometry import FourierRZToroidalSurface
 from desc.equilibrium import Equilibrium
-from desc.plotting import plot_boozer_surface
 from desc.vmec_utils import ptolemy_identity_fwd
-from matplotlib import colors
-from numbers import Number
 from paretoset import paretoset
 from scipy.spatial.distance import cdist
 from simsopt._core.optimizable import load
@@ -29,7 +26,7 @@ from simsopt.field import (BiotSavart,
                            particles_to_vtk,
                            compute_fieldlines,
                            LevelsetStoppingCriterion)
-from simsopt.field.force import coil_force, self_force
+from simsopt.field.force import coil_force
 from simsopt.field.selffield import B_regularized, regularization_circ
 from simsopt.geo import QfmResidual, QfmSurface, SurfaceRZFourier, Volume
 from simsopt.util import comm_world
@@ -506,12 +503,12 @@ def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_sca
     # STEP 1: generate the input files and save to the run directory
     RUN_DIR = glob.glob(f"../**/{UUID}/", recursive=True)[0]
     with open(RUN_DIR + "simple.in", "w") as f:
-        f.write(f"&config\n")
+        f.write("&config\n")
         f.write(f"trace_time = {trace_time}d0\n")
         f.write(f"sbeg = {s}d0\n")
         f.write(f"ntestpart = {n_test_part}\n")
         f.write(f"netcdffile = '{vmec_name}'\n")
-        f.write(f"/\n")
+        f.write("/\n")
 
     # STEP 2: run SIMPLE
     command = BUILD_DIR + "simple.x"

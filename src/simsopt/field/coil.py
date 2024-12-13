@@ -1,13 +1,11 @@
 from math import pi
-import time
 import numpy as np
-from jax import vjp, jacfwd, jvp
-import jax.numpy as jnp
+from jax import vjp, jacfwd
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve, Curve
+from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.jit import jit
 import simsoptpp as sopp
 

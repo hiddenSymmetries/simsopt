@@ -15,18 +15,12 @@ from simsopt.geo import (
     MeanSquaredCurvature,
     LpCurveCurvature,
     ArclengthVariation,
-    curves_to_vtk,
     create_equally_spaced_curves,
-    SurfaceRZFourier,
-    LinkingNumber)
+    SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
-    LpCurveForce, LpCurveTorque, SquaredMeanForce, SquaredMeanTorque
+    LpCurveForce
 from simsopt.field.selffield import regularization_circ
-import cProfile
-import re
-import pstats, io
-from pstats import SortKey
 
 
 def continuation(N=10000, dx=0.05,
@@ -469,7 +463,7 @@ def optimization(
 
     with open(OUTPUT_DIR + "results.json", "w") as outfile:
         json.dump(results, outfile, indent=2)
-    bs.save(OUTPUT_DIR + f"biot_savart.json")  # save the optimized coil shapes and currents
+    bs.save(OUTPUT_DIR + "biot_savart.json")  # save the optimized coil shapes and currents
     print(time.perf_counter() - start_time)
     # return res, base_coils
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from simsopt.util.permanent_magnet_helper_functions import make_qfm
 from simsopt.geo import (
-    SurfaceRZFourier, curves_to_vtk)
+    SurfaceRZFourier)
 
 mpi = MpiPartition(ngroups=8)
 comm = comm_world
@@ -81,7 +81,7 @@ bsh = InterpolatedField(
 bsh.set_points(s.gamma().reshape((-1, 3)))
 from simsopt.field.tracing import compute_fieldlines, \
     plot_poincare_data, \
-    IterationStoppingCriterion, SurfaceClassifier, \
+    SurfaceClassifier, \
     LevelsetStoppingCriterion
 from simsopt.util import proc0_print
 

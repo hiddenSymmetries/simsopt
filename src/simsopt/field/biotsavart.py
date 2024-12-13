@@ -1,5 +1,5 @@
 import numpy as np
-from jax import vjp, jacfwd, jvp, hessian, jacrev, grad
+from jax import vjp, jacfwd
 import jax.numpy as jnp
 import time
 
@@ -373,7 +373,6 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
     #np.array(self.B_jax(self.get_curve_dofs(), self.get_currents(), self.get_points_cart_ref()))
 
     def B_vjp(self, v):
-        import time
         t1 = time.time()
         coils = self._coils
         # dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
@@ -404,7 +403,6 @@ class JaxBiotSavart(sopp.BiotSavart, MagneticField):
         return sum(curve_derivs + current_derivs)
 
     def B_vjp_jax(self, v):
-        import time
         t1 = time.time()
         coils = self._coils
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()

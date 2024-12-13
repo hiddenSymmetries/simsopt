@@ -22,8 +22,6 @@ from simsopt.field.force import (
     self_force_circ,
     self_force_rect,
     MeanSquaredForce,
-    MeanSquaredTorque,
-    # Remaining terms have the base class and the Mixed class
     LpCurveTorque,
     MixedLpCurveTorque,
     SquaredMeanTorque,
