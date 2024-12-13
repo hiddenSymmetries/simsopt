@@ -83,6 +83,7 @@ class CurvePlanarFourier(sopp.CurvePlanarFourier, Curve):
         barycenter = jnp.sum(gamma * arclength[:, None], axis=0) / gamma.shape[0] / np.pi
         return barycenter
 
+
 def jaxplanarcurve_pure(dofs, quadpoints, order):
     coeffs = dofs[:2 * order + 1]
     q = dofs[2 * order + 1: 2 * order + 5]
@@ -91,18 +92,19 @@ def jaxplanarcurve_pure(dofs, quadpoints, order):
     phi = 2 * np.pi * quadpoints  # points is an angle in [0, 1]
     jrange = jnp.arange(1, order + 1)[:, None]
     jphi = jrange * phi[None, :]
-    r_curve = coeffs[0] + jnp.sum(coeffs[1:order + 1, None] * jnp.cos(jphi) \
-        + coeffs[order + 1: 2 * order + 1, None] * jnp.sin(jphi), axis=0)
+    r_curve = coeffs[0] + jnp.sum(coeffs[1:order + 1, None] * jnp.cos(jphi)
+                                  + coeffs[order + 1: 2 * order + 1, None] * jnp.sin(jphi), axis=0)
 
     x_curve_in_plane = r_curve * jnp.cos(phi)
     y_curve_in_plane = r_curve * jnp.sin(phi)
-    return jnp.transpose(jnp.vstack((jnp.vstack(((1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane \
-        + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane \
-        + center[0], (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane \
-        + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane \
-        + center[1])), 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane \
-        + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane \
-        + center[2])))
+    return jnp.transpose(jnp.vstack((jnp.vstack(((1.0 - 2 * (q_norm[2] * q_norm[2] + q_norm[3] * q_norm[3])) * x_curve_in_plane
+                                                 + 2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]) * y_curve_in_plane
+                                                 + center[0], (1.0 - 2 * (q_norm[1] * q_norm[1] + q_norm[3] * q_norm[3])) * y_curve_in_plane
+                                                 + 2 * (q_norm[0] * q_norm[3] + q_norm[1] * q_norm[2]) * x_curve_in_plane
+                                                 + center[1])), 2 * (q_norm[1] * q_norm[3] - q_norm[0] * q_norm[2]) * x_curve_in_plane
+                                     + 2 * (q_norm[0] * q_norm[1] + q_norm[2] * q_norm[3]) * y_curve_in_plane
+                                     + center[2])))
+
 
 class JaxCurvePlanarFourier(JaxCurve):
 
@@ -121,7 +123,8 @@ class JaxCurvePlanarFourier(JaxCurve):
     def __init__(self, quadpoints, order, dofs=None):
         if isinstance(quadpoints, int):
             quadpoints = np.linspace(0, 1, quadpoints, endpoint=False)
-        pure = lambda dofs, points: jaxplanarcurve_pure(dofs, points, order)
+
+        def pure(dofs, points): return jaxplanarcurve_pure(dofs, points, order)
         self.order = order
         self.dof_list = np.zeros(2 * order + 1 + 4 + 3)
         if dofs is None:
@@ -161,8 +164,8 @@ class JaxCurvePlanarFourier(JaxCurve):
 #     to define a geometric object class and calculate all the derivatives (both
 #     with respect to dofs and with respect to the angle :math:`\theta`) automatically.
 
-#     [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}}, 
-#     q_0, q_i, q_j, q_k, 
+#     [r_{c,0}, \cdots, r_{c,\text{order}}, r_{s,1}, \cdots, r_{s,\text{order}},
+#     q_0, q_i, q_j, q_k,
 #     x_{\text{center}}, y_{\text{center}}, z_{\text{center}}]
 #     """
 
@@ -185,10 +188,10 @@ class JaxCurvePlanarFourier(JaxCurve):
 
 #     # def passive_current_pure(self, dofs, points):
 #     #     # To get the I_i passive current, need to compute (L^{-1} * psi)_i = Linv_{ij}psi_j
-#     #     # so just need the jth column of Linv here. 
+#     #     # so just need the jth column of Linv here.
 #     #     normal = self.normal
-#     #     psi = 
-       
+#     #     psi =
+
 
 #     def num_dofs(self):
 #         """

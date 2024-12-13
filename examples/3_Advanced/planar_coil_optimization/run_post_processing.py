@@ -25,7 +25,7 @@ Bfield = Optimizable.from_file(str(sys.argv[1]))
 Bfield.set_points(s.gamma().reshape((-1, 3)))
 BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
 BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-    ) / np.mean(Bfield.AbsB())
+                       ) / np.mean(Bfield.AbsB())
 print(BdotN, BdotN_over_B)
 
 # # Make the QFM surfaces
@@ -73,6 +73,7 @@ def skip(rs, phis, zs):
     proc0_print("Skip", sum(skip), "cells out of", len(skip), flush=True)
     return skip
 
+
 # out_dir = Path(out_dir)
 n = 20
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
@@ -99,7 +100,7 @@ from simsopt.util import proc0_print
 nfieldlines = 20
 tmax_fl = 20000
 
-R0 = np.linspace(12.25, 13.2, nfieldlines) 
+R0 = np.linspace(12.25, 13.2, nfieldlines)
 Z0 = np.zeros(nfieldlines)
 phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 print(rrange, zrange, phirange)
@@ -111,7 +112,7 @@ sc_fieldline = SurfaceClassifier(s, h=0.02, p=2)
 
 fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
     bsh, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
-    phis=phis, 
+    phis=phis,
     stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
 t2 = time.time()
 proc0_print(f"Time for fieldline tracing={t2-t1:.3f}s. Num steps={sum([len(l) for l in fieldlines_tys])//nfieldlines}", flush=True)

@@ -25,7 +25,7 @@ Bfield = Optimizable.from_file(str(sys.argv[1]))
 Bfield.set_points(s.gamma().reshape((-1, 3)))
 BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
 BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-    ) / np.mean(Bfield.AbsB())
+                       ) / np.mean(Bfield.AbsB())
 
 from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.util import MpiPartition, proc0_print
@@ -44,8 +44,9 @@ qs = QuasisymmetryRatioResidual(equil,
                                 helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
-    
+
 from simsopt.field.magneticfieldclasses import InterpolatedField
+
 
 def skip(rs, phis, zs):
     # The RegularGrindInterpolant3D class allows us to specify a function that
@@ -62,6 +63,7 @@ def skip(rs, phis, zs):
     skip = list((dists < -0.05).flatten())
     proc0_print("Skip", sum(skip), "cells out of", len(skip), flush=True)
     return skip
+
 
 n = 20
 rs = np.linalg.norm(s.gamma()[:, :, 0:2], axis=2)
@@ -88,7 +90,7 @@ from simsopt.util import proc0_print
 nfieldlines = 20
 tmax_fl = 30000
 
-R0 = np.linspace(16.9, 17.8, nfieldlines) 
+R0 = np.linspace(16.9, 17.8, nfieldlines)
 Z0 = np.zeros(nfieldlines)
 phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 print(R0, Z0)
@@ -100,7 +102,7 @@ sc_fieldline.to_vtk('levelset', h=0.02)
 
 fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
     bsh, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,
-    phis=phis, 
+    phis=phis,
     stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
 t2 = time.time()
 

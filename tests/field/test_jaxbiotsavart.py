@@ -7,6 +7,7 @@ from simsopt.field.biotsavart import JaxBiotSavart, BiotSavart, TotalVacuumEnerg
 from simsopt.field.coil import Coil, ScaledCurrent
 from simsopt.field.coil import JaxCurrent as Current
 
+
 def get_curve(num_quadrature_points=200, perturb=False):
     coil = CurveXYZFourier(num_quadrature_points, 3)
     coeffs = np.zeros((3, len(coil.get_dofs()) // 3))
@@ -18,6 +19,7 @@ def get_curve(num_quadrature_points=200, perturb=False):
         d = coil.get_dofs()
         coil.set_dofs(d + np.random.uniform(size=d.shape))
     return coil
+
 
 class Testing(unittest.TestCase):
 
@@ -60,7 +62,7 @@ class Testing(unittest.TestCase):
 
         bs.set_points(points)
         bs2.set_points(points)
-        curve_dofs = curve.x 
+        curve_dofs = curve.x
         B = bs.B()
         B2 = bs2.B()
         J0 = np.sum(B**2)
@@ -209,7 +211,7 @@ class Testing(unittest.TestCase):
         bs = JaxBiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        B, dA_by_dX = bs.B(), bs.dA_by_dX() 
+        B, dA_by_dX = bs.B(), bs.dA_by_dX()
         curlA1 = dA_by_dX[:, 1, 2] - dA_by_dX[:, 2, 1]
         curlA2 = dA_by_dX[:, 2, 0] - dA_by_dX[:, 0, 2]
         curlA3 = dA_by_dX[:, 0, 1] - dA_by_dX[:, 1, 0]
@@ -302,15 +304,15 @@ class Testing(unittest.TestCase):
         dB1 = bs.dB_by_dcoilcurrents()
         dJ1 = bs.d2B_by_dXdcoilcurrents()
         dH1 = bs.d3B_by_dXdXdcoilcurrents()
-        currents1 = [c.current.get_value() for c in bs._coils], 
-        gammas1 = [c.curve.gamma() for c in bs._coils], 
+        currents1 = [c.current.get_value() for c in bs._coils],
+        gammas1 = [c.curve.gamma() for c in bs._coils],
         gammadashs1 = [c.curve.gammadash() for c in bs._coils]
 
         # Check agreement with analytic form
         bs = BiotSavart([Coil(curve0, current0), Coil(curve1, current1)])
         bs.set_points(points)
-        currents2 = [c.current.get_value() for c in bs._coils], 
-        gammas2 = [c.curve.gamma() for c in bs._coils], 
+        currents2 = [c.current.get_value() for c in bs._coils],
+        gammas2 = [c.curve.gamma() for c in bs._coils],
         gammadashs2 = [c.curve.gammadash() for c in bs._coils]
         assert np.allclose(currents1, currents2)
         assert np.allclose(gammas1, gammas2)
@@ -452,7 +454,7 @@ class Testing(unittest.TestCase):
         # int_r int_theta B int r dr dtheta
         from scipy import integrate
         r = 0.15
-        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
+        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15)
 
         for num in range(20, 60):
             npoints = num
@@ -500,7 +502,7 @@ class Testing(unittest.TestCase):
 
     def test_net_force_calculation(self):
         from scipy.special import ellipk, ellipe
-        
+
         ncoils = 2
         I1 = 5.0e4
         I2 = -3.0e4
@@ -538,9 +540,9 @@ class Testing(unittest.TestCase):
         # Jackson uses K(k) and E(k) but this corresponds to
         # K(k^2) and E(k^2) in scipy library
         F_analytic = mu0 * I1 * I2 * k * (Z2 - Z1) * (
-            (2  - k ** 2) * ellipe(k ** 2) / (1 - k ** 2) - 2.0 * ellipk(k ** 2)
+            (2 - k ** 2) * ellipe(k ** 2) / (1 - k ** 2) - 2.0 * ellipk(k ** 2)
         ) / (4.0 * np.sqrt(R1 * R2))
-        
+
         F_bs = bs.coil_coil_forces()
         print(F_bs, F_analytic)
         assert np.allclose(F_bs[:, 0], 0.0)
@@ -551,9 +553,8 @@ class Testing(unittest.TestCase):
         print(T_bs)
         assert np.allclose(T_bs, 0.0)
 
-
-    def test_net_force_and_torque_calculation_far_field(self):       
-        from simsopt.geo import JaxCurvePlanarFourier 
+    def test_net_force_and_torque_calculation_far_field(self):
+        from simsopt.geo import JaxCurvePlanarFourier
         ncoils = 2
         I1 = 5.0e4
         I2 = -3.0e4
@@ -575,15 +576,15 @@ class Testing(unittest.TestCase):
         q_norm = dofs[1:5] / np.linalg.norm(dofs[1:5])
         normal_orig = np.array([0, 0, 1]).T
         rot_mat = np.array(
-            [[(1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)), 
-            2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]), 
-            2 * (q_norm[1] * q_norm[3] + q_norm[0] * q_norm[2])], 
-            [2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]), 
-            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)),
-            2 * (q_norm[2] * q_norm[3] - q_norm[0] * q_norm[1])], 
-            [2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]), 
-            2 * (q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]),
-            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
+            [[(1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)),
+              2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]),
+              2 * (q_norm[1] * q_norm[3] + q_norm[0] * q_norm[2])],
+             [2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]),
+             (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)),
+             2 * (q_norm[2] * q_norm[3] - q_norm[0] * q_norm[1])],
+             [2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]),
+             2 * (q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]),
+             (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
         normal0 = rot_mat @ normal_orig
         current0 = Current(I1)
         curve1 = JaxCurvePlanarFourier(200, 0)
@@ -596,15 +597,15 @@ class Testing(unittest.TestCase):
         q_norm = dofs[1:5] / np.linalg.norm(dofs[1:5])
         normal_orig = np.array([0, 0, 1]).T
         rot_mat = np.array(
-            [[(1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)), 
-            2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]), 
-            2 * (q_norm[1] * q_norm[3] + q_norm[0] * q_norm[2])], 
-            [2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]), 
-            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)),
-            2 * (q_norm[2] * q_norm[3] - q_norm[0] * q_norm[1])], 
-            [2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]), 
-            2 * (q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]),
-            (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
+            [[(1.0 - 2 * (q_norm[2] ** 2 + q_norm[3] ** 2)),
+              2 * (q_norm[1] * q_norm[2] - q_norm[3] * q_norm[0]),
+              2 * (q_norm[1] * q_norm[3] + q_norm[0] * q_norm[2])],
+             [2 * (q_norm[1] * q_norm[2] + q_norm[3] * q_norm[0]),
+             (1.0 - 2 * (q_norm[1] ** 2 + q_norm[3] ** 2)),
+             2 * (q_norm[2] * q_norm[3] - q_norm[0] * q_norm[1])],
+             [2 * (q_norm[1] * q_norm[3] - q_norm[2] * q_norm[0]),
+             2 * (q_norm[2] * q_norm[3] + q_norm[0] * q_norm[1]),
+             (1.0 - 2 * (q_norm[1] ** 2 + q_norm[2] ** 2))]])
         normal1 = rot_mat @ normal_orig
         current1 = Current(I2)
         coil1 = Coil(curve0, current0)
@@ -618,11 +619,11 @@ class Testing(unittest.TestCase):
         m1 = np.pi * R1 ** 2 * I1 * normal0
         m2 = np.pi * R2 ** 2 * I2 * normal1
         B1 = 1e-7 * (3 * r12 * np.dot(r12, m1) / r12_mag ** 5 - m1 / r12_mag ** 3)
-        F_analytic = 3 * 1e-7 / r12_mag ** 5 * (np.dot(m1, r12) * m2 + \
-            np.dot(m2, r12) * m1 + np.dot(m1, m2) * r12 - 5 * np.dot(m1, r12
-            ) * np.dot(m2, r12) * r12 / r12_mag ** 2)
+        F_analytic = 3 * 1e-7 / r12_mag ** 5 * (np.dot(m1, r12) * m2 +
+                                                np.dot(m2, r12) * m1 + np.dot(m1, m2) * r12 - 5 * np.dot(m1, r12
+                                                                                                         ) * np.dot(m2, r12) * r12 / r12_mag ** 2)
         T_analytic = np.cross(m2, B1)
-        
+
         F_bs = bs.coil_coil_forces()
         F = CoilCoilNetForces(bs).J()
         F_12 = CoilCoilNetForces12(bs, bs).J() / 2.0
@@ -630,7 +631,7 @@ class Testing(unittest.TestCase):
         print(F_bs, F_analytic, F_12, F, np.sum(F_bs ** 2))
         print(T_12)
 
-        # dJ should not match anyways 
+        # dJ should not match anyways
         print('dJ = ', CoilCoilNetForces(bs).dJ(), CoilCoilNetForces12(bs, bs).dJ())
         assert np.allclose(F_bs[0, :], F_analytic)
         assert np.allclose(np.sum(F_bs ** 2), F)
@@ -641,8 +642,8 @@ class Testing(unittest.TestCase):
         print(T_bs, T_analytic)
         assert np.allclose(T_bs[0, :], T_analytic)
 
-    def total_energy_test(self):       
-        from simsopt.geo import JaxCurvePlanarFourier 
+    def total_energy_test(self):
+        from simsopt.geo import JaxCurvePlanarFourier
         ncoils = 1
         I1 = 5.0e6
         R1 = 1
@@ -670,7 +671,7 @@ class Testing(unittest.TestCase):
         print(bs.coil_self_forces(0.01, 0.01))
         print(sf.J(), sf.dJ())
 
-    def coil_objectives_symmetrized(self):       
+    def coil_objectives_symmetrized(self):
         from simsopt.geo import JaxCurvePlanarFourier, create_equally_spaced_planar_curves
         ncoils = 2
         I1 = 5.0e6
@@ -701,6 +702,7 @@ class Testing(unittest.TestCase):
         sf = CoilSelfNetForces(bs)
         print(bs.coil_self_forces(0.01, 0.01))
         print(sf.J(), sf.dJ())
+
 
 if __name__ == "__main__":
     unittest.main()

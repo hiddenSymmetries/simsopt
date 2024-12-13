@@ -24,10 +24,10 @@ from paretoset import paretoset
 from scipy.spatial.distance import cdist
 from simsopt._core.optimizable import load
 from simsopt.field import (BiotSavart,
-                           InterpolatedField, 
-                           SurfaceClassifier, 
+                           InterpolatedField,
+                           SurfaceClassifier,
                            particles_to_vtk,
-                           compute_fieldlines, 
+                           compute_fieldlines,
                            LevelsetStoppingCriterion)
 from simsopt.field.force import coil_force, self_force
 from simsopt.field.selffield import B_regularized, regularization_circ
@@ -40,10 +40,11 @@ from simsopt.util import comm_world
 # I) DATA ANALYSIS
 ###############################################################################
 
+
 def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_DIR=None):
     """Returns DataFrames for the raw, filtered, and Pareto data."""
     ### STEP 1: Import raw data
-    inputs=f"{INPUT_DIR}**/results.json"
+    inputs = f"{INPUT_DIR}**/results.json"
     results = glob.glob(inputs, recursive=True)
     dfs = []
     for results_file in results:
@@ -54,11 +55,11 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
             if isinstance(value, list):
                 data[key] = [value]
         dfs.append(pd.DataFrame(data))
-    df = pd.concat(dfs, ignore_index=True) 
-    
+    df = pd.concat(dfs, ignore_index=True)
+
     ### STEP 2: Filter the data
-    margin_up   = 1.5
-    margin_low  = 0.5
+    margin_up = 1.5
+    margin_low = 0.5
 
     df_filtered = df.query(
         # ENGINEERING CONSTRAINTS:
@@ -67,7 +68,7 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
         f"and max_MSC < {6.00 * margin_up}"
         f"and coil_coil_distance > {0.083 * margin_low}"
         f"and coil_surface_distance > {0.166 * margin_low}"
-        f"and mean_AbsB > 0.22" #prevent coils from becoming detached from LCFS
+        f"and mean_AbsB > 0.22"  # prevent coils from becoming detached from LCFS
         # FILTERING OUT BAD/UNNECESSARY DATA:
         f"and max_arclength_variance < 1e-2"
         f"and coil_surface_distance < 0.375"
@@ -75,7 +76,7 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
         f"and max_length > 4.0"
         f"and normalized_BdotN < {4 * 1e-3}"
         f"and max_max_force<50000"
-    )   
+    )
 
     ### STEP 3: Generate Pareto front and export UUIDs as .txt
     pareto_mask = paretoset(df_filtered[["normalized_BdotN", "max_max_force"]], sense=[min, min])
@@ -87,7 +88,7 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
             shutil.rmtree(OUTPUT_DIR)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         for UUID in df_pareto['UUID']:
-            SOURCE_DIR = glob.glob(f"/**/{UUID}/", recursive=True)[0] 
+            SOURCE_DIR = glob.glob(f"/**/{UUID}/", recursive=True)[0]
             DEST_DIR = f"{OUTPUT_DIR}{UUID}/"
             shutil.copytree(SOURCE_DIR, DEST_DIR)
 
@@ -100,12 +101,12 @@ def parameter_correlations(df, sort_by='normalized_BdotN', matrix=False, columns
     df_sorted = df.sort_values(by=[sort_by])
     if columns_to_drop is None:
         columns_to_drop = ['BdotN', 'gradient_norm', 'Jf', 'JF', 'mean_AbsB',
-                        'max_arclength_variance', 'iterations', 'linking_number',
-                        'function_evaluations', 'success', 'arclength_weight',
-                        'R0', 'ntheta', 'nphi', 'ncoils', 'nfp','MSCs',
-                        'max_forces', 'arclength_variances', 'max_κ',
-                        'UUID_init', 'message', 'coil_currents', 'UUID',
-                        'lengths', 'eval_time', 'order', 'dx', 'RMS_forces', 'min_forces']
+                           'max_arclength_variance', 'iterations', 'linking_number',
+                           'function_evaluations', 'success', 'arclength_weight',
+                           'R0', 'ntheta', 'nphi', 'ncoils', 'nfp', 'MSCs',
+                           'max_forces', 'arclength_variances', 'max_κ',
+                           'UUID_init', 'message', 'coil_currents', 'UUID',
+                           'lengths', 'eval_time', 'order', 'dx', 'RMS_forces', 'min_forces']
     df_sorted = df_sorted.drop(columns=columns_to_drop)
 
     df_correlation = pd.DataFrame({'Parameter': [], 'R^2': [], 'P': [], 'Equation': []})
@@ -115,26 +116,25 @@ def parameter_correlations(df, sort_by='normalized_BdotN', matrix=False, columns
         bdotn_series = np.array(df_sorted[sort_by])
         result = scipy.stats.linregress(bdotn_series, series)
 
-        r         = result.rvalue**2
-        p         = result.pvalue
-        slope     = result.slope
+        r = result.rvalue**2
+        p = result.pvalue
+        slope = result.slope
         intercept = result.intercept
-        equation  = f"y = {slope:.2e} * x + {intercept:.2e}"  
+        equation = f"y = {slope:.2e} * x + {intercept:.2e}"
 
         df_row = {'Parameter': series_name, 'R^2': r, 'P': p, 'Equation': equation}
-        df_correlation = df_correlation._append(df_row, ignore_index = True)
+        df_correlation = df_correlation._append(df_row, ignore_index=True)
 
-    if(matrix):
-        plt.figure(figsize=(9,9))
+    if (matrix):
+        plt.figure(figsize=(9, 9))
         matrix = df_sorted.corr() ** 2
-        matrix = np.round(matrix,2)
-        ax = sns.heatmap(matrix, cmap="Blues",annot=annot, cbar_kws={'label': r'$R^2$'})
+        matrix = np.round(matrix, 2)
+        ax = sns.heatmap(matrix, cmap="Blues", annot=annot, cbar_kws={'label': r'$R^2$'})
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
         plt.title("Corrrelation Matrix")
         plt.show()
-        
-    return df_correlation.sort_values(by=['R^2'], ascending=False)
 
+    return df_correlation.sort_values(by=['R^2'], ascending=False)
 
 
 ###############################################################################
@@ -148,16 +148,17 @@ def create_movies(images, OUT_NAME, OUT_PATH):
     writer.close()
     imageio.mimsave(OUT_PATH + OUT_NAME + ".gif", images, loop=0)
 
-def force_reduction_plots(UUIDs=["6266c8d4bb25499b899d86e9e3dd2ee2", 
+
+def force_reduction_plots(UUIDs=["6266c8d4bb25499b899d86e9e3dd2ee2",
                                  "881b166b6ddb4f8ebe4a2b63d6cb9bc1"],
                           IN_DIR="./output/QA/with-force-penalty/4/pareto/",
                           regularization=regularization_circ(0.05),
                           ncoils=5):
-    fig, axs = plt.subplots(7, 5, figsize=(8,9))
-    
+    fig, axs = plt.subplots(7, 5, figsize=(8, 9))
+
     for UUID in UUIDs:
         biotsavart_path = IN_DIR + UUID + "/biot_savart.json"
-        bs = load(biotsavart_path) 
+        bs = load(biotsavart_path)
         coils = bs.coils
         base_coils = coils[:ncoils]
         for i, c in enumerate(base_coils):
@@ -178,80 +179,81 @@ def force_reduction_plots(UUIDs=["6266c8d4bb25499b899d86e9e3dd2ee2",
             # plot force
             axs[0, i].plot(phis, force)
             axs[0, i].set_title(f"Coil {i+1}")
-            axs[0, i].set(xlabel = r"$\phi$", ylabel=r"$|d\bf{F}$$/d\ell|$")
+            axs[0, i].set(xlabel=r"$\phi$", ylabel=r"$|d\bf{F}$$/d\ell|$")
             axs[0, i].set_xticks([0, 2*np.pi])
-            
+
             # plot $t\times b$
-            t_cross_b = np.cross(tangent, b_tot_tangent, axis=1) #good thru here!
+            t_cross_b = np.cross(tangent, b_tot_tangent, axis=1)  # good thru here!
             t_cross_b = np.linalg.norm(t_cross_b, axis=1)
             axs[1, i].plot(phis, t_cross_b)
-            axs[1, i].set(xlabel = r"$\phi$", ylabel=r"$|\bf{t}$$\times\bf{B}|$$/B$")
+            axs[1, i].set(xlabel=r"$\phi$", ylabel=r"$|\bf{t}$$\times\bf{B}|$$/B$")
             axs[1, i].set_ylim([0, 1])
             axs[1, i].set_xticks([0, 2*np.pi])
-            
+
             # plot |B|
             axs[2, i].plot(phis, b_tot_norm)
-            axs[2, i].set(xlabel = r"$\phi$", ylabel=r"$|\bf{B}$$|$")
+            axs[2, i].set(xlabel=r"$\phi$", ylabel=r"$|\bf{B}$$|$")
             axs[2, i].set_xticks([0, 2*np.pi])
 
             # plot |B_mut|^2
-            b_mut_squared = np.linalg.norm(b_mutual, axis=1)[:, None] ** 2 
+            b_mut_squared = np.linalg.norm(b_mutual, axis=1)[:, None] ** 2
             axs[3, i].plot(phis, b_mut_squared)
-            axs[3, i].set(xlabel = r"$\phi$", ylabel=r"$|\bf{B}$$_{mutual}|^2$")
+            axs[3, i].set(xlabel=r"$\phi$", ylabel=r"$|\bf{B}$$_{mutual}|^2$")
             axs[3, i].set_xticks([0, 2*np.pi])
 
             # plot 2B_mut\cdot B_reg
             B_mut_dot_B_reg = 2 * np.einsum('ij,ij->i', b_mutual, b_reg)
             axs[4, i].plot(phis, B_mut_dot_B_reg)
-            axs[4, i].set(xlabel = r"$\phi$", ylabel=r"$2\bf{B}$$_{mutual}\cdot\bf{B}$$_{reg}$")
+            axs[4, i].set(xlabel=r"$\phi$", ylabel=r"$2\bf{B}$$_{mutual}\cdot\bf{B}$$_{reg}$")
             axs[4, i].set_xticks([0, 2*np.pi])
 
             # plot |B_reg|^2
-            b_reg_squared = np.linalg.norm(b_reg, axis=1)[:, None] ** 2 
+            b_reg_squared = np.linalg.norm(b_reg, axis=1)[:, None] ** 2
             axs[5, i].plot(phis, b_reg_squared)
-            axs[5, i].set(xlabel = r"$\phi$", ylabel=r"$|\bf{B}$$_{reg}|^2$")
+            axs[5, i].set(xlabel=r"$\phi$", ylabel=r"$|\bf{B}$$_{reg}|^2$")
             axs[5, i].set_xticks([0, 2*np.pi])
             axs[5, i].set_xticklabels(["0", r"$2\pi$"])
 
             # plot current
-            b_reg_squared = np.linalg.norm(b_reg, axis=1)[:, None] ** 2 
+            b_reg_squared = np.linalg.norm(b_reg, axis=1)[:, None] ** 2
             axs[6, i].plot(phis, current)
-            axs[6, i].set(xlabel = r"$\phi$", ylabel=r"$I$")
+            axs[6, i].set(xlabel=r"$\phi$", ylabel=r"$I$")
             axs[6, i].set_xticks([0, 2*np.pi])
             axs[6, i].set_xticklabels(["0", r"$2\pi$"])
             axs[6, i].set_ylim(bottom=0, top=100000)
 
     return fig, axs
 
+
 def pareto_interactive_plt(df, color='coil_surface_distance'):
     """Creates an interactive plot of the Pareto front."""
     fig = px.scatter(
-        df, 
-        x="normalized_BdotN", 
-        y="max_max_force", 
+        df,
+        x="normalized_BdotN",
+        y="max_max_force",
         color=color,
         log_x=True,
-        width=500, 
+        width=500,
         height=400,
         hover_data={
-            'UUID':True,
-            'max_max_force':':.2e',
-            'coil_surface_distance':':.2f',
-            'coil_coil_distance':':.3f',
-            'length_target':':.2f',
-            'force_threshold':':.2e',
-            'cc_threshold':':.2e',
-            'cs_threshold':':.2e',
-            'length_weight':':.2e',
-            'msc_weight':':.2e',
-            'cc_weight':':.2e',
-            'cs_weight':':.2e',
-            'force_weight':':.2e',
-            'normalized_BdotN':':.2e',
-            'max_MSC':':.2e',
-            'max_max_κ':':.2e'
-            }
-        )
+            'UUID': True,
+            'max_max_force': ':.2e',
+            'coil_surface_distance': ':.2f',
+            'coil_coil_distance': ':.3f',
+            'length_target': ':.2f',
+            'force_threshold': ':.2e',
+            'cc_threshold': ':.2e',
+            'cs_threshold': ':.2e',
+            'length_weight': ':.2e',
+            'msc_weight': ':.2e',
+            'cc_weight': ':.2e',
+            'cs_weight': ':.2e',
+            'force_weight': ':.2e',
+            'normalized_BdotN': ':.2e',
+            'max_MSC': ':.2e',
+            'max_max_κ': ':.2e'
+        }
+    )
 
     fig.update_layout(
         margin=dict(l=20, r=20, t=40, b=20),
@@ -270,21 +272,23 @@ def pareto_interactive_plt(df, color='coil_surface_distance'):
         ticks='outside',
         showline=True,
         linecolor='black',
-        tickformat = "000"
+        tickformat="000"
     )
     return fig
+
 
 def plot_losses(INPUT_PATH, s=0.3):
     # INPUT_PATH points to "confined_fraction.dat"
 
-    with open(INPUT_PATH, "r") as f: ar = np.loadtxt(f)
+    with open(INPUT_PATH, "r") as f:
+        ar = np.loadtxt(f)
 
-    time             = ar[:, 0]
+    time = ar[:, 0]
     confined_passing = ar[:, 1]
     confined_trapped = ar[:, 2]
-    number           = ar[:, 3]
-    confined_total   = confined_passing + confined_trapped
-    loss_frac        = 1 - confined_total
+    number = ar[:, 3]
+    confined_total = confined_passing + confined_trapped
+    loss_frac = 1 - confined_total
 
     fig = plt.figure()
     plt.plot(time, loss_frac)
@@ -294,7 +298,7 @@ def plot_losses(INPUT_PATH, s=0.3):
     plt.ylabel("loss fraction")
     return fig, time, loss_frac
 
-    
+
 def success_plt(df, df_filtered):
     fig = plt.figure(1, figsize=(14.5, 11))
     nrows = 5
@@ -308,13 +312,12 @@ def success_plt(df, df_filtered):
             bins = np.logspace(np.log10(data.min()), np.log10(data.max()), nbins)
         else:
             bins = nbins
-        n,bins,patchs = plt.hist(df[field], bins=bins, label="before filtering")
+        n, bins, patchs = plt.hist(df[field], bins=bins, label="before filtering")
         plt.hist(df_filtered[field], bins=bins, alpha=1, label="after filtering")
         plt.xlabel(field)
         plt.legend(loc=0, fontsize=6)
         if log:
             plt.xscale("log")
-
 
     # 2nd entry of each tuple is True if the field should be plotted on a log x-scale.
     fields = (
@@ -342,14 +345,13 @@ def success_plt(df, df_filtered):
         ('ncoils', False)
     )
 
-    i=1
+    i = 1
     for field, log in fields:
         plot_2d_hist(field, log, i)
         i += 1
 
     plt.tight_layout()
     return fig
-
 
 
 ###############################################################################
@@ -360,36 +362,40 @@ def closest_approach(coils, φ_min=0, φ_max=2*π):
     """Closest approach within a set of coils."""
     ncoils = len(coils)
     phis = coils[0].curve.quadpoints * 2 * np.pi
-    
+
     index_min = np.absolute(phis-φ_min).argmin()
-    if phis[index_min] < φ_min: index_min += 1
+    if phis[index_min] < φ_min:
+        index_min += 1
     index_max = np.absolute(phis-φ_max).argmin()
-    if phis[index_max] > φ_max: index_max -= 1
+    if phis[index_max] > φ_max:
+        index_max -= 1
 
     gammas = [coil.curve.gamma() for coil in coils]
     gammas_truncated = [gamma[index_min:index_max+1] for gamma in gammas]
 
     return min([np.min(cdist(gammas_truncated[i], gammas_truncated[j])) for i in range(ncoils) for j in range(i)])
 
-def poincare(UUID, OUT_DIR='./output/QA/with-force-penalty/1/poincare/', 
+
+def poincare(UUID, OUT_DIR='./output/QA/with-force-penalty/1/poincare/',
              INPUT_FILE="./inputs/input.LandremanPaul2021_QA", phis=[0.0],
-             nfieldlines=10, tmax_fl=20000, degree=4, R0_min=1.2125346, 
+             nfieldlines=10, tmax_fl=20000, degree=4, R0_min=1.2125346,
              R0_max=1.295, interpolate=True, debug=False):
     """Compute Poincare plots."""
- 
+
     # Directory for output
-    if debug: os.makedirs(OUT_DIR, exist_ok=True)
+    if debug:
+        os.makedirs(OUT_DIR, exist_ok=True)
 
     # Load in the boundary surface:
     surf = SurfaceRZFourier.from_vmec_input(INPUT_FILE, nphi=200, ntheta=30, range="full torus")
     nfp = surf.nfp
 
     # Load in the optimized coils from stage_two_optimization.py:
-    coils_filename = glob.glob(f"./**/{UUID}/biot_savart.json", recursive=True)[0] 
+    coils_filename = glob.glob(f"./**/{UUID}/biot_savart.json", recursive=True)[0]
     bs = simsopt.load(coils_filename)
 
     sc_fieldline = SurfaceClassifier(surf, h=0.03, p=2)
-    if debug: 
+    if debug:
         surf.to_vtk(OUT_DIR + 'surface')
         sc_fieldline.to_vtk(OUT_DIR + 'levelset', h=0.02)
 
@@ -399,7 +405,8 @@ def poincare(UUID, OUT_DIR='./output/QA/with-force-penalty/1/poincare/',
         fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
             bfield, R0, Z0, tmax=tmax_fl, tol=1e-16, comm=comm_world,
             phis=phis, stopping_criteria=[LevelsetStoppingCriterion(sc_fieldline.dist)])
-        if debug: particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
+        if debug:
+            particles_to_vtk(fieldlines_tys, OUT_DIR + f'fieldlines_{label}')
 
         if len(phis) > 1:
             raise NotImplementedError("Not yet implemented!")
@@ -435,12 +442,13 @@ def poincare(UUID, OUT_DIR='./output/QA/with-force-penalty/1/poincare/',
     )
     bsh.set_points(surf.gamma().reshape((-1, 3)))
     bs.set_points(surf.gamma().reshape((-1, 3)))
-    image = trace_fieldlines(bsh, 'bsh') if(interpolate) else trace_fieldlines(bs, 'bs')
+    image = trace_fieldlines(bsh, 'bsh') if (interpolate) else trace_fieldlines(bs, 'bs')
     return image
 
-def poincare_with_target(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1, 
-              INPUT_FILE="./inputs/input.LandremanPaul2021_QA", R0_max=1.295, 
-              nfieldlines=10, tmax_fl=20000):
+
+def poincare_with_target(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
+                         INPUT_FILE="./inputs/input.LandremanPaul2021_QA", R0_max=1.295,
+                         nfieldlines=10, tmax_fl=20000):
     """
     Checks that the target LCFS, QFM surface, and Poincaré plots all agree.
     """
@@ -455,9 +463,9 @@ def poincare_with_target(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
         return r, z
 
     # show poincaré plots
-    poincare(UUID, INPUT_FILE=INPUT_FILE, tmax_fl=tmax_fl, 
-        degree=4, phis=[phi], R0_max=R0_max, nfieldlines=nfieldlines)
-    
+    poincare(UUID, INPUT_FILE=INPUT_FILE, tmax_fl=tmax_fl,
+             degree=4, phis=[phi], R0_max=R0_max, nfieldlines=nfieldlines)
+
     # show target LCFS
     LCFS = SurfaceRZFourier.from_vmec_input(INPUT_FILE, range="full torus", nphi=32, ntheta=32)
     r, z = get_crosssection(LCFS)
@@ -472,7 +480,7 @@ def qfm(UUID, INPUT_FILE="./inputs/input.LandremanPaul2021_QA", vol_frac=1.00):
 
     # We start with an initial guess that is just the stage I LCFS
     s = SurfaceRZFourier.from_vmec_input(INPUT_FILE, range="full torus", nphi=32, ntheta=32)
-    
+
     # Optimize at fixed volume:
     path = glob.glob("/**/" + UUID + "/biot_savart.json", recursive=True)[0]
     bs = load(path)
@@ -482,22 +490,22 @@ def qfm(UUID, INPUT_FILE="./inputs/input.LandremanPaul2021_QA", vol_frac=1.00):
     vol_target = vol_frac * vol.J()
     qfm_surface = QfmSurface(bs, s, vol, vol_target)
 
-    constraint_weight = 1e0  
+    constraint_weight = 1e0
     res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                            constraint_weight=constraint_weight)
+                                                             constraint_weight=constraint_weight)
     vol_err = abs((s.volume()-vol_target)/vol_target)
     residual = np.linalg.norm(qfm.J())
     # print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
     return qfm_surface.surface, vol_err, residual
 
 
-def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_scaled.nc", 
+def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_scaled.nc",
                BUILD_DIR="/Users/sienahurwitz/Documents/Physics/Codes/SIMPLE/build/",
                suppress_output=False):
 
     # STEP 1: generate the input files and save to the run directory
     RUN_DIR = glob.glob(f"../**/{UUID}/", recursive=True)[0]
-    with open(RUN_DIR + "simple.in", "w") as f: 
+    with open(RUN_DIR + "simple.in", "w") as f:
         f.write(f"&config\n")
         f.write(f"trace_time = {trace_time}d0\n")
         f.write(f"sbeg = {s}d0\n")
@@ -508,14 +516,14 @@ def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_sca
     # STEP 2: run SIMPLE
     command = BUILD_DIR + "simple.x"
     if suppress_output:
-        subprocess.run(command, shell=True, check=True, stdout=subprocess.DEVNULL) 
-    else: 
+        subprocess.run(command, shell=True, check=True, stdout=subprocess.DEVNULL)
+    else:
         subprocess.run(command, shell=True, check=True)
 
     # STEP 3: delete irrelevant files
     files = ["simple.in", "times_lost.dat", vmec_name]
     for file in files:
-        os.remove(RUN_DIR + file) 
+        os.remove(RUN_DIR + file)
 
 
 def surf_to_desc(simsopt_surf, LMN=8):
@@ -607,8 +615,8 @@ def surf_to_desc(simsopt_surf, LMN=8):
 # IV) SANITY CHECKS
 ###############################################################################
 
-def check_poincare_and_qfm(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1, 
-              INPUT_FILE="./inputs/input.LandremanPaul2021_QA"):
+def check_poincare_and_qfm(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
+                           INPUT_FILE="./inputs/input.LandremanPaul2021_QA"):
     """
     Checks that the target LCFS, QFM surface, and Poincaré plots all agree.
     """
@@ -622,16 +630,16 @@ def check_poincare_and_qfm(UUID="6266c8d4bb25499b899d86e9e3dd2ee2", phi=0.1,
         return r, z
 
     # show poincaré plots
-    poincare(UUID, INPUT_FILE=INPUT_FILE, nfieldlines=10, tmax_fl=20000, 
-        degree=4, phis=[phi])
-    
+    poincare(UUID, INPUT_FILE=INPUT_FILE, nfieldlines=10, tmax_fl=20000,
+             degree=4, phis=[phi])
+
     # show target LCFS
     LCFS = SurfaceRZFourier.from_vmec_input(INPUT_FILE, range="full torus", nphi=32, ntheta=32)
     r, z = get_crosssection(LCFS)
     plt.plot(r, z, linewidth=2, c='r', label="target LCFS")
 
     # show QFMs at various radial distances
-    N=2
+    N = 2
     for i in range(N):
         vol_frac = 1.0 - 0.02 * i / (N - 1 + 1e-100)
         qfm_surf, _, _ = qfm(UUID, INPUT_FILE=INPUT_FILE, vol_frac=vol_frac)

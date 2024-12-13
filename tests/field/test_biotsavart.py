@@ -19,6 +19,7 @@ def get_curve(num_quadrature_points=200, perturb=False):
         coil.set_dofs(d + np.random.uniform(size=d.shape))
     return coil
 
+
 class Testing(unittest.TestCase):
 
     def test_biotsavart_both_interfaces_give_same_result(self):
@@ -202,7 +203,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        B, dA_by_dX = bs.B(), bs.dA_by_dX() 
+        B, dA_by_dX = bs.B(), bs.dA_by_dX()
         curlA1 = dA_by_dX[:, 1, 2] - dA_by_dX[:, 2, 1]
         curlA2 = dA_by_dX[:, 2, 0] - dA_by_dX[:, 0, 2]
         curlA3 = dA_by_dX[:, 0, 1] - dA_by_dX[:, 1, 0]
@@ -381,7 +382,7 @@ class Testing(unittest.TestCase):
         # int_r int_theta B int r dr dtheta
         from scipy import integrate
         r = 0.15
-        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
+        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15)
 
         for num in range(20, 60):
             npoints = num
@@ -426,6 +427,7 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(dA[0]-dA_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+
 
 if __name__ == "__main__":
     unittest.main()

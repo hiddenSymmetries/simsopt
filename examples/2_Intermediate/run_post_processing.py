@@ -22,7 +22,7 @@ equil.boundary = qfm_surf
 equil.run()
 t2 = time.time()
 print("Running VMEC took ", t2 - t1, " s")
-    
+
 # from simsopt.field.magneticfieldclasses import InterpolatedField
 
 # out_dir = Path(out_dir)

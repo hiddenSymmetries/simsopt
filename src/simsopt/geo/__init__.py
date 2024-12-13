@@ -38,5 +38,5 @@ __all__ = (curve.__all__ + curvehelical.__all__ +
            surfacegarabedian.__all__ + surfacehenneberg.__all__ +
            surfacerzfourier.__all__ + surfacexyzfourier.__all__ +
            surfacexyztensorfourier.__all__ + surfaceobjectives.__all__ +
-           strain_optimization.__all__ + framedcurve.__all__ + 
+           strain_optimization.__all__ + framedcurve.__all__ +
            permanent_magnet_grid.__all__)

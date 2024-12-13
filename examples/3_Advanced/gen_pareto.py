@@ -12,6 +12,6 @@ df_sorted = df_filtered.sort_values(by=["normalized_BdotN"])
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
     for UUID in df_sorted[:100]['UUID']:
-        SOURCE_DIR = glob.glob(f"../**/{UUID}/", recursive=True)[0] 
+        SOURCE_DIR = glob.glob(f"../**/{UUID}/", recursive=True)[0]
         DEST_DIR = f"{OUTPUT_DIR}{UUID}/"
         shutil.copytree(SOURCE_DIR, DEST_DIR)

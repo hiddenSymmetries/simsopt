@@ -190,7 +190,7 @@ dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    print("err", (J1-J2)/(2*eps) - dJh)  #(J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
+    print("err", (J1-J2)/(2*eps) - dJh)  # (J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
 
 print("""
 ################################################################################

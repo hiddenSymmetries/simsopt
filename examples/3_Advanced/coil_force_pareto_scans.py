@@ -27,11 +27,11 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
     markersize = 5
     n_pareto = df_pareto.shape[0]
     n_filtered = df_filtered.shape[0] - n_pareto
-    color="coil_surface_distance"
-    color_label="coil-surface distance [m]"
+    color = "coil_surface_distance"
+    color_label = "coil-surface distance [m]"
     norm = plt.Normalize(min(df_filtered[color]), max(df_filtered[color]))
     # print(np.array(df_filtered[y_axis][0]), np.array(df_filtered[y_axis][0]).shape, len(np.array([df_filtered[y_axis][0]])))
-    try: 
+    try:
         # print(df_filtered[y_axis], np.array(df_filtered[y_axis])[0].shape)
         np.array(df_filtered[y_axis])[0].shape[0]
         N = np.array(df_filtered[y_axis]).shape[0]
@@ -47,7 +47,7 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
             new_array[q] = np.mean(df_pareto[y_axis][i])
             q = q + 1
     except IndexError:
-        new_array = df_filtered[y_axis] 
+        new_array = df_filtered[y_axis]
         new_array2 = df_pareto[y_axis]
     except AttributeError:
         N = np.array(df_filtered[y_axis]).shape[0]
@@ -63,7 +63,7 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
             new_array[q] = np.mean(df_pareto[y_axis][i])
             q = q + 1
     # except KeyError:
-    #     new_array = df_filtered[y_axis] 
+    #     new_array = df_filtered[y_axis]
     #     new_array2 = df_pareto[y_axis]
     print(new_array)
     plt.scatter(
@@ -75,9 +75,9 @@ for y_axis, label, y_lim in zip(y_axes, labels, y_lims):
         norm=norm
     )
     plt.scatter(
-        df_pareto["normalized_BdotN"], 
-        new_array2, 
-        c=df_pareto[color], 
+        df_pareto["normalized_BdotN"],
+        new_array2,
+        c=df_pareto[color],
         marker="+",
         label=f'Pareto front, N={n_pareto}',
         norm=norm,

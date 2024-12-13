@@ -58,12 +58,14 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 # Make high resolution, full torus version of the plasma boundary for plotting
 s_plot = SurfaceRZFourier.from_vmec_input(
-    filename, 
-    quadpoints_phi=quadpoints_phi, 
+    filename,
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
 ### Initialize some TF coils
+
+
 def initialize_coils_QA(TEST_DIR, s):
     """
     Initializes coils for each of the target configurations that are
@@ -95,7 +97,7 @@ def initialize_coils_QA(TEST_DIR, s):
     total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.105
     print('Total current = ', total_current)
     base_curves = create_equally_spaced_curves(
-        ncoils, s.nfp, stellsym=True, 
+        ncoils, s.nfp, stellsym=True,
         R0=R0, R1=R1, order=order, numquadpoints=512, jax_flag=True)
 
     # base_currents = [(JaxCurrent(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
@@ -115,6 +117,7 @@ def initialize_coils_QA(TEST_DIR, s):
     currents = [c.current.get_value() for c in coils]
     curves_to_vtk(curves, OUT_DIR + "curves_TF_0", I=currents)
     return base_curves, curves, coils
+
 
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF = initialize_coils_QA(TEST_DIR, s)
@@ -189,7 +192,7 @@ CS_WEIGHT = 1e1
 
 # Weight for the Coil Coil forces term
 FORCES_WEIGHT = 1e-12  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# And this term weights the NetForce^2 ~ 10^10-10^12 
+# And this term weights the NetForce^2 ~ 10^10-10^12
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
@@ -208,7 +211,7 @@ Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 # Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 
 # While the coil array is not moving around, they cannot
-# interlink. 
+# interlink.
 linkNum = LinkingNumber(curves_TF)
 linkNum2 = LinkingNumber(curves)
 
@@ -235,11 +238,11 @@ JF = Jf \
     + LINK_WEIGHT2 * linkNum2 \
     + LENGTH_WEIGHT * sum(Jls_TF) \
     + FORCES_WEIGHT * Jforces
-    # + CURRENTS_WEIGHT * DipoleCurrentsObj
-    # + CURVATURE_WEIGHT * sum(Jcs_TF) \
-    # + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs_TF) \
+# + CURRENTS_WEIGHT * DipoleCurrentsObj
+# + CURVATURE_WEIGHT * sum(Jcs_TF) \
+# + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs_TF) \
 #    + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD) for J in Jmscs) \
-    # + CURVATURE_WEIGHT * sum(Jcs) \
+# + CURVATURE_WEIGHT * sum(Jcs) \
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we
@@ -273,7 +276,7 @@ def fun(dofs):
     # BdotN2 = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
     #     )) ** 2 * np.linalg.norm(s.normal(), axis=-1))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-        ) / np.mean(btot.AbsB())
+                           ) / np.mean(btot.AbsB())
     # BdotN2_normalized = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
     #     ).reshape(-1) / np.linalg.norm(btot.B(), axis=-1)) ** 2 * np.linalg.norm(s.normal(), axis=-1).reshape(-1))
     # Bn_over_B = 0.5 * np.mean((np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2
@@ -288,14 +291,14 @@ def fun(dofs):
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
     # # kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     # # msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}" 
-    valuestr += f", LenObj={length_val:.2e}" 
-    valuestr += f", ccObj={cc_val:.2e}" 
-    valuestr += f", csObj={cs_val:.2e}" 
-    valuestr += f", Lk1Obj={link_val1:.2e}" 
-    valuestr += f", Lk2Obj={link_val2:.2e}" 
-    valuestr += f", forceObj={forces_val:.2e}" 
-    # valuestr += f", currObj={curr_val:.2e}" 
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
+    valuestr += f", LenObj={length_val:.2e}"
+    valuestr += f", ccObj={cc_val:.2e}"
+    valuestr += f", csObj={cs_val:.2e}"
+    valuestr += f", Lk1Obj={link_val1:.2e}"
+    valuestr += f", Lk2Obj={link_val2:.2e}"
+    valuestr += f", forceObj={forces_val:.2e}"
+    # valuestr += f", currObj={curr_val:.2e}"
     #, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     # outstr += f", avg(L)={np.mean(np.array([J.J() for J in Jls])):.2f}"
     # outstr += f", Lengths=" + cl_string
@@ -327,7 +330,7 @@ dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    print("err", (J1-J2)/(2*eps) - dJh)  #(J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
+    print("err", (J1-J2)/(2*eps) - dJh)  # (J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
 
 print("""
 ################################################################################
@@ -343,17 +346,17 @@ for i in range(1, n_saves + 1):
     dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
-    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
-        I=dipole_currents)
-    curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i), 
-        I=[c.current.get_value() for c in bs_TF.coils])
+    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i),
+                  I=dipole_currents)
+    curves_to_vtk([c.curve for c in bs_TF.coils], OUT_DIR + "curves_TF_{0:d}".format(i),
+                  I=[c.current.get_value() for c in bs_TF.coils])
 
     btot.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_{0:d}".format(i), extra_data=pointData)
 
     pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
 
     btot.set_points(s.gamma().reshape((-1, 3)))
@@ -361,4 +364,3 @@ for i in range(1, n_saves + 1):
     print('Min I = ', np.min(np.abs(dipole_currents)))
 
 # btot.save("biot_savart_optimized_QA.json")
-

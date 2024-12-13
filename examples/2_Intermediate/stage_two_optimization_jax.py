@@ -74,7 +74,7 @@ MSC_WEIGHT = 1e-6
 
 # Weight for the Coil Coil forces term
 FORCES_WEIGHT = 0.0  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-# And this term weights the NetForce^2 ~ 10^10-10^12 
+# And this term weights the NetForce^2 ~ 10^10-10^12
 
 TORQUES_WEIGHT = 1e-16  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 
@@ -111,8 +111,8 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 # Make high resolution, full torus version of the plasma boundary for plotting
 s_plot = SurfaceRZFourier.from_vmec_input(
-    filename, 
-    quadpoints_phi=quadpoints_phi, 
+    filename,
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
@@ -131,11 +131,11 @@ currents = [c.current.get_value() for c in coils]
 
 bs = JaxBiotSavart(coils)
 bs.set_points(s.gamma().reshape((-1, 3)))
-curves_to_vtk(curves, OUT_DIR + "curves_0", I=np.array(currents), 
-            NetForces=np.array(bs.coil_coil_forces()),
-            NetTorques=bs.coil_coil_torques(),
-            NetSelfForces=bs.coil_self_forces(a, b),
-            )
+curves_to_vtk(curves, OUT_DIR + "curves_0", I=np.array(currents),
+              NetForces=np.array(bs.coil_coil_forces()),
+              NetTorques=bs.coil_coil_torques(),
+              NetSelfForces=bs.coil_self_forces(a, b),
+              )
 calculate_on_axis_B(bs, s)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
@@ -147,7 +147,7 @@ pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal
 s_plot.to_vtk(OUT_DIR + "surf_full_0", extra_data=pointData)
 
 pointData = {"B_N / B": (np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-    ) / np.linalg.norm(bs.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                                ) / np.linalg.norm(bs.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_0", extra_data=pointData)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
@@ -198,19 +198,19 @@ def fun(dofs):
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
-    valuestr += f", LenObj={length_val:.2e}" 
-    valuestr += f", ccObj={cc_val:.2e}" 
-    valuestr += f", csObj={cs_val:.2e}" 
-    valuestr += f", curvObj={curv_val:.2e}" 
-    valuestr += f", forceObj={forces_val:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
-    valuestr += f", tveObj={tve_val:.2e}" 
-    valuestr += f", sfObj={sf_val:.2e}" 
+    valuestr += f", LenObj={length_val:.2e}"
+    valuestr += f", ccObj={cc_val:.2e}"
+    valuestr += f", csObj={cs_val:.2e}"
+    valuestr += f", curvObj={curv_val:.2e}"
+    valuestr += f", forceObj={forces_val:.2e}"
+    valuestr += f", torqueObj={torques_val:.2e}"
+    valuestr += f", tveObj={tve_val:.2e}"
+    valuestr += f", sfObj={sf_val:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)
     msc_string = ", ".join(f"{J.J():.1f}" for J in Jmscs)
     # force_string = ", ".join(f"{Jforces.J():.1f}" for c in base_curves)
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}"  #, ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.1f}"  # , ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", C-C-Forces={Jforces.J():.1e}"
     outstr += f", C-C-Torques={Jtorques.J():.1e}"
@@ -247,16 +247,16 @@ n_saves = 8
 MAXITER = 100
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=True, 
-        method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-15)
+    res = minimize(fun, dofs, jac=True,
+                   method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-15)
     dofs = res.x
 
-    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i), 
-                  I=[c.current.get_value() for c in bs.coils], 
+    curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(i),
+                  I=[c.current.get_value() for c in bs.coils],
                   NetForces=bs.coil_coil_forces(),
                   NetTorques=bs.coil_coil_torques(),
                   NetSelfForces=bs.coil_self_forces(a, b),
-    )
+                  )
 
     bs.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
@@ -281,7 +281,7 @@ for i in range(1, n_saves + 1):
         + SF_WEIGHT * Jsf
 
 t2 = time.time()
-print('Total run time, first loop = ', t2 - t1,' s')
+print('Total run time, first loop = ', t2 - t1, ' s')
 # t1 = time.time()
 # # We now use the result from the optimization as the initial guess for a
 # # subsequent optimization with reduced penalty for the coil length. This will
@@ -294,8 +294,8 @@ print('Total run time, first loop = ', t2 - t1,' s')
 #     res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
 #     dofs = res.x
 
-#     curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(n_saves + 1 + i), 
-#                   I=[c.current.get_value() for c in bs.coils], 
+#     curves_to_vtk([c.curve for c in bs.coils], OUT_DIR + "curves_{0:d}".format(n_saves + 1 + i),
+#                   I=[c.current.get_value() for c in bs.coils],
 #                   NetForces=bs.coil_coil_forces(),
 #                   NetTorques=bs.coil_coil_torques())
 

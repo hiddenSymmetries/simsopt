@@ -56,12 +56,14 @@ quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 
 # Make high resolution, full torus version of the plasma boundary for plotting
 s_plot = SurfaceRZFourier.from_vmec_input(
-    filename, 
-    quadpoints_phi=quadpoints_phi, 
+    filename,
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
 ### Initialize some TF coils
+
+
 def initialize_coils_QA(TEST_DIR, s):
     """
     Initializes coils for each of the target configurations that are
@@ -95,7 +97,7 @@ def initialize_coils_QA(TEST_DIR, s):
 
     # Only need Jax flag for CurvePlanarFourier class
     base_curves = create_equally_spaced_curves(
-        ncoils, s.nfp, stellsym=True, 
+        ncoils, s.nfp, stellsym=True,
         R0=R0, R1=R1, order=order, numquadpoints=256,
         jax_flag=False,
     )
@@ -112,9 +114,10 @@ def initialize_coils_QA(TEST_DIR, s):
     currents = [c.current.get_value() for c in coils]
     return base_curves, curves, coils, base_currents
 
+
 # initialize the coils
 base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
-num_TF_unique_coils = len(base_curves_TF) 
+num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
@@ -125,7 +128,7 @@ bs_TF = BiotSavart(coils_TF)
 calculate_on_axis_B(bs_TF, s)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
-# Only need this if make self forces and TVE nonzero in the objective! 
+# Only need this if make self forces and TVE nonzero in the objective!
 a = 0.2
 b = 0.2
 nturns = 100
@@ -183,6 +186,7 @@ base_currents = [Current(1.0) * 2e7 for i in range(ncoils)]
 coils = coils_via_symmetries(base_curves, base_currents, s.nfp, True)
 base_coils = coils[:ncoils]
 
+
 def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     contig = np.ascontiguousarray
     forces = np.zeros((len(coils), len(coils[0].curve.gamma()) + 1, 3))
@@ -192,14 +196,15 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
         bprime = bprimes[i]
         forces[i, :-1, :] = coil_force(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
         torques[i, :-1, :] = coil_torque(c, allcoils, regularization_rect(aprime, bprime), nturns_list[i])
-    
+
     forces[:, -1, :] = forces[:, 0, :]
     torques[:, -1, :] = torques[:, 0, :]
     forces = forces.reshape(-1, 3)
     torques = torques.reshape(-1, 3)
-    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])), 
+    point_data = {"Pointwise_Forces": (contig(forces[:, 0]), contig(forces[:, 1]), contig(forces[:, 2])),
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
+
 
 bs = BiotSavart(coils)  # + coils_TF)
 btot = bs + bs_TF
@@ -221,25 +226,25 @@ CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
-FORCE_WEIGHT = Weight(1e-34) # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-FORCE_WEIGHT2 = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT = Weight(0.0) # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
-TORQUE_WEIGHT2 = Weight(0.0) # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT = Weight(1e-34)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./QA_minimal_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" + \
-    "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
-        base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT, 
-        CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value, 
-        FORCE_WEIGHT2.value,
-        TORQUE_WEIGHT.value,
-        TORQUE_WEIGHT2.value)
+OUT_DIR = ("./QA_minimal_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
+           "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
+    base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT,
+    CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,
+    FORCE_WEIGHT2.value,
+    TORQUE_WEIGHT.value,
+    TORQUE_WEIGHT2.value)
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
 curves_to_vtk(
-    curves_TF, 
-    OUT_DIR + "curves_TF_0", 
+    curves_TF,
+    OUT_DIR + "curves_TF_0",
     close=True,
     extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
     I=currents_TF,
@@ -247,9 +252,9 @@ curves_to_vtk(
     NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
 )
 curves_to_vtk(
-    curves, 
-    OUT_DIR + "curves_0", 
-    close=True, 
+    curves,
+    OUT_DIR + "curves_0",
+    close=True,
     extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
     I=currents,
     NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
@@ -290,19 +295,19 @@ Jccdist2 = CurveCurveDistance(curves_TF, CC_THRESHOLD, num_basecurves=len(coils_
 Jcsdist = CurveSurfaceDistance(curves + curves_TF, s, CS_THRESHOLD)
 
 # While the coil array is not moving around, they cannot
-# interlink. 
+# interlink.
 linkNum = LinkingNumber(curves + curves_TF, downsample=2)
 
 # Currently, all force terms involve all the coils
 all_coils = coils + coils_TF
 all_base_coils = base_coils + base_coils_TF
 Jforce = sum([LpCurveForce(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=4, threshold=4e5 * 100, downsample=1
-    ) for i, c in enumerate(all_base_coils)])
+                           ) for i, c in enumerate(all_base_coils)])
 Jforce2 = sum([SquaredMeanForce(c, all_coils, downsample=1) for c in all_base_coils])
 
 # Errors creep in when downsample = 2
 Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list[i]), p=2, threshold=4e5 * 100, downsample=1
-    ) for i, c in enumerate(all_base_coils)])
+                             ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
 CURVATURE_THRESHOLD = 0.5
@@ -317,19 +322,20 @@ JF = Jf \
     + CC_WEIGHT * Jccdist2 \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength 
+    + LENGTH_WEIGHT * Jlength
 
 if FORCE_WEIGHT.value > 0.0:
-    JF += FORCE_WEIGHT.value * Jforce  #\
+    JF += FORCE_WEIGHT.value * Jforce  # \
 
 if FORCE_WEIGHT2.value > 0.0:
-    JF += FORCE_WEIGHT2.value * Jforce2  #\
+    JF += FORCE_WEIGHT2.value * Jforce2  # \
 
 if TORQUE_WEIGHT.value > 0.0:
     JF += TORQUE_WEIGHT * Jtorque
 
 if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
+
 
 def fun(dofs):
     JF.x = dofs
@@ -346,22 +352,22 @@ def fun(dofs):
     torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-        ) / np.mean(btot.AbsB())
+                           ) / np.mean(btot.AbsB())
     outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
     msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
     outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}" 
-    valuestr += f", LenObj={length_val:.2e}" 
-    valuestr += f", ccObj={cc_val:.2e}" 
-    valuestr += f", csObj={cs_val:.2e}" 
-    valuestr += f", Lk1Obj={link_val:.2e}" 
-    valuestr += f", forceObj={forces_val:.2e}" 
-    valuestr += f", forceObj2={forces_val2:.2e}" 
-    valuestr += f", torqueObj={torques_val:.2e}" 
-    valuestr += f", torqueObj2={torques_val2:.2e}" 
+    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls_TF):.2f}"
+    valuestr += f", LenObj={length_val:.2e}"
+    valuestr += f", ccObj={cc_val:.2e}"
+    valuestr += f", csObj={cs_val:.2e}"
+    valuestr += f", Lk1Obj={link_val:.2e}"
+    valuestr += f", forceObj={forces_val:.2e}"
+    valuestr += f", forceObj2={forces_val2:.2e}"
+    valuestr += f", torqueObj={torques_val:.2e}"
+    valuestr += f", torqueObj2={torques_val2:.2e}"
     outstr += f", F={Jforce.J():.2e}"
     outstr += f", Fnet={Jforce2.J():.2e}"
     outstr += f", T={Jtorque.J():.2e}"
@@ -402,14 +408,14 @@ n_saves = 1
 MAXITER = 600
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
-        options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B',
+                   options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     # dofs = res.x
 
     dipole_currents = [c.current.get_value() for c in bs.coils]
     curves_to_vtk(
-        [c.curve for c in bs.coils], 
-        OUT_DIR + "curves_{0:d}".format(i), 
+        [c.curve for c in bs.coils],
+        OUT_DIR + "curves_{0:d}".format(i),
         close=True,
         extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
         I=dipole_currents,
@@ -417,9 +423,9 @@ for i in range(1, n_saves + 1):
         NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
     )
     curves_to_vtk(
-        [c.curve for c in bs_TF.coils], 
-        OUT_DIR + "curves_TF_{0:d}".format(i), 
-        close=True, 
+        [c.curve for c in bs_TF.coils],
+        OUT_DIR + "curves_TF_{0:d}".format(i),
+        close=True,
         extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
         I=[c.current.get_value() for c in bs_TF.coils],
         NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
@@ -431,7 +437,7 @@ for i in range(1, n_saves + 1):
     s_plot.to_vtk(OUT_DIR + "surf_full_{0:d}".format(i), extra_data=pointData)
 
     pointData = {"B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-        ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_normalizedBn_{0:d}".format(i), extra_data=pointData)
 
     btot.set_points(s.gamma().reshape((-1, 3)))
@@ -444,11 +450,10 @@ for i in range(1, n_saves + 1):
     #     + CS_WEIGHT * Jcsdist \
     #     + LINK_WEIGHT * linkNum \
     #     + LINK_WEIGHT2 * linkNum2 \
-    #     + LENGTH_WEIGHT * sum(Jls_TF) 
+    #     + LENGTH_WEIGHT * sum(Jls_TF)
 
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
 btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
 print(OUT_DIR)
-
