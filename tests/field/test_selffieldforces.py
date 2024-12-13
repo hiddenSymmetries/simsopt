@@ -513,13 +513,12 @@ class CoilForcesTest(unittest.TestCase):
             objective.x = objective.x + shift
             assert abs(objective.J() - old_objective_value) > 1e-6
             biotsavart = BiotSavart(objective.othercoils)
-            new_biot_savart_points = biotsavart.get_points_cart()
 
-            # Don't understand this check -- the biot savart evaluation points actually
+            # Don't understand the commented out test below -- 
+            # the biot savart evaluation points actually
             # do not change here -- only the coil points are changing
+            # new_biot_savart_points = biotsavart.get_points_cart()
             # assert not np.allclose(old_biot_savart_points, new_biot_savart_points)
-
-            # Objective2 is created directly at the new points after they are moved:
             objective2 = objective_class(coils[0], coils, regularization)
             print("objective 1:", objective.J(), "objective 2:", objective2.J())
             np.testing.assert_allclose(objective.J(), objective2.J())

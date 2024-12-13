@@ -515,7 +515,7 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
         of the curve.
         """
-        dgamma_by_dcoeff[:, :, :] = dgamma_by_dcoeff_jax(self.get_dofs())
+        dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_vjp_impl(self, v):
         r"""
@@ -989,7 +989,6 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
 def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
-    stellsym = s.stellsym
     xyz_inner = s_inner.gamma().reshape(-1, 3)
     xyz_outer = s_outer.gamma().reshape(-1, 3)
     x_outer = xyz_outer[:, 0]
