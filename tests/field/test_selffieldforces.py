@@ -254,10 +254,10 @@ class CoilForcesTest(unittest.TestCase):
 
         objective_mixed = float(MixedSquaredMeanForce([coils[0]], coils[1:]).J())
 
-        print("objective:", objective, "mixed:", objective - objective_mixed)
+        print("objective:", objective, "mixed:", objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed, rtol=1e-6)
 
-        print("objective:", objective, "downsampled:", objective - objective2)
+        print("objective:", objective, "downsampled:", objective2)
         np.testing.assert_allclose(objective, objective2, rtol=1e-6)
 
         # # Test MixedLpCurveForce
@@ -337,7 +337,7 @@ class CoilForcesTest(unittest.TestCase):
         threshold = 0.0
         for i in range(len(coils)):
             objective += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold).J())
-            objective2 += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold).J(), downsample=2)
+            objective2 += float(LpCurveTorque(coils[i], coils, regularization, p=p, threshold=threshold, downsample=2).J())
             torque_norm = np.linalg.norm(coil_torque(coils[i], coils, regularization), axis=1)
             gammadash_norm = np.linalg.norm(coils[i].curve.gammadash(), axis=1)
             objective_alt += (1 / p) * np.sum(np.maximum(torque_norm - threshold, 0)**p * gammadash_norm) / gammadash_norm.shape[0]
@@ -349,7 +349,7 @@ class CoilForcesTest(unittest.TestCase):
         np.testing.assert_allclose(objective, objective_alt)
 
         print("objective:", objective, "downsampled:", objective2, "diff:", objective - objective2)
-        np.testing.assert_allclose(objective, objective2)
+        np.testing.assert_allclose(objective, objective2, rtol=1e-4)
 
         print("objective:", objective, "objective_mixed:", objective_mixed, "diff:", objective - objective_mixed)
         np.testing.assert_allclose(objective, objective_mixed)
