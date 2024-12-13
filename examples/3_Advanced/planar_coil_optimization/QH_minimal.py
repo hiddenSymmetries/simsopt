@@ -28,7 +28,7 @@ import re
 t1 = time.time()
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." /  "tests" / "test_files").resolve()
 input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
