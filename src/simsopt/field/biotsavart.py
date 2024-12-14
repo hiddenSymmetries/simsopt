@@ -1,14 +1,8 @@
 import numpy as np
-from jax import vjp, jacfwd
-import jax.numpy as jnp
-import time
 
 import simsoptpp as sopp
 from .magneticfield import MagneticField
 from .._core.json import GSONDecoder
-from .._core.optimizable import Optimizable
-from .._core.derivative import derivative_dec, Derivative
-from ..geo.jit import jit
 
 __all__ = ['BiotSavart']
 

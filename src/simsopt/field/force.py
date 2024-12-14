@@ -1748,7 +1748,7 @@ class LpCurveTorque(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def coil_coil_inductances_pure(self, gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample):
+def coil_coil_inductances_pure(self, gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample):
     r"""  Optimizable class to minimize the Lorentz force on a coil.
 
     The objective function is
@@ -1844,46 +1844,34 @@ class CoilInductances(Optimizable):
         quadpoints2 = jnp.array([c.curve.quadpoints for c in self.othercoils])
         self.downsample = downsample
 
-        args = {"static_argnums": (6,)}
+        args = {"static_argnums": (4,)}
         self.J_jax = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            self.coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
+            self.coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
             **args
         )
 
         self.dJ_dgamma = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            grad(self.J_jax, argnums=0)(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
+            grad(self.J_jax, argnums=0)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
             **args
         )
 
         self.dJ_dgammadash = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            grad(self.J_jax, argnums=1)(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
+            grad(self.J_jax, argnums=1)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
             **args
         )
 
         self.dJ_dgammas2 = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            grad(self.J_jax, argnums=2)(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
+            grad(self.J_jax, argnums=2)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
             **args
         )
 
         self.dJ_dgammadashs2 = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            grad(self.J_jax, argnums=3)(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
-            **args
-        )
-
-        self.dJ_dcurrent = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            grad(self.J_jax, argnums=4)(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
-            **args
-        )
-
-        self.dJ_dcurrents2 = jit(
-            lambda gamma, gammadash, gammas2, gammadashs2, current, current2, downsample:
-            grad(self.J_jax, argnums=5)(gamma, gammadash, gammas2, gammadashs2, current, current2, quadpoints, quadpoints2, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, downsample:
+            grad(self.J_jax, argnums=3)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
             **args
         )
 
@@ -1896,64 +1884,35 @@ class CoilInductances(Optimizable):
             self.coil.curve.gammadash(),
             jnp.array([c.curve.gamma() for c in self.othercoils]),
             jnp.array([c.curve.gammadash() for c in self.othercoils]),
-            self.coil.current.get_value(),
-            jnp.array([c.current.get_value() for c in self.othercoils]),
             self.downsample
         ]
         J = self.J_jax(*args)
-
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
 
         return J
 
     @derivative_dec
     def dJ(self):
 
-        # Remaining terms can be downsampled before calculation
         args = [
             self.coil.curve.gamma(),
             self.coil.curve.gammadash(),
             jnp.array([c.curve.gamma() for c in self.othercoils]),
             jnp.array([c.curve.gammadash() for c in self.othercoils]),
-            self.coil.current.get_value(),
-            jnp.array([c.current.get_value() for c in self.othercoils]),
             self.downsample
         ]
         
         dJ = (
             self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args))
-            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args2))
-            + sum([c.curve.dgamma_by_dcoeff_vjp(dJ_dgammas2[i]) for i, c in enumerate(self.othercoils)])
-            + sum([c.curve.dgammadash_by_dcoeff_vjp(dJ_dgammadashs2[i]) for i, c in enumerate(self.othercoils)])
-            + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args2)]))
-            + sum([c.current.vjp(dJ_dcurrents2[i]) for i, c in enumerate(self.othercoils)])
+            + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
+            + sum([c.curve.dgamma_by_dcoeff_vjp(self.dJ_dgammas2[i]) for i, c in enumerate(self.othercoils)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadashs2[i]) for i, c in enumerate(self.othercoils)])
         )
-
-        #### ABSOLUTELY ESSENTIAL LINES BELOW
-        # Otherwise optimizable references multiply
-        # like crazy as number of coils increases
-        self.coil._children = set()
-        self.coil.curve._children = set()
-        self.coil.current._children = set()
-        for c in self.othercoils:
-            c._children = set()
-            c.curve._children = set()
-            c.current._children = set()
 
         return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
-def tve_pure(self, curve_dofs, currents, a, b):
+def tve_pure(self, gamma, gammadash, gammas2, gammadashs2, current, currents2, quadpoints, quadpoints2, downsample):
     r"""Pure function for minimizing the total vacuum energy on a coil.
 
     The function is
@@ -1964,8 +1923,11 @@ def tve_pure(self, curve_dofs, currents, a, b):
     where :math:`L_{ij}` is the coil inductance matrix (positive definite),
     and :math:`I_i` is the current in the ith coil.
     """
-    Ii_Ij = (currents[None, :] * currents[:, None])
-    Lij = self.coil_coil_inductances_pure(curve_dofs, a=a, b=b)
+    Ii_Ij = (current[None, :] * currents2[:, None])
+    Lij = self.coil_coil_inductances_pure(
+        self, gamma, gammadash, gammas2, gammadashs2, 
+        quadpoints, quadpoints2, downsample
+    )
     U = 0.5 * jnp.sum(Ii_Ij * Lij)
     return U
 
@@ -1983,31 +1945,52 @@ class TVE(Optimizable):
 
     def __init__(self, coil, allcoils, regularization, p=1.0, threshold=0.0, downsample=1):
         self.coil = coil
-        self.allcoils = allcoils
+        self.othercoils = [c for c in allcoils if c is not coil]
         quadpoints = self.coil.curve.quadpoints
+        quadpoints2 = jnp.array([c.curve.quadpoints for c in self.othercoils])
         self.downsample = downsample
 
-        args = {"static_argnums": (3,)}
+        args = {"static_argnums": (6,)}
         self.J_jax = jit(
-            lambda gamma, gammadash, current, downsample:
-            tve_pure(gamma, gammadash, quadpoints, current, regularization, p, threshold, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            tve_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgamma = jit(
-            lambda gamma, gammadash, current, downsample:
-            grad(self.J_jax, argnums=0)(gamma, gammadash, quadpoints, current, regularization, p, threshold, downsample),
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            grad(self.J_jax, argnums=0)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
             **args
         )
 
         self.dJ_dgammadash = jit(
-            lambda gamma, gammadash, current, downsample:
-            grad(self.J_jax, argnums=1)(gamma, gammadash, gammadashdash, current, B_mutual)
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            grad(self.J_jax, argnums=1)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
+            **args
+        )
+
+        self.dJ_dgammas2 = jit(
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            grad(self.J_jax, argnums=2)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
+            **args
+        )
+
+        self.dJ_dgammadashs2 = jit(
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            grad(self.J_jax, argnums=3)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
+            **args
         )
 
         self.dJ_dcurrent = jit(
-            lambda gamma, gammadash, gammadashdash, current, B_mutual:
-            grad(self.J_jax, argnums=3)(gamma, gammadash, gammadashdash, current, B_mutual)
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            grad(self.J_jax, argnums=4)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
+            **args
+        )
+
+        self.dJ_dcurrents2 = jit(
+            lambda gamma, gammadash, gammas2, gammadashs2, currents, currents2, downsample:
+            grad(self.J_jax, argnums=5)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, currents, currents2, downsample),
+            **args
         )
 
         super().__init__(depends_on=allcoils)
@@ -2017,7 +2000,10 @@ class TVE(Optimizable):
         args = [
             self.coil.curve.gamma(),
             self.coil.curve.gammadash(),
+            jnp.array([c.curve.gamma() for c in self.othercoils]),
+            jnp.array([c.curve.gammadash() for c in self.othercoils]),
             self.coil.current.get_value(),
+            jnp.array([c.current.get_value() for c in self.othercoils]),
             self.downsample
         ]
 
@@ -2029,14 +2015,22 @@ class TVE(Optimizable):
         args = [
             self.coil.curve.gamma(),
             self.coil.curve.gammadash(),
+            jnp.array([c.curve.gamma() for c in self.othercoils]),
+            jnp.array([c.curve.gammadash() for c in self.othercoils]),
             self.coil.current.get_value(),
+            jnp.array([c.current.get_value() for c in self.othercoils]),
             self.downsample
         ]
 
-        return (
-            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args) + dJ_dX)
+        dJ = (
+            self.coil.curve.dgamma_by_dcoeff_vjp(self.dJ_dgamma(*args))
             + self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
-            + self.coil.current.vjp(jnp.asarray([self.dJ_dcurrent(*args)]))
+            + sum([c.curve.dgamma_by_dcoeff_vjp(self.dJ_dgammas2[i]) for i, c in enumerate(self.othercoils)])
+            + sum([c.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadashs2[i]) for i, c in enumerate(self.othercoils)])
+            + self.coil.current.vjp(self.dJ_dcurrent(*args))
+            + sum([c.current.vjp(self.dJ_dcurrents2[i]) for i, c in enumerate(self.othercoils)])
         )
+
+        return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
