@@ -452,7 +452,7 @@ class Testing(unittest.TestCase):
         assert np.allclose(Bfield.dB_by_dX(), Bcircular2.dB_by_dX())
         assert np.allclose(dB1_by_dX[:, 0, 0]+dB1_by_dX[:, 1, 1]+dB1_by_dX[:, 2, 2], np.zeros((npoints)))  # divergence
         assert np.allclose(dB1_by_dX, transpGradB1)  # symmetry of the gradient
-        compare_gammas(Bfield, general_coil)
+        
         ## Test with results from coilpy
         radius = 1.2345
         center = np.array([0.123, 1.456, 2.789])

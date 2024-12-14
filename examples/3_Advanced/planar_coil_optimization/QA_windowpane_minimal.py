@@ -106,7 +106,6 @@ def initialize_coils_QA(TEST_DIR, s):
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
-    currents = [c.current.get_value() for c in coils]
     return base_curves, curves, coils, base_currents
 
 
@@ -139,7 +138,6 @@ Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
-    # numquadpoints=10  # Defaults is (order + 1) * 40 so this halves it
 )
 import warnings
 

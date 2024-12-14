@@ -488,8 +488,8 @@ def qfm(UUID, INPUT_FILE="./inputs/input.LandremanPaul2021_QA", vol_frac=1.00):
     qfm_surface = QfmSurface(bs, s, vol, vol_target)
 
     constraint_weight = 1e0
-    res = qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
-                                                             constraint_weight=constraint_weight)
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-12, maxiter=1000,
+                                                       constraint_weight=constraint_weight)
     vol_err = abs((s.volume()-vol_target)/vol_target)
     residual = np.linalg.norm(qfm.J())
     # print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")

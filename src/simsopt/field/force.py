@@ -1747,8 +1747,7 @@ class LpCurveTorque(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
-
-def coil_coil_inductances_pure(self, gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample):
+def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section):
     r"""  Optimizable class to minimize the Lorentz force on a coil.
 
     The objective function is
@@ -1763,65 +1762,59 @@ def coil_coil_inductances_pure(self, gamma, gammadash, gammas2, gammadashs2, qua
     quadpoints = quadpoints[::downsample]
     gamma = gamma[::downsample, :]
     gammadash = gammadash[::downsample, :]
-    quadpoints2 = quadpoints2[::downsample]
+    quadpoints2 = quadpoints2[:, ::downsample]
     gammas2 = gammas2[:, ::downsample, :]
     gammadashs2 = gammadashs2[:, ::downsample, :]
+    Lij = jnp.zeros(1 + gammas2.shape[0])
 
-    eps = 1e-10  # small number to avoid blow up in the denominator when i = j
-
-    # gamma and gammadash are shape (ncoils, nquadpoints, 3)
-    r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :]  # Note, do not use the i = j indices
-    gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1)
-    rij_norm = jnp.linalg.norm(r_ij + eps, axis=-1)
+    # Compute Lij, i != j
+    # gamma is shape (nquadpoints, 3) and gamma2 is shape (ncoils, nquadpoints, 3)
+    r_ij = gamma[:, None, :] - gammas2[:, None, :, :]
+    rij_norm = jnp.linalg.norm(r_ij, axis=-1)
+    gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadashs2[:, None, :, :], axis=-1)
 
     # Double sum over each of the closed curves
-    Lij = jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=3), axis=2
-                    ) / jnp.shape(gammas)[1] ** 2
-    Lij = jnp.subtract(Lij, jnp.diagonal(Lij))
-    # Diagonal elements need to be fixed below
+    Lij = Lij.at[1:].add(jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1
+                    ) / (jnp.shape(gamma)[0] * jnp.shape(gammas2)[1]))
 
-    # Now fix the i = j case using the Eq 11 regularization from Hurwitz/Landreman 2023
-    # and also used in Guinchard/Hudson/Paul 2024
-    k = (4 * b) / (3 * a) * jnp.arctan2(a, b) + (4 * a) / (3 * b) * jnp.arctan2(b, a) \
-        + (b ** 2) / (6 * a ** 2) * jnp.log(b / a) + (a ** 2) / (6 * b ** 2) * jnp.log(a / b) \
-        - (a ** 4 - 6 * a ** 2 * b ** 2 + b ** 4) / (6 * a ** 2 * b ** 2) * jnp.log(a / b + b / a)
-    delta = jnp.exp(-25.0 / 6.0 + k)
-    # print(k, delta, a, b)
-    # print(jnp.shape(gammadash_prod), jnp.shape(rij_norm), jnp.shape(r_ij))
-    # print('rij = ', r_ij)
+    # Diagonal elements are determined below
+    if cross_section == 'circular':
+        # Note, typically need lots of quadrature points to converge the self-inductance since it
+        # is often logarithmic
+        r_ij = gamma[:, None, :] - gamma[None, :, :]
+        rij_norm = jnp.linalg.norm(r_ij, axis=-1)
+        gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
+        Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod
+             / jnp.sqrt(rij_norm ** 2 + a ** 2 / jnp.sqrt(jnp.exp(1.0))), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
+             )
+    else:
+        # Eq 11 regularization from Hurwitz/Landreman 2023
+        # and also used in Guinchard/Hudson/Paul 2024
+        k = (4 * b) / (3 * a) * jnp.arctan2(a, b) + (4 * a) / (3 * b) * jnp.arctan2(b, a) \
+            + (b ** 2) / (6 * a ** 2) * jnp.log(b / a) + (a ** 2) / (6 * b ** 2) * jnp.log(a / b) \
+            - (a ** 4 - 6 * a ** 2 * b ** 2 + b ** 4) / (6 * a ** 2 * b ** 2) * jnp.log(a / b + b / a)
+        delta = jnp.exp(-25.0 / 6.0 + k)
 
-    # Need below line with eps != 0, otherwise some of the tangent vectors become NaN
-    rij_norm = jnp.sqrt(jnp.linalg.norm(r_ij + eps, axis=-1) ** 2 + delta * a * b)
-    # print('rij_norm = ', rij_norm)
-    # print('sqrt_term = ', jnp.linalg.norm(r_ij, axis=-1) ** 2, jnp.shape(jnp.linalg.norm(r_ij, axis=-1) ** 2))
-    Lii = jnp.diagonal(jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=3), axis=2)
-                        ) / jnp.shape(gammas)[1] ** 2
-    # print('Lii = ', Lii)
-    for i in range(jnp.shape(Lij)[0]):
-        Lij = Lij.at[i, i].add(Lii[i])
-    # print(Lii)
+        r_ij = gamma[:, None, :] - gamma[None, :, :]
+        rij_norm = jnp.linalg.norm(r_ij, axis=-1)
+        gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
+        Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod
+             / jnp.sqrt(rij_norm ** 2 + delta * a * b), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
+             )
 
-    # Equation 22 in Hurwitz/Landreman 2023 is even better and implemented below
-    # gd_norm = jnp.linalg.norm(gammadashs, axis=-1)
-    # quadpoints = self.get_quadpoints()
-    # quad_diff = quadpoints[None, :, None, :] - quadpoints[:, None, :, None]  # Note quadpoints are in [0, 1]
-    # integrand2 = gd_norm[:, None, :, None] ** 2 / jnp.sqrt(
-    #     (2 - 2 * jnp.cos(2 * np.pi * quad_diff)) * gd_norm[:, None, :, None] ** 2 + delta * a * b)
-    # print(jnp.shape(quad_diff), jnp.shape(integrand2), jnp.shape(gammas))
-    # L1 = jnp.sum(gd_norm * jnp.log(64.0 / (delta * a * b) * gd_norm ** 2), axis=-1) / jnp.shape(gammas)[1]
-    # gammadash_prod = np.diagonal(gammadash_prod, axis1=0, axis2=0)
-    # rij_norm = np.diagonal(rij_norm, axis1=0, axis2=0)
-    # L2 = jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=3), axis=2) / jnp.shape(gammas)[1] ** 2
-    # L3 = jnp.sum(jnp.sum(integrand2, axis=3), axis=2) / jnp.shape(gammas)[1] ** 2
-    # print(L1, L2, L3, jnp.shape(L2))
-    # Lii = L1 + jnp.diagonal(L2 - L3)
-    # print(Lii)
-
-    # zero out the original diagonal elements and replace with Lii
-    # for i in range(jnp.shape(Lij)[0]):
-    #     Lij = Lij.at[i, i].add(Lii[i])
-    # Lij = jnp.add(Lij, Lii)
-    return Lij * 1e-7
+        # Equation 22 in Hurwitz/Landreman 2023 is even better and implemented below
+        # gd_norm = jnp.linalg.norm(gammadash, axis=-1)
+        # quad_diff = quadpoints[:, None] - quadpoints[None, :]  # Note quadpoints are in [0, 1]
+        # integrand2 = -gd_norm ** 2 / jnp.sqrt(
+        #     (2 - 2 * jnp.cos(2 * np.pi * quad_diff)) * gd_norm ** 2 + delta * a * b)
+        # # print(jnp.shape(quad_diff), jnp.shape(integrand2), jnp.shape(gammas))
+        # L1 = jnp.sum(gd_norm * jnp.log(64.0 / (delta * a * b) * gd_norm ** 2), axis=-1) / jnp.shape(gamma)[0]
+        # gd_norm = jnp.linalg.norm(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
+        # L2 = jnp.sum(jnp.sum(gammadash_prod / jnp.sqrt(rij_norm ** 2 + delta * a * b), axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
+        # L3 = jnp.sum(jnp.sum(integrand2, axis=-1), axis=-1) / jnp.shape(gamma)[0] ** 2
+        # Lij = Lij.at[0].add(L1 + L2 + L3
+        #      )
+    return 1e-7 * Lij  
 
 
 class CoilInductances(Optimizable):
@@ -1836,42 +1829,44 @@ class CoilInductances(Optimizable):
     L is the total length of the coil, and :math:`\ell` is arclength along the coil.
     """
 
-    def __init__(self, coil, allcoils, regularization, p=2.0, threshold=0.0, downsample=1):
+    def __init__(self, coil, allcoils, a, b=None, downsample=1, cross_section='circular'):
         self.coil = coil
         self.othercoils = [c for c in allcoils if c is not coil]
         self.biotsavart = BiotSavart(self.othercoils)
         quadpoints = self.coil.curve.quadpoints
         quadpoints2 = jnp.array([c.curve.quadpoints for c in self.othercoils])
         self.downsample = downsample
+        if b is None:
+            b = a
 
         args = {"static_argnums": (4,)}
         self.J_jax = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            self.coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
+            coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
             **args
         )
 
         self.dJ_dgamma = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=0)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
+            grad(self.J_jax, argnums=0)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
             **args
         )
 
         self.dJ_dgammadash = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=1)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
+            grad(self.J_jax, argnums=1)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
             **args
         )
 
         self.dJ_dgammas2 = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=2)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
+            grad(self.J_jax, argnums=2)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
             **args
         )
 
         self.dJ_dgammadashs2 = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, downsample:
-            grad(self.J_jax, argnums=3)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, downsample),
+            grad(self.J_jax, argnums=3)(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
             **args
         )
 

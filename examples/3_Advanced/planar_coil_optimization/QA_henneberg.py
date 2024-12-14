@@ -105,7 +105,6 @@ def initialize_coils_QA(TEST_DIR, s):
 
     # Initialize the coil curves and save the data to vtk
     curves = [c.curve for c in coils]
-    currents = [c.current.get_value() for c in coils]
     return base_curves, curves, coils, base_currents
 
 

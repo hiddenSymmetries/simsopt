@@ -1,5 +1,7 @@
 from simsopt.mhd.vmec import Vmec
 from simsopt.util.mpi import MpiPartition
+from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.util import proc0_print
 from simsopt.util import comm_world
 from simsopt._core import Optimizable
 import time
@@ -37,9 +39,6 @@ qfm_surf = qfm_surf.surface
 # pointData = {"B_N": Bn, "B_N / B": Bn / np.linalg.norm(Bfield.B().reshape(nphi, ntheta, 3), axis=-1)[:, :, None]}
 # qfm_surf.to_vtk('qfm_surf', extra_data=pointData)
 # qfm_surf.plot()
-
-from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
-from simsopt.util import MpiPartition, proc0_print
 
 # Run VMEC with new QFM surface
 vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"

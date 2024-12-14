@@ -1,5 +1,7 @@
 from simsopt.mhd.vmec import Vmec
 from simsopt.util.mpi import MpiPartition
+from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.util import proc0_print
 from simsopt.util import comm_world
 from simsopt._core import Optimizable
 import time
@@ -39,22 +41,18 @@ qfm_surf = qfm_surf.surface
 # qfm_surf.to_vtk('qfm_surf', extra_data=pointData)
 # qfm_surf.plot()
 
-from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
-from simsopt.util import MpiPartition, proc0_print
-
-# # Run VMEC with new QFM surface
+# Run VMEC with new QFM surface
 vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
 equil = Vmec(vmec_input, mpi)
 equil.boundary = qfm_surf
 equil.run()
 
-# # Configure quasisymmetry objective:
+# Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(equil,
                                 np.arange(0, 1.01, 0.1),  # Radii to target
                                 helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
 
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
-# # exit()
 
 from simsopt.field.magneticfieldclasses import InterpolatedField
 

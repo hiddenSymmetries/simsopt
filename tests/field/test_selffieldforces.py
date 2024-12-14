@@ -4,11 +4,12 @@ import logging
 import numpy as np
 from scipy import constants
 from scipy.interpolate import interp1d
+from scipy.special import ellipk, ellipe
 
 from simsopt.field import Coil, Current, coils_via_symmetries
 from simsopt.geo.curve import create_equally_spaced_curves
 from simsopt.configs import get_hsx_data, get_ncsx_data
-from simsopt.geo import CurveXYZFourier
+from simsopt.geo import CurveXYZFourier, CurvePlanarFourier
 from simsopt.field.selffield import (
     B_regularized_circ,
     B_regularized_rect,
@@ -21,6 +22,7 @@ from simsopt.field.force import (
     coil_torque,
     self_force_circ,
     self_force_rect,
+    coil_coil_inductances_pure,
     MeanSquaredForce,
     LpCurveTorque,
     MixedLpCurveTorque,
@@ -94,9 +96,23 @@ class CoilForcesTest(unittest.TestCase):
         a = 0.01
         b = 0.023
         order = 1
+        R1 = 40.0
+        R2 = 3.0
+        d = 5.0
 
         # Analytic field has only a z component
         B_reg_analytic_circ = constants.mu_0 * I / (4 * np.pi * R0) * (np.log(8 * R0 / a) - 3 / 4)
+        Lii_analytic = constants.mu_0 * R0 * (np.log(8.0 * R0 / a) - 7.0 / 4.0)
+
+        # For two concentric circular coils, only "analytic" for R1 >> R0
+        Lij_analytic = constants.mu_0 * np.pi * R0 ** 2 / (2 * R1)
+
+        # For two coils that share a common axis
+        k = np.sqrt(4.0 * R0 * R2 / ((R0 + R2) ** 2 + d ** 2))
+        Lij_analytic2 = constants.mu_0 * np.sqrt(R0 * R2) * (
+            (2 / k - k) * ellipk(k ** 2) - (2 / k) * ellipe(k ** 2)
+        )
+
         # Eq (98) in Landreman Hurwitz Antonsen:
         B_reg_analytic_rect = constants.mu_0 * I / (4 * np.pi * R0) * (
             np.log(8 * R0 / np.sqrt(a * b)) + 13.0 / 12 - rectangular_xsection_k(a, b) / 2
@@ -104,11 +120,13 @@ class CoilForcesTest(unittest.TestCase):
         force_analytic_circ = B_reg_analytic_circ * I
         force_analytic_rect = B_reg_analytic_rect * I
 
-        for N_quad in [23, 13, 23]:
+        for N_quad in [23, 13, 23, 5000]:
 
             # Create a circle of radius R0 in the x-y plane:
             curve = CurveXYZFourier(N_quad, order)
             curve.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
+            curve2 = CurveXYZFourier(N_quad, order)
+            curve2.x = np.array([0, 0, 1, 0, 1, 0, 0, 0., 0.]) * R0
             phi = 2 * np.pi * curve.quadpoints
 
             current = Current(I)
@@ -124,6 +142,94 @@ class CoilForcesTest(unittest.TestCase):
             np.testing.assert_allclose(force_test[:, 0], force_analytic_circ * np.cos(phi))
             np.testing.assert_allclose(force_test[:, 1], force_analytic_circ * np.sin(phi))
             np.testing.assert_allclose(force_test[:, 2], 0.0)
+
+            normal = [0, 0, 1]
+            alpha = np.arcsin(normal[1])
+            delta = np.arccos(normal[2] / np.cos(alpha))
+            curve = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            dofs = np.zeros(8)
+            dofs[0] = R0
+            dofs[1] = np.cos(alpha / 2.0) * np.cos(delta / 2.0)
+            dofs[2] = np.sin(alpha / 2.0) * np.cos(delta / 2.0)
+            dofs[3] = np.cos(alpha / 2.0) * np.sin(delta / 2.0)
+            dofs[4] = -np.sin(alpha / 2.0) * np.sin(delta / 2.0)
+            # Now specify the center
+            dofs[5] = 0.0
+            dofs[6] = 0.0
+            dofs[7] = 0.0
+            curve.set_dofs(dofs)
+
+            # Make concentric coil with larger radius
+            curve2 = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            dofs[0] = R1
+            curve2.set_dofs(dofs)
+
+            # Make circular coil with shared axis
+            curve3 = CurvePlanarFourier(N_quad, 0, nfp=1, stellsym=False)
+            dofs[0] = R2
+            dofs[7] = d
+            curve3.set_dofs(dofs)
+
+            Lij = coil_coil_inductances_pure(
+                curve.gamma(), 
+                curve.gammadash(),
+                np.array([curve2.gamma()]),
+                np.array([curve2.gammadash()]),
+                curve.quadpoints,
+                np.array([curve2.quadpoints]),
+                a=a,
+                b=a,
+                downsample=1,
+                cross_section='circular',
+                )
+            # Test rectangular cross section for a << R
+            Lij_rect = coil_coil_inductances_pure(
+                curve.gamma(), 
+                curve.gammadash(),
+                np.array([curve2.gamma()]),
+                np.array([curve2.gammadash()]),
+                curve.quadpoints,
+                np.array([curve2.quadpoints]),
+                a=a,
+                b=a,
+                downsample=1,
+                cross_section='rectangular',
+                )
+            print(Lij, Lij_rect, Lij_analytic)
+            # np.testing.assert_allclose(Lij[0], Lii_analytic)
+            np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
+
+            # retry but swap the coils
+            Lij = coil_coil_inductances_pure(
+                curve2.gamma(), 
+                curve2.gammadash(),
+                np.array([curve.gamma()]),
+                np.array([curve.gammadash()]),
+                curve2.quadpoints,
+                np.array([curve.quadpoints]),
+                a=a,
+                b=a,
+                downsample=1,
+                cross_section='circular',
+                )
+
+            np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
+
+            # now test coils with shared axis
+            Lij = coil_coil_inductances_pure(
+                curve.gamma(), 
+                curve.gammadash(),
+                np.array([curve3.gamma()]),
+                np.array([curve3.gammadash()]),
+                curve.quadpoints,
+                np.array([curve3.quadpoints]),
+                a=a,
+                b=a,
+                downsample=1,
+                cross_section='circular',
+                )
+            print(Lij, Lii_analytic, Lij_analytic2)
+            np.testing.assert_allclose(Lij[1], Lij_analytic2, rtol=1e-2)
 
             # Check the case of rectangular cross-section:
 

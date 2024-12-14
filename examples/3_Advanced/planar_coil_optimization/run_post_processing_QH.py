@@ -1,5 +1,7 @@
 from simsopt.mhd.vmec import Vmec
 from simsopt.util.mpi import MpiPartition
+from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.util import proc0_print
 from simsopt.util import comm_world
 from simsopt._core import Optimizable
 import time
@@ -26,9 +28,6 @@ Bfield.set_points(s.gamma().reshape((-1, 3)))
 BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
 BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
                        ) / np.mean(Bfield.AbsB())
-
-from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
-from simsopt.util import MpiPartition, proc0_print
 
 # # Make the QFM surfaces
 qfm_surf = make_qfm(s, Bfield)
