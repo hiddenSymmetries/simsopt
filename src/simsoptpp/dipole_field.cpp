@@ -755,7 +755,7 @@ Array define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(Array& norma
     Array final_grid = xt::zeros<double>({ngrid, 3});
 
     // Loop through every dipole
-#pragma omp parallel for schedule(static)
+// #pragma omp parallel for schedule(static)
     for (int i = 0; i < ngrid; i++) {
         double X = xyz_uniform(i, 0);
         double Y = xyz_uniform(i, 1);
