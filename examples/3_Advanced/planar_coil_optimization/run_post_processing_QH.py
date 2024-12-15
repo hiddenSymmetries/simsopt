@@ -44,7 +44,7 @@ qs = QuasisymmetryRatioResidual(equil,
                                 helicity_m=1, helicity_n=-1)  # (M, N) you want in |B|
 
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
-    
+exit() 
 from simsopt.field.magneticfieldclasses import InterpolatedField
 
 def skip(rs, phis, zs):

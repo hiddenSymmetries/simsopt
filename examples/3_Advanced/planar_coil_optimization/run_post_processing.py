@@ -42,7 +42,7 @@ from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.util import MpiPartition, proc0_print
 
 # Run VMEC with new QFM surface
-vmec_input = "../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
+vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
 equil = Vmec(vmec_input, mpi)
 equil.boundary = qfm_surf
 equil.run()
@@ -53,7 +53,7 @@ qs = QuasisymmetryRatioResidual(equil,
                                 helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
 
 proc0_print("Quasisymmetry objective before optimization:", qs.total())
-
+exit()
 from simsopt.field.magneticfieldclasses import InterpolatedField
 
 

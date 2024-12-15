@@ -71,9 +71,9 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
         # FILTERING OUT BAD/UNNECESSARY DATA:
         f"and max_arclength_variance < 1e-2"
         f"and coil_surface_distance < 0.375"
-        f"and coil_coil_distance < 0.14"
+        f"and coil_coil_distance < 0.15"
         f"and max_length > 4.0"
-        f"and normalized_BdotN < {4 * 1e-3}"
+        f"and normalized_BdotN < {1e-2}"
         f"and max_max_force<50000"
     )   
 
@@ -312,8 +312,10 @@ def success_plt(df, df_filtered):
         plt.hist(df_filtered[field], bins=bins, alpha=1, label="after filtering")
         plt.xlabel(field)
         plt.legend(loc=0, fontsize=6)
+        plt.xlim(0, np.mean(df[field]) * 2)
         if log:
             plt.xscale("log")
+        plt.savefig('hist.pdf')
 
 
     # 2nd entry of each tuple is True if the field should be plotted on a log x-scale.

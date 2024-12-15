@@ -132,7 +132,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         CC_WEIGHT               = 10.0 ** rand(2, 5)
 
         if with_force:
-            FORCE_WEIGHT        = 10.0 ** rand(-14, -5)
+            FORCE_WEIGHT        = 10.0 ** rand(-20, -8)
         else:
             FORCE_WEIGHT        = 0
 
