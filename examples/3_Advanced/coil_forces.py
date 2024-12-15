@@ -62,7 +62,7 @@ MSC_WEIGHT = 1e-6
 
 # Weight for forces and total vacuum energy
 FORCE_WEIGHT = Weight(1e-26)
-TVE_WEIGHT = Weight(1e-26)
+TVE_WEIGHT = Weight(1e-10)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -144,8 +144,6 @@ Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=4) for c in base_coils]
 Jtve = [TVE(c, coils, a=a) for c in base_coils]
-print(sum(Jtve).J())
-print(sum(Jtve).dJ())
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -176,6 +174,7 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", F={sum(J.J() for J in Jforce):.2e}"
+    outstr += f", TVE={sum(J.J() for J in Jtve):.2e}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     return J, grad

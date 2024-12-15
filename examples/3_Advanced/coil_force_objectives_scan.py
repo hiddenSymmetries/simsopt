@@ -17,7 +17,7 @@ from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
-    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque
+    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, TVE
 from simsopt.field.selffield import regularization_circ
 
 
@@ -142,8 +142,6 @@ pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 bs.set_points(s.gamma().reshape((-1, 3)))
 
-ii = 1
-
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, bs)
 Jls = [CurveLength(c) for c in base_curves]
@@ -158,11 +156,19 @@ if sys.argv[1] == 'SquaredMeanForce':
 elif sys.argv[1] == 'SquaredMeanTorque':
     Jforce = [SquaredMeanTorque(c, coils) for c in base_coils]
 elif sys.argv[1] == 'LpCurveForce':
-    print('Assuming that user specified the threshold as the third command line argument: ')
-    Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3])) for c in base_coils]
+    print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
+    try:
+        Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3])) for c in base_coils]
+    except:
+        Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=2, threshold=0.0) for c in base_coils]
 elif sys.argv[1] == 'LpCurveTorque':
-    print('Assuming that user specified the threshold as the third command line argument: ')
-    Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3])) for c in base_coils]
+    print('If user did not specify the threshold as the third command line argument, it will be set to zero ')
+    try:
+        Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=float(sys.argv[3])) for c in base_coils]
+    except:
+        Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=0.0) for c in base_coils]
+elif sys.argv[1] == 'TVE':
+    Jforce = [TVE(c, coils, a=a) for c in base_coils]
 else:
     print('User did not input a valid Force/Torque objective. Defaulting to no force term')
     FORCE_WEIGHT = 1e-100
@@ -238,13 +244,13 @@ dofs = JF.x
 print(f"Optimization with FORCE_WEIGHT={FORCE_WEIGHT.value} and LENGTH_WEIGHT={LENGTH_WEIGHT.value}")
 # print("INITIAL OPTIMIZATION")
 res = minimize(fun, dofs, jac=True, method='L-BFGS-B', options={'maxiter': MAXITER, 'maxcor': MAXITER}, tol=1e-12)
-curves_to_vtk(curves, OUT_DIR + "curves_opt"+str(ii), close=True, extra_point_data=pointData_forces_torques(coils),
+curves_to_vtk(curves, OUT_DIR + "curves_opt", close=True, extra_point_data=pointData_forces_torques(coils),
               NetForces=coil_net_forces(coils, coils, regularization_circ(np.ones(len(coils)) * a)),
               NetTorques=coil_net_torques(coils, coils, regularization_circ(np.ones(len(coils)) * a))
               )
 
 pointData_surf = {"B_N": np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)[:, :, None]}
-s.to_vtk(OUT_DIR + "surf_opt"+str(ii), extra_data=pointData_surf)
+s.to_vtk(OUT_DIR + "surf_opt", extra_data=pointData_surf)
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 pointData = {"B_N": np.sum(bs.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_full_opt"+str(ii), extra_data=pointData)
+s_plot.to_vtk(OUT_DIR + "surf_full_opt", extra_data=pointData)

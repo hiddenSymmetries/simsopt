@@ -1781,7 +1781,8 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
     if cross_section == 'circular':
         # Note, typically need lots of quadrature points to converge the self-inductance since it
         # is often logarithmic
-        r_ij = gamma[:, None, :] - gamma[None, :, :]
+        eps = 1e-10  # Small number to avoid blowup during dJ() calculation
+        r_ij = gamma[:, None, :] - gamma[None, :, :] + eps
         rij_norm = jnp.linalg.norm(r_ij, axis=-1)
         gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
         Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod
@@ -1795,7 +1796,8 @@ def coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoint
             - (a ** 4 - 6 * a ** 2 * b ** 2 + b ** 4) / (6 * a ** 2 * b ** 2) * jnp.log(a / b + b / a)
         delta = jnp.exp(-25.0 / 6.0 + k)
 
-        r_ij = gamma[:, None, :] - gamma[None, :, :]
+        eps = 1e-10  # Small number to avoid blowup during dJ() calculation
+        r_ij = gamma[:, None, :] - gamma[None, :, :] + eps
         rij_norm = jnp.linalg.norm(r_ij, axis=-1)
         gammadash_prod = jnp.sum(gammadash[:, None, :] * gammadash[None, :, :], axis=-1)
         Lij = Lij.at[0].add(jnp.sum(jnp.sum(gammadash_prod
