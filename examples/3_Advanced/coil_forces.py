@@ -15,7 +15,8 @@ from simsopt.objectives import SquaredFlux, Weight, QuadraticPenalty
 from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
-from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, LpCurveForce
+from simsopt.field.force import coil_force, coil_torque, coil_net_forces, \
+    coil_net_torques, LpCurveForce, TVE
 from simsopt.field.selffield import regularization_circ
 from simsopt.util import in_github_actions, calculate_on_axis_B
 
@@ -59,8 +60,9 @@ CURVATURE_WEIGHT = 1e-6
 MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
-# Weight on the mean squared force penalty in the objective function
+# Weight for forces and total vacuum energy
 FORCE_WEIGHT = Weight(1e-26)
+TVE_WEIGHT = Weight(1e-26)
 
 # Number of iterations to perform:
 MAXITER = 50 if in_github_actions else 400
@@ -86,7 +88,9 @@ ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
-base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=True)
+base_curves = create_equally_spaced_curves(
+    ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order, jax_flag=False
+)
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -139,6 +143,9 @@ Jcsdist = CurveSurfaceDistance(curves, s, CS_THRESHOLD)
 Jcs = [LpCurveCurvature(c, 2, CURVATURE_THRESHOLD) for c in base_curves]
 Jmscs = [MeanSquaredCurvature(c) for c in base_curves]
 Jforce = [LpCurveForce(c, coils, regularization_circ(a), p=4) for c in base_coils]
+Jtve = [TVE(c, coils, a=a) for c in base_coils]
+print(sum(Jtve).J())
+print(sum(Jtve).dJ())
 
 # Form the total objective function. To do this, we can exploit the
 # fact that Optimizable objects with J() and dJ() functions can be
@@ -149,7 +156,8 @@ JF = Jf \
     + CS_WEIGHT * Jcsdist \
     + CURVATURE_WEIGHT * sum(Jcs) \
     + MSC_WEIGHT * sum(QuadraticPenalty(J, MSC_THRESHOLD, "max") for J in Jmscs) \
-    + FORCE_WEIGHT * sum(Jforce)
+    + FORCE_WEIGHT * sum(Jforce) \
+    + TVE_WEIGHT * sum(Jtve)
 
 # We don't have a general interface in SIMSOPT for optimisation problems that
 # are not in least-squares form, so we write a little wrapper function that we

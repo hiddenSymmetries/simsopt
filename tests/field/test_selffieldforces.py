@@ -23,6 +23,7 @@ from simsopt.field.force import (
     self_force_circ,
     self_force_rect,
     coil_coil_inductances_pure,
+    TVE,
     MeanSquaredForce,
     LpCurveTorque,
     MixedLpCurveTorque,
@@ -303,6 +304,9 @@ class CoilForcesTest(unittest.TestCase):
         base_curves = create_equally_spaced_curves(ncoils, nfp, True)
         base_currents = [Current(I) for j in range(ncoils)]
         coils = coils_via_symmetries(base_curves, base_currents, nfp, True)
+
+        # Test TVE
+        objective = float(TVE(coils[0], coils, a=0.05).J())
 
         # Test LpCurveForce
 
