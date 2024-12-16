@@ -8,10 +8,7 @@ from optimization_tools import *
 # import imageio
 import matplotlib.pyplot as plt
 
-# initial_optimizations(N=2000, with_force=True, MAXITER=2000, FORCE_OBJ=LpCurveForce, OUTPUT_DIR="./output/QA/LPF/optimizations/")
-
-INPUT_DIR = "./output/QA/LpForce/"
-df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
+df, df_filtered, df_pareto = get_dfs(INPUT_DIR="./output/QA/LPT/optimizations/")
 success_plt(df, df_filtered).show()
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 
