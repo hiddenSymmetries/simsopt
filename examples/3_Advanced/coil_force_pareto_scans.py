@@ -6,9 +6,7 @@ Example script for the force metric in a stage-two coil optimization
 from analysis_tools import *
 from optimization_tools import *
 # import imageio
-import matplotlib
 import matplotlib.pyplot as plt
-import os
 
 # initial_optimizations(N=2000, with_force=True, MAXITER=2000, FORCE_OBJ=LpCurveForce, OUTPUT_DIR="./output/QA/LPF/optimizations/")
 

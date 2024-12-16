@@ -194,8 +194,8 @@ class Derivative:
 
             for k in optim.unique_dof_lineage:
                 for opt in k.dofs.dep_opts():
-                    # the next if-statament is there to avoid the dictionary from accumulating 
-                    # empty values e.g. if there are no local DOFs to opt, then self.data[opt] 
+                    # the next if-statament is there to avoid the dictionary from accumulating
+                    # empty values e.g. if there are no local DOFs to opt, then self.data[opt]
                     # returns np.array([]).
                     if opt.local_full_dof_size > 0:
                         derivs.append(self.data[opt])

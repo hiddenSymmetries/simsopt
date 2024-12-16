@@ -2,8 +2,8 @@
 This module contains the a number of useful functions for using 
 the permanent magnets functionality in the SIMSOPT code.
 """
-__all__ = ['read_focus_coils', 'coil_optimization', 
-           'trace_fieldlines', 'make_qfm', 
+__all__ = ['read_focus_coils', 'coil_optimization',
+           'trace_fieldlines', 'make_qfm',
            'initialize_coils', 'calculate_on_axis_B',
            'make_optimization_plots', 'run_Poincare_plots',
            'make_Bnormal_plots', 'initialize_default_kwargs'
@@ -316,7 +316,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
         total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.311753
         print('Total current = ', total_current)
-        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True, 
+        base_curves = create_equally_spaced_curves(ncoils, s.nfp, stellsym=True,
                                                    R0=R0, R1=R1, order=order, numquadpoints=64)
         base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils - 1)]
         # base_currents = [(Current(total_current / ncoils * 1e-5) * 1e5) for _ in range(ncoils)]
@@ -354,7 +354,7 @@ def initialize_coils(config_flag, TEST_DIR, s, out_dir=''):
         R0 = 1.0
         R1 = 0.9
         order = 5
-    
+
         # qa needs to be scaled to 0.1 T on-axis magnetic field strength
         from simsopt.mhd.vmec import Vmec
         vmec_file = 'wout_LandremanPaul2021_QA_lowres.nc'
@@ -558,7 +558,6 @@ def make_Bnormal_plots(bs, s_plot, out_dir='', bs_filename="Bnormal", B_axis=Non
         out_dir: Path or string for the output directory for saved files.
         bs_filename: String denoting the name of the output file. 
     """
-    from simsopt.field import BiotSavart, InterpolatedField, MagneticFieldSum
     out_dir = Path(out_dir)
     nphi = len(s_plot.quadpoints_phi)
     ntheta = len(s_plot.quadpoints_theta)
@@ -606,6 +605,6 @@ def initialize_default_kwargs(algorithm='RS'):
         kwargs['reg_l2'] = 0.0
     elif 'GPMO' in algorithm or 'ArbVec' in algorithm:
         kwargs['K'] = 1000
-        kwargs["reg_l2"] = 0.0 
+        kwargs["reg_l2"] = 0.0
         kwargs['nhistory'] = 500  # K > nhistory and nhistory must be divisor of K
     return kwargs

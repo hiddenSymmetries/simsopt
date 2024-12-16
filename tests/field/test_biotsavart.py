@@ -19,6 +19,7 @@ def get_curve(num_quadrature_points=200, perturb=False):
         coil.set_dofs(d + np.random.uniform(size=d.shape))
     return coil
 
+
 class Testing(unittest.TestCase):
 
     def test_biotsavart_both_interfaces_give_same_result(self):
@@ -202,7 +203,7 @@ class Testing(unittest.TestCase):
         bs = BiotSavart([coil])
         points = np.asarray(17 * [[-1.41513202e-03, 8.99999382e-01, -3.14473221e-04]])
         bs.set_points(points)
-        B, dA_by_dX = bs.B(), bs.dA_by_dX() 
+        B, dA_by_dX = bs.B(), bs.dA_by_dX()
         curlA1 = dA_by_dX[:, 1, 2] - dA_by_dX[:, 2, 1]
         curlA2 = dA_by_dX[:, 2, 0] - dA_by_dX[:, 0, 2]
         curlA3 = dA_by_dX[:, 0, 1] - dA_by_dX[:, 1, 0]
@@ -360,6 +361,7 @@ class Testing(unittest.TestCase):
     def test_flux_through_disk(self):
         # this test makes sure that the toroidal flux through a disk (D)
         # given by \int_D B \cdot n dB = \int_{\partial D} A \cdot dl
+        np.random.seed(1)
 
         from scipy.spatial.transform import Rotation as R
         rot = R.from_euler('zyx', [21.234, 8.431, -4.86392], degrees=True).as_matrix()
@@ -381,9 +383,12 @@ class Testing(unittest.TestCase):
         # int_r int_theta B int r dr dtheta
         from scipy import integrate
         r = 0.15
-        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15) 
+        fluxB = integrate.dblquad(f, 0, r, 0, 2*np.pi, epsabs=1e-15, epsrel=1e-15)
 
-        for num in range(20, 60):
+        # num range used to be (20, 60) but this fails for num <= 20-30 for certain
+        # random coil initializations since don't have enough quadrature points
+        # to integrate to numerical precision.
+        for num in range(40, 100): 
             npoints = num
             angles = np.linspace(0, 2*np.pi, npoints, endpoint=False).reshape((-1, 1))
             t = np.concatenate((-np.sin(angles), np.cos(angles), np.zeros((angles.size, 1))), axis=1) @ rot.T
@@ -391,6 +396,7 @@ class Testing(unittest.TestCase):
             bs.set_points(pts)
             A = bs.A()
             fluxA = r*np.sum(A*t) * 2 * np.pi/npoints
+            print(fluxB[0], fluxA, np.abs(fluxB[0]-fluxA)/fluxB[0])
 
             assert np.abs(fluxB[0]-fluxA)/fluxB[0] < 1e-14
 
@@ -426,6 +432,7 @@ class Testing(unittest.TestCase):
         assert np.linalg.norm(dA[0]-dA_approx) < 1e-15
         assert np.linalg.norm(dJ[0]-dJ_approx) < 1e-15
         assert np.linalg.norm(dH[0]-dH_approx) < 1e-15
+
 
 if __name__ == "__main__":
     unittest.main()

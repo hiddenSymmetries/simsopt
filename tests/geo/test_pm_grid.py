@@ -11,7 +11,7 @@ from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO, relax_and_split
 from simsopt.util import *
 from simsopt.util.polarization_project import (faceedge_vectors, facecorner_vectors,
-                                               pol_e, pol_f, pol_fe, pol_c, 
+                                               pol_e, pol_f, pol_fe, pol_c,
                                                pol_fc, pol_ec, pol_fc27, pol_fc39,
                                                pol_ec23, pol_fe17, pol_fe23, pol_fe30)
 
@@ -216,6 +216,7 @@ class Testing(unittest.TestCase):
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
             Ngrid = nphi * ntheta
             Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
+            print(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
             assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
 
             # check <Bn>
@@ -249,7 +250,7 @@ class Testing(unittest.TestCase):
         # check Bn
         Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
         Ngrid = nphi * ntheta
-        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
         assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
 
         # check <Bn>
@@ -290,7 +291,7 @@ class Testing(unittest.TestCase):
             s2.to_vtk('s2')
             match_tol = 0.1
             r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
-            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)     
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1 - match_tol))
             assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
@@ -299,7 +300,7 @@ class Testing(unittest.TestCase):
                 s, np.zeros((nphi, ntheta)), s1, s2, coordinate_flag='cylindrical'
             )
             r_cartesian = np.sqrt(pm_opt.dipole_grid_xyz[:, 0] ** 2 + pm_opt.dipole_grid_xyz[:, 1] ** 2)
-            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)        
+            r_fit = np.sqrt((r_cartesian - R0) ** 2 + pm_opt.dipole_grid_xyz[:, 2] ** 2)
             assert (np.min(r_fit) > (r0 + 1 - match_tol))
             assert (np.max(r_fit) < (r0 + 2 + match_tol))
 
@@ -418,7 +419,7 @@ class Testing(unittest.TestCase):
         Tests the polarizations and related functions from the
         polarization_project file.
         """
-        theta = 0.0 
+        theta = 0.0
         vecs = faceedge_vectors(theta)
         assert np.allclose(np.linalg.norm(vecs, axis=-1), 1.0)
         vecs = facecorner_vectors(theta)
@@ -463,19 +464,19 @@ class Testing(unittest.TestCase):
         assert np.allclose(pol_fc39, pol_axes)
         pol_axes, _ = polarization_axes('ec23')
         assert np.allclose(pol_ec23, pol_axes)
-        theta = 38.12 * np.pi / 180.0 
+        theta = 38.12 * np.pi / 180.0
         vectors = facecorner_vectors(theta)
         pol_axes, _ = polarization_axes('fc_ftri')
         assert np.allclose(vectors, pol_axes)
-        theta = 30.35 * np.pi / 180.0 
+        theta = 30.35 * np.pi / 180.0
         vectors = faceedge_vectors(theta)
         pol_axes, _ = polarization_axes('fe_ftri')
         assert np.allclose(vectors, pol_axes)
-        theta = 18.42 * np.pi / 180.0 
+        theta = 18.42 * np.pi / 180.0
         vectors = faceedge_vectors(theta)
         pol_axes, _ = polarization_axes('fe_etri')
         assert np.allclose(vectors, pol_axes)
-        theta = 38.56 * np.pi / 180.0 
+        theta = 38.56 * np.pi / 180.0
         vectors = facecorner_vectors(theta)
         pol_axes, _ = polarization_axes('fc_etri')
         assert np.allclose(vectors, pol_axes)
@@ -634,7 +635,7 @@ class Testing(unittest.TestCase):
 
         # Test build of the MUSE coils
         input_name = 'input.muse'
-        nphi = 8 
+        nphi = 8
         ntheta = nphi
         surface_filename = TEST_DIR / input_name
         s = SurfaceRZFourier.from_focus(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
@@ -673,8 +674,7 @@ class Testing(unittest.TestCase):
         # Run poincare plotting
         #with ScratchDir("."):
         #    run_Poincare_plots(s_plot, bs, b_dipole, None, 'poincare_test')
-        
-        
+
     def test_analytic_magnet_fields(self):
         # Initialize one permanent magnet
         # Compute the A matrix at some faraway point using the pure dipole functionality in the existing code
@@ -692,6 +692,7 @@ class Testing(unittest.TestCase):
         A_matrix_original = np.zeros(10)
         A_matrix_new = np.zeros(10)
         assert np.allclose(A_matrix_original, A_matrix_new)
+
 
 if __name__ == "__main__":
     unittest.main()

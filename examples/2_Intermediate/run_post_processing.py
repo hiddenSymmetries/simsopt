@@ -4,7 +4,6 @@ from simsopt.util import comm_world
 from simsopt._core import Optimizable
 import time
 import sys
-from simsopt.util.permanent_magnet_helper_functions import make_qfm
 
 mpi = MpiPartition(ngroups=8)
 comm = comm_world
@@ -22,7 +21,7 @@ equil.boundary = qfm_surf
 equil.run()
 t2 = time.time()
 print("Running VMEC took ", t2 - t1, " s")
-    
+
 # from simsopt.field.magneticfieldclasses import InterpolatedField
 
 # out_dir = Path(out_dir)

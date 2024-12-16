@@ -92,7 +92,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         contig = np.ascontiguousarray
         gridToVTK(filename, X, Y, Z, pointData={"B": (contig(vals[..., 0]), contig(vals[..., 1]), contig(vals[..., 2]))})
 
-    def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1, 
+    def to_mgrid(self, filename, nr=10, nphi=4, nz=12, rmin=1.0, rmax=2.0, zmin=-0.5, zmax=0.5, nfp=1,
                  include_potential=False):
         """Export the field to the mgrid format for free boundary calculations.
 
@@ -123,7 +123,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
 
         RPhiZ = np.zeros((R.size, 3))
         RPhiZ[:, 0] = R.flatten()
-        RPhiZ[:, 1] = Phi.flatten()  
+        RPhiZ[:, 1] = Phi.flatten()
         RPhiZ[:, 2] = Z.flatten()
 
         # get field on the grid
@@ -135,7 +135,7 @@ class MagneticField(sopp.MagneticField, Optimizable):
         br_3 = br.reshape((nphi, nz, nr))
         bp_3 = bp.reshape((nphi, nz, nr))
         bz_3 = bz.reshape((nphi, nz, nr))
-        
+
         if include_potential:
             A = self.A_cyl()
             # shape the potential components
@@ -148,10 +148,9 @@ class MagneticField(sopp.MagneticField, Optimizable):
                       nr=nr, nz=nz, nphi=nphi,
                       rmin=rmin, rmax=rmax, zmin=zmin, zmax=zmax)
         if include_potential:
-            mgrid.add_field_cylindrical(br_3, bp_3, bz_3, ar=ar_3, ap=ap_3, az=az_3, name='simsopt_coils')  
+            mgrid.add_field_cylindrical(br_3, bp_3, bz_3, ar=ar_3, ap=ap_3, az=az_3, name='simsopt_coils')
         else:
-            mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')  
-
+            mgrid.add_field_cylindrical(br_3, bp_3, bz_3, name='simsopt_coils')
 
         mgrid.write(filename)
 
@@ -255,6 +254,3 @@ class MagneticFieldSum(MagneticField):
         xyz = decoder.process_decoded(d["points"], serial_objs_dict, recon_objs)
         field_sum.set_points_cart(xyz)
         return field_sum
-
-
-

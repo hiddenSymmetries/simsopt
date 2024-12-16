@@ -106,4 +106,3 @@ class SquaredFlux(Optimizable):
         # print('here = ', dJdB.shape, self.field.B_vjp(dJdB)(self).shape)
         # exit()
         return self.field.B_vjp(dJdB)
-
