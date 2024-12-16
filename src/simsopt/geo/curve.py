@@ -719,15 +719,6 @@ class RotatedCurve(sopp.Curve, Curve):
             self.curve.gamma_impl(gamma, quadpoints)
             gamma[:] = gamma @ self.rotmat
 
-    def gamma_impl_jax(self, dofs, quadpoints):
-        gamma = self.curve.gamma_impl_jax(dofs, quadpoints)
-        gamma = gamma @ self.rotmat
-        return gamma
-
-    def kappa_impl_jax(self, d1gamma, d2gamma):
-        kappa = self.curve.kappa_jax(d1gamma, d2gamma)
-        return kappa
-
     def gammadash_impl(self, gammadash):
         r"""
         This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z
@@ -737,11 +728,6 @@ class RotatedCurve(sopp.Curve, Curve):
 
         gammadash[:] = self.curve.gammadash() @ self.rotmat
 
-    def gammadash_impl_jax(self, dofs, quadpoints):
-        gammadash = self.curve.gammadash_impl_jax(dofs, quadpoints)
-        gammadash = gammadash @ self.rotmat
-        return gammadash
-
     def gammadashdash_impl(self, gammadashdash):
         r"""
         This function returns :math:`\Gamma''(\varphi)`, where :math:`\Gamma` are the x, y, z
@@ -750,11 +736,6 @@ class RotatedCurve(sopp.Curve, Curve):
         """
 
         gammadashdash[:] = self.curve.gammadashdash() @ self.rotmat
-
-    def gammadashdash_impl_jax(self, dofs, quadpoints):
-        gammadashdash = self.curve.gammadashdash_impl_jax(dofs, quadpoints)
-        gammadashdash = gammadashdash @ self.rotmat
-        return gammadashdash
 
     def gammadashdashdash_impl(self, gammadashdashdash):
         r"""
