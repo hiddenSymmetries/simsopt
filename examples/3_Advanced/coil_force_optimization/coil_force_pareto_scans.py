@@ -8,7 +8,8 @@ from optimization_tools import *
 # import imageio
 import matplotlib.pyplot as plt
 
-df, df_filtered, df_pareto = get_dfs(INPUT_DIR="./output/QA/LPT/optimizations/")
+INPUT_DIR = "../output/QA/TVE/"
+df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 success_plt(df, df_filtered).show()
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 
