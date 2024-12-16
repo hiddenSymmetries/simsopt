@@ -68,7 +68,7 @@ TVE_WEIGHT = Weight(1e-10)
 MAXITER = 50 if in_github_actions else 400
 
 # File for the desired boundary magnetic surface:
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
+TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
 filename = TEST_DIR / 'input.LandremanPaul2021_QA'
 
 # Directory for output
