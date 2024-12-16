@@ -61,7 +61,7 @@ MSC_THRESHOLD = 5
 MSC_WEIGHT = 1e-6
 
 # Number of iterations to perform:
-MAXITER = 1000
+MAXITER = 200
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
