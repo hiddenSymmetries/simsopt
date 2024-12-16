@@ -19,7 +19,7 @@ from simsopt.geo import (
     SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
-    LpCurveForce, TVE
+    LpCurveForce
 from simsopt.field.selffield import regularization_circ
 
 

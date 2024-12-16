@@ -458,9 +458,7 @@ class JaxCurve(sopp.Curve, Curve):
         self.kappa_impl_jax = jit(lambda x, v: kappa_pure(x, v))
         self.frenet_frame_jax = jit(lambda x: self.frenet_frame_pure(x))
         self.incremental_arclength_jax = jit(lambda x: self.incremental_arclength_pure(x))
-        # self.incremental_arclength_jax = jit(lambda x: incremental_arclength_pure(x))
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
-
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
     def set_dofs(self, dofs):
@@ -1129,6 +1127,8 @@ def create_planar_curves_between_two_toroidal_surfaces(
         curves = [JaxCurvePlanarFourier(nquad, order) for i in range(ncoils)]
     else:
         curves = [CurvePlanarFourier(nquad, order, nfp=1, stellsym=False) for i in range(ncoils)]
+
+    # Initialize a bunch of circular coils with same normal vector 
     for ic in range(ncoils):
         alpha2 = np.pi / 2.0
         delta2 = 0.0
@@ -1140,8 +1140,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
         dofs[0] = R
         for j in range(1, 2 * order + 1):
             dofs[j] = 0.0
-        # Conversion from Euler angles in 3-2-1 body sequence to
-        # quaternions:
+        # Conversion from Euler angles in 3-2-1 body sequence to quaternions:
         # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
         dofs[2 * order + 1] = calpha2 * cdelta2
         dofs[2 * order + 2] = salpha2 * cdelta2
@@ -1183,12 +1182,12 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     if jax_flag:
         for i in range(ncurves):
             curve = JaxCurveXYZFourier(numquadpoints, order)
-            angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
+            angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
             coeffs = np.zeros((3, len(curve.get_dofs()) // 3))
-            coeffs[0][0] = cos(angle)*R0
-            coeffs[0][2] = cos(angle)*R1
-            coeffs[1][0] = sin(angle)*R0
-            coeffs[1][2] = sin(angle)*R1
+            coeffs[0][0] = cos(angle) * R0
+            coeffs[0][2] = cos(angle) * R1
+            coeffs[1][0] = sin(angle) * R0
+            coeffs[1][2] = sin(angle) * R1
             coeffs[2][1] = -R1
             curve.set_dofs(np.concatenate(coeffs))
             curve.x = curve.x  # need to do this to transfer data to C++
@@ -1196,11 +1195,11 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     else:
         for i in range(ncurves):
             curve = CurveXYZFourier(numquadpoints, order)
-            angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
-            curve.set("xc(0)", cos(angle)*R0)
-            curve.set("xc(1)", cos(angle)*R1)
-            curve.set("yc(0)", sin(angle)*R0)
-            curve.set("yc(1)", sin(angle)*R1)
+            angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
+            curve.set("xc(0)", cos(angle) * R0)
+            curve.set("xc(1)", cos(angle) * R1)
+            curve.set("yc(0)", sin(angle) * R0)
+            curve.set("yc(1)", sin(angle) * R1)
             # The the next line, the minus sign is for consistency with
             # Vmec.external_current(), so the coils create a toroidal field of the
             # proper sign and free-boundary equilibrium works following stage-2 optimization.
@@ -1225,7 +1224,7 @@ def create_equally_spaced_planar_curves(
     curves = []
     from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
     for k in range(ncurves):
-        angle = (k+0.5)*(2*np.pi) / ((1+int(stellsym))*nfp*ncurves)
+        angle = (k + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
 
         if jax_flag:
             curve = JaxCurvePlanarFourier(numquadpoints, order)
