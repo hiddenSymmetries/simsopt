@@ -40,9 +40,9 @@ if in_github_actions:
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 10000
-    downsample = 10
+    nIter_max = 2000  # >= 50000 for high-resolution runs
+    max_nMagnets = 1000  # >= 15000 for high-resolution runs
+    downsample = 10  # = 1 for high-resolution runs
 
 nphi = N
 ntheta = N
