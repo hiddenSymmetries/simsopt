@@ -8,16 +8,16 @@ from optimization_tools import *
 # import imageio
 import matplotlib.pyplot as plt
 
-INPUT_DIR = "./output/QA/TVE/"
+INPUT_DIR = "./output/QA/TVE_new/"
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 success_plt(df, df_filtered).show()
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 
-df_filtered = df
-df_pareto = df
+#df_filtered = df
+#df_pareto = df
 y_axes = ["tve"]  #, "mean_RMS_force", "max_max_torque", "mean_RMS_torque", "net_forces", "net_torques"]
 labels = ["Total Vacuum Magnetic Energy [J]"]  #, "mean force [N/m]", "max torque [N]", "mean torque [N]", "net force [N]", "net torque [N-m]"]
-y_lims = [(10000, 35000)]  #, (5500, 10000), (5000, 30000), (2000, 6200), (4000, 13000), (5e2, 7000)]
+y_lims = [(7500, 30000)]  #, (5500, 10000), (5000, 30000), (2000, 6200), (4000, 13000), (5e2, 7000)]
 #keys = ["coil_coil_distance"]
 #keys = ["max_length"]
 #keys = ["max_max_κ"]
@@ -102,8 +102,8 @@ for color in keys:
         )
         plt.xlabel(r'$\langle|\mathbf{B}\cdot\mathbf{n}|\rangle/\langle B \rangle$ [unitless]')
         plt.ylabel(label)
-        plt.xlim(0.7 * min(df_filtered["normalized_BdotN"]), max(df_filtered["normalized_BdotN"]))
-        #plt.ylim(y_lim)
+        plt.xlim(0.5 * min(df_filtered["normalized_BdotN"]), max(df_filtered["normalized_BdotN"]))
+        plt.ylim(y_lim)
         plt.xscale("log")
         #if y_lim[0] < 1:
         #    plt.yscale("log")

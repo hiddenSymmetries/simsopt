@@ -1926,7 +1926,7 @@ def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2,
         gamma, gammadash, gammas2, gammadashs2, 
         quadpoints, quadpoints2, a, b, downsample, cross_section
     )
-    U = 0.5 * (jnp.sum(jnp.abs(Ii_Ij) * Lij[1:]) + Lij[0] * current ** 2)
+    U = 0.5 * (jnp.sum(Ii_Ij * Lij[1:]) + Lij[0] * current ** 2)
     return U
 
 class TVE(Optimizable):
