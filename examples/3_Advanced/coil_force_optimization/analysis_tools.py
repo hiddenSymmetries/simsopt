@@ -71,7 +71,7 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
         f"and coil_surface_distance < 0.375"
         f"and coil_coil_distance < 0.15"
         f"and max_length > 4.0"
-        f"and normalized_BdotN < {1e-2}"
+        f"and normalized_BdotN < {2e-2}"
         f"and max_max_force<50000"
     )
 

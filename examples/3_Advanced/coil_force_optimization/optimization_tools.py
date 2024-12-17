@@ -392,6 +392,7 @@ def optimization(
 
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
+    tve = sum([TVE(c, coils, 0.05) for c in base_coils]).J()
     max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     net_forces = coil_net_forces(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))
@@ -432,6 +433,7 @@ def optimization(
         "max_max_κ": max(np.max(c.kappa()) for c in base_curves),
         "MSCs": [float(J.J()) for J in Jmscs],
         "max_MSC": max(float(J.J()) for J in Jmscs),
+        "tve": float(tve), 
         "max_forces": [float(f) for f in max_forces],
         "net_forces": [float(np.linalg.norm(f, axis=-1)) for f in net_forces],
         "max_max_force": max(float(f) for f in max_forces),
