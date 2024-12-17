@@ -13,9 +13,11 @@ df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 success_plt(df, df_filtered).show()
 df, df_filtered, df_pareto = get_dfs(INPUT_DIR=INPUT_DIR)
 
-y_axes = ["mean_RMS_force"]  #, "mean_RMS_force", "max_max_torque", "mean_RMS_torque", "net_forces", "net_torques"]
-labels = ["mean RMS force [N/m]"]  #, "mean force [N/m]", "max torque [N]", "mean torque [N]", "net force [N]", "net torque [N-m]"]
-y_lims = [(12000, 35000)]  #, (5500, 10000), (5000, 30000), (2000, 6200), (4000, 13000), (5e2, 7000)]
+df_filtered = df
+df_pareto = df
+y_axes = ["tve"]  #, "mean_RMS_force", "max_max_torque", "mean_RMS_torque", "net_forces", "net_torques"]
+labels = ["Total Vacuum Magnetic Energy [J]"]  #, "mean force [N/m]", "max torque [N]", "mean torque [N]", "net force [N]", "net torque [N-m]"]
+y_lims = [(10000, 35000)]  #, (5500, 10000), (5000, 30000), (2000, 6200), (4000, 13000), (5e2, 7000)]
 #keys = ["coil_coil_distance"]
 #keys = ["max_length"]
 #keys = ["max_max_κ"]

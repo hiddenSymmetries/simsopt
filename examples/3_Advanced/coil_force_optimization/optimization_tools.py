@@ -19,7 +19,7 @@ from simsopt.geo import (
     SurfaceRZFourier)
 from simsopt.objectives import SquaredFlux, QuadraticPenalty
 from simsopt.field.force import coil_force, coil_torque, coil_net_forces, coil_net_torques, \
-    LpCurveForce
+    LpCurveForce, TVE
 from simsopt.field.selffield import regularization_circ
 
 
@@ -101,6 +101,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
                           FORCE_OBJ=LpCurveForce,
                           OUTPUT_DIR="./output/QA/with-force-penalty/1/optimizations/",
                           INPUT_FILE="./inputs/input.LandremanPaul2021_QA",
+                          debug=False,
                           ncoils=5):
     """Performs a set of initial optimizations by scanning over parameters."""
     for i in range(N):
@@ -127,7 +128,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         if with_force:  
             # (1e-20, 1e-8) for Squared forces
             # (1e-14, 1e-5) for Lpforces or TVE
-            FORCE_WEIGHT = 10.0 ** rand(-14, -7)
+            FORCE_WEIGHT = 10.0 ** rand(-11, -6)
         else:
             FORCE_WEIGHT = 0
 
@@ -157,6 +158,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
             FORCE_OBJ,
             ARCLENGTH_WEIGHT,
             with_force=with_force,
+            debug=debug,
             MAXITER=MAXITER)
         # pr.disable()
         # sio = io.StringIO()
@@ -248,6 +250,7 @@ def optimization(
         ARCLENGTH_WEIGHT=1e-2,
         dx=None,
         with_force=True,
+        debug=False,
         MAXITER=14000):
     """Performs a stage II force optimization based on specified criteria. """
     start_time = time.perf_counter()
@@ -329,13 +332,14 @@ def optimization(
     try:
         Jforce = [FORCE_OBJ(c, coils, regularization_circ(0.05), p=2, threshold=FORCE_THRESHOLD) for c in base_coils]
     except:
-        Jforce = [FORCE_OBJ(c, coils) for c in base_coils]
+        Jforce = [FORCE_OBJ(c, coils, downsample=2) for c in base_coils]
 
     Jals = [ArclengthVariation(c) for c in base_curves]
+    Jlength = sum(QuadraticPenalty(Jl, LENGTH_TARGET, "max") for Jl in Jls)
 
     # Form the total objective function.
     JF = Jf \
-        + LENGTH_WEIGHT * sum(QuadraticPenalty(Jl, LENGTH_TARGET, "max") for Jl in Jls) \
+        + LENGTH_WEIGHT * Jlength \
         + CC_WEIGHT * Jccdist \
         + CS_WEIGHT * Jcsdist \
         + CURVATURE_WEIGHT * sum(Jcs) \
@@ -352,7 +356,34 @@ def optimization(
         JF.x = dofs
         J = JF.J()
         grad = JF.dJ()
-        # print(J)
+        if debug:
+            jf = Jf.J()
+            length_val = LENGTH_WEIGHT * Jlength.J()
+            cc_val = CC_WEIGHT * Jccdist.J()
+            cs_val = CS_WEIGHT * Jcsdist.J()
+            forces_val = sum(Jforce).J()
+            arc_val = sum(Jals).J()
+            BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
+            BdotN_over_B = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+                                ) / np.mean(bs.AbsB())
+            outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
+            valuestr = f"J={J:.2e}, Jf={jf:.2e}"
+            cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
+            kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves)
+            msc_string = ", ".join(f"{J.J():.2f}" for J in Jmscs)
+            outstr += f", ϰ=[{kap_string}], ∫ϰ²/L=[{msc_string}]"
+            outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in Jls):.2f}"
+            valuestr += f", LenObj={length_val:.2e}"
+            valuestr += f", ccObj={cc_val:.2e}"
+            valuestr += f", csObj={cs_val:.2e}"
+            valuestr += f", forceObj={FORCE_WEIGHT * forces_val:.2e}"
+            valuestr += f", arcObj={ARCLENGTH_WEIGHT * arc_val:.2e}"
+            outstr += f", F={forces_val:.2e}"
+            outstr += f", arclengthvar={arc_val:.2e}"
+            outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
+            outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+            print(outstr)
+            print(valuestr)
         return J, grad
 
     res = minimize(fun, JF.x, jac=True, method='L-BFGS-B',
@@ -393,6 +424,7 @@ def optimization(
     BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     mean_AbsB = np.mean(bs.AbsB())
     tve = sum([TVE(c, coils, 0.05) for c in base_coils]).J()
+    print('tve = ', tve, sum(Jforce).J())
     max_forces = [np.max(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     min_forces = [np.min(np.linalg.norm(coil_force(c, coils, regularization_circ(0.05)), axis=1)) for c in base_coils]
     net_forces = coil_net_forces(coils, coils, regularization_circ(0.05) * np.ones(len(coils)))

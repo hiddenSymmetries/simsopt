@@ -1950,6 +1950,12 @@ class TVE(Optimizable):
         if b is None:
             b = a
 
+        # args = {"static_argnums": (4,)}
+        # self.coil_coil_inductances_pure = jit(
+        #     lambda gamma, gammadash, gammas2, gammadashs2, downsample:
+        #     coil_coil_inductances_pure(gamma, gammadash, gammas2, gammadashs2, quadpoints, quadpoints2, a, b, downsample, cross_section),
+        #     **args
+        # )
         args = {"static_argnums": (6,)}
         self.J_jax = jit(
             lambda gamma, gammadash, gammas2, gammadashs2, current, currents2, downsample:

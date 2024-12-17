@@ -1,4 +1,3 @@
-import desc
 import glob
 import imageio
 import json
@@ -13,10 +12,11 @@ import seaborn as sns
 import shutil
 import simsopt
 import subprocess
-from desc.grid import LinearGrid
-from desc.geometry import FourierRZToroidalSurface
-from desc.equilibrium import Equilibrium
-from desc.vmec_utils import ptolemy_identity_fwd
+# import desc
+# from desc.grid import LinearGrid
+# from desc.geometry import FourierRZToroidalSurface
+# from desc.equilibrium import Equilibrium
+# from desc.vmec_utils import ptolemy_identity_fwd
 from paretoset import paretoset
 from scipy.spatial.distance import cdist
 from simsopt._core.optimizable import load
@@ -525,89 +525,89 @@ def run_SIMPLE(UUID, trace_time=1e-1, s=0.3, n_test_part=1024, vmec_name="eq_sca
         os.remove(RUN_DIR + file)
 
 
-def surf_to_desc(simsopt_surf, LMN=8):
-    """Returns a DESC equilibrium from a simsopt surface, adapted from code 
-    written by Matt Landreman. Note that LMN is a DESC resolution parameter. """
-    nfp = simsopt_surf.nfp
-    ndofs = len(simsopt_surf.x)
-    index = int((ndofs + 1) / 2)
-    xm = simsopt_surf.m[:index]
-    xn = simsopt_surf.n[:index]
-    rmnc = simsopt_surf.x[:index]
-    zmns = np.concatenate(([0], simsopt_surf.x[index:]))
+# def surf_to_desc(simsopt_surf, LMN=8):
+#     """Returns a DESC equilibrium from a simsopt surface, adapted from code 
+#     written by Matt Landreman. Note that LMN is a DESC resolution parameter. """
+#     nfp = simsopt_surf.nfp
+#     ndofs = len(simsopt_surf.x)
+#     index = int((ndofs + 1) / 2)
+#     xm = simsopt_surf.m[:index]
+#     xn = simsopt_surf.n[:index]
+#     rmnc = simsopt_surf.x[:index]
+#     zmns = np.concatenate(([0], simsopt_surf.x[index:]))
 
-    rmns = np.zeros_like(rmnc)
-    zmnc = np.zeros_like(zmns)
+#     rmns = np.zeros_like(rmnc)
+#     zmnc = np.zeros_like(zmns)
 
-    # Adapted from desc's VMECIO.load around line 126:
-    m, n, Rb_lmn = ptolemy_identity_fwd(xm, xn, s=rmns, c=rmnc)
-    m, n, Zb_lmn = ptolemy_identity_fwd(xm, xn, s=zmns, c=zmnc)
-    surface = np.vstack((np.zeros_like(m), m, n, Rb_lmn, Zb_lmn)).T
-    desc_surface = FourierRZToroidalSurface(
-        surface[:, 3],
-        surface[:, 4],
-        surface[:, 1:3].astype(int),
-        surface[:, 1:3].astype(int),
-        nfp,
-        simsopt_surf.stellsym,
-        check_orientation=False,
-    )
+#     # Adapted from desc's VMECIO.load around line 126:
+#     m, n, Rb_lmn = ptolemy_identity_fwd(xm, xn, s=rmns, c=rmnc)
+#     m, n, Zb_lmn = ptolemy_identity_fwd(xm, xn, s=zmns, c=zmnc)
+#     surface = np.vstack((np.zeros_like(m), m, n, Rb_lmn, Zb_lmn)).T
+#     desc_surface = FourierRZToroidalSurface(
+#         surface[:, 3],
+#         surface[:, 4],
+#         surface[:, 1:3].astype(int),
+#         surface[:, 1:3].astype(int),
+#         nfp,
+#         simsopt_surf.stellsym,
+#         check_orientation=False,
+#     )
 
-    # To avoid warning message, flip the orientation manually:
-    if desc_surface._compute_orientation() == -1:
-        desc_surface._flip_orientation()
-        assert desc_surface._compute_orientation() == 1
+#     # To avoid warning message, flip the orientation manually:
+#     if desc_surface._compute_orientation() == -1:
+#         desc_surface._flip_orientation()
+#         assert desc_surface._compute_orientation() == 1
 
-    eq = Equilibrium(
-        surface=desc_surface,
-        L=LMN,
-        M=LMN,
-        N=LMN,
-        L_grid=2 * LMN,
-        M_grid=2 * LMN,
-        N_grid=2 * LMN,
-        sym=True,
-        NFP=nfp,
-        Psi=np.pi * simsopt_surf.minor_radius()**2,
-        ensure_nested=False,
-    )
+#     eq = Equilibrium(
+#         surface=desc_surface,
+#         L=LMN,
+#         M=LMN,
+#         N=LMN,
+#         L_grid=2 * LMN,
+#         M_grid=2 * LMN,
+#         N_grid=2 * LMN,
+#         sym=True,
+#         NFP=nfp,
+#         Psi=np.pi * simsopt_surf.minor_radius()**2,
+#         ensure_nested=False,
+#     )
 
-    # Check that the desc surface matches the input surface.
-    # Grid resolution for testing the surfaces match:
-    ntheta = len(simsopt_surf.quadpoints_theta)
-    nphi = len(simsopt_surf.quadpoints_phi)
-    simsopt_surf2 = SurfaceRZFourier(
-        mpol=simsopt_surf.mpol,
-        ntor=simsopt_surf.ntor,
-        nfp=simsopt_surf.nfp,
-        stellsym=simsopt_surf.stellsym,
-        dofs=simsopt_surf.dofs,
-        quadpoints_phi=np.linspace(0, 1 / simsopt_surf.nfp, nphi, endpoint=False),
-        quadpoints_theta=np.linspace(0, 1, ntheta, endpoint=False),
-    )
-    gamma = simsopt_surf2.gamma()
+#     # Check that the desc surface matches the input surface.
+#     # Grid resolution for testing the surfaces match:
+#     ntheta = len(simsopt_surf.quadpoints_theta)
+#     nphi = len(simsopt_surf.quadpoints_phi)
+#     simsopt_surf2 = SurfaceRZFourier(
+#         mpol=simsopt_surf.mpol,
+#         ntor=simsopt_surf.ntor,
+#         nfp=simsopt_surf.nfp,
+#         stellsym=simsopt_surf.stellsym,
+#         dofs=simsopt_surf.dofs,
+#         quadpoints_phi=np.linspace(0, 1 / simsopt_surf.nfp, nphi, endpoint=False),
+#         quadpoints_theta=np.linspace(0, 1, ntheta, endpoint=False),
+#     )
+#     gamma = simsopt_surf2.gamma()
 
-    grid = LinearGrid(
-        rho=1,
-        theta=np.linspace(0, 2 * np.pi, ntheta, endpoint=False),
-        zeta=np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False),
-        NFP=nfp,
-    )
-    data = eq.compute(["X", "Y", "Z"], grid=grid)
+#     grid = LinearGrid(
+#         rho=1,
+#         theta=np.linspace(0, 2 * np.pi, ntheta, endpoint=False),
+#         zeta=np.linspace(0, 2 * np.pi / nfp, nphi, endpoint=False),
+#         NFP=nfp,
+#     )
+#     data = eq.compute(["X", "Y", "Z"], grid=grid)
 
-    def compare_simsopt_desc(simsopt_data, desc_data):
-        desc_arr = desc_data.reshape((ntheta, nphi), order="F")
-        desc_arr = np.vstack((desc_arr[:1, :], np.flipud(desc_arr[1:, :])))
-        np.testing.assert_allclose(simsopt_data, desc_arr, atol=1e-14)
+#     def compare_simsopt_desc(simsopt_data, desc_data):
+#         desc_arr = desc_data.reshape((ntheta, nphi), order="F")
+#         desc_arr = np.vstack((desc_arr[:1, :], np.flipud(desc_arr[1:, :])))
+#         np.testing.assert_allclose(simsopt_data, desc_arr, atol=1e-14)
 
-    compare_simsopt_desc(gamma[:, :, 0].T, data["X"])
-    compare_simsopt_desc(gamma[:, :, 1].T, data["Y"])
-    compare_simsopt_desc(gamma[:, :, 2].T, data["Z"])
+#     compare_simsopt_desc(gamma[:, :, 0].T, data["X"])
+#     compare_simsopt_desc(gamma[:, :, 1].T, data["Y"])
+#     compare_simsopt_desc(gamma[:, :, 2].T, data["Z"])
 
-    # If tests are passed:
-    # eq.solve()
-    desc.continuation.solve_continuation_automatic(eq, verbose=0)
-    return eq
+#     # If tests are passed:
+#     # eq.solve()
+#     desc.continuation.solve_continuation_automatic(eq, verbose=0)
+#     return eq
 
 
 ###############################################################################
