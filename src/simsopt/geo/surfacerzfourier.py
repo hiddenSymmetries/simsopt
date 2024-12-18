@@ -589,7 +589,6 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         Setter to overwrite the entire rc array, triggering the recompute_bell. 
         To overwrite individual coefficients, use the set_rc method instead.
         """
-        print(self.rc.shape, rc.shape)
         if rc.shape != (self.mpol + 1, self.ntor * 2 + 1):
             raise ValueError('rc must have shape (mpol+1, 2*ntor+1)')
         self.rc = rc
