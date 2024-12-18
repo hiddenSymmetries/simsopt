@@ -70,9 +70,9 @@ def get_dfs(INPUT_DIR='./output/QA/with-force-penalty/1/optimizations/', OUTPUT_
         f"and max_arclength_variance < 1e-2"
         f"and coil_surface_distance < 0.375"
         f"and coil_coil_distance < 0.15"
-        f"and max_length > 3.5"
+        f"and max_length > 3.0"
         f"and normalized_BdotN < {4e-2}"
-        f"and max_max_force<60000"
+        f"and max_max_force<50000"
     )
 
     ### STEP 3: Generate Pareto front and export UUIDs as .txt
