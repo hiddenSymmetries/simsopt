@@ -548,6 +548,67 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
             raise IndexError('n must be <= ntor')
         if n < -self.ntor:
             raise IndexError('n must be >= -ntor')
+    
+    @property
+    def rc_array(self):
+        return self.rc
+    
+    @property
+    def zs_array(self):
+        return self.zs
+    
+    @property
+    def zc_array(self):
+        if self.stellsym:
+            raise ValueError(
+                'zc does not exist for this stellarator-symmetric surface.')
+        return self.zc
+    
+    @property
+    def rs_array(self):
+        if self.stellsym:
+            raise ValueError(
+                'rs does not exist for this stellarator-symmetric surface.')
+        return self.rs
+    
+    @rc_array.setter
+    def rc_array(self, rc):
+        print(self.rc.shape, rc.shape)
+        if rc.shape != (self.mpol + 1, self.ntor * 2 + 1):
+            raise ValueError('rc must have shape (mpol+1, 2*ntor+1)')
+        self.rc = rc
+        self.recompute_bell()
+        self.local_full_x = self.get_dofs()
+
+    @zs_array.setter
+    def zs_array(self, zs):
+        if zs.shape != (self.mpol + 1, self.ntor * 2 + 1):
+            raise ValueError('zs must have shape (mpol+1, 2*ntor+1)')
+        self.zs = zs
+        self.recompute_bell()
+        self.local_full_x = self.get_dofs()
+
+    @rs_array.setter
+    def rs_array(self, rs):
+        if rs.shape != (self.mpol + 1, self.ntor * 2 + 1):
+            raise ValueError('rs must have shape (mpol+1, 2*ntor+1)')
+        if self.stellsym:
+            raise ValueError(
+                'rs does not exist for this stellarator-symmetric surface.')
+        self.rs = rs
+        self.recompute_bell()
+        self.local_full_x = self.get_dofs()
+
+    @zc_array.setter
+    def zc_array(self, zc):
+        if zc.shape != (self.mpol + 1, self.ntor * 2 + 1):
+            raise ValueError('zc must have shape (mpol+1, 2*ntor+1)')
+        if self.stellsym:
+            raise ValueError(
+                'zc does not exist for this stellarator-symmetric surface.')
+        self.zc = zc
+        self.recompute_bell()
+        self.local_full_x = self.get_dofs()
 
     def get_rc(self, m, n):
         """
