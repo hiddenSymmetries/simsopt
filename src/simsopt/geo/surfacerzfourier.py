@@ -551,14 +551,23 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     
     @property
     def rc_array(self):
+        """
+        rc (np.ndarray): Array of cosine coefficients for the radial coordiante.
+        """
         return self.rc
     
     @property
     def zs_array(self):
+        """
+        zs (np.ndarray): Array of sine coefficients for the Z coordiante.
+        """
         return self.zs
     
     @property
     def zc_array(self):
+        """
+        zc (np.ndarray): Array of cosine coefficients for the Z coordiante. 
+        """
         if self.stellsym:
             raise ValueError(
                 'zc does not exist for this stellarator-symmetric surface.')
@@ -566,6 +575,9 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     
     @property
     def rs_array(self):
+        """
+        rs (np.ndarray): Array of sine coefficients for the R coordiante.
+        """
         if self.stellsym:
             raise ValueError(
                 'rs does not exist for this stellarator-symmetric surface.')
@@ -573,41 +585,53 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     
     @rc_array.setter
     def rc_array(self, rc):
+        """
+        Setter to overwrite the entire rc array, triggering the recompute_bell. 
+        To overwrite individual coefficients, use the set_rc method instead.
+        """
         print(self.rc.shape, rc.shape)
         if rc.shape != (self.mpol + 1, self.ntor * 2 + 1):
             raise ValueError('rc must have shape (mpol+1, 2*ntor+1)')
         self.rc = rc
-        self.recompute_bell()
         self.local_full_x = self.get_dofs()
 
     @zs_array.setter
     def zs_array(self, zs):
+        """
+        Setter to overwrite the entire zs array, triggering the recompute_bell. 
+        To overwrite individual coefficients, use the set_zs method instead.
+        """
         if zs.shape != (self.mpol + 1, self.ntor * 2 + 1):
             raise ValueError('zs must have shape (mpol+1, 2*ntor+1)')
         self.zs = zs
-        self.recompute_bell()
         self.local_full_x = self.get_dofs()
 
     @rs_array.setter
     def rs_array(self, rs):
+        """
+        Setter to overwrite the entire rs array, triggering the recompute_bell. 
+        To overwrite individual coefficients, use the set_rs method instead.
+        """
         if rs.shape != (self.mpol + 1, self.ntor * 2 + 1):
             raise ValueError('rs must have shape (mpol+1, 2*ntor+1)')
         if self.stellsym:
             raise ValueError(
                 'rs does not exist for this stellarator-symmetric surface.')
         self.rs = rs
-        self.recompute_bell()
         self.local_full_x = self.get_dofs()
 
     @zc_array.setter
     def zc_array(self, zc):
+        """
+        Setter to overwrite the entire zc array, triggering the recompute_bell. 
+        To overwrite individual coefficients, use the set_zc method instead.
+        """
         if zc.shape != (self.mpol + 1, self.ntor * 2 + 1):
             raise ValueError('zc must have shape (mpol+1, 2*ntor+1)')
         if self.stellsym:
             raise ValueError(
                 'zc does not exist for this stellarator-symmetric surface.')
         self.zc = zc
-        self.recompute_bell()
         self.local_full_x = self.get_dofs()
 
     def get_rc(self, m, n):
@@ -647,6 +671,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_rc(self, m, n, val):
         """
         Set a particular `rc` Parameter.
+        Modifyting the `rc` array directly is discouraged, since it doesn't trigger the recompute_bell(). 
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
@@ -655,6 +680,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_rs(self, m, n, val):
         """
         Set a particular `rs` Parameter.
+        Modifyting the `rs` array directly is discouraged, since it doesn't trigger the recompute_bell().
         """
         if self.stellsym:
             return ValueError(
@@ -666,6 +692,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_zc(self, m, n, val):
         """
         Set a particular `zc` Parameter.
+        Modifyting the `zc` array directly is discouraged, since it doesn't trigger the recompute_bell().
         """
         if self.stellsym:
             return ValueError(
@@ -677,6 +704,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_zs(self, m, n, val):
         """
         Set a particular `zs` Parameter.
+        Modifyting the `zs` array directly is discouraged, since it doesn't trigger the recompute_bell().
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
