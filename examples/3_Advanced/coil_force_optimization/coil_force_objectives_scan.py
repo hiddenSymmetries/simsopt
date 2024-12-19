@@ -17,7 +17,7 @@ from simsopt.geo import (CurveLength, CurveCurveDistance, CurveSurfaceDistance,
                          MeanSquaredCurvature, LpCurveCurvature)
 from simsopt.field import BiotSavart
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
-    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, TVE
+    SquaredMeanForce, SquaredMeanTorque, LpCurveTorque, TVE, NetFluxes
 from simsopt.field.selffield import regularization_circ
 
 
@@ -169,6 +169,8 @@ elif sys.argv[1] == 'LpCurveTorque':
         Jforce = [LpCurveTorque(c, coils, regularization_circ(a), p=2, threshold=0.0) for c in base_coils]
 elif sys.argv[1] == 'TVE':
     Jforce = [TVE(c, coils, a=a) for c in base_coils]
+elif sys.argv[1] == 'NetFluxes':
+    Jforce = [NetFluxes(c, coils) for c in base_coils]
 else:
     print('User did not input a valid Force/Torque objective. Defaulting to no force term')
     FORCE_WEIGHT = 1e-100

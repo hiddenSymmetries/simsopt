@@ -23,6 +23,8 @@ from simsopt.field.force import (
     self_force_circ,
     self_force_rect,
     coil_coil_inductances_pure,
+    coil_coil_inductances_full_pure,
+    coil_coil_inductances_inv_pure,
     TVE,
     MeanSquaredForce,
     LpCurveTorque,
@@ -183,6 +185,18 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='circular',
                 )
+            Lij_full = coil_coil_inductances_full_pure(
+                np.array([c.gamma() for c in [curve, curve2]]),
+                np.array([c.gammadash() for c in [curve, curve2]]),
+                np.array([c.quadpoints for c in [curve, curve2]]),
+                a_list=np.array([a, a]),
+                b_list=np.array([a, a]),
+                downsample=1,
+                cross_section='circular',
+                )
+            
+            assert np.allclose(Lij, Lij_full[0, :])
+
             # Test rectangular cross section for a << R
             Lij_rect = coil_coil_inductances_pure(
                 curve.gamma(), 
@@ -196,9 +210,19 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='rectangular',
                 )
+            Lij_rect_full = coil_coil_inductances_full_pure(
+                np.array([c.gamma() for c in [curve, curve2]]),
+                np.array([c.gammadash() for c in [curve, curve2]]),
+                np.array([c.quadpoints for c in [curve, curve2]]),
+                a_list=np.array([a, a]),
+                b_list=np.array([a, a]),
+                downsample=1,
+                cross_section='rectangular',
+                )
             print(Lij, Lij_rect, Lij_analytic)
             # np.testing.assert_allclose(Lij[0], Lii_analytic)
             np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
+            assert np.allclose(Lij_rect, Lij_rect_full[0, :])
 
             # retry but swap the coils
             Lij = coil_coil_inductances_pure(
@@ -213,7 +237,7 @@ class CoilForcesTest(unittest.TestCase):
                 downsample=1,
                 cross_section='circular',
                 )
-
+            assert np.allclose(np.flip(Lij), Lij_full[1, :])
             np.testing.assert_allclose(Lij[1], Lij_analytic, rtol=1e-2)
 
             # now test coils with shared axis
@@ -231,6 +255,29 @@ class CoilForcesTest(unittest.TestCase):
                 )
             print(Lij, Lii_analytic, Lij_analytic2)
             np.testing.assert_allclose(Lij[1], Lij_analytic2, rtol=1e-2)
+
+            Lij_full = coil_coil_inductances_full_pure(
+                np.array([c.gamma() for c in [curve, curve3]]),
+                np.array([c.gammadash() for c in [curve, curve3]]),
+                np.array([c.quadpoints for c in [curve, curve3]]),
+                a_list=np.array([a, a]),
+                b_list=np.array([a, a]),
+                downsample=1,
+                cross_section='circular',
+                )
+            assert np.allclose(Lij, Lij_full[0, :])
+
+            # Test cholesky computation of the inverse works on simple case
+            Lij_inv = coil_coil_inductances_inv_pure(
+                np.array([c.gamma() for c in [curve, curve3]]),
+                np.array([c.gammadash() for c in [curve, curve3]]),
+                np.array([c.quadpoints for c in [curve, curve3]]),
+                a_list=np.array([a, a]),
+                b_list=np.array([a, a]),
+                downsample=1,
+                cross_section='circular',
+                )
+            assert np.allclose(np.linalg.inv(Lij_full), Lij_inv)
 
             # Check the case of rectangular cross-section:
 

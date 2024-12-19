@@ -1,16 +1,19 @@
 from math import pi
 import numpy as np
 from jax import vjp, jacfwd
+import jax.numpy as jnp
+from jax import grad
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
 from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.jit import jit
+from .force import coil_currents_pure
 import simsoptpp as sopp
 
 
-__all__ = ['Coil', 'JaxCurrent',
+__all__ = ['Coil', 'JaxCurrent', 'PSCCurrent',
            'Current', 'coils_via_symmetries',
            'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
@@ -102,6 +105,89 @@ class Current(sopp.Current, CurrentBase):
     @property
     def current(self):
         return self.get_value()
+
+
+class PSCCurrent(sopp.Current, CurrentBase):
+    """
+    An optimizable object that wraps around a single scalar degree of
+    freedom. It represents the electric current in a coil, or in a set
+    of coils that are constrained to use the same current.
+    """
+
+    def __init__(self, psc_curves, biot_savart_TF, a_list, b_list, index, downsample=1, cross_section='circular', dofs=None, **kwargs):
+        self.psc_curves = psc_curves  # Should include all the psc_curves
+        self.biot_savart_TF = biot_savart_TF
+        self.a_list = a_list
+        self.b_list = b_list
+        self.downsample = downsample
+        self.cross_section = cross_section
+        gammas = jnp.array([c.gamma() for c in psc_curves])
+        self.biot_savart_TF.set_points(gammas.reshape(-1, 3))
+        gammadashs = jnp.array([c.gammadash() for c in psc_curves])
+        quadpoints = jnp.array([c.quadpoints for c in psc_curves])
+        A_ext = biot_savart_TF.A()
+        current = coil_currents_pure(gammas, gammadashs, quadpoints, A_ext, a_list, b_list, downsample, cross_section)[index]
+        args = {"static_argnums": (3,)}
+        self.J_jax = jit(
+            lambda gammas, gammadashs, A_ext, downsample:
+            coil_currents_pure(gammas, gammadashs, quadpoints, A_ext, a_list, b_list, downsample, cross_section),
+            **args
+        )
+        self.dJ_dgammas = jit(
+            lambda gammas, gammadashs, A_ext, downsample:
+            jacfwd(self.J_jax, argnums=0)(gammas, gammadashs, A_ext, downsample),
+            **args
+        )
+        self.dJ_dgammadashs = jit(
+            lambda gammas, gammadashs, A_ext, downsample:
+            jacfwd(self.J_jax, argnums=1)(gammas, gammadashs, A_ext, downsample),
+            **args
+        )
+        self.dJ_dA = jit(
+            lambda gammas, gammadashs, A_ext, downsample:
+            jacfwd(self.J_jax, argnums=2)(gammas, gammadashs, A_ext, downsample),
+            **args
+        )
+        sopp.Current.__init__(self, current)
+        if dofs is None:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 x0=self.get_dofs(), **kwargs)
+        else:
+            CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
+                                 dofs=dofs, **kwargs)
+
+    def vjp(self, v_current):
+        gammas = jnp.array([c.gamma() for c in self.psc_curves])
+        gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
+        quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
+        self.biot_savart_TF.set_points(gammas.reshape(-1, 3))
+        A_ext = self.biot_savart_TF.A()
+        args = [
+            gammas, 
+            gammadashs, 
+            A_ext, 
+            self.downsample
+        ]
+        # current = self.J_jax(*args)
+        dJ_dgammas = self.dJ_dgammas(*args)
+        dJ_dgammadashs = self.dJ_dgammadashs(*args)
+        dJ_dA = self.dJ_dA(*args)
+
+        # Compute derivatives with respect to gammas
+        vjp1 = sum([c.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) for i, c in enumerate(self.psc_curves)])
+        # Compute derivatives with respect to gammadashs
+        vjp2 = sum([c.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.psc_curves)])
+        # Compute derivatives with respect to A_ext but derivative terms
+        # should be associated with the TF curves? 
+        # A_vjp returns Derivatives depending on the TF curve and TF coils
+        vjp3 = sum([self.biot_savart_TF.A_vjp(dJ_dA[i]) for i, c in enumerate(self.biot_savart_TF.coils)])
+
+        return vjp1 + vjp2 + vjp3
+
+    @property
+    def current(self):
+        return self.J_jax(*args)[i]
+        # return self.get_value()
 
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):

@@ -2,6 +2,7 @@
 from scipy import constants
 import numpy as np
 import jax.numpy as jnp
+import jax.scipy as jscp
 from jax import grad
 from .biotsavart import BiotSavart
 from .selffield import B_regularized_pure, B_regularized, regularization_circ, regularization_rect
@@ -1909,6 +1910,68 @@ class CoilInductances(Optimizable):
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
+
+def coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section):
+    r"""  Optimizable class to minimize the Lorentz force on a coil.
+
+    The objective function is
+
+    .. math::
+        J = \frac{1}{p}\left(\int \frac{d\ell_i\cdot d\ell_j}{|r_i - r_j} \right)
+
+    where :math:`\vec{r}_i` is the position vector of a point on the ith coil,
+    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+    """
+    # Downsample if desired
+    quadpoints = quadpoints[:, ::downsample]
+    gammas = gammas[:, ::downsample, :]
+    gammadashs = gammadashs[:, ::downsample, :]
+    N = gammas.shape[0]
+    Lij = jnp.zeros((N, N))
+
+    # Compute Lij, i != j
+    eps = 1e-10
+    r_ij = gammas[None, :, None, :, :] - gammas[:, None, :, None, :] + eps
+    rij_norm = jnp.linalg.norm(r_ij, axis=-1)
+    gammadash_prod = jnp.sum(gammadashs[None, :, None, :, :] * gammadashs[:, None, :, None, :], axis=-1)
+
+    # Double sum over each of the closed curves
+    Lij = jnp.sum(jnp.sum(gammadash_prod / rij_norm, axis=-1), axis=-1
+                    ) / jnp.shape(gammas)[1] ** 2
+
+    # Diagonal elements are determined below
+    if cross_section == 'circular':
+        # Note, typically need lots of quadrature points to converge the self-inductance since it
+        # is often logarithmic
+        # rij_norm = jnp.linalg.norm(r_ij, axis=-1)
+        # Overwrites the diagonal elements
+        Lij = jnp.fill_diagonal(Lij, jnp.diagonal(jnp.sum(jnp.sum(gammadash_prod
+             / jnp.sqrt(rij_norm ** 2 + a_list[None, :, None, None] ** 2 / jnp.sqrt(jnp.exp(1.0))), axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2)
+             , inplace=False)
+    else:
+        # Eq 11 regularization from Hurwitz/Landreman 2023
+        # and also used in Guinchard/Hudson/Paul 2024
+        k = (4 * b_list) / (3 * a_list) * jnp.arctan2(a_list, b_list) + (4 * a_list) / (3 * b_list) * jnp.arctan2(b_list, a_list) \
+            + (b_list ** 2) / (6 * a_list ** 2) * jnp.log(b_list / a_list) + (a_list ** 2) / (6 * b_list ** 2) * jnp.log(a_list / b_list) \
+            - (a_list ** 4 - 6 * a_list ** 2 * b_list ** 2 + b_list ** 4) / (6 * a_list ** 2 * b_list ** 2) * jnp.log(a_list / b_list + b_list / a_list)
+        delta_ab = jnp.exp(-25.0 / 6.0 + k) * a_list * b_list
+        # Overwrites the diagonal elements
+        Lij = jnp.fill_diagonal(Lij, jnp.diagonal(jnp.sum(jnp.sum(gammadash_prod
+             / jnp.sqrt(rij_norm ** 2 + delta_ab[None, :, None, None]), axis=-1), axis=-1) / jnp.shape(gammas)[1] ** 2)
+             , inplace=False)
+    return 1e-7 * Lij  
+
+
+def coil_coil_inductances_inv_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section):
+    # Lij is symmetric positive definite so has a cholesky decomposition
+    C = jnp.linalg.cholesky(coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section))
+    inv_C = jscp.linalg.solve_triangular(C, jnp.eye(C.shape[0]), lower=True)
+    inv_L = jscp.linalg.solve_triangular(C.T, inv_C, lower=False)
+    return inv_L
+
+def coil_currents_pure(gammas, gammadashs, quadpoints, A_ext, a_list, b_list, downsample, cross_section):
+    return -coil_coil_inductances_inv_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section) @ net_ext_fluxes_pure(gammadashs, A_ext, downsample)
+
 def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2, 
              quadpoints, quadpoints2, a, b, downsample, cross_section):
     r"""Pure function for minimizing the total vacuum energy on a coil.
@@ -2039,6 +2102,120 @@ class TVE(Optimizable):
             + self.coil.current.vjp(self.dJ_dcurrent(*args))
             + sum([c.current.vjp(jnp.asarray([dJ_dcurrents2[i]])) for i, c in enumerate(self.othercoils)])
         )
+
+        return dJ
+
+    return_fn_map = {'J': J, 'dJ': dJ}
+
+
+def net_ext_fluxes_pure(gammadashs, A_ext, downsample):
+    r"""  Pure function to compute the net fluxes through a set of closed loop,
+
+    .. math::
+        \Psi_i = \int A_{ext}\cdot d\ell_i / L_i
+
+    where :math:`A_{ext}` is the vector potential of an external magnetic field,
+    evaluated along the quadpoints along the curve,
+    L is the total length of the coil, and :math:`\ell_i` is arclength along the coil.
+    """
+    # Downsample if desired
+    gammadashs = gammadashs[:, ::downsample, :]
+    # Dot the vectors, then sum over the quadpoints
+    return jnp.sum(jnp.sum(A_ext.reshape(jnp.shape(gammadashs)) * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
+
+
+
+class NetFluxes(Optimizable):
+    r"""Optimizable class for minimizing the total net flux (from an external field)
+    through a coil. Unclear why you would want to do this.
+    This is mostly a test class for the passive coil arrays.
+
+    The function is
+
+     .. math::
+        \Psi = \int A_{ext}\cdot d\ell / L
+
+    where :math:`A_{ext}` is the vector potential of an external magnetic field,
+    evaluated along the quadpoints along the curve,
+    L is the total length of the coil, and :math:`\ell` is arclength along the coil.
+    """
+
+    def __init__(self, coil, othercoils, downsample=1):
+        self.coil = coil
+        self.othercoils = [c for c in othercoils if c is not coil]  # just to double check coil is not in there
+        self.downsample = downsample
+        self.biotsavart = BiotSavart(self.othercoils)
+
+        args = {"static_argnums": (2,)}
+        self.J_jax = jit(
+            lambda gammadash, A_ext, downsample:
+            net_ext_fluxes_pure(gammadash, A_ext, downsample),
+            **args
+        )
+
+        self.dJ_dgammadash = jit(
+            lambda gammadash, A_ext, downsample:
+            grad(self.J_jax, argnums=0)(gammadash, A_ext, downsample),
+            **args
+        )
+
+        self.dJ_dA = jit(
+            lambda gammadash, A_ext, downsample:
+            grad(self.J_jax, argnums=1)(gammadash, A_ext, downsample),
+            **args
+        )
+
+        super().__init__(depends_on=[coil] + othercoils)
+
+    def J(self):
+
+        gamma = self.coil.curve.gamma()
+        self.biotsavart.set_points(np.array(gamma[::self.downsample, :]))
+        args = [
+            self.coil.curve.gammadash(),
+            self.biotsavart.A(),
+            self.downsample
+        ]
+        J = self.J_jax(*args)
+        self.biotsavart._children = set()
+        self.coil._children = set()
+        self.coil.curve._children = set()
+        self.coil.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
+
+        return J
+
+    @derivative_dec
+    def dJ(self):
+
+        gamma = self.coil.curve.gamma()
+        args = [
+            self.coil.curve.gammadash(),
+            self.biotsavart.A(),
+            1
+        ]
+
+        dJ_dA = self.dJ_dA(*args)
+        dB_dX = self.biotsavart.dB_by_dX()
+        dJ_dX = np.einsum('ij,ikj->ik', dJ_dA, dB_dX)
+        B_vjp = self.biotsavart.B_vjp(dJ_dA)
+
+        dJ = (
+            self.coil.curve.dgammadash_by_dcoeff_vjp(self.dJ_dgammadash(*args))
+            + B_vjp
+        )
+
+        self.biotsavart._children = set()
+        self.coil._children = set()
+        self.coil.curve._children = set()
+        self.coil.current._children = set()
+        for c in self.othercoils:
+            c._children = set()
+            c.curve._children = set()
+            c.current._children = set()
 
         return dJ
 
