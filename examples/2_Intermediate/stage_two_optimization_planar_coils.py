@@ -95,13 +95,13 @@ os.makedirs(OUT_DIR, exist_ok=True)
 nphi = 32
 ntheta = 32
 s = SurfaceRZFourier.from_vmec_input(filename, range="half period", nphi=nphi, ntheta=ntheta)
-# s = SurfaceRZFourier.from_wout(filename, range="half period", nphi=nphi, ntheta=ntheta)
 
 # Create the initial coils:
 base_curves = create_equally_spaced_planar_curves(
     ncoils, s.nfp, stellsym=True, R0=R0, R1=R1, order=order,
     jax_flag=False
 )
+# Optionally fix some of the coil degrees of freedom
 # for i in range(len(base_curves)):
 #     base_curves[i].set('x' + str(2 * order + 1), np.random.rand(1) - 0.5)
 #     base_curves[i].set('x' + str(2 * order + 2), np.random.rand(1) - 0.5)
@@ -112,7 +112,7 @@ base_curves = create_equally_spaced_planar_curves(
 #     base_curves[i].fix('x' + str(2 * order + 5))
 #     base_curves[i].fix('x' + str(2 * order + 6))
 #     base_curves[i].fix('x' + str(2 * order + 7))
-#     print(i, base_curves[i].dof_names)
+
 base_currents = [Current(1e5) for i in range(ncoils)]
 # Since the target field is zero, one possible solution is just to set all
 # currents to 0. To avoid the minimizer finding that solution, we fix one
@@ -190,7 +190,7 @@ dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
-    print("err", (J1-J2)/(2*eps) - dJh)  #(J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
+    print("err", (J1-J2)/(2*eps) - dJh)  # (J1-J2)/(2*eps), dJh, (J1-J2)/(2*eps) - dJh)
 
 print("""
 ################################################################################

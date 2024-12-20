@@ -16,13 +16,15 @@ parameters['jit'] = False
 class Testing(unittest.TestCase):
 
     def subtest_curve_length_optimisation(self, rotated):
+        np.random.seed(1)
         nquadrature = 100
         nfourier = 4
         nfp = 5
         curve = CurveRZFourier(nquadrature, nfourier, nfp, True)
 
         # Initialize the Fourier amplitudes to some random values
-        x0 = np.random.rand(curve.dof_size) - 0.5
+        # Random seed used here because this can give self-intersecting stuff
+        x0 = np.random.rand(curve.dof_size) - 0.5  
         x0[0] = 3.0
         curve.x = x0
         print('Initial curve dofs: ', curve.x)

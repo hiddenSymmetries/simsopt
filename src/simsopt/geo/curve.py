@@ -11,8 +11,8 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 
-            'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves',
+           'create_equally_spaced_planar_curves', 'create_planar_curves_between_two_toroidal_surfaces']
 
 
 @jit
@@ -112,7 +112,7 @@ class Curve(Optimizable):
 
         if engine == "matplotlib":
             # plot in matplotlib.pyplot
-            import matplotlib.pyplot as plt 
+            import matplotlib.pyplot as plt
 
             if ax is None or ax.name != "3d":
                 fig = plt.figure()
@@ -206,7 +206,7 @@ class Curve(Optimizable):
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         dgamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
         numerator = np.cross(dgamma_by_dphi, dgamma_by_dphidphi)
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
@@ -278,8 +278,8 @@ class Curve(Optimizable):
         gammadash = self.gammadash()
         gammadashdash = self.gammadashdash()
         l = self.incremental_arclength()
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
         N = len(self.quadpoints)
         t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
         t[:, :] = (1./l[:, None]) * gammadash
@@ -299,9 +299,9 @@ class Curve(Optimizable):
         dgamma = self.gammadash()
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        cross = lambda a, b: np.cross(a, b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
+        def cross(a, b): return np.cross(a, b, axis=1)
         dkappa_by_dphi[:] = inner(cross(dgamma, d2gamma), cross(dgamma, d3gamma))/(norm(cross(dgamma, d2gamma)) * norm(dgamma)**3) \
             - 3 * inner(dgamma, d2gamma) * norm(cross(dgamma, d2gamma))/norm(dgamma)**5
         return dkappa_by_dphi
@@ -323,8 +323,8 @@ class Curve(Optimizable):
         l = self.incremental_arclength()
         dl_by_dcoeff = self.dincremental_arclength_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
 
         N = len(self.quadpoints)
         dt_by_dcoeff, dn_by_dcoeff, db_by_dcoeff = (np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())))
@@ -367,9 +367,9 @@ class Curve(Optimizable):
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
-        cross = lambda a, b: np.cross(a, b, axis=1)
+        def norm(a): return np.linalg.norm(a, axis=1)
+        def inner(a, b): return np.sum(a*b, axis=1)
+        def cross(a, b): return np.cross(a, b, axis=1)
         d1_dot_d2 = inner(dgamma, d2gamma)
         d1_x_d2 = cross(dgamma, d2gamma)
         d1_x_d3 = cross(dgamma, d3gamma)
@@ -458,9 +458,7 @@ class JaxCurve(sopp.Curve, Curve):
         self.kappa_impl_jax = jit(lambda x, v: kappa_pure(x, v))
         self.frenet_frame_jax = jit(lambda x: self.frenet_frame_pure(x))
         self.incremental_arclength_jax = jit(lambda x: self.incremental_arclength_pure(x))
-        # self.incremental_arclength_jax = jit(lambda x: incremental_arclength_pure(x))
         self.dkappa_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: kappa_pure(self.gammadash_jax(d), self.gammadashdash_jax(d)), x)[1](v)[0])
-
         self.dtorsion_by_dcoeff_vjp_jax = jit(lambda x, v: vjp(lambda d: torsion_pure(self.gammadash_jax(d), self.gammadashdash_jax(d), self.gammadashdashdash_jax(d)), x)[1](v)[0])
 
     def set_dofs(self, dofs):
@@ -489,15 +487,15 @@ class JaxCurve(sopp.Curve, Curve):
         gammadash = self.gammadash_jax(dofs)
         gammadashdash = self.gammadashdash_jax(dofs)
         l = self.incremental_arclength()
-        norm = lambda a: jnp.linalg.norm(a, axis=1)
-        inner = lambda a, b: jnp.sum(a*b, axis=1)
+        def norm(a): return jnp.linalg.norm(a, axis=1)
+        def inner(a, b): return jnp.sum(a*b, axis=1)
         N = len(self.quadpoints)
         t, n, b = (jnp.zeros((N, 3)), jnp.zeros((N, 3)), jnp.zeros((N, 3)))
         t = (1./l[:, None]) * gammadash
 
         tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
-                                        - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
-                                        )
+                                      - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
+                                      )
         n = (1./norm(tdash))[:, None] * tdash
         b = jnp.cross(t, n, axis=1)
         return t, n, b
@@ -515,7 +513,7 @@ class JaxCurve(sopp.Curve, Curve):
         where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
         of the curve.
         """
-        dgamma_by_dcoeff[:, :, :] = dgamma_by_dcoeff_jax(self.get_dofs())
+        dgamma_by_dcoeff[:, :, :] = self.dgamma_by_dcoeff_jax(self.get_dofs())
 
     def dgamma_by_dcoeff_vjp_impl(self, v):
         r"""
@@ -664,6 +662,7 @@ class RotatedCurve(sopp.Curve, Curve):
     input a Curve, rotates it about the ``z`` axis by a toroidal angle
     ``phi``, and optionally completes a reflection when ``flip=True``.
     """
+
     def __init__(self, curve, phi, flip):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
@@ -699,7 +698,7 @@ class RotatedCurve(sopp.Curve, Curve):
         This function returns the number of dofs associated to the curve.
         """
         return self.curve.num_dofs()
-    
+
     def center(self, gamma, gammadash):
         # Compute the centroid of the curve
         arclength = jnp.linalg.norm(gammadash, axis=-1)
@@ -720,15 +719,6 @@ class RotatedCurve(sopp.Curve, Curve):
             self.curve.gamma_impl(gamma, quadpoints)
             gamma[:] = gamma @ self.rotmat
 
-    def gamma_impl_jax(self, dofs, quadpoints):
-        gamma = self.curve.gamma_impl_jax(dofs, quadpoints)
-        gamma = gamma @ self.rotmat
-        return gamma
-
-    def kappa_impl_jax(self, d1gamma, d2gamma):
-        kappa = self.curve.kappa_jax(d1gamma, d2gamma)
-        return kappa
-
     def gammadash_impl(self, gammadash):
         r"""
         This function returns :math:`\Gamma'(\varphi)`, where :math:`\Gamma` are the x, y, z
@@ -738,11 +728,6 @@ class RotatedCurve(sopp.Curve, Curve):
 
         gammadash[:] = self.curve.gammadash() @ self.rotmat
 
-    def gammadash_impl_jax(self, dofs, quadpoints):
-        gammadash = self.curve.gammadash_impl_jax(dofs, quadpoints)
-        gammadash = gammadash @ self.rotmat
-        return gammadash
-
     def gammadashdash_impl(self, gammadashdash):
         r"""
         This function returns :math:`\Gamma''(\varphi)`, where :math:`\Gamma` are the x, y, z
@@ -751,11 +736,6 @@ class RotatedCurve(sopp.Curve, Curve):
         """
 
         gammadashdash[:] = self.curve.gammadashdash() @ self.rotmat
-
-    def gammadashdash_impl_jax(self, dofs, quadpoints):
-        gammadashdash = self.curve.gammadashdash_impl_jax(dofs, quadpoints)
-        gammadashdash = gammadashdash @ self.rotmat
-        return gammadashdash
 
     def gammadashdashdash_impl(self, gammadashdashdash):
         r"""
@@ -883,6 +863,7 @@ class RotatedCurve(sopp.Curve, Curve):
     def flip(self):
         return True if self.rotmat[2][2] == -1 else False
 
+
 def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
                   NetForces=None, NetTorques=None, NetSelfForces=None,
                   MixedCoilForces=None, MixedCoilTorques=None):
@@ -912,7 +893,7 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    pointData={'idx': data}
+    pointData = {'idx': data}
     # cellData={}
     contig = np.ascontiguousarray
     if I is not None:
@@ -927,66 +908,66 @@ def curves_to_vtk(curves, filename, close=False, I=None, extra_point_data=None,
         for i in range(len(NetForces)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetForces[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['NetForces'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['NetForces'] = (contig(coil_data[:, 0]),
+                                  contig(coil_data[:, 1]),
+                                  contig(coil_data[:, 2]))
     if NetTorques is not None:
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(NetTorques)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetTorques[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['NetTorques'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['NetTorques'] = (contig(coil_data[:, 0]),
+                                   contig(coil_data[:, 1]),
+                                   contig(coil_data[:, 2]))
     if NetSelfForces is not None:
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(NetSelfForces)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = NetSelfForces[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['NetSelfForces'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['NetSelfForces'] = (contig(coil_data[:, 0]),
+                                      contig(coil_data[:, 1]),
+                                      contig(coil_data[:, 2]))
     if MixedCoilForces is not None:
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(MixedCoilForces)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilForces[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['MixedCoilForces'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['MixedCoilForces'] = (contig(coil_data[:, 0]),
+                                        contig(coil_data[:, 1]),
+                                        contig(coil_data[:, 2]))
     if (MixedCoilForces is not None) and (NetForces is not None):
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(MixedCoilForces)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilForces[i, :] + NetForces[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['TotalCoilForces'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['TotalCoilForces'] = (contig(coil_data[:, 0]),
+                                        contig(coil_data[:, 1]),
+                                        contig(coil_data[:, 2]))
     if MixedCoilTorques is not None:
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(MixedCoilTorques)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilTorques[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['MixedCoilTorques'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['MixedCoilTorques'] = (contig(coil_data[:, 0]),
+                                         contig(coil_data[:, 1]),
+                                         contig(coil_data[:, 2]))
     if (MixedCoilTorques is not None) and (NetTorques is not None):
         coil_data = np.zeros((data.shape[0], 3))
         for i in range(len(MixedCoilTorques)):
             coil_data[i * ppl[i]: (i + 1) * ppl[i], :] = MixedCoilTorques[i, :] + NetTorques[i, :]
         coil_data = np.ascontiguousarray(coil_data)
-        pointData['TotalCoilTorques'] = (contig(coil_data[:, 0]), 
-                                contig(coil_data[:, 1]),
-                                contig(coil_data[:, 2]))
+        pointData['TotalCoilTorques'] = (contig(coil_data[:, 0]),
+                                         contig(coil_data[:, 1]),
+                                         contig(coil_data[:, 2]))
     if extra_point_data is not None:
         pointData = {**pointData, **extra_point_data}
 
     polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
+
 def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # Get (X, Y, Z) coordinates of the two boundaries
     nfp = s.nfp
-    stellsym = s.stellsym
     xyz_inner = s_inner.gamma().reshape(-1, 3)
     xyz_outer = s_outer.gamma().reshape(-1, 3)
     x_outer = xyz_outer[:, 0]
@@ -1005,7 +986,7 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     dy = (y_max - y_min) / (Ny - 1)
     dz = 2 * z_max / (Nz - 1)
     Nmin = min(dx, min(dy, dz))
-    
+
     # This is not a guarantee that coils will not touch but inductance
     # matrix blows up if they do so it is easy to tell when they do
     if coil_coil_flag:
@@ -1015,19 +996,19 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
 
     print('Major radius of the coils is R = ', R)
     print('Coils are spaced so that every coil of radius R '
-            ' is at least 2R away from the next coil'
-    )
+          ' is at least 2R away from the next coil'
+          )
 
     if nfp > 1:
         # Throw away any points not in the section phi = [0, pi / n_p] and
         # make sure all centers points are at least a distance R from the
-        # sector so that all the coil points are reflected correctly. 
+        # sector so that all the coil points are reflected correctly.
         X = np.linspace(
-            dx / 2.0 + x_min, x_max - dx / 2.0, 
+            dx / 2.0 + x_min, x_max - dx / 2.0,
             Nx, endpoint=True
         )
         Y = np.linspace(
-            dy / 2.0 + y_min, y_max - dy / 2.0, 
+            dy / 2.0 + y_min, y_max - dy / 2.0,
             Ny, endpoint=True
         )
     else:
@@ -1038,10 +1019,10 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     # Make 3D mesh
     X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
     xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
-    
+
     # Extra work for nfp > 1 to chop off points outside sector
     # This is probably not robust for every stellarator but seems to work
-    # reasonably well for the Landreman/Paul QA/QH in the code. 
+    # reasonably well for the Landreman/Paul QA/QH in the code.
     if nfp > 1:
         inds = []
         for i in range(Nx):
@@ -1054,17 +1035,18 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
                         phi2 = np.arctan2(Y[i, j, k] + R / 2.0, X[i, j, k] - R / 2.0) - phi
                     elif nfp == 2:
                         phi2 = np.arctan2(R, s.get_rc(0, 0))
-                    # Add a little factor to avoid phi = pi / n_p degrees 
+                    # Add a little factor to avoid phi = pi / n_p degrees
                     # exactly, which can intersect with a symmetrized
-                    # coil if not careful 
+                    # coil if not careful
                     if phi >= (np.pi / nfp - phi2) or phi < 0.0:
                         inds.append(int(i * Ny * Nz + j * Nz + k))
         good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
         xyz_uniform = xyz_uniform[good_inds, :]
     return xyz_uniform, xyz_inner, xyz_outer, R
 
+
 def create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1, 
+    s, s_inner, s_outer, Nx=10, Ny=10, Nz=10, order=1,
     coil_coil_flag=False, jax_flag=False, numquadpoints=None
 ):
     from simsopt.geo import CurvePlanarFourier, JaxCurvePlanarFourier
@@ -1072,26 +1054,26 @@ def create_planar_curves_between_two_toroidal_surfaces(
 
     nfp = s.nfp
     stellsym = s.stellsym
-    normal_inner = s_inner.unitnormal().reshape(-1, 3)   
-    normal_outer = s_outer.unitnormal().reshape(-1, 3)   
+    normal_inner = s_inner.unitnormal().reshape(-1, 3)
+    normal_outer = s_outer.unitnormal().reshape(-1, 3)
     xyz_uniform, xyz_inner, xyz_outer, R = setup_uniform_grid(
         s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag=coil_coil_flag)
     # Have the uniform grid, now need to loop through and eliminate cells.
     contig = np.ascontiguousarray
     grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
-        contig(normal_inner), 
-        contig(normal_outer), 
-        contig(xyz_uniform), 
-        contig(xyz_inner), 
+        contig(normal_inner),
+        contig(normal_outer),
+        contig(xyz_uniform),
+        contig(xyz_inner),
         contig(xyz_outer)
     )
     inds = np.ravel(np.logical_not(np.all(grid_xyz == 0.0, axis=-1)))
     grid_xyz = np.array(grid_xyz[inds, :], dtype=float)
-    
+
     # Check if the grid intersects a symmetry plane -- oops!
     phi0 = 2 * np.pi / nfp * np.arange(nfp)
     phi_grid = np.arctan2(grid_xyz[:, 1], grid_xyz[:, 0])
-    phi_dev = np.arctan2(R, np.sqrt(grid_xyz[:, 0] ** 2  + grid_xyz[:, 1] ** 2))
+    phi_dev = np.arctan2(R, np.sqrt(grid_xyz[:, 0] ** 2 + grid_xyz[:, 1] ** 2))
     inds = []
     eps = 1e-3
     remove_inds = []
@@ -1102,9 +1084,9 @@ def create_planar_curves_between_two_toroidal_surfaces(
     if len(inds) > 0:
         print('bad indices = ', inds)
         raise ValueError('The PSC coils are initialized such that they may intersect with '
-                            'a discrete symmetry plane, preventing the proper symmetrization '
-                            'of the coils under stellarator and field-period symmetries. '
-                            'Please reinitialize the coils.')
+                         'a discrete symmetry plane, preventing the proper symmetrization '
+                         'of the coils under stellarator and field-period symmetries. '
+                         'Please reinitialize the coils.')
     if coil_coil_flag:
         for i in range(grid_xyz.shape[0]):
             for j in range(i + 1, grid_xyz.shape[0]):
@@ -1113,7 +1095,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
                 if conflict_bool:
                     print('bad indices = ', i, j, dij)
                     raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                        'of another PSC coil. Please reinitialize the coils.')
+                                     'of another PSC coil. Please reinitialize the coils.')
 
     final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
     grid_xyz = grid_xyz[final_inds, :]
@@ -1126,6 +1108,8 @@ def create_planar_curves_between_two_toroidal_surfaces(
         curves = [JaxCurvePlanarFourier(nquad, order) for i in range(ncoils)]
     else:
         curves = [CurvePlanarFourier(nquad, order, nfp=1, stellsym=False) for i in range(ncoils)]
+
+    # Initialize a bunch of circular coils with same normal vector 
     for ic in range(ncoils):
         alpha2 = np.pi / 2.0
         delta2 = 0.0
@@ -1137,14 +1121,13 @@ def create_planar_curves_between_two_toroidal_surfaces(
         dofs[0] = R
         for j in range(1, 2 * order + 1):
             dofs[j] = 0.0
-        # Conversion from Euler angles in 3-2-1 body sequence to 
-        # quaternions: 
+        # Conversion from Euler angles in 3-2-1 body sequence to quaternions:
         # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
         dofs[2 * order + 1] = calpha2 * cdelta2
         dofs[2 * order + 2] = salpha2 * cdelta2
         dofs[2 * order + 3] = calpha2 * sdelta2
         dofs[2 * order + 4] = -salpha2 * sdelta2
-        # Now specify the center 
+        # Now specify the center
         dofs[2 * order + 5:2 * order + 8] = grid_xyz[ic, :]
         if jax_flag:
             curves[ic].set_dofs(dofs)
@@ -1154,6 +1137,7 @@ def create_planar_curves_between_two_toroidal_surfaces(
         curves[ic].x = curves[ic].x  # need to do this to transfer data to C++
     all_curves = apply_symmetries_to_curves(curves, nfp, stellsym)
     return curves, all_curves
+
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
     """
@@ -1179,12 +1163,12 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     if jax_flag:
         for i in range(ncurves):
             curve = JaxCurveXYZFourier(numquadpoints, order)
-            angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
+            angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
             coeffs = np.zeros((3, len(curve.get_dofs()) // 3))
-            coeffs[0][0] = cos(angle)*R0
-            coeffs[0][2] = cos(angle)*R1
-            coeffs[1][0] = sin(angle)*R0
-            coeffs[1][2] = sin(angle)*R1
+            coeffs[0][0] = cos(angle) * R0
+            coeffs[0][2] = cos(angle) * R1
+            coeffs[1][0] = sin(angle) * R0
+            coeffs[1][2] = sin(angle) * R1
             coeffs[2][1] = -R1
             curve.set_dofs(np.concatenate(coeffs))
             curve.x = curve.x  # need to do this to transfer data to C++
@@ -1192,11 +1176,11 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
     else:
         for i in range(ncurves):
             curve = CurveXYZFourier(numquadpoints, order)
-            angle = (i+0.5)*(2*np.pi)/((1+int(stellsym))*nfp*ncurves)
-            curve.set("xc(0)", cos(angle)*R0)
-            curve.set("xc(1)", cos(angle)*R1)
-            curve.set("yc(0)", sin(angle)*R0)
-            curve.set("yc(1)", sin(angle)*R1)
+            angle = (i + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
+            curve.set("xc(0)", cos(angle) * R0)
+            curve.set("xc(1)", cos(angle) * R1)
+            curve.set("yc(0)", sin(angle) * R0)
+            curve.set("yc(1)", sin(angle) * R1)
             # The the next line, the minus sign is for consistency with
             # Vmec.external_current(), so the coils create a toroidal field of the
             # proper sign and free-boundary equilibrium works following stage-2 optimization.
@@ -1207,7 +1191,7 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
 
 
 def create_equally_spaced_planar_curves(
-    ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
+        ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None, jax_flag=False):
     """
     Create ``ncurves`` curves of type
     :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
@@ -1221,7 +1205,7 @@ def create_equally_spaced_planar_curves(
     curves = []
     from simsopt.geo.curveplanarfourier import CurvePlanarFourier, JaxCurvePlanarFourier
     for k in range(ncurves):
-        angle = (k+0.5)*(2*np.pi) / ((1+int(stellsym))*nfp*ncurves)
+        angle = (k + 0.5) * (2 * np.pi) / ((1 + int(stellsym)) * nfp * ncurves)
 
         if jax_flag:
             curve = JaxCurvePlanarFourier(numquadpoints, order)
@@ -1252,4 +1236,3 @@ def create_equally_spaced_planar_curves(
         curve.set_dofs(dofs)
         curves.append(curve)
     return curves
-            

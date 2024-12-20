@@ -209,16 +209,16 @@ class CurveCurveDistance(Optimizable):
     def shortest_distance_among_candidates(self):
         self.compute_candidates()
         from scipy.spatial.distance import cdist
-        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma()[::self.downsample, :], 
-            self.curves[j].gamma()[::self.downsample, :])) for i, j in self.candidates])
+        return min([self.minimum_distance] + [np.min(cdist(self.curves[i].gamma()[::self.downsample, :],
+                                                           self.curves[j].gamma()[::self.downsample, :])) for i, j in self.candidates])
 
     def shortest_distance(self):
         self.compute_candidates()
         if len(self.candidates) > 0:
             return self.shortest_distance_among_candidates()
         from scipy.spatial.distance import cdist
-        return min([np.min(cdist(self.curves[i].gamma()[::self.downsample, :], 
-            self.curves[j].gamma()[::self.downsample, :])) for i in range(len(self.curves)) for j in range(i)])
+        return min([np.min(cdist(self.curves[i].gamma()[::self.downsample, :],
+                                 self.curves[j].gamma()[::self.downsample, :])) for i in range(len(self.curves)) for j in range(i)])
 
     def J(self):
         """

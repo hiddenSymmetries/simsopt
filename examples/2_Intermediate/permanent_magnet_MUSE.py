@@ -45,7 +45,7 @@ if in_github_actions:
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
     nphi = 8  # >= 64 for high-resolution runs
-    nIter_max = 10000
+    nIter_max = 2000
     nBacktracking = 200
     max_nMagnets = 1000
     downsample = 20
@@ -82,14 +82,14 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
     surface_filename,
-    quadpoints_phi=quadpoints_phi, 
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
 # Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
 make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
 
-# Set up correct Bnormal from TF coils 
+# Set up correct Bnormal from TF coils
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
@@ -123,7 +123,7 @@ if PM4Stell_orientations:
     pol_axes = np.concatenate((pol_axes, pol_axes_fc_ftri), axis=0)
     pol_type = np.concatenate((pol_type, pol_type_fc_ftri))
 
-ophi = np.arctan2(mag_data.oy, mag_data.ox) 
+ophi = np.arctan2(mag_data.oy, mag_data.ox)
 discretize_polarizations(mag_data, ophi, pol_axes, pol_type)
 pol_vectors = np.zeros((mag_data.nMagnets, len(pol_type), 3))
 pol_vectors[:, :, 0] = mag_data.pol_x
@@ -132,11 +132,11 @@ pol_vectors[:, :, 2] = mag_data.pol_z
 print('pol_vectors_shape = ', pol_vectors.shape)
 
 # pol_vectors is only used for the greedy algorithms with cartesian coordinate_flag
-# which is the default, so no need to specify it here. 
+# which is the default, so no need to specify it here.
 kwargs = {"pol_vectors": pol_vectors, "downsample": downsample, "dr": dr}
 
 # Finally, initialize the permanent magnet class
-pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs) 
+pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **kwargs)
 
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
@@ -193,7 +193,7 @@ save_plots = True
 if save_plots:
     # Save the MSE history and history of the m vectors
     np.savetxt(
-        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt", 
+        out_dir / f"mhistory_K{kwargs['K']}_nphi{nphi}_ntheta{ntheta}.txt",
         m_history.reshape(pm_opt.ndipoles * 3, -1)
     )
     np.savetxt(
@@ -210,7 +210,7 @@ if save_plots:
         mk = m_history[:, :, k].reshape(pm_opt.ndipoles * 3)
         b_dipole = DipoleField(
             pm_opt.dipole_grid_xyz,
-            mk, 
+            mk,
             nfp=s.nfp,
             coordinate_flag=pm_opt.coordinate_flag,
             m_maxima=pm_opt.m_maxima,
@@ -241,7 +241,7 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 ### limit where nphi ~ ntheta >= 64!
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
-    pm_opt.m, 
+    pm_opt.m,
     nfp=s.nfp,
     coordinate_flag=pm_opt.coordinate_flag,
     m_maxima=pm_opt.m_maxima,
@@ -257,7 +257,7 @@ print('Total volume = ', total_volume)
 # Optionally make a QFM and pass it to VMEC
 # This is worthless unless plasma
 # surface is at least 64 x 64 resolution.
-vmec_flag = False 
+vmec_flag = False
 if vmec_flag:
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition

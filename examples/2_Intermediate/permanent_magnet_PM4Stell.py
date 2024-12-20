@@ -40,19 +40,19 @@ if in_github_actions:
     downsample = 100  # drastically downsample the grid if running CI
 else:
     N = 16  # >= 64 for high-resolution runs
-    nIter_max = 100000
-    max_nMagnets = 10000
-    downsample = 10
+    nIter_max = 2000  # >= 50000 for high-resolution runs
+    max_nMagnets = 1000  # >= 15000 for high-resolution runs
+    downsample = 10  # = 1 for high-resolution runs
 
 nphi = N
 ntheta = N
 algorithm = 'ArbVec_backtracking'
-nBacktracking = 200 
+nBacktracking = 200
 nAdjacent = 10
 thresh_angle = np.pi  # / np.sqrt(2)
 nHistory = 10
 angle = int(thresh_angle * 180 / np.pi)
-out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking}_na{nAdjacent}") 
+out_dir = Path("PM4Stell_angle{angle}_nb{nBacktracking}_na{nAdjacent}")
 out_dir.mkdir(parents=True, exist_ok=True)
 print('out directory = ', out_dir)
 
@@ -75,7 +75,7 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 s_plot = SurfaceRZFourier.from_focus(
     fname_plasma,
-    quadpoints_phi=quadpoints_phi, 
+    quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
@@ -100,7 +100,7 @@ ncsx_tfcoils = coils
 bs_tfcoils = BiotSavart(ncsx_tfcoils)
 bs_tfcoils.set_points(lcfs_ncsx.gamma().reshape((-1, 3)))
 bn_tfcoils = np.sum(
-    bs_tfcoils.B().reshape((nphi, ntheta, 3)) * lcfs_ncsx.unitnormal(), 
+    bs_tfcoils.B().reshape((nphi, ntheta, 3)) * lcfs_ncsx.unitnormal(),
     axis=2
 )
 bn_total = bn_plasma + bn_tfcoils
@@ -167,7 +167,7 @@ print('GPMO took t = ', dt, ' s')
 
 # Save files
 if True:
-    # Make BiotSavart object from the dipoles and plot solution 
+    # Make BiotSavart object from the dipoles and plot solution
     b_dipole = DipoleField(
         pm_ncsx.dipole_grid_xyz,
         pm_ncsx.m,
@@ -181,7 +181,7 @@ if True:
     Bnormal_coils = np.sum(bs_tfcoils.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_dipoles = np.sum(b_dipole.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
     Bnormal_plasma = bnormal_obj_ncsx.bnormal_grid(qphi, ntheta, 'full torus')
-    Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles 
+    Bnormal_total = Bnormal_plasma + Bnormal_coils + Bnormal_dipoles
     pointData = {"B_N": Bnormal_plasma[:, :, None]}
     s_plot.to_vtk(out_dir / "Bnormal_plasma", extra_data=pointData)
     pointData = {"B_N": Bnormal_dipoles[:, :, None]}
@@ -197,7 +197,7 @@ if True:
     nhist = m_history.shape[2]
     m_history_2d = m_history.reshape((nmags*m_history.shape[1], nhist))
     np.savetxt(out_dir / 'm_history_nmags={nmags}_nhist={nhist}.txt', m_history_2d)
-t_end = time.time()  
+t_end = time.time()
 print('Script took in total t = ', t_end - t_start, ' s')
 
 # Plot optimization results as function of iterations

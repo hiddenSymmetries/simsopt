@@ -124,6 +124,7 @@ class ToroidalField(MagneticField):
         field.set_points_cart(xyz)
         return field
 
+
 class PoloidalField(MagneticField):
     '''
     Magnetic field purely in the poloidal direction, that is, in the
@@ -255,8 +256,8 @@ class ScalarPotentialRZMagneticField(MagneticField):
         self.phi_str = phi_str
         self.phi_parsed = parse_expr(phi_str)
         R, Z, Phi = sp.symbols('R Z phi')
-        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z, \
-                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z, \
+        self.Blambdify = sp.lambdify((R, Z, Phi), [self.phi_parsed.diff(R)+1e-30*Phi*R*Z,
+                                                   self.phi_parsed.diff(Phi)/R+1e-30*Phi*R*Z,
                                                    self.phi_parsed.diff(Z)+1e-30*Phi*R*Z])
         self.dBlambdify_by_dX = sp.lambdify(
             (R, Z, Phi),
@@ -358,12 +359,12 @@ class CircularCoil(MagneticField):
         self.Inorm = I*4e-7
         self.center = center
         self.normal = normal
-        super().__init__(x0=self.get_dofs(), names=self._make_names(),external_dof_setter=CircularCoil.set_dofs_impl)
+        super().__init__(x0=self.get_dofs(), names=self._make_names(), external_dof_setter=CircularCoil.set_dofs_impl)
 
     def _make_names(self):
-        if len(self.normal)==2:
+        if len(self.normal) == 2:
             normal_names = ['theta', 'phi']
-        elif len(self.normal)==3:
+        elif len(self.normal) == 3:
             normal_names = ['x', 'y', 'z']
         return ['r0', 'x0', 'y0', 'z0', 'Inorm'] + normal_names
 
@@ -378,7 +379,7 @@ class CircularCoil(MagneticField):
         self.center = dofs[1:4].tolist()
         self.Inorm = dofs[4]
         self.normal = dofs[5:].tolist()
-        
+
     @property
     def I(self):
         return self.Inorm * 25e5
@@ -386,29 +387,29 @@ class CircularCoil(MagneticField):
     def _rotmat(self):
         if len(self.normal) == 2:
             theta = self.get('theta')
-            phi   = self.get('phi')
+            phi = self.get('phi')
         else:
-            xn    = self.get('x')
-            yn    = self.get('y')
-            zn    = self.get('z')
+            xn = self.get('x')
+            yn = self.get('y')
+            zn = self.get('z')
             theta = np.arctan2(yn, xn)
             phi = np.arctan2(np.sqrt(xn**2+yn**2), zn)
-            
+
         m = np.array([
             [np.cos(phi) * np.cos(theta)**2 + np.sin(theta)**2,
-              -np.sin(phi / 2)**2 * np.sin(2 * theta),
-              np.cos(theta) * np.sin(phi)],
+             -np.sin(phi / 2)**2 * np.sin(2 * theta),
+             np.cos(theta) * np.sin(phi)],
             [-np.sin(phi / 2)**2 * np.sin(2 * theta),
-              np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
-              np.sin(phi) * np.sin(theta)],
+             np.cos(theta)**2 + np.cos(phi) * np.sin(theta)**2,
+             np.sin(phi) * np.sin(theta)],
             [-np.cos(theta) * np.sin(phi),
-              -np.sin(phi) * np.sin(theta),
-              np.cos(phi)]
+             -np.sin(phi) * np.sin(theta),
+             np.cos(phi)]
         ])
         return m
 
     def _rotmatinv(self):
-        m    = self._rotmat()
+        m = self._rotmat()
         minv = np.array(m.T)
         return minv
 
@@ -536,7 +537,7 @@ class CircularCoil(MagneticField):
         y = self.r0 * np.sin(angle_points)
         z = 0 * angle_points
 
-        coords = np.add(np.dot(self._rotmat(), np.column_stack([x,y,z]).T).T, self.center)
+        coords = np.add(np.dot(self._rotmat(), np.column_stack([x, y, z]).T).T, self.center)
         return coords
 
     def to_vtk(self, filename, close=False):
@@ -565,6 +566,7 @@ class CircularCoil(MagneticField):
             ppl = np.asarray([self.gamma().shape[0]])
 
         polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl)
+
 
 class DipoleField(MagneticField):
     r"""
@@ -605,7 +607,7 @@ class DipoleField(MagneticField):
     """
 
     def __init__(self, dipole_grid, dipole_vectors, stellsym=True, nfp=1, coordinate_flag='cartesian', m_maxima=None, R0=1):
-        super().__init__()        
+        super().__init__()
         if coordinate_flag == 'toroidal':
             warnings.warn('Note that if using simple toroidal coordinates, '
                           'the major radius must be specified through R0 argument.')

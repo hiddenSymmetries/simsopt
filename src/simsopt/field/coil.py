@@ -1,13 +1,11 @@
 from math import pi
-import time
 import numpy as np
-from jax import vjp, jacfwd, jvp
-import jax.numpy as jnp
+from jax import vjp, jacfwd
 
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve, Curve
+from simsopt.geo.curve import RotatedCurve
 from simsopt.geo.jit import jit
 import simsoptpp as sopp
 
@@ -46,6 +44,7 @@ class Coil(sopp.Coil, Optimizable):
         :obj:`simsopt.geo.curve.Curve.plot()`
         """
         return self.curve.plot(**kwargs)
+
 
 class CurrentBase(Optimizable):
 
@@ -99,6 +98,7 @@ class Current(sopp.Current, CurrentBase):
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
+
     @property
     def current(self):
         return self.get_value()
@@ -122,18 +122,20 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
 
+
 def current_pure(dofs):
     return dofs
+
 
 class JaxCurrent(sopp.Current, CurrentBase):
     def __init__(self, current, dofs=None, **kwargs):
         sopp.Current.__init__(self, current)
         if dofs is None:
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                                x0=self.get_dofs(), **kwargs)
+                                 x0=self.get_dofs(), **kwargs)
         else:
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-                                dofs=dofs, **kwargs)
+                                 dofs=dofs, **kwargs)
 
         @property
         def current(self):
@@ -146,7 +148,7 @@ class JaxCurrent(sopp.Current, CurrentBase):
 
     def current_impl(self, dofs):
         return self.current_jax(dofs)
-    
+
     def vjp(self, v):
         r"""
         """
@@ -154,7 +156,8 @@ class JaxCurrent(sopp.Current, CurrentBase):
 
     def set_dofs(self, dofs):
         self.local_x = dofs
-        sopp.Current.set_dofs(self, dofs)        
+        sopp.Current.set_dofs(self, dofs)
+
 
 class CurrentSum(sopp.CurrentBase, CurrentBase):
     """
@@ -172,6 +175,7 @@ class CurrentSum(sopp.CurrentBase, CurrentBase):
 
     def get_value(self):
         return self.current_a.get_value() + self.current_b.get_value()
+
 
 def apply_symmetries_to_curves(base_curves, nfp, stellsym):
     """
@@ -222,6 +226,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     coils = [Coil(curv, curr) for (curv, curr) in zip(curves, currents)]
     return coils
 
+
 def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     """
     This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
@@ -239,12 +244,12 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
         A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
     """
 
-    if isinstance(group_names,str):
+    if isinstance(group_names, str):
         # Handle case of a single string
         group_names = [group_names]
-    
+
     with open(filename, 'r') as f:
-        all_coils_values = f.read().splitlines()[3:] 
+        all_coils_values = f.read().splitlines()[3:]
 
     currents = []
     flag = True
@@ -260,10 +265,9 @@ def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
             else:
                 this_group_name = vals[5]
                 if this_group_name in group_names:
-                    currents.append(curr)  
-            
-            
-    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp, group_names=group_names)    
+                    currents.append(curr)
+
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp, group_names=group_names)
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
     return coils
@@ -294,7 +298,7 @@ def coils_to_makegrid(filename, curves, currents, groups=None, nfp=1, stellsym=F
         assert len(groups) == ncoils
         # should be careful. SIMSOPT flips the current, but actually should change coil order
     with open(filename, "w") as wfile:
-        wfile.write("periods {:3d} \n".format(nfp)) 
+        wfile.write("periods {:3d} \n".format(nfp))
         wfile.write("begin filament \n")
         wfile.write("mirror NIL \n")
         for icoil in range(ncoils):
