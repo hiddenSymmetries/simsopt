@@ -116,13 +116,16 @@ class PSCCurrent(sopp.Current, CurrentBase):
 
     def __init__(self, psc_curves, biot_savart_TF, a_list, b_list, index, downsample=1, cross_section='circular', dofs=None, **kwargs):
         self.psc_curves = psc_curves  # Should include all the psc_curves
+        # save original TF evaluation points!
         self.biot_savart_TF = biot_savart_TF
+        self.eval_points = self.biot_savart_TF.get_points_cart_ref()
         self.a_list = a_list
         self.b_list = b_list
         self.downsample = downsample
         self.cross_section = cross_section
+        self.index = index
         gammas = jnp.array([c.gamma() for c in psc_curves])
-        self.biot_savart_TF.set_points(gammas.reshape(-1, 3))
+        self.biot_savart_TF.set_points(gammas[:, ::downsample, :].reshape(-1, 3))
         gammadashs = jnp.array([c.gammadash() for c in psc_curves])
         quadpoints = jnp.array([c.quadpoints for c in psc_curves])
         A_ext = biot_savart_TF.A()
@@ -148,6 +151,7 @@ class PSCCurrent(sopp.Current, CurrentBase):
             jacfwd(self.J_jax, argnums=2)(gammas, gammadashs, A_ext, downsample),
             **args
         )
+        self.biot_savart_TF.set_points(self.eval_points)
         sopp.Current.__init__(self, current)
         if dofs is None:
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
@@ -160,7 +164,7 @@ class PSCCurrent(sopp.Current, CurrentBase):
         gammas = jnp.array([c.gamma() for c in self.psc_curves])
         gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
         quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
-        self.biot_savart_TF.set_points(gammas.reshape(-1, 3))
+        self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
         A_ext = self.biot_savart_TF.A()
         args = [
             gammas, 
@@ -181,12 +185,37 @@ class PSCCurrent(sopp.Current, CurrentBase):
         # should be associated with the TF curves? 
         # A_vjp returns Derivatives depending on the TF curve and TF coils
         vjp3 = sum([self.biot_savart_TF.A_vjp(dJ_dA[i]) for i, c in enumerate(self.biot_savart_TF.coils)])
+        self.biot_savart_TF.set_points(self.eval_points)
+
+        #### ABSOLUTELY ESSENTIAL LINES BELOW
+        # Otherwise optimizable references multiply
+        # like crazy as number of coils increases
+
+        # self.biot_savart_TF._children = set()
+        # for c in self.psc_curves:
+        #     c._children = set()
+        # for c in self.biot_savart_TF.coils:
+        #     c._children = set()
+        #     c.curve._children = set()
+        #     c.current._children = set()
 
         return vjp1 + vjp2 + vjp3
 
     @property
     def current(self):
-        return self.J_jax(*args)[i]
+        gammas = jnp.array([c.gamma() for c in self.psc_curves])
+        gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
+        quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
+        self.biot_savart_TF.set_points(gammas.reshape(-1, 3))
+        A_ext = self.biot_savart_TF.A()
+        args = [
+            gammas, 
+            gammadashs, 
+            A_ext, 
+            self.downsample
+        ]
+        self.biot_savart_TF.set_points(self.eval_points)
+        return self.J_jax(*args)[self.index]
         # return self.get_value()
 
 

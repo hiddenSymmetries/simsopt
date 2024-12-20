@@ -1961,7 +1961,6 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_li
              , inplace=False)
     return 1e-7 * Lij  
 
-
 def coil_coil_inductances_inv_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section):
     # Lij is symmetric positive definite so has a cholesky decomposition
     C = jnp.linalg.cholesky(coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section))

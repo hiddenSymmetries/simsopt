@@ -1111,8 +1111,8 @@ def create_planar_curves_between_two_toroidal_surfaces(
 
     # Initialize a bunch of circular coils with same normal vector 
     for ic in range(ncoils):
-        alpha2 = np.pi / 2.0
-        delta2 = 0.0
+        alpha2 = np.random.rand(1) * np.pi - np.pi / 2.0
+        delta2 = np.random.rand(1) * np.pi
         calpha2 = np.cos(alpha2)
         salpha2 = np.sin(alpha2)
         cdelta2 = np.cos(delta2)

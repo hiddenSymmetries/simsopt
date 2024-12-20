@@ -220,7 +220,6 @@ class MagneticFieldSum(MagneticField):
             bf.set_points_cart(self.get_points_cart_ref())
 
     def _B_impl(self, B):
-        # print(B.shape, [bf.B() for bf in self.Bfields], np.shape(np.sum([bf.B() for bf in self.Bfields], axis=0)))
         B[:] = np.sum([bf.B() for bf in self.Bfields], axis=0)
 
     def _dB_by_dX_impl(self, dB):
