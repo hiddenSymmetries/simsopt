@@ -490,6 +490,7 @@ class NormalField(Optimizable):
         
         for i in range(mpol):
             for j in range(-ntor, ntor+1):
+                if i == 0 and j <= 0: continue
                 self.set_vns(i, j, vns[i, self.ntor+j])
 
     def set_vnc_asarray(self, vnc, mpol=None, ntor=None):
@@ -508,6 +509,7 @@ class NormalField(Optimizable):
 
         for i in range(mpol):
             for j in range(-ntor, ntor+1):
+                if i == 0 and j < 0: continue
                 self.set_vnc(i, j, vnc[i, self.ntor+j])
 
     def set_vns_vnc_asarray(self, vns, vnc, mpol=None, ntor=None):
