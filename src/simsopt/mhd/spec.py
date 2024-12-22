@@ -1245,7 +1245,10 @@ class Spec(Optimizable):
 
             # Delete the previous output file, if desired:
             for file_to_delete in self.files_to_delete:
-                os.remove(file_to_delete)
+                try:
+                    os.remove(file_to_delete)
+                except FileNotFoundError:
+                    logger.warning(f"file {file_to_delete} was scheduled for deletion but could not be found")
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:
