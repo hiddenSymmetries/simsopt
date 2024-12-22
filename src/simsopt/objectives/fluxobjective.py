@@ -103,6 +103,4 @@ class SquaredFlux(Optimizable):
             raise ValueError("Should never get here")
 
         dJdB = dJdB.reshape((-1, 3))
-        # print('here = ', dJdB.shape, self.field.B_vjp(dJdB)(self).shape)
-        # exit()
         return self.field.B_vjp(dJdB)

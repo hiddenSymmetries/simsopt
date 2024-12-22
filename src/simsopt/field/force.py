@@ -2119,7 +2119,7 @@ def net_ext_fluxes_pure(gammadashs, A_ext, downsample):
     """
     # Downsample if desired
     gammadashs = gammadashs[:, ::downsample, :]
-    # Dot the vectors, then sum over the quadpoints
+    # Dot the vectors (sum over last axis), then sum over the quadpoints
     return jnp.sum(jnp.sum(A_ext.reshape(jnp.shape(gammadashs)) * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
 
 

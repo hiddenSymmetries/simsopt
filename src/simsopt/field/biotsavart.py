@@ -22,8 +22,9 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         coils: A list of :obj:`simsopt.field.coil.Coil` objects.
     """
 
-    def __init__(self, coils):
+    def __init__(self, coils, psc_array=None):
         self._coils = coils
+        self.psc_array = psc_array
         sopp.BiotSavart.__init__(self, coils)
         MagneticField.__init__(self, depends_on=coils)
 
@@ -109,7 +110,15 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
                                    res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
-        return sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+        vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+        if self.psc_array is not None:
+            dI_dgammas, dI_dgammadashs, dI_dA = self.psc_array.vjp_setup()
+            print(np.shape(res_current), dI_dgammas.shape)
+            print(dI_dgammadashs.shape, dI_dA.shape)
+            vjp += res_current @ (dI_dgammas + dI_dgammadashs + dI_dA)
+        #     vjp += sum([self.A_vjp(dI_dA[i]) for i, c in enumerate(self.biot_savart_TF.coils)])
+        #     self.biot_savart_TF.set_points(self.eval_points)
+        return vjp
 
     def dA_by_dcoilcurrents(self, compute_derivatives=0):
         points = self.get_points_cart_ref()
