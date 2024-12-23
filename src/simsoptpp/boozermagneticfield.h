@@ -10,6 +10,8 @@
 #include <numeric>      // For std::iota (for Phihat)
 #include <stdexcept>    // For std::invalid_argument (for Phihat)
 #include <set>          // For std::set (for Phihat)
+#include <xtensor/xview.hpp> // To access parts of the xtensor
+                             // (for ShearAlfvenWave and ShearAlfvenHarmonic)
 
 using std::logic_error;
 using std::vector;
@@ -482,19 +484,27 @@ public:
   * @param p A tensor representing the points
   * in Boozer coordinates and time (s, theta, zeta, time).
   *
-  * @return Reference to the current instance for chaining.
+  * @return Reference to the current instance
   * @throws std::invalid_argument if the input tensor does not have 4 columns.
   */
   virtual ShearAlfvenWave &set_points(Tensor2 &p) {
     this->invalidate_cache();
     this->points.invalidate_cache();
     if (p.shape(1) != 4) {
-        throw std::invalid_argument("Input tensor must have 4 columns: Boozer coordinates, and time (s, theta, zeta, time)");
+        throw std::invalid_argument(
+        "Input tensor must have 4 columns: Boozer coordinates,"
+        "and time (s, theta, zeta, time)"
+        );
     }
+    // Set points for ShearAlfvenWave (4 columns: s, theta, zeta, time)
     npoints = p.shape(0);
     Tensor2 &_points = points.get_or_create({npoints, 4});
     memcpy(_points.data(), p.data(), 4 * npoints * sizeof(double));
     this->_set_points_cb();
+
+    // Set points for B0 using the first three columns of p (s, theta, zeta)
+    Tensor2 p_b0 = xt::view(p, xt::all(), xt::range(0, 3));
+    B0->set_points(p_b0);
     return *this;
   }
 
