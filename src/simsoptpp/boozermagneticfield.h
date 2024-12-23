@@ -279,3 +279,291 @@ class BoozerMagneticField {
         Tensor2 diotads() { return diotads_ref(); }
 
 };
+
+
+/**
+* @brief Class representing a generic Shear Alfvén Wave.
+* See Paul. et al,
+* JPP (2023;89(5):905890515. doi:10.1017/S0022377823001095),
+* and refs. therein.
+*
+* The Shear Alfvén Wave (SAW) propagating in equilibrium field B0 is
+* represented by scalar potential `Phi` and vector potential parameter alpha, * s.t. the SAW magnetic field is represented by the curl of (alpha*B0).
+*
+* This class provides a framework for representing SAW in Boozer coordinates, * with attributes for computing scalar & vector potential and their
+* derivatives: `Phi`, `dPhidpsi`, `Phidot`, etc.
+*
+* It is designed to be a base class,
+* to be extended to implement specific behaviors.
+*
+* @tparam T Template for tensor type.
+* It should be a template class compatible with xtensor-like syntax.
+*/
+template <template <class, std::size_t, xt::layout_type> class T>
+class ShearAlfvenWave {
+public:
+  using Tensor2 = T<double, 2, xt::layout_type::row_major>;
+
+protected:
+  std::shared_ptr<BoozerMagneticField<T>> B0;
+  CachedTensor<T, 2> points;
+  CachedTensor<T, 2> data_Phi, data_dPhidpsi, data_Phidot, data_dPhidtheta,
+    data_dPhidzeta, data_alpha, data_alphadot, data_dalphadtheta,
+    data_dalphadpsi, data_dalphadzeta;
+  int npoints;
+
+  /**
+  * @brief Virtual method to compute the scalar potential `Phi`.
+  *
+  * This method should be overridden by derived classes to provide
+  * the specific implementation for computing the Phi tensor.
+  *
+  * @param Phi Reference to the Phi tensor to be filled.
+  */
+  virtual void _Phi_impl(Tensor2 &Phi) {
+    throw logic_error("_Phi_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of
+  * scalar potential `Phi` w.r.t. toroidal flux coordinate `psi` .
+  *
+  * This method should be overridden by derived classes to provide
+  * the specific implementation for computing the dPhidpsi tensor.
+  *
+  * @param dPhidpsi Reference to the dPhidpsi tensor to be filled.
+  */
+  virtual void _dPhidpsi_impl(Tensor2 &dPhidpsi) {
+    throw logic_error("_dPhidpsi_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of
+  * scalar potential `Phi` w.r.t. poloidal Boozer angle `theta`.
+  *
+  * This method should be overridden by derived classes to provide
+  * specific implementation for computing the dPhidtheta tensor.
+  *
+  * @param dPhidtheta Reference to the dPhidtheta tensor to be filled.
+  */
+  virtual void _dPhidtheta_impl(Tensor2 &dPhidtheta) {
+    throw logic_error("_dPhidtheta_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of
+  * scalar potential `Phi` w.r.t. toroidal Boozer angle `zeta`.
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the dPhidzeta tensor.
+  *
+  * @param dPhidzeta Reference to the dPhidzeta tensor to be filled.
+  */
+  virtual void _dPhidzeta_impl(Tensor2 &dPhidzeta) {
+    throw logic_error("_dPhidzeta_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of
+  * scalar potential `Phi` w.r.t. time.
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the Phidot tensor.
+  *
+  * @param Phidot Reference to the Phidot tensor to be filled.
+  */
+  virtual void _Phidot_impl(Tensor2 &Phidot) {
+    throw logic_error("_Phidot_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the vector potential parameter `alpha`.
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the alpha tensor.
+  *
+  * @param alpha Reference to the alpha tensor to be filled.
+  */
+  virtual void _alpha_impl(Tensor2 &alpha) {
+    throw logic_error("_alpha_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of the
+  * vector potential parameter `alpha` w.r.t. toroidal flux `psi`
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the dalphadpsi tensor.
+  *
+  * @param dalphadpsi Reference to the dalphadpsi tensor to be filled.
+  */
+  virtual void _dalphadpsi_impl(Tensor2 &dalphadpsi) {
+    throw logic_error("_dalphadpsi_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of the
+  * vector potential parameter `alpha` w.r.t. poloidal Boozer angle `theta`
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the alphadot tensor.
+  *
+  * @param alphadot Reference to the alphadot tensor to be filled.
+  */
+  virtual void _dalphadtheta_impl(Tensor2 &dalphadtheta) {
+    throw logic_error("_dalphadtheta_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of the
+  * vector potential parameter `alpha` w.r.t. toroidal Boozer angle `zeta`
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the dalphadzeta tensor.
+  *
+  * @param dalphadzeta Reference to the dalphadzeta tensor to be filled.
+  */
+  virtual void _dalphadzeta_impl(Tensor2 &dalphadzeta) {
+    throw logic_error("_dalphadzeta_impl was not implemented");
+  }
+
+  /**
+  * @brief Virtual method to compute the partial derivative of the
+  * vector potential parameter `alpha` w.r.t. time
+  *
+  * This method should be overridden by derived classes to provide the
+  * specific implementation for computing the alphadot tensor.
+  *
+  * @param alphadot Reference to the alphadot tensor to be filled.
+  */
+  virtual void _alphadot_impl(Tensor2 &alphadot) {
+    throw logic_error("_alphadot_impl was not implemented");
+  }
+
+  virtual void _set_points() {}
+  virtual void _set_points_cb() {}
+
+public:
+
+  /**
+  * @brief Constructor for ShearAlfvenWave with an equilibrium magnetic field.
+  *
+  * @param B0field Shared pointer to the equilibrium Boozer magnetic field.
+  */
+  ShearAlfvenWave(std::shared_ptr<BoozerMagneticField<T>> B0field)
+        : B0(B0field) {
+      Tensor2 vals({{0., 0., 0., 0.}});
+      this->set_points(vals);
+  }
+
+  virtual ~ShearAlfvenWave() {}
+
+  virtual void invalidate_cache() {
+    data_Phi.invalidate_cache();
+    data_Phidot.invalidate_cache();
+    data_dPhidpsi.invalidate_cache();
+    data_dPhidtheta.invalidate_cache();
+    data_dPhidzeta.invalidate_cache();
+    data_alpha.invalidate_cache();
+    data_alphadot.invalidate_cache();
+    data_dalphadtheta.invalidate_cache();
+    data_dalphadpsi.invalidate_cache();
+    data_dalphadzeta.invalidate_cache();
+  }
+
+  /**
+  * @brief Sets the points for the perturbation and the equilibrium field.
+  *
+  * @param p A tensor representing the points
+  * in Boozer coordinates and time (s, theta, zeta, time).
+  *
+  * @return Reference to the current instance for chaining.
+  * @throws std::invalid_argument if the input tensor does not have 4 columns.
+  */
+  virtual ShearAlfvenWave &set_points(Tensor2 &p) {
+    this->invalidate_cache();
+    this->points.invalidate_cache();
+    if (p.shape(1) != 4) {
+        throw std::invalid_argument("Input tensor must have 4 columns: Boozer coordinates, and time (s, theta, zeta, time)");
+    }
+    npoints = p.shape(0);
+    Tensor2 &_points = points.get_or_create({npoints, 4});
+    memcpy(_points.data(), p.data(), 4 * npoints * sizeof(double));
+    this->_set_points_cb();
+    return *this;
+  }
+
+  Tensor2 get_points() { return get_points_ref(); }
+
+  Tensor2 &get_points_ref() { return points.get_or_create({npoints, 4}); }
+
+  Tensor2 &Phi_ref() {
+    return data_Phi.get_or_create_and_fill(
+        {npoints, 1}, [this](Tensor2 &Phi) { return _Phi_impl(Phi); });
+  }
+
+  Tensor2 &dPhidpsi_ref() {
+    return data_dPhidpsi.get_or_create_and_fill(
+        {npoints, 1},
+        [this](Tensor2 &dPhidpsi) { return _dPhidpsi_impl(dPhidpsi); });
+  }
+
+  Tensor2 &Phidot_ref() {
+    return data_Phidot.get_or_create_and_fill(
+        {npoints, 1}, [this](Tensor2 &Phidot) { return _Phidot_impl(Phidot); });
+  }
+
+  Tensor2 &dPhidtheta_ref() {
+    return data_dPhidtheta.get_or_create_and_fill(
+        {npoints, 1},
+        [this](Tensor2 &dPhidtheta) { return _dPhidtheta_impl(dPhidtheta); });
+  }
+
+  Tensor2 &dPhidzeta_ref() {
+    return data_dPhidzeta.get_or_create_and_fill(
+        {npoints, 1},
+        [this](Tensor2 &dPhidzeta) { return _dPhidzeta_impl(dPhidzeta); });
+  }
+
+  Tensor2 &alpha_ref() {
+    return data_alpha.get_or_create_and_fill(
+        {npoints, 1}, [this](Tensor2 &alpha) { return _alpha_impl(alpha); });
+  }
+
+  Tensor2 &alphadot_ref() {
+    return data_alphadot.get_or_create_and_fill(
+        {npoints, 1},
+        [this](Tensor2 &alphadot) { return _alphadot_impl(alphadot); });
+  }
+
+  Tensor2 &dalphadtheta_ref() {
+    return data_dalphadtheta.get_or_create_and_fill(
+        {npoints, 1}, [this](Tensor2 &dalphadtheta) {
+          return _dalphadtheta_impl(dalphadtheta);
+        });
+  }
+
+  Tensor2 &dalphadpsi_ref() {
+    return data_dalphadpsi.get_or_create_and_fill(
+        {npoints, 1},
+        [this](Tensor2 &dalphadpsi) { return _dalphadpsi_impl(dalphadpsi); });
+  }
+
+  Tensor2 &dalphadzeta_ref() {
+    return data_dalphadzeta.get_or_create_and_fill(
+        {npoints, 1}, [this](Tensor2 &dalphadzeta) {
+          return _dalphadzeta_impl(dalphadzeta);
+        });
+  }
+
+  Tensor2 Phi() { return Phi_ref(); }
+  Tensor2 dPhidpsi() { return dPhidpsi_ref(); }
+  Tensor2 Phidot() { return Phidot_ref(); }
+  Tensor2 dPhidtheta() { return dPhidtheta_ref(); }
+  Tensor2 dPhidzeta() { return dPhidzeta_ref(); }
+  Tensor2 alpha() { return alpha_ref(); }
+  Tensor2 alphadot() { return alphadot_ref(); }
+  Tensor2 dalphadtheta() { return dalphadtheta_ref(); }
+  Tensor2 dalphadpsi() { return dalphadpsi_ref(); }
+  Tensor2 dalphadzeta() { return dalphadzeta_ref(); }
+};
