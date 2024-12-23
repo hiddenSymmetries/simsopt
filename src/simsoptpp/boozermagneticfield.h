@@ -5,7 +5,8 @@
 #include "cachedarray.h"
 #include "cache.h"
 #include "cachedtensor.h"
-#include <vector>       // For std::vector (for Phihat)
+#include <vector>       // For std::vector
+                        // (for Phihat and ShearAlfvenWavesSuperposition)
 #include <algorithm>    // For std::sort (for Phihat)
 #include <numeric>      // For std::iota (for Phihat)
 #include <stdexcept>    // For std::invalid_argument (for Phihat)
@@ -581,6 +582,10 @@ public:
   Tensor2 dalphadtheta() { return dalphadtheta_ref(); }
   Tensor2 dalphadpsi() { return dalphadpsi_ref(); }
   Tensor2 dalphadzeta() { return dalphadzeta_ref(); }
+
+  std::shared_ptr<BoozerMagneticField<T>> get_B0() const {
+            return B0;
+        }
 };
 
 /**
@@ -1004,7 +1009,7 @@ public:
   * `B0` field does not match the superposition's `B0`.
   */
   void add_wave(const std::shared_ptr<ShearAlfvenWave<T>> &wave) {
-    if (wave->B0 != this->B0) {
+    if (wave->get_B0() != this->B0) {
         throw std::invalid_argument("The wave's B0 field does not match the superposition's B0 field.");
     }
     waves.push_back(wave);
@@ -1021,7 +1026,7 @@ public:
   * @throws std::invalid_argument if the base wave is not provided.
   */
   ShearAlfvenWavesSuperposition(std::shared_ptr<ShearAlfvenWave<T>> base_wave)
-        : ShearAlfvenWave<T>(base_wave->B0) {
+        : ShearAlfvenWave<T>(base_wave->get_B0()) {
       if (!base_wave) {
         throw std::invalid_argument("Base wave must be provided to initialize the superposition.");
       }
