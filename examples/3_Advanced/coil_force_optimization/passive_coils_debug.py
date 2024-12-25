@@ -98,7 +98,7 @@ def initialize_coils_QA(TEST_DIR, s):
     )
 
     base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    [base_currents[i].fix_all() for i in range(len(base_currents))]
+    # [base_currents[i].fix_all() for i in range(len(base_currents))]
     # [base_curves[i].fix_all() for i in range(len(base_curves))]
 
     total_current = Current(total_current)
@@ -118,11 +118,7 @@ base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
 
 # # Set up BiotSavart fields
-bs_TF = BiotSavart(coils_TF)
-
-# # Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs_TF, s)
-bs_TF.set_points(s.gamma().reshape(-1, 3))
+# bs_TF = BiotSavart(coils_TF)
 
 # wire cross section for the TF coils is a square 20 cm x 20 cm
 # Only need this if make self forces and TVE nonzero in the objective!
@@ -177,12 +173,22 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
-psc_array = PSCArray(base_curves, bs_TF, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-bs = psc_array.biot_savart
-btot = BiotSavart(psc_array.coils + coils_TF, psc_array=psc_array) 
+eval_points = s.gamma().reshape(-1, 3)
+psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+# # Calculate average, approximate on-axis B field strength
+calculate_on_axis_B(psc_array.biot_savart_TF, s)
+psc_array.biot_savart_TF.set_points(eval_points)
+
+# bs = psc_array.biot_savart
+# btot = BiotSavart(psc_array.coils, psc_array=psc_array) 
+# btot = BiotSavart(coils_TF) #, psc_array=psc_array) 
+# btot = BiotSavart(psc_array.coils + coils_TF, psc_array=psc_array) 
+btot = psc_array.biot_savart_total
+
 calculate_on_axis_B(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
-bs.set_points(s.gamma().reshape((-1, 3)))
+
+# bs.set_points(s.gamma().reshape((-1, 3)))
 coils = psc_array.coils
 base_coils = coils[:ncoils]
 curves = [c.curve for c in coils]
@@ -294,42 +300,23 @@ JF = Jf \
 #     JF += TORQUE_WEIGHT2 * Jtorque2
 
 print(JF.dof_names)
-print(bs.dof_names)
+# print(bs.dof_names)
 print(psc_array.dof_names)
 
 
 def fun(dofs):
     JF.x = dofs
-    J = JF.J()
-    # Manually add dJ_dBpsc * (dBpsc_dA * dA_dcoefs) term below
-    # dJ_dBpsc * (dBpsc_dI * dI_dA * dA_dcoefs) 
-    # One way to get this term in there is to make a PSCBiotSavart
-    # that depends on the TF coil dofs, only when calculating
-    # the vjp terms?
-
-    # another option, make a biotsavart object that depends on both the
-    # TF coils and the PSC coils? 
- 
-    # gammas = np.array([c.gamma() for c in curves])
-    # gammadashs = np.array([c.gammadash() for c in curves])
-    # bs_TF.set_points(gammas.reshape(-1, 3))
-    # A_ext = bs_TF.A()
-    # args = [
-    #     gammas, 
-    #     gammadashs, 
-    #     A_ext, 
-    #     1
-    # ]
-    # dI_dA = psc_array.coils[0].current.dI_dA(*args)
-    # vjp = bs_TF.A_vjp(dI_dA)  # for i, c in enumerate(bs_TF.coils)])
-    grad = JF.dJ()  # + vjp
-
-    jf = Jf.J()
-    print(bs.coils[0].current.get_value())
+    print(btot.coils[0].current.get_value())
+    print(btot.coils[ncoils].current.get_value())
+    # print(btot.Bfields[0].coils[0].current.get_value())
+    # print(btot.Bfields[1].coils[0].current.get_value())
     # Need to invalidate the cache since otherwise it will just reuse the previous
     # value of B for the squared flux if there are no dofs for the PSC array
-    bs.invalidate_cache()
-    print('B = ', bs.B()[0, :])
+    btot.invalidate_cache()
+    print('B = ', btot.B()[0, :])
+    J = JF.J()
+    grad = JF.dJ() 
+    jf = Jf.J()
     length_val = LENGTH_WEIGHT.value * Jlength.J()
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
@@ -401,9 +388,9 @@ for i in range(1, n_saves + 1):
                    options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     # dofs = res.x
 
-    dipole_currents = [c.current.get_value() for c in bs.coils]
+    dipole_currents = [c.current.get_value() for c in psc_array.coils]
     curves_to_vtk(
-        [c.curve for c in bs.coils],
+        [c.curve for c in psc_array.coils],
         OUT_DIR + "curves_{0:d}".format(i),
         close=True,
         extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
@@ -412,11 +399,11 @@ for i in range(1, n_saves + 1):
         NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
     )
     curves_to_vtk(
-        [c.curve for c in bs_TF.coils],
+        [c.curve for c in psc_array.coils_TF],
         OUT_DIR + "curves_TF_{0:d}".format(i),
         close=True,
         extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-        I=[c.current.get_value() for c in bs_TF.coils],
+        I=[c.current.get_value() for c in psc_array.coils_TF],
         NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
         NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
     )

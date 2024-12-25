@@ -238,7 +238,10 @@ class MagneticFieldSum(MagneticField):
         ddA[:] = np.sum([bf.d2A_by_dXdX() for bf in self.Bfields], axis=0)
 
     def B_vjp(self, v):
-        return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
+        ###### Change below might be an issue for other examples!!!!
+        # print([bf.dofs_free_status for bf in self.Bfields])
+        # return sum([bf.B_vjp(v) for bf in self.Bfields if np.any(bf.dofs_free_status)])
+        return sum([bf.B_vjp(v) for bf in self.Bfields])  # if np.any(bf.dofs_free_status)])
 
     def as_dict(self, serial_objs_dict) -> dict:
         d = super().as_dict(serial_objs_dict=serial_objs_dict)

@@ -110,14 +110,22 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
                                    res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
-        vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
+        # With no psc_array dofs, should give only a dIpsc_dAtf term to the jacobian
         if self.psc_array is not None:
-            dI_dgammas, dI_dgammadashs, dI_dA = self.psc_array.vjp_setup()
-            print(np.shape(res_current), dI_dgammas.shape)
-            print(dI_dgammadashs.shape, dI_dA.shape)
-            vjp += res_current @ (dI_dgammas + dI_dgammadashs + dI_dA)
-        #     vjp += sum([self.A_vjp(dI_dA[i]) for i, c in enumerate(self.biot_savart_TF.coils)])
-        #     self.biot_savart_TF.set_points(self.eval_points)
+            # Zero out contributions from normal current vjp call
+            # Since current vjp is handled by vjp_setup
+            # vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(len(coils))])
+            ncoils = len(self.psc_array.coils)
+            # print(ncoils, len(res_current))
+            # print(range(ncoils, len(coils)))
+            v_currents = np.array(res_current)[:ncoils]
+            # Current piece is zeroed out below since vjp_setup handles the current vjp part
+            vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(ncoils)])
+            vjp += self.psc_array.vjp_setup(v_currents)
+            # Finish up the TF coil contributions
+            vjp += sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(ncoils, len(coils))])
+        else:
+            vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
         return vjp
 
     def dA_by_dcoilcurrents(self, compute_derivatives=0):
