@@ -732,6 +732,15 @@ public:
     return (Phihat_values[i_right] - Phihat_values[i_left]) /
            (s_values[i_right] - s_values[i_left]);
   }
+
+  /**
+  * @brief Returns the sorted s_values used for interpolation.
+  *
+  * @return A vector of sorted s_values.
+  */
+  const std::vector<double>& get_s_basis() const {
+      return s_values;
+  }
 };
 
 /**
@@ -982,6 +991,13 @@ public:
                       shared_ptr<BoozerMagneticField<T>> B0field)
       : ShearAlfvenWave<T>(B0field),
         phihat(phihat_in), Phim(Phim), Phin(Phin), omega(omega), phase(phase) {}
+        
+  /**
+  * @brief Returns radial amplitude Phihat of the ShearAlfvenHarmonic
+  */
+  const Phihat& get_phihat() const {
+      return phihat;
+  }
 };
 
 /**
