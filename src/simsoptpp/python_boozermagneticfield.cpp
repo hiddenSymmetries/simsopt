@@ -15,6 +15,10 @@ namespace py = pybind11;
 #include "regular_grid_interpolant_3d.h"
 typedef InterpolatedBoozerField<xt::pytensor> PyInterpolatedBoozerField;
 typedef BoozerMagneticField<xt::pytensor> PyBoozerMagneticField;
+typedef ShearAlfvenWave<xt::pytensor> PyShearAlfvenWave;
+typedef ShearAlfvenHarmonic<xt::pytensor> PyShearAlfvenHarmonic;
+typedef ShearAlfvenWavesSuperposition<xt::pytensor> \
+    PyShearAlfvenWavesSuperposition;
 
 template <typename T, typename S> void register_common_field_methods(S &c) {
     c
@@ -109,4 +113,150 @@ void init_boozermagneticfields(py::module_ &m){
       .def_readonly("zeta_range", &PyInterpolatedBoozerField::zeta_range)
       .def_readonly("rule", &PyInterpolatedBoozerField::rule);
 
+}
+
+template <typename T, typename S>
+void register_common_shear_alfven_field_methods(S &c) {
+  c.def("Phi", py::overload_cast<>(&T::Phi),
+        "Returns a `(npoints, 1)` array containing the scalar potential Phi of "
+        "the shear Alfven wave perturbation.")
+      .def("dPhidpsi", py::overload_cast<>(&T::dPhidpsi),
+           "Returns a `(npoints, 1)` array containing the psi derivative of "
+           "the scalar potential Phi of the shear Alfven wave perturbation, "
+           "where psi is the Boozer coordinate in B = G nabla zeta + I nabla "
+           "theta + K nabla psi.")
+      .def("Phidot", py::overload_cast<>(&T::Phidot),
+           "Returns a `(npoints, 1)` array containing the time derivative of "
+           "the scalar potential Phi of the shear Alfven wave perturbation.")
+      .def("dPhidtheta", py::overload_cast<>(&T::dPhidtheta),
+           "Returns a `(npoints, 1)` array containing the theta derivative of "
+           "the scalar potential Phi of the shear Alfven wave perturbation, "
+           "where theta is the Boozer coordinate in B = G nabla zeta + I nabla "
+           "theta + K nabla psi.")
+      .def("dPhidzeta", py::overload_cast<>(&T::dPhidzeta),
+           "Returns a `(npoints, 1)` array containing the zeta derivative of "
+           "the scalar potential Phi of the shear Alfven wave perturbation, "
+           "where zeta is the Boozer coordinate in B = G nabla zeta + I nabla "
+           "theta + K nabla psi.")
+      .def("alpha", py::overload_cast<>(&T::alpha),
+           "Returns a `(npoints, 1)` array containing the alpha value of the "
+           "shear Alfven wave perturbation.")
+      .def("alphadot", py::overload_cast<>(&T::alphadot),
+           "Returns a `(npoints, 1)` array containing the time derivative of "
+           "the alpha value of the shear Alfven wave perturbation.")
+      .def("dalphadtheta", py::overload_cast<>(&T::dalphadtheta),
+           "Returns a `(npoints, 1)` array containing the theta derivative of "
+           "the alpha value of the shear Alfven wave perturbation, where theta "
+           "is the Boozer coordinate in B = G nabla zeta + I nabla theta + K "
+           "nabla psi.")
+      .def("dalphadpsi", py::overload_cast<>(&T::dalphadpsi),
+           "Returns a `(npoints, 1)` array containing the psi derivative of "
+           "the alpha value of the shear Alfven wave perturbation, where psi "
+           "is the Boozer coordinate in B = G nabla zeta + I nabla theta + K "
+           "nabla psi.")
+      .def("dalphadzeta", py::overload_cast<>(&T::dalphadzeta),
+           "Returns a `(npoints, 1)` array containing the zeta derivative of "
+           "the alpha value of the shear Alfven wave perturbation, where zeta "
+           "is the Boozer coordinate in B = G nabla zeta + I nabla theta + K "
+           "nabla psi.")
+
+      .def("Phi_ref", py::overload_cast<>(&T::Phi_ref),
+           "Same as `Phi`, but returns a reference to the array (this array "
+           "should be read only).")
+      .def("dPhidpsi_ref", py::overload_cast<>(&T::dPhidpsi_ref),
+           "Same as `dPhidpsi`, but returns a reference to the array (this "
+           "array should be read only).")
+      .def("Phidot_ref", py::overload_cast<>(&T::Phidot_ref),
+           "Same as `Phidot`, but returns a reference to the array (this array "
+           "should be read only).")
+      .def("dPhidtheta_ref", py::overload_cast<>(&T::dPhidtheta_ref),
+           "Same as `dPhidtheta`, but returns a reference to the array (this "
+           "array should be read only).")
+      .def("dPhidzeta_ref", py::overload_cast<>(&T::dPhidzeta_ref),
+           "Same as `dPhidzeta`, but returns a reference to the array (this "
+           "array should be read only).")
+      .def("alpha_ref", py::overload_cast<>(&T::alpha_ref),
+           "Same as `alpha`, but returns a reference to the array (this array "
+           "should be read only).")
+      .def("alphadot_ref", py::overload_cast<>(&T::alphadot_ref),
+           "Same as `alphadot`, but returns a reference to the array (this "
+           "array should be read only).")
+      .def("dalphadtheta_ref", py::overload_cast<>(&T::dalphadtheta_ref),
+           "Same as `dalphadtheta`, but returns a reference to the array (this "
+           "array should be read only).")
+      .def("dalphadpsi_ref", py::overload_cast<>(&T::dalphadpsi_ref),
+           "Same as `dalphadpsi`, but returns a reference to the array (this "
+           "array should be read only).")
+      .def("dalphadzeta_ref", py::overload_cast<>(&T::dalphadzeta_ref),
+           "Same as `dalphadzeta`, but returns a reference to the array (this "
+           "array should be read only).")
+
+      .def("invalidate_cache", &T::invalidate_cache,
+           "Clear the cache. Called automatically after each call to "
+           "`set_points[...]`.")
+      .def("get_points", &T::get_points,
+           "Get the point where the field should be evaluated in Boozer "
+           "coordinates.")
+      .def("get_points_ref", &T::get_points_ref,
+           "As `get_points`, but returns a reference to the array (this array "
+           "should be read only).")
+      .def("set_points", &T::set_points,
+           "Sets the points for the shear Alfvén wave perturbation and its underlying equilibrium magnetic field.\n\n"
+           "This method updates the coordinates where the perturbation and its parent equilibrium field should be evaluated.\n\n"
+           "Parameters:\n"
+           "  points: A tensor representing the points in Boozer coordinates and time (s, theta, zeta, time).");
+}
+
+void init_shearalfvenwaves(py::module_ &m) {
+  // Register ShearAlfvenWave class
+  auto mf = py::class_<PyShearAlfvenWave, PyShearAlfvenWaveTrampoline<PyShearAlfvenWave>, shared_ptr<PyShearAlfvenWave>>(
+      m, "ShearAlfvenWave", "")
+      .def(py::init<std::shared_ptr<PyBoozerMagneticField>>(),
+           py::arg("B0"));
+
+  // Register Phihat class
+  py::class_<Phihat>(m, "Phihat")
+      .def(py::init<const std::vector<double> &, const std::vector<double> &>(),
+           py::arg("s_values"), py::arg("Phihat_values"))
+      .def("__call__", &Phihat::operator(), py::arg("s"))
+      .def("derivative", &Phihat::derivative, py::arg("s"));
+  register_common_shear_alfven_field_methods<PyShearAlfvenWave>(mf);
+
+  // Register ShearAlfvenHarmonic class
+  py::class_<PyShearAlfvenHarmonic, PyShearAlfvenWave,
+             std::shared_ptr<PyShearAlfvenHarmonic>>(m, "ShearAlfvenHarmonic")
+      .def(py::init([](const std::vector<double> &s_vals,
+                       const std::vector<double> &Phihat_vals,
+                       int Phim, int Phin, double omega, double phase,
+                       std::shared_ptr<PyBoozerMagneticField> B0field) {
+             Phihat phihat(s_vals, Phihat_vals);
+             return std::make_shared<PyShearAlfvenHarmonic>(
+                 phihat, Phim, Phin, omega, phase, B0field);
+           }),
+           py::arg("s_values"), py::arg("Phihat_values"), py::arg("Phim"),
+           py::arg("Phin"), py::arg("omega"), py::arg("phase"),
+           py::arg("B0field"))  // Order matches C++ constructor
+      .def(py::init([](const Phihat &phihat, int Phim, int Phin,
+                       double omega, double phase,
+                       std::shared_ptr<PyBoozerMagneticField> B0field) {
+             return std::make_shared<PyShearAlfvenHarmonic>(
+                 phihat, Phim, Phin, omega, phase, B0field);
+           }),
+           py::arg("phihat"), py::arg("Phim"), py::arg("Phin"),
+           py::arg("omega"), py::arg("phase"), py::arg("B0field"))  // Order matches C++ constructor
+      .def_readwrite("Phim", &PyShearAlfvenHarmonic::Phim)
+      .def_readwrite("Phin", &PyShearAlfvenHarmonic::Phin)
+      .def_readwrite("omega", &PyShearAlfvenHarmonic::omega)
+      .def_readwrite("phase", &PyShearAlfvenHarmonic::phase)
+      .def_property_readonly("B0", &PyShearAlfvenHarmonic::get_B0,
+              "Returns the equilibrium field B0. Modification is not allowed.");
+
+  // Register ShearAlfvenHarmonic class
+  py::class_<PyShearAlfvenWavesSuperposition,
+             PyShearAlfvenWave,
+             std::shared_ptr<PyShearAlfvenWavesSuperposition>>(
+      m, "ShearAlfvenWavesSuperposition")
+      .def(py::init<std::shared_ptr<PyShearAlfvenWave>>(), py::arg("base_wave"))
+      .def("add_wave", &PyShearAlfvenWavesSuperposition::add_wave)
+      .def("set_points", &PyShearAlfvenWavesSuperposition::set_points);
 }

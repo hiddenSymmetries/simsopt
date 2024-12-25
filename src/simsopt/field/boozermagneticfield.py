@@ -1292,3 +1292,231 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
         if initialize:
             for item in initialize:
                 getattr(self, item)()
+
+class ShearAlfvenWave(sopp.ShearAlfvenWave):
+    r"""
+        Class representing a generic Shear Alfvén Wave (SAW).
+
+        The Shear Alfvén Wave (SAW) propagates in an equilibrium magnetic field `B0` and is represented by
+        the scalar potential `Phi` and vector potential parameter `alpha`. The SAW magnetic field is defined
+        as the curl of `(alpha * B0)`.
+
+        This class provides a framework for representing SAWs in Boozer coordinates with attributes for computing
+        the scalar and vector potentials and their derivatives: `Phi`, `dPhidpsi`, `Phidot`, etc.
+
+        This class is designed to be a base class that can be extended to implement specific behaviors or
+        variations of Shear Alfvén Waves.
+
+        The usage of :class:`ShearAlfvenWave` is as follows:
+
+        .. code-block:: python
+
+            # Create an instance of a Boozer magnetic field
+            B0 = sopp.BoozerAnalytic(etabar, B0, N, G0, psi0, iota0)
+
+            # Create an instance of ShearAlfvenWave using the equilibrium field B0
+            saw = ShearAlfvenWave(B0)
+
+            # Points is a (n, 4) numpy array defining :math:`(s, \theta, \zeta, \text{time})`
+            points = ...
+            saw.set_points(points)
+
+            # Compute scalar potential Phi at the specified points
+            Phi = saw.Phi()
+
+        Attributes:
+        ----------
+        Phi : function
+            Computes the scalar potential `Phi` of the shear Alfvén wave perturbation.
+        dPhidpsi : function
+            Computes the derivative of the scalar potential `Phi` with respect to `psi`.
+        Phidot : function
+            Computes the time derivative of the scalar potential `Phi`.
+        dPhidtheta : function
+            Computes the derivative of the scalar potential `Phi` with respect to `theta`.
+        dPhidzeta : function
+            Computes the derivative of the scalar potential `Phi` with respect to `zeta`.
+        alpha : function
+            Computes the vector potential parameter `alpha`.
+        alphadot : function
+            Computes the time derivative of the vector potential parameter `alpha`.
+        dalphadtheta : function
+            Computes the derivative of the vector potential parameter `alpha` with respect to `theta`.
+        dalphadpsi : function
+            Computes the derivative of the vector potential parameter `alpha` with respect to `psi`.
+        dalphadzeta : function
+            Computes the derivative of the vector potential parameter `alpha` with respect to `zeta`.
+
+        For further details, see Paul et al., JPP (2023; 89(5): 905890515. doi:10.1017/S0022377823001095)
+        and references therein.
+
+        Parameters
+        ----------
+        B0 : BoozerMagneticField
+            Instance of a magnetic field in Boozer coordinates that provides the equilibrium field `B0`.
+
+        Raises
+        ------
+        TypeError
+            If `B0` is not an instance of `BoozerMagneticField`.
+
+        """
+    def __init__(self, B0):
+        if not isinstance(B0, sopp.BoozerMagneticField):
+            raise TypeError("B0 must be an instance of BoozerMagneticField.")
+
+        # Call the constructor of the base C++ class
+        super().__init__(B0)
+
+class ShearAlfvenHarmonic(sopp.ShearAlfvenHarmonic):
+    r"""
+    Class representing a single harmonic Shear Alfvén Wave (SAW) in a given equilibrium magnetic field.
+
+    This class initializes a Shear Alfvén Wave with a scalar potential of the form:
+
+    .. math::
+        \Phi(s, \theta, \zeta, t) = \hat{\Phi}(s) \sin(m \theta - n \zeta + \omega t + \text{phase}),
+
+    where :math:`\hat{\Phi}(s)` is a radial profile, :math:`m` is the poloidal mode number, :math:`n` is the toroidal mode number,
+    :math:`\omega` is the frequency, and `phase` is the phase shift. The vector potential `\alpha` is determined by the ideal
+    Ohm's law (i.e., zero electric field along the field line). This representation is used to describe SAWs propagating in
+    an equilibrium magnetic field :math:`B_0`.
+
+    Attributes
+    ----------
+    Phihat_value_or_tuple : Union[float, Tuple[List[float], List[float]]]
+        The radial profile of the scalar potential `\hat{\Phi}(s)`. It can be either:
+        - A constant value (float) that represents a uniform `\hat{\Phi}`.
+        - A tuple of two lists: `s_values` and `Phihat_values`, defining a varying profile.
+    Phim : int
+        Poloidal mode number `m`.
+    Phin : int
+        Toroidal mode number `n`.
+    omega : float
+        Frequency of the harmonic wave.
+    phase : float
+        Phase of the harmonic wave.
+    """
+    def __init__(
+        self,
+        Phihat_value_or_tuple,
+        Phim: int,
+        Phin: int,
+        omega: float,
+        phase: float,
+        B0: sopp.BoozerMagneticField
+        ):
+        """
+        Initialize a single harmonic Shear Alfvén Wave (SAW) in a given equilibrium magnetic field.
+
+        Parameters
+        ----------
+        Phihat_value_or_tuple : Union[float, int, Tuple[List[float], List[float]]]
+            The radial profile of the scalar potential `\hat{\Phi}(s)`.
+            It can be either:
+            - A constant value (float or int) that represents a uniform `\hat{\Phi}`.
+            - A tuple of two lists: `s_values` and `Phihat_values`, defining a varying profile.
+        Phim : int
+            Poloidal mode number `m`.
+        Phin : int
+            Toroidal mode number `n`.
+        omega : float
+            Frequency of the harmonic wave.
+        phase : float
+            Phase of the harmonic wave.
+        B0 : BoozerMagneticField
+            Instance of a magnetic field in Boozer coordinates that provides the equilibrium field `B_0`.
+
+        Raises
+        ------
+        TypeError
+            If `B0` is not an instance of `BoozerMagneticField`.
+            If `Phihat_value_or_tuple` is not a float, int, or a tuple of lists.
+            If the tuple does not contain lists of floats.
+        """
+
+        # Validate B0 type
+        if not isinstance(B0, sopp.BoozerMagneticField):
+            raise TypeError("B0 must be an instance of BoozerMagneticField.")
+
+        # Determine how to initialize Phihat
+        if isinstance(Phihat_value_or_tuple, tuple):
+            if len(Phihat_value_or_tuple) != 2:
+                raise TypeError("Phihat_value_or_tuple must be a tuple of two lists: (s_values, Phihat_values).")
+
+            s_vals, Phihat_vals = Phihat_value_or_tuple
+
+            # Ensure both s_vals and Phihat_vals are lists of floats
+            if not (all(isinstance(x, float) for x in s_vals) and
+                    all(isinstance(x, float) for x in Phihat_vals)):
+                raise TypeError("s_values and Phihat_values must be lists of floats.")
+
+            phihat_object = sopp.Phihat(s_vals, Phihat_vals)
+        else:
+            # Try to convert Phihat_value_or_tuple to a float if possible
+            try:
+                Phihat_value = float(Phihat_value_or_tuple)
+                # If Phihat_value_or_tuple can be converted to a float, use it as a constant value
+                phihat_object = sopp.Phihat([0, 1], [Phihat_value, Phihat_value])
+            except (TypeError, ValueError):
+                raise TypeError("Phihat_value_or_tuple must be either a float, an int, or a tuple of (s_values, Phihat_values).")
+
+        # Call the constructor of the base C++ class
+        super().__init__(phihat_object, Phim, Phin, omega, phase, B0)
+
+class ShearAlfvenWavesSuperposition(sopp.ShearAlfvenWavesSuperposition):
+    r"""
+    Class representing a superposition of multiple Shear Alfvén Waves (SAWs).
+
+    This class models the superposition of multiple Shear Alfvén waves, combining their scalar
+    potential `Phi`, vector potential `alpha`, and their respective derivatives to represent a more
+    complex wave structure in the equilibrium field `B0`.
+
+    The superposition of waves is initialized with a base wave, which defines the reference
+    equilibrium field `B0` for all subsequent waves added to the superposition. All added waves
+    must have the same `B0` field.
+
+    See Paul et al., JPP (2023; 89(5):905890515. doi:10.1017/S0022377823001095) for more details.
+
+    Parameters
+    ----------
+    SAWs : list of ShearAlfvenWave
+        A list of ShearAlfvenWave objects to be superposed. The first wave in the list is used
+        as the base wave and defines the reference `B0` field for the superposition. All other
+        waves in the list must have the same `B0`.
+
+    Raises
+    ------
+    TypeError
+        If `SAWs` is not a list of `ShearAlfvenWave` objects.
+        If the base wave is not provided or if the waves have different `B0` fields.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        # Create a list of ShearAlfvenWave objects
+        wave1 = ShearAlfvenHarmonic(...)  # Initialize a harmonic wave
+        wave2 = ShearAlfvenHarmonic(...)  # Initialize another harmonic wave
+
+        # Create a superposition of these waves
+        superposition = ShearAlfvenWavesSuperposition([wave1, wave2])
+
+        # Set points for evaluation
+        points = ...  # Define points (s, theta, zeta, time)
+        superposition.set_points(points)
+
+    """
+    def __init__(self, SAWs: list):
+        if not isinstance(SAWs, list) or not all(isinstance(SAW, sopp.ShearAlfvenWave) for SAW in SAWs):
+            raise TypeError("SAWs must be a list of ShearAlfvenWave objects.")
+
+        if len(SAWs) == 0:
+            raise ValueError("At least one ShearAlfvenWave object must be provided.")
+
+        # Initialize the base C++ class with the first wave as the base wave
+        super().__init__(SAWs[0])
+
+        # Add subsequent waves to the superposition
+        for SAW in SAWs[1:]:
+            self.add_wave(SAW)

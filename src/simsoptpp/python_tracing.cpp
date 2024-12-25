@@ -55,7 +55,7 @@ void init_tracing(py::module_ &m){
         );
 
     m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>,
-        py::arg("field"),
+        py::arg("perturbed_field"),
         py::arg("stz_init"),
         py::arg("m"),
         py::arg("q"),
@@ -65,19 +65,12 @@ void init_tracing(py::module_ &m){
         py::arg("tmax"),
         py::arg("abstol"),
         py::arg("reltol"),
-        py::arg("vacuum"),
-        py::arg("noK"),
         py::arg("zetas")=vector<double>{},
         py::arg("omegas")=vector<double>{},
         py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
         py::arg("dt_save")=1e-6,
         py::arg("zetas_stop")=false,
         py::arg("vpars_stop")=false,
-        py::arg("Phihat")=0,
-        py::arg("omega")=0,
-        py::arg("Phim")=0,
-        py::arg("Phin")=0,
-        py::arg("phase")=0,
         py::arg("forget_exact_path")=false,
         py::arg("axis")=0,
         py::arg("vpars")=vector<double>{}

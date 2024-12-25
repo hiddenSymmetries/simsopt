@@ -4,6 +4,7 @@
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 
 typedef BoozerMagneticField<xt::pytensor> PyBoozerMagneticField;
+typedef ShearAlfvenWave<xt::pytensor> PyShearAlfvenWave;
 
 // this allows the Python code to define children of BoozerMagneticFields
 
@@ -138,4 +139,70 @@ template <class BoozerMagneticFieldBase = PyBoozerMagneticField> class PyBoozerM
         virtual void _psip_impl(typename BoozerMagneticFieldBase::Tensor2& data) override {
             PYBIND11_OVERLOAD(void, BoozerMagneticFieldBase, _psip_impl, data);
         }
+};
+
+// this allows the Python code to define children of ShearAlfvenWave:
+
+template <class ShearAlfvenWaveBase = PyShearAlfvenWave>
+class PyShearAlfvenWaveTrampoline : public ShearAlfvenWaveBase {
+public:
+  using ShearAlfvenWaveBase::ShearAlfvenWaveBase;
+
+  virtual void _set_points() override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _set_points);
+  }
+
+  virtual void
+  _Phi_impl(typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _Phi_impl, data);
+  }
+
+  virtual void
+  _dPhidpsi_impl(typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _dPhidpsi_impl, data);
+  }
+
+  virtual void
+  _Phidot_impl(typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _Phidot_impl, data);
+  }
+
+  virtual void _dPhidtheta_impl(
+      typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _dPhidtheta_impl,
+                      data);
+  }
+
+  virtual void _dPhidzeta_impl(
+      typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _dPhidzeta_impl, data);
+  }
+
+  virtual void
+  _alpha_impl(typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _alpha_impl, data);
+  }
+
+  virtual void
+  _alphadot_impl(typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _alphadot_impl, data);
+  }
+
+  virtual void _dalphadtheta_impl(
+      typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _dalphadtheta_impl,
+                      data);
+  }
+
+  virtual void _dalphadpsi_impl(
+      typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _dalphadpsi_impl,
+                      data);
+  }
+
+  virtual void _dalphadzeta_impl(
+      typename ShearAlfvenWaveBase::Tensor2 &data) override {
+    PYBIND11_OVERLOAD(void, ShearAlfvenWaveBase, _dalphadzeta_impl,
+                      data);
+  }
 };

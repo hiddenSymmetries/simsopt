@@ -7,7 +7,8 @@ import numpy as np
 
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
-from ..field.boozermagneticfield import BoozerMagneticField
+from ..field.boozermagneticfield import (BoozerMagneticField,
+                                         ShearAlfvenWave)
 from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from .._core.types import RealArray
 
@@ -29,19 +30,60 @@ def compute_gc_radius(m, vperp, q, absb):
 
     return m*vperp/(abs(q)*absb)
 
-def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: RealArray,
-                           parallel_speeds: RealArray, mus: RealArray, tmax=1e-4,
-                           mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], dt_save=1e-6, mode='gc_vac', 
-                           forget_exact_path=False, zetas_stop=False, vpars_stop=False,
-                           Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=0):
+def trace_particles_boozer_perturbed(
+    perturbed_field: ShearAlfvenWave,
+    stz_inits: RealArray,
+    parallel_speeds: RealArray,
+    mus: RealArray,
+    tmax=1e-4,
+    mass=ALPHA_PARTICLE_MASS,
+    charge=ALPHA_PARTICLE_CHARGE,
+    Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+    tol=1e-9,
+    abstol=None,
+    reltol=None,
+    comm=None,
+    zetas=[],
+    omegas=[],
+    vpars=[],
+    stopping_criteria=[],
+    dt_save=1e-6,
+    forget_exact_path=False,
+    zetas_stop=False,
+    vpars_stop=False,
+    axis=0):
     r"""
-    Follow particles in a :class:`BoozerMagneticField`. This is modeled after
-    :func:`trace_particles`.
+    Follow particles in a perturbed field of class :class:`ShearAlfvenWave`.
+    This is modeled after :func:`trace_particles`.
 
+    Recall that general guiding center equations for an MHD equilibrium are:
 
-    In the case of ``mod='gc_vac'`` we solve the guiding center equations under
-    the vacuum assumption, i.e :math:`G =` const. and :math:`I = 0`:
+    .. math::
+
+        \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
+
+        \dot \theta = ((G |B|_{,\psi} - K |B|_{,\zeta}) m(v_{||}^2/|B| + \mu) - C v_{||} |B|)/(\iota D)
+
+        \dot \zeta = (F v_{||} |B| - (|B|_{,\psi} I - |B|_{,\theta} K)
+        m(\rho_{||}^2 |B| + \mu) )/(\iota D)
+
+        \dot v_{||} = (C|B|_{,\theta} - F|B|_{,\zeta})\mu |B|/(\iota D)
+
+        C = - m v_{||} K_{,\zeta}/|B|  - q \iota + m v_{||}G'/|B|
+
+        F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
+
+        D = (F G - C I))/\iota
+
+    where :math:`q` is the charge, :math:`m` is the mass,
+    and :math:`v_\perp^2 = 2\mu|B|`, and where primes indicate
+    differentiation wrt :math:`\psi`. In the case ``mod='gc_noK'``.
+
+    In the current verion ok the code, the above equations are
+    solved under :math:`K=0` assumption.
+
+    Note also that, for vacuum fields – meaning :math:`G =` const.
+    and :math:`I = 0` – equations above simplify to
 
     .. math::
 
@@ -53,32 +95,8 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
 
         \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
 
-    where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp^2 = 2\mu|B|`.
-
-    In the case of ``mode='gc'`` we solve the general guiding center equations
-    for an MHD equilibrium:
-
-    .. math::
-
-        \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
-
-        \dot \theta = ((G |B|_{,\psi} - K |B|_{,\zeta}) m(v_{||}^2/|B| + \mu) - C v_{||} |B|)/(\iota D)
-
-        \dot \zeta = (F v_{||} |B| - (|B|_{,\psi} I - |B|_{,\theta} K) m(\rho_{||}^2 |B| + \mu) )/(\iota D)
-
-        \dot v_{||} = (C|B|_{,\theta} - F|B|_{,\zeta})\mu |B|/(\iota D)
-
-        C = - m v_{||} K_{,\zeta}/|B|  - q \iota + m v_{||}G'/|B|
-
-        F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
-
-        D = (F G - C I))/\iota
-
-    where primes indicate differentiation wrt :math:`\psi`. In the case ``mod='gc_noK'``,
-    the above equations are used with :math:`K=0`.
-
     Args:
-        field: The :class:`BoozerMagneticField` instance
+        perturbed_field: The :class:`ShearAlfvenWave` instance
         stz_inits: A ``(nparticles, 3)`` array with the initial positions of
             the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A ``(nparticles, )`` array containing the speed in
@@ -94,11 +112,6 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
         stopping_criteria: list of stopping criteria, mostly used in
             combination with the ``LevelsetStoppingCriterion``
             accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
-        mode: how to trace the particles. Options are
-            `gc`: general guiding center equations.
-            `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
-            :math:`I = 0`, and :math:`K = 0`.
-            `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
         forget_exact_path: return only the first and last position of each
             particle for the ``res_tys``. To be used when only res_zeta_hits is of
             interest or one wants to reduce memory usage.
@@ -129,20 +142,31 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
     assert len(mus) == len(parallel_speeds)
     speed_par = parallel_speeds
     m = mass
-    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
-    mode = mode.lower()
-    assert mode in ['gc', 'gc_vac', 'gc_nok']
-
+    speed_total = sqrt(2*Ekin/m)
     res_tys = []
     res_zeta_hits = []
     loss_ctr = 0
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
-            field, stz_inits[i, :], m, charge, speed_total, speed_par[i], mus[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria, dt_save=dt_save, 
-            zetas_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
-            Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
+            perturbed_field=perturbed_field,
+            stz_init=stz_inits[i, :],
+            m=mass,
+            q=charge,
+            vtotal=speed_total,
+            vtang=speed_par[i],
+            mu=mus[i],
+            tmax=tmax,
+            abstol=abstol,
+            reltol=reltol,
+            zetas=zetas,
+            omegas=omegas,
+            stopping_criteria=stopping_criteria,
+            dt_save=dt_save,
+            zetas_stop=zetas_stop,
+            vpars_stop=vpars_stop,
+            forget_exact_path=forget_exact_path,
+            axis=axis)
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
