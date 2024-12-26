@@ -35,7 +35,7 @@ filename = TEST_DIR / input_name
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 2.0
+poff = 3.0
 coff = 1.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -98,8 +98,8 @@ def initialize_coils_QA(TEST_DIR, s):
     )
 
     base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
-    # [base_currents[i].fix_all() for i in range(len(base_currents))]
-    # [base_curves[i].fix_all() for i in range(len(base_curves))]
+    [base_currents[i].fix_all() for i in range(len(base_currents))]
+    [base_curves[i].fix_all() for i in range(len(base_curves))]
 
     total_current = Current(total_current)
     total_current.fix_all()
@@ -139,14 +139,15 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
     s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
 )
 
+# Coils can only rotate in space
 for i in range(len(base_curves)):
-    # for j in range(2 * order + 1):
-    #     base_curves[i].fix('x' + str(j))
+    for j in range(2 * order + 1):
+        base_curves[i].fix('x' + str(j))
     # # Fix center points of each coil FOR NOW
-    # base_curves[i].fix('x' + str(2 * order + 5))
-    # base_curves[i].fix('x' + str(2 * order + 6))
-    # base_curves[i].fix('x' + str(2 * order + 7))
-    base_curves[i].fix_all()
+    base_curves[i].fix('x' + str(2 * order + 5))
+    base_curves[i].fix('x' + str(2 * order + 6))
+    base_curves[i].fix('x' + str(2 * order + 7))
+    # base_curves[i].fix_all()
 ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * a
 b_list = np.ones(len(base_curves)) * a
@@ -215,20 +216,20 @@ if os.path.exists(OUT_DIR):
 os.makedirs(OUT_DIR, exist_ok=True)
 
 curves_to_vtk(
-    curves_TF,
+    [c.curve for c in btot.Bfields[1].coils],
     OUT_DIR + "curves_TF_0",
     close=True,
     extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=currents_TF,
+    I=[c.current.get_value() for c in btot.Bfields[1].coils],
     NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
     NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
 )
 curves_to_vtk(
-    curves,
+    [c.curve for c in btot.Bfields[0].coils],
     OUT_DIR + "curves_0",
     close=True,
     extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=currents,
+    I=[c.current.get_value() for c in btot.Bfields[0].coils],
     NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
     NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
 )
@@ -242,6 +243,14 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
+
+bpsc = btot.Bfields[0]
+bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+    "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+s_plot.to_vtk(OUT_DIR + "surf_init_PSC", extra_data=pointData)
+bpsc.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
@@ -279,13 +288,13 @@ MSC_WEIGHT = 1e-5
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
-JF = Jf \
-    + CS_WEIGHT * Jcsdist \
-    + CC_WEIGHT * Jccdist \
-    + CC_WEIGHT * Jccdist2 \
-    + CURVATURE_WEIGHT * sum(Jcs) \
-    + LINK_WEIGHT * linkNum \
-    + LENGTH_WEIGHT * Jlength # \
+JF = Jf  # \
+    # + CS_WEIGHT * Jcsdist \
+    # + CC_WEIGHT * Jccdist \
+    # + CC_WEIGHT * Jccdist2 \
+    # + CURVATURE_WEIGHT * sum(Jcs) \
+    # + LINK_WEIGHT * linkNum \
+    # + LENGTH_WEIGHT * Jlength # \
 
 # if FORCE_WEIGHT.value > 0.0:
 #     JF += FORCE_WEIGHT.value * Jforce  # \
@@ -301,19 +310,30 @@ JF = Jf \
 
 print(JF.dof_names)
 # print(bs.dof_names)
-print(psc_array.dof_names)
+# print(psc_array.dof_names)
 
+# import cProfile
+# import re
+# import pstats, io
+# from pstats import SortKey
 
 def fun(dofs):
+    # pr = cProfile.Profile()
+    # pr.enable()
     JF.x = dofs
-    print(btot.coils[0].current.get_value())
-    print(btot.coils[ncoils].current.get_value())
+    # print(btot.coils[0].current.get_value())
+    # print(btot.coils[ncoils].current.get_value())
     # print(btot.Bfields[0].coils[0].current.get_value())
     # print(btot.Bfields[1].coils[0].current.get_value())
     # Need to invalidate the cache since otherwise it will just reuse the previous
     # value of B for the squared flux if there are no dofs for the PSC array
-    btot.invalidate_cache()
-    print('B = ', btot.B()[0, :])
+    psc_array.recompute_currents()
+    btot.Bfields[0].invalidate_cache()
+    # print('I = ', [c.current.get_value() for c in btot.Bfields[0].coils])
+    # print('B = ', btot.B()[0, :])
+    # print('Bpsc = ', btot.Bfields[0].B()[0, :])
+    # btot.invalidate_cache()
+    # print('B = ', btot.B()[0, :])
     J = JF.J()
     grad = JF.dJ() 
     jf = Jf.J()
@@ -321,14 +341,14 @@ def fun(dofs):
     cc_val = CC_WEIGHT * (Jccdist.J() + Jccdist2.J())
     cs_val = CS_WEIGHT * Jcsdist.J()
     link_val = LINK_WEIGHT * linkNum.J()
-    forces_val = FORCE_WEIGHT.value * Jforce.J()
-    forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
-    torques_val = TORQUE_WEIGHT.value * Jtorque.J()
-    torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
+    # forces_val = FORCE_WEIGHT.value * Jforce.J()
+    # forces_val2 = FORCE_WEIGHT2.value * Jforce2.J()
+    # torques_val = TORQUE_WEIGHT.value * Jtorque.J()
+    # torques_val2 = TORQUE_WEIGHT2.value * Jtorque2.J()
     BdotN = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-    BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-                           ) / np.mean(btot.AbsB())
-    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
+    # BdotN_over_B = np.mean(np.abs(np.sum(btot.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+    #                        ) / np.mean(btot.AbsB())
+    outstr = f"J={J:.1e}, Jf={jf:.1e}, ⟨B·n⟩={BdotN:.1e}"  #, ⟨B·n⟩/⟨B⟩={BdotN_over_B:.1e}"
     valuestr = f"J={J:.2e}, Jf={jf:.2e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls_TF])
     kap_string = ", ".join(f"{np.max(c.kappa()):.2f}" for c in base_curves_TF)
@@ -339,19 +359,25 @@ def fun(dofs):
     valuestr += f", ccObj={cc_val:.2e}"
     valuestr += f", csObj={cs_val:.2e}"
     valuestr += f", Lk1Obj={link_val:.2e}"
-    valuestr += f", forceObj={forces_val:.2e}"
-    valuestr += f", forceObj2={forces_val2:.2e}"
-    valuestr += f", torqueObj={torques_val:.2e}"
-    valuestr += f", torqueObj2={torques_val2:.2e}"
-    outstr += f", F={Jforce.J():.2e}"
-    outstr += f", Fnet={Jforce2.J():.2e}"
-    outstr += f", T={Jtorque.J():.2e}"
-    outstr += f", Tnet={Jtorque2.J():.2e}"
+    # valuestr += f", forceObj={forces_val:.2e}"
+    # valuestr += f", forceObj2={forces_val2:.2e}"
+    # valuestr += f", torqueObj={torques_val:.2e}"
+    # valuestr += f", torqueObj2={torques_val2:.2e}"
+    # outstr += f", F={Jforce.J():.2e}"
+    # outstr += f", Fnet={Jforce2.J():.2e}"
+    # outstr += f", T={Jtorque.J():.2e}"
+    # outstr += f", Tnet={Jtorque2.J():.2e}"
     outstr += f", C-C-Sep={Jccdist.shortest_distance():.2f}, C-C-Sep2={Jccdist2.shortest_distance():.2f}, C-S-Sep={Jcsdist.shortest_distance():.2f}"
     outstr += f", Link Number = {linkNum.J()}"
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     print(valuestr)
+    # pr.disable()
+    # ss = io.StringIO()
+    # sortby = SortKey.CUMULATIVE
+    # ps = pstats.Stats(pr, stream=ss).sort_stats(sortby)
+    # ps.print_stats(10)
+    # print(ss.getvalue())
     return J, grad
 
 
@@ -372,7 +398,7 @@ for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
     J2, _ = f(dofs - eps*h)
     t2 = time.time()
     print("err", (J1-J2)/(2*eps) - dJh)
-    # print((J1-J2)/(2*eps), dJh)
+    print((J1-J2)/(2*eps), dJh)
 
 print("""
 ################################################################################
@@ -381,16 +407,20 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 20
+MAXITER = 200
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', # jac = True
+    res = minimize(fun, dofs, jac=False, method='L-BFGS-B', 
                    options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     # dofs = res.x
 
-    dipole_currents = [c.current.get_value() for c in psc_array.coils]
+    # bpsc = btot.Bfields[0] #psc_array.biot_savart
+    btot.Bfields[0].invalidate_cache()
+    bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+    dipole_currents = [c.current.get_value() for c in bpsc.coils]
+    print(dipole_currents)
     curves_to_vtk(
-        [c.curve for c in psc_array.coils],
+        [c.curve for c in bpsc.coils],
         OUT_DIR + "curves_{0:d}".format(i),
         close=True,
         extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
@@ -399,11 +429,11 @@ for i in range(1, n_saves + 1):
         NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
     )
     curves_to_vtk(
-        [c.curve for c in psc_array.coils_TF],
+        [c.curve for c in btot.Bfields[1].coils],
         OUT_DIR + "curves_TF_{0:d}".format(i),
         close=True,
         extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-        I=[c.current.get_value() for c in psc_array.coils_TF],
+        I=[c.current.get_value() for c in btot.Bfields[1].coils],
         NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
         NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
     )
@@ -412,11 +442,24 @@ for i in range(1, n_saves + 1):
     pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
         "B_N / B": (np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
                                     ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-    s_plot.to_vtk(OUT_DIR + "surf_full_final".format(i), extra_data=pointData)
+    s_plot.to_vtk(OUT_DIR + "surf_full_final", extra_data=pointData)
+
+    btf = btot.Bfields[1]
+    btf.set_points(s_plot.gamma().reshape((-1, 3)))
+    pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+        "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                    ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "surf_full_TF", extra_data=pointData)
+
+    bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+    pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+        "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+    s_plot.to_vtk(OUT_DIR + "surf_full_PSC", extra_data=pointData)
 
     btot.set_points(s.gamma().reshape((-1, 3)))
-    print('Max I = ', np.max(np.abs(dipole_currents)))
-    print('Min I = ', np.min(np.abs(dipole_currents)))
+    print('Max I = ', np.max(dipole_currents))
+    print('Min I = ', np.min(dipole_currents))
     calculate_on_axis_B(btot, s)
     # LENGTH_WEIGHT *= 0.01
     # JF = Jf \
@@ -429,5 +472,5 @@ for i in range(1, n_saves + 1):
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
-btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
+# btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
 print(OUT_DIR)

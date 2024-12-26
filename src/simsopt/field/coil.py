@@ -114,10 +114,31 @@ class PSCCurrent(sopp.Current, CurrentBase):
     of coils that are constrained to use the same current.
     """
 
-    def __init__(self, psc_array, index, dofs=None, **kwargs):
-        self.psc_array = psc_array
+    def __init__(self, psc_curves, biot_savart_TF, I_jax, a_list, b_list, index, downsample=1, cross_section='circular', dofs=None, **kwargs):
+        self.psc_curves = psc_curves  # Should include all the psc_curves, including symmetrized ones
+        # save original TF evaluation points!
+        # self.psc_array = psc_array
+        self.I_jax = I_jax
+        self.biot_savart_TF = biot_savart_TF
+        self.eval_points = self.biot_savart_TF.get_points_cart_ref()
+        self.a_list = a_list
+        self.b_list = b_list
+        self.downsample = downsample
+        self.cross_section = cross_section
         self.index = index
-        current = self.get_value(initialization=True)
+        gammas = jnp.array([c.gamma() for c in self.psc_curves])
+        self.biot_savart_TF.set_points(gammas[::downsample, :].reshape(-1, 3))
+        gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
+        # self.quadpoints = jnp.array([psc_curves.quadpoints])
+        A_ext = biot_savart_TF.A()
+        args = [
+            gammas, 
+            gammadashs, 
+            A_ext, 
+            self.downsample
+        ]
+        current = I_jax(*args)[index]
+        self.biot_savart_TF.set_points(self.eval_points)
         sopp.Current.__init__(self, current)
         if dofs is None:
             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
@@ -127,20 +148,29 @@ class PSCCurrent(sopp.Current, CurrentBase):
                                  dofs=dofs, **kwargs)
 
     def vjp(self, v_current):
-        """
-        Dummy function for PSCs
-        """
         return Derivative({self: v_current})
 
     @property
     def current(self):
         return self.get_value()
         
-    def get_value(self, initialization=False):
-        """
-        Overwrite get_value function to correctly get the current value
-        """
-        return self.psc_array.J(self.index, initialization=initialization)   
+    # def get_value(self):
+    #     """
+    #     Overwrite get_value function to correctly get the current value
+    #     """
+    #     gammas = jnp.array([c.gamma() for c in self.psc_curves])
+    #     gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
+    #     self.eval_points = self.biot_savart_TF.get_points_cart_ref()
+    #     self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
+    #     A_ext = self.biot_savart_TF.A()
+    #     args = [
+    #         gammas, 
+    #         gammadashs, 
+    #         A_ext, 
+    #         self.downsample
+    #     ]
+    #     self.biot_savart_TF.set_points(self.eval_points)
+    #     return self.I_jax(*args)[0]
 
 
 class PSCArray(Optimizable):
@@ -158,16 +188,21 @@ class PSCArray(Optimizable):
         self.psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
         self.coils_TF = coils_TF
         ncoils = len(self.psc_curves)
-        self.biot_savart_TF = BiotSavart(self.coils_TF) 
+
+        # save original TF evaluation points!
+        self.biot_savart_TF = BiotSavart(coils_TF)
+        self.eval_points = eval_points
+        self.biot_savart_TF.set_points(eval_points)
         self.a_list = a_list[0] * np.ones(ncoils)
         self.b_list = b_list[0] * np.ones(ncoils)
         self.downsample = downsample
         self.cross_section = cross_section
+        # quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
 
         args = {"static_argnums": (3,)}
         self.I_jax = jit(
             lambda gammas, gammadashs, A_ext, downsample:
-            coil_currents_pure(gammas, gammadashs, quadpoints, A_ext, self.a_list, self.b_list, downsample, cross_section),
+            coil_currents_pure(gammas, gammadashs, A_ext, self.a_list, self.b_list, downsample, cross_section),
             **args
         )
         self.dI_dgammas = jit(
@@ -185,19 +220,45 @@ class PSCArray(Optimizable):
             jacfwd(self.I_jax, argnums=2)(gammas, gammadashs, A_ext, downsample),
             **args
         )
-        psc_currents = [PSCCurrent(self, i) for i in range(ncoils)]
+        # gammas = jnp.array([c.gamma() for c in self.psc_curves])
+        # self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
+        # A_ext = self.biot_savart_TF.A()
+        # gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
+        # quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
+        # args = [
+        #     gammas, 
+        #     gammadashs, 
+        #     A_ext, 
+        #     self.downsample
+        # ]
+        # currents = self.I_jax(*args)
+
+        psc_currents = [PSCCurrent(self.psc_curves, self.biot_savart_TF, self.I_jax, a_list, b_list, i) for i in range(ncoils)]
+        # print([c.get_value() for c in self.psc_currents])
+        # exit()
+        # self.base_psc_currents = [Current(currents[i]) for i in range(ncoils)]
+        #[PSCCurrent(base_psc_curves, biot_savart_TF, a_list, b_list, i) for i in range(ncoils)]
         self.base_psc_currents = psc_currents[:ncoils // (int(stellsym) + 1) // nfp]
         [c.fix_all() for c in self.base_psc_currents]  # Fix all the current dofs which are fake anyways
         self.coils = coils_via_symmetries(self.base_psc_curves, self.base_psc_currents, nfp, stellsym)
-        self.biot_savart_total = BiotSavart(self.coils + self.coils_TF, self) 
+        # self.psc_curves = [c.curve for c in self.coils]
+        # assert np.allclose(self.psc_currents, [c.current for c in self.coils])
+        self.biot_savart = BiotSavart(self.coils, self) 
+        self.biot_savart.set_points(self.eval_points)
+        self.biot_savart_TF.set_points(self.eval_points)
+        self.biot_savart_total = self.biot_savart + self.biot_savart_TF
+        self.biot_savart_total.set_points(self.eval_points)
+        # BiotSavart(self.coils + self.coils_TF, self) 
+        # self.biot_savart + self.biot_savart_TF
+        # self.biot_savart_all = BiotSavart(self.coils + self.coils_TF) 
         super().__init__(depends_on=[self.biot_savart_total])
 
     def vjp_setup(self, v_currents):
         gammas = jnp.array([c.gamma() for c in self.psc_curves])
         gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
         quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
-        self.biot_savart.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
-        A_ext = self.biot_savart.A()
+        self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
+        A_ext = self.biot_savart_TF.A()
         args = [
             gammas, 
             gammadashs, 
@@ -212,35 +273,27 @@ class PSCArray(Optimizable):
         vjp1 = sum([c.dgamma_by_dcoeff_vjp(dI_dgammas[i]) for i, c in enumerate(self.psc_curves)])
         vjp2 = sum([c.dgammadash_by_dcoeff_vjp(dI_dgammadashs[i]) for i, c in enumerate(self.psc_curves)])
         # loop over PSC curves here I think, since loop over TF coils is in A_vjp
-        vjp3 = sum([self.biot_savart.A_vjp(dI_dA[i]) for i, c in enumerate(self.psc_curves)])  
+        vjp3 = sum([self.biot_savart_TF.A_vjp(dI_dA[i]) for i, c in enumerate(self.psc_curves)])  
         vjp = (vjp1 + vjp2 + vjp3)
-        self.biot_savart.set_points(self.eval_points)
+        self.biot_savart_TF.set_points(self.eval_points)
         return vjp
 
-    def J(index, initialization=False):
+    def recompute_currents(self):
         gammas = jnp.array([c.gamma() for c in self.psc_curves])
         gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
-        quadpoints = jnp.array([c.quadpoints for c in self.psc_curves])
-        if initialization:
-            self.eval_points = self.biot_savart_TF.get_points_cart_ref()
-            self.biot_savart_TF.set_points(gammas.reshape(-1, 3))
-            A_ext = self.biot_savart_TF.A()
-        else:
-            self.eval_points = self.biot_savart.get_points_cart_ref()
-            self.biot_savart.set_points(gammas.reshape(-1, 3))
-            A_ext = self.biot_savart.A()
+        self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
+        A_ext = self.biot_savart_TF.A()
         args = [
             gammas, 
             gammadashs, 
             A_ext, 
             self.downsample
         ]
-        if initialization:
-            self.biot_savart_TF.set_points(self.eval_points)
-        else:
-            self.biot_savart.set_points(self.eval_points)
-        return self.I_jax(*args)[index]
-
+        currents = self.I_jax(*args)
+        for i, c in enumerate(self.coils):
+            c.current.set_dofs(currents[i])
+        self.biot_savart_TF.set_points(self.eval_points)
+        # return currents
 
 class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     """
@@ -260,6 +313,8 @@ class ScaledCurrent(sopp.CurrentBase, CurrentBase):
     def get_value(self):
         return self.scale * self.current_to_scale.get_value()
 
+    def set_dofs(self, dofs):
+        """ Do nothing"""
 
 def current_pure(dofs):
     return dofs

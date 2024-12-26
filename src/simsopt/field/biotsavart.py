@@ -117,13 +117,12 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
             # vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(len(coils))])
             ncoils = len(self.psc_array.coils)
             # print(ncoils, len(res_current))
-            # print(range(ncoils, len(coils)))
             v_currents = np.array(res_current)[:ncoils]
             # Current piece is zeroed out below since vjp_setup handles the current vjp part
             vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(ncoils)])
             vjp += self.psc_array.vjp_setup(v_currents)
             # Finish up the TF coil contributions
-            vjp += sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(ncoils, len(coils))])
+            # vjp += sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(ncoils, len(coils))])
         else:
             vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(coils))])
         return vjp

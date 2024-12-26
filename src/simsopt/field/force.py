@@ -1911,7 +1911,7 @@ class CoilInductances(Optimizable):
     return_fn_map = {'J': J, 'dJ': dJ}
 
 
-def coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section):
+def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section):
     r"""  Optimizable class to minimize the Lorentz force on a coil.
 
     The objective function is
@@ -1923,7 +1923,7 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_li
     L is the total length of the coil, and :math:`\ell` is arclength along the coil.
     """
     # Downsample if desired
-    quadpoints = quadpoints[:, ::downsample]
+    # quadpoints = quadpoints[:, ::downsample]
     gammas = gammas[:, ::downsample, :]
     gammadashs = gammadashs[:, ::downsample, :]
     N = gammas.shape[0]
@@ -1961,15 +1961,15 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_li
              , inplace=False)
     return 1e-7 * Lij  
 
-def coil_coil_inductances_inv_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section):
+def coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section):
     # Lij is symmetric positive definite so has a cholesky decomposition
-    C = jnp.linalg.cholesky(coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section))
+    C = jnp.linalg.cholesky(coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section))
     inv_C = jscp.linalg.solve_triangular(C, jnp.eye(C.shape[0]), lower=True)
     inv_L = jscp.linalg.solve_triangular(C.T, inv_C, lower=False)
-    return inv_L
+    return inv_L  # jnp.linalg.inv(coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section)) #
 
-def coil_currents_pure(gammas, gammadashs, quadpoints, A_ext, a_list, b_list, downsample, cross_section):
-    return -coil_coil_inductances_inv_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section) @ net_ext_fluxes_pure(gammadashs, A_ext, downsample)
+def coil_currents_pure(gammas, gammadashs, A_ext, a_list, b_list, downsample, cross_section):
+    return -coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section) @ net_ext_fluxes_pure(gammadashs, A_ext, downsample)
 
 def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2, 
              quadpoints, quadpoints2, a, b, downsample, cross_section):
