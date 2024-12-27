@@ -106,65 +106,19 @@ class Current(sopp.Current, CurrentBase):
     def current(self):
         return self.get_value()
 
-
-# class PSCCurrent(sopp.Current, CurrentBase):
-#     """
-#     An optimizable object that wraps around a single scalar degree of
-#     freedom. It represents the electric current in a coil, or in a set
-#     of coils that are constrained to use the same current.
-#     """
-
-#     def __init__(self, current, a_list, b_list, downsample=1, cross_section='circular', dofs=None, **kwargs):
-        
-#         sopp.Current.__init__(self, current)
-#         if dofs is None:
-#             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-#                                  x0=self.get_dofs(), **kwargs)
-#         else:
-#             CurrentBase.__init__(self, external_dof_setter=sopp.Current.set_dofs,
-#                                  dofs=dofs, **kwargs)
-
-#     def vjp(self, v_current):
-#         return Derivative({self: v_current})
-
-#     @property
-#     def current(self):
-#         return self.get_value()
-        
-#     # def get_value(self):
-#     #     """
-#     #     Overwrite get_value function to correctly get the current value
-#     #     """
-#     #     gammas = jnp.array([c.gamma() for c in self.psc_curves])
-#     #     gammadashs = jnp.array([c.gammadash() for c in self.psc_curves])
-#     #     self.eval_points = self.biot_savart_TF.get_points_cart_ref()
-#     #     self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
-#     #     A_ext = self.biot_savart_TF.A()
-#     #     args = [
-#     #         gammas, 
-#     #         gammadashs, 
-#     #         A_ext, 
-#     #         self.downsample
-#     #     ]
-#     #     self.biot_savart_TF.set_points(self.eval_points)
-#     #     return self.I_jax(*args)[0]
-
-
-class PSCArray(Optimizable):
+class PSCArray():
     """
-    An optimizable object that wraps around a single scalar degree of
-    freedom. It represents the electric current in a coil, or in a set
-    of coils that are constrained to use the same current.
+    A class that represents an array of passive superconducting 
+    coils (PSCs).
     """
-
     def __init__(self, base_psc_curves, coils_TF, eval_points, a_list, b_list, nfp=1, stellsym=False, downsample=1, cross_section='circular', dofs=None, **kwargs):
         from .biotsavart import BiotSavart
         self.base_psc_curves = base_psc_curves  # not the symmetrized ones
         self.nfp = nfp
         self.stellsym = stellsym
-        self.psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
+        psc_curves = apply_symmetries_to_curves(base_psc_curves, nfp, stellsym)
         self.coils_TF = coils_TF
-        ncoils = len(self.psc_curves)
+        ncoils = len(psc_curves)
 
         # save original TF evaluation points!
         self.biot_savart_TF = BiotSavart(coils_TF)
@@ -197,10 +151,10 @@ class PSCArray(Optimizable):
             jacrev(self.I_jax, argnums=2)(gammas, gammadashs, A_ext, downsample),
             **args
         )
-        gammas = np.array([c.gamma() for c in self.psc_curves])
+        gammas = np.array([c.gamma() for c in psc_curves])
         self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
         A_ext = np.array(self.biot_savart_TF.A())
-        gammadashs = np.array([c.gammadash() for c in self.psc_curves])
+        gammadashs = np.array([c.gammadash() for c in psc_curves])
         args = [
             gammas, 
             gammadashs, 
@@ -209,26 +163,14 @@ class PSCArray(Optimizable):
         ]
         currents = self.I_jax(*args)
 
-        # psc_currents = [PSCCurrent(self.psc_curves, self.biot_savart_TF, self.I_jax, a_list, b_list, i) for i in range(ncoils)]
         psc_currents = [Current(currents[i] * 1e-6) * 1e6 for i in range(ncoils)]
-        # print([c.get_value() for c in self.psc_currents])
-        # exit()
-        # self.base_psc_currents = [Current(currents[i]) for i in range(ncoils)]
-        #[PSCCurrent(base_psc_curves, biot_savart_TF, a_list, b_list, i) for i in range(ncoils)]
         self.base_psc_currents = psc_currents[:ncoils // (int(stellsym) + 1) // nfp]
         [c.fix_all() for c in self.base_psc_currents]  # Fix all the current dofs which are fake anyways
         self.coils = coils_via_symmetries(self.base_psc_curves, self.base_psc_currents, nfp, stellsym)
         self.psc_curves = [c.curve for c in self.coils]
-        # assert np.allclose(self.psc_currents, [c.current for c in self.coils])
         self.biot_savart = BiotSavart(self.coils, self) 
-        self.biot_savart.set_points(self.eval_points)
-        self.biot_savart_TF.set_points(self.eval_points)
         self.biot_savart_total = self.biot_savart + self.biot_savart_TF
         self.biot_savart_total.set_points(self.eval_points)
-        # BiotSavart(self.coils + self.coils_TF, self) 
-        # self.biot_savart + self.biot_savart_TF
-        # self.biot_savart_all = BiotSavart(self.coils + self.coils_TF) 
-        super().__init__(depends_on=[self.biot_savart_total])
 
     def vjp_setup(self, v_currents):
         gammas = np.array([c.gamma() for c in self.psc_curves])
@@ -245,11 +187,19 @@ class PSCArray(Optimizable):
         # v_currents = dJ_dI
         # dJ_dgammas = dJ_dI * dI_dgammas
         # dJ_dcoefs = dJ_dgammas * dgammas_dcoefs + dJ_dgammadashs * dgammadashs_dcoefs
+        print(self.dI_dgammas(*args).shape)
         dJ_dgammas = np.sum(v_currents[:, None, None, None] * self.dI_dgammas(*args), axis=0)
         dJ_dgammadashs = np.sum(v_currents[:, None, None, None] * self.dI_dgammadashs(*args), axis=0)
         # dI_dA = np.sum(v_currents[:, None, None, None] * self.dI_dA(*args).reshape(
         #     len(self.psc_curves), len(self.psc_curves), -1, 3), axis=0)
         dJ_dA = v_currents[:, None, None] * self.dI_dA(*args)
+
+        #### Note: I think that the A() term also depends on the gammas, 
+        # so there should also be a dA_dgammas (gammas being the PSC gammas), 
+        # i.e. dA_dX since X are the evaluation points. So also need
+        # a term dJ_dA * dA_dX * dX_dcoefs
+
+        # Lines below are wrong I think. 
         vjp1 = [c.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) for i, c in enumerate(self.psc_curves)]
         vjp2 = [c.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.psc_curves)]
         # loop over PSC curves here I think, since loop over TF coils is in A_vjp

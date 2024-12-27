@@ -322,25 +322,8 @@ def fun(dofs):
     # pr = cProfile.Profile()
     # pr.enable()
     JF.x = dofs
-    # print(btot.coils[0].current.get_value())
-    # print(btot.coils[ncoils].current.get_value())
-    # print(btot.Bfields[0].coils[0].current.get_value())
-    # print(btot.Bfields[1].coils[0].current.get_value())
-    # Need to invalidate the cache since otherwise it will just reuse the previous
-    # value of B for the squared flux if there are no dofs for the PSC array
-
     psc_array.recompute_currents()
-    btot.invalidate_cache()
-    # btot.Bfields[0].invalidate_cache()
-    # print('I = ', [c.current.get_value() for c in btot.coils])
-    # print('I = ', [c.current.get_value() for c in btot.Bfields[0].coils])
-    # print('Itf = ', [c.current.get_value() for c in btot.Bfields[1].coils])
-
     print('B = ', btot.B()[0, :])
-    # print('Bpsc = ', btot.Bfields[0].B()[0, :])
-    # print('Btf = ', btot.Bfields[1].B()[0, :])
-    # btot.invalidate_cache()
-    # print('B = ', btot.B()[0, :])
     J = JF.J()
     grad = JF.dJ() 
     jf = Jf.J()
