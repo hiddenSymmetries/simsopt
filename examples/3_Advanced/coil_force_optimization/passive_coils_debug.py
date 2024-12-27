@@ -9,7 +9,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.field import regularization_rect, PSCCurrent, PSCArray
+from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
@@ -184,7 +184,8 @@ psc_array.biot_savart_TF.set_points(eval_points)
 # btot = BiotSavart(psc_array.coils, psc_array=psc_array) 
 # btot = BiotSavart(coils_TF) #, psc_array=psc_array) 
 # btot = BiotSavart(psc_array.coils + coils_TF, psc_array=psc_array) 
-btot = psc_array.biot_savart_total
+# btot = psc_array.biot_savart_total
+btot = psc_array.biot_savart
 
 calculate_on_axis_B(btot, s)
 btot.set_points(s.gamma().reshape((-1, 3)))
@@ -215,24 +216,24 @@ if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
 
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[1].coils],
-    OUT_DIR + "curves_TF_0",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
-    I=[c.current.get_value() for c in btot.Bfields[1].coils],
-    NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
-    NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
-)
-curves_to_vtk(
-    [c.curve for c in btot.Bfields[0].coils],
-    OUT_DIR + "curves_0",
-    close=True,
-    extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
-    I=[c.current.get_value() for c in btot.Bfields[0].coils],
-    NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
-    NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
-)
+# curves_to_vtk(
+#     [c.curve for c in btot.Bfields[1].coils],
+#     OUT_DIR + "curves_TF_0",
+#     close=True,
+#     extra_point_data=pointData_forces_torques(coils_TF, coils + coils_TF, np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b, np.ones(len(coils_TF)) * nturns_TF),
+#     I=[c.current.get_value() for c in btot.Bfields[1].coils],
+#     NetForces=coil_net_forces(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF),
+#     NetTorques=coil_net_torques(coils_TF, coils + coils_TF, regularization_rect(np.ones(len(coils_TF)) * a, np.ones(len(coils_TF)) * b), np.ones(len(coils_TF)) * nturns_TF)
+# )
+# curves_to_vtk(
+#     [c.curve for c in btot.Bfields[0].coils],
+#     OUT_DIR + "curves_0",
+#     close=True,
+#     extra_point_data=pointData_forces_torques(coils, coils + coils_TF, np.ones(len(coils)) * aa, np.ones(len(coils)) * bb, np.ones(len(coils)) * nturns),
+#     I=[c.current.get_value() for c in btot.Bfields[0].coils],
+#     NetForces=coil_net_forces(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns),
+#     NetTorques=coil_net_torques(coils, coils + coils_TF, regularization_rect(np.ones(len(coils)) * aa, np.ones(len(coils)) * bb), np.ones(len(coils)) * nturns)
+# )
 # Force and Torque calculations spawn a bunch of spurious BiotSavart child objects -- erase them!
 for c in (coils + coils_TF):
     c._children = set()
@@ -244,13 +245,13 @@ pointData = {"B_N": np.sum(btot.B().reshape((qphi, qtheta, 3)) * s_plot.unitnorm
 s_plot.to_vtk(OUT_DIR + "surf_full_init", extra_data=pointData)
 btot.set_points(s.gamma().reshape((-1, 3)))
 
-bpsc = btot.Bfields[0]
-bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
-pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
-    "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
-s_plot.to_vtk(OUT_DIR + "surf_init_PSC", extra_data=pointData)
-bpsc.set_points(s.gamma().reshape((-1, 3)))
+# bpsc = btot.Bfields[0]
+# bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
+# pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
+#     "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
+#                                     ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+# s_plot.to_vtk(OUT_DIR + "surf_init_PSC", extra_data=pointData)
+# bpsc.set_points(s.gamma().reshape((-1, 3)))
 
 # Define the individual terms objective function:
 Jf = SquaredFlux(s, btot)
@@ -312,10 +313,10 @@ print(JF.dof_names)
 # print(bs.dof_names)
 # print(psc_array.dof_names)
 
-# import cProfile
-# import re
-# import pstats, io
-# from pstats import SortKey
+import cProfile
+import re
+import pstats, io
+from pstats import SortKey
 
 def fun(dofs):
     # pr = cProfile.Profile()
@@ -327,11 +328,17 @@ def fun(dofs):
     # print(btot.Bfields[1].coils[0].current.get_value())
     # Need to invalidate the cache since otherwise it will just reuse the previous
     # value of B for the squared flux if there are no dofs for the PSC array
+
     psc_array.recompute_currents()
-    btot.Bfields[0].invalidate_cache()
+    btot.invalidate_cache()
+    # btot.Bfields[0].invalidate_cache()
+    # print('I = ', [c.current.get_value() for c in btot.coils])
     # print('I = ', [c.current.get_value() for c in btot.Bfields[0].coils])
-    # print('B = ', btot.B()[0, :])
+    # print('Itf = ', [c.current.get_value() for c in btot.Bfields[1].coils])
+
+    print('B = ', btot.B()[0, :])
     # print('Bpsc = ', btot.Bfields[0].B()[0, :])
+    # print('Btf = ', btot.Bfields[1].B()[0, :])
     # btot.invalidate_cache()
     # print('B = ', btot.B()[0, :])
     J = JF.J()
@@ -374,7 +381,7 @@ def fun(dofs):
     print(valuestr)
     # pr.disable()
     # ss = io.StringIO()
-    # sortby = SortKey.CUMULATIVE
+    # sortby = SortKey.TIME
     # ps = pstats.Stats(pr, stream=ss).sort_stats(sortby)
     # ps.print_stats(10)
     # print(ss.getvalue())
@@ -392,13 +399,15 @@ np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
 dJh = sum(dJ0 * h)
-for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+for eps in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
     t1 = time.time()
     J1, _ = f(dofs + eps*h)
     J2, _ = f(dofs - eps*h)
     t2 = time.time()
     print("err", (J1-J2)/(2*eps) - dJh)
     print((J1-J2)/(2*eps), dJh)
+
+exit()
 
 print("""
 ################################################################################
@@ -407,15 +416,16 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 200
+MAXITER = 3
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
-    res = minimize(fun, dofs, jac=False, method='L-BFGS-B', 
+    res = minimize(fun, dofs, jac=True, method='L-BFGS-B', 
                    options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
     # dofs = res.x
 
     # bpsc = btot.Bfields[0] #psc_array.biot_savart
-    btot.Bfields[0].invalidate_cache()
+    btot.invalidate_cache()
+    # btot.Bfields[0].invalidate_cache()
     bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
     dipole_currents = [c.current.get_value() for c in bpsc.coils]
     print(dipole_currents)

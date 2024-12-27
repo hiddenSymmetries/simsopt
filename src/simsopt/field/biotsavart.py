@@ -112,11 +112,7 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         # With no psc_array dofs, should give only a dIpsc_dAtf term to the jacobian
         if self.psc_array is not None:
-            # Zero out contributions from normal current vjp call
-            # Since current vjp is handled by vjp_setup
-            # vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(len(coils))])
             ncoils = len(self.psc_array.coils)
-            # print(ncoils, len(res_current))
             v_currents = np.array(res_current)[:ncoils]
             # Current piece is zeroed out below since vjp_setup handles the current vjp part
             vjp = sum([coils[i].vjp(res_gamma[i], res_gammadash[i], np.asarray([0.0])) for i in range(ncoils)])

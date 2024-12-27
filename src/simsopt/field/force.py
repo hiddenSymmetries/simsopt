@@ -1923,7 +1923,6 @@ def coil_coil_inductances_full_pure(gammas, gammadashs, a_list, b_list, downsamp
     L is the total length of the coil, and :math:`\ell` is arclength along the coil.
     """
     # Downsample if desired
-    # quadpoints = quadpoints[:, ::downsample]
     gammas = gammas[:, ::downsample, :]
     gammadashs = gammadashs[:, ::downsample, :]
     N = gammas.shape[0]
