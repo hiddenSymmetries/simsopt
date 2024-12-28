@@ -243,7 +243,7 @@ class PSCs(unittest.TestCase):
 
         np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
 
-    def test_psc_array_fixedTF(self):
+    def test_psc_array_A(self):
         from simsopt.geo import SurfaceRZFourier, create_planar_curves_between_two_toroidal_surfaces
         from simsopt.field import PSCArray, BiotSavart
         from simsopt.objectives import SquaredFlux
@@ -290,95 +290,18 @@ class PSCs(unittest.TestCase):
         biot_savart = psc_array.biot_savart
         psc_array.recompute_currents()
 
-        # Test dI/dgamma and dI/dgammadash
-
-        # First compute analytically
         gammas1 = np.array([c.gamma() for c in psc_array.psc_curves])
         gammadashs1 = np.array([c.gammadash() for c in psc_array.psc_curves])
+        currents2 = np.array([c.current.get_value() for c in psc_array.coils_TF])
+        gammas2 = np.array([c.curve.gamma() for c in psc_array.coils_TF])
+        gammadashs2 = np.array([c.curve.gammadash() for c in psc_array.coils_TF])
         psc_array.biot_savart_TF.set_points(gammas1.reshape(-1, 3))
         A_ext = psc_array.biot_savart_TF.A()
-        # External field also depends on gammas since it is used to evaluate along the loop
-        # and this term is missing in the Jacobian calculation. 
-        # However, I think it shouldn't depend on gammadash? 
-        # So why is dI/dgammadash still off?
-        args = [
-            gammas1, 
-            gammadashs1, 
-            A_ext, 
-            psc_array.downsample
-        ]
-        dI_dgamma = psc_array.dI_dgammas(*args)
-        dI_dgammadash = psc_array.dI_dgammadashs(*args)
-
-        # Now compute manually with finite differences
-        print(biot_savart.dof_names)
-        # psc_array.recompute_currents()
-        currents = psc_array.I_jax(*args)
-        # for i, c in enumerate(psc_array.coils):
-        #     c.current.set_dofs(currents[i])
-        I1s = np.array([currents[i] for i in range(len(currents))])
-
-        ##### Perturb the dofs then recompute quantities
-        dofs = biot_savart.x
-        eps = 1e-8
-        h = np.random.uniform(size=dofs.shape)
-        biot_savart.x = dofs - eps*h
-        # psc_array.recompute_currents()
-        gammas2 = np.array([c.gamma() for c in psc_array.psc_curves])
-        gammadashs2 = np.array([c.gammadash() for c in psc_array.psc_curves])
-        psc_array.biot_savart_TF.set_points(gammas2.reshape(-1, 3))
-        A_ext = psc_array.biot_savart_TF.A()
-        args = [
-            gammas2, 
-            gammadashs2, 
-            A_ext, 
-            psc_array.downsample
-        ]
-        currents = psc_array.I_jax(*args)
-        # for i, c in enumerate(psc_array.coils):
-        #     c.current.set_dofs(currents[i])
-        I2s = np.array([currents[i] for i in range(len(currents))])
-        print(I2s - I1s)
-        dI_dgammas_fd = (I2s-I1s)[:, None, None, None]/(gammas2 - gammas1)[None, :, :, :]
-        dI_dgammadashs_fd = (I2s-I1s)[:, None, None, None]/(gammadashs2 - gammadashs1)[None, :, :, :]
-
-        # print(dI_dgammas_fd, dI_dgamma, np.shape(dI_dgamma), np.shape(dI_dgammas_fd))
-        print(dI_dgammadashs_fd, dI_dgammadash, np.shape(dI_dgammadash), np.shape(dI_dgammadashs_fd))
-        exit()
-
-        # Test dI_coefs
-        dI_dgammadash = psc_array.dI_dgammadashs(*args)
-
-
-        vjp1 = np.array([c.dgamma_by_dcoeff_vjp_impl(dI_dgamma[:, i, :, :]) for i, c in enumerate(psc_array.psc_curves)])
-        vjp2 = np.array([c.dgammadash_by_dcoeff_vjp_impl(dI_dgammadash[:, i, :, :]) for i, c in enumerate(psc_array.psc_curves)])
-        print(vjp1.shape, h.shape)
-        dI = (vjp2 + vjp1) @ h   #* eps
-        print((I1s-I2s)/(2*eps), dI)
-        
-        # Test dJ/dcoefs
-        JF = SquaredFlux(s, biot_savart)
-        def f(dofs):
-            JF.x = dofs
-            psc_array.recompute_currents()
-            J = JF.J()
-            grad = JF.dJ() 
-            return J, grad 
-
-        dofs = JF.x
-        # np.random.seed(1)
-        h = np.random.uniform(size=dofs.shape)
-        J0, dJ0 = f(dofs)
-        dJh = sum(dJ0 * h)
-        for eps in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
-            J1, _ = f(dofs + eps*h)
-            J2, _ = f(dofs - eps*h)
-            print("err", (J1-J2)/(2*eps) - dJh)
-            print("rel. err", ((J1-J2)/(2*eps) - dJh) / ((J1-J2)/(2*eps)))
-            print((J1-J2)/(2*eps), dJh)
-        # bs_planar = BiotSavart(coils_planar)
-
-
+        rij_norm = np.linalg.norm(gammas1[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
+        # sum over the currents, and sum over the biot savart integral
+        A_ext2 = 1e-7 * np.sum(currents2[None, None, :, None] * np.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], 
+            axis=-2), axis=-2) / np.shape(gammadashs2)[1]
+        assert np.allclose(A_ext, A_ext2.reshape(-1, 3))
 
 
 if __name__ == "__main__":
