@@ -1,6 +1,6 @@
 from math import pi
 import numpy as np
-from jax import vjp, jacrev
+from jax import vjp, jacrev, jacfwd
 import jax.numpy as jnp
 from jax import grad
 
@@ -290,9 +290,10 @@ class PSCArray2():
             jacrev(self.I_jax, argnums=3)(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample),
             **args
         )
+        # Uses jacfwd since # of inputs ~ # of outputs
         self.dI_dcurrentsTF = jit(
             lambda gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample:
-            jacrev(self.I_jax, argnums=4)(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample),
+            jacfwd(self.I_jax, argnums=4)(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample),
             **args
         )
         gammas = np.array([c.gamma() for c in psc_curves])
@@ -300,7 +301,7 @@ class PSCArray2():
         # A_ext = np.array(self.biot_savart_TF.A())
         gammadashs = np.array([c.gammadash() for c in psc_curves])
         gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
-        gammadashs_TF = np.array([c.curve.gamma() for c in self.coils_TF])
+        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
         currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
         args = [
             gammas, 
@@ -327,7 +328,7 @@ class PSCArray2():
         # self.biot_savart_TF.set_points(gammas[:, ::self.downsample, :].reshape(-1, 3))
         # A_ext = self.biot_savart_TF.A()
         gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
-        gammadashs_TF = np.array([c.curve.gamma() for c in self.coils_TF])
+        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
         currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
         args = [
             gammas, 
@@ -341,7 +342,7 @@ class PSCArray2():
         dJ_dgammadashs = np.sum(v_currents[:, None, None, None] * self.dI_dgammadashs(*args), axis=0)
         dJ_dgammas2 = np.sum(v_currents[:, None, None, None] * self.dI_dgammasTF(*args), axis=0)
         dJ_dgammadashs2 = np.sum(v_currents[:, None, None, None] * self.dI_dgammadashsTF(*args), axis=0)
-        dJ_dcurrents2 = np.sum(v_currents[:, None, None, None] * self.dI_dcurrentsTF(*args), axis=0)
+        dJ_dcurrents2 = np.sum(v_currents[:, None] * self.dI_dcurrentsTF(*args), axis=0)
         vjp1 = [c.dgamma_by_dcoeff_vjp(dJ_dgammas[i]) for i, c in enumerate(self.psc_curves)]
         vjp2 = [c.dgammadash_by_dcoeff_vjp(dJ_dgammadashs[i]) for i, c in enumerate(self.psc_curves)]
         vjp3 = [c.curve.dgamma_by_dcoeff_vjp(dJ_dgammas2[i]) for i, c in enumerate(self.coils_TF)]
@@ -354,7 +355,7 @@ class PSCArray2():
         gammas = np.array([c.gamma() for c in self.psc_curves])
         gammadashs = np.array([c.gammadash() for c in self.psc_curves])
         gammas_TF = np.array([c.curve.gamma() for c in self.coils_TF])
-        gammadashs_TF = np.array([c.curve.gamma() for c in self.coils_TF])
+        gammadashs_TF = np.array([c.curve.gammadash() for c in self.coils_TF])
         currents_TF = np.array([c.current.get_value() for c in self.coils_TF])
         args = [
             gammas, 
