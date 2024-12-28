@@ -131,7 +131,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 8
+Nx = 4
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -179,6 +179,7 @@ psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.n
 # # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(psc_array.biot_savart_TF, s)
 psc_array.biot_savart_TF.set_points(eval_points)
+print(psc_array.biot_savart_TF.A())
 
 # bs = psc_array.biot_savart
 # btot = BiotSavart(psc_array.coils, psc_array=psc_array) 

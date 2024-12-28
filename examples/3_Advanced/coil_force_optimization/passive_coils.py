@@ -138,9 +138,9 @@ for i in range(len(base_curves)):
     for j in range(2 * order + 1):
         base_curves[i].fix('x' + str(j))
     # # Fix center points of each coil FOR NOW
-    base_curves[i].fix('x' + str(2 * order + 5))
-    base_curves[i].fix('x' + str(2 * order + 6))
-    base_curves[i].fix('x' + str(2 * order + 7))
+    # base_curves[i].fix('x' + str(2 * order + 5))
+    # base_curves[i].fix('x' + str(2 * order + 6))
+    # base_curves[i].fix('x' + str(2 * order + 7))
     # base_curves[i].fix_all()
 ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * a

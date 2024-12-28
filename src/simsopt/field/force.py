@@ -2116,7 +2116,7 @@ def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsam
     gammadashs2 = gammadashs2[:, ::downsample, :]
     rij_norm = jnp.linalg.norm(gammas[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
     # sum over the currents, and sum over the biot savart integral
-    A_ext = jnp.sum(currents2[None, None, :, None] * jnp.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], axis=-2), axis=-2)
+    A_ext = jnp.sum(currents2[None, None, :, None] * jnp.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], axis=-2), axis=-2) / jnp.shape(gammadashs2)[1]
     # print(A_ext.shape, gammadashs.shape, gammadashs2.shape, rij_norm.shape, currents2.shape)
     # Now sum over the PSC coil loops 
     return 1e-7 * jnp.sum(jnp.sum(A_ext * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
