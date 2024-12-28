@@ -9,7 +9,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.field import regularization_rect, PSCArray
+from simsopt.field import regularization_rect, PSCArray, PSCArray2
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
@@ -175,7 +175,7 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     return point_data
 
 eval_points = s.gamma().reshape(-1, 3)
-psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+psc_array = PSCArray2(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 # # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(psc_array.biot_savart_TF, s)
 psc_array.biot_savart_TF.set_points(eval_points)

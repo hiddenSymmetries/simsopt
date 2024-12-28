@@ -1970,6 +1970,9 @@ def coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsampl
 def coil_currents_pure(gammas, gammadashs, A_ext, a_list, b_list, downsample, cross_section):
     return -coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section) @ net_ext_fluxes_pure(gammadashs, A_ext, downsample)
 
+def coil_currents_barebones(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, a_list, b_list, downsample, cross_section):
+    return -coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section) @ net_fluxes_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)
+
 def tve_pure(gamma, gammadash, gammas2, gammadashs2, current, currents2, 
              quadpoints, quadpoints2, a, b, downsample, cross_section):
     r"""Pure function for minimizing the total vacuum energy on a coil.
@@ -2104,6 +2107,22 @@ class TVE(Optimizable):
         return dJ
 
     return_fn_map = {'J': J, 'dJ': dJ}
+
+def net_fluxes_pure(gammas, gammadashs, gammas2, gammadashs2, currents2, downsample):
+    """
+    
+    """
+     # Downsample if desired
+    gammas = gammas[:, ::downsample, :]
+    gammadashs = gammadashs[:, ::downsample, :]
+    gammas2 = gammas2[:, ::downsample, :]
+    gammadashs2 = gammadashs2[:, ::downsample, :]
+    rij_norm = jnp.linalg.norm(gammas[:, :, None, None, :] - gammas2[None, None, :, :, :], axis=-1)
+    # sum over the currents, and sum over the biot savart integral
+    A_ext = jnp.sum(currents2[None, None, :, None] * jnp.sum(gammadashs2[None, None, :, :, :] / rij_norm[:, :, :, :, None], axis=-2), axis=-2)
+    # print(A_ext.shape, gammadashs.shape, gammadashs2.shape, rij_norm.shape, currents2.shape)
+    # Now sum over the PSC coil loops 
+    return 1e-7 * jnp.sum(jnp.sum(A_ext * gammadashs, axis=-1), axis=-1) / jnp.shape(gammadashs)[1]
 
 
 def net_ext_fluxes_pure(gammadashs, A_ext, downsample):
