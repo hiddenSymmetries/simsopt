@@ -9,7 +9,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from simsopt.field import BiotSavart, Current, coils_via_symmetries
-from simsopt.field import regularization_rect, PSCArray, PSCArray2
+from simsopt.field import regularization_rect, PSCArray
 from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_net_forces, LpCurveForce, \
     SquaredMeanForce, \
     SquaredMeanTorque, LpCurveTorque
@@ -131,7 +131,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 5
+Nx = 8
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -140,9 +140,9 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
 )
 
 # Coils can only rotate in space
-for i in range(len(base_curves)):
-    for j in range(2 * order + 1):
-        base_curves[i].fix('x' + str(j))
+# for i in range(len(base_curves)):
+    # for j in range(2 * order + 1):
+    #     base_curves[i].fix('x' + str(j))
     # # Fix center points of each coil FOR NOW
     # base_curves[i].fix('x' + str(2 * order + 5))
     # base_curves[i].fix('x' + str(2 * order + 6))
@@ -175,7 +175,7 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     return point_data
 
 eval_points = s.gamma().reshape(-1, 3)
-psc_array = PSCArray2(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
 # # Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(psc_array.biot_savart_TF, s)
 psc_array.biot_savart_TF.set_points(eval_points)
@@ -211,7 +211,7 @@ FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = "./passive_coils/"
+OUT_DIR = "./passive_coils_debug/"
 if os.path.exists(OUT_DIR):
     shutil.rmtree(OUT_DIR)
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -322,6 +322,8 @@ def fun(dofs):
     pr = cProfile.Profile()
     pr.enable()
     JF.x = dofs
+    # absolutely essential line that updates the PSC currents even though they are not
+    # being directly optimized. 
     psc_array.recompute_currents()
     # print('B = ', btot.B()[0, :])
     J = JF.J()
@@ -369,7 +371,6 @@ def fun(dofs):
     ps.print_stats(10)
     print(ss.getvalue())
     return J, grad
-
 
 print("""
 ################################################################################

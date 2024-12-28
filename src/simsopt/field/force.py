@@ -1967,9 +1967,6 @@ def coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsampl
     inv_L = jscp.linalg.solve_triangular(C.T, inv_C, lower=False)
     return inv_L  # jnp.linalg.inv(coil_coil_inductances_full_pure(gammas, gammadashs, quadpoints, a_list, b_list, downsample, cross_section)) #
 
-def coil_currents_pure(gammas, gammadashs, A_ext, a_list, b_list, downsample, cross_section):
-    return -coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section) @ net_ext_fluxes_pure(gammadashs, A_ext, downsample)
-
 def coil_currents_barebones(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, a_list, b_list, downsample, cross_section):
     return -coil_coil_inductances_inv_pure(gammas, gammadashs, a_list, b_list, downsample, cross_section) @ net_fluxes_pure(gammas, gammadashs, gammas_TF, gammadashs_TF, currents_TF, downsample)
 
