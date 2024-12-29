@@ -206,8 +206,8 @@ for i in range(len(base_curves)):
 # opt_bounds = tuple(map(tuple, opt_bounds))
 
 ncoils = len(base_curves)
-a_list = np.ones(len(base_curves)) * a
-b_list = np.ones(len(base_curves)) * a
+a_list = np.ones(len(base_curves)) * aa
+b_list = np.ones(len(base_curves)) * aa
 print('Num dipole coils = ', ncoils)
 
 # Define function to compute the pointwise forces and torques
@@ -501,5 +501,6 @@ for i in range(1, n_saves + 1):
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
+btot.Bfields[0].psc_array = None  # Remove the psc_array object for JSON save
 btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
 print(OUT_DIR)

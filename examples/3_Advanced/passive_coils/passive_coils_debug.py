@@ -35,7 +35,7 @@ filename = TEST_DIR / input_name
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 3.0
+poff = 2.0
 coff = 1.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)

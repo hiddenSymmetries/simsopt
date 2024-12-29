@@ -23,25 +23,7 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files")
 input_name = 'wout_henneberg.nc'
 filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-from simsopt import load
-input_dir = str(sys.argv[1])
-coils = load(input_dir + "psc_coils.json")
-coils_TF = load(input_dir + "TF_coils.json")
-curves = [c.curve for c in coils]
-base_curves = curves[:len(curves) // 4]
-base_coils = coils[:len(coils) // 4]
-curves_TF = [c.curve for c in coils_TF]
-base_curves_TF = curves_TF[:len(curves_TF) // 4]
-base_coils_TF = coils_TF[:len(coils_TF) // 4]
-ncoils = len(base_curves)
-aa = 0.05
-a_list = np.ones(len(base_curves)) * aa
-b_list = np.ones(len(base_curves)) * aa
-
-# Initialize the PSCArray object
-eval_points = s.gamma().reshape(-1, 3)
-psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
-Bfield = psc_array.biot_savart_total
+Bfield = Optimizable.from_file(str(sys.argv[1]))
 Bfield.set_points(s.gamma().reshape((-1, 3)))
 BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
 BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))

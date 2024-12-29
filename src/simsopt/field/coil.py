@@ -190,6 +190,7 @@ class PSCArray():
         self.biot_savart = BiotSavart(self.coils, self) 
         self.biot_savart_total = self.biot_savart + self.biot_savart_TF
         self.biot_savart_total.set_points(self.eval_points)
+        # Optimizable.__init__(self, depends_on=[self.coils, self.coils_TF])
 
     def vjp_setup(self, v_currents):
         gammas = np.array([c.gamma() for c in self.psc_curves])

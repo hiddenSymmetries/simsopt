@@ -463,14 +463,6 @@ for i in range(1, n_saves + 1):
     print('Max I = ', np.max(np.abs(dipole_currents)))
     print('Min I = ', np.min(np.abs(dipole_currents)))
     calculate_on_axis_B(btot, s)
-    # LENGTH_WEIGHT *= 0.01
-    # JF = Jf \
-    #     + CC_WEIGHT * Jccdist \
-    #     + CS_WEIGHT * Jcsdist \
-    #     + LINK_WEIGHT * linkNum \
-    #     + LINK_WEIGHT2 * linkNum2 \
-    #     + LENGTH_WEIGHT * sum(Jls_TF)
-
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
