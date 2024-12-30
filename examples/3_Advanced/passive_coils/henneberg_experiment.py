@@ -35,8 +35,8 @@ filename = TEST_DIR / input_name
 range_param = "half period"
 nphi = 32
 ntheta = 32
-poff = 1.5
-coff = 2.0
+poff = 1.3
+coff = 4.0
 s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -80,8 +80,8 @@ def initialize_coils_QA(TEST_DIR, s):
     # generate planar TF coils
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1.4
-    R1 = s.get_rc(1, 0) * 5
-    order = 8
+    R1 = s.get_rc(1, 0) * 4
+    order = 16
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -122,7 +122,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 5
+Nx = 4
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -131,12 +131,12 @@ base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
 )
 import warnings
 
-# Remove if within a radius of a TF coil
+# # Remove if within a radius of a TF coil
 # keep_inds = []
 # for ii in range(len(base_curves)):
 #     counter = 0
 #     for i in range(base_curves[0].gamma().shape[0]):
-#         eps = 0.05
+#         eps = 0.01
 #         for j in range(len(base_curves_TF)):
 #             for k in range(base_curves_TF[j].gamma().shape[0]):
 #                 dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :] - base_curves_TF[j].gamma()[k, :]) ** 2))
@@ -199,10 +199,10 @@ for i in range(len(base_curves)):
     base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
     base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
     # Fix orientations of each coil
-    base_curves[i].fix('x' + str(2 * order + 1))
-    base_curves[i].fix('x' + str(2 * order + 2))
-    base_curves[i].fix('x' + str(2 * order + 3))
-    base_curves[i].fix('x' + str(2 * order + 4))
+    # base_curves[i].fix('x' + str(2 * order + 1))
+    # base_curves[i].fix('x' + str(2 * order + 2))
+    # base_curves[i].fix('x' + str(2 * order + 3))
+    # base_curves[i].fix('x' + str(2 * order + 4))
 
     # Fix shape of each coil
     for j in range(2 * order + 1):
@@ -257,9 +257,9 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 90
-LINK_WEIGHT = 1e4
-CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e2
+LINK_WEIGHT = 1e3
+CC_THRESHOLD = 0.6
+CC_WEIGHT = 1e-1  # 1e-1 if orientations are unfixed
 CS_THRESHOLD = 1.3
 CS_WEIGHT = 1e2
 # Weight for the Coil Coil forces term
@@ -452,17 +452,16 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 1000
+MAXITER = 2000
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
-                   options={'maxiter': MAXITER, 'maxcor': 300}, tol=1e-15)
+                   options={'maxiter': MAXITER, 'maxcor': 500}, tol=1e-15)
     # dofs = res.x
 
     bpsc = btot.Bfields[0]
     bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
     dipole_currents = [c.current.get_value() for c in bpsc.coils]
-    psc_array.recompute_currents()
     print(dipole_currents)
     curves_to_vtk(
         [c.curve for c in bpsc.coils],

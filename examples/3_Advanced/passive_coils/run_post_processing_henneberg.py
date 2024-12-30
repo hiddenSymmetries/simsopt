@@ -1,6 +1,7 @@
 from simsopt.mhd.vmec import Vmec
 from simsopt.util.mpi import MpiPartition
 from simsopt.mhd import QuasisymmetryRatioResidual
+from simsopt.field import PSCArray
 from simsopt.util import proc0_print
 from simsopt.util import comm_world
 from simsopt._core import Optimizable
@@ -23,7 +24,25 @@ TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files")
 input_name = 'wout_henneberg.nc'
 filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
-Bfield = Optimizable.from_file(str(sys.argv[1]))
+from simsopt import load
+input_dir = str(sys.argv[1])
+coils = load(input_dir + "psc_coils.json")
+coils_TF = load(input_dir + "TF_coils.json")
+curves = [c.curve for c in coils]
+base_curves = curves[:len(curves) // 4]
+base_coils = coils[:len(coils) // 4]
+curves_TF = [c.curve for c in coils_TF]
+base_curves_TF = curves_TF[:len(curves_TF) // 4]
+base_coils_TF = coils_TF[:len(coils_TF) // 4]
+ncoils = len(base_curves)
+aa = 0.05
+a_list = np.ones(len(base_curves)) * aa
+b_list = np.ones(len(base_curves)) * aa
+
+# Initialize the PSCArray object
+eval_points = s.gamma().reshape(-1, 3)
+psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.nfp, stellsym=s.stellsym)
+Bfield = psc_array.biot_savart_total
 Bfield.set_points(s.gamma().reshape((-1, 3)))
 BdotN = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
 BdotN_over_B = np.mean(np.abs(np.sum(Bfield.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
@@ -42,21 +61,19 @@ qfm_surf = qfm_surf.surface
 # qfm_surf.plot()
 
 # Run VMEC with new QFM surface
-vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
-equil = Vmec(vmec_input, mpi)
-equil.boundary = qfm_surf
-equil.run()
+# vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
+# equil = Vmec(vmec_input, mpi)
+# equil.boundary = qfm_surf
+# equil.run()
 
-# Configure quasisymmetry objective:
-qs = QuasisymmetryRatioResidual(equil,
-                                np.arange(0, 1.01, 0.1),  # Radii to target
-                                helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
+# # Configure quasisymmetry objective:
+# qs = QuasisymmetryRatioResidual(equil,
+#                                 np.arange(0, 1.01, 0.1),  # Radii to target
+#                                 helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
 
-proc0_print("Quasisymmetry objective before optimization:", qs.total())
+# proc0_print("Quasisymmetry objective before optimization:", qs.total())
 
 from simsopt.field.magneticfieldclasses import InterpolatedField
-
-
 def skip(rs, phis, zs):
     # The RegularGrindInterpolant3D class allows us to specify a function that
     # is used in order to figure out which cells to be skipped.  Internally,

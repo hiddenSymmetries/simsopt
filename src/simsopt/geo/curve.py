@@ -992,7 +992,7 @@ def setup_uniform_grid(s, s_inner, s_outer, Nx, Ny, Nz, coil_coil_flag):
     if coil_coil_flag:
         R = Nmin / 3.1
     else:
-        R = Nmin / 2
+        R = Nmin / 2.5
 
     print('Major radius of the coils is R = ', R)
     print('Coils are spaced so that every coil of radius R '
@@ -1083,19 +1083,31 @@ def create_planar_curves_between_two_toroidal_surfaces(
             inds.append(conflicts[0])
     if len(inds) > 0:
         print('bad indices = ', inds)
-        raise ValueError('The PSC coils are initialized such that they may intersect with '
-                         'a discrete symmetry plane, preventing the proper symmetrization '
-                         'of the coils under stellarator and field-period symmetries. '
-                         'Please reinitialize the coils.')
+    remove_inds = inds
+        # raise ValueError('The PSC coils are initialized such that they may intersect with '
+        #                  'a discrete symmetry plane, preventing the proper symmetrization '
+        #                  'of the coils under stellarator and field-period symmetries. '
+        #                  'Please reinitialize the coils.')
     if coil_coil_flag:
         for i in range(grid_xyz.shape[0]):
             for j in range(i + 1, grid_xyz.shape[0]):
                 dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
-                conflict_bool = (dij < (2.0 + eps) * R)
+                conflict_bool = (dij < eps) # (2.0 + eps) * R)
                 if conflict_bool:
                     print('bad indices = ', i, j, dij)
                     raise ValueError('There is a PSC coil initialized such that it is within a diameter'
-                                     'of another PSC coil. Please reinitialize the coils.')
+                                        'of another PSC coil. Please reinitialize the coils.')
+
+    # eps = 0.1 # 10 cm
+    # for i in range(grid_xyz.shape[0]):
+    #     for j in range(i + 1, grid_xyz.shape[0]):
+    #         dij = np.sqrt(np.sum((grid_xyz[i, :] - grid_xyz[j, :]) ** 2))
+    #         conflict_bool = (dij < eps) # (2.0 + eps) * R)
+    #         remove_inds = np.append(remove_inds, j) if conflict_bool else remove_inds
+    #         if conflict_bool:
+    #             print('bad indices = ', i, j, dij)
+    #             raise ValueError('There is a PSC coil initialized such that it is within a diameter'
+    #                                 'of another PSC coil. Please reinitialize the coils.')
 
     final_inds = np.setdiff1d(np.arange(grid_xyz.shape[0]), remove_inds)
     grid_xyz = grid_xyz[final_inds, :]

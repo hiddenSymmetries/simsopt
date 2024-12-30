@@ -248,7 +248,7 @@ def make_qfm(s, Bfield):
     from simsopt.geo.surfaceobjectives import QfmResidual, Volume
 
     # weight for the optimization
-    constraint_weight = 1e-6
+    constraint_weight = 1e0
 
     # First optimize at fixed volume
     qfm = QfmResidual(s, Bfield)
@@ -259,7 +259,7 @@ def make_qfm(s, Bfield):
     vol_target = vol.J()
     qfm_surface = QfmSurface(Bfield, s, vol, vol_target)
 
-    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-15, maxiter=500,
+    qfm_surface.minimize_qfm_penalty_constraints_LBFGS(tol=1e-15, maxiter=100,
                                                        constraint_weight=constraint_weight)
     print(f"||vol constraint||={0.5*(s.volume()-vol_target)**2:.8e}, ||residual||={np.linalg.norm(qfm.J()):.8e}")
 

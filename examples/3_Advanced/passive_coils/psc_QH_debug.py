@@ -15,7 +15,7 @@ from simsopt.field.force import coil_force, coil_torque, coil_net_torques, coil_
     SquaredMeanTorque, LpCurveTorque
 from simsopt.util import calculate_on_axis_B
 from simsopt.geo import (
-    CurveLength, CurveCurveDistance,
+    CurveLength, CurveCurveDistance, create_equally_spaced_curves,
     MeanSquaredCurvature, LpCurveCurvature, CurveSurfaceDistance, LinkingNumber,
     SurfaceRZFourier, curves_to_vtk, create_planar_curves_between_two_toroidal_surfaces
 )
@@ -28,7 +28,7 @@ order = 0
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_henneberg.nc'
+input_name = 'input.LandremanPaul2021_QH_reactorScale_lowres'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
@@ -37,13 +37,13 @@ nphi = 32
 ntheta = 32
 poff = 1.5
 coff = 2.0
-s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
 # Make the inner and outer surfaces by extending the plasma surface
-s_inner.extend_via_normal(poff)
-s_outer.extend_via_normal(poff + coff)
+s_inner.extend_via_projected_normal(poff)
+s_outer.extend_via_projected_normal(poff + coff)
 
 qphi = nphi * 2
 qtheta = ntheta * 2
@@ -51,41 +51,22 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 
 # Make high resolution, full torus version of the plasma boundary for plotting
-s_plot = SurfaceRZFourier.from_wout(
+s_plot = SurfaceRZFourier.from_vmec_input(
     filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
 
-### Initialize some TF coils
-def initialize_coils_QA(TEST_DIR, s):
-    """
-    Initializes coils for each of the target configurations that are
-    used for permanent magnet optimization.
-
-    Args:
-        config_flag: String denoting the stellarator configuration 
-          being initialized.
-        TEST_DIR: String denoting where to find the input files.
-        out_dir: Path or string for the output directory for saved files.
-        s: plasma boundary surface.
-    Returns:
-        base_curves: List of CurveXYZ class objects.
-        curves: List of Curve class objects.
-        coils: List of Coil class objects.
-    """
-    from simsopt.geo import create_equally_spaced_curves
-    from simsopt.field import Current, coils_via_symmetries
-
+def initialize_coils_QH(TEST_DIR, s):
     # generate planar TF coils
     ncoils = 2
-    R0 = s.get_rc(0, 0) * 1.4
-    R1 = s.get_rc(1, 0) * 5
-    order = 8
+    R0 = s.get_rc(0, 0) * 1
+    R1 = s.get_rc(1, 0) * 4
+    order = 4
 
     from simsopt.mhd.vmec import Vmec
-    vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
-    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 2.3
+    vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
+    total_current = Vmec(TEST_DIR / vmec_file).external_current() / (2 * s.nfp) / 1.4
     print('Total current = ', total_current)
 
     # Only need Jax flag for CurvePlanarFourier class
@@ -106,7 +87,7 @@ def initialize_coils_QA(TEST_DIR, s):
     return base_curves, curves, coils, base_currents
 
 # initialize the TF coils
-base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QA(TEST_DIR, s)
+base_curves_TF, curves_TF, coils_TF, currents_TF = initialize_coils_QH(TEST_DIR, s)
 num_TF_unique_coils = len(base_curves_TF)
 base_coils_TF = coils_TF[:num_TF_unique_coils]
 currents_TF = np.array([coil.current.get_value() for coil in coils_TF])
@@ -122,7 +103,7 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 5
+Nx = 6
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
@@ -154,24 +135,24 @@ import warnings
 
 
 # Remove all the coils on the inboard side!
-keep_inds = []
-for ii in range(len(base_curves)):
-    counter = 0
-    for i in range(base_curves[0].gamma().shape[0]):
-        eps = 0.2
-        dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :]) ** 2))
-        conflict_bool = (dij < (1.0 + eps) * s.get_rc(0, 0))
-        if conflict_bool:
-            print('bad index = ', i, dij, s.get_rc(0, 0))
-            warnings.warn(
-                'There is a PSC coil initialized such that it is within a radius'
-                'of a TF coil. Deleting these PSCs now.')
-            counter += 1
-            break
-    if counter == 0:
-        keep_inds.append(ii)
+# keep_inds = []
+# for ii in range(len(base_curves)):
+#     counter = 0
+#     for i in range(base_curves[0].gamma().shape[0]):
+#         eps = 0.2
+#         dij = np.sqrt(np.sum((base_curves[ii].gamma()[i, :]) ** 2))
+#         conflict_bool = (dij < (1.0 + eps) * s.get_rc(0, 0))
+#         if conflict_bool:
+#             print('bad index = ', i, dij, s.get_rc(0, 0))
+#             warnings.warn(
+#                 'There is a PSC coil initialized such that it is within a radius'
+#                 'of a TF coil. Deleting these PSCs now.')
+#             counter += 1
+#             break
+#     if counter == 0:
+#         keep_inds.append(ii)
+# base_curves = np.array(base_curves)[keep_inds]
 
-base_curves = np.array(base_curves)[keep_inds]
 ncoils = len(base_curves)
 coil_normals = np.zeros((ncoils, 3))
 plasma_points = s.gamma().reshape(-1, 3)
@@ -256,19 +237,19 @@ a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 90
+LENGTH_TARGET = 80
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e2
-CS_THRESHOLD = 1.3
-CS_WEIGHT = 1e2
+CC_WEIGHT = 1e1
+CS_THRESHOLD = 1.5
+CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 # Directory for output
-OUT_DIR = ("./passive_coils_henneberg_ndofs{:d}_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
+OUT_DIR = ("./passive_coils_QH_ndofs{:d}_TForder{:d}_n{:d}_p{:.2e}_c{:.2e}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
            "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
     len(base_curves[0].x), base_curves_TF[0].order, ncoils, poff, coff, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT,
     CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,
@@ -348,7 +329,7 @@ Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
 CURVATURE_WEIGHT = 1e-2
-MSC_WEIGHT = 1e-4
+MSC_WEIGHT = 1e-6
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
@@ -373,14 +354,16 @@ if TORQUE_WEIGHT2.value > 0.0:
     JF += TORQUE_WEIGHT2 * Jtorque2
 
 print(JF.dof_names)
-# for i in range(len(JF.dof_names) - len(opt_bounds)):
-#     opt_bounds.append((None, None))
-# print(opt_bounds)
-# print(opt_bounds, np.shape(opt_bounds), np.shape(JF.dof_names))
-# exit()
+
+import cProfile
+import re
+import pstats, io
+from pstats import SortKey
 
 def fun(dofs):
     JF.x = dofs
+    pr = cProfile.Profile()
+    pr.enable()
     # absolutely essential line that updates the PSC currents even though they are not
     # being directly optimized. 
     psc_array.recompute_currents()
@@ -423,6 +406,12 @@ def fun(dofs):
     outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
     print(outstr)
     print(valuestr)
+    pr.disable()
+    ss = io.StringIO()
+    sortby = SortKey.TIME
+    ps = pstats.Stats(pr, stream=ss).sort_stats(sortby)
+    ps.print_stats(10)
+    print(ss.getvalue())
     return J, grad
 
 
@@ -451,8 +440,10 @@ print("""
 ################################################################################
 """)
 
+exit()
+
 n_saves = 1
-MAXITER = 1000
+MAXITER = 500
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
