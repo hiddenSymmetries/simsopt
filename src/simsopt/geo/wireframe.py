@@ -1165,7 +1165,7 @@ class ToroidalWireframe(object):
             self.constraint_matrices(remove_redundancies=False)
 
         # Evaluate the residuals of the constraint equations
-        residuals = np.matmul(constraints_B_full, x) - constraints_d_full
+        residuals = constraints_B_full @ x - constraints_d_full
 
         # Total tolerance
         tol = atol + rtol*np.mean(np.abs(x))
@@ -1466,7 +1466,7 @@ class ToroidalWireframe(object):
             return(ax)
 
     def make_plot_2d(self, extent='half period', quantity='currents', \
-                     ax=None, **kwargs):
+                     active_tol=1e-12, ax=None, add_colorbar=True, **kwargs):
         """
         Make a 2d plot of the segments in the wireframe grid.
 
@@ -1479,9 +1479,16 @@ class ToroidalWireframe(object):
                 Quantity to be represented in the color of each segment.
                 Options are 'currents' (default), 'nonzero currents' (i.e. show
                 only segments with nonzero current), and 'constrained segments'.
+            active_tol: float (optional)
+                Minimum magnitude of current carried by a given segment for it
+                to be plotted if `quantity` is set to 'nonzero currents'. 
+                Default is 1e-12.
             ax: instance of the matplotlib.pyplot.Axis class (optional)
                 Axis on which to generate the plot. If None, a new plot will
                 be created.
+            add_colorbar: logical (optional)
+                If true, a colorbar will be added to accompany the 2d plot.
+                Default is True.
             kwargs: optional keyword arguments
                 Keyword arguments to be passed to the LineCollection instance
                 used to plot the segments
@@ -1490,6 +1497,11 @@ class ToroidalWireframe(object):
         -------
             ax: instance of the matplotlib.pyplot.Axis class
                 Axis instance on which the plot was created.
+            lc: instance of the matplotlib.collections.LineCollection class
+                LineCollection instance of the plotted segments.
+            cb: instance of the matplotlib.colorbar class
+                Colorbar instance to go with the plot on `ax`. If `add_colorbar`
+                is False, will return None.
         """
 
         import matplotlib.pyplot as pl
@@ -1508,15 +1520,17 @@ class ToroidalWireframe(object):
         pl_segments = np.zeros((nHalfPeriods*self.nSegments, 2, 2))
         pl_quantity = np.zeros((nHalfPeriods*self.nSegments))
    
+        # Calculate the toroidal and poloidal indices of each segment's 
+        # endpoints for plotting
         for i in range(nHalfPeriods):
             ind0 = i*self.nSegments
             ind1 = (i+1)*self.nSegments
             if i % 2 == 0:
                 pl_segments[ind0:ind1,0,0] = \
-                    np.floor(self.segments[:,0]/self.nTheta)
+                    i*self.nPhi + np.floor(self.segments[:,0]/self.nTheta)
                 pl_segments[ind0:ind1,0,1] = self.segments[:,0] % self.nTheta
                 pl_segments[ind0:ind1,1,0] = \
-                    np.floor(self.segments[:,1]/self.nTheta)
+                    i*self.nPhi + np.floor(self.segments[:,1]/self.nTheta)
                 pl_segments[ind0:ind1,1,1] = self.segments[:,1] % self.nTheta
 
                 loop_segs = np.where( \
@@ -1526,11 +1540,11 @@ class ToroidalWireframe(object):
 
             else:
                 pl_segments[ind0:ind1,0,0] = \
-                    2*i*self.nPhi - np.floor(self.segments[:,0]/self.nTheta)
+                    (i+1)*self.nPhi - np.floor(self.segments[:,0]/self.nTheta)
                 pl_segments[ind0:ind1,0,1] = \
                     self.nTheta - (self.segments[:,0] % self.nTheta)
                 pl_segments[ind0:ind1,1,0] = \
-                    2*i*self.nPhi - np.floor(self.segments[:,1]/self.nTheta)
+                    (i+1)*self.nPhi - np.floor(self.segments[:,1]/self.nTheta)
                 pl_segments[ind0:ind1,1,1] = \
                     self.nTheta - (self.segments[:,1] % self.nTheta)
 
@@ -1551,7 +1565,7 @@ class ToroidalWireframe(object):
 
 
         if quantity=='nonzero currents':
-            inds_to_plot = np.where(pl_quantity != 0)[0]
+            inds_to_plot = np.where(np.abs(pl_quantity) > active_tol)[0]
         else:
             inds_to_plot = np.arange(len(pl_quantity))
 
@@ -1572,14 +1586,19 @@ class ToroidalWireframe(object):
 
         ax.set_xlabel('Toroidal index')
         ax.set_ylabel('Poloidal index')
-        cb = pl.colorbar(lc)
-        if quantity=='currents' or quantity=='nonzero currents':
-            cb.set_label('Current (MA)')
-        elif quantity=='constrained segments':
-            cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
-                             + '0 = free')
+        if add_colorbar:
+            cb = pl.colorbar(lc)
+            if quantity=='currents' or quantity=='nonzero currents':
+                cb.set_label('Current [MA]')
+            elif quantity=='constrained segments':
+                cb.set_label('1 = constrained; -1 = implicitly constrained; ' \
+                                 + '0 = free')
+        else:
+            cb = None
 
         ax.add_collection(lc)
+
+        return ax, lc, cb
 
     def plot_cells_2d(self, cell_values, value_label=None, ax=None):
         """
@@ -1606,10 +1625,6 @@ class ToroidalWireframe(object):
         from matplotlib.collections import PolyCollection
 
         vertices = np.zeros((self.nTheta*self.nPhi, 4, 2))
-        #vertices[:,:,0] = \
-        #    np.floor(self.segments[self.cell_key[:,:],0]/self.nTheta)
-        #vertices[:,:,1] = \
-        #    self.segments[self.cell_key[:,:],0] % self.nTheta
         vertices[:,0,0] = \
             np.floor(self.segments[self.cell_key[:,0],0]/self.nTheta)
         vertices[:,1,0] = \
@@ -1618,8 +1633,6 @@ class ToroidalWireframe(object):
             np.floor(self.segments[self.cell_key[:,2],1]/self.nTheta)
         vertices[:,3,0] = \
             np.floor(self.segments[self.cell_key[:,2],0]/self.nTheta)
-        #vertices[:,4,0] = \
-        #    np.floor(self.segments[self.cell_key[:,3],0]/self.nTheta)
         vertices[:,0,1] = \
             self.segments[self.cell_key[:,0],0] % self.nTheta
         vertices[:,1,1] = \
@@ -1628,14 +1641,6 @@ class ToroidalWireframe(object):
             self.segments[self.cell_key[:,2],1] % self.nTheta
         vertices[:,3,1] = \
             self.segments[self.cell_key[:,2],0] % self.nTheta
-        #vertices[:,4,1] = \
-        #    self.segments[self.cell_key[:,3],0] % self.nTheta
-
-        #halfNTheta = int(self.nTheta/2)
-        #vertices[halfNTheta:self.nTheta,3,1] = \
-        #    self.nTheta + 1 - vertices[halfNTheta:self.nTheta,3,1]
-        #vertices[-halfNTheta:,1,1] = \
-        #    self.nTheta - 1 - vertices[-halfNTheta:,1,1]
 
         loop_segs = np.where(\
             np.logical_and(vertices[:,0,1] == self.nTheta-1, \
