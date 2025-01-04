@@ -13,15 +13,15 @@ from simsopt.util.permanent_magnet_helper_functions import make_qfm
 from simsopt.geo import (
     SurfaceRZFourier)
 
-mpi = MpiPartition(ngroups=8)
+mpi = MpiPartition(ngroups=4)
 comm = comm_world
 
 nphi = 128
-ntheta = 64
+ntheta = 128
 quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_henneberg.nc'
+input_name = 'wout_csx_wps_5.0.nc'
 filename = TEST_DIR / input_name
 s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 from simsopt import load
@@ -32,10 +32,10 @@ curves = [c.curve for c in coils]
 base_curves = curves[:len(curves) // 4]
 base_coils = coils[:len(coils) // 4]
 curves_TF = [c.curve for c in coils_TF]
-base_curves_TF = curves_TF[:len(curves_TF) // 4]
-base_coils_TF = coils_TF[:len(coils_TF) // 4]
+base_curves_TF = [curves_TF[0]] + [curves_TF[2]]
+base_coils_TF = [coils_TF[0]] + [coils_TF[2]]
 ncoils = len(base_curves)
-aa = 0.05
+aa = 0.03
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
 
@@ -114,10 +114,10 @@ from simsopt.util import proc0_print
 
 
 # set fieldline tracer parameters
-nfieldlines = 40
+nfieldlines = 60
 tmax_fl = 100000
 
-R0 = np.linspace(4.3, 6.75, nfieldlines)
+R0 = np.linspace(0.32, 0.415, nfieldlines)
 Z0 = np.zeros(nfieldlines)
 phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 print(rrange, zrange, phirange)

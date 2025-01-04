@@ -83,6 +83,7 @@ input_dir = "passive_coils_henneberg_continuation_ndofs3_TForder16_n7_lw1.00e-02
 #"passive_coils_henneberg_ndofs0_TForder20_n37_p1.50e+00_c2.00e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.30e+00_csw1.00e+02_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
 #"passive_coils_henneberg_ndofs7_TForder16_n23_p1.50e+00_c2.00e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.30e+00_csw1.00e+02_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
 coils = load(input_dir + "psc_coils.json")
+print('R = ', coils[0].curve.x[0])
 coils_TF = load(input_dir + "TF_coils.json")
 curves = [c.curve for c in coils]
 base_curves = curves[:len(curves) // 4]
@@ -157,7 +158,7 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 80
 LINK_WEIGHT = 1e4
-CC_THRESHOLD = 1.0
+CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e2
 CS_THRESHOLD = 1.3
 CS_WEIGHT = 1e2

@@ -76,7 +76,8 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     return point_data
 
 from simsopt import load
-input_dir = "passive_coils_QH_ndofs3_TForder4_n19_p1.50e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
+# input_dir = "passive_coils_QH_ndofs3_TForder4_n19_p1.50e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
+input_dir = "passive_coils_QH_continuation_ndofs7_TForder4_n19_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
 coils = load(input_dir + "psc_coils.json")
 coils_TF = load(input_dir + "TF_coils.json")
 curves = [c.curve for c in coils]
@@ -85,6 +86,30 @@ base_coils = coils[:len(coils) // 8]
 curves_TF = [c.curve for c in coils_TF]
 base_curves_TF = curves_TF[:len(curves_TF) // 8]
 base_coils_TF = coils_TF[:len(coils_TF) // 8]
+
+from simsopt.geo import CurveXYZFourier
+order = 20
+base_curves_temp = []
+for i in range(len(base_curves_TF)):
+    c_new = CurveXYZFourier(256, order)
+    print(c_new.local_dof_names, base_curves_TF[0].local_dof_names, len(c_new.local_dof_names), len(base_curves_TF[0].local_dof_names))
+    dofs = np.zeros(6 * (order + 1) - 3)
+    # dofs[0] = base_curves[0].x[0]
+    # dofs[-7:] = base_curves[0].x[1:]
+    for j, name in enumerate(c_new.local_dof_names):
+        for k, tfname in enumerate(base_curves_TF[i].local_dof_names):
+            if name == tfname:
+                dofs[j] = base_curves_TF[i].x[k]
+    c_new.set_dofs(dofs)
+    print(c_new.x, base_curves_TF[i].x)
+    base_curves_temp.append(c_new)
+base_curves_TF = base_curves_temp
+base_currents_TF = [c.current for c in base_coils_TF]
+coils_TF = coils_via_symmetries(base_curves_TF, base_currents_TF, 4, True)
+curves_TF = [c.curve for c in coils_TF]
+base_curves_TF = curves_TF[:len(curves_TF) // 8]
+base_coils_TF = coils_TF[:len(coils_TF) // 8]
+
 ncoils = len(base_curves)
 a_list = np.ones(len(base_curves)) * aa
 b_list = np.ones(len(base_curves)) * aa
@@ -109,14 +134,14 @@ psc_array = PSCArray(base_curves, coils_TF, eval_points, a_list, b_list, nfp=s.n
 # coils_TF = psc_array.coils_TF
 # curves = [c.curve for c in coils]
 
-# order = 0
-# base_curves = curves[:len(curves) // 8]
+order = 0
+base_curves = curves[:len(curves) // 8]
 # for i in range(len(base_curves)):
-#     # unfix orientations of each coil
-#     base_curves[i].unfix('x' + str(2 * order + 1))
-#     base_curves[i].unfix('x' + str(2 * order + 2))
-#     base_curves[i].unfix('x' + str(2 * order + 3))
-#     base_curves[i].unfix('x' + str(2 * order + 4))
+    # unfix orientations of each coil
+    # base_curves[i].unfix('x' + str(2 * order + 1))
+    # base_curves[i].unfix('x' + str(2 * order + 2))
+    # base_curves[i].unfix('x' + str(2 * order + 3))
+    # base_curves[i].unfix('x' + str(2 * order + 4))
 
     # unfix shape of each coil
     # for j in range(2 * order + 1):
@@ -150,9 +175,9 @@ a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 90
+LENGTH_TARGET = 100
 LINK_WEIGHT = 1e4
-CC_THRESHOLD = 0.8
+CC_THRESHOLD = 0.5
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1
@@ -161,11 +186,16 @@ FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values ar
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
+
+CURVATURE_THRESHOLD = 0.5
+MSC_THRESHOLD = 0.05
+CURVATURE_WEIGHT = 1e-1
+MSC_WEIGHT = 1e-5
 # Directory for output
-OUT_DIR = ("./passive_coils_QH_continuation_ndofs{:d}_TForder{:d}_n{:d}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
-           "_cct{:.2e}_ccw{:.2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
+OUT_DIR = ("./passive_coils_QH_continuation2_ndofs{:d}_TForder{:d}_n{:d}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
+           "_cct{:.2e}_ccw{:.2e}_curvw{:2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
     len(base_curves[0].x), base_curves_TF[0].order, ncoils, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT,
-    CC_THRESHOLD, CC_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,
+    CC_THRESHOLD, CC_WEIGHT, CURVATURE_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,
     FORCE_WEIGHT2.value,
     TORQUE_WEIGHT.value,
     TORQUE_WEIGHT2.value)
@@ -239,10 +269,6 @@ Jtorque = sum([LpCurveTorque(c, all_coils, regularization_rect(a_list[i], b_list
                              ) for i, c in enumerate(all_base_coils)])
 Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_coils])
 
-CURVATURE_THRESHOLD = 0.5
-MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-1
-MSC_WEIGHT = 1e-5
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
 
@@ -344,7 +370,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 2000
+MAXITER = 1000
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
