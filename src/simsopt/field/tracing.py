@@ -8,7 +8,8 @@ import numpy as np
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
 from ..field.boozermagneticfield import (BoozerMagneticField,
-                                         ShearAlfvenWave)
+                                         ShearAlfvenWave,
+                                         ShearAlfvenHarmonic)
 from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
 from .._core.types import RealArray
 
@@ -579,3 +580,170 @@ class ZetaStoppingCriterion(sopp.ZetaStoppingCriterion):
     Stop the iteration once the maximum number of iterations is reached.
     """
     pass
+    
+class Retrofit:
+    '''
+    This class stores deprecated versions of function calls
+    for backward compatibility.
+    '''
+    @staticmethod
+    def trace_particles_boozer_perturbed(
+        field: BoozerMagneticField,
+        stz_inits: RealArray,
+        parallel_speeds: RealArray,
+        mus: RealArray,
+        tmax=1e-4,
+        mass=ALPHA_PARTICLE_MASS,
+        charge=ALPHA_PARTICLE_CHARGE,
+        Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+        tol=1e-9,
+        abstol=None,
+        reltol=None,
+        comm=None,
+        zetas=[],
+        omegas=[],
+        vpars=[],
+        stopping_criteria=[],
+        dt_save=1e-6,
+        mode='gc_vac',
+        forget_exact_path=False,
+        zetas_stop=False,
+        vpars_stop=False,
+        Phihat=0,
+        omega=0,
+        Phim=0,
+        Phin=0,
+        phase=0,
+        axis=0
+    ):
+        r"""
+        Follow particles in a :class:`BoozerMagneticField`. This is modeled after
+        :func:`trace_particles`.
+    
+    
+        In the case of ``mod='gc_vac'`` (depreceated), we solve the guiding center equations under
+        the vacuum assumption, i.e :math:`G =` const. and :math:`I = 0`:
+    
+        .. math::
+    
+            \dot s = -|B|_{,\theta} m(v_{||}^2/|B| + \mu)/(q \psi_0)
+    
+            \dot \theta = |B|_{,s} m(v_{||}^2/|B| + \mu)/(q \psi_0) + \iota v_{||} |B|/G
+    
+            \dot \zeta = v_{||}|B|/G
+    
+            \dot v_{||} = -(\iota |B|_{,\theta} + |B|_{,\zeta})\mu |B|/G,
+    
+        where :math:`q` is the charge, :math:`m` is the mass, and :math:`v_\perp^2 = 2\mu|B|`.
+    
+        In the case of ``mode='gc'`` we solve the general guiding center equations
+        for an MHD equilibrium:
+    
+        .. math::
+    
+            \dot s = (I |B|_{,\zeta} - G |B|_{,\theta})m(v_{||}^2/|B| + \mu)/(\iota D \psi_0)
+    
+            \dot \theta = ((G |B|_{,\psi} - K |B|_{,\zeta}) m(v_{||}^2/|B| + \mu) - C v_{||} |B|)/(\iota D)
+    
+            \dot \zeta = (F v_{||} |B| - (|B|_{,\psi} I - |B|_{,\theta} K) m(\rho_{||}^2 |B| + \mu) )/(\iota D)
+    
+            \dot v_{||} = (C|B|_{,\theta} - F|B|_{,\zeta})\mu |B|/(\iota D)
+    
+            C = - m v_{||} K_{,\zeta}/|B|  - q \iota + m v_{||}G'/|B|
+    
+            F = - m v_{||} K_{,\theta}/|B| + q + m v_{||}I'/|B|
+    
+            D = (F G - C I))/\iota
+    
+        where primes indicate differentiation wrt :math:`\psi`. In the case ``mod='gc_noK'``,
+        the above equations are used with :math:`K=0`.
+    
+        Args:
+            field: The :class:`BoozerMagneticField` instance
+            stz_inits: A ``(nparticles, 3)`` array with the initial positions of
+                the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
+            parallel_speeds: A ``(nparticles, )`` array containing the speed in
+                direction of the B field for each particle.
+            tmax: integration time
+            mass: particle mass in kg, defaults to the mass of an alpha particle
+            charge: charge in Coulomb, defaults to the charge of an alpha particle
+            Ekin: kinetic energy in Joule, defaults to 3.52MeV
+            tol: tolerance for the adaptive ode solver
+            comm: MPI communicator to parallelize over
+            zetas: list of angles in [0, 2pi] for which intersection with the plane
+                corresponding to that zeta should be computed
+            stopping_criteria: list of stopping criteria, mostly used in
+                combination with the ``LevelsetStoppingCriterion``
+                accessed via :obj:`simsopt.field.tracing.SurfaceClassifier`.
+            mode: how to trace the particles. Options are
+                `gc`: general guiding center equations.
+                `gc_vac`: simplified guiding center equations for the case :math:`G` = const.,
+                :math:`I = 0`, and :math:`K = 0`.
+                `gc_noK`: simplified guiding center equations for the case :math:`K = 0`.
+            forget_exact_path: return only the first and last position of each
+                particle for the ``res_tys``. To be used when only res_zeta_hits is of
+                interest or one wants to reduce memory usage.
+    
+        Returns: 2 element tuple containing
+            - ``res_tys``:
+                A list of numpy arrays (one for each particle) describing the
+                solution over time. The numpy array is of shape (ntimesteps, M)
+                with M depending on the ``mode``.  Each row contains the time and
+                the state.  So for `mode='gc'` and `mode='gc_vac'` the state
+                consists of the :math:`(s,\theta,\zeta)` position and the parallel speed, hence
+                each row contains `[t, s, t, z, v_par]`.
+    
+            - ``res_zeta_hits``:
+                A list of numpy arrays (one for each particle) containing
+                information on each time the particle hits one of the zeta planes or
+                one of the stopping criteria. Each row of the array contains
+                `[time] + [idx] + state`, where `idx` tells us which of the `zetas`
+                or `stopping_criteria` was hit.  If `idx>=0`, then `zetas[int(idx)]`
+                was hit. If `idx<0`, then `stopping_criteria[int(-idx)-1]` was hit.
+        """
+        if mode == 'gc_vac':
+            raise ValueError(
+'''
+The mode='gc_vac' mode used to be a default option in the old version
+of trace_particles_boozer_perturbed; this option would treat equilibrium 
+field as vacuum field (i.e. I=0), even if it was not. 
+
+This function is depreseated, and code will only run with mode='gc_nok'.
+
+To get results for I=0, you can modify the field to have I=0 and run in 'gc_nok' mode.
+
+To use this function, set mode='gc_nok'.
+'''
+            )
+        perturbed_field = ShearAlfvenHarmonic(
+            Phihat_value_or_tuple=Phihat,
+            Phim=Phim,
+            Phin=Phin,
+            omega=omega,
+            phase=phase,
+            B0=field
+        )
+        
+        return trace_particles_boozer_perturbed(
+            perturbed_field=perturbed_field,
+            stz_inits=stz_inits,
+            parallel_speeds=parallel_speeds,
+            mus=mus,
+            tmax=tmax,
+            mass=mass,
+            charge=charge,
+            Ekin=Ekin,
+            tol=tol,
+            abstol=abstol,
+            reltol=reltol,
+            comm=comm,
+            zetas=zetas,
+            omegas=omegas,
+            vpars=vpars,
+            stopping_criteria=stopping_criteria,
+            dt_save=dt_save,
+            forget_exact_path=forget_exact_path,
+            zetas_stop=zetas_stop,
+            vpars_stop=vpars_stop,
+            axis=axis
+        )
