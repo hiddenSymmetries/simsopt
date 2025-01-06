@@ -80,7 +80,7 @@ class WireframeOptimizationTests(unittest.TestCase):
         amploop_tor.set('zs(1)', 2*surf_wf.get_zs(1,0))
 
         # Trivial optimization: no constraint requiring non-zero current
-        opt_params = {'reg_lambda': 1e-10}
+        opt_params = {'reg_W': 1e-10}
         res = optimize_wireframe(wf, 'rcls', opt_params, surf_plas, 
                                  verbose=False)
 

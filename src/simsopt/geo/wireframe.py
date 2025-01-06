@@ -874,8 +874,8 @@ class ToroidalWireframe(object):
         Return the matrices for the system of equations that define the linear
         equality constraints for the wireframe segment currents. The equations
         have the form
-            B*x = d,
-        where x is a column vector with the segment currents, B is a matrix of
+            C*x = d,
+        where x is a column vector with the segment currents, C is a matrix of
         coefficients for the segment currents in each equation, and d is a
         column vector of constant terms in each equation.
 
@@ -917,7 +917,7 @@ class ToroidalWireframe(object):
 
         Returns
         -------
-            constraints_B: 2d double array
+            constraints_C: 2d double array
                 The matrix B in the constraint equation
             constraints_d: 1d double array (column vector)
                 The column vector on the right-hand side of the constraint 
@@ -945,24 +945,24 @@ class ToroidalWireframe(object):
        
         # Construct the matrix and RHS from non-excluded constraints
 
-        constraints_B = np.ascontiguousarray( \
+        constraints_C = np.ascontiguousarray( \
             np.concatenate([self.constraints[key]['matrix_row'] \
                             for key in self.constraints \
                             if key not in excluded], axis=0))
 
         constraints_d = np.ascontiguousarray( \
-            np.zeros((constraints_B.shape[0], 1)))
+            np.zeros((constraints_C.shape[0], 1)))
 
         constraints_d[:] = [[self.constraints[key]['constant']] \
              for key in self.constraints.keys() if key not in excluded]
 
         if remove_constrained_segments:
 
-            return constraints_B[:,self.unconstrained_segments()], constraints_d
+            return constraints_C[:,self.unconstrained_segments()], constraints_d
 
         else:
 
-            return constraints_B, constraints_d
+            return constraints_C, constraints_d
 
     def find_inactive_nodes(self, assume_no_crossings=False):
         """
@@ -1161,11 +1161,11 @@ class ToroidalWireframe(object):
          
 
         # Set up the constraint matrices
-        constraints_B_full, constraints_d_full = \
+        constraints_C_full, constraints_d_full = \
             self.constraint_matrices(remove_redundancies=False)
 
         # Evaluate the residuals of the constraint equations
-        residuals = constraints_B_full @ x - constraints_d_full
+        residuals = constraints_C_full @ x - constraints_d_full
 
         # Total tolerance
         tol = atol + rtol*np.mean(np.abs(x))

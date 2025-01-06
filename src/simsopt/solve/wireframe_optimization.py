@@ -17,7 +17,7 @@ __all__ = ['optimize_wireframe', 'bnorm_obj_matrices', \
 
 def optimize_wireframe(wframe, algorithm, params, \
                        surf_plas=None, ext_field=None, area_weighted=True, \
-                       bn_plas_curr=None, Amat=None, cvec=None, verbose=True):
+                       bn_plas_curr=None, Amat=None, bvec=None, verbose=True):
     """
     Optimizes the segment currents in a wireframe class instance.
 
@@ -37,7 +37,7 @@ def optimize_wireframe(wframe, algorithm, params, \
       (2) The user supplies a pre-computed inductance matrix and vector with
           the required normal field on the plasma boundary, in which case it
           is not necessary to perform a field calculation before the least-
-          squares solve. In this mode, the parameters `Amat` and `cvec` must
+          squares solve. In this mode, the parameters `Amat` and `bvec` must
           be supplied.
 
     IMPORTANT: for Regularized Constrained Least Squares ('rcls') optimizations,
@@ -81,11 +81,11 @@ def optimize_wireframe(wframe, algorithm, params, \
         Amat: 2d double array (optional)
             Inductance matrix relating normal field at test points on the
             plasma boundary to currents in each segment. This can be supplied
-            along with `cvec` to skip the field calculation as describe in mode
+            along with `bvec` to skip the field calculation as describe in mode
             (2) above. Must have dimensions (nTestPoints, wFrame.nSegments), 
             where nTestPoints is the number of test points on the plasma 
             boundary. 
-        cvec: double array (optional)
+        bvec: double array (optional)
             Vector giving the target values of the normal field at each test
             point on the plasma boundary. This can be supplied along with `Amat`
             to skip the field calculation. Must have dimensions
@@ -96,7 +96,7 @@ def optimize_wireframe(wframe, algorithm, params, \
 
     Parameters for RCLS optimizations
     ---------------------------------
-        reg_lambda: scalar, 1d array, or 2d array
+        reg_W: scalar, 1d array, or 2d array
             Scalar, array, or matrix for regularization. If a 1d array, must
             have the same number of elements as wframe.nSegments. If a 2d 
             array, both dimensions must be equal to wframe.nSegments.
@@ -147,7 +147,7 @@ def optimize_wireframe(wframe, algorithm, params, \
             Amat: 2d double array
                 Inductance matrix used for optimization, area weighted if
                 requested
-            cvec: 1d double array (column vector)
+            bvec: 1d double array (column vector)
                 Target values of the normal field on the plasma boundary,
                 area weighted if requested
             wframe_field: WireframeField class instance
@@ -158,24 +158,24 @@ def optimize_wireframe(wframe, algorithm, params, \
             loop_count: integer array (1d columnn vector)
                 Signed number of current loops added to each loop in the 
                 wireframe
-            iter_history: integer array 
+            iter_hist: integer array 
                 Array with the iteration numbers of the data recorded in the 
                 history arrays, spaced at intervals specified by the `nHistory` 
                 input parameter. The first index is 0, corresponding to the 
                 initial guess `x_init`; the last is the final iteration. 
-            x_history: 2d double array
+            x_hist: 2d double array
                 Array with entries corresponding to the solution at the 
-                iterations given in `iter_history`
+                iterations given in `iter_hist`
                 iteration.
-            f_B_history: 1d double array (column vector)
+            f_B_hist: 1d double array (column vector)
                 Array with values of the f_B objective function at iterations
-                given in `iter_history`
-            f_S_history: 1d double array (column vector)
+                given in `iter_hist`
+            f_S_hist: 1d double array (column vector)
                 Array with values of the f_S objective function at iterations
-                given in `iter_history`
-            f_history: 1d double array (column vector)
+                given in `iter_hist`
+            f_hist: 1d double array (column vector)
                 Array with values of the f_S objective function at iterations
-                given in `iter_history`
+                given in `iter_hist`
     """
 
     if not isinstance(wframe, ToroidalWireframe):
@@ -189,38 +189,38 @@ def optimize_wireframe(wframe, algorithm, params, \
     # Mode 1: plasma boundary supplied; field calculation necessary
     if surf_plas is not None:
 
-        if Amat is not None or cvec is not None:
-            raise ValueError('Inputs `Amat` and `cvec` must not be supplied ' \
+        if Amat is not None or bvec is not None:
+            raise ValueError('Inputs `Amat` and `bvec` must not be supplied ' \
                              + 'if `surf_plas` is given')
 
         # Calculate the inductance matrix (A) and target field vector (c)
-        A, c = bnorm_obj_matrices(wframe, surf_plas, ext_field=ext_field, \
+        A, b = bnorm_obj_matrices(wframe, surf_plas, ext_field=ext_field, \
                    area_weighted=area_weighted, bn_plas_curr=bn_plas_curr, \
                    verbose=verbose)
 
     # Mode 2: Inductance matrix and target bnormal vector supplied
-    elif Amat is not None and cvec is not None:
+    elif Amat is not None and bvec is not None:
 
         if surf_plas is not None or ext_field is not None or \
            bn_plas_curr is not None:
-            raise ValueError('If `Amat` and `cvec` are provided, the ' \
+            raise ValueError('If `Amat` and `bvec` are provided, the ' \
                 + 'following parameters must not be provided: \n' \
                 + '    `surf_plas`, `ext_field`, `bn_plas_curr`')
 
         if verbose:
             print('    Using pre-calculated inductance and target field')
 
-        # Check Amat and cvec inputs
-        c = np.array(cvec).reshape((-1,1))
-        nTestPoints = len(c)
+        # Check Amat and bvec inputs
+        b = np.array(bvec).reshape((-1,1))
+        nTestPoints = len(b)
         A = np.array(Amat)
         if np.shape(A) != (nTestPoints, wframe.nSegments):
             raise ValueError('Input `Amat` has inconsistent dimensions with ' \
-                             'input `cvec` and/or `wframe`')
+                             'input `bvec` and/or `wframe`')
 
     else:
 
-        raise ValueError('`surf_plas` or `Amat` and `cvec` must be supplied')
+        raise ValueError('`surf_plas` or `Amat` and `bvec` must be supplied')
 
     results = dict()
 
@@ -228,17 +228,16 @@ def optimize_wireframe(wframe, algorithm, params, \
     if algorithm.lower() == 'rcls':
 
         # Check supplied parameters
-        if 'reg_lambda' not in params:
-            raise ValueError('params dictionary must contain ''reg_lambda'' ' +
+        if 'reg_W' not in params:
+            raise ValueError('params dictionary must contain ''reg_W'' ' 
                              + 'for the RCLS algorithm') 
         else:
-            reg_lambda = params['reg_lambda']
+            reg_W = params['reg_W']
 
         assume_no_crossings = False if 'assume_no_crossings' not in params \
             else params['assume_no_crossings']
 
-        x = rcls_wireframe(wframe, A, c, reg_lambda, assume_no_crossings, \
-                           verbose)
+        x = rcls_wireframe(wframe, A, b, reg_W, assume_no_crossings, verbose)
 
     elif algorithm.lower() == 'gsco':
 
@@ -267,7 +266,7 @@ def optimize_wireframe(wframe, algorithm, params, \
             else params['loop_count_init']
 
         x, loop_count, iter_hist, x_hist, f_B_hist, f_S_hist, f_hist = \
-            gsco_wireframe(wframe, A, c, params['lambda_S'], no_crossing, 
+            gsco_wireframe(wframe, A, b, params['lambda_S'], no_crossing, 
                            match_current, default_current, max_current, 
                            params['nIter'], params['nHistory'], 
                            no_new_coils=no_new_coils,
@@ -289,7 +288,7 @@ def optimize_wireframe(wframe, algorithm, params, \
     mf_wf = WireframeField(wframe)  # regenerate with solution currents
     results['x'] = x
     results['Amat'] = A
-    results['cvec'] = c
+    results['bvec'] = b
     results['wframe_field'] = mf_wf
 
     return results
@@ -331,7 +330,7 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
         Amat: 2d double array 
             Inductance matrix relating normal field at test points on the
             plasma boundary to currents in each segment.
-        cvec: double array (column vector)
+        bvec: double array (column vector)
             Vector giving the target values of the normal field at each test
             point on the plasma boundary.
     """
@@ -408,12 +407,11 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
         bn_plas_target = 0*area_weight
 
     # Calculate the target bnormal on the plasma boundary
-    c = np.ascontiguousarray(ext_norm_target + bn_plas_target)
+    b = np.ascontiguousarray(ext_norm_target + bn_plas_target)
 
-    return A, c
+    return A, b
 
-def rcls_wireframe(wframe, Amat, cvec, reg_lambda, assume_no_crossings, \
-                   verbose):
+def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
     """
     Performs a Regularized Constrained Least Squares optimization for the 
     segments in a wireframe.
@@ -427,10 +425,10 @@ def rcls_wireframe(wframe, Amat, cvec, reg_lambda, assume_no_crossings, \
         Amat: 2d double array 
             Inductance matrix relating normal field at test points on the
             plasma boundary to currents in each segment.
-        cvec: double array (column vector)
+        bvec: double array (column vector)
             Vector giving the target values of the normal field at each test
             point on the plasma boundary.
-        reg_lambda: scalar, 1d array, or 2d array
+        reg_W: scalar, 1d array, or 2d array
             Scalar, array, or matrix for regularization. If a 1d array, must
             have the same number of elements as wframe.nSegments. If a 2d 
             array, both dimensions must be equal to wframe.nSegments.
@@ -451,35 +449,35 @@ def rcls_wireframe(wframe, Amat, cvec, reg_lambda, assume_no_crossings, \
     # Obtain the constraint matrices
     if verbose:
         print('    Obtaining constraint matrices')
-    B, d = wframe.constraint_matrices(assume_no_crossings=assume_no_crossings, \
+    C, d = wframe.constraint_matrices(assume_no_crossings=assume_no_crossings, \
                                       remove_constrained_segments=True)
     free_segs = wframe.unconstrained_segments()
 
-    if np.shape(B)[0] >= len(free_segs):
+    if np.shape(C)[0] >= len(free_segs):
         raise ValueError('Least-squares problem has as many or more ' \
             + 'constraints than degrees\nof freedom. ' \
             + 'Wireframe may have redundant constraints or the problem is\n' \
             + 'over-constrained.')
 
-    # Trim constrained segments out of the A and T matrices
+    # Trim constrained segments out of the A and W matrices
     Afree = Amat[:,free_segs]
-    if np.isscalar(reg_lambda):
-        Tfree = reg_lambda
+    if np.isscalar(reg_W):
+        Wfree = reg_W
     else:
-        T = np.array(reg_lambda)
-        if T.ndim == 1:
-            Tfree = T[free_segs]
-        elif T.ndim == 2:
-            Tfree = T[free_segs,free_segs]
+        W = np.array(reg_W)
+        if W.ndim == 1:
+            Wfree = W[free_segs]
+        elif W.ndim == 2:
+            Wfree = W[free_segs,free_segs]
         else:
-            raise ValueError('Input reg_lambda must be a scalar, 1d array, ' \
+            raise ValueError('Input reg_W must be a scalar, 1d array, ' \
                              + 'or 2d array')
 
     # Solve the least-squares problem
     if verbose:
         print('    Solving the regularized constrained least-squares problem')
     t0 = time.time()
-    xfree = regularized_constrained_least_squares(Afree, cvec, Tfree, B, d)
+    xfree = regularized_constrained_least_squares(Afree, bvec, Wfree, C, d)
     t1 = time.time()
     if verbose:
         print('        Solver took %.2f seconds' % (t1 - t0))
@@ -511,7 +509,7 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
         Amat: contiguous 2d double array 
             Inductance matrix relating normal field at test points on the
             plasma boundary to currents in each segment.
-        cvec: contiguous double array (column vector)
+        bvec: contiguous double array (column vector)
             Vector giving the target values of the normal field at each test
             point on the plasma boundary.
         lambda_S: double
@@ -558,24 +556,24 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
             Solution (currents in each segment of the wirframe)
         loop_count: integer array (1d columnn vector)
             Signed number of current loops added to each loop in the wireframe
-        iter_history: integer array 
+        iter_hist: integer array 
             Array with the iteration numbers of the data recorded in the 
             history arrays, spaced at intervals specified by the `nHistory` 
             input parameter. The first index is 0, corresponding to the initial 
             guess `x_init`; the last is the final iteration. 
-        x_history: 2d double array
+        x_hist: 2d double array
             Array with entries corresponding to the solution at the iterations
-            given in `iter_history`
+            given in `iter_hist`
             iteration.
-        f_B_history: 1d double array (column vector)
+        f_B_hist: 1d double array (column vector)
             Array with values of the f_B objective function at iterations
-            given in `iter_history`
-        f_S_history: 1d double array (column vector)
+            given in `iter_hist`
+        f_S_hist: 1d double array (column vector)
             Array with values of the f_S objective function at iterations
-            given in `iter_history`
-        f_history: 1d double array (column vector)
+            given in `iter_hist`
+        f_hist: 1d double array (column vector)
             Array with values of the f_S objective function at iterations
-            given in `iter_history`
+            given in `iter_hist`
     """
 
     # Obtain data from the wireframe class instance
@@ -600,13 +598,12 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     if verbose:
         print('    Running GSCO')
     t0 = time.time()
-    x, loop_count, iter_history, x_history, \
-        f_B_history, f_S_history, f_history = \
-            sopp.GSCO(no_crossing, no_new_coils, match_current, A, c, 
-                      np.abs(default_current), np.abs(max_current), 
-                      np.abs(max_loop_count), loops, free_loops, 
-                      segments, connections, lambda_S, nIter, 
-                      x_init, loop_count_init, nHistory)
+    x, loop_count, iter_hist, x_hist, f_B_hist, f_S_hist, f_hist = \
+        sopp.GSCO(no_crossing, no_new_coils, match_current, A, c, 
+                  np.abs(default_current), np.abs(max_current), 
+                  np.abs(max_loop_count), loops, free_loops, segments, 
+                  connections, lambda_S, nIter, x_init, loop_count_init, 
+                  nHistory)
     t1 = time.time()
     if verbose:
         print('        GSCO took %.2d seconds' % (t1 - t0))
@@ -615,33 +612,32 @@ def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
     wframe.currents[:] = 0
     wframe.currents[:] = x.reshape((-1))[:]
 
-    return x, loop_count, iter_history, x_history, f_B_history, f_S_history, \
-           f_history
+    return x, loop_count, iter_hist, x_hist, f_B_hist, f_S_hist, f_hist
 
-def regularized_constrained_least_squares(A, c, T, B, d):
+def regularized_constrained_least_squares(A, b, W, C, d):
     """
     Solves a linear least squares problem with Tikhonov regularization
     subject to linear equality constraints on the variables.
 
     In other words, minimizes:
-        0.5 * ((A*x - c)**2 + (T*x)**2
+        0.5 * ((A*x - b)**2 + (W*x)**2
 
     such that: 
-        B*x = d
+        C*x = d
 
-    Here, A is the design matrix, c is the target vector, T is the 
-    regularization matrix (normally diagonal), and B and d contain the 
+    Here, A is the design matrix, b is the target vector, W is the 
+    regularization matrix (normally diagonal), and C and d contain the 
     coefficients and constants of the constraint equations, respectively.
 
     Parameters
     ----------
         A: array with dimensions m*n
             Design matrix
-        c: array with dimension m
+        b: array with dimension m
             Target vector
-        T: scalar, array with dimension n, or array with dimension n*n
+        W: scalar, array with dimension n, or array with dimension n*n
             Regularization matrix
-        B: array with dimension p*n
+        C: array with dimension p*n
             Coefficients of the solution vector elements in each of the p
             constraint equations. Must be full rank.
         d: array with dimension p
@@ -656,38 +652,38 @@ def regularized_constrained_least_squares(A, c, T, B, d):
 
     # Recast inputs as Numpy arrays
     Amat = np.array(A)
-    cvec = np.array(c).reshape((-1,1))
-    Btra = np.array(B).T # Transpose will be used for the calculations
+    bvec = np.array(b).reshape((-1,1))
+    Ctra = np.array(C).T # Transpose will be used for the calculations
     dvec = np.array(d).reshape((-1,1))
 
     # Check the inputs
     m, n = Amat.shape
-    if cvec.shape[0] != m:
-        raise ValueError('Number of elements in c must match rows in A')
-    n_B, p = Btra.shape
-    if n_B != n:
-        raise ValueError('A and B must have the same number of columns')
+    if bvec.shape[0] != m:
+        raise ValueError('Number of elements in b must match rows in A')
+    n_C, p = Ctra.shape
+    if n_C != n:
+        raise ValueError('A and C must have the same number of columns')
     if dvec.shape[0] != p:
-        raise ValueError('Number of elements in p must match rows in B')
+        raise ValueError('Number of elements in d must match rows in C')
 
-    if np.isscalar(T):
-        Tmat = T*np.eye(n)
+    if np.isscalar(W):
+        Wmat = W*np.eye(n)
     else:
-        Tmat = np.squeeze(T)
-        if len(Tmat.shape) == 1:
-            if Tmat.shape[0] != n:
-                raise ValueError('Number of elements in vector-form T ' \
+        Wmat = np.squeeze(W)
+        if len(Wmat.shape) == 1:
+            if Wmat.shape[0] != n:
+                raise ValueError('Number of elements in vector-form W ' \
                                  'must match columns in A')
-            Tmat = np.diag(Tmat)
-        elif len(Tmat.shape) == 2:
-            if Tmat.shape[0] != n or Tmat.shape[1] != n:
-                raise ValueError('Number of rows and columns in matrix-form T '\
+            Wmat = np.diag(Wmat)
+        elif len(Wmat.shape) == 2:
+            if Wmat.shape[0] != n or Wmat.shape[1] != n:
+                raise ValueError('Number of rows and columns in matrix-form W '\
                                  'must both equal number of columns in A')
         else:
-            raise ValueError('T must be a scalar, 1d array, or 2d array')
+            raise ValueError('W must be a scalar, 1d array, or 2d array')
             
     # Compute the QR factorization of the transpose of the constraint matrix
-    Qfull, Rtall = scipy.linalg.qr(Btra)
+    Qfull, Rtall = scipy.linalg.qr(Ctra)
     Q1mat = Qfull[:,:p]  # Orthonormal vectors in the constrained subspace
     Q2mat = Qfull[:,p:]  # Orthonormal vectors in the free subspace
     Rmat = Rtall[:p,:]
@@ -697,23 +693,23 @@ def regularized_constrained_least_squares(A, c, T, B, d):
     uvec = scipy.linalg.solve_triangular(Rmat.T, dvec, lower=True)
 
     # Form the LHS of the least-squares problem
-    AQ2mat = np.matmul(Amat, Q2mat)
-    TQ2mat = np.matmul(Tmat, Q2mat)
-    LHS = np.matmul(AQ2mat.T, AQ2mat) + np.matmul(TQ2mat.T, TQ2mat)
+    AQ2mat = Amat @ Q2mat
+    WQ2mat = Wmat @ Q2mat
+    LHS = AQ2mat.T @ AQ2mat + WQ2mat.T @ WQ2mat
 
     # Form the RHS of the least-squares problem
-    AQ1mat = np.matmul(Amat, Q1mat)   
-    TQ1mat = np.matmul(Tmat, Q1mat)
-    AQ1uvec = np.matmul(AQ1mat, uvec)
-    TQ1uvec = np.matmul(TQ1mat, uvec)
-    AQ2cvec = np.matmul(AQ2mat.T, cvec)
-    RHS = AQ2cvec - np.matmul(AQ2mat.T, AQ1uvec) - np.matmul(TQ2mat.T, TQ1uvec)
+    AQ1mat = Amat @ Q1mat
+    WQ1mat = Wmat @ Q1mat
+    AQ1uvec = AQ1mat @ uvec
+    WQ1uvec = WQ1mat @ uvec
+    AQ2bvec = AQ2mat.T @ bvec
+    RHS = AQ2bvec - AQ2mat.T @ AQ1uvec - WQ2mat.T @ WQ1uvec
 
     # SOLVE: least-squares equation for the "v" vector
     # vvec = coefficients for basis vectors in the unconstrained subspace
     vvec = scipy.linalg.lstsq(LHS, RHS)[0]
 
     # Transform from "Q" basis back to the basis of individual segment currents
-    return np.matmul(Qfull, np.concatenate((uvec, vvec), axis=0))
+    return Qfull @ np.concatenate((uvec, vvec), axis=0)
 
 
