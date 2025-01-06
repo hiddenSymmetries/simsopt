@@ -266,5 +266,10 @@ void init_shearalfvenwaves(py::module_ &m) {
       m, "ShearAlfvenWavesSuperposition")
       .def(py::init<std::shared_ptr<PyShearAlfvenWave>>(), py::arg("base_wave"))
       .def("add_wave", &PyShearAlfvenWavesSuperposition::add_wave)
-      .def("set_points", &PyShearAlfvenWavesSuperposition::set_points);
+      .def("set_points", &PyShearAlfvenWavesSuperposition::set_points)
+      .def_property_readonly(
+          "B0",
+          &PyShearAlfvenWavesSuperposition::get_B0,
+          "Returns the equilibrium field B0. Modification is not allowed."
+      );
 }

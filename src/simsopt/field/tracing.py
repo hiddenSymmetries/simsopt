@@ -167,6 +167,7 @@ def trace_particles_boozer_perturbed(
             vpars_stop=vpars_stop,
             forget_exact_path=forget_exact_path,
             axis=axis)
+        print(f'traced particle {i=} on {comm.rank=}')
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
