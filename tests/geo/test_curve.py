@@ -8,7 +8,7 @@ import numpy as np
 
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curverzfourier import CurveRZFourier, JaxCurveRZFourier
 from simsopt.geo.curveplanarfourier import CurvePlanarFourier
 from simsopt.geo.curvehelical import CurveHelical
 from simsopt.geo.curvexyzfouriersymmetries import CurveXYZFourierSymmetries
@@ -71,6 +71,8 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         curve = JaxCurveXYZFourier(x, order)
     elif curvetype == "CurveRZFourier":
         curve = CurveRZFourier(x, order, 2, True)
+    elif curvetype == "JaxCurveRZFourier":
+        curve = JaxCurveRZFourier(x, order, 2, True)
     elif curvetype == "CurveHelical":
         curve = CurveHelical(x, order, 5, 2, 1.0, 0.3)
     elif curvetype == "CurveHelicalInitx0":
@@ -91,7 +93,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
         dofs[1] = 1.
         dofs[2*order + 3] = 1.
         dofs[4*order + 3] = 1.
-    elif curvetype in ["CurveRZFourier", "CurvePlanarFourier"]:
+    elif curvetype in ["CurveRZFourier", "JaxCurveRZFourier", "CurvePlanarFourier"]:
         dofs[0] = 1.
         dofs[1] = 0.1
         dofs[order+1] = 0.1
@@ -136,7 +138,7 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1","CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "JaxCurveRZFourier", "CurvePlanarFourier", "CurveHelical", "CurveXYZFourierSymmetries1","CurveXYZFourierSymmetries2", "CurveXYZFourierSymmetries3", "CurveHelicalInitx0"]
     
     def get_curvexyzfouriersymmetries(self, stellsym=True, x=None, nfp=None, ntor=1):
         # returns a CurveXYZFourierSymmetries that is randomly perturbed
@@ -163,6 +165,42 @@ class Testing(unittest.TestCase):
 
         return curve
 
+    def test_jaxcurverzfourier(self):
+        """
+        Test the JaxCurveRZFourier class is equil to the CurveRZFourier.
+        """
+
+        # configuration parameters
+        quadpoints = 7
+        nfp = 2
+        curve = JaxCurveRZFourier(quadpoints, order=2, nfp=nfp, stellsym = True)
+        self.assertEqual(len(curve.dof_names), curve.num_dofs(),
+                         "JaxCurveRZFourier, incorrect number of dofs"
+                         )
+
+        curve = JaxCurveRZFourier(quadpoints, order=1, nfp=2, stellsym = True)
+        curve.set('rc(0)', 1.0)
+        curve.set('rc(1)', 0.1)
+        curve.set('zs(1)', 0.2)
+        curve_actual = CurveRZFourier(quadpoints, order=1, nfp=2, stellsym = True)
+        curve_actual.set('x0', 1.0)
+        curve_actual.set('x1', 0.1)
+        curve_actual.set('x2', 0.2)
+        # assert np.testing.assert_allclose(curve.gamma(), curve_actual.gamma(), atol=1e-14), "JaxCurveRZFourier gamma incorrect."
+        self.assertTrue(np.allclose(curve.gamma(), curve_actual.gamma(), atol=1e-14),
+                        "JaxCurveRZFourier gamma incorrect.")
+
+        curve = JaxCurveRZFourier(quadpoints, order=1, nfp=2, stellsym = False)
+        curve.set('rc(0)', 1.0)
+        curve.set('rs(1)', 0.3)
+        curve.set('zc(0)', 0.2)
+        curve_actual = CurveRZFourier(quadpoints, order=1, nfp=2, stellsym = False)
+        curve_actual.set('x0', 1.0)
+        curve_actual.set('x2', 0.3)
+        curve_actual.set('x3', 0.2)
+        self.assertTrue(np.allclose(curve.gamma(), curve_actual.gamma(), atol=1e-14),
+                        "JaxCurveRZFourier gamma incorrect.")
+        
     def test_curvexyzsymmetries_raisesexception(self):
         # test ensures that an exception is raised when you try and create a curvexyzfouriersymmetries
         # where gcd(ntor, nfp) != 1.

@@ -6,7 +6,7 @@ import numpy as np
 from simsopt.geo import parameters
 from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
-from simsopt.geo.curverzfourier import CurveRZFourier
+from simsopt.geo.curverzfourier import CurveRZFourier, JaxCurveRZFourier
 from simsopt.geo.curveobjectives import CurveLength, LpCurveCurvature, \
     LpCurveTorsion, CurveCurveDistance, ArclengthVariation, \
     MeanSquaredCurvature, CurveSurfaceDistance, LinkingNumber
@@ -21,7 +21,7 @@ parameters['jit'] = False
 
 class Testing(unittest.TestCase):
 
-    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier"]
+    curvetypes = ["CurveXYZFourier", "JaxCurveXYZFourier", "CurveRZFourier", "JaxCurveRZFourier"]
 
     def create_curve(self, curvetype, rotated):
         np.random.seed(1)
@@ -43,7 +43,7 @@ class Testing(unittest.TestCase):
             dofs[1] = 1.
             dofs[2*order+3] = 1.
             dofs[4*order+3] = 1.
-        elif curvetype in ["CurveRZFourier"]:
+        elif curvetype in ["CurveRZFourier", "JaxCurveRZFourier"]:
             dofs[0] = 1.
             dofs[1] = 0.1
             dofs[order+1] = 0.1

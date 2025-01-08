@@ -73,11 +73,15 @@ class CurveXYZFourierSymmetries(JaxCurve):
         \hat x(\theta) &= x_{c, 0} + \sum_{m=1}^{\text{order}} \left[ x_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  x_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
         \hat y(\theta) &= y_{c, 0} + \sum_{m=1}^{\text{order}} \left[ y_{c, m} \cos(2 \pi n_{\text{fp}} m \theta) +  y_{s, m} \sin(2 \pi n_{\text{fp}} m \theta) \right] \\
 
+    Example usage of JaxCurve's can be found in examples/2_Intermediate/jax_curve_example.py.
+
     Args:
-        quadpoints: number of grid points/resolution along the curve,
-        order:  how many Fourier harmonics to include in the Fourier representation,
-        nfp: discrete rotational symmetry number, 
-        stellsym: stellaratory symmetry if True, not stellarator symmetric otherwise,
+        quadpoints (int, array): Either the number of quadrature points or
+            1D-array of quadrature points. If quadpoints is an int, then the quadrature points
+            will be linearly space in [0,1] (not [0, 1/nfp]).
+        order (int): Maximum mode number of the expansion.
+        nfp (int): Number of field periods (discrete rotational symmetry).
+        stellsym (bool): True for stellarator symmetry, False otherwise.
         ntor: the number of times the curve wraps toroidally before biting its tail. Note,
               it is assumed that nfp and ntor are coprime.  If they are not coprime,
               then then the curve actually has nfp_new:=nfp // gcd(nfp, ntor),
