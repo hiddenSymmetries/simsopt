@@ -8,8 +8,15 @@ import json
 
 try:
     import requests
+
+    try:
+        import joblib 
+        memory = joblib.Memory('./quasr_request_cache', verbose=0)
+    except ImportError:
+        memory = None
 except ImportError:
     requests = None
+    memory = None
 
 from pathlib import Path
 THIS_DIR = (Path(__file__).parent).resolve()
@@ -223,8 +230,16 @@ def get_QUASR_data(ID, return_style='quasr-style'):
     id_str = f"{ID:07d}"
     # string to 7 digits
     url = f'https://quasr.flatironinstitute.org/simsopt_serials/{id_str[0:4]}/serial{id_str}.json'
+    
+    if memory:
+        requests_get = memory.cache(requests.get)
+    else:
+        requests_get = requests.get
+        if not hasattr(get_QUASR_data, "cache_warning_issued"):
+            print("Warning: Caching of requests to the QUASR database is available if joblib is installed.")
+            get_QUASR_data.cache_warning_issued = True
 
-    with requests.get(url) as r:
+    with requests_get(url) as r:
         if r.status_code == 200:
             print(f"Configuration with ID {ID:07} downloaded successfully")
             surfaces, coils = json.loads(r.content, cls=GSONDecoder)
