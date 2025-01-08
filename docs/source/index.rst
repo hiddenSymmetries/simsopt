@@ -87,6 +87,7 @@ optimization.  Others include `STELLOPT
    example_coils
    example_single_stage
    example_permanent_magnets
+   example_derivatives
 
 .. toctree::
    :maxdepth: 3
