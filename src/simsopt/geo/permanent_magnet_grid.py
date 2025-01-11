@@ -9,8 +9,7 @@ from .._core.descriptor import OneofStrings
 from . import Surface
 import simsoptpp as sopp
 
-from simsopt.field import Bcube as cub
-from simsopt.field import Bgrad as dcub
+import pandas as pd
 
 __all__ = ['PermanentMagnetGrid', 'ExactMagnetGrid']
 
@@ -459,6 +458,7 @@ class PermanentMagnetGrid:
         # where f_b is the metric for Bnormal on the plasma surface
         Ngrid = self.nphi * self.ntheta
         self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
+        print('ADIP SHAPE IS',self.A_obj.shape)
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
             self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid)
@@ -639,11 +639,12 @@ class ExactMagnetGrid:
             This variable must be specified to run the permanent
             magnet optimization.
     """
-    def __init__(self, plasma_boundary: Surface, Bn):
+    def __init__(self, plasma_boundary: Surface, Bn, coordinate_flag='cartesian'):
         Bn = np.array(Bn)
         if len(Bn.shape) != 2: 
             raise ValueError('Normal magnetic field surface data is incorrect shape.')
         self.Bn = Bn
+        self.coordinate_flag = coordinate_flag
         self.plasma_boundary = plasma_boundary.to_RZFourier()
         self.R0 = self.plasma_boundary.get_rc(0, 0)
         self.nphi = len(self.plasma_boundary.quadpoints_phi)
@@ -657,55 +658,85 @@ class ExactMagnetGrid:
         # Get (X, Y, Z) coordinates of the two boundaries
         self.xyz_inner = self.inner_toroidal_surface.gamma().reshape(-1, 3)
         self.xyz_outer = self.outer_toroidal_surface.gamma().reshape(-1, 3)
-        x_outer = self.xyz_outer[:, 0]
-        y_outer = self.xyz_outer[:, 1]
-        z_outer = self.xyz_outer[:, 2]
+        
+        if self.coordinate_flag != 'cylindrical':
+            x_outer = self.xyz_outer[:, 0]
+            y_outer = self.xyz_outer[:, 1]
+            z_outer = self.xyz_outer[:, 2]
 
-        x_max = np.max(x_outer)
-        x_min = np.min(x_outer)
-        y_max = np.max(y_outer)
-        y_min = np.min(y_outer)
-        z_max = np.max(z_outer)
-        z_min = np.min(z_outer)
-        z_max = max(z_max, abs(z_min))
-        print(x_min, x_max, y_min, y_max, z_min, z_max)
+            x_max = np.max(x_outer)
+            x_min = np.min(x_outer)
+            y_max = np.max(y_outer)
+            y_min = np.min(y_outer)
+            z_max = np.max(z_outer)
+            z_min = np.min(z_outer)
+            z_max = max(z_max, abs(z_min))
+            print(x_min, x_max, y_min, y_max, z_min, z_max)
 
-        # Initialize uniform grid
-        Nx = self.Nx
-        Ny = self.Ny
-        Nz = self.Nz
-        self.dx = (x_max - x_min) / (Nx - 1)
-        self.dy = (y_max - y_min) / (Ny - 1)
-        self.dz = 2 * z_max / (Nz - 1)
-        print('grid dimensions = ',Nx, Ny, Nz, 'grid spacing = ',self.dx, self.dy, self.dz)
+            # Initialize uniform grid
+            Nx = self.Nx
+            Ny = self.Ny
+            Nz = self.Nz
+            self.dx = (x_max - x_min) / (Nx - 1)
+            self.dy = (y_max - y_min) / (Ny - 1)
+            self.dz = 2 * z_max / (Nz - 1)
+            print(Nx, Ny, Nz, self.dx, self.dy, self.dz)
 
-        # Extra work below so that the stitching with the symmetries is done in
-        # such a way that the reflected cells are still dx and dy away from
-        # the old cells.
-        #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
-        #### and correctly be rotated to have the right symmetries
-        if (self.plasma_boundary.nfp % 2) == 0:
-            X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
-            Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+            # Extra work below so that the stitching with the symmetries is done in
+            # such a way that the reflected cells are still dx and dy away from
+            # the old cells.
+            #### Note that Cartesian cells can only do nfp = 2, 4, 6, ... 
+            #### and correctly be rotated to have the right symmetries
+            if (self.plasma_boundary.nfp % 2) == 0:
+                X = np.linspace(self.dx / 2.0, (x_max - x_min) + self.dx / 2.0, Nx, endpoint=True)
+                Y = np.linspace(self.dy / 2.0, (y_max - y_min) + self.dy / 2.0, Ny, endpoint=True)
+            else:
+                X = np.linspace(x_min, x_max, Nx, endpoint=True)
+                Y = np.linspace(y_min, y_max, Ny, endpoint=True)
+            Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+
+            # Make 3D mesh
+            X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
+            self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+
+            # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
+            if self.plasma_boundary.nfp == 4:
+                inds = []
+                for i in range(Nx):
+                    for j in range(Ny):
+                        for k in range(Nz):
+                            if X[i, j, k] < Y[i, j, k]:
+                                inds.append(int(i * Ny * Nz + j * Nz + k))
+                good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
+                self.xyz_uniform = self.xyz_uniform[good_inds, :]
         else:
-            X = np.linspace(x_min, x_max, Nx, endpoint=True)
-            Y = np.linspace(y_min, y_max, Ny, endpoint=True)
-        Z = np.linspace(-z_max, z_max, Nz, endpoint=True)
+            # Get (R, Z) coordinates of the outer boundary
+            rphiz_outer = np.array(
+                [np.sqrt(self.xyz_outer[:, 0] ** 2 + self.xyz_outer[:, 1] ** 2), 
+                 np.arctan2(self.xyz_outer[:, 1], self.xyz_outer[:, 0]),
+                 self.xyz_outer[:, 2]]
+            ).T
 
-        # Make 3D mesh
-        X, Y, Z = np.meshgrid(X, Y, Z, indexing='ij')
-        self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(Nx * Ny * Nz, 3)
+            r_max = np.max(rphiz_outer[:, 0])
+            r_min = np.min(rphiz_outer[:, 0])
+            z_max = np.max(rphiz_outer[:, 2])
+            z_min = np.min(rphiz_outer[:, 2])
 
-        # Extra work for nfp = 4 to chop off half of the originally nfp = 2 uniform grid
-        if self.plasma_boundary.nfp == 4:
-            inds = []
-            for i in range(Nx):
-                for j in range(Ny):
-                    for k in range(Nz):
-                        if X[i, j, k] < Y[i, j, k]:
-                            inds.append(int(i * Ny * Nz + j * Nz + k))
-            good_inds = np.setdiff1d(np.arange(Nx * Ny * Nz), inds)
-            self.xyz_uniform = self.xyz_uniform[good_inds, :]
+            # Initialize uniform grid of curved, square bricks
+            Nr = int((r_max - r_min) / self.dr)
+            self.Nr = Nr
+            self.dz = self.dr
+            Nz = int((z_max - z_min) / self.dz)
+            self.Nz = Nz
+            phi = 2 * np.pi * np.copy(self.plasma_boundary.quadpoints_phi)
+            R = np.linspace(r_min, r_max, Nr)
+            Z = np.linspace(z_min, z_max, Nz)
+
+            # Make 3D mesh
+            R, Phi, Z = np.meshgrid(R, phi, Z, indexing='ij')
+            X = R * np.cos(Phi)
+            Y = R * np.sin(Phi)
+            self.xyz_uniform = np.transpose(np.array([X, Y, Z]), [1, 2, 3, 0]).reshape(-1, 3)
     
         # Save uniform grid before we start chopping off parts.
         contig = np.ascontiguousarray
@@ -865,14 +896,21 @@ class ExactMagnetGrid:
         pm_grid: An initialized ExactMagnetGrid class object.
 
         """
+        coordinate_flag = kwargs.pop("coordinate_flag", "cartesian")
         pol_vectors = kwargs.pop("pol_vectors", None)
         m_maxima = kwargs.pop("m_maxima", None)
-        pm_grid = cls(plasma_boundary, Bn) 
+        pm_grid = cls(plasma_boundary, Bn, coordinate_flag) 
         Nx = kwargs.pop("Nx", 10)
         Ny = kwargs.pop("Ny", Nx)
         Nz = kwargs.pop("Nz", Nx)
+        dr = kwargs.pop("dr", 0.1)
+        dz = kwargs.pop("dz", 0.1)
         if Nx <= 0 or Ny <= 0 or Nz <= 0:
             raise ValueError('Nx, Ny, and Nz should be positive integers')
+        if dr <= 0 or dz <= 0:
+            raise ValueError('dr and dz should be positive floats')
+        pm_grid.dr = dr # only used for cylindrical coordinates
+        pm_grid.dz = dz
         pm_grid.Nx = Nx
         pm_grid.Ny = Ny
         pm_grid.Nz = Nz
@@ -895,7 +933,6 @@ class ExactMagnetGrid:
         #     contig(pm_grid.xyz_uniform), 
         #     contig(pm_grid.xyz_inner), 
         #     contig(pm_grid.xyz_outer))
-        
         pm_grid.pm_grid_xyz = sopp.define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
             contig(normal_inner), 
             contig(normal_outer), 
@@ -904,17 +941,20 @@ class ExactMagnetGrid:
             contig(pm_grid.xyz_outer))
         inds = np.ravel(np.logical_not(np.all(pm_grid.pm_grid_xyz == 0.0, axis=-1)))
         pm_grid.pm_grid_xyz = pm_grid.pm_grid_xyz[inds, :]
-        print('GRID LOOKS LIKE',pm_grid.pm_grid_xyz)
+        print('DIPOLE GRID LOOKS LIKE ',pm_grid.pm_grid_xyz)
         pm_grid.ndipoles = pm_grid.pm_grid_xyz.shape[0]
         pm_grid.pm_phi = np.arctan2(pm_grid.pm_grid_xyz[:, 1], pm_grid.pm_grid_xyz[:, 0])
-        cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles)     
+        if coordinate_flag == 'cylindrical':
+            cell_vol = np.sqrt(pm_grid.pm_grid_xyz[:, 0] ** 2 + pm_grid.pm_grid_xyz[:, 1] ** 2) * pm_grid.dr * pm_grid.dz * 2 * np.pi / (pm_grid.nphi * pm_grid.plasma_boundary.nfp * 2)
+        else:
+            cell_vol = pm_grid.dx * pm_grid.dy * pm_grid.dz * np.ones(pm_grid.ndipoles)     
         pointsToVTK('dipole_grid',
                     contig(pm_grid.pm_grid_xyz[:, 0]),
                     contig(pm_grid.pm_grid_xyz[:, 1]),
                     contig(pm_grid.pm_grid_xyz[:, 2]))
-    
+        
         pm_grid.dims = np.array([pm_grid.dx, pm_grid.dy, pm_grid.dz])
-        print('MAG DIMS = ',pm_grid.dims)
+        print('DIPOLE DIMS = ',pm_grid.dims)
         if m_maxima is None:
             B_max = 1.465  # value used in FAMUS runs for MUSE
             mu0 = 4 * np.pi * 1e-7
@@ -934,18 +974,97 @@ class ExactMagnetGrid:
                 raise ValueError('pol vectors must be a 3D array.')
             elif pol_vectors.shape[2] != 3:
                 raise ValueError('Third dimension of `pol_vectors` array must be 3')
+            elif pm_grid.coordinate_flag != 'cartesian':
+                raise ValueError('pol_vectors argument can only be used with coordinate_flag = cartesian currently')
             elif pol_vectors.shape[0] != pm_grid.ndipoles:
                 raise ValueError('First dimension of `pol_vectors` array '
                                  'must equal the number of dipoles')
+
+        pm_grid.pol_vectors = pol_vectors
+        pm_grid._optimization_setup()
+        return pm_grid
+    
+    def geo_setup_from_magpie(cls, plasma_boundary, Bn, centroids_file, corners_file, **kwargs): # so far only setup for qhex
+        
+        downsample = kwargs.pop("downsample", 1)
+        pol_vectors = kwargs.pop("pol_vectors", None)
+        m_maxima = kwargs.pop("m_maxima", None)
+
+        pm_grid = cls(plasma_boundary, Bn)
+
+        # GET CORNERS
+        all_corners = pd.read_csv(corners_file).values
+        pm_grid.corners = np.array(list(map(get_corners, all_corners)))
+
+        # GET CENTROIDS
+        all_centroids = pd.read_csv(centroids_file, skiprows=3).values
+        pm_grid.pm_grid_xyz = np.array(list(map(get_centroids, all_centroids)))
+        print('GRID LOOKS LIKE',pm_grid.pm_grid_xyz)
+
+        pm_grid.centroids_filename = centroids_file
+        pm_grid.corners_filename = corners_file
+        ox, oy, oz, Ic, M0s = np.loadtxt(centroids_file, skiprows=3, usecols=[3, 4, 5, 6, 7],
+                                         delimiter=',', unpack=True)
+
+        # Downsample the resolution as needed 
+        inds_total = np.arange(len(ox))
+        inds_downsampled = inds_total[::downsample]
+
+        # also remove any dipoles where the diagnostic ports should be
+        nonzero_inds = np.intersect1d(np.ravel(np.where(Ic == 1.0)), inds_downsampled) 
+        pm_grid.Ic_inds = nonzero_inds
+        ox = ox[nonzero_inds]
+        oy = oy[nonzero_inds]
+        oz = oz[nonzero_inds]
+        premade_pm_grid = np.array([ox, oy, oz]).T
+        pm_grid.ndipoles = premade_pm_grid.shape[0]
+
+        # Not normalized to 1 like quadpoints_phi!
+        pm_grid.pm_phi = np.arctan2(premade_pm_grid[:, 1], premade_pm_grid[:, 0])
+        uniq_phi, counts_phi = np.unique(pm_grid.pm_phi.round(decimals=6), return_counts=True)
+        pm_grid.pm_nphi = len(uniq_phi)
+        pm_grid.pm_uniq_phi = uniq_phi
+        pm_grid.inds = counts_phi
+        for i in reversed(range(1, pm_grid.pm_nphi)):
+            for j in range(0, i):
+                pm_grid.inds[i] += pm_grid.inds[j]
+        pm_grid.pm_grid_xyz = premade_pm_grid
+
+        if m_maxima is None:
+            B_max = 1.465  # value used in FAMUS runs for MUSE
+            mu0 = 4 * np.pi * 1e-7
+            cell_vol = M0s * mu0 / B_max
+            print('mag vol = ', cell_vol[0])
+            
+            # Assumes that the magnets are all the same shape, and are perfect cubes!
+            cube_root_vol = np.cbrt(cell_vol[0]) # Assume FAMUS magnets are cubes
+            pm_grid.dims = np.array([cube_root_vol, cube_root_vol, cube_root_vol])
+            print('MAG DIMS = ',pm_grid.dims)
+            pm_grid.m_maxima = B_max * cell_vol[nonzero_inds] / mu0
         else:
-            pol_vectors = np.zeros((pm_grid.ndipoles, 3, 3))
-            pol_vectors[:, 0, 0] = 1.0
-            pol_vectors[:, 1, 1] = 1.0
-            pol_vectors[:, 2, 2] = 1.0
+            if isinstance(m_maxima, float):
+                pm_grid.m_maxima = m_maxima * np.ones(pm_grid.ndipoles)
+            else:
+                pm_grid.m_maxima = m_maxima
+            if len(pm_grid.m_maxima) != pm_grid.ndipoles:
+                raise ValueError('m_maxima passed to geo_setup_from_famus but with '
+                                 'the wrong shape, i.e. != number of dipoles.')
+
+        if pol_vectors is not None:
+            pol_vectors = np.array(pol_vectors)
+            if len(pol_vectors.shape) != 3:
+                raise ValueError('pol vectors must be a 3D array.')
+            elif pol_vectors.shape[2] != 3:
+                raise ValueError('Third dimension of `pol_vectors` array '
+                                 'must be 3')
+            elif pol_vectors.shape[0] != pm_grid.ndipoles:
+                raise ValueError('First dimension of `pol_vectors` array '
+                                 'must equal the number of dipoles')
         
         pm_grid.pol_vectors = pol_vectors
         pm_grid._optimization_setup()
         return pm_grid
+
     
     def _optimization_setup(self):
 
@@ -978,6 +1097,7 @@ class ExactMagnetGrid:
         # where f_b is the metric for Bnormal on the plasma surface
         Ngrid = self.nphi * self.ntheta
         self.A_obj = self.A_obj.reshape(self.nphi * self.ntheta, self.ndipoles * 3)
+        print('ACUBE SHAPE IS ',self.A_obj.shape)
         Nnorms = np.ravel(np.sqrt(np.sum(self.plasma_boundary.normal() ** 2, axis=-1)))
         for i in range(self.A_obj.shape[0]):
             self.A_obj[i, :] = self.A_obj[i, :] * np.sqrt(Nnorms[i] / Ngrid)
@@ -1226,3 +1346,9 @@ def define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(
             final_grid[i, 2] = Z
 
     return final_grid
+
+def get_corners(row, num_corners = 8):
+            return row.reshape(num_corners, 3)
+
+def get_centroids(row):
+            return row[3:6]
