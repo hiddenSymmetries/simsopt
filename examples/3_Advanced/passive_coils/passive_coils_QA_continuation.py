@@ -157,9 +157,9 @@ a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 130
+LENGTH_TARGET = 135
 LINK_WEIGHT = 1e4
-CC_THRESHOLD = 0.8
+CC_THRESHOLD = 1.0
 CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
 CS_WEIGHT = 1
@@ -248,7 +248,7 @@ Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-3
+CURVATURE_WEIGHT = 1e-5
 MSC_WEIGHT = 1e-8
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
@@ -411,3 +411,7 @@ from simsopt import save
 save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils.json')
 save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils.json')
 print(OUT_DIR)
+Jls = [CurveLength(c) for c in base_curves]
+print(np.ravel(np.array([J.J() for J in Jls])))
+print(np.ravel(np.array([J.J() for J in Jls])) / (2 * np.pi))
+

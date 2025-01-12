@@ -73,7 +73,7 @@ def initialize_coils_QH(TEST_DIR, s):
     base_curves = create_equally_spaced_curves(
         ncoils, s.nfp, stellsym=True,
         R0=R0, R1=R1, order=order, numquadpoints=256,
-        jax_flag=False,
+        jax_flag=True,
     )
 
     base_currents = [(Current(total_current / ncoils * 1e-7) * 1e7) for _ in range(ncoils - 1)]
@@ -108,7 +108,7 @@ Ny = Nx
 Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=True,
 )
 import warnings
 
