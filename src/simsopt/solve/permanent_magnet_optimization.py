@@ -376,7 +376,15 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     mmax_vec = contig(np.array([mmax, mmax, mmax]).T.reshape(pm_opt.ndipoles * 3))
     A_obj = pm_opt.A_obj * mmax_vec
 
-    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec') and 'dipole_grid_xyz' not in kwargs:
+    # if algorithm == 'baseline_shadow' and 'A_shadow' not in kwargs:
+    #     raise KeyError('must provide a shadow grid to use baseline_shadow algorithm')
+
+    # shadow_grid = kwargs.pop("A_shadow", None) # how can I be sure locations are even the same and that they are indexed in the same way?
+    # if shadow_grid != None:
+    #     A_shad = shadow_grid * mmax_vec
+    print('KWARGS = ',kwargs)
+
+    if (algorithm != 'baseline' and algorithm != 'mutual_coherence' and algorithm != 'ArbVec' and algorithm != 'baseline_shadow') and 'dipole_grid_xyz' not in kwargs:
         raise ValueError('GPMO variants require dipole_grid_xyz to be defined.')
 
     # Set the L2 regularization if it is included in the kwargs 
@@ -406,6 +414,15 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
             normal_norms=Nnorms,
             **kwargs
         )
+    # elif algorithm == 'baseline_shadow':
+    #     algorithm_history, Bn_history, m_history, shadowAlg_history, BnShadow_history, m = sopp.GPMO_baseline_shadow(
+    #         A_obj=contig(A_obj.T),
+    #         b_obj=contig(pm_opt.b_obj),
+    #         mmax=np.sqrt(reg_l2)*mmax_vec,
+    #         normal_norms=Nnorms,
+    #         A_shadow = contig(A_shad.T),
+    #         **kwargs
+    #     )
     elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(
             A_obj=contig(A_obj.T),
@@ -472,8 +489,18 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         m_history[:, :, i] = m_history[:, :, i] * (mmax_vec.reshape(pm_opt.ndipoles, 3))
     errors = algorithm_history[algorithm_history != 0]
     Bn_errors = Bn_history[Bn_history != 0]
+    
+    # if algorithm == 'baseline_shadow':
+    #     shad_errors = shadowAlg_history[shadowAlg_history != 0]
+    #     BnShad_errors = BnShadow_history[BnShadow_history != 0]
 
     # note m = m_proxy for GPMO because this is not using relax-and-split
     pm_opt.m = np.ravel(m)
+    print('m according to GPMO = ',pm_opt.m)
     pm_opt.m_proxy = pm_opt.m
+
+    # if algorithm == 'baseline_shadow':
+    #     return errors, Bn_errors, shad_errors, BnShad_errors, m_history
+
+    # else:
     return errors, Bn_errors, m_history

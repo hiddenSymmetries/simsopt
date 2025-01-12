@@ -43,39 +43,20 @@ void iterate_over_corners(int i, int j, int k, \
     double epsy = 0.0;
     double epsz = 0.0;
     if (rijk == std::abs(x) && x < 0) {
-        epsx = 1e-30;
-        // std::cout << "Begin list: " << std::endl;
-        // std::cout << i << ", " << j << ", " << k << std::endl;
-        // std::cout << x << std::endl;
-        // std::cout << y << std::endl;
-        // std::cout << z << std::endl;
+        epsx = 1e-20;
     }
     if (rijk == std::abs(y) && x < 0) {
-        epsy = 1e-30;
-        // std::cout << "Begin list: " << std::endl;
-        // std::cout << i << ", " << j << ", " << k << std::endl;
-        // std::cout << x << std::endl;
-        // std::cout << y << std::endl;
-        // std::cout << z << std::endl;
+        epsx = 1e-20;
     }
     if (rijk == std::abs(z) && x < 0) {
-        epsz = 1e-30;
-        // std::cout << "Begin list: " << std::endl;
-        // std::cout << i << ", " << j << ", " << k << std::endl;
-        // std::cout << x << std::endl;
-        // std::cout << y << std::endl;
-        // std::cout << z << std::endl;
+        epsz = 1e-20;
     }
-
     double atan_xy = summa * std::atan2(y * x, z * rijk);
     double atan_xz = summa * std::atan2(z * x, y * rijk);
     double atan_yz = summa * std::atan2(y * z, x * rijk);
     double log_x = summa * std::log(x + rijk + epsx);
     double log_y = summa * std::log(y + rijk + epsy);
     double log_z = summa * std::log(z + rijk + epsz);
-    // double log_x = summa * std::log(x + rijk);
-    // double log_y = summa * std::log(y + rijk);
-    // double log_z = summa * std::log(z + rijk);
     h00 += atan_xy + atan_xz;
     h01 += log_z;
     h02 += log_y;
@@ -97,14 +78,6 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
     double Y1 = ry_loc - dimy / 2.0;
     double Z0 = rz_loc + dimz / 2.0;
     double Z1 = rz_loc - dimz / 2.0;
-    double eps = 1e-12;
-    if ((std::abs(X0 - X1) < eps) || (std::abs(Y0 - Y1) < eps) || (std::abs(Z0 - Z1) < eps)) {
-        std::cout << dimx << ", " << dimy << ", " << dimz << std::endl;
-        std::cout << rx_loc << ", " << ry_loc << ", " << rz_loc << std::endl;
-        std::cout << X0 << ", " << X1 << std::endl;
-        std::cout << Y0 << ", " << Y1 << std::endl;
-        std::cout << Z0 << ", " << Z1 << std::endl;
-    }
     double H00 = 0.0;
     double H01 = 0.0;
     double H02 = 0.0;
@@ -145,7 +118,6 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
     double* phiThetas_ptr = &(phiThetas(0, 0));
     double* M_ptr = &(M(0, 0));
     Array B = xt::zeros<double>({N, 3});
-    // Array Bloc = xt::zeros<double>({3})
     #pragma omp parallel for schedule(static)
     for (int n = 0; n < N; ++n) {
         double x = points_ptr[3 * n];
@@ -183,7 +155,8 @@ Array B_direct(Array& points, Array& magPos, Array& M, Array& dims, Array& phiTh
             B(n, 2) += p02 * Bx_loc + p12 * By_loc + p22 * Bz_loc;
         }
     }
-    return B * mu0;
+    double vol = dimx * dimy * dimz;
+    return B * mu0 / vol;
 }
 
 Array Bn_direct(Array& points, Array& magPos, Array& M, Array& norms, Array& dims, Array& phiThetas) {

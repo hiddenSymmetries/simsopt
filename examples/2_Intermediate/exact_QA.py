@@ -21,13 +21,15 @@ if in_github_actions:
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    Nx = 20 # bricks with radial extent 2 cm
+    Nx = 64 # bricks with radial extent ??? cm
 
 coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
+poff = 0.0  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
+
+max_nMagnets = 5000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -41,7 +43,7 @@ s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
 
 # Make the output directory
-out_str = "exact_QA"
+out_str = f"exact_QA_nphi{nphi}_maxIter{max_nMagnets}"
 out_dir = Path(out_str)
 out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -80,18 +82,35 @@ bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-kwargs_geo = {"Nx": Nx, "Ny": Nx * 2, "Nz": Nx * 3}  
+kwargs_geo = {"Nx": Nx} #, "Ny": Nx * 2, "Nz": Nx * 3}  
 pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
-pm_opt._pms_to_vtk(out_str + "/magnet_geometry")
+
+print(pm_opt.phiThetas)
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 5000
+# nIter_max = 50000
+# max_nMagnets = 5000
 algorithm = 'baseline'
-nHistory = 20
-kwargs['K'] = nIter_max
+# algorithm = 'ArbVec_backtracking'
+# nBacktracking = 200 
+# nAdjacent = 10
+# thresh_angle = np.pi  # / np.sqrt(2)
+# angle = int(thresh_angle * 180 / np.pi)
+kwargs['K'] = max_nMagnets
+# if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+#     kwargs['backtracking'] = nBacktracking
+#     kwargs['Nadjacent'] = nAdjacent
+#     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
+#     if algorithm == 'ArbVec_backtracking':
+#         kwargs['thresh_angle'] = thresh_angle
+#         kwargs['max_nMagnets'] = max_nMagnets
+    # Below line required for the backtracking to be backwards 
+    # compatible with the PermanentMagnetGrid class
+    # pm_opt.coordinate_flag = 'cartesian'  
+nHistory = 100
 kwargs['nhistory'] = nHistory
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
@@ -103,17 +122,20 @@ M_max = B_max / mu0
 magnets = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))))
+
+print('magnets have dimensions ',pm_opt.dims, ' with volume v = ',np.prod(pm_opt.dims))
+
 b_magnet = ExactField(
     pm_opt.pm_grid_xyz,
     pm_opt.m,
     pm_opt.dims,
-    pm_opt.get_phiThetas,
+    pm_opt.phiThetas,
     stellsym=s_plot.stellsym,
     nfp=s_plot.nfp,
     m_maxima=pm_opt.m_maxima,
 )
 b_magnet.set_points(s_plot.gamma().reshape((-1, 3)))
-b_magnet._toVTK(out_dir / "magnet_fields")
+b_magnet._toVTK(out_dir / "magnet_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
 # Print optimized metrics
 print("Total fB = ",
