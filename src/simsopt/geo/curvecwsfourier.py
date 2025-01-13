@@ -58,6 +58,7 @@ def gamma_2d(cdofs, qpts, order, G:int=0, H:int=0):
     out = jnp.zeros((qpts.size, 2))
     out = out.at[:,0].set(phi)
     out = out.at[:,1].set(theta)
+
     return out
 
 def vjp_contraction_1d(mat, v):
@@ -110,9 +111,25 @@ class CurveCWSFourierCPP( Curve, sopp.Curve ):
         self.dgammadashdash_2d_by_dcoeff_jax = jit(lambda cdofs: jacfwd(self.gammadashdash_2d_jax)(cdofs))
         self.dgammadashdash_2d_by_dcoeff_vjp = jit(lambda cdofs, v: vjp(self.gammadashdash_2d_jax, cdofs)[1](v)[0])
 
-        # Curvature, torsion - no need
 
-        # Normal to the surface along the curve... and its derivatives
+        # determine sign for normal
+        nr = self.unit_normal_impl(np.array([0]), np.array([0])) #theta=phi=0
+        if nr[0,0]>0:
+            self.sgn_r = 1
+            nz = self.unit_normal_impl(np.array([0]), np.array([0.25])) #this is on top of the device
+            if nz[0,2]>0:
+                self.sgn_z = 1
+            else:
+                self.sgn_z = -1
+        else:
+            self.sgn_r = -1
+            nz = self.unit_normal_impl(np.array([0]), np.array([-0.25])) #this is on top of the device
+            if nz[0,2]>0:
+                self.sgn_z = 1
+            else:
+                self.sgn_z = -1
+
+        
 
 
     def set_dofs(self, dofs):
@@ -404,14 +421,15 @@ class CurveCWSFourierCPP( Curve, sopp.Curve ):
     # NORMAL
     # ------
     def unit_normal(self):
-        return self.unit_normal_impl(self.get_dofs())
+        g2 = self.gamma_2d()
+        return self.unit_normal_impl(g2[:,0], g2[:,1])
     
-    def unit_normal_impl(self, cdofs):
-        g2 = self.gamma_2d_jax(cdofs)
-        dxdtheta = np.zeros((self.numquadpoints,3))
-        dxdphi = np.zeros((self.numquadpoints,3))
-        self.surf.gammadash1_lin(dxdphi, g2[:,0], g2[:,1])
-        self.surf.gammadash2_lin(dxdtheta, g2[:,0], g2[:,1])
+    def unit_normal_impl(self, phi, theta):
+        npts = phi.size
+        dxdtheta = np.zeros((npts,3))
+        dxdphi = np.zeros((npts,3))
+        self.surf.gammadash1_lin(dxdphi,  phi, theta)
+        self.surf.gammadash2_lin(dxdtheta,  phi, theta)
 
         normal = np.cross(dxdphi, dxdtheta)
         unit_normal = normal / np.linalg.norm(normal, axis=1 )[:,None]
@@ -449,20 +467,20 @@ class CurveCWSFourierCPP( Curve, sopp.Curve ):
         return dunit_normal_by_dcoef
 
     def zfactor(self):
-        return self.unit_normal()[:,2]
+        return self.sgn_z * self.unit_normal()[:,2]
 
     def dzfactor_by_dcoeff(self):
-        return self.dunit_normal_by_dcoeff()[:,2,:]
+        return self.sgn_z * self.dunit_normal_by_dcoeff()[:,2,:]
         
     def dzfactor_by_dcoeff_vjp(self,v):
         return Derivative({self: vjp_contraction_1d(self.dzfactor_by_dcoeff(), v)})
 
     def rfactor(self):
         g2 = self.gamma_2d()
-        unit_normal = self.unit_normal()
+        unit_normal = self.unit_normal() # negative sign to point outside the surface...
 
         # Now project in the radial direction...
-        return unit_normal[:,0]*np.cos(g2[:,0]) + unit_normal[:,1]*np.sin(g2[:,0])
+        return self.sgn_r * (unit_normal[:,0]*np.cos(g2[:,0]) + unit_normal[:,1]* np.sin(g2[:,0]))
     
     def drfactor_by_dcoeff(self):
         g2 = self.gamma_2d()
@@ -471,7 +489,9 @@ class CurveCWSFourierCPP( Curve, sopp.Curve ):
         dunit_normal_by_dcoef = self.dunit_normal_by_dcoeff()
 
         # Now project in the radial direction...
-        return dunit_normal_by_dcoef[:,0,:]*np.cos(g2[:,0,None]) + dunit_normal_by_dcoef[:,1,:]*np.sin(g2[:,0,None]) + dg2_by_dcoef[:,0,:]*(-unit_normal[:,0,None]*np.sin(g2[:,0,None]) + unit_normal[:,1,None]*np.cos(g2[:,0,None]))
+        return self.sgn_r * (dunit_normal_by_dcoef[:,0,:]*np.cos(g2[:,0,None]) + dunit_normal_by_dcoef[:,1,:]*np.sin(g2[:,0,None]) + dg2_by_dcoef[:,0,:]*(-unit_normal[:,0,None]*np.sin(g2[:,0,None]) + unit_normal[:,1,None]*np.cos(g2[:,0,None])))
 
     def drfactor_by_dcoeff_vjp(self, v):
         return Derivative({self: vjp_contraction_1d(self.drfactor_by_dcoeff(), v)})
+    
+

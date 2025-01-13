@@ -91,7 +91,7 @@ else()
         ${boost_target}
         PREFIX ${boost_DIR}
         GIT_REPOSITORY https://github.com/boostorg/boost.git
-        GIT_TAG boost-1.82.0
+        GIT_TAG boost-1.86.0
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
         GIT_SUBMODULES tools/build tools/boost_install libs/config libs/numeric
