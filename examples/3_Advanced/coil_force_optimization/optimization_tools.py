@@ -128,7 +128,7 @@ def initial_optimizations(N=10000, with_force=True, MAXITER=14000,
         if with_force:  
             # (1e-20, 1e-8) for Squared forces
             # (1e-14, 1e-5) for Lpforces or TVE
-            FORCE_WEIGHT = 10.0 ** rand(-11, -6)
+            FORCE_WEIGHT = 10.0 ** rand(-13, -8)
         else:
             FORCE_WEIGHT = 0
 
