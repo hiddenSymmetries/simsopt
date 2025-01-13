@@ -87,7 +87,7 @@ class DOFs(GSONable, Hashable):
             free: Array of boolean values denoting if the DOFs is are free.
                   False values implies the corresponding DOFs are fixed
             lower_bounds: Lower bounds for the DOFs. Meaningful only if
-                DOF is not fixed. Default is np.NINF
+                DOF is not fixed. Default is -np.inf
             upper_bounds: Upper bounds for the DOFs. Meaningful only if
                 DOF is not fixed. Default is np.inf
         """
@@ -106,7 +106,7 @@ class DOFs(GSONable, Hashable):
             free = np.asarray(free, dtype=np.bool_)
 
         if lower_bounds is None:
-            lower_bounds = np.full(len(x), np.NINF)
+            lower_bounds = np.full(len(x), -np.inf)
         else:
             lower_bounds = np.asarray(lower_bounds, np.double)
 
