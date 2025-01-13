@@ -78,10 +78,10 @@ def initialize_coils_QA(TEST_DIR, s):
     from simsopt.field import Current, coils_via_symmetries
 
     # generate planar TF coils
-    ncoils = 4
+    ncoils = 3
     R0 = s.get_rc(0, 0) * 1.2
     R1 = s.get_rc(1, 0) * 5
-    order = 4
+    order = 16
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc'
@@ -340,7 +340,7 @@ Jtorque2 = sum([SquaredMeanTorque(c, all_coils, downsample=1) for c in all_base_
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-5
+CURVATURE_WEIGHT = 1e-2
 MSC_WEIGHT = 1e-6
 Jcs = [LpCurveCurvature(c.curve, 2, CURVATURE_THRESHOLD) for c in base_coils_TF]
 Jmscs = [MeanSquaredCurvature(c.curve) for c in base_coils_TF]
@@ -485,13 +485,13 @@ for i in range(1, n_saves + 1):
     btf.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
         "B_N / B": (np.sum(btf.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(btf.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_TF", extra_data=pointData)
 
     bpsc.set_points(s_plot.gamma().reshape((-1, 3)))
     pointData = {"B_N": np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2)[:, :, None],
         "B_N / B": (np.sum(bpsc.B().reshape((qphi, qtheta, 3)) * s_plot.unitnormal(), axis=2
-                                    ) / np.linalg.norm(bpsc.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
+                                    ) / np.linalg.norm(btot.B().reshape(qphi, qtheta, 3), axis=-1))[:, :, None]}
     s_plot.to_vtk(OUT_DIR + "surf_full_PSC", extra_data=pointData)
 
     btot.set_points(s.gamma().reshape((-1, 3)))
@@ -501,6 +501,7 @@ for i in range(1, n_saves + 1):
 
 t2 = time.time()
 print('Total time = ', t2 - t1)
-btot.Bfields[0].psc_array = None  # Remove the psc_array object for JSON save
-btot.save(OUT_DIR + "biot_savart_optimized_QA.json")
+from simsopt import save
+save(btot.Bfields[0].coils, OUT_DIR + 'psc_coils.json')
+save(btot.Bfields[1].coils, OUT_DIR + 'TF_coils.json')
 print(OUT_DIR)

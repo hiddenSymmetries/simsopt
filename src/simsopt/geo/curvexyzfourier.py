@@ -68,6 +68,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         This function sets the dofs associated to this object.
         """
+        print(np.shape(self.local_x), np.shape(dofs))
         self.local_x = dofs
         sopp.CurveXYZFourier.set_dofs(self, dofs)
 
