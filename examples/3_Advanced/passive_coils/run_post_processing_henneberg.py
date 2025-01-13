@@ -61,17 +61,17 @@ qfm_surf = qfm_surf.surface
 # qfm_surf.plot()
 
 # Run VMEC with new QFM surface
-# vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
-# equil = Vmec(vmec_input, mpi)
-# equil.boundary = qfm_surf
-# equil.run()
+vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
+equil = Vmec(vmec_input, mpi)
+equil.boundary = qfm_surf
+equil.run()
 
-# # Configure quasisymmetry objective:
-# qs = QuasisymmetryRatioResidual(equil,
-#                                 np.arange(0, 1.01, 0.1),  # Radii to target
-#                                 helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
+# Configure quasisymmetry objective:
+qs = QuasisymmetryRatioResidual(equil,
+                                np.arange(0, 1.01, 0.1),  # Radii to target
+                                helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
 
-# proc0_print("Quasisymmetry objective before optimization:", qs.total())
+proc0_print("Quasisymmetry objective before optimization:", qs.total())
 
 from simsopt.field.magneticfieldclasses import InterpolatedField
 def skip(rs, phis, zs):

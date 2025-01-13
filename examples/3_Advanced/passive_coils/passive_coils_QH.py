@@ -62,7 +62,7 @@ def initialize_coils_QH(TEST_DIR, s):
     ncoils = 2
     R0 = s.get_rc(0, 0) * 1
     R1 = s.get_rc(1, 0) * 4.5
-    order = 16
+    order = 4
 
     from simsopt.mhd.vmec import Vmec
     vmec_file = 'wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc'
@@ -237,12 +237,12 @@ a_list = np.hstack((np.ones(len(coils)) * aa, np.ones(len(coils_TF)) * a))
 b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 
 LENGTH_WEIGHT = Weight(0.01)
-LENGTH_TARGET = 80
+LENGTH_TARGET = 90
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
 CC_WEIGHT = 1e1
 CS_THRESHOLD = 1.5
-CS_WEIGHT = 1
+CS_WEIGHT = 1e-1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons

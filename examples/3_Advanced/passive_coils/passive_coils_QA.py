@@ -36,7 +36,7 @@ range_param = "half period"
 nphi = 32
 ntheta = 32
 poff = 1.5
-coff = 1.0
+coff = 2.0
 s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
 s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
@@ -125,12 +125,12 @@ nturns_TF = 200
 aa = 0.05
 bb = 0.05
 
-Nx = 6
+Nx = 5
 Ny = Nx
 Nz = Nx
 # Create the initial coils:
 base_curves, all_curves = create_planar_curves_between_two_toroidal_surfaces(
-    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=True, jax_flag=False,
+    s, s_inner, s_outer, Nx, Ny, Nz, order=order, coil_coil_flag=False, jax_flag=False,
 )
 
 # Remove if within a radius of a TF coil
@@ -182,10 +182,10 @@ for i in range(len(base_curves)):
     base_curves[i].set('x' + str(2 * order + 3), calpha2 * sdelta2)
     base_curves[i].set('x' + str(2 * order + 4), -salpha2 * sdelta2)
     # Fix orientations of each coil
-    # base_curves[i].fix('x' + str(2 * order + 1))
-    # base_curves[i].fix('x' + str(2 * order + 2))
-    # base_curves[i].fix('x' + str(2 * order + 3))
-    # base_curves[i].fix('x' + str(2 * order + 4))
+    base_curves[i].fix('x' + str(2 * order + 1))
+    base_curves[i].fix('x' + str(2 * order + 2))
+    base_curves[i].fix('x' + str(2 * order + 3))
+    base_curves[i].fix('x' + str(2 * order + 4))
 
     # Fix shape of each coil
     for j in range(2 * order + 1):
@@ -252,9 +252,9 @@ LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 150
 LINK_WEIGHT = 1e4
 CC_THRESHOLD = 0.8
-CC_WEIGHT = 1e2
+CC_WEIGHT = 1
 CS_THRESHOLD = 1.5
-CS_WEIGHT = 1e2
+CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
 FORCE_WEIGHT2 = Weight(0.0)  # Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -445,7 +445,7 @@ print("""
 """)
 
 n_saves = 1
-MAXITER = 600
+MAXITER = 200
 for i in range(1, n_saves + 1):
     print('Iteration ' + str(i) + ' / ' + str(n_saves))
     res = minimize(fun, dofs, jac=True, method='L-BFGS-B',   # bounds=opt_bounds,
