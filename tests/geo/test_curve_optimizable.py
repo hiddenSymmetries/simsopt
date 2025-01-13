@@ -71,7 +71,7 @@ class Testing(unittest.TestCase):
         print(' Final curve length:    ', obj.J())
         print(' Expected final length: ', 2 * np.pi * x0[0])
         print(' objective function: ', prob.objective())
-        assert abs(obj.J() - 2 * np.pi * x0[0]) < 1e-8
+        np.testing.assert_allclose(obj.J(), 2 * np.pi * x0[0], rtol=0, atol=1e-8)
 
     def test_curve_first_derivative(self):
         for rotated in [True, False]:
