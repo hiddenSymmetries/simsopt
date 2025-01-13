@@ -546,8 +546,12 @@ class Vmec(Optimizable):
         if self.pressure_profile is not None:
             vi.pres_scale = 1.0
         if self.current_profile is not None:
-            integral, _ = quad(self.current_profile, 0, 1)
-            vi.curtor = integral
+            if vi.pcurr_type.lower() in ['power_series', 'gauss_trunc', 'two_power', 'cubic_spline_ip', 'akima_spline_ip']:
+                integral, _ = quad(self.current_profile, 0, 1)
+                vi.curtor = integral
+            else:
+                vi.curtor = self.current_profile(1.0)
+                
 
         return boundary_RZFourier
 
