@@ -92,7 +92,7 @@ rrange = (np.min(rs), np.max(rs), n)
 phirange = (0, 2 * np.pi / s.nfp, n * 2)
 zrange = (0, np.max(zs), n // 2)
 print(zrange, rrange, phirange)
-degree = 2  # 2 is sufficient sometimes
+degree = 4  # 2 is sufficient sometimes
 Bfield.set_points(s.gamma().reshape((-1, 3)))
 bsh = InterpolatedField(
     Bfield, degree, rrange, phirange, zrange, True, nfp=s.nfp, stellsym=s.stellsym, skip=skip
@@ -106,10 +106,10 @@ from simsopt.util import proc0_print
 
 
 # set fieldline tracer parameters
-nfieldlines = 20
-tmax_fl = 30000
+nfieldlines = 50
+tmax_fl = 60000
 
-R0 = np.linspace(16.9, 17.8, nfieldlines)
+R0 = np.linspace(16.9, 17.9, nfieldlines)
 Z0 = np.zeros(nfieldlines)
 phis = [(i / 4) * (2 * np.pi / s.nfp) for i in range(4)]
 print(R0, Z0)
@@ -117,7 +117,7 @@ print(R0, Z0)
 t1 = time.time()
 # compute the fieldlines from the initial locations specified above
 sc_fieldline = SurfaceClassifier(s, h=0.03, p=2)
-sc_fieldline.to_vtk('levelset', h=0.02)
+# sc_fieldline.to_vtk('levelset', h=0.02)
 
 fieldlines_tys, fieldlines_phi_hits = compute_fieldlines(
     bsh, R0, Z0, tmax=tmax_fl, tol=1e-10, comm=comm,

@@ -76,8 +76,9 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
     return point_data
 
 from simsopt import load
+input_dir = "passive_coils_QH_continuation2_ndofs7_TForder20_n19_lw1.00e-02_lt1.10e+02_lkw1.00e+04_cct4.00e-01_ccw1.00e+01_curvw1.000000e-03_cst1.30e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
 # input_dir = "passive_coils_QH_ndofs3_TForder4_n19_p1.50e+00_c2.50e+00_lw1.00e-02_lt9.00e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
-input_dir = "passive_coils_QH_continuation_ndofs7_TForder4_n19_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
+# input_dir = "passive_coils_QH_continuation_ndofs7_TForder4_n19_lw1.00e-02_lt1.00e+02_lkw1.00e+04_cct8.00e-01_ccw1.00e+01_cst1.50e+00_csw1.00e+00_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/"
 coils = load(input_dir + "psc_coils.json")
 coils_TF = load(input_dir + "TF_coils.json")
 curves = [c.curve for c in coils]
@@ -177,9 +178,9 @@ b_list = np.hstack((np.ones(len(coils)) * bb, np.ones(len(coils_TF)) * b))
 LENGTH_WEIGHT = Weight(0.01)
 LENGTH_TARGET = 100
 LINK_WEIGHT = 1e4
-CC_THRESHOLD = 0.5
+CC_THRESHOLD = 1.0
 CC_WEIGHT = 1e1
-CS_THRESHOLD = 1.5
+CS_THRESHOLD = 1.3
 CS_WEIGHT = 1
 # Weight for the Coil Coil forces term
 FORCE_WEIGHT = Weight(0.0)  # 1e-34 Forces are in Newtons, and typical values are ~10^5, 10^6 Newtons
@@ -189,10 +190,10 @@ TORQUE_WEIGHT2 = Weight(0.0)  # 1e-22 Forces are in Newtons, and typical values 
 
 CURVATURE_THRESHOLD = 0.5
 MSC_THRESHOLD = 0.05
-CURVATURE_WEIGHT = 1e-1
+CURVATURE_WEIGHT = 1e-3
 MSC_WEIGHT = 1e-5
 # Directory for output
-OUT_DIR = ("./passive_coils_QH_continuation2_ndofs{:d}_TForder{:d}_n{:d}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
+OUT_DIR = ("./passive_coils_QH_continuation3_ndofs{:d}_TForder{:d}_n{:d}_lw{:.2e}_lt{:.2e}_lkw{:.2e}" +
            "_cct{:.2e}_ccw{:.2e}_curvw{:2e}_cst{:.2e}_csw{:.2e}_fw{:.2e}_fww{:2e}_tw{:.2e}_tww{:2e}/").format(
     len(base_curves[0].x), base_curves_TF[0].order, ncoils, LENGTH_WEIGHT.value, LENGTH_TARGET, LINK_WEIGHT,
     CC_THRESHOLD, CC_WEIGHT, CURVATURE_WEIGHT, CS_THRESHOLD, CS_WEIGHT, FORCE_WEIGHT.value,

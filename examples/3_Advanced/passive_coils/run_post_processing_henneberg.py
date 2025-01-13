@@ -115,7 +115,7 @@ from simsopt.util import proc0_print
 
 # set fieldline tracer parameters
 nfieldlines = 40
-tmax_fl = 100000
+tmax_fl = 60000
 
 R0 = np.linspace(4.3, 6.75, nfieldlines)
 Z0 = np.zeros(nfieldlines)
