@@ -493,6 +493,7 @@ class BoozerSurface(Optimizable):
         val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
         
         norm = np.linalg.norm(dval)
+        print(f"minimize_boozer_penalty_constraints_newton iter: {i}  val: {val}  norm: {norm}", flush=True)
         while i < maxiter and norm > tol:
             d2val += stab*np.identity(d2val.shape[0])
             dx = np.linalg.solve(d2val, dval)
@@ -502,6 +503,7 @@ class BoozerSurface(Optimizable):
             val, dval, d2val = fun_name(x, derivatives=2, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
             norm = np.linalg.norm(dval)
             i = i+1
+            print(f"minimize_boozer_penalty_constraints_newton iter: {i}  val: {val}  norm: {norm}", flush=True)
         
         r = self.boozer_penalty_constraints(
             x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
@@ -583,7 +585,7 @@ class BoozerSurface(Optimizable):
             x, derivatives=0, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)
         jac = lambda x: self.boozer_penalty_constraints(
             x, derivatives=1, constraint_weight=constraint_weight, scalarize=False, optimize_G=G is not None)[1]
-        res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter)
+        res = least_squares(fun, x, jac=jac, method=method, ftol=tol, xtol=tol, gtol=tol, x_scale=1.0, max_nfev=maxiter, verbose=2)
         resdict = {
             "info": res, "residual": res.fun, "gradient": res.grad, "jacobian": res.jac, "success": res.status > 0,
             "G": None,
@@ -636,6 +638,7 @@ class BoozerSurface(Optimizable):
         val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
         norm = np.linalg.norm(val)
         i = 0
+        print(f"minimize_boozer_exact_constraints_newton iter: {i}  val: {val}  norm: {norm}", flush=True)
         while i < maxiter and norm > tol:
             if s.stellsym:
                 A = dval[:-1, :-1]
@@ -652,6 +655,7 @@ class BoozerSurface(Optimizable):
             val, dval = self.boozer_exact_constraints(xl, derivatives=1, optimize_G=G is not None)
             norm = np.linalg.norm(val)
             i = i + 1
+            print(f"minimize_boozer_exact_constraints_newton iter: {i}  val: {val}  norm: {norm}", flush=True)
 
         if s.stellsym:
             lm = xl[-2]

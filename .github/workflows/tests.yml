@@ -111,10 +111,9 @@ jobs:
       # run: pip install -v ".[MPI,SPEC,VIS]"
       run: pip install -v "."
 
-    - name: Run tests on 1 process using coverage
-      if: contains(matrix.test-type, 'unit')
+      - name: Run tests on 1 process using coverage
       run: | 
         cd tests
         python -m unittest geo.test_curve_optimizable.Testing
         python -m unittest geo.test_boozersurface.BoozerSurfaceTests.test_boozer_surface_optimisation_convergence
-
+        python -m unittest geo.test_boozersurface.BoozerSurfaceTests.test_convergence_cpp_and_notcpp_same
