@@ -525,6 +525,7 @@ class BoozerSurface(Optimizable):
         self.res = res
         self.need_to_run_code = False
 
+        print(f"minimize_boozer_penalty_constraints_newton norm: {norm}  tol: {tol}  success: {res['success']}", flush=True)
         if verbose:
             print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||grad||_inf = {np.linalg.norm(res['jacobian'], ord=np.inf):.3e}", flush=True)
 
@@ -600,6 +601,7 @@ class BoozerSurface(Optimizable):
 
         self.res = resdict
         self.need_to_run_code = False
+        print(f"minimize_boozer_penalty_constraints_ls: res.status {res.status} res.message {res.message}   success: {resdict['success']}", flush=True)
         return resdict
 
     def minimize_boozer_exact_constraints_newton(self, tol=1e-12, maxiter=10, iota=0., G=None, lm=[0., 0.]):
@@ -672,6 +674,7 @@ class BoozerSurface(Optimizable):
 
         self.res = res
         self.need_to_run_code = False
+        print(f"minimize_boozer_exact_constraints_newton norm: {norm}  tol: {tol}  success: {res['success']}", flush=True)
         return res
 
     def solve_residual_equation_exactly_newton(self, tol=1e-10, maxiter=10, iota=0., G=None, verbose=False):
@@ -815,6 +818,7 @@ class BoozerSurface(Optimizable):
             "mask": mask, 'type': 'exact', "vjp": boozer_surface_dexactresidual_dcoils_dcurrents_vjp
         }
         
+        print(f"solve_residual_equation_exactly_newton norm: {norm}  tol: {tol}  success: {res['success']}", flush=True)
         if verbose:
             print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}", flush=True)
 

@@ -232,6 +232,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         for surfacetype, stellsym, optimize_G, second_stage in configs:
             for get_data in [get_hsx_data, get_ncsx_data, get_giuliani_data]:
                 for vectorize in [True, False]:
+                    print(f"!!!!!! Testing surfacetype {surfacetype}, stellsym {stellsym}, optimize_G {optimize_G}, second_stage {second_stage}, get_data {get_data}, vectorize {vectorize}", flush=True)
                     with self.subTest(
                         surfacetype=surfacetype, stellsym=stellsym,
                             optimize_G=optimize_G, second_stage=second_stage, get_data=get_data, vectorize=vectorize):
