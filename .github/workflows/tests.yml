@@ -111,7 +111,7 @@ jobs:
       # run: pip install -v ".[MPI,SPEC,VIS]"
       run: pip install -v "."
 
-      - name: Run tests on 1 process using coverage
+    - name: Run tests on 1 process using coverage
       run: | 
         cd tests
         python -m unittest geo.test_curve_optimizable.Testing
