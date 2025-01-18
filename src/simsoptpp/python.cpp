@@ -2,8 +2,6 @@
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
 #define FORCE_IMPORT_ARRAY
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> PyArray;
 #include <math.h>
 #include <chrono>
 #include "boozerradialinterpolant.h"

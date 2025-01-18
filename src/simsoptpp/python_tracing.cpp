@@ -2,13 +2,11 @@
 #include "pybind11/stl.h"
 #include "pybind11/functional.h"
 namespace py = pybind11;
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> PyArray;
-#include "xtensor-python/pytensor.hpp"     // Numpy bindings
-typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 using std::shared_ptr;
 using std::vector;
 #include "tracing.h"
+#include "tracing_helpers.h"
+#include "symplectic.h"
 
 void init_tracing(py::module_ &m){
     py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");
@@ -27,7 +25,7 @@ void init_tracing(py::module_ &m){
     py::class_<StepSizeStoppingCriterion, shared_ptr<StepSizeStoppingCriterion>, StoppingCriterion>(m, "StepSizeStoppingCriterion")
         .def(py::init<double>());
 
-    m.def("particle_guiding_center_boozer_tracing", &particle_guiding_center_boozer_tracing<xt::pytensor>,
+    m.def("particle_guiding_center_boozer_tracing", &particle_guiding_center_boozer_tracing,
         py::arg("field"),
         py::arg("stz_init"),
         py::arg("m"),
@@ -54,7 +52,7 @@ void init_tracing(py::module_ &m){
         py::arg("predictor_step")=true
         );
 
-    m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing<xt::pytensor>,
+    m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing,
         py::arg("field"),
         py::arg("stz_init"),
         py::arg("m"),

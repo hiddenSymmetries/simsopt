@@ -3,8 +3,7 @@
 #include "xtensor/xlayout.hpp"
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include <fmt/core.h>
-#include <fmt/ranges.h>
+#include <boost/format.hpp>
 
 #define _EPS_ 1e-13
 
@@ -109,11 +108,11 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double y, doubl
     int zidx = int(nz*(z-zmin)/(zmax-zmin));
     if(!out_of_bounds_ok){
         if(xidx < 0 || xidx >= nx)
-            throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
+            throw std::runtime_error((boost::format("xidxs={} not within [0, {}]") % xidx % (nx-1)).str());
         if(yidx < 0 || yidx >= ny)
-            throw std::runtime_error(fmt::format("yidxs={} not within [0, {}]", yidx, ny-1));
+            throw std::runtime_error((boost::format("yidxs={} not within [0, {}]") % yidx % (ny-1)).str());
         if(zidx < 0 || zidx >= nz)
-            throw std::runtime_error(fmt::format("zidxs={} not within [0, {}]", zidx, nz-1));
+            throw std::runtime_error((boost::format("zidxs={} not within [0, {}]") % zidx % (nz-1)).str());
     }
     double xlocal = (x-xmesh[xidx])/hx;
     double ylocal = (y-ymesh[yidx])/hy;
@@ -133,7 +132,7 @@ void RegularGridInterpolant3D<Array>::evaluate_inplace(double x, double* res){
 
     if(!out_of_bounds_ok){
         if(xidx < 0 || xidx >= nx)
-            throw std::runtime_error(fmt::format("xidxs={} not within [0, {}]", xidx, nx-1));
+            throw std::runtime_error((boost::format("xidxs={} not within [0, {}]") % xidx % (nx-1)).str());
     }
     double xlocal = (x-xmesh[xidx])/hx;
     return evaluate_local(xlocal, idx_cell(xidx, 0, 0), res);
@@ -148,7 +147,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, double y, double 
         if(out_of_bounds_ok)
             return;
         else
-            throw std::runtime_error(fmt::format("cell_idx={} not in all_local_vals_map", cell_idx));
+            throw std::runtime_error((boost::format("cell_idx={} not in all_local_vals_map") % cell_idx).str());
     }
 
     double* vals_local = got->second.data();
@@ -209,7 +208,7 @@ void RegularGridInterpolant3D<Array>::evaluate_local(double x, int cell_idx, dou
         if(out_of_bounds_ok)
             return;
         else
-            throw std::runtime_error(fmt::format("cell_idx={} not in all_local_vals_map", cell_idx));
+            throw std::runtime_error((boost::format("cell_idx={} not in all_local_vals_map") % cell_idx).str());
     }
 
     double* vals_local = got->second.data();

@@ -1,4 +1,5 @@
 #pragma once
+
 #include "simdhelpers.h"
 #include <unordered_map>
 #include <algorithm>

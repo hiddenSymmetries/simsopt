@@ -83,7 +83,7 @@ degree = 3
 srange = (0, 1, ns_interp)
 thetarange = (0, np.pi, ntheta_interp)
 zetarange = (0, 2*np.pi/nfp, nzeta_interp)
-initialize = ["psip", "G", "I", "dGds", "dIds", "iota", "modB_derivs", "modB"]
+initialize = ["modB","psip", "G", "I", "dGds", "dIds", "iota", "modB_derivs"]
 t = time.time()
 field = InterpolatedBoozerField(bri, degree, srange, thetarange, zetarange, True, nfp=nfp, stellsym=True, initialize=initialize)
 
