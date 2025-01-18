@@ -11,5 +11,5 @@
 	path = thirdparty/eigen
 	url = https://gitlab.com/libeigen/eigen.git
 [submodule "thirdparty/xtl"]
-        path = thirdparty/xtl
-        url = https://github.com/xtensor-stack/xtl.git
+	path = thirdparty/xtl
+	url = https://github.com/xtensor-stack/xtl.git
