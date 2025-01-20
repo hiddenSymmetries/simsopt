@@ -40,6 +40,7 @@ class CurveLength(Optimizable):
         """
         This returns the value of the quantity.
         """
+        print("CurveLength.J(): incremental_arclength = ", self.curve.incremental_arclength(), flush=True)
         return curve_length_pure(self.curve.incremental_arclength())
 
     @derivative_dec
