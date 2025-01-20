@@ -97,7 +97,7 @@ class N_No(Optimizable):
         return np.sum(self.local_full_x)
 
     def product(self):
-        return np.product(self.local_full_x)
+        return np.prod(self.local_full_x)
 
     return_fn_map = {'sum': sum, 'prod': product}
 
