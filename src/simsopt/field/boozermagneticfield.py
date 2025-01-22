@@ -56,23 +56,11 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
         booz.set_points(points)
         modB = bfield.modB() # returns the magnetic field strength at `points`
 
-    :class:`BoozerMagneticField` has a cache to avoid repeated calculations.
-    To clear this cache manually, call the :func:`clear_cached_properties()` function.
-    The cache is automatically cleared when :func:`set_points` is called or one of the dependencies
-    changes.
     """
 
     def __init__(self, psi0):
         self.psi0 = psi0
         sopp.BoozerMagneticField.__init__(self, psi0)
-
-    def clear_cached_properties(self):
-        """Clear the cache."""
-        sopp.BoozerMagneticField.invalidate_cache(self)
-
-    def recompute_bell(self, parent=None):
-        if np.any(self.dofs_free_status):
-            self.clear_cached_properties()
 
     def _modB_derivs_impl(self, modB_derivs):
         self._dmodBds_impl(np.reshape(modB_derivs[:, 0], (len(modB_derivs[:, 0]), 1)))
@@ -157,55 +145,42 @@ class BoozerAnalytic(BoozerMagneticField):
         BoozerMagneticField.__init__(self, psi0)
 
     def set_etabar(self, etabar):
-        self.invalidate_cache()
         self.etabar = etabar
 
     def set_B0(self, B0):
-        self.invalidate_cache()
         self.B0 = B0
 
     def set_B0z(self, B0z):
-        self.invalidate_cache()
         self.B0z = B0z
 
     def set_Bbar(self, Bbar):
-        self.invalidate_cache()
         self.Bbar = Bbar
 
     def set_N(self, N):
-        self.invalidate_cache()
         self.N = N
 
     def set_G0(self, G0):
-        self.invalidate_cache()
         self.G0 = G0
 
     def set_I0(self, I0):
-        self.invalidate_cache()
         self.I0 = I0
 
     def set_G1(self, G1):
-        self.invalidate_cache()
         self.G1 = G1
 
     def set_I1(self, I1):
-        self.invalidate_cache()
         self.I1 = I1
 
     def set_K1(self, K1):
-        self.invalidate_cache()
         self.K1 = K1
 
     def set_iota0(self, iota0):
-        self.invalidate_cache()
         self.iota0 = iota0
 
     def set_iota1(self, iota1):
-        self.invalidate_cache()
         self.iota1 = iota1
 
     def set_psi0(self, psi0):
-        self.invalidate_cache()
         self.psi0 = psi0
 
     def _psip_impl(self, psip):
@@ -386,6 +361,12 @@ class BoozerRadialInterpolant(BoozerMagneticField):
                     booz = Booz_xform()
                     booz.read_boozmn(equil)
                     self.bx = booz
+                    # Check if grid does not have correct size
+                    if (len(self.bx.s_in) != len(self.bx.s_b)):
+                        raise ValueError('booz filename has incorrect s grid!')
+                    # Check if grid does not match Vmec half grid
+                    if (np.any(self.bx.s_in != self.bx.s_b)):
+                        raise ValueError('booz filename has incorrect s grid!')
                 else:
                     raise ValueError('Invalid filename')
         elif (isinstance(equil, Booz_xform)):
