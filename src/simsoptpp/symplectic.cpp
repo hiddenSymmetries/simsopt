@@ -20,7 +20,6 @@ void SymplField::eval_field(double s, double theta, double zeta)
 
     stz[0, 0] = s; stz[0, 1] = theta; stz[0, 2] = zeta;
     field->set_points(stz);
-
     // A = psi \nabla \theta - psip \nabla \zeta
     Atheta = s*field->psi0;
     Azeta =  -field->psip()(0);

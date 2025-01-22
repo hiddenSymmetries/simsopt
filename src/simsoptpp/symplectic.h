@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_GSL 
 #include <memory>
 #include <array>
 #include <vector>
@@ -89,3 +90,4 @@ public:
     void update(double t, double dt, array<double, 4>  y, SymplField f);
     void calc_state(double eval_t, State &temp);
 };
+#endif

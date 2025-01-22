@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 project(simsoptpp)
-#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -15,10 +14,16 @@ message(status "Python header dirs are ${Python_INCLUDE_DIRS}")
 message(status "Python library dirs are ${Python_LIBRARY_DIRS}")
 message(status "Python version is ${Python_VERSION}")
 
+# Find pybind11
+execute_process(COMMAND python -m pybind11 --cmakedir
+                OUTPUT_VARIABLE pybind11_DIR
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+message("Result of python -m pybind11 --cmakedir: ${pybind11_DIR}")
+find_package(pybind11 REQUIRED PATHS pybind11_DIR)
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
-# Update submodules as needed
+    # Update submodules as needed
     option(GIT_SUBMODULE "Check submodules during build" ON)
     if(GIT_SUBMODULE)
         message(STATUS "Submodule update")
@@ -32,15 +37,15 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
 endif()
 
 # For XSIMD usage
-IF(DEFINED ENV{NO_XSIMD})
-   set(NO_XSIMD ON)
-ENDIF()
+if(DEFINED ENV{NO_XSIMD})
+    set(NO_XSIMD ON)
+endif()
 set(_HAS_AUTO_PTR_ETC 1)
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 include(CheckCXXCompilerFlag)
-IF(DEFINED ENV{CI})
+if(DEFINED ENV{CI})
     message(STATUS "CI environment detected. Set compilation flags targetting Westmere microarch.")
     set(CMAKE_CXX_FLAGS "-O3 -march=znver3")
 elseif(DEFINED ENV{CONDA_BUILD})
@@ -52,21 +57,18 @@ else()
     unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
     CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    	set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
-    elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")  
-    	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -march=native -ffp-contract=fast")
+    elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")
+        set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -ffp-contract=fast")
     else()
-    	set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
     endif()
 endif()
-# Ensure all code used from Eigen does not have LGPL license:
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_MPL2_ONLY")
-message(STATUS "CMAKE_CXX_FLAGS are ${CMAKE_CXX_FLAGS}")
 
 if(DEFINED ENV{CONDA_PREFIX})
-  include_directories($ENV{CONDA_PREFIX}/include)
-  link_directories("$ENV{CONDA_PREFIX}/lib")
-  message(STATUS "Conda prefix is $ENV{CONDA_PREFIX}")
+    include_directories($ENV{CONDA_PREFIX}/include)
+    link_directories("$ENV{CONDA_PREFIX}/lib")
+    message(STATUS "Conda prefix is $ENV{CONDA_PREFIX}")
 endif()
 
 find_package(OpenMP)
@@ -80,8 +82,8 @@ else()
     include(ExternalProject)
 
     # Download boost from git and build the headers
-    set( boost_DIR ${CMAKE_CURRENT_BINARY_DIR}/thirdparty/boost )
-    set( boost_target boost)
+    set(boost_DIR ${CMAKE_CURRENT_BINARY_DIR}/thirdparty/boost)
+    set(boost_target boost)
 
     ExternalProject_Add(
         ${boost_target}
@@ -96,7 +98,8 @@ else()
             libs/utility libs/typeof libs/array libs/units libs/integer libs/fusion
             libs/range libs/iterator libs/concept_check libs/detail libs/function_types
             libs/lexical_cast libs/container libs/move libs/smart_ptr libs/multi_array
-            libs/functional libs/function libs/type_index libs/container_hash libs/bind
+            libs/functional libs/function libs/type_index libs/container_hash libs/bind 
+            libs/format libs/optional
         CONFIGURE_COMMAND ./bootstrap.sh --prefix=<PREFIX>
         BUILD_COMMAND ./b2 headers --prefix=${boost_DIR}
         BUILD_IN_SOURCE 1
@@ -109,12 +112,16 @@ endif()
 
 find_package(GSL)
 if(GSL_FOUND)
-   message(STATUS "GSL version is ${GSL_VERSION}")
-   message(STATUS "GSL include dirs are ${GSL_INCLUDE_DIR}")
+    add_definitions(-DUSE_GSL)
+    message(STATUS "GSL version is ${GSL_VERSION}")
+    message(STATUS "GSL include dirs are ${GSL_INCLUDE_DIR}")
+    set(GSL_TARGETS src/simsoptpp/symplectic.cpp)
+    message(STATUS "GSL targets are ${GSL_TARGETS}")
+    message(STATUS "GSL libraries are ${GSL_LIBRARIES}")
+else()
+    set(GSL_TARGETS)
 endif()
 
-add_subdirectory(thirdparty/pybind11)
-add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
 
@@ -126,7 +133,8 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/tracing.cpp 
     src/simsoptpp/python_boozermagneticfield.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
-    )
+    ${GSL_TARGETS}
+)
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
@@ -134,7 +142,6 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 
 if(NOT Boost_FOUND)
     add_dependencies(${PROJECT_NAME} ${boost_target})
@@ -145,6 +152,7 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
-
+IF (GSL_FOUND)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
+endif()

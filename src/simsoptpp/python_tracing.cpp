@@ -6,7 +6,9 @@ using std::shared_ptr;
 using std::vector;
 #include "tracing.h"
 #include "tracing_helpers.h"
-#include "symplectic.h"
+#ifdef USE_GSL
+    #include "symplectic.h"
+#endif
 
 void init_tracing(py::module_ &m){
     py::class_<StoppingCriterion, shared_ptr<StoppingCriterion>>(m, "StoppingCriterion");

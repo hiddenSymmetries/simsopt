@@ -1,7 +1,9 @@
 #include "tracing_helpers.h"
 #include "boozermagneticfield.h"
 #include "tracing.h"
-#include "symplectic.h"
+#ifdef USE_GSL
+    #include "symplectic.h"
+#endif
 
 #include <memory>
 #include <vector>
@@ -630,8 +632,12 @@ particle_guiding_center_boozer_tracing(
     }
 
     if (solveSympl) {
+#ifdef USE_GSL
         auto f = SymplField(field, m, q, mu);
         return solve_sympl(f, y, tmax, dt, roottol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, predictor_step, dt_save);
+#else
+        throw std::invalid_argument("Symplectic solver not available. Please recompile with GSL support.");
+#endif
     } else {
         if (vacuum) {
           auto rhs_class = GuidingCenterVacuumBoozerRHS(field, m, q, mu, axis);
