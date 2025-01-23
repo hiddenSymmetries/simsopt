@@ -318,8 +318,8 @@ tuple<vector<array<double, SymplField::Size+1>>, vector<array<double, SymplField
         double zeta_current = y[2];
         double vpar_current = y[3];
 
-        // stop = check_stopping_criteria(f, y, iter, res, 
-        //                       res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
+        stop = check_stopping_criteria<SymplField,sympl_dense>(f, y, iter, res, 
+                              res_hits, dense, t_last, t_current, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
 
         t_last = t_current;
         zeta_last = zeta_current;
