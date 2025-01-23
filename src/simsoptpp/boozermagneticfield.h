@@ -1,7 +1,7 @@
 #pragma once
 #include <xtensor/xnoalias.hpp>
 #include <stdexcept>
-#include "xtensor-python/pytensor.hpp"     // Numpy bindings
+#include "xtensor-python/pytensor.hpp"
 
 using std::logic_error;
 using std::vector;
@@ -14,47 +14,117 @@ class BoozerMagneticField {
         double psi0;
 
     protected:
-        virtual void _set_points_cb() { }
-        virtual void _K_impl(Array2& K) { throw logic_error("_K_impl was not implemented"); }
-        virtual void _dKdtheta_impl(Array2& dKdtheta) { throw logic_error("_dKdtheta_impl was not implemented"); }
-        virtual void _dKdzeta_impl(Array2& dKdzeta) { throw logic_error("_dKdzeta_impl was not implemented"); }
-        virtual void _K_derivs_impl(Array2& K_derivs) { throw logic_error("_K_derivs_impl was not implemented"); }
-        virtual void _nu_impl(Array2& nu) { throw logic_error("_nu_impl was not implemented"); }
-        virtual void _dnudtheta_impl(Array2& dnudtheta) { throw logic_error("_dnudtheta_impl was not implemented"); }
-        virtual void _dnudzeta_impl(Array2& dnudzeta) { throw logic_error("_dnudzeta_impl was not implemented"); }
-        virtual void _dnuds_impl(Array2& dnuds) { throw logic_error("_dnuds_impl was not implemented"); }
-        virtual void _nu_derivs_impl(Array2& nu_derivs) { throw logic_error("_nu_derivs_impl was not implemented"); }
-        virtual void _R_impl(Array2& R) { throw logic_error("_R_impl was not implemented"); }
-        virtual void _Z_impl(Array2& Z) { throw logic_error("_Z_impl was not implemented"); }
-        virtual void _dRdtheta_impl(Array2& dRdtheta) { throw logic_error("_dRdtheta_impl was not implemented"); }
-        virtual void _dZdtheta_impl(Array2& dZdtheta) { throw logic_error("_dZdtheta_impl was not implemented"); }
-        virtual void _dRdzeta_impl(Array2& dRdzeta) { throw logic_error("_dRdzeta_impl was not implemented"); }
-        virtual void _dZdzeta_impl(Array2& dZdzeta) { throw logic_error("_dZdzeta_impl was not implemented"); }
-        virtual void _dRds_impl(Array2& dRds) { throw logic_error("_dRds_impl was not implemented"); }
-        virtual void _dZds_impl(Array2& dZds) { throw logic_error("_dZds_impl was not implemented"); }
-        virtual void _R_derivs_impl(Array2& R_derivs) { throw logic_error("_R_derivs_impl was not implemented"); }
-        virtual void _Z_derivs_impl(Array2& Z_derivs) { throw logic_error("_Z_derivs_impl was not implemented"); }
-        virtual void _modB_impl(Array2& modB) { throw logic_error("_modB_impl was not implemented"); }
-        virtual void _dmodBdtheta_impl(Array2& dmodBdtheta) { throw logic_error("_dmodBdtheta_impl was not implemented"); }
-        virtual void _dmodBdzeta_impl(Array2& dmodBdzeta) { throw logic_error("_dmodBdzeta_impl was not implemented"); }
-        virtual void _dmodBds_impl(Array2& dmodBds) { throw logic_error("_dmodBds_impl was not implemented"); }
-        virtual void _modB_derivs_impl(Array2& modB_derivs) { throw logic_error("_modB_derivs_impl was not implemented"); }
-        virtual void _I_impl(Array2& I) { throw logic_error("_I_impl was not implemented"); }
-        virtual void _G_impl(Array2& G) { throw logic_error("_G_impl was not implemented"); }
-        virtual void _dIds_impl(Array2& dIds) { throw logic_error("_dIds_impl was not implemented"); }
-        virtual void _dGds_impl(Array2& dGds) { throw logic_error("_dGds_impl was not implemented"); }
-        virtual void _psip_impl(Array2& psip) { throw logic_error("_psip_impl was not implemented"); }
-        virtual void _iota_impl(Array2& iota) { throw logic_error("_iota_impl was not implemented"); }
-        virtual void _diotads_impl(Array2& diotads) { throw logic_error("_diotads_impl was not implemented"); }
-        virtual void _set_points() { }
+        virtual void _set_points_cb() {}
+        virtual void _K_impl(Array2& K) {
+            throw logic_error("_K_impl was not implemented");
+        }
+        virtual void _dKdtheta_impl(Array2& dKdtheta) {
+            throw logic_error("_dKdtheta_impl was not implemented");
+        }
+        virtual void _dKdzeta_impl(Array2& dKdzeta) {
+            throw logic_error("_dKdzeta_impl was not implemented");
+        }
+        virtual void _K_derivs_impl(Array2& K_derivs) {
+            throw logic_error("_K_derivs_impl was not implemented");
+        }
+        virtual void _nu_impl(Array2& nu) {
+            throw logic_error("_nu_impl was not implemented");
+        }
+        virtual void _dnudtheta_impl(Array2& dnudtheta) {
+            throw logic_error("_dnudtheta_impl was not implemented");
+        }
+        virtual void _dnudzeta_impl(Array2& dnudzeta) {
+            throw logic_error("_dnudzeta_impl was not implemented");
+        }
+        virtual void _dnuds_impl(Array2& dnuds) {
+            throw logic_error("_dnuds_impl was not implemented"); 
+        }
+        virtual void _nu_derivs_impl(Array2& nu_derivs) {
+            throw logic_error("_nu_derivs_impl was not implemented");
+        }
+        virtual void _R_impl(Array2& R) {
+            throw logic_error("_R_impl was not implemented");
+        }
+        virtual void _Z_impl(Array2& Z) {
+            throw logic_error("_Z_impl was not implemented");
+        }
+        virtual void _dRdtheta_impl(Array2& dRdtheta) {
+            throw logic_error("_dRdtheta_impl was not implemented");
+        }
+        virtual void _dZdtheta_impl(Array2& dZdtheta) {
+            throw logic_error("_dZdtheta_impl was not implemented");
+        }
+        virtual void _dRdzeta_impl(Array2& dRdzeta) {
+            throw logic_error("_dRdzeta_impl was not implemented");
+        }
+        virtual void _dZdzeta_impl(Array2& dZdzeta) {
+            throw logic_error("_dZdzeta_impl was not implemented");
+        }
+        virtual void _dRds_impl(Array2& dRds) {
+            throw logic_error("_dRds_impl was not implemented");
+        }
+        virtual void _dZds_impl(Array2& dZds) {
+            throw logic_error("_dZds_impl was not implemented");
+        }
+        virtual void _R_derivs_impl(Array2& R_derivs) {
+            throw logic_error("_R_derivs_impl was not implemented");
+        }
+        virtual void _Z_derivs_impl(Array2& Z_derivs) {
+            throw logic_error("_Z_derivs_impl was not implemented");
+        }
+        virtual void _modB_impl(Array2& modB) {
+            throw logic_error("_modB_impl was not implemented");
+        }
+        virtual void _dmodBdtheta_impl(Array2& dmodBdtheta) {
+            throw logic_error("_dmodBdtheta_impl was not implemented");
+        }
+        virtual void _dmodBdzeta_impl(Array2& dmodBdzeta) {
+            throw logic_error("_dmodBdzeta_impl was not implemented");
+        }
+        virtual void _dmodBds_impl(Array2& dmodBds) {
+            throw logic_error("_dmodBds_impl was not implemented");
+        }
+        virtual void _modB_derivs_impl(Array2& modB_derivs) {
+            throw logic_error("_modB_derivs_impl was not implemented");
+        }
+        virtual void _I_impl(Array2& I) {
+            throw logic_error("_I_impl was not implemented");
+        }
+        virtual void _G_impl(Array2& G) {
+            throw logic_error("_G_impl was not implemented");
+        }
+        virtual void _dIds_impl(Array2& dIds) {
+            throw logic_error("_dIds_impl was not implemented");
+        }
+        virtual void _dGds_impl(Array2& dGds) {
+            throw logic_error("_dGds_impl was not implemented");
+        }
+        virtual void _psip_impl(Array2& psip) {
+            throw logic_error("_psip_impl was not implemented");
+        }
+        virtual void _iota_impl(Array2& iota) {
+            throw logic_error("_iota_impl was not implemented");
+        }
+        virtual void _diotads_impl(Array2& diotads) {
+            throw logic_error("_diotads_impl was not implemented");
+        }
+        virtual void _set_points() {}
         Array2 points, points_sym;
-        Array2 data_modB, data_dmodBdtheta,\
-          data_dmodBdzeta, data_dmodBds,\
-          data_modB_derivs, data_G, data_iota, data_dGds, data_diotads, data_psip, \
-          data_I, data_dIds, data_R, data_Z, data_nu, data_K, data_dRdtheta, data_dRdzeta, \
-          data_dRds, data_R_derivs, data_dZdtheta, data_dZdzeta, data_dZds, data_Z_derivs, \
-          data_dnudtheta, data_dnudzeta, data_dnuds, data_nu_derivs, data_dKdtheta, \
-          data_dKdzeta, data_K_derivs, data_d2modBdtheta2, data_d2modBdzeta2, data_d2modBdthetadzeta;
+        Array2 data_modB, data_modB_derivs;
+        Array2 data_dmodBds, data_dmodBdtheta, data_dmodBdzeta;
+        Array2 data_d2modBdtheta2, data_d2modBdthetadzeta, data_d2modBdzeta;
+        Array2 data_G, data_dGds;
+        Array2 data_iota, data_diotads;
+        Array2 data_psip;
+        Array2 data_I, data_dIds;
+        Array2 data_nu, data_nu_derivs;
+        Array2 data_dnuds, data_dnudtheta, data_dnudzeta;
+        Array2 data_K, data_K_derivs;
+        Array2 data_dKdtheta, data_dKdzeta;
+        Array2 data_R, data_R_derivs;
+        Array2 data_dRds, data_dRdtheta, data_dRdzeta;
+        Array2 data_Z, data_Z_derivs;
+        Array2 data_dZds, data_dZdtheta, data_dZdzeta;
         long npoints;
 
     public:
