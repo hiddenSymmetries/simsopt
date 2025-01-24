@@ -7,6 +7,12 @@
 using std::logic_error;
 using std::shared_ptr;
 
+#include <vector>       // For std::vector in Phihat
+#include <algorithm>    // For std::sort in Phihat
+#include <numeric>      // For std::iota in Phihat
+#include <stdexcept>    // For std::invalid_argument Phihat
+#include <set>          // For std::set in Phihat
+
 /**
 * @brief Transverse Shear Alfvén Wave in Boozer coordinates
 * 
@@ -157,4 +163,150 @@ public:
     Array2 dalphadtheta() { return dalphadtheta_ref(); }
     Array2 dalphadpsi() { return dalphadpsi_ref(); }
     Array2 dalphadzeta() { return dalphadzeta_ref(); }
+};
+
+/**
+* @brief Class representing the profile of scalar potential
+* with respect to normalized flux Boozer coordinate `s`.
+*
+* The `Phihat` class represents scalar potential profile (`Phihat`)
+* as a function of the normalized toroidal Boozer coordinate `s`.
+* It uses linear interpolation to compute the value of the
+* scalar potential and its derivative at any given point within the domain.
+*/
+class Phihat {
+private:
+  std::vector<double> s_values;
+  std::vector<double> Phihat_values;
+
+  /**
+  * @brief Validates the input vectors of normalized flux
+  * Boozer coordinate `s` and corresponding scalar potential `Phi` values.
+  *
+  * Ensures that `s_values` and `Phihat_values` have the
+  * same size and that all `s_values` are unique.
+  *
+  * @throws std::invalid_argument if the input vectors are not of
+  * the same size or if `s_values` contains duplicates.
+  */
+  void validateInput() const {
+    if (s_values.size() != Phihat_values.size()) {
+      throw std::invalid_argument(
+          "s_values and Phihat_values must have the same size.");
+    }
+    if (std::set<double>(s_values.begin(), s_values.end()).size() !=
+        s_values.size()) {
+      throw std::invalid_argument(
+          "s_values contains duplicate entries; all s must be unique.");
+    }
+  }
+
+  /**
+  * @brief Sorts the input data based on `s_values`.
+  *
+  * Sorts both `s_values` and `Phihat_values` in ascending order
+  * of `s_values` to ensure correct interpolation.
+  */
+  void sortData() {
+    std::vector<size_t> indices(s_values.size());
+    std::iota(indices.begin(), indices.end(), 0);
+
+    std::sort(indices.begin(), indices.end(), [this](size_t i1, size_t i2) {
+      return s_values[i1] < s_values[i2];
+    });
+
+    auto sorted_s_values = s_values;
+    auto sorted_Phihat_values = Phihat_values;
+    for (size_t i = 0; i < indices.size(); ++i) {
+      s_values[i] = sorted_s_values[indices[i]];
+      Phihat_values[i] = sorted_Phihat_values[indices[i]];
+    }
+  }
+
+public:
+
+  /**
+  * @brief Constructs a Phihat object with the given `s` and `Phihat` values.
+  *
+  * Initializes the `Phihat` object with vectors of
+  * `s` coordinates and their corresponding `Phihat` values.
+  *
+  * @param s_vals Vector of `s` coordinates.
+  * @param Phihat_vals Vector of scalar potential values corresponding to `s`.
+  * @throws std::invalid_argument if input vectors are not valid.
+  */
+  Phihat(const std::vector<double> &s_vals,
+         const std::vector<double> &Phihat_vals)
+      : s_values(s_vals), Phihat_values(Phihat_vals) {
+    validateInput();
+    sortData();
+  }
+
+  /**
+  * @brief Interpolates the scalar potential `Phihat`
+  * at a given `s` coordinate.
+  *
+  * Computes the value of the scalar potential `Phihat` using linear
+  * interpolation between the nearest data points.
+  * If `s` is outside the range of `s_values`,
+  * returns the nearest boundary value.
+  *
+  * @param s The normalized toroidal Boozer coordinate.
+  * @return Interpolated scalar potential value `Phihat` at the given `s`.
+  */
+  double operator()(double s) const {
+
+    if (s < s_values.front()) {
+      return Phihat_values.front();
+    }
+    if (s > s_values.back()) {
+      return Phihat_values.back();
+    }
+
+    size_t i_left = 0;
+    size_t i_right = s_values.size() - 1;
+    for (int i = s_values.size() - 1; i >= 0; --i) {
+      if (s_values[i] <= s && (i + 1 < s_values.size())) {
+        i_left = i;
+        i_right = i + 1;
+        break;
+      }
+    }
+
+    double slope = (Phihat_values[i_right] - Phihat_values[i_left]) /
+                   (s_values[i_right] - s_values[i_left]);
+
+    double Phi_at_s = Phihat_values[i_left] + slope * (s-s_values[i_left]);
+    return Phi_at_s;
+  }
+
+  /**
+  * @brief Computes the derivative of the scalar potential `Phihat`
+  * at a given `s` coordinate.
+  *
+  * Computes the slope of `Phihat` at a given `s` using
+  * linear interpolation between the nearest data points.
+  * If `s` is outside the range of `s_values`, returns 0.0.
+  *
+  * @param s The normalized toroidal Boozer coordinate.
+  * @return The derivative of `Phihat` at the given `s`.
+  */
+  double derivative(double s) const {
+    if (s < s_values.front() || s > s_values.back()) {
+      return 0.0;
+    }
+
+    size_t i_left = 0;
+    size_t i_right = s_values.size() - 1;
+    for (int i = s_values.size() - 1; i >= 0; --i) {
+      if (s_values[i] <= s && (i + 1 < s_values.size())) {
+        i_left = i;
+        i_right = i + 1;
+        break;
+      }
+    }
+
+    return (Phihat_values[i_right] - Phihat_values[i_left]) /
+           (s_values[i_right] - s_values[i_left]);
+  }
 };
