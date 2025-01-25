@@ -21,10 +21,10 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 8
+    Nx = 16
 
 coff = 0.13  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.03  # PM grid end offset ~ 15 cm from the plasma surface
@@ -97,7 +97,7 @@ pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
 kwargs = initialize_default_kwargs('GPMO')
 # algorithm = 'baseline'
 algorithm = 'baseline'
-nHistory = 100
+nHistory = 10
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
 print('kwargs = ',kwargs)
