@@ -21,15 +21,15 @@ if in_github_actions:
     ntheta = nphi
     dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     Nx = 64 # bricks with radial extent ??? cm
 
-coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.0  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.13  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.03  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-max_nMagnets = 5000
+max_nMagnets = 10000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()

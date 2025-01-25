@@ -21,14 +21,16 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 8  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 64
+    Nx = 8
 
-coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.0  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.13  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.03  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
+
+nIter_max = 1000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -93,7 +95,6 @@ pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-nIter_max = 10000
 # algorithm = 'baseline'
 algorithm = 'baseline'
 nHistory = 100
@@ -144,6 +145,8 @@ print("% of dipoles that are nonzero = ", num_nonzero)
 # For plotting Bn on the full torus surface at the end with just the dipole fields
 make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
+# ,
+            #  "B_N/B": (Bnormal_total/(bs + b_dipole).AbsB().reshape((qphi, ntheta)))[:,:,None]}
 s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
@@ -176,7 +179,7 @@ b_comp = ExactField(
 b_comp.set_points(s_plot.gamma().reshape((-1, 3)))
 b_comp._toVTK(out_dir / "comp_Fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
-print('exact total fB = ', 0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+print('exact total fB = ', 0.5 * np.sum((pm_comp.A_obj @ pm_comp.m - pm_comp.b_obj) ** 2))
 
 # Print optimized metrics
 # print("Total test fB = ",
