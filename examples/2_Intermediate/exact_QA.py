@@ -25,19 +25,11 @@ else:
     ntheta = nphi
     Nx = 64 # bricks with radial extent ??? cm
 
-<<<<<<< HEAD
 coff = 0.13  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.03  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 max_nMagnets = 10000
-=======
-coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA_lowres'
-
-max_nMagnets = 1000
->>>>>>> da3cc44ddd13e13581a6ef1b065222f1e9ec8007
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
