@@ -25,11 +25,19 @@ else:
     ntheta = nphi
     Nx = 64 # bricks with radial extent ??? cm
 
+<<<<<<< HEAD
 coff = 0.13  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.03  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
 max_nMagnets = 10000
+=======
+coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.05  # PM grid end offset ~ 15 cm from the plasma surface
+input_name = 'input.LandremanPaul2021_QA_lowres'
+
+max_nMagnets = 1000
+>>>>>>> da3cc44ddd13e13581a6ef1b065222f1e9ec8007
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -159,7 +167,10 @@ pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
-f_B_sf = SquaredFlux(s_plot, b_magnet, -Bnormal).J()
+b_magnet.set_points(s.gamma().reshape((-1, 3)))
+bs.set_points(s.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+f_B_sf = SquaredFlux(s, b_magnet, -Bnormal).J()
 
 print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
