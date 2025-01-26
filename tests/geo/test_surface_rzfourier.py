@@ -364,7 +364,7 @@ class SurfaceRZFourierTests(unittest.TestCase):
         """
         Try reading in a near-axis pyQSC equilibrium.
         """
-        stel = Qsc.from_paper(1)
+        stel = Qsc.from_paper("r1 section 5.1")
         filename = TEST_DIR / 'input.near_axis_test'
 
         ntheta = 20
