@@ -1,7 +1,7 @@
 """
-wireframe.py
+wireframe_toroidal.py
 
-Definitions for the ToroidalWireframe class
+Implementation of the ToroidalWireframe class and associated functions
 """
 import numpy as np
 import collections

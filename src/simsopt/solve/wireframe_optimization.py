@@ -6,8 +6,7 @@ import numpy as np
 import scipy
 import time
 import simsoptpp as sopp
-from simsopt.geo.surface import Surface
-from simsopt.geo.wireframe import ToroidalWireframe
+from simsopt.geo import Surface, ToroidalWireframe
 from simsopt.field.magneticfield import MagneticField
 from simsopt.field.wireframefield import WireframeField
 
