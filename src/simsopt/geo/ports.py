@@ -166,7 +166,7 @@ class PortSet(object):
 
         The columns must have the following parameters in order (see docstring 
         for RectangularPort for definitions):
-          ox, oy, oz, ax, ay, az, wx, wy, wz, hx, hy, hz, iw, ih, thick, l0, l1
+          ox, oy, oz, ax, ay, az, wx, wy, wz, iw, ih, thick, l0, l1
 
         Parameters
         ----------
@@ -176,11 +176,11 @@ class PortSet(object):
 
         portdata = np.loadtxt(file, delimiter=',', skiprows=1)
 
-        if portdata.shape[1] != 17:
+        if portdata.shape[1] != 14:
             raise ValueError('Rectangular ports input file must have 17 ' \
                              + 'columns with the following data:\n' \
                              + 'ox, oy, oz, ax, ay, az, wx, wy, wz, ' \
-                             + 'hx, hy, hz, iw, ih, thick, l0, l1')
+                             + 'iw, ih, thick, l0, l1')
         
         for i in range(portdata.shape[0]):
 
@@ -661,8 +661,7 @@ class CircularPort(Port):
         # Generate a mayavi surface instance
         if 'color' not in kwargs.keys():
             kwargs['color'] = (0.75, 0.75, 0.75)
-        mesh_source = mlab.pipeline.triangular_mesh_source(x, y, z, triangles)
-        return mlab.pipeline.surface(mesh_source, **kwargs)
+        return mlab.triangular_mesh(x, y, z, triangles, **kwargs)
 
     @SimsoptRequires(unstructuredGridToVTK is not None, \
                      "to_vtk method requires pyevtk module")
@@ -963,8 +962,7 @@ class RectangularPort(Port):
         # Generate a mayavi surface instance
         if 'color' not in kwargs.keys():
             kwargs['color'] = (0.75, 0.75, 0.75)
-        mesh_source = mlab.pipeline.triangular_mesh_source(x, y, z, triangles)
-        return mlab.pipeline.surface(mesh_source, **kwargs)
+        return mlab.triangular_mesh(x, y, z, triangles, **kwargs)
 
     @SimsoptRequires(unstructuredGridToVTK is not None, \
                      "to_vtk method requires pyevtk module")
