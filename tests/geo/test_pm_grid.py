@@ -216,18 +216,17 @@ class Testing(unittest.TestCase):
             Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
             Ngrid = nphi * ntheta
             Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
-            print(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
-            assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+            np.testing.assert_allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2), atol=1e-15)
 
             # check <Bn>
             B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
             B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-            assert np.isclose(B_opt, B_dipole_field)
+            np.testing.assert_allclose(B_opt, B_dipole_field)
 
             # check integral Bn^2
             f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
             f_B = SquaredFlux(s, b_dipole, -Bn).J()
-            assert np.isclose(f_B, f_B_Am)
+            np.testing.assert_allclose(f_B, f_B_Am)
 
             # Create PM class with cylindrical bricks
             Bn = np.sum(bs.B().reshape(nphi, ntheta, 3) * s.unitnormal(), axis=-1)
@@ -236,11 +235,11 @@ class Testing(unittest.TestCase):
             mmax_new = pm_opt.m_maxima / 2.0
             kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical", "m_maxima": mmax_new}
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo)
-            assert np.allclose(pm_opt.m_maxima, mmax_new)
+            np.testing.assert_allclose(pm_opt.m_maxima, mmax_new)
             mmax_new = pm_opt.m_maxima[-1] / 2.0
             kwargs_geo = {"dr": 0.15, "coordinate_flag": "cylindrical", "m_maxima": mmax_new}
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2, **kwargs_geo)
-            assert np.allclose(pm_opt.m_maxima, mmax_new)
+            np.testing.assert_allclose(pm_opt.m_maxima, mmax_new)
             pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(s, Bn, s1, s2)
             _, _, _, = relax_and_split(pm_opt)
             b_dipole = DipoleField(pm_opt.dipole_grid_xyz, pm_opt.m_proxy, nfp=s.nfp,
@@ -250,18 +249,18 @@ class Testing(unittest.TestCase):
         # check Bn
         Nnorms = np.ravel(np.sqrt(np.sum(s.normal() ** 2, axis=-1)))
         Ngrid = nphi * ntheta
-        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms)
-        assert np.allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2))
+        Bn_Am = (pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms) 
+        np.testing.assert_allclose(Bn_Am.reshape(nphi, ntheta), np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2), atol=1e-15)
 
         # check <Bn>
         B_opt = np.mean(np.abs(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj) * np.sqrt(Ngrid / Nnorms))
         B_dipole_field = np.mean(np.abs(np.sum((bs.B() + b_dipole.B()).reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
-        assert np.isclose(B_opt, B_dipole_field)
+        np.testing.assert_allclose(B_opt, B_dipole_field)
 
         # check integral Bn^2
         f_B_Am = 0.5 * np.linalg.norm(pm_opt.A_obj.dot(pm_opt.m) - pm_opt.b_obj, ord=2) ** 2
         f_B = SquaredFlux(s, b_dipole, -Bn).J()
-        assert np.isclose(f_B, f_B_Am)
+        np.testing.assert_allclose(f_B, f_B_Am)
 
     def test_grid_chopping(self):
         """
