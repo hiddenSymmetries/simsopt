@@ -28,6 +28,9 @@ from simsopt.field import DipoleField, ToroidalField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions import *
+import time
+
+t1 = time.time()
 
 nphi = 16  # change to 64 for a real run
 ntheta = 16
@@ -87,5 +90,9 @@ print("Number of possible dipoles = ", pm_opt.ndipoles)
 print("% of dipoles that are nonzero = ", num_nonzero)
 
 pm_opt.write_to_famus()
+
+t2 = time.time()
+
+print('took ',t2-t1,' s')
 
 plt.show()
