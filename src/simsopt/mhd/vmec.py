@@ -203,7 +203,7 @@ class Vmec(Optimizable):
     ``indata.pmass_type`` is ``"power_series"`` or
     ``"cubic_spline"``. (The current profile is different in that
     either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
-    instead of ``"cubic_spline"``.) The number of terms in the power
+    instead of ``"cubic_spline"``, where ``cubic_spline_ip`` sets I'(s) while ``cubic_spline_i`` sets I(s).) The number of terms in the power
     series or number of spline nodes is determined by the attributes
     ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
     is used, the spline nodes are uniformly spaced from :math:`s=0` to
@@ -226,6 +226,8 @@ class Vmec(Optimizable):
         vmec.pressure_profile = pressure_Pa
         vmec.indata.pmass_type = "cubic_spline"
         vmec.n_pressure = 8  # Use 8 spline nodes
+
+    When a current profile is used, the ``VMEC`` object automatically updates ``curtor`` so that the total toroidal current I(s=1) matches that of the specified profile.
 
     When VMEC is run multiple times, the default behavior is that all
     ``wout`` output files will be deleted except for the first and
