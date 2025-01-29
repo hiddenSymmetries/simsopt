@@ -15,7 +15,6 @@ using std::shared_ptr;
 #include <xtensor/xview.hpp> // To access parts of the xtensor 
                              // (for ShearAlfvenWave and ShearAlfvenHarmonic)
 
-
 /**
 * @brief Transverse Shear Alfvén Wave in Boozer coordinates
 * 
@@ -478,4 +477,143 @@ protected:
       Phin(Phin),
       omega(omega),
       phase(phase) {}
+};
+
+
+/**
+* @brief Class representing a superposition of multiple Shear Alfvén waves.
+*
+* This class models the superposition of multiple Shear Alfvén waves, combining their scalar
+* potential `Phi`, vector potential `alpha`, and their respective derivatives.
+*/
+class ShearAlfvenWavesSuperposition : public ShearAlfvenWave {
+public:
+  using Array2 = xt::pytensor<double, 2, xt::layout_type::row_major>;
+  //List of waves in superposition:
+  std::vector<std::shared_ptr<ShearAlfvenWave>> waves; 
+
+  /**
+  * @brief Adds a new wave to the superposition.
+  *
+  *  Adds a new wave to the superposition after verifying 
+  *  that it has the same equilibrium magnetic field `B0`.
+  *
+  * @param wave Shared pointer to a ShearAlfvenWave object to be added.
+  * @throws std::invalid_argument if the wave's `B0` field does not 
+  * match the superposition's `B0`.
+  */
+  void add_wave(const std::shared_ptr<ShearAlfvenWave>& wave) {
+    if (wave->B0 != this->B0) {
+      throw std::invalid_argument(
+        "The wave's B0 field does not match the superposition's B0 field."
+      );
+    }
+    waves.push_back(wave);
+  }
+  
+  /**
+  * @brief Constructor for ShearAlfvenWavesSuperposition.
+  *
+  * Initializes the superposition with a base wave, 
+  * setting its `B0` field as the reference field
+  * for all subsequent waves added to the superposition.
+  *
+  * @param base_wave Shared pointer to the initial ShearAlfvenWave object.
+  * @throws std::invalid_argument if the base wave is not provided.
+  */
+  ShearAlfvenWavesSuperposition(std::shared_ptr<ShearAlfvenWave> base_wave)
+    : ShearAlfvenWave(base_wave->B0) {
+    if (!base_wave) {
+      throw std::invalid_argument(
+        "Base wave must be provided to initialize the superposition."
+      );
+    }
+    add_wave(base_wave);
+  }
+  
+  /**
+  * @brief Sets the points (s, theta, zeta, time)
+  *
+  * Sets the points for the superposition and propagates them to all waves.
+  *
+  * @param p A tensor representing the points in Boozer coordinates 
+  *          and time (s, theta, zeta, time).
+  */
+  void set_points(Array2& p) override {
+    ShearAlfvenWave::set_points(p);
+    for (const auto& wave : waves) {
+      wave->set_points(p);  // Propagate points to each wave
+    }
+  }
+  
+protected:
+  void _Phi_impl(Array2& Phi) override {
+    Phi.fill(0.0);
+    for (const auto& wave : waves) {
+      Phi += wave->Phi();
+    }
+  }
+  
+  void _dPhidpsi_impl(Array2& dPhidpsi) override {
+    dPhidpsi.fill(0.0);
+    for (const auto& wave : waves) {
+      dPhidpsi += wave->dPhidpsi();
+    }
+  }
+  
+  void _dPhidtheta_impl(Array2& dPhidtheta) override {
+    dPhidtheta.fill(0.0);
+    for (const auto& wave : waves) {
+      dPhidtheta += wave->dPhidtheta();
+    }
+  }
+  
+  void _dPhidzeta_impl(Array2& dPhidzeta) override {
+    dPhidzeta.fill(0.0);
+    for (const auto& wave : waves) {
+      dPhidzeta += wave->dPhidzeta();
+    }
+  }
+  
+  void _Phidot_impl(Array2& Phidot) override {
+    Phidot.fill(0.0);
+      for (const auto& wave : waves) {
+      Phidot += wave->Phidot();
+    }
+  }
+  
+  void _alpha_impl(Array2& alpha) override {
+    alpha.fill(0.0);
+    for (const auto& wave : waves) {
+      alpha += wave->alpha();
+    }
+  }
+  
+  void _dalphadpsi_impl(Array2& dalphadpsi) override {
+    dalphadpsi.fill(0.0);
+    for (const auto& wave : waves) {
+      dalphadpsi += wave->dalphadpsi();
+    }
+  }
+  
+  void _dalphadtheta_impl(Array2& dalphadtheta) override {
+    dalphadtheta.fill(0.0);
+    for (const auto& wave : waves) {
+      dalphadtheta += wave->dalphadtheta();
+    }
+  }
+  
+  void _dalphadzeta_impl(Array2& dalphadzeta) override {
+    dalphadzeta.fill(0.0);
+    for (const auto& wave : waves) {
+      dalphadzeta += wave->dalphadzeta();
+    }
+  }
+  
+  void _alphadot_impl(Array2& alphadot) override {
+    alphadot.fill(0.0);
+    for (const auto& wave : waves) {
+      alphadot += wave->alphadot();
+    }
+  }
 };
