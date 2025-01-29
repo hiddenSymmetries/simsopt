@@ -12,6 +12,9 @@ using std::shared_ptr;
 #include <numeric>      // For std::iota in Phihat
 #include <stdexcept>    // For std::invalid_argument Phihat
 #include <set>          // For std::set in Phihat
+#include <xtensor/xview.hpp> // To access parts of the xtensor 
+                             // (for ShearAlfvenWave and ShearAlfvenHarmonic)
+
 
 /**
 * @brief Transverse Shear Alfvén Wave in Boozer coordinates
@@ -87,6 +90,10 @@ public:
         npoints = p.shape(0);
         points.resize({npoints, 4});
         memcpy(points.data(), p.data(), 4 * npoints * sizeof(double));
+        // Set points for B0 using the first three columns of p 
+        // (s, theta, zeta):
+        p_b0 = xt::view(p, xt::all(), xt::range(0, 3));
+        B0->set_points(p_b0);
     }
 
     Array2 get_points() {
@@ -309,4 +316,166 @@ public:
     return (Phihat_values[i_right] - Phihat_values[i_left]) /
            (s_values[i_right] - s_values[i_left]);
   }
+};
+
+
+/**
+* @brief Class representing a single harmonic Shear Alfvén Wave.
+* See Paul. et al, JPP (2023;89(5):905890515. doi:10.1017/S0022377823001095)
+*
+* Initializes the Shear Alfvén Wave with the scalar potential of the form
+* \f$ \Phi = \hat{\Phi}(s) \sin(m \theta - n \zeta + \omega t + \text{phase}) \f$
+* and vector potential alpha determined by the ideal
+* Ohm's law (i.e., zero electric field along the field line).
+*
+* @tparam T Template for tensor type. It should be a template class compatible with xtensor-like syntax.
+*/
+class ShearAfvenHarmonic : public ShearAlfvenWave {
+public:
+    using Array2 = xt::pytensor<double, 2, xt::layout_type::row_major>;
+    Phihat phihat;
+    int Phim; // Poloidal mode number.
+    int Phin; // Toroidal mode number.
+    double omega; // Frequency of the wave.
+    double phase; // Phase offset of the wave.
+
+protected:
+  void _Phi_impl(Array2& Phi) override {
+    const Array2& points = this->get_points();
+    const auto& ss = xt::view(points, xt::all(), 0);
+    const auto& thetas = xt::view(points, xt::all(), 1);
+    const auto& zetas = xt::view(points, xt::all(), 2);
+    const auto& times = xt::view(points, xt::all(), 3);
+    for (std::size_t i = 0; i < ss.size(); ++i) {
+      xt::view(Phi, i, 0) = this->phihat(ss(i)) *
+        sin(this->Phim * thetas(i) - this->Phin * zetas(i) +
+        this->omega * times(i) + this->phase);
+    }
+  }
+
+  void _dPhidpsi_impl(Array2& dPhidpsi) override {
+    const Array2& points = this->get_points();
+    const auto& ss = xt::view(points, xt::all(), 0);
+    const auto& thetas = xt::view(points, xt::all(), 1);
+    const auto& zetas = xt::view(points, xt::all(), 2);
+    const auto& times = xt::view(points, xt::all(), 3);
+    for (std::size_t i = 0; i < ss.size(); ++i) {
+      xt::view(dPhidpsi, i, 0) =
+        this->phihat.derivative(ss(i)) / (this->B0->psi0) *
+        sin(this->Phim * thetas(i) - this->Phin * zetas(i) +
+        this->omega * times(i) + this->phase);
+     }
+  }
+  
+  void _dPhidtheta_impl(Array2& dPhidtheta) override {
+    xt::view(dPhidtheta, xt::all(), 0) =
+      this->Phidot_ref()(0) * (this->Phim / this->omega);
+  }
+
+  void _dPhidzeta_impl(Array2& dPhidzeta) override {
+    xt::view(dPhidzeta, xt::all(), 0) =
+      -this->Phidot_ref()(0) * (this->Phin / this->omega);
+  }
+  
+  void _Phidot_impl(Array2& Phidot) override {
+    const Array2& points = this->get_points();
+    const auto& ss = xt::view(points, xt::all(), 0);
+    const auto& thetas = xt::view(points, xt::all(), 1);
+    const auto& zetas = xt::view(points, xt::all(), 2);
+    const auto& times = xt::view(points, xt::all(), 3);
+    for (std::size_t i = 0; i < ss.size(); ++i) {
+      xt::view(Phidot, i, 0) =
+        this->phihat(ss(i)) * this->omega *
+        cos(this->Phim * thetas(i) - this->Phin * zetas(i) +
+        this->omega * times(i) + this->phase);
+    }
+  }
+
+  void _alpha_impl(Array2& alpha) override {
+    xt::view(alpha, xt::all(), 0) =
+      -this->Phi_ref()(0) *
+      ((this->B0->iota_ref()(0) * this->Phim - this->Phin) /
+      (this->omega * (this->B0->G_ref()(0) +
+      this->B0->iota_ref()(0) * this->B0->I_ref()(0))));
+  }
+      
+  void _alphadot_impl(Array2& alphadot) override {
+    xt::view(alphadot, xt::all(), 0) =
+      -this->Phidot_ref()(0) *
+      ((this->B0->iota_ref()(0) * this->Phim - this->Phin) /
+      (this->omega * (this->B0->G_ref()(0) +
+      this->B0->iota_ref()(0) * this->B0->I_ref()(0))));
+  }
+    
+  void _dalphadpsi_impl(Array2& dalphadpsi) override {
+    const auto& diotadpsi_values = this->B0->diotads_ref()(0) / this->B0->psi0;
+    const auto& dGdpsi_values = this->B0->dGds_ref()(0) / this->B0->psi0;
+    const auto& dIdpsi_values = this->B0->dIds_ref()(0) / this->B0->psi0;
+    const auto& iota_values = this->B0->iota_ref()(0);
+    const auto& G_values = this->B0->G_ref()(0);
+    const auto& I_values = this->B0->I_ref()(0);
+    const auto& dPhidpsi_values = this->dPhidpsi_ref()(0);
+    const auto& Phi_values = this->Phi_ref()(0);
+  
+    xt::view(dalphadpsi, xt::all(), 0) =
+      -dPhidpsi_values * (iota_values * this->Phim - this->Phin) /
+      (this->omega * (G_values + iota_values * I_values)) -
+      (Phi_values / this->omega) *
+        (diotadpsi_values * this->Phim /
+          (G_values + iota_values * I_values) -
+         (iota_values * this->Phim - this->Phin) /
+          ((G_values + iota_values * I_values) *
+           (G_values + iota_values * I_values)) *
+          (dGdpsi_values + diotadpsi_values * I_values +
+            iota_values * dIdpsi_values));
+  }
+  
+  void _dalphadtheta_impl(Array2& dalphadtheta) override {
+    const auto& iota_values = this->B0->iota_ref()(0);
+    const auto& G_values = this->B0->G_ref()(0);
+    const auto& I_values = this->B0->I_ref()(0);
+    const auto& dPhidtheta_values = this->dPhidtheta_ref()(0);
+    xt::view(dalphadtheta, xt::all(), 0) =
+      -dPhidtheta_values * (iota_values * this->Phim - this->Phin) /
+      (this->omega * (G_values + iota_values * I_values));
+  }
+  
+  void _dalphadzeta_impl(Array2& dalphadzeta) override {
+    const auto& iota_values = this->B0->iota_ref()(0);
+    const auto& G_values = this->B0->G_ref()(0);
+    const auto& I_values = this->B0->I_ref()(0);
+    const auto& dPhidzeta_values = this->dPhidzeta_ref()(0);
+    xt::view(dalphadzeta, xt::all(), 0) =
+      -dPhidzeta_values * (iota_values * this->Phim - this->Phin) /
+      (this->omega * (G_values + iota_values * I_values));
+  }
+  
+  public:
+      /**
+      * @brief Constructor for the ShearAlfvenHarmonic class.
+      *
+      * Initializes the Shear Alfvén Harmonic with a given profile `phihat`, mode numbers `m` and `n`,
+      * wave frequency `omega`, phase `phase`, and equilibrium magnetic field `B0`.
+      *
+      * @param phihat_in Profile of the scalar potential.
+      * @param Phim Poloidal mode number.
+      * @param Phin Toroidal mode number.
+      * @param omega Frequency of the wave.
+      * @param phase Phase offset of the wave.
+      * @param B0field Shared pointer to the equilibrium Boozer magnetic field.
+      */
+      ShearAlfvenHarmonic(
+          const Phihat& phihat_in,
+          int Phim,
+          int Phin,
+          double omega,
+          double phase,
+          shared_ptr<BoozerMagneticField> B0field
+      ) : 
+      ShearAlfvenWave(B0field),
+      phihat(phihat_in),
+      Phim(Phim),
+      Phin(Phin),
+      omega(omega),
+      phase(phase) {}
 };
