@@ -1218,7 +1218,7 @@ def nfactor(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp, st
         return normal(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp)[:,2]
     elif direction=='r':
         # return normal(curve_dofs, qpts, order, G, H, mpol, ntor, sdofs, nfp, stellsym, dgamma_dtheta, dgamma_dphi, surf_type)[:,0]
-        return -(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp)[:,0]
+        return -normal(curve_dofs, qpts, order, G, H, sdofs, surf_type, mpol, ntor, nfp)[:,0]
 
 class CurveCWSFourier( Curve, sopp.Curve ):
     """Curve that lies on a surface
