@@ -3,12 +3,15 @@ from math import sqrt
 from warnings import warn
 
 import numpy as np
-# from nptyping import NDArray, Float
 
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
 from ..field.boozermagneticfield import BoozerMagneticField
-from ..util.constants import ALPHA_PARTICLE_MASS, ALPHA_PARTICLE_CHARGE, FUSION_ALPHA_PARTICLE_ENERGY
+from ..util.constants import (
+    ALPHA_PARTICLE_MASS, 
+    ALPHA_PARTICLE_CHARGE, 
+    FUSION_ALPHA_PARTICLE_ENERGY
+)
 from .._core.types import RealArray
 
 
@@ -26,15 +29,37 @@ def compute_gc_radius(m, vperp, q, absb):
     Computes the gyro radius of a particle in a field with strenght ``absb```,
     that is ``r=m*vperp/(abs(q)*absb)``.
     """
-
     return m*vperp/(abs(q)*absb)
 
-def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: RealArray,
-                           parallel_speeds: RealArray, mus: RealArray, tmax=1e-4,
-                           mass=ALPHA_PARTICLE_MASS, charge=ALPHA_PARTICLE_CHARGE, Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
-                           tol=1e-9, abstol=None, reltol=None, comm=None, zetas=[], omegas=[], vpars=[], stopping_criteria=[], dt_save=1e-6, mode='gc_vac', 
-                           forget_exact_path=False, zetas_stop=False, vpars_stop=False,
-                           Phihat=0, omega=0, Phim=0, Phin=0, phase=0, axis=0):
+def trace_particles_boozer_perturbed(
+    field: BoozerMagneticField,
+    stz_inits: RealArray,
+    parallel_speeds: RealArray,
+    mus: RealArray,
+    tmax=1e-4,
+    mass=ALPHA_PARTICLE_MASS,
+    charge=ALPHA_PARTICLE_CHARGE,
+    Ekin=FUSION_ALPHA_PARTICLE_ENERGY,
+    tol=1e-9,
+    abstol=None,
+    reltol=None,
+    comm=None,
+    zetas=[],
+    omegas=[],
+    vpars=[],
+    stopping_criteria=[],
+    dt_save=1e-6,
+    mode='gc_vac', 
+    forget_exact_path=False,
+    zetas_stop=False,
+    vpars_stop=False,
+    Phihat=0,
+    omega=0,
+    Phim=0,
+    Phin=0,
+    phase=0,
+    axis=0
+):
     r"""
     Follow particles in a :class:`BoozerMagneticField`. This is modeled after
     :func:`trace_particles`.
@@ -129,7 +154,7 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
     assert len(mus) == len(parallel_speeds)
     speed_par = parallel_speeds
     m = mass
-    speed_total = sqrt(2*Ekin/m)  # Ekin = 0.5 * m * v^2 <=> v = sqrt(2*Ekin/m)
+    speed_total = sqrt(2*Ekin/m)
     mode = mode.lower()
     assert mode in ['gc', 'gc_vac', 'gc_nok']
 
@@ -139,10 +164,33 @@ def trace_particles_boozer_perturbed(field: BoozerMagneticField, stz_inits: Real
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
-            field, stz_inits[i, :], m, charge, speed_total, speed_par[i], mus[i], tmax, abstol, reltol, vacuum=(mode == 'gc_vac'),
-            noK=(mode == 'gc_nok'), zetas=zetas, omegas=omegas, vpars=vpars, stopping_criteria=stopping_criteria, dt_save=dt_save, 
-            zetas_stop=zetas_stop,vpars_stop=vpars_stop, Phihat=Phihat, omega=omega,
-            Phim=Phim, Phin=Phin, phase=phase,forget_exact_path=forget_exact_path,axis=axis)
+            field,
+            stz_inits[i, :],
+            m,
+            charge,
+            speed_total,
+            speed_par[i],
+            mus[i],
+            tmax,
+            abstol,
+            reltol,
+            vacuum=(mode == 'gc_vac'),
+            noK=(mode == 'gc_nok'),
+            zetas=zetas,
+            omegas=omegas,
+            vpars=vpars,
+            stopping_criteria=stopping_criteria,
+            dt_save=dt_save, 
+            zetas_stop=zetas_stop,
+            vpars_stop=vpars_stop,
+            Phihat=Phihat,
+            omega=omega,
+            Phim=Phim,
+            Phin=Phin,
+            phase=phase,
+            forget_exact_path=forget_exact_path,
+            axis=axis
+        )
         if not forget_exact_path:
             res_tys.append(np.asarray(res_ty))
         else:
