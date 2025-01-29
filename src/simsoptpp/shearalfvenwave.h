@@ -82,7 +82,7 @@ public:
 
     virtual ~ShearAlfvenWave() {}
 
-    void set_points(Array2& p) {
+    virtual void set_points(Array2& p) {
         if (p.shape(1) != 4) {
             throw std::invalid_argument("Input tensor must have 4 columns: Boozer coordinates, and time (s, theta, zeta, time)");
         }
@@ -91,7 +91,7 @@ public:
         memcpy(points.data(), p.data(), 4 * npoints * sizeof(double));
         // Set points for B0 using the first three columns of p 
         // (s, theta, zeta):
-        p_b0 = xt::view(p, xt::all(), xt::range(0, 3));
+        Array2 p_b0 = xt::view(p, xt::all(), xt::range(0, 3));
         B0->set_points(p_b0);
     }
 
@@ -319,6 +319,15 @@ public:
     return (Phihat_values[i_right] - Phihat_values[i_left]) /
            (s_values[i_right] - s_values[i_left]);
   }
+  
+  /**
+  * @brief Returns the sorted s_values used for interpolation.
+  *
+  * @return A vector of sorted s_values.
+  */
+  const std::vector<double>& get_s_basis() const {
+    return s_values;
+  }
 };
 
 
@@ -333,7 +342,7 @@ public:
 *
 * @tparam T Template for tensor type. It should be a template class compatible with xtensor-like syntax.
 */
-class ShearAfvenHarmonic : public ShearAlfvenWave {
+class ShearAlfvenHarmonic : public ShearAlfvenWave {
 public:
     using Array2 = xt::pytensor<double, 2, xt::layout_type::row_major>;
     Phihat phihat;
@@ -481,6 +490,13 @@ protected:
       Phin(Phin),
       omega(omega),
       phase(phase) {}
+      
+      /**
+      * @brief Returns radial amplitude Phihat of the ShearAlfvenHarmonic
+      */
+      const Phihat& get_phihat() const {
+        return phihat;
+      }
 };
 
 
