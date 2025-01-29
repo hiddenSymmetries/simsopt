@@ -158,6 +158,10 @@ public:
         _dalphadzeta_impl(data_dalphadzeta);
         return data_dalphadzeta;
     }
+    
+    std::shared_ptr<BoozerMagneticField> get_B0() const {
+        return B0;
+    }
 
     Array2 Phi() { return Phi_ref(); }
     Array2 dPhidpsi() { return dPhidpsi_ref(); }
@@ -503,7 +507,7 @@ public:
   * match the superposition's `B0`.
   */
   void add_wave(const std::shared_ptr<ShearAlfvenWave>& wave) {
-    if (wave->B0 != this->B0) {
+    if (wave->get_B0() != this->B0) {
       throw std::invalid_argument(
         "The wave's B0 field does not match the superposition's B0 field."
       );
@@ -522,7 +526,7 @@ public:
   * @throws std::invalid_argument if the base wave is not provided.
   */
   ShearAlfvenWavesSuperposition(std::shared_ptr<ShearAlfvenWave> base_wave)
-    : ShearAlfvenWave(base_wave->B0) {
+    : ShearAlfvenWave(base_wave->get_B0()) {
     if (!base_wave) {
       throw std::invalid_argument(
         "Base wave must be provided to initialize the superposition."
