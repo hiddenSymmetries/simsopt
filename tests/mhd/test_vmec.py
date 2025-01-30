@@ -541,7 +541,8 @@ class VmecTests(unittest.TestCase):
             self.assertEqual(netcdf_to_str(vmec.wout.pcurr_type[:15]), 'cubic_spline_ip')
 
             # Now we try a current profile setting the total current instead
-            # of it's derivative. By using "cubic_spline_i" instead of 'cubic_spline_ip'
+            # of its derivative. We do this by using "cubic_spline_i" instead
+            # of 'cubic_spline_ip'
             vmec.indata.pcurr_type = 'cubic_spline_i'
             current2.local_unfix_all()
             current2.x = factor * (1.0 * s_spline - 0.4 * s_spline ** 2)
