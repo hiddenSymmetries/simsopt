@@ -8,7 +8,15 @@ import os.path
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["BoozerMagneticField","BoozerAnalytic","BoozerRadialInterpolant","InterpolatedBoozerField"]
+__all__ = [
+    "BoozerMagneticField",
+    "BoozerAnalytic",
+    "BoozerRadialInterpolant",
+    "InterpolatedBoozerField",
+    "ShearAlfvenWave",
+    "ShearAlfvenHarmonic",
+    "ShearAlfvenWavesSuperposition"
+]
 
 try:
     from mpi4py import MPI
