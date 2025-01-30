@@ -1,5 +1,6 @@
 #include "tracing_helpers.h"
 #include "boozermagneticfield.h"
+#include "shearalfvenwave.h"
 #include "tracing.h"
 #ifdef USE_GSL
     #include "symplectic.h"
@@ -109,21 +110,26 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
      *
      */
     private:
-        Array2 stz = xt::zeros<double>({1, 3});
-        shared_ptr<BoozerMagneticField> field;
-        double m, q, mu, Phihat, omega, phase;
-        int Phim, Phin;
+        Array2 stzt = xt::zeros<double>({1, 4});
+        shared_ptr<ShearAlfvenWave> perturbed_field;
+        double m, q, mu;
     public:
         int axis;
         static constexpr int Size = 5;
         using State = array<double, Size>;
 
-        GuidingCenterVacuumBoozerPerturbedRHS(shared_ptr<BoozerMagneticField> field,
-            double m, double q, double mu, double Phihat, double omega, int Phim,
-            int Phin, double phase, int axis)
-            : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
-              Phim(Phim), Phin(Phin), phase(phase), axis(axis) {
-            }
+        GuidingCenterVacuumBoozerPerturbedRHS(
+            shared_ptr<ShearAlfvenWave> perturbed_field,
+            double m,
+            double q,
+            double mu,
+            int axis
+        ): 
+            perturbed_field(perturbed_field),
+            m(m),
+            q(q),
+            mu(mu),
+            axis(axis) {}
 
         void operator()(const State &ys, array<double, 5> &dydt,
                 const double t) {
@@ -141,11 +147,13 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
                 theta = ys[1];
             }  
 
-            stz(0, 0) = s;
-            stz(0, 1) = theta;
-            stz(0, 2) = ys[2];
+            stzt(0, 0) = s;
+            stzt(0, 1) = theta;
+            stzt(0, 2) = ys[2];
+            stzt(0, 3) = ys[4];
 
-            field->set_points(stz);
+            perturbed_field->set_points(stzt);
+            auto field = perturbed_field->get_B0();
             auto psi0 = field->psi0;
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
@@ -156,17 +164,16 @@ class GuidingCenterVacuumBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = Phihat * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
-            double dPhidpsi = 0;
-            double Phidot = Phihat * omega * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
-            double dPhidtheta = Phidot * Phim / omega;
-            double dPhidzeta = - Phidot * Phin / omega;
-            double alpha = - Phi * (iota*Phim - Phin)/(omega*G);
-            double alphadot = - Phidot * (iota*Phim - Phin)/(omega*G);
-            double dalphadtheta = - dPhidtheta * (iota*Phim - Phin)/(omega*G);
-            double dalphadzeta = - dPhidzeta * (iota*Phim - Phin)/(omega*G);
-            double dalphadpsi = - dPhidpsi * (iota*Phim - Phin)/(omega*G) \
-                - Phi * (diotadpsi*Phim)/(omega*G);
+            double Phi = perturbed_field->Phi_ref()(0);
+            double Phidot = perturbed_field->Phidot_ref()(0);
+            double dPhidpsi = perturbed_field->dPhidpsi_ref()(0);
+            double dPhidtheta = perturbed_field->dPhidtheta_ref()(0);
+            double dPhidzeta = perturbed_field->dPhidzeta_ref()(0);
+            double alpha = perturbed_field->alpha_ref()(0);
+            double alphadot = perturbed_field->alphadot_ref()(0);
+            double dalphadpsi = perturbed_field->dalphadpsi_ref()(0);
+            double dalphadtheta = perturbed_field->dalphadtheta_ref()(0);
+            double dalphadzeta = perturbed_field->dalphadzeta_ref()(0);
 
             double sdot = (-dmodBdtheta*fak1/q + dalphadtheta*modB*v_par - dPhidtheta)/psi0;
             double tdot = dmodBdpsi*fak1/q + (iota - dalphadpsi*G)*v_par*modB/G + dPhidpsi;
@@ -202,21 +209,26 @@ class GuidingCenterNoKBoozerPerturbedRHS {
      *
      */
     private:
-        Array2 stz = xt::zeros<double>({1, 3});
-        shared_ptr<BoozerMagneticField> field;
-        double m, q, mu, Phihat, omega, phase;
-        int Phim, Phin;
+        Array2 stzt = xt::zeros<double>({1, 4});
+        shared_ptr<ShearAlfvenWave> perturbed_field;
+        double m, q, mu;
     public:
         int axis;
         static constexpr int Size = 5;
         using State = array<double, Size>;
 
-        GuidingCenterNoKBoozerPerturbedRHS(shared_ptr<BoozerMagneticField> field,
-            double m, double q, double mu, double Phihat, double omega, int Phim,
-            int Phin, double phase, int axis)
-            : field(field), m(m), q(q), mu(mu), Phihat(Phihat), omega(omega),
-              Phim(Phim), Phin(Phin), phase(phase), axis(axis) {
-            }
+        GuidingCenterNoKBoozerPerturbedRHS(
+            shared_ptr<ShearAlfvenWave> perturbed_field,
+            double m,
+            double q,
+            double mu,
+            int axis
+        ): 
+        perturbed_field(perturbed_field),
+        m(m),
+        q(q),
+        mu(mu),
+        axis(axis) {}
 
         void operator()(const State &ys, array<double, 5> &dydt,
                 const double t) {
@@ -234,11 +246,13 @@ class GuidingCenterNoKBoozerPerturbedRHS {
                 theta = ys[1];
             }  
 
-            stz(0, 0) = s;
-            stz(0, 1) = theta;
-            stz(0, 2) = ys[2];
+            stzt(0, 0) = s;
+            stzt(0, 1) = theta;
+            stzt(0, 2) = ys[2];
+            stzt(0, 3) = ys[4];
+            perturbed_field->set_points(stzt);
+            auto field = perturbed_field->get_B0();
 
-            field->set_points(stz);
             auto psi0 = field->psi0;
             double modB = field->modB_ref()(0);
             double G = field->G_ref()(0);
@@ -252,19 +266,18 @@ class GuidingCenterNoKBoozerPerturbedRHS {
             double dmodBdzeta = field->modB_derivs_ref()(2);
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
-            double Phi = Phihat * sin(Phim * theta - Phin * ys[2] + omega * time + phase);
-            double dPhidpsi = 0;
-            double Phidot = Phihat * omega * cos(Phim * theta - Phin * ys[2] + omega * time + phase);
-            double dPhidtheta = Phidot * Phim / omega;
-            double dPhidzeta = - Phidot * Phin / omega;
-            double alpha = - Phi * (iota*Phim - Phin)/(omega*(G+iota*I));
-            double alphadot = - Phidot * (iota*Phim - Phin)/(omega*(G+iota*I));
-            double dalphadtheta = - dPhidtheta * (iota*Phim - Phin)/(omega*(G+iota*I));
-            double dalphadzeta = -dPhidzeta * (iota*Phim - Phin)/(omega*(G+iota*I));
-            double dalphadpsi = - dPhidpsi * (iota*Phim - Phin)/(omega*(G+iota*I)) \
-                - (Phi/omega) * (diotadpsi*Phim/(G+iota*I) \
-                - (iota*Phim - Phin)/((G+iota*I)*(G+iota*I)) * (dGdpsi + diotadpsi*I + iota*dIdpsi));
-            double denom = q*(G + I*(-alpha*dGdpsi + iota) + alpha*G*dIdpsi) + m*v_par/modB * (-dGdpsi*I + G*dIdpsi); // q G in vacuum
+            double Phi = perturbed_field->Phi_ref()(0);
+            double Phidot = perturbed_field->Phidot_ref()(0);
+            double dPhidpsi = perturbed_field->dPhidpsi_ref()(0);
+            double dPhidtheta = perturbed_field->dPhidtheta_ref()(0);
+            double dPhidzeta = perturbed_field->dPhidzeta_ref()(0);
+            double alpha = perturbed_field->alpha_ref()(0);
+            double alphadot = perturbed_field->alphadot_ref()(0);
+            double dalphadpsi = perturbed_field->dalphadpsi_ref()(0);
+            double dalphadtheta = perturbed_field->dalphadtheta_ref()(0);
+            double dalphadzeta = perturbed_field->dalphadzeta_ref()(0);
+            double denom = (q*(G + I*(-alpha*dGdpsi + iota) + alpha*G*dIdpsi) 
+                + m*v_par/modB * (-dGdpsi*I + G*dIdpsi)); // q*G in vacuum
 
             double sdot = (-G*dPhidtheta*q + I*dPhidzeta*q + modB*q*v_par*(dalphadtheta*G-dalphadzeta*I) + (-dmodBdtheta*G + dmodBdzeta*I)*fak1)/(denom*psi0);
             double tdot = (G*q*dPhidpsi + modB*q*v_par*(-dalphadpsi*G - alpha*dGdpsi + iota) - dGdpsi*m*v_par*v_par \
@@ -532,15 +545,31 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
 
 tuple<vector<array<double, 6>>, vector<array<double, 7>>>
 particle_guiding_center_boozer_perturbed_tracing(
-        shared_ptr<BoozerMagneticField> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
-        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save,
-        bool zetas_stop, bool vpars_stop, double Phihat, double omega, int Phim,
-        int Phin, double phase, bool forget_exact_path, int axis, vector<double> vpars)
+        shared_ptr<ShearAlfvenWave> perturbed_field,
+        array<double, 3> stz_init,
+        double m,
+        double q,
+        double vtotal,
+        double vtang,
+        double mu,
+        double tmax,
+        double abstol,
+        double reltol,
+        bool vacuum,
+        bool noK,
+        vector<double> zetas,
+        vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        double dt_save,
+        bool zetas_stop,
+        bool vpars_stop,
+        bool forget_exact_path,
+        int axis,
+        vector<double> vpars)
 {
-    Array2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
-    field->set_points(stz);
+    Array2 stzt({{stz_init[0], stz_init[1], stz_init[2], 0.0}});
+    perturbed_field->set_points(stzt);
+    auto field = perturbed_field->get_B0();
     double modB = field->modB()(0);
     array<double, 5> y;
     double G0 = std::abs(field->G()(0));
@@ -556,12 +585,14 @@ particle_guiding_center_boozer_perturbed_tracing(
       y = {stz_init[0], stz_init[1], stz_init[2], vtang, 0};
     }
     if (vacuum) {
-      auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS(field, m, q, mu, Phihat, omega,
-        Phim, Phin, phase, axis);
+      auto rhs_class = GuidingCenterVacuumBoozerPerturbedRHS(
+          perturbed_field, m, q, mu, axis
+      );
       return solve<GuidingCenterVacuumBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
   } else {
-      auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS(field, m, q, mu, Phihat, omega,
-        Phim, Phin, phase, axis);
+      auto rhs_class = GuidingCenterNoKBoozerPerturbedRHS(
+          perturbed_field, m, q, mu, axis
+      );
       return solve<GuidingCenterNoKBoozerPerturbedRHS>(rhs_class, y, tmax, dt, dtmax, abstol, reltol, zetas, omegas, stopping_criteria, dt_save, vpars, zetas_stop, vpars_stop, forget_exact_path);
   }
 }

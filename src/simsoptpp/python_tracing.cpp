@@ -55,7 +55,7 @@ void init_tracing(py::module_ &m){
         );
 
     m.def("particle_guiding_center_boozer_perturbed_tracing", &particle_guiding_center_boozer_perturbed_tracing,
-        py::arg("field"),
+        py::arg("pertrurbed_field"),
         py::arg("stz_init"),
         py::arg("m"),
         py::arg("q"),
@@ -73,11 +73,6 @@ void init_tracing(py::module_ &m){
         py::arg("dt_save")=1e-6,
         py::arg("zetas_stop")=false,
         py::arg("vpars_stop")=false,
-        py::arg("Phihat")=0,
-        py::arg("omega")=0,
-        py::arg("Phim")=0,
-        py::arg("Phin")=0,
-        py::arg("phase")=0,
         py::arg("forget_exact_path")=false,
         py::arg("axis")=0,
         py::arg("vpars")=vector<double>{}

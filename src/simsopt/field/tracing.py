@@ -6,7 +6,10 @@ import numpy as np
 
 import simsoptpp as sopp
 from .._core.util import parallel_loop_bounds
-from ..field.boozermagneticfield import BoozerMagneticField
+from ..field.boozermagneticfield import (
+    BoozerMagneticField,
+    ShearAlfvenWave
+)
 from ..util.constants import (
     ALPHA_PARTICLE_MASS, 
     ALPHA_PARTICLE_CHARGE, 
@@ -17,11 +20,16 @@ from .._core.types import RealArray
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['MinToroidalFluxStoppingCriterion', 'MaxToroidalFluxStoppingCriterion',
-           'IterationStoppingCriterion', 'ToroidalTransitStoppingCriterion',
-           'StepSizeStoppingCriterion', 'compute_resonances',
-           'compute_poloidal_transits', 'compute_toroidal_transits',
-           'trace_particles_boozer']
+__all__ = [
+    'MinToroidalFluxStoppingCriterion',      'MaxToroidalFluxStoppingCriterion',
+    'IterationStoppingCriterion',
+    'ToroidalTransitStoppingCriterion',
+    'StepSizeStoppingCriterion',
+    'compute_resonances',
+    'compute_poloidal_transits',
+    'compute_toroidal_transits',
+    'trace_particles_boozer'
+]
 
 
 def compute_gc_radius(m, vperp, q, absb):
@@ -32,7 +40,7 @@ def compute_gc_radius(m, vperp, q, absb):
     return m*vperp/(abs(q)*absb)
 
 def trace_particles_boozer_perturbed(
-    field: BoozerMagneticField,
+    perturbed_field: ShearAlfvenWave,
     stz_inits: RealArray,
     parallel_speeds: RealArray,
     mus: RealArray,
@@ -53,15 +61,10 @@ def trace_particles_boozer_perturbed(
     forget_exact_path=False,
     zetas_stop=False,
     vpars_stop=False,
-    Phihat=0,
-    omega=0,
-    Phim=0,
-    Phin=0,
-    phase=0,
     axis=0
 ):
     r"""
-    Follow particles in a :class:`BoozerMagneticField`. This is modeled after
+    Follow particles in a perturbed field of class :class:`ShearAlfvenWave`. This is modeled after
     :func:`trace_particles`.
 
 
@@ -103,7 +106,7 @@ def trace_particles_boozer_perturbed(
     the above equations are used with :math:`K=0`.
 
     Args:
-        field: The :class:`BoozerMagneticField` instance
+        perturbed_field: The :class:`ShearAlfvenWave` instance
         stz_inits: A ``(nparticles, 3)`` array with the initial positions of
             the particles in Boozer coordinates :math:`(s,\theta,\zeta)`.
         parallel_speeds: A ``(nparticles, )`` array containing the speed in
@@ -164,7 +167,7 @@ def trace_particles_boozer_perturbed(
     first, last = parallel_loop_bounds(comm, nparticles)
     for i in range(first, last):
         res_ty, res_zeta_hit = sopp.particle_guiding_center_boozer_perturbed_tracing(
-            field,
+            perturbed_field,
             stz_inits[i, :],
             m,
             charge,
@@ -183,11 +186,6 @@ def trace_particles_boozer_perturbed(
             dt_save=dt_save, 
             zetas_stop=zetas_stop,
             vpars_stop=vpars_stop,
-            Phihat=Phihat,
-            omega=omega,
-            Phim=Phim,
-            Phin=Phin,
-            phase=phase,
             forget_exact_path=forget_exact_path,
             axis=axis
         )

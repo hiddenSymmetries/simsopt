@@ -2,6 +2,7 @@
 #include <memory>
 #include <vector>
 #include "boozermagneticfield.h"
+#include "shearalfvenwave.h"
 #include "regular_grid_interpolant_3d.h"
 #include "tracing_helpers.h"
 
@@ -12,13 +13,27 @@ using std::tuple;
 
 tuple<vector<std::array<double, 6>>, vector<std::array<double, 7>>>
 particle_guiding_center_boozer_perturbed_tracing(
-        shared_ptr<BoozerMagneticField> field, std::array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double mu, double tmax, double abstol, double reltol,
-        bool vacuum, bool noK, vector<double> zetas, vector<double> omegas,
-        vector<shared_ptr<StoppingCriterion>> stopping_criteria, double dt_save=1e-6,
-        bool zetas_stop=false, bool vpars_stop=false,
-        double alphahat=0, double omega=0, int alpham=0, int alphan=0, double phase=0,
-        bool forget_exact_path=false, int axis=0, vector<double> vpars={});
+        shared_ptr<ShearAlfvenWave> perturbed_field,
+        std::array<double, 3> stz_init,
+        double m,
+        double q,
+        double vtotal,
+        double vtang,
+        double mu,
+        double tmax,
+        double abstol,
+        double reltol,
+        bool vacuum,
+        bool noK,
+        vector<double> zetas,
+        vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        double dt_save=1e-6,
+        bool zetas_stop=false,
+        bool vpars_stop=false,
+        bool forget_exact_path=false,
+        int axis=0,
+        vector<double> vpars={});
 
 
 tuple<vector<std::array<double, 5>>, vector<std::array<double, 6>>>
