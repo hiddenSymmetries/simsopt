@@ -5,6 +5,8 @@
 #include <array>
 #include <vector>
 #include <tuple>
+#include <memory>
+#include <functional>
 
 using std::array;
 using std::shared_ptr;

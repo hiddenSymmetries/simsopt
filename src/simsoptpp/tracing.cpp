@@ -523,7 +523,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
         double t_last = std::get<0>(step);
         double t_current = std::get<1>(step);
         dt = t_current - t_last;
-        stop = check_stopping_criteria(rhs, y, iter, res, res_hits, dense,      
+        stop = check_stopping_criteria<RHS,dense_stepper_type>(rhs, y, iter, res, res_hits, dense,      
                                 t_last, t_current, zeta_last, zeta_current, vpar_last, vpar_current, abstol, zetas, omegas, stopping_criteria, vpars, zetas_stop, vpars_stop, forget_exact_path, dt_save);
         zeta_last = zeta_current;
         vpar_last = vpar_current;
