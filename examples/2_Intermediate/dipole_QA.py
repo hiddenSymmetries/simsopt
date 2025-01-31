@@ -21,16 +21,16 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 64
+    Nx = 32
 
-coff = 0.13  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.03  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-nIter_max = 1000
+nIter_max = 5000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -97,7 +97,7 @@ pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
 kwargs = initialize_default_kwargs('GPMO')
 # algorithm = 'baseline'
 algorithm = 'baseline'
-nHistory = 10
+nHistory = 100
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
 print('kwargs = ',kwargs)
@@ -111,8 +111,6 @@ M_max = B_max / mu0
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
-print('dip_Ms = ',pm_opt.m)
-print('dip grid = ',pm_opt.dipole_grid_xyz)
 
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
@@ -157,9 +155,6 @@ print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume = ', total_volume)
 
-print('exact Ms = ',pm_opt.m)
-print('exact grid = ',pm_opt.dipole_grid_xyz)
-
 # field for cubic magents in dipole optimization positions
 b_comp = ExactField(
     pm_opt.dipole_grid_xyz,
@@ -180,7 +175,9 @@ b_comp._toVTK(out_dir / "magnet_fields", pm_comp.dx, pm_comp.dy, pm_comp.dz)
 
 # Print optimized metrics
 print("comp fB = ",
-      0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+      0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_comp.b_obj) ** 2))
+
+assert all(pm_comp.b_obj == pm_opt.b_obj)
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bcnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -188,62 +185,14 @@ make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
 Bcnormal_magnets = np.sum(b_comp.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
 Bcnormal_total = Bcnormal + Bcnormal_magnets
 
-# Compute metrics with permanent magnet results
-magnets_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
-num_nonzero = np.count_nonzero(np.sum(magnets_m ** 2, axis=-1)) / pm_opt.ndipoles * 100
-print("Number of possible magnets = ", pm_opt.ndipoles)
-print("% of magnets that are nonzero = ", num_nonzero)
-
 # For plotting Bn on the full torus surface at the end with just the magnet fields
 make_Bnormal_plots(b_comp, s_plot, out_dir, "only_m_comp_optimized")
 pointData = {"B_N": Bnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_comp_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
-b_comp.set_points(s.gamma().reshape((-1, 3)))
-bs.set_points(s.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-f_B_sf = SquaredFlux(s, b_comp, -Bnormal).J()
-
-print('f_B = ', f_B_sf)
-total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-print('Total volume = ', total_volume)
-
-t_end = time.time()
-print('Total time = ', t_end - t_start)
-plt.show()b_comp.set_points(s_plot.gamma().reshape((-1, 3)))
-b_comp._toVTK(out_dir / "magnet_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
-
-# Print optimized metrics
-print("Total fB = ",
-      0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
-
-bs.set_points(s_plot.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
-Bnormal_magnets = np.sum(b_comp.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
-Bnormal_total = Bnormal + Bnormal_magnets
-
-# Compute metrics with permanent magnet results
-magnets_m = pm_opt.m.reshape(pm_opt.ndipoles, 3)
-num_nonzero = np.count_nonzero(np.sum(magnets_m ** 2, axis=-1)) / pm_opt.ndipoles * 100
-print("Number of possible magnets = ", pm_opt.ndipoles)
-print("% of magnets that are nonzero = ", num_nonzero)
-
-# For plotting Bn on the full torus surface at the end with just the magnet fields
-make_Bnormal_plots(b_comp, s_plot, out_dir, "only_m_optimized")
-pointData = {"B_N": Bnormal_total[:, :, None]}
-s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
-
-# Print optimized f_B and other metrics
-b_comp.set_points(s.gamma().reshape((-1, 3)))
-bs.set_points(s.gamma().reshape((-1, 3)))
-Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-f_B_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
-
+f_B_sf = SquaredFlux(s_plot, b_comp, -Bnormal).J()
 print('f_B_comp = ', f_B_sf)
-total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
-print('Total volume = ', total_volume)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
