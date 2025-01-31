@@ -99,12 +99,12 @@ class BoozerAnalytic(BoozerMagneticField):
     r"""
     Computes a :class:`BoozerMagneticField` based on a first-order expansion in
     distance from the magnetic axis (Landreman & Sengupta, Journal of Plasma
-    Physics 2018). Here the magnetic field strength is expressed as,
+    Physics 2018). A possibility to include QS-breakign perturbation is added, so the magnetic field strength is expressed as,
 
     .. math::
-        B(s,\theta,\zeta) = B_0 \left(1 + \overline{\eta} \sqrt{2s\psi_0/\overline{B}}\cos(\theta - N \zeta)\right),
+        B(s,\theta,\zeta) = B_0 \left(1 + \overline{\eta} \sqrt{2s\psi_0/\overline{B}}\cos(\theta - N \zeta)\right) + B_{0z}\cos{m\theta-n\zeta},
 
-    the covariant components are,
+    the covariant components of equilibrium field are,
 
     .. math::
         G(s) = G_0 + \sqrt{2s\psi_0/\overline{B}} G_1
@@ -133,13 +133,20 @@ class BoozerAnalytic(BoozerMagneticField):
         G1: first order correction to toroidal covariant component (defaults to 0)
         I1: first order correction to poloidal covariant component (defaults to 0)
         K1: first order correction to radial covariant component (defaults to 0)
+        B0z: amplitude of symmetry-breaking perturbation mode
+        n: toroidal mode number for the perturbation
+        m: poloidal mode bumber for the perturbation
     """
 
     def __init__(self, etabar, B0, N, G0, psi0, iota0, Bbar=1., I0=0., G1=0.,
-                 I1=0., K1=0., iota1=0., B0z=0.):
+                 I1=0., K1=0., iota1=0., B0z=[0.], n=[1], m=[2]):
+        assert(len(B0z)==len(n))
+        assert(len(m)==len(n))
         self.etabar = etabar
         self.B0 = B0
-        self.B0z = B0z
+        self.B0z = np.array(B0z)
+        self.m = np.array(m,dtype='float')
+        self.n = np.array(n,dtype='float')
         self.Bbar = Bbar
         self.N = N
         self.G0 = G0
@@ -153,42 +160,55 @@ class BoozerAnalytic(BoozerMagneticField):
         BoozerMagneticField.__init__(self, psi0)
 
     def set_etabar(self, etabar):
+        self.invalidate_cache()
         self.etabar = etabar
 
     def set_B0(self, B0):
+        self.invalidate_cache()
         self.B0 = B0
 
     def set_B0z(self, B0z):
+        self.invalidate_cache()
         self.B0z = B0z
 
     def set_Bbar(self, Bbar):
+        self.invalidate_cache()
         self.Bbar = Bbar
 
     def set_N(self, N):
+        self.invalidate_cache()
         self.N = N
 
     def set_G0(self, G0):
+        self.invalidate_cache()
         self.G0 = G0
 
     def set_I0(self, I0):
+        self.invalidate_cache()
         self.I0 = I0
 
     def set_G1(self, G1):
+        self.invalidate_cache()
         self.G1 = G1
 
     def set_I1(self, I1):
+        self.invalidate_cache()
         self.I1 = I1
 
     def set_K1(self, K1):
+        self.invalidate_cache()
         self.K1 = K1
 
     def set_iota0(self, iota0):
+        self.invalidate_cache()
         self.iota0 = iota0
 
     def set_iota1(self, iota1):
+        self.invalidate_cache()
         self.iota1 = iota1
 
     def set_psi0(self, psi0):
+        self.invalidate_cache()
         self.psi0 = psi0
 
     def _psip_impl(self, psip):
@@ -227,7 +247,7 @@ class BoozerAnalytic(BoozerMagneticField):
         zetas = points[:, 2]
         psi = s*self.psi0
         r = np.sqrt(np.abs(2*psi/self.Bbar))
-        modB[:, 0] = self.B0*(1 + self.etabar*r*np.cos(thetas-self.N*zetas)) + self.B0z*np.cos(zetas)
+        modB[:, 0] = self.B0*(1 + self.etabar*r*np.cos(thetas-self.N*zetas)) + np.sum(self.B0z[:,None]*np.cos(self.m[:,None]*thetas[None,:] - self.n[:,None]*self.N*zetas[None,:]))
 
     def _dmodBds_impl(self, dmodBds):
         points = self.get_points_ref()
@@ -251,7 +271,7 @@ class BoozerAnalytic(BoozerMagneticField):
         zetas = points[:, 2]
         psi = s*self.psi0
         r = np.sqrt(np.abs(2*psi/self.Bbar))
-        dmodBdtheta[:, 0] = -self.B0*self.etabar*r*np.sin(thetas-self.N*zetas)
+        dmodBdtheta[:, 0] = -self.B0*self.etabar*r*np.sin(thetas-self.N*zetas) - np.sum(self.B0z[:,None]*self.m[:,None]*np.sin(self.m[:,None]*thetas[None,:] - self.n[:,None]*self.N*zetas[None,:]))
 
     def _dmodBdzeta_impl(self, dmodBdzeta):
         points = self.get_points_ref()
@@ -260,7 +280,7 @@ class BoozerAnalytic(BoozerMagneticField):
         zetas = points[:, 2]
         psi = s*self.psi0
         r = np.sqrt(np.abs(2*psi/self.Bbar))
-        dmodBdzeta[:, 0] = self.N*self.B0*self.etabar*r*np.sin(thetas-self.N*zetas) - self.B0z*np.sin(zetas)
+        dmodBdzeta[:, 0] = self.N*self.B0*self.etabar*r*np.sin(thetas-self.N*zetas) + np.sum(self.B0z[:,None]*self.n[:,None]*self.N*np.sin(self.m[:,None]*thetas[None,:] - self.n[:,None]*self.N*zetas[None,:]))
 
     def _K_impl(self, K):
         points = self.get_points_ref()
