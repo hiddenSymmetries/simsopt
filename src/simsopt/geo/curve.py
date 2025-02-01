@@ -20,7 +20,7 @@ def incremental_arclength_pure(d1gamma):
     This function is used in a Python+Jax implementation of the curve arc length formula.
     """
 
-    return jnp.linalg.norm(d1gamma, axis=1)
+    return jnp.sum(d1gamma**2, axis=1)**0.5
 
 
 incremental_arclength_vjp = jit(lambda d1gamma, v: vjp(lambda d1g: incremental_arclength_pure(d1g), d1gamma)[1](v)[0])

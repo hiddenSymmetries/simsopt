@@ -2,7 +2,7 @@
 
 #include "curve.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> PyArray;
+typedef xt::pyarray<std::complex<double>> PyArray;
 
 typedef Curve<PyArray> PyCurve;
 
@@ -14,16 +14,16 @@ template <class CurveBase = PyCurve> class PyCurveTrampoline : public CurveBase 
             PYBIND11_OVERLOAD_PURE(int, CurveBase, num_dofs);
         }
 
-        virtual void set_dofs_impl(const vector<double>& _dofs) override {
+        virtual void set_dofs_impl(const vector<std::complex<double>>& _dofs) override {
             PYBIND11_OVERLOAD_PURE(void, CurveBase, set_dofs_impl, _dofs);
         }
 
-        virtual void set_dofs(const vector<double>& _dofs) override {
+        virtual void set_dofs(const vector<std::complex<double>>& _dofs) override {
             PYBIND11_OVERLOAD(void, CurveBase, set_dofs, _dofs);
         }
 
-        virtual vector<double> get_dofs() override {
-            PYBIND11_OVERLOAD_PURE(vector<double>, CurveBase, get_dofs);
+        virtual vector<std::complex<double>> get_dofs() override {
+            PYBIND11_OVERLOAD_PURE(vector<std::complex<double>>, CurveBase, get_dofs);
         }
 
         virtual void gamma_impl(PyArray& data, PyArray& quadpoints) override {

@@ -33,7 +33,7 @@ class CurveLength(Optimizable):
 
     def __init__(self, curve):
         self.curve = curve
-        self.thisgrad = jit(lambda l: grad(curve_length_pure)(l))
+        self.thisgrad = jit(lambda l: grad(curve_length_pure, holomorphic=True)(l))
         super().__init__(depends_on=[curve])
 
     def J(self):

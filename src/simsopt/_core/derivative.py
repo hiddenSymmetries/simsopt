@@ -17,7 +17,7 @@ class OptimizableDefaultDict(collections.defaultdict):
     def __missing__(self, key):
         from .optimizable import Optimizable  # Import here to avoid circular import
         assert isinstance(key, Optimizable)
-        self[key] = value = np.zeros((key.local_full_dof_size, ))
+        self[key] = value = np.zeros((key.local_full_dof_size, ), dtype=complex)
         return value
 
 
@@ -201,7 +201,7 @@ class Derivative:
         else:
             for k in optim.unique_dof_lineage:
                 if np.any(k.dofs_free_status):
-                    local_derivs = np.zeros(k.local_dof_size)
+                    local_derivs = np.zeros(k.local_dof_size, dtype=complex)
                     for opt in k.dofs.dep_opts():
                         local_derivs += self.data[opt][opt.local_dofs_free_status]
                     derivs.append(local_derivs)

@@ -33,7 +33,7 @@ class Surface {
         Array& check_the_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first;
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<std::complex<double>>(dims)))).first;
             }
             if(!((loc->second).status)){ // needs recomputing
                 impl((loc->second).data);
@@ -45,7 +45,7 @@ class Surface {
         Array& check_the_persistent_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache_persistent.find(key);
             if(loc == cache_persistent.end()){ // Key not found --> allocate array
-                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first;
+                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<std::complex<double>>(dims)))).first;
             }
             if(!((loc->second).status)){ // needs recomputing
                 impl((loc->second).data);
@@ -54,7 +54,7 @@ class Surface {
             return (loc->second).data;
         }
 
-        std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
+        std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXcd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
 
     // We'd really like these to be protected, but I'm not sure that plays well
     // with accessing them from python child classes.
@@ -66,25 +66,25 @@ class Surface {
 
     public:
 
-        Surface(vector<double> _quadpoints_phi, vector<double> _quadpoints_theta) {
+        Surface(vector<std::complex<double>> _quadpoints_phi, vector<std::complex<double>> _quadpoints_theta) {
             numquadpoints_phi = _quadpoints_phi.size();
             numquadpoints_theta = _quadpoints_theta.size();
 
-            quadpoints_phi = xt::zeros<double>({numquadpoints_phi});
+            quadpoints_phi = xt::zeros<std::complex<double>>({numquadpoints_phi});
             for (int i = 0; i < numquadpoints_phi; ++i) {
                 quadpoints_phi[i] = _quadpoints_phi[i];
             }
-            quadpoints_theta = xt::zeros<double>({numquadpoints_theta});
+            quadpoints_theta = xt::zeros<std::complex<double>>({numquadpoints_theta});
             for (int i = 0; i < numquadpoints_theta; ++i) {
                 quadpoints_theta[i] = _quadpoints_theta[i];
             }
         }
 
         void least_squares_fit(Array& target_values);
-        void fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta);
-        void scale(double scale);
-        void extend_via_normal(double scale);
-        void extend_via_projected_normal(double scale);
+        void fit_to_curve(Curve<Array>& curve, std::complex<double> radius, bool flip_theta);
+        void scale(std::complex<double> scale);
+        void extend_via_normal(std::complex<double> scale);
+        void extend_via_projected_normal(std::complex<double> scale);
 
         void invalidate_cache() {
 
@@ -93,14 +93,14 @@ class Surface {
             }
         }
 
-        virtual void set_dofs(const vector<double>& _dofs) {
+        virtual void set_dofs(const vector<std::complex<double>>& _dofs) {
             this->set_dofs_impl(_dofs);
             this->invalidate_cache();
         }
 
         virtual int num_dofs() = 0;
-        virtual void set_dofs_impl(const vector<double>& _dofs) = 0;
-        virtual vector<double> get_dofs() = 0;
+        virtual void set_dofs_impl(const vector<std::complex<double>>& _dofs) = 0;
+        virtual vector<std::complex<double>> get_dofs() = 0;
 
         virtual void gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
         virtual void gamma_lin(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) = 0;
@@ -143,11 +143,11 @@ class Surface {
         void unitnormal_impl(Array& data);
         void dunitnormal_by_dcoeff_impl(Array& data);
 
-        double area();
+        std::complex<double> area();
         void darea_by_dcoeff_impl(Array& data);
         void d2area_by_dcoeffdcoeff_impl(Array& data);
 
-        double volume();
+        std::complex<double> volume();
         void dvolume_by_dcoeff_impl(Array& data);
         void d2volume_by_dcoeffdcoeff_impl(Array& data);
 

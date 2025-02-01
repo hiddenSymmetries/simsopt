@@ -9,7 +9,7 @@ void Curve<Array>::least_squares_fit(Array& target_values) {
 
     if(!qr){
         auto dg_dc = this->dgamma_by_dcoeff();
-        Eigen::MatrixXd A = Eigen::MatrixXd(numquadpoints*3, num_dofs());
+        Eigen::MatrixXcd A = Eigen::MatrixXcd(numquadpoints*3, num_dofs());
         int counter = 0;
         for (int i = 0; i < numquadpoints; ++i) {
             for (int d = 0; d < 3; ++d) {
@@ -19,17 +19,17 @@ void Curve<Array>::least_squares_fit(Array& target_values) {
                 counter++;
             }
         }
-        qr = std::make_unique<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>>(A.fullPivHouseholderQr());
+        qr = std::make_unique<Eigen::FullPivHouseholderQR<Eigen::MatrixXcd>>(A.fullPivHouseholderQr());
     }
-    Eigen::VectorXd b = Eigen::VectorXd(numquadpoints*3);
+    Eigen::VectorXcd b = Eigen::VectorXcd(numquadpoints*3);
     int counter = 0;
     for (int i = 0; i < numquadpoints; ++i) {
         for (int d = 0; d < 3; ++d) {
             b(counter++) = target_values(i, d);
         }
     }
-    Eigen::VectorXd x = qr->solve(b);
-    vector<double> dofs(x.data(), x.data() + x.size());
+    Eigen::VectorXcd x = qr->solve(b);
+    vector<std::complex<double>> dofs(x.data(), x.data() + x.size());
     this->set_dofs(dofs);
 }
 
@@ -55,5 +55,5 @@ void Curve<Array>::dincremental_arclength_by_dcoeff_impl(Array& data) {
 
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> Array;
+typedef xt::pyarray<std::complex<double>> Array;
 template class Curve<Array>;

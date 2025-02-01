@@ -30,10 +30,10 @@ class Cache {
         Array& get_or_create(string key, vector<int> dims){
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<std::complex<double>>(dims)))).first; 
                 //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
-                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+                loc->second = CachedArray<Array>(xt::zeros<std::complex<double>>(dims));
                 //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             } else {
                 //fmt::print("Existing array found for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
@@ -45,10 +45,10 @@ class Cache {
         Array& get_or_create_and_fill(string key, vector<int> dims, std::function<void(Array&)> impl) {
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<std::complex<double>>(dims)))).first; 
                 //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             } else if(loc->second.data.shape(0) != dims[0]) { // key found but not the right number of points
-                loc->second = CachedArray<Array>(xt::zeros<double>(dims));
+                loc->second = CachedArray<Array>(xt::zeros<std::complex<double>>(dims));
                 //fmt::print("Create a new array for key {} of size [{}] at {}\n", key, fmt::join(dims, ", "), fmt::ptr(loc->second.data.data()));
             }
             if(!(loc->second.status)){ // needs recomputing

@@ -19,7 +19,7 @@ template<class Array>
 Array curve_vjp_contraction(const Array& mat, const Array& v){
     int numquadpoints = mat.shape(0);
     int numdofs = mat.shape(2);
-    Array res = xt::zeros<double>({numdofs});
+    Array res = xt::zeros<std::complex<double>>({numdofs});
     // we have to compute the contraction below:
     //for (int i = 0; i < numdofs; ++i) {
     //    for (int j = 0; j < numquadpoints; ++j) {
@@ -31,9 +31,9 @@ Array curve_vjp_contraction(const Array& mat, const Array& v){
     // instead of worrying how to do this efficiently, we map to a eigen
     // matrix, and then write this as a matrix vector product.
 
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(mat.data()), numquadpoints*3, numdofs);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(v.data()), 1, numquadpoints*3);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(res.data()), 1, numdofs);
+    Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<std::complex<double>*>(mat.data()), numquadpoints*3, numdofs);
+    Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<std::complex<double>*>(v.data()), 1, numquadpoints*3);
+    Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<std::complex<double>*>(res.data()), 1, numdofs);
     eigen_res = eigen_v*eigen_mat;
 
     return res;
@@ -55,7 +55,7 @@ class Curve {
         Array& check_the_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache.find(key);
             if(loc == cache.end()){ // Key not found --> allocate array
-                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                loc = cache.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<std::complex<double>>(dims)))).first; 
             }
             if(!((loc->second).status)){ // needs recomputing
                 impl((loc->second).data);
@@ -67,7 +67,7 @@ class Curve {
         Array& check_the_persistent_cache(string key, vector<int> dims, std::function<void(Array&)> impl){
             auto loc = cache_persistent.find(key);
             if(loc == cache_persistent.end()){ // Key not found --> allocate array
-                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<double>(dims)))).first; 
+                loc = cache_persistent.insert(std::make_pair(key, CachedArray<Array>(xt::zeros<std::complex<double>>(dims)))).first; 
             }
             if(!((loc->second).status)){ // needs recomputing
                 impl((loc->second).data);
@@ -76,7 +76,7 @@ class Curve {
             return (loc->second).data;
         }
 
-        std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
+        std::unique_ptr<Eigen::FullPivHouseholderQR<Eigen::MatrixXcd>> qr; //QR factorisation of dgamma_by_dcoeff, for least squares fitting.
 
     // We'd really like these to be protected, but I'm not sure that plays well
     // with accessing them from python child classes. 
@@ -88,15 +88,15 @@ class Curve {
 
         Curve(int _numquadpoints) {
             numquadpoints = _numquadpoints;
-            quadpoints = xt::zeros<double>({_numquadpoints});
+            quadpoints = xt::zeros<std::complex<double>>({_numquadpoints});
             for (int i = 0; i < numquadpoints; ++i) {
-                quadpoints[i] = (double(i))/numquadpoints;
+                quadpoints[i] = (std::complex<double>(i))/std::complex<double>(numquadpoints);
             }
         }
 
-        Curve(vector<double> _quadpoints) {
+        Curve(vector<std::complex<double>> _quadpoints) {
             numquadpoints = _quadpoints.size();
-            quadpoints = xt::zeros<double>({_quadpoints.size()});
+            quadpoints = xt::zeros<std::complex<double>>({_quadpoints.size()});
             for (int i = 0; i < numquadpoints; ++i) {
                 quadpoints[i] = _quadpoints[i];
             }
@@ -112,7 +112,7 @@ class Curve {
             }
         }
 
-        virtual void set_dofs(const vector<double>& _dofs) {
+        virtual void set_dofs(const vector<std::complex<double>>& _dofs) {
             this->set_dofs_impl(_dofs);
             this->invalidate_cache();
         }
@@ -120,8 +120,8 @@ class Curve {
         void least_squares_fit(Array& target_values);
 
         virtual int num_dofs() = 0;
-        virtual void set_dofs_impl(const vector<double>& _dofs) = 0;
-        virtual vector<double> get_dofs() = 0;
+        virtual void set_dofs_impl(const vector<std::complex<double>>& _dofs) = 0;
+        virtual vector<std::complex<double>> get_dofs() = 0;
 
 /* The interface for gamma_impl is a little different than the other ones, in
  * the sense that we allow the user to pass the quadrature points.  This is

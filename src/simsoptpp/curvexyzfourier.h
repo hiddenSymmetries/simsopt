@@ -21,30 +21,30 @@ class CurveXYZFourier : public Curve<Array> {
         using Curve<Array>::quadpoints;
         using Curve<Array>::numquadpoints;
         using Curve<Array>::check_the_persistent_cache;
-        vector<vector<double>> dofs;
+        vector<vector<std::complex<double>>> dofs;
         const int order;
 
         CurveXYZFourier(int _numquadpoints, int _order) : Curve<Array>(_numquadpoints), order(_order) {
-            dofs = vector<vector<double>> {
-                vector<double>(2*order+1, 0.), 
-                vector<double>(2*order+1, 0.), 
-                vector<double>(2*order+1, 0.)
+            dofs = vector<vector<std::complex<double>>> {
+                vector<std::complex<double>>(2*order+1, 0.), 
+                vector<std::complex<double>>(2*order+1, 0.), 
+                vector<std::complex<double>>(2*order+1, 0.)
             };
         }
 
-        CurveXYZFourier(vector<double> _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
-            dofs = vector<vector<double>> {
-                vector<double>(2*order+1, 0.), 
-                vector<double>(2*order+1, 0.), 
-                vector<double>(2*order+1, 0.)
+        CurveXYZFourier(vector<std::complex<double>> _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
+            dofs = vector<vector<std::complex<double>>> {
+                vector<std::complex<double>>(2*order+1, 0.), 
+                vector<std::complex<double>>(2*order+1, 0.), 
+                vector<std::complex<double>>(2*order+1, 0.)
             };
         }
 
         CurveXYZFourier(Array _quadpoints, int _order) : Curve<Array>(_quadpoints), order(_order) {
-            dofs = vector<vector<double>> {
-                vector<double>(2*order+1, 0.), 
-                vector<double>(2*order+1, 0.), 
-                vector<double>(2*order+1, 0.)
+            dofs = vector<vector<std::complex<double>>> {
+                vector<std::complex<double>>(2*order+1, 0.), 
+                vector<std::complex<double>>(2*order+1, 0.), 
+                vector<std::complex<double>>(2*order+1, 0.)
             };
         }
 
@@ -52,7 +52,7 @@ class CurveXYZFourier : public Curve<Array> {
             return 3*(2*order+1);
         }
 
-        void set_dofs_impl(const vector<double>& _dofs) override {
+        void set_dofs_impl(const vector<std::complex<double>>& _dofs) override {
             int counter = 0;
             for (int i = 0; i < 3; ++i) {
                 dofs[i][0] = _dofs[counter++];
@@ -63,8 +63,8 @@ class CurveXYZFourier : public Curve<Array> {
             }
         }
 
-        vector<double> get_dofs() override {
-            auto _dofs = vector<double>(num_dofs(), 0.);
+        vector<std::complex<double>> get_dofs() override {
+            auto _dofs = vector<std::complex<double>>(num_dofs(), 0.);
             int counter = 0;
             for (int i = 0; i < 3; ++i) {
                 _dofs[counter++] = dofs[i][0];
