@@ -164,7 +164,7 @@ class QuadraticPenalty(Optimizable):
 
     def J(self):
         val = self.obj.J()
-        diff = float(val - self.cons)
+        diff = val - self.cons
 
         if self.f == 'max':
             return 0.5*np.maximum(diff, 0)**2
@@ -179,7 +179,7 @@ class QuadraticPenalty(Optimizable):
     def dJ(self):
         val = self.obj.J()
         dval = self.obj.dJ(partials=True)
-        diff = float(val - self.cons)
+        diff = val - self.cons
 
         if self.f == 'max':
             return np.maximum(diff, 0)*dval

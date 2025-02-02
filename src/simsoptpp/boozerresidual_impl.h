@@ -2,6 +2,7 @@
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
 #include "xtensor/xarray.hpp"
+#include "operators.h"
 
 #if __cplusplus >= 201703L
 #define MYIF(c) if constexpr(c)
@@ -10,12 +11,12 @@
 #endif
 
 #if defined(USE_XSIMD)
-template<class T, int deriv> void boozer_residual_impl(double G, double iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres, T& d2res, size_t ndofs, bool weight_inv_modB){
+template<class T, int deriv> void boozer_residual_impl(std::complex<double> G, std::complex<double> iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, std::complex<double>& res, T& dres, T& d2res, size_t ndofs, bool weight_inv_modB){
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
     int num_points = 3 * nphi * ntheta;
 
-    constexpr size_t simd_size = xsimd::simd_type<double>::size;
+    constexpr size_t simd_size = xsimd::simd_type<std::complex<double>>::size;
     auto dx_ds_ij0 = AlignedPaddedVec(ndofs, 0);
     auto dx_ds_ij1 = AlignedPaddedVec(ndofs, 0);
     auto dx_ds_ij2 = AlignedPaddedVec(ndofs, 0);
@@ -51,21 +52,21 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
     
     for(int i=0; i<nphi; i++){
         for(int j=0; j<ntheta; j++){
-            double B2ij = B(i,j,0)*B(i,j,0) + B(i,j,1)*B(i,j,1) + B(i,j,2)*B(i,j,2);
-            double rB2ij = 1/B2ij;
-            double wij = weight_inv_modB ? sqrt(rB2ij) : 1.;
-            double modB_ij = sqrt(B2ij);
-            double powrmodBijthree = wij*wij*wij;
+            std::complex<double> B2ij = B(i,j,0)*B(i,j,0) + B(i,j,1)*B(i,j,1) + B(i,j,2)*B(i,j,2);
+            std::complex<double> rB2ij = 1/B2ij;
+            std::complex<double> wij = weight_inv_modB ? sqrt(rB2ij) : 1.;
+            std::complex<double> modB_ij = sqrt(B2ij);
+            std::complex<double> powrmodBijthree = wij*wij*wij;
 
-            double tang_ij0 = xphi(i,j,0)+iota*xtheta(i,j,0); 
-            double tang_ij1 = xphi(i,j,1)+iota*xtheta(i,j,1); 
-            double tang_ij2 = xphi(i,j,2)+iota*xtheta(i,j,2);  
+            std::complex<double> tang_ij0 = xphi(i,j,0)+iota*xtheta(i,j,0); 
+            std::complex<double> tang_ij1 = xphi(i,j,1)+iota*xtheta(i,j,1); 
+            std::complex<double> tang_ij2 = xphi(i,j,2)+iota*xtheta(i,j,2);  
 
-            double resij0 = G*B(i, j, 0)  - B2ij * tang_ij0;
-            double resij1 = G*B(i, j, 1)  - B2ij * tang_ij1;
-            double resij2 = G*B(i, j, 2)  - B2ij * tang_ij2;
+            std::complex<double> resij0 = G*B(i, j, 0)  - B2ij * tang_ij0;
+            std::complex<double> resij1 = G*B(i, j, 1)  - B2ij * tang_ij1;
+            std::complex<double> resij2 = G*B(i, j, 2)  - B2ij * tang_ij2;
             
-            double rtil_ij0, rtil_ij1, rtil_ij2;
+            std::complex<double> rtil_ij0, rtil_ij1, rtil_ij2;
 
             rtil_ij0 = resij0 * wij;
             rtil_ij1 = resij1 * wij;
@@ -125,27 +126,27 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                     simd_t dxtheta_ds_ij1m = xs::load_aligned(&dxtheta_ds_ij1[m]);
                     simd_t dxtheta_ds_ij2m = xs::load_aligned(&dxtheta_ds_ij2[m]);
 
-                    auto dBij0m = xsimd::fma(dB_dxij00,dx_ds_ij0m,xsimd::fma(dB_dxij10,dx_ds_ij1m,dB_dxij20*dx_ds_ij2m)); 
-                    auto dBij1m = xsimd::fma(dB_dxij01,dx_ds_ij0m,xsimd::fma(dB_dxij11,dx_ds_ij1m,dB_dxij21*dx_ds_ij2m)); 
-                    auto dBij2m = xsimd::fma(dB_dxij02,dx_ds_ij0m,xsimd::fma(dB_dxij12,dx_ds_ij1m,dB_dxij22*dx_ds_ij2m));
+                    auto dBij0m = fma(dB_dxij00,dx_ds_ij0m,fma(dB_dxij10,dx_ds_ij1m,dB_dxij20*dx_ds_ij2m)); 
+                    auto dBij1m = fma(dB_dxij01,dx_ds_ij0m,fma(dB_dxij11,dx_ds_ij1m,dB_dxij21*dx_ds_ij2m)); 
+                    auto dBij2m = fma(dB_dxij02,dx_ds_ij0m,fma(dB_dxij12,dx_ds_ij1m,dB_dxij22*dx_ds_ij2m));
 
                     auto dB2_ijm = 2*(Bij0 * dBij0m + Bij1 * dBij1m + Bij2 * dBij2m);
-                    auto tang_ij0m = xsimd::fma(it, dxtheta_ds_ij0m , dxphi_ds_ij0m);
-                    auto tang_ij1m = xsimd::fma(it, dxtheta_ds_ij1m , dxphi_ds_ij1m);
-                    auto tang_ij2m = xsimd::fma(it, dxtheta_ds_ij2m , dxphi_ds_ij2m);
+                    auto tang_ij0m = fma(it, dxtheta_ds_ij0m , dxphi_ds_ij0m);
+                    auto tang_ij1m = fma(it, dxtheta_ds_ij1m , dxphi_ds_ij1m);
+                    auto tang_ij2m = fma(it, dxtheta_ds_ij2m , dxphi_ds_ij2m);
 
-                    auto dresij0m = xsimd::fms(GG , dBij0m , xsimd::fma(dB2_ijm , btang_ij0 , B2ij * tang_ij0m));
-                    auto dresij1m = xsimd::fms(GG , dBij1m , xsimd::fma(dB2_ijm , btang_ij1 , B2ij * tang_ij1m));
-                    auto dresij2m = xsimd::fms(GG , dBij2m , xsimd::fma(dB2_ijm , btang_ij2 , B2ij * tang_ij2m));
+                    auto dresij0m = fms(GG , dBij0m , fma(dB2_ijm , btang_ij0 , B2ij * tang_ij0m));
+                    auto dresij1m = fms(GG , dBij1m , fma(dB2_ijm , btang_ij1 , B2ij * tang_ij1m));
+                    auto dresij2m = fms(GG , dBij2m , fma(dB2_ijm , btang_ij2 , B2ij * tang_ij2m));
 
                     auto dmodB_ijm = 0.5 * dB2_ijm * wij;
                     auto dw_ijm = weight_inv_modB ? -dmodB_ijm * rB2ij : simd_t(0.);
-                    auto drtil_ij0m = xsimd::fma(dresij0m , bw_ij , dw_ijm * resij0); 
-                    auto drtil_ij1m = xsimd::fma(dresij1m , bw_ij , dw_ijm * resij1); 
-                    auto drtil_ij2m = xsimd::fma(dresij2m , bw_ij , dw_ijm * resij2);
+                    auto drtil_ij0m = fma(dresij0m , bw_ij , dw_ijm * resij0); 
+                    auto drtil_ij1m = fma(dresij1m , bw_ij , dw_ijm * resij1); 
+                    auto drtil_ij2m = fma(dresij2m , bw_ij , dw_ijm * resij2);
 
                     // sum_k (r_k grad r_k)
-                    auto dresm = xsimd::fma(brtil_ij0, drtil_ij0m, xsimd::fma(brtil_ij1, drtil_ij1m , brtil_ij2 * drtil_ij2m));                    
+                    auto dresm = fma(brtil_ij0, drtil_ij0m, fma(brtil_ij1, drtil_ij1m , brtil_ij2 * drtil_ij2m));                    
                     
                     int jjlimit = std::min(simd_size, ndofs-m);
                     for(int jj = 0; jj < jjlimit; jj++){
@@ -173,13 +174,13 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                     }
                 }
                 
-                double dres_ij0iota = -B2ij * xtheta(i, j, 0);
-                double dres_ij1iota = -B2ij * xtheta(i, j, 1);
-                double dres_ij2iota = -B2ij * xtheta(i, j, 2);
+                std::complex<double> dres_ij0iota = -B2ij * xtheta(i, j, 0);
+                std::complex<double> dres_ij1iota = -B2ij * xtheta(i, j, 1);
+                std::complex<double> dres_ij2iota = -B2ij * xtheta(i, j, 2);
                  
-                double drtil_ij0iota = dres_ij0iota * wij; 
-                double drtil_ij1iota = dres_ij1iota * wij; 
-                double drtil_ij2iota = dres_ij2iota * wij;
+                std::complex<double> drtil_ij0iota = dres_ij0iota * wij; 
+                std::complex<double> drtil_ij1iota = dres_ij1iota * wij; 
+                std::complex<double> drtil_ij2iota = dres_ij2iota * wij;
                 dres(ndofs + 0) += rtil_ij0 * drtil_ij0iota + rtil_ij1 * drtil_ij1iota + rtil_ij2 * drtil_ij2iota;
                 
                 drtilij0[ndofs + 0] = drtil_ij0iota; 
@@ -187,13 +188,13 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                 drtilij2[ndofs + 0] = drtil_ij2iota; 
 
 
-                double dres_ij0_dG = B(i, j, 0);
-                double dres_ij1_dG = B(i, j, 1);
-                double dres_ij2_dG = B(i, j, 2);
+                std::complex<double> dres_ij0_dG = B(i, j, 0);
+                std::complex<double> dres_ij1_dG = B(i, j, 1);
+                std::complex<double> dres_ij2_dG = B(i, j, 2);
 
-                double drtil_ij0_dG = wij * dres_ij0_dG;
-                double drtil_ij1_dG = wij * dres_ij1_dG;
-                double drtil_ij2_dG = wij * dres_ij2_dG;
+                std::complex<double> drtil_ij0_dG = wij * dres_ij0_dG;
+                std::complex<double> drtil_ij1_dG = wij * dres_ij1_dG;
+                std::complex<double> drtil_ij2_dG = wij * dres_ij2_dG;
                 dres(ndofs + 1) += rtil_ij0 * drtil_ij0_dG + rtil_ij1 * drtil_ij1_dG + rtil_ij2 * drtil_ij2_dG;
 
                 drtilij0[ndofs + 1] = drtil_ij0_dG; 
@@ -280,9 +281,9 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                             auto term3_1 = -tang_ij1 * d2B2_ijmn;
                             auto term3_2 = -tang_ij2 * d2B2_ijmn;
 
-                            auto d2res_ij0mn = xsimd::fma(GG , d2Bij0_mn , term1_0) + term2_0 + term3_0;
-                            auto d2res_ij1mn = xsimd::fma(GG , d2Bij1_mn , term1_1) + term2_1 + term3_1;
-                            auto d2res_ij2mn = xsimd::fma(GG , d2Bij2_mn , term1_2) + term2_2 + term3_2;
+                            auto d2res_ij0mn = fma(GG , d2Bij0_mn , term1_0) + term2_0 + term3_0;
+                            auto d2res_ij1mn = fma(GG , d2Bij1_mn , term1_1) + term2_1 + term3_1;
+                            auto d2res_ij2mn = fma(GG , d2Bij2_mn , term1_2) + term2_2 + term3_2;
                             
                             auto d2modB_ijmn = (2 * B2ij * d2B2_ijmn - dB2_ijm*dB2_ij[n]) * powrmodBijthree / 4. ;
                             auto d2wij_mn = weight_inv_modB ? (2. * dmodB_ijm * dmodB_ij[n] - modB_ij * d2modB_ijmn) * powrmodBijthree : simd_t(0.);
@@ -343,27 +344,27 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
 }
 
 #else
-template<class T, int deriv> void boozer_residual_impl(double G, double iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, double& res, T& dres, T& d2res, size_t ndofs, bool weight_inv_modB){
+template<class T, int deriv> void boozer_residual_impl(std::complex<double> G, std::complex<double> iota, T& B, T& dB_dx, T& d2B_dx2, T& xphi, T& xtheta, T& dx_ds, T& dxphi_ds, T& dxtheta_ds, std::complex<double>& res, T& dres, T& d2res, size_t ndofs, bool weight_inv_modB){
     int nphi = xphi.shape(0);
     int ntheta = xtheta.shape(1);
 
     for(int i=0; i<nphi; i++){
         for(int j=0; j<ntheta; j++){
-            double B2ij = B(i,j,0)*B(i,j,0) + B(i,j,1)*B(i,j,1) + B(i,j,2)*B(i,j,2);
-            double rB2ij = 1/B2ij;
-            double wij = weight_inv_modB ? sqrt(rB2ij) : 1.;
-            double modB_ij = sqrt(B2ij);
-            double powrmodBijthree = wij*wij*wij;
+            std::complex<double> B2ij = B(i,j,0)*B(i,j,0) + B(i,j,1)*B(i,j,1) + B(i,j,2)*B(i,j,2);
+            std::complex<double> rB2ij = 1/B2ij;
+            std::complex<double> wij = weight_inv_modB ? sqrt(rB2ij) : 1.;
+            std::complex<double> modB_ij = sqrt(B2ij);
+            std::complex<double> powrmodBijthree = wij*wij*wij;
 
-            double tang_ij0 = xphi(i,j,0)+iota*xtheta(i,j,0); 
-            double tang_ij1 = xphi(i,j,1)+iota*xtheta(i,j,1); 
-            double tang_ij2 = xphi(i,j,2)+iota*xtheta(i,j,2);  
+            std::complex<double> tang_ij0 = xphi(i,j,0)+iota*xtheta(i,j,0); 
+            std::complex<double> tang_ij1 = xphi(i,j,1)+iota*xtheta(i,j,1); 
+            std::complex<double> tang_ij2 = xphi(i,j,2)+iota*xtheta(i,j,2);  
 
-            double resij0 = G*B(i, j, 0)  - B2ij * tang_ij0;
-            double resij1 = G*B(i, j, 1)  - B2ij * tang_ij1;
-            double resij2 = G*B(i, j, 2)  - B2ij * tang_ij2;
+            std::complex<double> resij0 = G*B(i, j, 0)  - B2ij * tang_ij0;
+            std::complex<double> resij1 = G*B(i, j, 1)  - B2ij * tang_ij1;
+            std::complex<double> resij2 = G*B(i, j, 2)  - B2ij * tang_ij2;
             
-            double rtil_ij0, rtil_ij1, rtil_ij2;
+            std::complex<double> rtil_ij0, rtil_ij1, rtil_ij2;
 
             rtil_ij0 = resij0 * wij;
             rtil_ij1 = resij1 * wij;
@@ -393,24 +394,24 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                 auto dmodB_ij = AlignedPaddedVec(ndofs+2, 0);
 
                 for (int m = 0; m < ndofs; m++) {
-                    double dBij0m = dB_dx(i,j,0,0)*dx_ds(i,j,0,m)+dB_dx(i,j,1,0)*dx_ds(i,j,1,m)+dB_dx(i,j,2,0)*dx_ds(i,j,2,m); 
-                    double dBij1m = dB_dx(i,j,0,1)*dx_ds(i,j,0,m)+dB_dx(i,j,1,1)*dx_ds(i,j,1,m)+dB_dx(i,j,2,1)*dx_ds(i,j,2,m); 
-                    double dBij2m = dB_dx(i,j,0,2)*dx_ds(i,j,0,m)+dB_dx(i,j,1,2)*dx_ds(i,j,1,m)+dB_dx(i,j,2,2)*dx_ds(i,j,2,m);
+                    std::complex<double> dBij0m = dB_dx(i,j,0,0)*dx_ds(i,j,0,m)+dB_dx(i,j,1,0)*dx_ds(i,j,1,m)+dB_dx(i,j,2,0)*dx_ds(i,j,2,m); 
+                    std::complex<double> dBij1m = dB_dx(i,j,0,1)*dx_ds(i,j,0,m)+dB_dx(i,j,1,1)*dx_ds(i,j,1,m)+dB_dx(i,j,2,1)*dx_ds(i,j,2,m); 
+                    std::complex<double> dBij2m = dB_dx(i,j,0,2)*dx_ds(i,j,0,m)+dB_dx(i,j,1,2)*dx_ds(i,j,1,m)+dB_dx(i,j,2,2)*dx_ds(i,j,2,m);
 
-                    double dB2_ijm = 2*(B(i,j,0) * dBij0m + B(i,j,1) * dBij1m + B(i,j,2) * dBij2m);
-                    double tang_ij0m = iota*dxtheta_ds(i,j,0,m) + dxphi_ds(i,j,0,m);
-                    double tang_ij1m = iota*dxtheta_ds(i,j,1,m) + dxphi_ds(i,j,1,m);
-                    double tang_ij2m = iota*dxtheta_ds(i,j,2,m) + dxphi_ds(i,j,2,m);
+                    std::complex<double> dB2_ijm = 2*(B(i,j,0) * dBij0m + B(i,j,1) * dBij1m + B(i,j,2) * dBij2m);
+                    std::complex<double> tang_ij0m = iota*dxtheta_ds(i,j,0,m) + dxphi_ds(i,j,0,m);
+                    std::complex<double> tang_ij1m = iota*dxtheta_ds(i,j,1,m) + dxphi_ds(i,j,1,m);
+                    std::complex<double> tang_ij2m = iota*dxtheta_ds(i,j,2,m) + dxphi_ds(i,j,2,m);
 
-                    double dresij0m = G * dBij0m - (dB2_ijm * tang_ij0 + B2ij * tang_ij0m);
-                    double dresij1m = G * dBij1m - (dB2_ijm * tang_ij1 + B2ij * tang_ij1m);
-                    double dresij2m = G * dBij2m - (dB2_ijm * tang_ij2 + B2ij * tang_ij2m);
+                    std::complex<double> dresij0m = G * dBij0m - (dB2_ijm * tang_ij0 + B2ij * tang_ij0m);
+                    std::complex<double> dresij1m = G * dBij1m - (dB2_ijm * tang_ij1 + B2ij * tang_ij1m);
+                    std::complex<double> dresij2m = G * dBij2m - (dB2_ijm * tang_ij2 + B2ij * tang_ij2m);
 
-                    double dmodB_ijm = 0.5 * dB2_ijm * wij;
-                    double dw_ijm = weight_inv_modB ? -dmodB_ijm * rB2ij : 0.;
-                    double drtil_ij0m = dresij0m * wij + dw_ijm * resij0; 
-                    double drtil_ij1m = dresij1m * wij + dw_ijm * resij1; 
-                    double drtil_ij2m = dresij2m * wij + dw_ijm * resij2;
+                    std::complex<double> dmodB_ijm = 0.5 * dB2_ijm * wij;
+                    std::complex<double> dw_ijm = weight_inv_modB ? -dmodB_ijm * rB2ij : 0.;
+                    std::complex<double> drtil_ij0m = dresij0m * wij + dw_ijm * resij0; 
+                    std::complex<double> drtil_ij1m = dresij1m * wij + dw_ijm * resij1; 
+                    std::complex<double> drtil_ij2m = dresij2m * wij + dw_ijm * resij2;
 
                     // sum_k (r_k grad r_k)
                     dres(m) += rtil_ij0 * drtil_ij0m + rtil_ij1 * drtil_ij1m + rtil_ij2 * drtil_ij2m;
@@ -436,13 +437,13 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                     dmodB_ij[m] = dmodB_ijm;
                 }
                 
-                double dres_ij0iota = -B2ij * xtheta(i, j, 0);
-                double dres_ij1iota = -B2ij * xtheta(i, j, 1);
-                double dres_ij2iota = -B2ij * xtheta(i, j, 2);
+                std::complex<double> dres_ij0iota = -B2ij * xtheta(i, j, 0);
+                std::complex<double> dres_ij1iota = -B2ij * xtheta(i, j, 1);
+                std::complex<double> dres_ij2iota = -B2ij * xtheta(i, j, 2);
                  
-                double drtil_ij0iota = dres_ij0iota * wij; 
-                double drtil_ij1iota = dres_ij1iota * wij; 
-                double drtil_ij2iota = dres_ij2iota * wij;
+                std::complex<double> drtil_ij0iota = dres_ij0iota * wij; 
+                std::complex<double> drtil_ij1iota = dres_ij1iota * wij; 
+                std::complex<double> drtil_ij2iota = dres_ij2iota * wij;
                 dres(ndofs + 0) += rtil_ij0 * drtil_ij0iota + rtil_ij1 * drtil_ij1iota + rtil_ij2 * drtil_ij2iota;
                 
                 drtilij0[ndofs + 0] = drtil_ij0iota; 
@@ -450,13 +451,13 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                 drtilij2[ndofs + 0] = drtil_ij2iota; 
 
 
-                double dres_ij0_dG = B(i, j, 0);
-                double dres_ij1_dG = B(i, j, 1);
-                double dres_ij2_dG = B(i, j, 2);
+                std::complex<double> dres_ij0_dG = B(i, j, 0);
+                std::complex<double> dres_ij1_dG = B(i, j, 1);
+                std::complex<double> dres_ij2_dG = B(i, j, 2);
 
-                double drtil_ij0_dG = wij * dres_ij0_dG;
-                double drtil_ij1_dG = wij * dres_ij1_dG;
-                double drtil_ij2_dG = wij * dres_ij2_dG;
+                std::complex<double> drtil_ij0_dG = wij * dres_ij0_dG;
+                std::complex<double> drtil_ij1_dG = wij * dres_ij1_dG;
+                std::complex<double> drtil_ij2_dG = wij * dres_ij2_dG;
                 dres(ndofs + 1) += rtil_ij0 * drtil_ij0_dG + rtil_ij1 * drtil_ij1_dG + rtil_ij2 * drtil_ij2_dG;
 
                 drtilij0[ndofs + 1] = drtil_ij0_dG; 
@@ -473,9 +474,9 @@ template<class T, int deriv> void boozer_residual_impl(double G, double iota, T&
                     // rij * d2rij_dmn
                     for(int m = 0; m < ndofs; m++){
                         for(int n = m; n < ndofs; n++){
-                            double d2Bij0_mn = 0.;
-                            double d2Bij1_mn = 0.; 
-                            double d2Bij2_mn = 0.; 
+                            std::complex<double> d2Bij0_mn = 0.;
+                            std::complex<double> d2Bij1_mn = 0.; 
+                            std::complex<double> d2Bij2_mn = 0.; 
                             for(int l = 0; l < 3; l++){
                                 d2Bij0_mn += d2B_dx2(i, j, 0, l, 0) * dx_ds(i,j,0,m) * dx_ds(i, j, l, n);
                                 d2Bij1_mn += d2B_dx2(i, j, 0, l, 1) * dx_ds(i,j,0,m) * dx_ds(i, j, l, n);

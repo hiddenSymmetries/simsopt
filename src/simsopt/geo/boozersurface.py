@@ -774,7 +774,7 @@ class BoozerSurface(Optimizable):
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel)]))
             else:
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 2]]))
-            norm = np.linalg.norm(b)
+            norm = np.linalg.norm(b.real)
             if norm <= tol:
                 break
             if s.stellsym:
@@ -816,7 +816,7 @@ class BoozerSurface(Optimizable):
         }
         
         if verbose:
-            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'], ord=np.inf):.3e}", flush=True)
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota'].real:.16f}, ||residual||_inf = {np.linalg.norm(res['residual'].real, ord=np.inf):.3e}", flush=True)
 
         self.res = res
         self.need_to_run_code = False

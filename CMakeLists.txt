@@ -35,6 +35,8 @@ endif()
 IF(DEFINED ENV{NO_XSIMD})
    set(NO_XSIMD ON)
 ENDIF()
+set(NO_XSIMD ON)
+
 set(_HAS_AUTO_PTR_ETC 1)
 configure_file(config.h.in config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -132,8 +134,8 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python_magneticfield.cpp 
     src/simsoptpp/curverzfourier.cpp  
     src/simsoptpp/surfacerzfourier.cpp 
+    src/simsoptpp/boozerresidual_py.cpp
     #src/simsoptpp/python_boozermagneticfield.cpp
-    #src/simsoptpp/boozerresidual_py.cpp
     #src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
     #src/simsoptpp/regular_grid_interpolant_3d_py.cpp
     # src/simsoptpp/curveplanarfourier.cpp

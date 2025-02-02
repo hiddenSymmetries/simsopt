@@ -655,7 +655,7 @@ class Surface(Optimizable):
         dgamma2 = self.gammadash2()
 
         # compute the average cross sectional area
-        J = np.zeros((xyz.shape[0], xyz.shape[1], 2, 2))
+        J = np.zeros((xyz.shape[0], xyz.shape[1], 2, 2), dtype=complex)
         J[:, :, 0, 0] = (xyz[:, :, 0] * dgamma1[:, :, 1] - xyz[:, :, 1] * dgamma1[:, :, 0]) / x2y2
         J[:, :, 0, 1] = (xyz[:, :, 0] * dgamma2[:, :, 1] - xyz[:, :, 1] * dgamma2[:, :, 0]) / x2y2
         J[:, :, 1, 0] = 0.

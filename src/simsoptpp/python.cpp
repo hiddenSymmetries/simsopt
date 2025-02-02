@@ -11,7 +11,7 @@ typedef xt::pytensor<std::complex<double>, 2, xt::layout_type::row_major> PyTens
 #include <math.h>
 #include <chrono>
 
-
+#include "operators.h"
 #include "biot_savart_py.h"
 #include "biot_savart_vjp_py.h"
 //#include "boozerradialinterpolant.h"
@@ -21,7 +21,7 @@ typedef xt::pytensor<std::complex<double>, 2, xt::layout_type::row_major> PyTens
 //#include "permanent_magnet_optimization.h"
 //#include "reiman.h"
 //#include "simdhelpers.h"
-//#include "boozerresidual_py.h"
+#include "boozerresidual_py.h"
 
 namespace py = pybind11;
 
@@ -91,43 +91,43 @@ PYBIND11_MODULE(simsoptpp, m) {
 //    m.def("compute_kmns",&compute_kmns);
 //    m.def("compute_kmnc_kmns",&compute_kmnc_kmns);
 //
-//    // the computation below is used in boozer_surface_residual.
-//    //
-//    // G*dB_dc - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] - B2[..., None, None] * (dxphi_dc + iota * dxtheta_dc)
-//    m.def("boozer_dresidual_dc", [](double G, PyArray& dB_dc, PyArray& B, PyArray& tang, PyArray& B2, PyArray& dxphi_dc, double iota, PyArray& dxtheta_dc) {
-//            int nphi = dB_dc.shape(0);
-//            int ntheta = dB_dc.shape(1);
-//            int ndofs = dB_dc.shape(3);
-//            PyArray res = xt::zeros<double>({nphi, ntheta, 3, ndofs});
-//            double* B_dB_dc = new double[ndofs];
-//            for(int i=0; i<nphi; i++){
-//                for(int j=0; j<ntheta; j++){
-//                    for (int m = 0; m < ndofs; ++m) {
-//                        B_dB_dc[m] = B(i, j, 0)*dB_dc(i, j, 0, m) + B(i, j, 1)*dB_dc(i, j, 1, m) + B(i, j, 2)*dB_dc(i, j, 2, m);
-//                    }
-//                    double B2ij = B2(i, j);
-//                    for (int d = 0; d < 3; ++d) {
-//                        auto dB_dc_ptr = &(dB_dc(i, j, d, 0));
-//                        auto res_ptr = &(res(i, j, d, 0));
-//                        auto dxphi_dc_ptr = &(dxphi_dc(i, j, d, 0));
-//                        auto dxtheta_dc_ptr = &(dxtheta_dc(i, j, d, 0));
-//                        auto tangijd = tang(i, j, d);
-//                        for (int m = 0; m < ndofs; ++m) {
-//                            res_ptr[m] = G*dB_dc_ptr[m]
-//                            - 2*B_dB_dc[m]*tangijd
-//                            - B2ij * (dxphi_dc_ptr[m] + iota*dxtheta_dc_ptr[m]);
-//                        }
-//                    }
-//                }
-//            }
-//            delete[] B_dB_dc;
-//            return res;
-//        });
-//
-//    m.def("boozer_residual", &boozer_residual);
-//    m.def("boozer_residual_ds", &boozer_residual_ds);
-//    m.def("boozer_residual_ds2", &boozer_residual_ds2);
-//
+    // the computation below is used in boozer_surface_residual.
+    //
+    // G*dB_dc - 2*np.sum(B[..., None]*dB_dc, axis=2)[:, :, None, :] * tang[..., None] - B2[..., None, None] * (dxphi_dc + iota * dxtheta_dc)
+    m.def("boozer_dresidual_dc", [](std::complex<double> G, PyArray& dB_dc, PyArray& B, PyArray& tang, PyArray& B2, PyArray& dxphi_dc, std::complex<double> iota, PyArray& dxtheta_dc) {
+            int nphi = dB_dc.shape(0);
+            int ntheta = dB_dc.shape(1);
+            int ndofs = dB_dc.shape(3);
+            PyArray res = xt::zeros<std::complex<double>>({nphi, ntheta, 3, ndofs});
+            std::complex<double>* B_dB_dc = new std::complex<double>[ndofs];
+            for(int i=0; i<nphi; i++){
+                for(int j=0; j<ntheta; j++){
+                    for (int m = 0; m < ndofs; ++m) {
+                        B_dB_dc[m] = B(i, j, 0)*dB_dc(i, j, 0, m) + B(i, j, 1)*dB_dc(i, j, 1, m) + B(i, j, 2)*dB_dc(i, j, 2, m);
+                    }
+                    std::complex<double> B2ij = B2(i, j);
+                    for (int d = 0; d < 3; ++d) {
+                        auto dB_dc_ptr = &(dB_dc(i, j, d, 0));
+                        auto res_ptr = &(res(i, j, d, 0));
+                        auto dxphi_dc_ptr = &(dxphi_dc(i, j, d, 0));
+                        auto dxtheta_dc_ptr = &(dxtheta_dc(i, j, d, 0));
+                        auto tangijd = tang(i, j, d);
+                        for (int m = 0; m < ndofs; ++m) {
+                            res_ptr[m] = G*dB_dc_ptr[m]
+                            - 2*B_dB_dc[m]*tangijd
+                            - B2ij * (dxphi_dc_ptr[m] + iota*dxtheta_dc_ptr[m]);
+                        }
+                    }
+                }
+            }
+            delete[] B_dB_dc;
+            return res;
+        });
+
+    m.def("boozer_residual", &boozer_residual);
+    m.def("boozer_residual_ds", &boozer_residual_ds);
+    m.def("boozer_residual_ds2", &boozer_residual_ds2);
+
     m.def("matmult", [](PyArray& A, PyArray&B) {
             // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
             int l = A.shape(0);

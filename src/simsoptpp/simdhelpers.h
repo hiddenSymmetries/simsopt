@@ -5,6 +5,7 @@
 #include <new>
 #include <vector>
 #include "config.h"
+#include <complex>
 
 using std::vector;
 

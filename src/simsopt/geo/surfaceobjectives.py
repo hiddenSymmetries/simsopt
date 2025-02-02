@@ -669,7 +669,7 @@ class MajorRadius(Optimizable):
         dconstraint_dcoils_vjp = self.boozer_surface.res['vjp']
 
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
-        dJ_ds = np.zeros(L.shape[0])
+        dJ_ds = np.zeros(L.shape[0], dtype=complex)
         dj_ds = surface.dmajor_radius_by_dcoeff()
         dJ_ds[:dj_ds.size] = dj_ds
         adj = forward_backward(P, L, U, dJ_ds)
@@ -782,7 +782,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
     
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
-        dJ_ds = np.zeros(L.shape[0])
+        dJ_ds = np.zeros(L.shape[0], dtype=complex)
         dj_ds = self.dJ_by_dsurfacecoefficients()
         dJ_ds[:dj_ds.size] = dj_ds
         adj = forward_backward(P, L, U, dJ_ds)
@@ -1012,7 +1012,7 @@ class BoozerResidual(Optimizable):
         booz_surf = self.boozer_surface
         P, L, U = booz_surf.res['PLU']
         dconstraint_dcoils_vjp = booz_surf.res['vjp']
-
+        
         dJ_by_dB = self.dJ_by_dB()
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
 
@@ -1075,7 +1075,7 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
     dres_dB = dres_dB.reshape((-1, 3, 3))
 
     lm_label = lm[-1]
-    lmask = np.zeros(booz_surf.res["mask"].shape)
+    lmask = np.zeros(booz_surf.res["mask"].shape, dtype=complex)
     lmask[booz_surf.res["mask"]] = lm[:-1]
     lm_cons = lmask.reshape((-1, 3))
 

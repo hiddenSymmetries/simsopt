@@ -69,7 +69,7 @@ boozer_surface = BoozerSurface(bs, s, vol, vol_target)
 res = boozer_surface.solve_residual_equation_exactly_newton(tol=1e-13, maxiter=20, iota=iota, G=G0)
 
 out_res = boozer_surface_residual(s, res['iota'], res['G'], bs, derivatives=0)[0]
-print(f"NEWTON {res['success']}: iter={res['iter']}, iota={res['iota']:.3f}, vol={s.volume():.3f}, ||residual||={np.linalg.norm(out_res):.3e}")
+print(f"NEWTON {res['success']}: iter={res['iter'].real}, iota={res['iota'].real:.3f}, vol={s.volume().real:.3f}, ||residual||={np.linalg.norm(out_res.real):.3e}")
 ## SET UP THE OPTIMIZATION PROBLEM AS A SUM OF OPTIMIZABLES ##
 bs_nonQS = BiotSavart(coils)
 mr = MajorRadius(boozer_surface)
@@ -78,13 +78,13 @@ ls = [CurveLength(c) for c in base_curves]
 J_major_radius = QuadraticPenalty(mr, mr.J(), 'identity')  # target major radius is that computed on the initial surface
 J_iotas = QuadraticPenalty(Iotas(boozer_surface), res['iota'], 'identity')  # target rotational transform is that computed on the initial surface
 J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface, bs_nonQS)
-Jls = QuadraticPenalty(sum(ls), float(sum(ls).J()), 'max') 
+Jls = QuadraticPenalty(sum(ls), 21., 'max') 
 
 # sum the objectives together
 JF = J_nonQSRatio + J_iotas + J_major_radius + Jls
 
-curves_to_vtk(curves, OUT_DIR + "curves_init")
-boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
+#curves_to_vtk(curves, OUT_DIR + "curves_init")
+#boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")
 
 # let's fix the coil current
 base_currents[0].fix_all()
@@ -96,7 +96,7 @@ def fun(dofs):
     iota_prev = boozer_surface.res['iota']
     G_prev = boozer_surface.res['G']
 
-    JF.x = dofs
+    JF.x = dofs.astype(complex)
     J = JF.J()
     grad = JF.dJ()
 
@@ -109,12 +109,12 @@ def fun(dofs):
         boozer_surface.res['iota'] = iota_prev
         boozer_surface.res['G'] = G_prev
 
-    cl_string = ", ".join([f"{J.J():.1f}" for J in ls])
-    outstr = f"J={J:.1e}, J_nonQSRatio={J_nonQSRatio.J():.2e}, iota={boozer_surface.res['iota']:.2e}, mr={mr.J():.2e}"
-    outstr += f", Len=sum([{cl_string}])={sum(J.J() for J in ls):.1f}"
-    outstr += f", ║∇J║={np.linalg.norm(grad):.1e}"
+    cl_string = ", ".join([f"{J.J().real:.1f}" for J in ls])
+    outstr = f"J={J.real:.1e}, J_nonQSRatio={J_nonQSRatio.J().real:.2e}, iota={boozer_surface.res['iota'].real:.2e}, mr={mr.J().real:.2e}"
+    outstr += f", Len=sum([{cl_string}])={sum(J.J().real for J in ls):.1f}"
+    outstr += f", ║∇J║={np.linalg.norm(grad.real):.1e}"
     print(outstr)
-    return J, grad
+    return J.real, grad.real
 
 
 print("""
@@ -123,10 +123,11 @@ print("""
 ################################################################################
 """)
 f = fun
-dofs = JF.x
+dofs = np.real(JF.x)
 np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
+
 dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9]:
     J1, _ = f(dofs + 2*eps*h)
