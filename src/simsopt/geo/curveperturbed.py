@@ -55,9 +55,9 @@ class GaussianSampler(GSONable):
         cov_mat = np.zeros((n*(self.n_derivs+1), n*(self.n_derivs+1)))
 
         def kernel(x, y):
-            return sum((self.sigma**2)*exp(-(x-y+i)**2/(self.length_scale**2)) for i in range(-5, 6))
+            return sum(exp(-(x-y+i)**2/(self.length_scale**2)) for i in range(-5, 6))
 
-        XX, YY = np.meshgrid(xs, xs, indexing='ij')
+        XX, YY = np.meshgrid(xs.real, xs.real, indexing='ij')
         x = Symbol("x")
         y = Symbol("y")
         f = kernel(x, y)
@@ -76,7 +76,7 @@ class GaussianSampler(GSONable):
         # self.L = np.real(sqrtm(cov_mat))
         from scipy.linalg import ldl
         lu, d, _ = ldl(cov_mat)
-        self.L = lu @ np.sqrt(np.maximum(d, 0))
+        self.L = self.sigma * (lu @ np.sqrt(np.maximum(d, 0))).astype(complex)
 
     def draw_sample(self, randomgen=None):
         """

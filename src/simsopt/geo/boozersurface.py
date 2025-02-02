@@ -229,8 +229,8 @@ class BoozerSurface(Optimizable):
 
         J = boozer[1]
 
-        dl = np.zeros(x.shape)
-        drz = np.zeros(x.shape)
+        dl = np.zeros(x.shape, dtype=complex)
+        drz = np.zeros(x.shape, dtype=complex)
 
         dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
 
@@ -250,7 +250,7 @@ class BoozerSurface(Optimizable):
 
         H = boozer[2]
 
-        d2l = np.zeros((x.shape[0], x.shape[0]))
+        d2l = np.zeros((x.shape[0], x.shape[0]), dtype=complex)
         d2l[:nsurfdofs, :nsurfdofs] = self.label.d2J_by_dsurfacecoefficientsdsurfacecoefficients()
 
         H = np.concatenate((
@@ -330,8 +330,8 @@ class BoozerSurface(Optimizable):
         if derivatives == 0:
             return r
         
-        dl = np.zeros(dofs.shape)
-        drz = np.zeros(dofs.shape)
+        dl = np.zeros(dofs.shape, dtype=complex)
+        drz = np.zeros(dofs.shape, dtype=complex)
         dl[:nsurfdofs] = self.label.dJ(partials=True)(s)
         drz[:nsurfdofs] = s.dgamma_by_dcoeff()[0, 0, 2, :]
         
@@ -443,10 +443,15 @@ class BoozerSurface(Optimizable):
             x = np.concatenate((s.get_dofs(), [iota]))
         else:
             x = np.concatenate((s.get_dofs(), [iota, G]))
+        x = x.real
 
         fun_name = self.boozer_penalty_constraints_vectorized if vectorize else self.boozer_penalty_constraints
-        fun = lambda x: fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
+        #fun = lambda x: fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
         
+        def fun(x):
+            r, dr = fun_name(x, derivatives=1, constraint_weight=constraint_weight, optimize_G=G is not None, weight_inv_modB=weight_inv_modB)
+            return r.real, dr.real
+
         method = 'L-BFGS-B' if limited_memory else 'BFGS'
         options = {'maxiter': maxiter, 'gtol': tol}
         if limited_memory:
@@ -929,7 +934,7 @@ class BoozerSurface(Optimizable):
             else:
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 1], s.gamma()[0, 0, 2]]))
             norm = np.linalg.norm(b, ord=np.inf)
-            if norm <= tol:
+            if norm <= tol and i > 2:
                 break
             if s.stellsym:
                 J = np.vstack((

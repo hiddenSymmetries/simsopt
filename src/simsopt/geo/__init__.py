@@ -7,7 +7,7 @@ from .curve import *
 from .curverzfourier import *
 from .curvexyzfourier import *
 #from .curvexyzfouriersymmetries import *
-#from .curveperturbed import *
+from .curveperturbed import *
 from .curveobjectives import *
 #from .curveplanarfourier import *
 #from .framedcurve import *
@@ -41,4 +41,4 @@ from .surfacexyztensorfourier import *
 #           strain_optimization.__all__ + framedcurve.__all__ + 
 #           permanent_magnet_grid.__all__)
 
-__all__ = (curve.__all__ + curvexyzfourier.__all__ + surfacexyztensorfourier.__all__ + curverzfourier.__all__+ surfacerzfourier.__all__  + plotting.__all__ + boozersurface.__all__+surfaceobjectives.__all__+ surfaceobjectives.__all__)
+__all__ = (curve.__all__ + curvexyzfourier.__all__ + surfacexyztensorfourier.__all__ + curverzfourier.__all__+ surfacerzfourier.__all__  + plotting.__all__ + boozersurface.__all__+surfaceobjectives.__all__+ surfaceobjectives.__all__ + curveperturbed.__all__)
