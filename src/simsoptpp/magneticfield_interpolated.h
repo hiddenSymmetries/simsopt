@@ -68,7 +68,7 @@ class InterpolatedField : public MagneticField<T> {
             Tensor2& rphiz = this->get_points_cyl_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                double phi = rphiz(i, 1);
+                std::complex<double> phi = rphiz(i, 1);
                 B(i, 0) = std::cos(phi)*B_cyl(i, 0) - std::sin(phi)*B_cyl(i, 1);
                 B(i, 1) = std::sin(phi)*B_cyl(i, 0) + std::cos(phi)*B_cyl(i, 1);
                 B(i, 2) = B_cyl(i, 2);
@@ -80,7 +80,7 @@ class InterpolatedField : public MagneticField<T> {
             Tensor2& rphiz = this->get_points_cyl_ref();
             int npoints = GradAbsB.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                double phi = rphiz(i, 1);
+                std::complex<double> phi = rphiz(i, 1);
                 GradAbsB(i, 0) = std::cos(phi)*GradAbsB_cyl(i, 0) - std::sin(phi)*GradAbsB_cyl(i, 1);
                 GradAbsB(i, 1) = std::sin(phi)*GradAbsB_cyl(i, 0) + std::cos(phi)*GradAbsB_cyl(i, 1);
                 GradAbsB(i, 2) = GradAbsB_cyl(i, 2);
@@ -91,13 +91,13 @@ class InterpolatedField : public MagneticField<T> {
             int npoints = rphiz.shape(0);
             if(symmetries.size() != npoints)
                 symmetries = vector<bool>(npoints, false);
-            double period = (2*M_PI)/nfp;
-            double* dataptr = &(rphiz(0, 0));
-            double* datasymptr = &(rphiz_sym(0, 0));
+            std::complex<double> period = (2*M_PI)/nfp;
+            std::complex<double>* dataptr = &(rphiz(0, 0));
+            std::complex<double>* datasymptr = &(rphiz_sym(0, 0));
             for (int i = 0; i < npoints; ++i) {
-                double r = dataptr[3*i+0];
-                double phi = dataptr[3*i+1];
-                double z = dataptr[3*i+2];
+                std::complex<double> r = dataptr[3*i+0];
+                std::complex<double> phi = dataptr[3*i+1];
+                std::complex<double> z = dataptr[3*i+2];
                 //fmt::print("(r, phi, z) = ({}, {}, {})", r, phi, z);
                 if(z < 0 && stellsym) {
                     z = -z;
@@ -152,7 +152,7 @@ class InterpolatedField : public MagneticField<T> {
         {
             fbatch_B = [this](Vec r, Vec phi, Vec z) {
                 int npoints = r.size();
-                Tensor2 points = xt::zeros<double>({npoints, 3});
+                Tensor2 points = xt::zeros<std::complex<double>>({npoints, 3});
                 for(int i=0; i<npoints; i++) {
                     points(i, 0) = r[i];
                     points(i, 1) = phi[i];
@@ -167,7 +167,7 @@ class InterpolatedField : public MagneticField<T> {
 
             fbatch_GradAbsB = [this](Vec r, Vec phi, Vec z) {
                 int npoints = r.size();
-                Tensor2 points = xt::zeros<double>({npoints, 3});
+                Tensor2 points = xt::zeros<std::complex<double>>({npoints, 3});
                 for(int i=0; i<npoints; i++) {
                     points(i, 0) = r[i];
                     points(i, 1) = phi[i];
@@ -186,7 +186,7 @@ class InterpolatedField : public MagneticField<T> {
                 RangeTriplet r_range, RangeTriplet phi_range, RangeTriplet z_range,
                 bool extrapolate, int nfp, bool stellsym, std::function<std::vector<bool>(Vec, Vec, Vec)> skip) : InterpolatedField(field, UniformInterpolationRule(degree), r_range, phi_range, z_range, extrapolate, nfp, stellsym, skip) {}
 
-        std::pair<double, double> estimate_error_B(int samples) {
+        std::pair<std::complex<double>, std::complex<double>> estimate_error_B(int samples) {
             if(!interp_B)
                 interp_B = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate, skip);
             if(!status_B) {
@@ -197,7 +197,7 @@ class InterpolatedField : public MagneticField<T> {
             }
             return interp_B->estimate_error(this->fbatch_B, samples);
         }
-        std::pair<double, double> estimate_error_GradAbsB(int samples) {
+        std::pair<std::complex<double>, std::complex<double>> estimate_error_GradAbsB(int samples) {
             if(!interp_GradAbsB)
                 interp_GradAbsB = std::make_shared<RegularGridInterpolant3D<Tensor2>>(rule, r_range, phi_range, z_range, 3, extrapolate, skip);
             if(!status_GradAbsB) {

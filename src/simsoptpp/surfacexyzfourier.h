@@ -52,14 +52,14 @@ class SurfaceXYZFourier : public Surface<Array> {
         int ntor;
         bool stellsym;
 
-        SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+        SurfaceXYZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<std::complex<double>> _quadpoints_phi, vector<std::complex<double>> _quadpoints_theta)
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
-                xc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                xs = xt::zeros<double>({mpol+1, 2*ntor+1});
-                yc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                ys = xt::zeros<double>({mpol+1, 2*ntor+1});
-                zc = xt::zeros<double>({mpol+1, 2*ntor+1});
-                zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+                xc = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+                xs = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+                yc = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+                ys = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+                zc = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+                zs = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
             }
 
         int num_dofs() override {
@@ -69,7 +69,7 @@ class SurfaceXYZFourier : public Surface<Array> {
                 return 6*(mpol+1)*(2*ntor+1) - 3*ntor - 3*(ntor+1);
         }
 
-        void set_dofs_impl(const vector<double>& dofs) override {
+        void set_dofs_impl(const vector<std::complex<double>>& dofs) override {
             int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
@@ -96,8 +96,8 @@ class SurfaceXYZFourier : public Surface<Array> {
             }
         }
 
-        vector<double> get_dofs() override {
-            auto res = vector<double>(num_dofs(), 0.);
+        vector<std::complex<double>> get_dofs() override {
+            auto res = vector<std::complex<double>>(num_dofs(), 0.);
             int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
@@ -124,7 +124,7 @@ class SurfaceXYZFourier : public Surface<Array> {
             return res;
         }
 
-        inline double get_coeff(int dim, bool cos, int m, int i) {
+        inline std::complex<double> get_coeff(int dim, bool cos, int m, int i) {
             if     (dim == 0 && cos)
                 return xc(m, i);
             else if(dim == 0 && !cos)

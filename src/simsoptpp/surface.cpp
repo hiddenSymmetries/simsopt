@@ -2,7 +2,7 @@
 #include <Eigen/Dense>
 #include "simdhelpers.h"
 #include "vec3dsimd.h"
-
+#include "operators.h"
 
 template<class Array>
 Array surface_vjp_contraction(const Array& mat, const Array& v){
@@ -13,7 +13,7 @@ Array surface_vjp_contraction(const Array& mat, const Array& v){
     int numquadpoints_phi = mat.shape(0);
     int numquadpoints_theta = mat.shape(1);
     int numdofs = mat.shape(3);
-    Array res = xt::zeros<double>({numdofs});
+    Array res = xt::zeros<std::complex<double>>({numdofs});
 
     // we have to compute the contraction below:
     //for (int j = 0; j < numquadpoints_phi; ++j) {
@@ -28,11 +28,11 @@ Array surface_vjp_contraction(const Array& mat, const Array& v){
     // instead of worrying how to do this efficiently, we map to a eigen
     // matrix, and then write this as a matrix vector product.
 
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<double*>(mat.data()), numquadpoints_phi*numquadpoints_theta*3, numdofs);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<double*>(v.data()), 1, numquadpoints_phi*numquadpoints_theta*3);
-    Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<double*>(res.data()), 1, numdofs);
+    Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_mat(const_cast<std::complex<double>*>(mat.data()), numquadpoints_phi*numquadpoints_theta*3, numdofs);
+    Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_v(const_cast<std::complex<double>*>(v.data()), 1, numquadpoints_phi*numquadpoints_theta*3);
+    Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigen_res(const_cast<std::complex<double>*>(res.data()), 1, numdofs);
     eigen_res = eigen_v*eigen_mat;
-    //Eigen::MatrixXd eigen_res = eigen_v*eigen_mat;
+    //Eigen::MatrixXcd eigen_res = eigen_v*eigen_mat;
     //for (int i = 0; i < numdofs; ++i) {
     //    res(i) = eigen_res(0, i);
     //}
@@ -50,7 +50,7 @@ void Surface<Array>::least_squares_fit(Array& target_values) {
 
     if(!qr){
         auto dg_dc = this->dgamma_by_dcoeff();
-        Eigen::MatrixXd A = Eigen::MatrixXd(numquadpoints_phi*numquadpoints_theta*3, num_dofs());
+        Eigen::MatrixXcd A = Eigen::MatrixXcd(numquadpoints_phi*numquadpoints_theta*3, num_dofs());
         int counter = 0;
         for (int i = 0; i < numquadpoints_phi; ++i) {
             for (int j = 0; j < numquadpoints_theta; ++j) {
@@ -62,9 +62,9 @@ void Surface<Array>::least_squares_fit(Array& target_values) {
                 }
             }
         }
-        qr = std::make_unique<Eigen::FullPivHouseholderQR<Eigen::MatrixXd>>(A.fullPivHouseholderQr());
+        qr = std::make_unique<Eigen::FullPivHouseholderQR<Eigen::MatrixXcd>>(A.fullPivHouseholderQr());
     }
-    Eigen::VectorXd b = Eigen::VectorXd(numquadpoints_phi*numquadpoints_theta*3);
+    Eigen::VectorXcd b = Eigen::VectorXcd(numquadpoints_phi*numquadpoints_theta*3);
     int counter = 0;
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
@@ -73,22 +73,22 @@ void Surface<Array>::least_squares_fit(Array& target_values) {
             }
         }
     }
-    Eigen::VectorXd x = qr->solve(b);
-    vector<double> dofs(x.data(), x.data() + x.size());
+    Eigen::VectorXcd x = qr->solve(b);
+    vector<std::complex<double>> dofs(x.data(), x.data() + x.size());
     this->set_dofs(dofs);
 }
 
 template<class Array>
-void Surface<Array>::fit_to_curve(Curve<Array>& curve, double radius, bool flip_theta) {
-    Array curvexyz = xt::zeros<double>({numquadpoints_phi, 3});
+void Surface<Array>::fit_to_curve(Curve<Array>& curve, std::complex<double> radius, bool flip_theta) {
+    Array curvexyz = xt::zeros<std::complex<double>>({numquadpoints_phi, 3});
     curve.gamma_impl(curvexyz, quadpoints_phi);
-    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array target_values = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
-        double phi = 2*M_PI*quadpoints_phi[i];
-        double R = sqrt(pow(curvexyz(i, 0), 2) + pow(curvexyz(i, 1), 2));
-        double z = curvexyz(i, 2);
+        std::complex<double> phi = std::complex<double>(2*M_PI)*quadpoints_phi[i];
+        std::complex<double> R = sqrt(pow(curvexyz(i, 0), 2) + pow(curvexyz(i, 1), 2));
+        std::complex<double> z = curvexyz(i, 2);
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            double theta = 2*M_PI*quadpoints_theta[j];
+            std::complex<double> theta = std::complex<double>(2*M_PI)*quadpoints_theta[j];
             if(flip_theta)
                 theta *= -1;
             target_values(i, j, 0) = (R + radius * cos(theta))*cos(phi);
@@ -100,14 +100,14 @@ void Surface<Array>::fit_to_curve(Curve<Array>& curve, double radius, bool flip_
 }
 
 template<class Array>
-void Surface<Array>::scale(double scale) {
-    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+void Surface<Array>::scale(std::complex<double> scale) {
+    Array target_values = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     auto gamma = this->gamma();
     for (int i = 0; i < numquadpoints_phi; ++i) {
-        double phi = 2*M_PI*quadpoints_phi[i];
-        double meanx = 0.;
-        double meany = 0.;
-        double meanz = 0.;
+        std::complex<double> phi = std::complex<double>(2*M_PI)*quadpoints_phi[i];
+        std::complex<double> meanx = 0.;
+        std::complex<double> meany = 0.;
+        std::complex<double> meanz = 0.;
         for (int j = 0; j < numquadpoints_theta; ++j) {
             meanx += gamma(i, j, 0);
             meany += gamma(i, j, 1);
@@ -126,8 +126,8 @@ void Surface<Array>::scale(double scale) {
 }
 
 template<class Array>
-void Surface<Array>::extend_via_normal(double scale) {
-    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+void Surface<Array>::extend_via_normal(std::complex<double> scale) {
+    Array target_values = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     auto gamma = this->gamma();
     auto n = this->normal();
     for (int i = 0; i < numquadpoints_phi; ++i) {
@@ -142,20 +142,20 @@ void Surface<Array>::extend_via_normal(double scale) {
 }
 
 template<class Array>
-void Surface<Array>::extend_via_projected_normal(double scale) {
-    Array target_values_xyz = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
-    Array target_values = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+void Surface<Array>::extend_via_projected_normal(std::complex<double> scale) {
+    Array target_values_xyz = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array target_values = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     auto gamma = this->gamma();
     auto n = this->normal();
     auto phi = this->quadpoints_phi;
     // Loop over toroidal angle, calculate rotation matrix
     for (int i = 0; i < numquadpoints_phi; ++i) {
-	double phi_i = 2 * M_PI * phi[i];
-	double rotation[3][3] = {cos(phi_i), sin(phi_i), 0, -sin(phi_i), cos(phi_i), 0, 0, 0, 1};
-	double rotation_inv[3][3] = {cos(phi_i), -sin(phi_i), 0, sin(phi_i), cos(phi_i), 0, 0, 0, 1};
+	std::complex<double> phi_i = 2 * M_PI * phi[i];
+	std::complex<double> rotation[3][3] = {cos(phi_i), sin(phi_i), 0, -sin(phi_i), cos(phi_i), 0, 0, 0, 1};
+	std::complex<double> rotation_inv[3][3] = {cos(phi_i), -sin(phi_i), 0, sin(phi_i), cos(phi_i), 0, 0, 0, 1};
         for (int j = 0; j < numquadpoints_theta; ++j) {
-	    double nij[3] = {0.0, 0.0, 0.0};
-	    double gammaij[3] = {0.0, 0.0, 0.0};
+	    std::complex<double> nij[3] = {0.0, 0.0, 0.0};
+	    std::complex<double> gammaij[3] = {0.0, 0.0, 0.0};
 	    // convert nij and gammij from cartesian to cylindrical
             for (int k = 0; k < 3; ++k) {
                 for (int kk = 0; kk < 3; ++kk) {
@@ -202,20 +202,20 @@ void Surface<Array>::dfirst_fund_form_by_dcoeff_impl(Array& data) {
   int ndofs = num_dofs();
   for (int i = 0; i < numquadpoints_phi; ++i) {
       for (int j = 0; j < numquadpoints_theta; ++j) {
-          double* data_0_ptr = &(data(i, j, 0, 0));
-          double* data_1_ptr = &(data(i, j, 1, 0));
-          double* data_2_ptr = &(data(i, j, 2, 0));
+          std::complex<double>* data_0_ptr = &(data(i, j, 0, 0));
+          std::complex<double>* data_1_ptr = &(data(i, j, 1, 0));
+          std::complex<double>* data_2_ptr = &(data(i, j, 2, 0));
 
-          double* drd1_0_dc_ptr = &(drd1_dc(i, j, 0, 0));
-          double* drd1_1_dc_ptr = &(drd1_dc(i, j, 1, 0));
-          double* drd1_2_dc_ptr = &(drd1_dc(i, j, 2, 0));
-          double* drd2_0_dc_ptr = &(drd2_dc(i, j, 0, 0));
-          double* drd2_1_dc_ptr = &(drd2_dc(i, j, 1, 0));
-          double* drd2_2_dc_ptr = &(drd2_dc(i, j, 2, 0));
+          std::complex<double>* drd1_0_dc_ptr = &(drd1_dc(i, j, 0, 0));
+          std::complex<double>* drd1_1_dc_ptr = &(drd1_dc(i, j, 1, 0));
+          std::complex<double>* drd1_2_dc_ptr = &(drd1_dc(i, j, 2, 0));
+          std::complex<double>* drd2_0_dc_ptr = &(drd2_dc(i, j, 0, 0));
+          std::complex<double>* drd2_1_dc_ptr = &(drd2_dc(i, j, 1, 0));
+          std::complex<double>* drd2_2_dc_ptr = &(drd2_dc(i, j, 2, 0));
 
           for (int m = 0; m < ndofs; ++m ) {
-              data_0_ptr[m] =  2*drd1_0_dc_ptr[m]*drd1(i,j,0) + 2*drd1_1_dc_ptr[m]*drd1(i,j,1) \
-                             + 2*drd1_2_dc_ptr[m]*drd1(i,j,2);
+              data_0_ptr[m] =  std::complex<double>(2.)*drd1_0_dc_ptr[m]*drd1(i,j,0) + std::complex<double>(2.)*drd1_1_dc_ptr[m]*drd1(i,j,1) \
+                             + std::complex<double>(2.)*drd1_2_dc_ptr[m]*drd1(i,j,2);
           }
           for (int m = 0; m < ndofs; ++m ) {
               data_1_ptr[m] =  drd1_0_dc_ptr[m]*drd2(i,j,0) + drd2_0_dc_ptr[m]*drd1(i,j,0) \
@@ -223,8 +223,8 @@ void Surface<Array>::dfirst_fund_form_by_dcoeff_impl(Array& data) {
                              + drd1_2_dc_ptr[m]*drd2(i,j,2) + drd2_2_dc_ptr[m]*drd1(i,j,2);
           }
           for (int m = 0; m < ndofs; ++m ) {
-              data_2_ptr[m] =  2*drd2_0_dc_ptr[m]*drd2(i,j,0) + 2*drd2_1_dc_ptr[m]*drd2(i,j,1) \
-                             + 2*drd2_2_dc_ptr[m]*drd2(i,j,2);
+              data_2_ptr[m] =  std::complex<double>(2.)*drd2_0_dc_ptr[m]*drd2(i,j,0) + std::complex<double>(2.)*drd2_1_dc_ptr[m]*drd2(i,j,1) \
+                             + std::complex<double>(2.)*drd2_2_dc_ptr[m]*drd2(i,j,2);
           }
 
       }
@@ -263,22 +263,22 @@ void Surface<Array>::dsecond_fund_form_by_dcoeff_impl(Array& data) {
   for (int i = 0; i < numquadpoints_phi; ++i) {
       for (int j = 0; j < numquadpoints_theta; ++j) {
 
-        double* data_0_ptr = &(data(i, j, 0, 0));
-        double* data_1_ptr = &(data(i, j, 1, 0));
-        double* data_2_ptr = &(data(i, j, 2, 0));
+        std::complex<double>* data_0_ptr = &(data(i, j, 0, 0));
+        std::complex<double>* data_1_ptr = &(data(i, j, 1, 0));
+        std::complex<double>* data_2_ptr = &(data(i, j, 2, 0));
 
-        double* dd2rd1d1_0_dc_ptr = &(dd2rd1d1_dc(i, j, 0, 0));
-        double* dd2rd1d1_1_dc_ptr = &(dd2rd1d1_dc(i, j, 1, 0));
-        double* dd2rd1d1_2_dc_ptr = &(dd2rd1d1_dc(i, j, 2, 0));
-        double* dd2rd1d2_0_dc_ptr = &(dd2rd1d2_dc(i, j, 0, 0));
-        double* dd2rd1d2_1_dc_ptr = &(dd2rd1d2_dc(i, j, 1, 0));
-        double* dd2rd1d2_2_dc_ptr = &(dd2rd1d2_dc(i, j, 2, 0));
-        double* dd2rd2d2_0_dc_ptr = &(dd2rd2d2_dc(i, j, 0, 0));
-        double* dd2rd2d2_1_dc_ptr = &(dd2rd2d2_dc(i, j, 1, 0));
-        double* dd2rd2d2_2_dc_ptr = &(dd2rd2d2_dc(i, j, 2, 0));
-        double* dunitnormal_0_dc_ptr = &(dunitnormal_dc(i, j, 0, 0));
-        double* dunitnormal_1_dc_ptr = &(dunitnormal_dc(i, j, 1, 0));
-        double* dunitnormal_2_dc_ptr = &(dunitnormal_dc(i, j, 2, 0));
+        std::complex<double>* dd2rd1d1_0_dc_ptr = &(dd2rd1d1_dc(i, j, 0, 0));
+        std::complex<double>* dd2rd1d1_1_dc_ptr = &(dd2rd1d1_dc(i, j, 1, 0));
+        std::complex<double>* dd2rd1d1_2_dc_ptr = &(dd2rd1d1_dc(i, j, 2, 0));
+        std::complex<double>* dd2rd1d2_0_dc_ptr = &(dd2rd1d2_dc(i, j, 0, 0));
+        std::complex<double>* dd2rd1d2_1_dc_ptr = &(dd2rd1d2_dc(i, j, 1, 0));
+        std::complex<double>* dd2rd1d2_2_dc_ptr = &(dd2rd1d2_dc(i, j, 2, 0));
+        std::complex<double>* dd2rd2d2_0_dc_ptr = &(dd2rd2d2_dc(i, j, 0, 0));
+        std::complex<double>* dd2rd2d2_1_dc_ptr = &(dd2rd2d2_dc(i, j, 1, 0));
+        std::complex<double>* dd2rd2d2_2_dc_ptr = &(dd2rd2d2_dc(i, j, 2, 0));
+        std::complex<double>* dunitnormal_0_dc_ptr = &(dunitnormal_dc(i, j, 0, 0));
+        std::complex<double>* dunitnormal_1_dc_ptr = &(dunitnormal_dc(i, j, 1, 0));
+        std::complex<double>* dunitnormal_2_dc_ptr = &(dunitnormal_dc(i, j, 2, 0));
 
         for (int m = 0; m < ndofs; ++m ) {
             data_0_ptr[m] = dunitnormal_0_dc_ptr[m] * d2rd1d1(i,j,0) \
@@ -314,36 +314,36 @@ void Surface<Array>::dsurface_curvatures_by_dcoeff_impl(Array& data) {
   for (int i = 0; i < numquadpoints_phi; ++i) {
       for (int j = 0; j < numquadpoints_theta; ++j) {
 
-          double* data_0_ptr = &(data(i, j, 0, 0));
-          double* data_1_ptr = &(data(i, j, 1, 0));
-          double* data_2_ptr = &(data(i, j, 2, 0));
-          double* data_3_ptr = &(data(i, j, 3, 0));
+          std::complex<double>* data_0_ptr = &(data(i, j, 0, 0));
+          std::complex<double>* data_1_ptr = &(data(i, j, 1, 0));
+          std::complex<double>* data_2_ptr = &(data(i, j, 2, 0));
+          std::complex<double>* data_3_ptr = &(data(i, j, 3, 0));
 
-          double* dfirst_0_dc_ptr = &(dfirst_dc(i, j, 0, 0));
-          double* dfirst_1_dc_ptr = &(dfirst_dc(i, j, 1, 0));
-          double* dfirst_2_dc_ptr = &(dfirst_dc(i, j, 2, 0));
-          double* dsecond_0_dc_ptr = &(dsecond_dc(i, j, 0, 0));
-          double* dsecond_1_dc_ptr = &(dsecond_dc(i, j, 1, 0));
-          double* dsecond_2_dc_ptr = &(dsecond_dc(i, j, 2, 0));
+          std::complex<double>* dfirst_0_dc_ptr = &(dfirst_dc(i, j, 0, 0));
+          std::complex<double>* dfirst_1_dc_ptr = &(dfirst_dc(i, j, 1, 0));
+          std::complex<double>* dfirst_2_dc_ptr = &(dfirst_dc(i, j, 2, 0));
+          std::complex<double>* dsecond_0_dc_ptr = &(dsecond_dc(i, j, 0, 0));
+          std::complex<double>* dsecond_1_dc_ptr = &(dsecond_dc(i, j, 1, 0));
+          std::complex<double>* dsecond_2_dc_ptr = &(dsecond_dc(i, j, 2, 0));
 
           auto denom = first(i,j,0)*first(i,j,2) - first(i,j,1)*first(i,j,1);
-          auto data_0 = (second(i,j,0)*first(i,j,2) - 2*first(i,j,1)*second(i,j,1) + second(i,j,2)*first(i,j,0))/(2*denom);
+          auto data_0 = (second(i,j,0)*first(i,j,2) - std::complex<double>(2.)*first(i,j,1)*second(i,j,1) + second(i,j,2)*first(i,j,0))/(std::complex<double>(2.)*denom);
           auto data_1 = (second(i,j,0)*second(i,j,2) - second(i,j,1)*second(i,j,1))/denom;
           auto term2 = std::sqrt(data_0*data_0 - data_1);
           for (int m = 0; m < ndofs; ++m ) {
               auto d_denom = dfirst_0_dc_ptr[m] * first(i,j,2) \
                            + first(i,j,0) * dfirst_2_dc_ptr[m] \
-                           - 2*dfirst_1_dc_ptr[m] * first(i,j,1);
+                           - std::complex<double>(2.)*dfirst_1_dc_ptr[m] * first(i,j,1);
               data_0_ptr[m] = (dsecond_0_dc_ptr[m] * first(i,j,2) \
                             + second(i,j,0) * dfirst_2_dc_ptr[m] \
-                            - 2*dfirst_1_dc_ptr[m] * second(i,j,1) \
-                            - 2*first(i,j,1) * dsecond_1_dc_ptr[m] \
+                            - std::complex<double>(2.)*dfirst_1_dc_ptr[m] * second(i,j,1) \
+                            - std::complex<double>(2.)*first(i,j,1) * dsecond_1_dc_ptr[m] \
                             + dsecond_2_dc_ptr[m] * first(i,j,0) \
-                            + second(i,j,2) * dfirst_0_dc_ptr[m])/(2*denom) \
+                            + second(i,j,2) * dfirst_0_dc_ptr[m])/(std::complex<double>(2.)*denom) \
                             - data_0*d_denom/denom;
-              data_1_ptr[m] = (dsecond_0_dc_ptr[m]*second(i,j,2) + second(i,j,0)*dsecond_2_dc_ptr[m] - 2*dsecond_1_dc_ptr[m]*second(i,j,1))/denom \
+              data_1_ptr[m] = (dsecond_0_dc_ptr[m]*second(i,j,2) + second(i,j,0)*dsecond_2_dc_ptr[m] - std::complex<double>(2.)*dsecond_1_dc_ptr[m]*second(i,j,1))/denom \
                             - data_1*d_denom/denom;
-              auto d_term2 = (data_0*data_0_ptr[m] - 0.5*data_1_ptr[m])/term2;
+              auto d_term2 = (data_0*data_0_ptr[m] - std::complex<double>(0.5)*data_1_ptr[m])/term2;
 
               data_2_ptr[m] = data_0_ptr[m] + d_term2;
               data_3_ptr[m] = data_0_ptr[m] - d_term2;
@@ -369,7 +369,7 @@ void Surface<Array>::surface_curvatures_impl(Array& data) {
   for (int i = 0; i < numquadpoints_phi; ++i) {
       for (int j = 0; j < numquadpoints_theta; ++j) {
           auto denom = first(i,j,0)*first(i,j,2) - first(i,j,1)*first(i,j,1);
-          data(i, j, 0) = (second(i,j,0)*first(i,j,2) - 2*first(i,j,1)*second(i,j,1) + second(i,j,2)*first(i,j,0))/(2*denom); // H
+          data(i, j, 0) = (second(i,j,0)*first(i,j,2) - std::complex<double>(2.)*first(i,j,1)*second(i,j,1) + second(i,j,2)*first(i,j,0))/(std::complex<double>(2.)*denom); // H
           data(i, j, 1) = (second(i,j,0)*second(i,j,2) - second(i,j,1)*second(i,j,1))/denom; // K
           data(i, j, 2) = data(i, j, 0) + std::sqrt(data(i, j, 0)*data(i, j, 0) - data(i, j, 1));
           data(i, j, 3) = data(i, j, 0) - std::sqrt(data(i, j, 0)*data(i, j, 0) - data(i, j, 1));
@@ -398,15 +398,15 @@ void Surface<Array>::dnormal_by_dcoeff_impl(Array& data)  {
     int ndofs = num_dofs();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            double* data_0_ptr = &(data(i, j, 0, 0));
-            double* data_1_ptr = &(data(i, j, 1, 0));
-            double* data_2_ptr = &(data(i, j, 2, 0));
-            double* dg1_0_dc_ptr = &(dg1_dc(i, j, 0, 0));
-            double* dg1_1_dc_ptr = &(dg1_dc(i, j, 1, 0));
-            double* dg1_2_dc_ptr = &(dg1_dc(i, j, 2, 0));
-            double* dg2_0_dc_ptr = &(dg2_dc(i, j, 0, 0));
-            double* dg2_1_dc_ptr = &(dg2_dc(i, j, 1, 0));
-            double* dg2_2_dc_ptr = &(dg2_dc(i, j, 2, 0));
+            std::complex<double>* data_0_ptr = &(data(i, j, 0, 0));
+            std::complex<double>* data_1_ptr = &(data(i, j, 1, 0));
+            std::complex<double>* data_2_ptr = &(data(i, j, 2, 0));
+            std::complex<double>* dg1_0_dc_ptr = &(dg1_dc(i, j, 0, 0));
+            std::complex<double>* dg1_1_dc_ptr = &(dg1_dc(i, j, 1, 0));
+            std::complex<double>* dg1_2_dc_ptr = &(dg1_dc(i, j, 2, 0));
+            std::complex<double>* dg2_0_dc_ptr = &(dg2_dc(i, j, 0, 0));
+            std::complex<double>* dg2_1_dc_ptr = &(dg2_dc(i, j, 1, 0));
+            std::complex<double>* dg2_2_dc_ptr = &(dg2_dc(i, j, 2, 0));
             for (int m = 0; m < ndofs; ++m ) {
                 data_0_ptr[m] =  dg1_1_dc_ptr[m]*dg2(i, j, 2) - dg1_2_dc_ptr[m]*dg2(i, j, 1);
                 data_0_ptr[m] += dg1(i, j, 1)*dg2_2_dc_ptr[m] - dg1(i, j, 2)*dg2_1_dc_ptr[m];
@@ -451,7 +451,7 @@ void Surface<Array>::unitnormal_impl(Array& data)  {
     auto n = this->normal();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            double normn = std::sqrt(n(i, j, 0)*n(i, j, 0) + n(i, j, 1)*n(i, j, 1) + n(i, j, 2)*n(i, j, 2));
+            std::complex<double> normn = std::sqrt(n(i, j, 0)*n(i, j, 0) + n(i, j, 1)*n(i, j, 1) + n(i, j, 2)*n(i, j, 2));
             data(i, j, 0) = n(i, j, 0)/normn;
             data(i, j, 1) = n(i, j, 1)/normn;
             data(i, j, 2) = n(i, j, 2)/normn;
@@ -466,16 +466,16 @@ void Surface<Array>::dunitnormal_by_dcoeff_impl(Array& data)  {
     int ndofs = num_dofs();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-          double* data_0_ptr = &(data(i, j, 0, 0));
-          double* data_1_ptr = &(data(i, j, 1, 0));
-          double* data_2_ptr = &(data(i, j, 2, 0));
-          double* dn_0_dc_ptr = &(dn_dc(i, j, 0, 0));
-          double* dn_1_dc_ptr = &(dn_dc(i, j, 1, 0));
-          double* dn_2_dc_ptr = &(dn_dc(i, j, 2, 0));
+          std::complex<double>* data_0_ptr = &(data(i, j, 0, 0));
+          std::complex<double>* data_1_ptr = &(data(i, j, 1, 0));
+          std::complex<double>* data_2_ptr = &(data(i, j, 2, 0));
+          std::complex<double>* dn_0_dc_ptr = &(dn_dc(i, j, 0, 0));
+          std::complex<double>* dn_1_dc_ptr = &(dn_dc(i, j, 1, 0));
+          std::complex<double>* dn_2_dc_ptr = &(dn_dc(i, j, 2, 0));
           auto normn = std::sqrt(n(i, j, 0)*n(i, j, 0) + n(i, j, 1)*n(i, j, 1) + n(i, j, 2)*n(i, j, 2));
-          auto fac0 = -n(i,j,0)*n(i,j,0)/(normn*normn*normn) + 1/normn;
-          auto fac1 = -n(i,j,1)*n(i,j,1)/(normn*normn*normn) + 1/normn;
-          auto fac2 = -n(i,j,2)*n(i,j,2)/(normn*normn*normn) + 1/normn;
+          auto fac0 = -n(i,j,0)*n(i,j,0)/(normn*normn*normn) + std::complex<double>(1.)/normn;
+          auto fac1 = -n(i,j,1)*n(i,j,1)/(normn*normn*normn) + std::complex<double>(1.)/normn;
+          auto fac2 = -n(i,j,2)*n(i,j,2)/(normn*normn*normn) + std::complex<double>(1.)/normn;
           for (int m = 0; m < ndofs; ++m ) {
               data_0_ptr[m] =  fac0 * dn_0_dc_ptr[m] - n(i,j,0)*n(i,j,1)*dn_1_dc_ptr[m]/(normn*normn*normn)
                                                      - n(i,j,0)*n(i,j,2)*dn_2_dc_ptr[m]/(normn*normn*normn);
@@ -489,15 +489,15 @@ void Surface<Array>::dunitnormal_by_dcoeff_impl(Array& data)  {
 };
 
 template<class Array>
-double Surface<Array>::area() {
-    double area = 0.;
+std::complex<double> Surface<Array>::area() {
+    std::complex<double> area = 0.;
     auto n = this->normal();
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             area += sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
         }
     }
-    return area/(numquadpoints_phi*numquadpoints_theta);
+    return area/std::complex<double>(numquadpoints_phi*numquadpoints_theta);
 }
 
 template<class Array>
@@ -509,7 +509,7 @@ void Surface<Array>::darea_by_dcoeff_impl(Array& data) {
     //data *= 0.;
     //for (int i = 0; i < numquadpoints_phi; ++i) {
     //    for (int j = 0; j < numquadpoints_theta; ++j) {
-    //        double norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+    //        std::complex<double> norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
     //        for (int m = 0; m < ndofs; ++m) {
     //            data(m) += (dn_dc(i,j,0,m)*n(i,j,0) + dn_dc(i,j,1,m)*n(i,j,1) + dn_dc(i,j,2,m)*n(i,j,2)) / norm;
     //        }
@@ -519,10 +519,10 @@ void Surface<Array>::darea_by_dcoeff_impl(Array& data) {
     //return;
 
 
-    Array darea_by_dn = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array darea_by_dn = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
-            double norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
+            std::complex<double> norm = sqrt(n(i,j,0)*n(i,j,0) + n(i,j,1)*n(i,j,1) + n(i,j,2)*n(i,j,2));
             darea_by_dn(i, j, 0) = n(i, j, 0)/norm;
             darea_by_dn(i, j, 1) = n(i, j, 1)/norm;
             darea_by_dn(i, j, 2) = n(i, j, 2)/norm;
@@ -539,14 +539,14 @@ template<class Array>
 Array Surface<Array>::dnormal_by_dcoeff_vjp(Array& v) {
     auto dg1 = this->gammadash1();
     auto dg2 = this->gammadash2();
-    Array res_dgammadash1 = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
-    Array res_dgammadash2 = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array res_dgammadash1 = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array res_dgammadash2 = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             for (int d = 0; d < 3; ++d) {
-                double ed[3] = {0., 0., 0.};
+                std::complex<double> ed[3] = {0., 0., 0.};
                 ed[d] = 1.0;
-                double temp[3] = {0., 0., 0.};
+                std::complex<double> temp[3] = {0., 0., 0.};
                 temp[0] = ed[1]*dg2(i, j, 2) - ed[2]*dg2(i, j, 1);
                 temp[1] = ed[2]*dg2(i, j, 0) - ed[0]*dg2(i, j, 2);
                 temp[2] = ed[0]*dg2(i, j, 1) - ed[1]*dg2(i, j, 0);
@@ -564,7 +564,7 @@ Array Surface<Array>::dnormal_by_dcoeff_vjp(Array& v) {
 template<class Array>
 void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
     data *= 0.;
-    double norm, dnorm_dcoeffn;
+    std::complex<double> norm, dnorm_dcoeffn;
     auto nor = this->normal();
     auto dnor_dc = this->dnormal_by_dcoeff();
     auto d2nor_dcdc = this->d2normal_by_dcoeffdcoeff();
@@ -589,13 +589,13 @@ void Surface<Array>::d2area_by_dcoeffdcoeff_impl(Array& data) {
             }
         }
     }
-    data *= 1./ (numquadpoints_phi*numquadpoints_theta);
+    data *= 1./ std::complex<double>(numquadpoints_phi*numquadpoints_theta);
 }
 
 
 template<class Array>
-double Surface<Array>::volume() {
-    double volume = 0.;
+std::complex<double> Surface<Array>::volume() {
+    std::complex<double> volume = 0.;
     auto n = this->normal();
     auto xyz = this->gamma();
 
@@ -604,7 +604,7 @@ double Surface<Array>::volume() {
             volume += (1./3) * (xyz(i, j, 0)*n(i,j,0)+xyz(i,j,1)*n(i,j,1)+xyz(i,j,2)*n(i,j,2));
         }
     }
-    return volume/(numquadpoints_phi*numquadpoints_theta);
+    return volume/std::complex<double>(numquadpoints_phi*numquadpoints_theta);
 
 }
 
@@ -626,8 +626,8 @@ void Surface<Array>::dvolume_by_dcoeff_impl(Array& data) {
     //}
     //data *= 1./ (numquadpoints_phi*numquadpoints_theta);
 
-    Array dvolume_by_dn = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
-    Array dvolume_by_dx = xt::zeros<double>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array dvolume_by_dn = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
+    Array dvolume_by_dx = xt::zeros<std::complex<double>>({numquadpoints_phi, numquadpoints_theta, 3});
     for (int i = 0; i < numquadpoints_phi; ++i) {
         for (int j = 0; j < numquadpoints_theta; ++j) {
             dvolume_by_dn(i, j, 0) = (1./3) * xyz(i, j, 0);
@@ -652,7 +652,7 @@ template<class Array>
 void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
     // this vectorized version of d2volume_by_dcoeffdcoeff computes the second derivative of
     // the surface normal on the fly, which alleviates memory requirements.
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
     data *= 0.;
     auto nor = this->normal();
     auto xyz = this->gamma();
@@ -745,12 +745,12 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                     //data(i, j, 1, m, n) += dg1_dc(i, j, 2, n)*dg2_dc(i, j, 0, m) - dg1_dc(i, j, 0, n)*dg2_dc(i, j, 2, m);
                     //data(i, j, 2, m, n) =  dg1_dc(i, j, 0, m)*dg2_dc(i, j, 1, n) - dg1_dc(i, j, 1, m)*dg2_dc(i, j, 0, n);
                     //data(i, j, 2, m, n) += dg1_dc(i, j, 0, n)*dg2_dc(i, j, 1, m) - dg1_dc(i, j, 1, n)*dg2_dc(i, j, 0, m);
-                    auto d2nor_dcdc_ij0mn =  xsimd::fms(dg1_dc_ij1m, dg2_dc_ij2n,  dg1_dc_ij2m*dg2_dc_ij1n);
-                         d2nor_dcdc_ij0mn += xsimd::fms(dg1_dc_ij1n, dg2_dc_ij2m,  dg1_dc_ij2n*dg2_dc_ij1m);
-                    auto d2nor_dcdc_ij1mn =  xsimd::fms(dg1_dc_ij2m, dg2_dc_ij0n,  dg1_dc_ij0m*dg2_dc_ij2n);
-                         d2nor_dcdc_ij1mn += xsimd::fms(dg1_dc_ij2n, dg2_dc_ij0m,  dg1_dc_ij0n*dg2_dc_ij2m);
-                    auto d2nor_dcdc_ij2mn =  xsimd::fms(dg1_dc_ij0m, dg2_dc_ij1n,  dg1_dc_ij1m*dg2_dc_ij0n);
-                         d2nor_dcdc_ij2mn += xsimd::fms(dg1_dc_ij0n, dg2_dc_ij1m,  dg1_dc_ij1n*dg2_dc_ij0m);
+                    auto d2nor_dcdc_ij0mn =  fms(dg1_dc_ij1m, dg2_dc_ij2n,  dg1_dc_ij2m*dg2_dc_ij1n);
+                         d2nor_dcdc_ij0mn += fms(dg1_dc_ij1n, dg2_dc_ij2m,  dg1_dc_ij2n*dg2_dc_ij1m);
+                    auto d2nor_dcdc_ij1mn =  fms(dg1_dc_ij2m, dg2_dc_ij0n,  dg1_dc_ij0m*dg2_dc_ij2n);
+                         d2nor_dcdc_ij1mn += fms(dg1_dc_ij2n, dg2_dc_ij0m,  dg1_dc_ij0n*dg2_dc_ij2m);
+                    auto d2nor_dcdc_ij2mn =  fms(dg1_dc_ij0m, dg2_dc_ij1n,  dg1_dc_ij1m*dg2_dc_ij0n);
+                         d2nor_dcdc_ij2mn += fms(dg1_dc_ij0n, dg2_dc_ij1m,  dg1_dc_ij1n*dg2_dc_ij0m);
                     
                     // now compute d2volume_by_dcoeffdcoeff
                     //data(m,n) += (1./3) * (dxyz_dc(i,j,0,m)*dnor_dc(i,j,0,n)
@@ -759,11 +759,11 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
                     //data(m,n) += (1./3) * (xyz(i,j,0)*d2nor_dcdc(i,j,0,m,n) + dxyz_dc(i,j,0,n) * dnor_dc(i,j,0,m)
                     //        +xyz(i,j,1)*d2nor_dcdc(i,j,1,m,n) + dxyz_dc(i,j,1,n) * dnor_dc(i,j,1,m)
                     //        +xyz(i,j,2)*d2nor_dcdc(i,j,2,m,n) + dxyz_dc(i,j,2,n) * dnor_dc(i,j,2,m));
-                    auto temp = xsimd::fma(dxyz_dc_ij0m, dnor_dc_ij0n, dxyz_dc_ij1m*dnor_dc_ij1n);
-                    auto data1  = (1./3) * xsimd::fma(dxyz_dc_ij2m, dnor_dc_ij2n, temp);
-                    auto data2  = (1./3) * (xsimd::fma(xyzij0, d2nor_dcdc_ij0mn , dxyz_dc_ij0n * dnor_dc_ij0m)
-                                           +xsimd::fma(xyzij1, d2nor_dcdc_ij1mn , dxyz_dc_ij1n * dnor_dc_ij1m)
-                                           +xsimd::fma(xyzij2, d2nor_dcdc_ij2mn , dxyz_dc_ij2n * dnor_dc_ij2m) );
+                    auto temp = fma(dxyz_dc_ij0m, dnor_dc_ij0n, dxyz_dc_ij1m*dnor_dc_ij1n);
+                    auto data1  = (1./3) * fma(dxyz_dc_ij2m, dnor_dc_ij2n, temp);
+                    auto data2  = (1./3) * (fma(xyzij0, d2nor_dcdc_ij0mn , dxyz_dc_ij0n * dnor_dc_ij0m)
+                                           +fma(xyzij1, d2nor_dcdc_ij1mn , dxyz_dc_ij1n * dnor_dc_ij1m)
+                                           +fma(xyzij2, d2nor_dcdc_ij2mn , dxyz_dc_ij2n * dnor_dc_ij2m) );
 
                     int jjlimit = std::min(simd_size, ndofs-n);
                     for(int jj=0; jj<jjlimit; jj++){
@@ -807,5 +807,5 @@ void Surface<Array>::d2volume_by_dcoeffdcoeff_impl(Array& data) {
 #endif
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> Array;
+typedef xt::pyarray<std::complex<double>> Array;
 template class Surface<Array>;

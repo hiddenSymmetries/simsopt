@@ -3,10 +3,10 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
-typedef Eigen::Vector3d Vec3d;
+typedef Eigen::Vector3cd Vec3d;
 
 
-inline double inner(const Vec3d& a, const Vec3d& b){
+inline std::complex<double> inner(const Vec3d& a, const Vec3d& b){
     return a.dot(b);
 }
 
@@ -14,7 +14,7 @@ inline Vec3d cross(const Vec3d& a, const Vec3d& b){
     return a.cross(b);
 }
 
-inline double norm(const Vec3d& a){
+inline std::complex<double> norm(const Vec3d& a){
     return a.norm();
 }
 
@@ -53,7 +53,7 @@ struct Vec3dSimd {
     Vec3dSimd() : x(0.), y(0.), z(0.){
     }
 
-    Vec3dSimd(double x_, double y_, double z_) : x(x_), y(y_), z(z_){
+    Vec3dSimd(std::complex<double> x_, std::complex<double> y_, std::complex<double> z_) : x(x_), y(y_), z(z_){
     }
 
     Vec3dSimd(Vec3d xyz) : x(xyz[0]), y(xyz[1]), z(xyz[2]){
@@ -62,13 +62,13 @@ struct Vec3dSimd {
     Vec3dSimd(const simd_t& x_, const simd_t& y_, const simd_t& z_) : x(x_), y(y_), z(z_) {
     }
 
-    Vec3dSimd(double* xptr, double* yptr, double *zptr){
+    Vec3dSimd(std::complex<double>* xptr, std::complex<double>* yptr, std::complex<double> *zptr){
         x = xs::load_aligned(xptr);
         y = xs::load_aligned(yptr);
         z = xs::load_aligned(zptr);
     }
 
-    void store_aligned(double* xptr, double* yptr, double *zptr){
+    void store_aligned(std::complex<double>* xptr, std::complex<double>* yptr, std::complex<double> *zptr){
         x.store_aligned(xptr);
         y.store_aligned(yptr);
         z.store_aligned(zptr);
@@ -112,7 +112,7 @@ struct Vec3dSimd {
         return *this;
     }
 
-    Vec3dSimd& operator*=(const double& rhs) {
+    Vec3dSimd& operator*=(const std::complex<double>& rhs) {
         this->x *= rhs;
         this->y *= rhs;
         this->z *= rhs;
@@ -141,17 +141,24 @@ struct Vec3dSimd {
     }
 };
 
-
+inline simd_t fma(const simd_t& a, const simd_t& b, const simd_t& c){
+    simd_t out = a*b + c;
+    return out;
+}
+inline simd_t fms(const simd_t& a, const simd_t& b, const simd_t& c){
+    simd_t out = a*b - c;
+    return out;
+}
 inline simd_t inner(const Vec3dSimd& a, const Vec3dSimd& b){
-    return xsimd::fma(a.x, b.x, xsimd::fma(a.y, b.y, a.z*b.z));
+    return fma(a.x, b.x, fma(a.y, b.y, a.z*b.z));
 }
 
 inline simd_t inner(const Vec3d& b, const Vec3dSimd& a){
-    return xsimd::fma(a.x, simd_t(b[0]), xsimd::fma(a.y, simd_t(b[1]), a.z*b[2]));
+    return fma(a.x, simd_t(b[0]), fma(a.y, simd_t(b[1]), a.z*b[2]));
 }
 
 inline simd_t inner(const Vec3dSimd& a, const Vec3d& b){
-    return xsimd::fma(a.x, simd_t(b[0]), xsimd::fma(a.y, simd_t(b[1]), a.z*b[2]));
+    return fma(a.x, simd_t(b[0]), fma(a.y, simd_t(b[1]), a.z*b[2]));
 }
 
 inline simd_t inner(int i, Vec3dSimd& a){
@@ -165,25 +172,25 @@ inline simd_t inner(int i, Vec3dSimd& a){
 
 inline Vec3dSimd cross(Vec3dSimd& a, Vec3dSimd& b){
     return Vec3dSimd(
-            xsimd::fms(a.y, b.z, a.z * b.y),
-            xsimd::fms(a.z, b.x, a.x * b.z),
-            xsimd::fms(a.x, b.y, a.y * b.x)
+            fms(a.y, b.z, a.z * b.y),
+            fms(a.z, b.x, a.x * b.z),
+            fms(a.x, b.y, a.y * b.x)
             );
 }
 
 inline Vec3dSimd cross(Vec3dSimd& a, Vec3d& b){
     return Vec3dSimd(
-            xsimd::fms(a.y, simd_t(b[2]), a.z * b[1]),
-            xsimd::fms(a.z, simd_t(b[0]), a.x * b[2]),
-            xsimd::fms(a.x, simd_t(b[1]), a.y * b[0])
+            fms(a.y, simd_t(b[2]), a.z * b[1]),
+            fms(a.z, simd_t(b[0]), a.x * b[2]),
+            fms(a.x, simd_t(b[1]), a.y * b[0])
             );
 }
 
 inline Vec3dSimd cross(Vec3d& a, Vec3dSimd& b){
     return Vec3dSimd(
-            xsimd::fms(simd_t(a[1]), b.z, a[2] * b.y),
-            xsimd::fms(simd_t(a[2]), b.x, a[0] * b.z),
-            xsimd::fms(simd_t(a[0]), b.y, a[1] * b.x)
+            fms(simd_t(a[1]), b.z, a[2] * b.y),
+            fms(simd_t(a[2]), b.x, a[0] * b.z),
+            fms(simd_t(a[0]), b.y, a[1] * b.x)
             );
 }
 
@@ -206,7 +213,7 @@ inline Vec3dSimd cross(int i, Vec3dSimd& b){
 }
 
 inline simd_t normsq(Vec3dSimd& a){
-    return xsimd::fma(a.x, a.x, xsimd::fma(a.y, a.y, a.z*a.z));
+    return fma(a.x, a.x, fma(a.y, a.y, a.z*a.z));
 }
 
 #else
@@ -219,32 +226,32 @@ Vec3dStd implements a standard 3d vector.  Unlike Vec3dSimd, Vec3dStd  stores a 
 in each instance of Vec3dStd struct
 */
 struct alignas(ALIGN_BYTES) Vec3dStd {
-    double x;
-    double y;
-    double z;
+    std::complex<double> x;
+    std::complex<double> y;
+    std::complex<double> z;
 
     Vec3dStd() : x(0.), y(0.), z(0.){
     }
 
-    Vec3dStd(double x_, double y_, double z_) : x(x_), y(y_), z(z_){
+    Vec3dStd(std::complex<double> x_, std::complex<double> y_, std::complex<double> z_) : x(x_), y(y_), z(z_){
     }
 
     Vec3dStd(Vec3d xyz) : x(xyz[0]), y(xyz[1]), z(xyz[2]){
     }
 
-    Vec3dStd(double* xptr, double* yptr, double *zptr){
+    Vec3dStd(std::complex<double>* xptr, std::complex<double>* yptr, std::complex<double> *zptr){
         x = *xptr;
         y = *yptr;
         z = *zptr;
     }
 
-    void store_aligned(double* xptr, double* yptr, double *zptr){
+    void store_aligned(std::complex<double>* xptr, std::complex<double>* yptr, std::complex<double> *zptr){
         *xptr = x;
         *yptr = y;
         *zptr = z;
     }
 
-    double& operator[] (int i){
+    std::complex<double>& operator[] (int i){
         switch(i){
         case 0: return x;
         case 1: return y;
@@ -280,7 +287,7 @@ struct alignas(ALIGN_BYTES) Vec3dStd {
         return *this;
     }
 
-    Vec3dStd& operator*=(const double& rhs) {
+    Vec3dStd& operator*=(const std::complex<double>& rhs) {
         this->x *= rhs;
         this->y *= rhs;
         this->z *= rhs;
@@ -301,14 +308,14 @@ struct alignas(ALIGN_BYTES) Vec3dStd {
         return lhs;
     }
 
-    friend Vec3dStd operator*(Vec3dStd lhs, const double& rhs) {
+    friend Vec3dStd operator*(Vec3dStd lhs, const std::complex<double>& rhs) {
         lhs.x *= rhs;
         lhs.y *= rhs;
         lhs.z *= rhs;
         return lhs;
     }
 
-    friend Vec3dStd operator*( const double& lhs, Vec3dStd rhs) {
+    friend Vec3dStd operator*( const std::complex<double>& lhs, Vec3dStd rhs) {
         rhs.x *= lhs;
         rhs.y *= lhs;
         rhs.z *= lhs;
@@ -318,19 +325,19 @@ struct alignas(ALIGN_BYTES) Vec3dStd {
 };
 
 
-inline double inner(const Vec3dStd& a, const Vec3dStd& b){
+inline std::complex<double> inner(const Vec3dStd& a, const Vec3dStd& b){
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-inline double inner(const Vec3d& b, const Vec3dStd& a){
+inline std::complex<double> inner(const Vec3d& b, const Vec3dStd& a){
     return a.x *  b[0] + a.y * b[1] + a.z * b[2];
 }
 
-inline double inner(const Vec3dStd& a, const Vec3d& b){
+inline std::complex<double> inner(const Vec3dStd& a, const Vec3d& b){
     return a.x * b[0] + a.y * b[1] + a.z * b[2];
 }
 
-inline double inner(int i, Vec3dStd& a){
+inline std::complex<double> inner(int i, Vec3dStd& a){
     switch(i){
         case 0: return a.x;
         case 1: return a.y;
@@ -375,7 +382,7 @@ inline Vec3dStd cross(int i, Vec3dStd& b){
     }
 }
 
-inline double normsq(Vec3dStd& a){
+inline std::complex<double> normsq(Vec3dStd& a){
     return a.x * a.x + a.y * a.y + a.z * a.z;
 }
 

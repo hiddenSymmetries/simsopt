@@ -14,10 +14,10 @@ void BiotSavart<T, Array>::compute(int derivatives) {
     //fmt::print("Calling compute({})\n", derivatives);
     auto points = this->get_points_cart_ref();
     this->fill_points(points);
-    Array dummyjac = xt::zeros<double>({1, 1, 1});
-    Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
-    Tensor3 _dummyjac = xt::zeros<double>({1, 1, 1});
-    Tensor4 _dummyhess = xt::zeros<double>({1, 1, 1, 1});
+    Array dummyjac = xt::zeros<std::complex<double>>({1, 1, 1});
+    Array dummyhess = xt::zeros<std::complex<double>>({1, 1, 1, 1});
+    Tensor3 _dummyjac = xt::zeros<std::complex<double>>({1, 1, 1});
+    Tensor4 _dummyhess = xt::zeros<std::complex<double>>({1, 1, 1, 1});
     int ncoils = this->coils.size();
     Tensor2& B = data_B.get_or_create({npoints, 3});
     Tensor3& dB = derivatives >= 1 ? data_dB.get_or_create({npoints, 3, 3}) : _dummyjac;
@@ -27,7 +27,7 @@ void BiotSavart<T, Array>::compute(int derivatives) {
     set_array_to_zero(dB);
     set_array_to_zero(ddB);
 
-    std::vector<double> currents(ncoils, 0.);
+    std::vector<std::complex<double>> currents(ncoils, 0.);
     // Creating new xtensor arrays from an openmp thread doesn't appear
     // to be safe. so we do that here in serial.
     for (int i = 0; i < ncoils; ++i) {
@@ -47,7 +47,7 @@ void BiotSavart<T, Array>::compute(int derivatives) {
         set_array_to_zero(Bi);
         Array& gamma = this->coils[i]->curve->gamma();
         Array& gammadash = this->coils[i]->curve->gammadash();
-        double current = currents[i];
+        std::complex<double> current = currents[i];
         if(derivatives == 0){
             biot_savart_kernel<Array, 0>(pointsx, pointsy, pointsz, gamma, gammadash, Bi, dummyjac, dummyhess);
         } else {
@@ -68,20 +68,20 @@ void BiotSavart<T, Array>::compute(int derivatives) {
     }
     for (int i = 0; i < ncoils; ++i) {
         Array& Bi = field_cache.get_or_create(fmt::format("B_{}", i), {npoints, 3});
-        double current = this->coils[i]->current->get_value();
+        std::complex<double> current = this->coils[i]->current->get_value();
         xt::noalias(B) = B + current * Bi;
     }
     if(derivatives>=1) {
         for (int i = 0; i < ncoils; ++i) {
             Array& dBi = field_cache.get_or_create(fmt::format("dB_{}", i), {npoints, 3, 3});
-            double current = this->coils[i]->current->get_value();
+            std::complex<double> current = this->coils[i]->current->get_value();
             xt::noalias(dB) = dB + current * dBi;
         }
     }
     if(derivatives>=2) {
         for (int i = 0; i < ncoils; ++i) {
             Array& ddBi = field_cache.get_or_create(fmt::format("ddB_{}", i), {npoints, 3, 3, 3});
-            double current = this->coils[i]->current->get_value();
+            std::complex<double> current = this->coils[i]->current->get_value();
             xt::noalias(ddB) = ddB + current * ddBi;
         }
     }
@@ -93,10 +93,10 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
     //fmt::print("Calling compute({})\n", derivatives);
     auto points = this->get_points_cart_ref();
     this->fill_points(points);
-    Array dummyjac = xt::zeros<double>({1, 1, 1});
-    Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
-    Tensor3 _dummyjac = xt::zeros<double>({1, 1, 1});
-    Tensor4 _dummyhess = xt::zeros<double>({1, 1, 1, 1});
+    Array dummyjac = xt::zeros<std::complex<double>>({1, 1, 1});
+    Array dummyhess = xt::zeros<std::complex<double>>({1, 1, 1, 1});
+    Tensor3 _dummyjac = xt::zeros<std::complex<double>>({1, 1, 1});
+    Tensor4 _dummyhess = xt::zeros<std::complex<double>>({1, 1, 1, 1});
     int ncoils = this->coils.size();
     Tensor2& A = data_A.get_or_create({npoints, 3});
     Tensor3& dA = derivatives >= 1 ? data_dA.get_or_create({npoints, 3, 3}) : _dummyjac;
@@ -112,7 +112,7 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
     // coils point at the same current in the background, and if the
     // `get_value` function for that is implemented in python, then this will
     // freeze in parallel.
-    std::vector<double> currents(ncoils, 0.);
+    std::vector<std::complex<double>> currents(ncoils, 0.);
     for (int i = 0; i < ncoils; ++i) {
         this->coils[i]->curve->gamma();
         this->coils[i]->curve->gammadash();
@@ -130,7 +130,7 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
         set_array_to_zero(Ai);
         Array& gamma = this->coils[i]->curve->gamma();
         Array& gammadash = this->coils[i]->curve->gammadash();
-        double current = currents[i];
+        std::complex<double> current = currents[i];
         if(derivatives == 0){
             biot_savart_kernel_A<Array, 0>(pointsx, pointsy, pointsz, gamma, gammadash, Ai, dummyjac, dummyhess);
         } else {
@@ -151,20 +151,20 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
     }
     for (int i = 0; i < ncoils; ++i) {
         Array& Ai = field_cache.get_or_create(fmt::format("A_{}", i), {npoints, 3});
-        double current = this->coils[i]->current->get_value();
+        std::complex<double> current = this->coils[i]->current->get_value();
         xt::noalias(A) = A + current * Ai;
     }
     if(derivatives>=1) {
         for (int i = 0; i < ncoils; ++i) {
             Array& dAi = field_cache.get_or_create(fmt::format("dA_{}", i), {npoints, 3, 3});
-            double current = this->coils[i]->current->get_value();
+            std::complex<double> current = this->coils[i]->current->get_value();
             xt::noalias(dA) = dA + current * dAi;
         }
     }
     if(derivatives>=2) {
         for (int i = 0; i < ncoils; ++i) {
             Array& ddAi = field_cache.get_or_create(fmt::format("ddA_{}", i), {npoints, 3, 3, 3});
-            double current = this->coils[i]->current->get_value();
+            std::complex<double> current = this->coils[i]->current->get_value();
             xt::noalias(ddA) = ddA + current * ddAi;
         }
     }
@@ -173,5 +173,5 @@ void BiotSavart<T, Array>::compute_A(int derivatives) {
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
-typedef xt::pyarray<double> PyArray;
+typedef xt::pyarray<std::complex<double>> PyArray;
 template class BiotSavart<xt::pytensor, PyArray>;

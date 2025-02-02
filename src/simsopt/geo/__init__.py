@@ -16,13 +16,13 @@ from .curveobjectives import *
 
 #from .boozersurface import *
 #from .qfmsurface import *
-#from .surface import *
+from .surface import *
 #from .surfacegarabedian import *
 #from .surfacehenneberg import *
 #from .surfaceobjectives import *
 #from .surfacerzfourier import *
 #from .surfacexyzfourier import *
-#from .surfacexyztensorfourier import *
+from .surfacexyztensorfourier import *
 #from .strain_optimization import *
 #
 #from .permanent_magnet_grid import *
@@ -41,4 +41,4 @@ from .curveobjectives import *
 #           strain_optimization.__all__ + framedcurve.__all__ + 
 #           permanent_magnet_grid.__all__)
 
-__all__ = (curve.__all__ + curvexyzfourier.__all__)
+__all__ = (curve.__all__ + curvexyzfourier.__all__ + surfacexyztensorfourier.__all__ )

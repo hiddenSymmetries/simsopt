@@ -2,7 +2,7 @@ import numpy as np
 
 import simsoptpp as sopp
 from .surface import Surface
-from .surfacerzfourier import SurfaceRZFourier
+#from .surfacerzfourier import SurfaceRZFourier
 
 __all__ = ['SurfaceXYZTensorFourier']
 

@@ -2,7 +2,7 @@
 
 #include "surface.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> PyArray;
+typedef xt::pyarray<std::complex<double>> PyArray;
 
 typedef Surface<PyArray> PySurface;
 
@@ -15,14 +15,14 @@ template <class SurfaceBase = PySurface> class PySurfaceTrampoline : public Surf
         virtual int num_dofs() override {
             PYBIND11_OVERLOAD_PURE(int, SurfaceBase, num_dofs);
         }
-        virtual void set_dofs_impl(const vector<double>& _dofs) override {
+        virtual void set_dofs_impl(const vector<std::complex<double>>& _dofs) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, set_dofs_impl, _dofs);
         }
-        virtual void set_dofs(const vector<double>& _dofs) override {
+        virtual void set_dofs(const vector<std::complex<double>>& _dofs) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, set_dofs, _dofs);
         }
-        virtual vector<double> get_dofs() override {
-            PYBIND11_OVERLOAD_PURE(vector<double>, SurfaceBase, get_dofs);
+        virtual vector<std::complex<double>> get_dofs() override {
+            PYBIND11_OVERLOAD_PURE(vector<std::complex<double>>, SurfaceBase, get_dofs);
         }
         virtual void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
             PYBIND11_OVERLOAD_PURE(void, SurfaceBase, gamma_impl, data, quadpoints_phi, quadpoints_theta);

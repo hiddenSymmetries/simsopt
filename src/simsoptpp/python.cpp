@@ -41,7 +41,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     xt::import_numpy();
 
     init_curves(m);
-//    init_surfaces(m);
+    init_surfaces(m);
 //    init_magneticfields(m);
 //    init_boozermagneticfields(m);
 //    init_tracing(m);

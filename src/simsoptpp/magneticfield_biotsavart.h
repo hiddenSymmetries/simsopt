@@ -22,9 +22,9 @@ class BiotSavart : public MagneticField<T> {
 
         #if defined(USE_XSIMD)
         // this vectors are aligned in memory for fast simd usage.
-        AlignedPaddedVec pointsx = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
-        AlignedPaddedVec pointsy = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
-        AlignedPaddedVec pointsz = AlignedPaddedVec(xsimd::simd_type<double>::size, 0.);
+        AlignedPaddedVec pointsx = AlignedPaddedVec(xsimd::simd_type<std::complex<double>>::size, 0.);
+        AlignedPaddedVec pointsy = AlignedPaddedVec(xsimd::simd_type<std::complex<double>>::size, 0.);
+        AlignedPaddedVec pointsz = AlignedPaddedVec(xsimd::simd_type<std::complex<double>>::size, 0.);
 
         inline void fill_points(const Tensor2& points) {
             // allocating these aligned vectors is not super cheap, so reuse

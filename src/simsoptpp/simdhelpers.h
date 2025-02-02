@@ -49,8 +49,8 @@ class aligned_padded_allocator : public xs::aligned_allocator<T, Align> {
         }
 };
 
-using AlignedPaddedVec = std::vector<double, aligned_padded_allocator<double, XSIMD_DEFAULT_ALIGNMENT>>;
-using simd_t = xs::simd_type<double>;
+using AlignedPaddedVec = std::vector<std::complex<double>, aligned_padded_allocator<std::complex<double>, XSIMD_DEFAULT_ALIGNMENT>>;
+using simd_t = xs::simd_type<std::complex<double>>;
 
 #else
 /*
@@ -64,7 +64,7 @@ Credits: https://github.com/Twon/Alignment
  *
  * @tparam ALIGNMENT_IN_BYTES Must be a positive power of 2.
  */
-template<typename T, std::size_t ALIGNMENT_IN_BYTES = 32>
+template<typename T, std::size_t ALIGNMENT_IN_BYTES = 64>
 class AlignedPaddedAllocator
 {
 private:
@@ -124,7 +124,7 @@ public:
     }
 };
 
-using AlignedPaddedVec = std::vector<double, AlignedPaddedAllocator<double>>;
+using AlignedPaddedVec = std::vector<std::complex<double>, AlignedPaddedAllocator<std::complex<double>>>;
 
 #endif
 
@@ -160,6 +160,6 @@ inline simd_t rsqrt(const simd_t& r2){
 //#endif
 #endif
 
-inline double rsqrt(const double& r2){
+inline std::complex<double> rsqrt(const std::complex<double>& r2){
     return 1./std::sqrt(r2);
 }

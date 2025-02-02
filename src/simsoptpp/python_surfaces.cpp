@@ -11,8 +11,8 @@ namespace py = pybind11;
 #include "pysurface.h"
 //#include "surfacerzfourier.h"
 //typedef SurfaceRZFourier<PyArray> PySurfaceRZFourier;
-//#include "surfacexyzfourier.h"
-//typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
+#include "surfacexyzfourier.h"
+typedef SurfaceXYZFourier<PyArray> PySurfaceXYZFourier;
 #include "surfacexyztensorfourier.h"
 typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 
@@ -50,34 +50,34 @@ typedef SurfaceXYZTensorFourier<PyArray> PySurfaceXYZTensorFourier;
 //        }
 //};
 
-//template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXYZFourierTrampoline : public PySurfaceTrampoline<PySurfaceXYZFourierBase> {
-//    public:
-//        using PySurfaceTrampoline<PySurfaceXYZFourierBase>::PySurfaceTrampoline;
-//
-//        int num_dofs() override {
-//            return PySurfaceXYZFourierBase::num_dofs();
-//        }
-//
-//        void set_dofs_impl(const vector<double>& _dofs) override {
-//            PySurfaceXYZFourierBase::set_dofs_impl(_dofs);
-//        }
-//
-//        vector<double> get_dofs() override {
-//            return PySurfaceXYZFourierBase::get_dofs();
-//        }
-//
-//        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-//            PySurfaceXYZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
-//        }
-//
-//        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
-//            PySurfaceXYZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
-//        }
-//
-//        void fit_to_curve(PyCurve& curve, double radius) {
-//            PySurfaceXYZFourierBase::fit_to_curve(curve, radius);
-//        }
-//};
+template <class PySurfaceXYZFourierBase = PySurfaceXYZFourier> class PySurfaceXYZFourierTrampoline : public PySurfaceTrampoline<PySurfaceXYZFourierBase> {
+    public:
+        using PySurfaceTrampoline<PySurfaceXYZFourierBase>::PySurfaceTrampoline;
+
+        int num_dofs() override {
+            return PySurfaceXYZFourierBase::num_dofs();
+        }
+
+        void set_dofs_impl(const vector<std::complex<double>>& _dofs) override {
+            PySurfaceXYZFourierBase::set_dofs_impl(_dofs);
+        }
+
+        vector<std::complex<double>> get_dofs() override {
+            return PySurfaceXYZFourierBase::get_dofs();
+        }
+
+        void gamma_impl(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_impl(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void gamma_lin(PyArray& data, PyArray& quadpoints_phi, PyArray& quadpoints_theta) override {
+            PySurfaceXYZFourierBase::gamma_lin(data, quadpoints_phi, quadpoints_theta);
+        }
+
+        void fit_to_curve(PyCurve& curve, std::complex<double> radius) {
+            PySurfaceXYZFourierBase::fit_to_curve(curve, radius);
+        }
+};
 
 template <class PySurfaceXYZTensorFourierBase = PySurfaceXYZTensorFourier> class PySurfaceXYZTensorFourierTrampoline : public PySurfaceTrampoline<PySurfaceXYZTensorFourierBase> {
     public:
@@ -165,7 +165,7 @@ void init_surfaces(py::module_ &m){
     register_common_surface_methods<PySurface>(pysurface);
 
     //auto pysurfacerzfourier = py::class_<PySurfaceRZFourier, shared_ptr<PySurfaceRZFourier>, PySurfaceRZFourierTrampoline<PySurfaceRZFourier>, PySurface>(m, "SurfaceRZFourier")
-    //    .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
+    //    .def(py::init<int, int, int, bool, vector<std::complex<double>>, vector<std::complex<double>>>())
     //    .def_readwrite("rc", &PySurfaceRZFourier::rc)
     //    .def_readwrite("rs", &PySurfaceRZFourier::rs)
     //    .def_readwrite("zc", &PySurfaceRZFourier::zc)
@@ -176,18 +176,18 @@ void init_surfaces(py::module_ &m){
     //    .def_readwrite("stellsym", &PySurfaceRZFourier::stellsym)
     //    .def("allocate", &PySurfaceRZFourier::allocate);
 
-    //auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>, PySurface>(m, "SurfaceXYZFourier")
-    //    .def(py::init<int, int, int, bool, vector<double>, vector<double>>())
-    //    .def_readwrite("xc", &PySurfaceXYZFourier::xc)
-    //    .def_readwrite("xs", &PySurfaceXYZFourier::xs)
-    //    .def_readwrite("yc", &PySurfaceXYZFourier::yc)
-    //    .def_readwrite("ys", &PySurfaceXYZFourier::ys)
-    //    .def_readwrite("zc", &PySurfaceXYZFourier::zc)
-    //    .def_readwrite("zs", &PySurfaceXYZFourier::zs)
-    //    .def_readwrite("mpol",&PySurfaceXYZFourier::mpol)
-    //    .def_readwrite("ntor",&PySurfaceXYZFourier::ntor)
-    //    .def_readwrite("nfp", &PySurfaceXYZFourier::nfp)
-    //    .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
+    auto pysurfacexyzfourier = py::class_<PySurfaceXYZFourier, shared_ptr<PySurfaceXYZFourier>, PySurfaceXYZFourierTrampoline<PySurfaceXYZFourier>, PySurface>(m, "SurfaceXYZFourier")
+        .def(py::init<int, int, int, bool, vector<std::complex<double>>, vector<std::complex<double>>>())
+        .def_readwrite("xc", &PySurfaceXYZFourier::xc)
+        .def_readwrite("xs", &PySurfaceXYZFourier::xs)
+        .def_readwrite("yc", &PySurfaceXYZFourier::yc)
+        .def_readwrite("ys", &PySurfaceXYZFourier::ys)
+        .def_readwrite("zc", &PySurfaceXYZFourier::zc)
+        .def_readwrite("zs", &PySurfaceXYZFourier::zs)
+        .def_readwrite("mpol",&PySurfaceXYZFourier::mpol)
+        .def_readwrite("ntor",&PySurfaceXYZFourier::ntor)
+        .def_readwrite("nfp", &PySurfaceXYZFourier::nfp)
+        .def_readwrite("stellsym", &PySurfaceXYZFourier::stellsym);
 
     auto pysurfacexyztensorfourier = py::class_<PySurfaceXYZTensorFourier, shared_ptr<PySurfaceXYZTensorFourier>, PySurfaceXYZTensorFourierTrampoline<PySurfaceXYZTensorFourier>, PySurface>(m, "SurfaceXYZTensorFourier")
         .def(py::init<int, int, int, bool, vector<bool>, vector<std::complex<double>>, vector<std::complex<double>>>())

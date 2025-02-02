@@ -15,6 +15,8 @@ using std::logic_error;
 
 #include <Eigen/QR>
 
+#include "operators.h"
+
 template<class Array>
 Array curve_vjp_contraction(const Array& mat, const Array& v){
     int numquadpoints = mat.shape(0);
@@ -90,7 +92,7 @@ class Curve {
             numquadpoints = _numquadpoints;
             quadpoints = xt::zeros<std::complex<double>>({_numquadpoints});
             for (int i = 0; i < numquadpoints; ++i) {
-                quadpoints[i] = (std::complex<double>(i))/std::complex<double>(numquadpoints);
+                quadpoints[i] = (std::complex<double>(i))/numquadpoints;
             }
         }
 

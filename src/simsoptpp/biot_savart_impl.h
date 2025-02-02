@@ -26,7 +26,7 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
           throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
     auto dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
     MYIF(derivs > 0) {
         dB_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
@@ -41,9 +41,9 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
-    double fak = (1e-7/num_quad_points);
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double> fak = (1e-7/num_quad_points);
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
     for(int i = 0; i < num_points; i += simd_size) {
@@ -193,9 +193,9 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    double fak = (1e-7/num_quad_points);
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double> fak = (1e-7/num_quad_points);
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
     for(int i = 0; i < num_points; i++) {
@@ -300,7 +300,7 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
           throw std::runtime_error("dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
     auto dA_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>();
     MYIF(derivs > 0) {
         dA_dX_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
@@ -315,9 +315,9 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
         };
     }
-    double fak = (1e-7/num_quad_points);
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double> fak = (1e-7/num_quad_points);
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
     for(int i = 0; i < num_points; i += simd_size) {
@@ -440,9 +440,9 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             Vec3dStd(), Vec3dStd(), Vec3dStd()
         };
     }
-    double fak = (1e-7/num_quad_points);
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double> fak = (1e-7/num_quad_points);
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
     // out vectors pointsx, pointsy, and pointsz are added and aligned, so we
     // don't have to worry about going out of bounds here
     for(int i = 0; i < num_points; i++) {

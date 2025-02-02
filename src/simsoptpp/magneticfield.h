@@ -35,10 +35,10 @@ class MagneticField {
      *    read and not modified.
      */
     public:
-        using Tensor1 = T<double, 1, xt::layout_type::row_major>;
-        using Tensor2 = T<double, 2, xt::layout_type::row_major>;
-        using Tensor3 = T<double, 3, xt::layout_type::row_major>;
-        using Tensor4 = T<double, 4, xt::layout_type::row_major>;
+        using Tensor1 = T<std::complex<double>, 1, xt::layout_type::row_major>;
+        using Tensor2 = T<std::complex<double>, 2, xt::layout_type::row_major>;
+        using Tensor3 = T<std::complex<double>, 3, xt::layout_type::row_major>;
+        using Tensor4 = T<std::complex<double>, 4, xt::layout_type::row_major>;
 
     protected:
         void get_points_cyl_impl(Tensor2& points_cyl) {
@@ -46,11 +46,11 @@ class MagneticField {
                 throw logic_error("To compute points_cyl, points_cart needs to exist in the cache.");
             Tensor2& points_cart = get_points_cart_ref();
             for (int i = 0; i < npoints; ++i) {
-                double x = points_cart(i, 0);
-                double y = points_cart(i, 1);
-                double z = points_cart(i, 2);
+                std::complex<double> x = points_cart(i, 0);
+                std::complex<double> y = points_cart(i, 1);
+                std::complex<double> z = points_cart(i, 2);
                 points_cyl(i, 0) = std::sqrt(x*x + y*y);
-                double phi = std::atan2(y, x);
+                std::complex<double> phi = std::atan2(y, x);
                 if(phi < 0)
                     phi += 2*M_PI;
                 points_cyl(i, 1) = phi;
@@ -63,9 +63,9 @@ class MagneticField {
                 throw logic_error("To compute points_cart, points_cyl needs to exist in the cache.");
             Tensor2& points_cyl = get_points_cyl_ref();
             for (int i = 0; i < npoints; ++i) {
-                double r = points_cyl(i, 0);
-                double phi = points_cyl(i, 1);
-                double z = points_cyl(i, 2);
+                std::complex<double> r = points_cyl(i, 0);
+                std::complex<double> phi = points_cyl(i, 1);
+                std::complex<double> z = points_cyl(i, 2);
                 points_cart(i, 0) = r * std::cos(phi);
                 points_cart(i, 1) = r * std::sin(phi);
                 points_cart(i, 2) = z;
@@ -87,7 +87,7 @@ class MagneticField {
             Tensor3& GradB = this->dB_by_dX_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                double AbsB = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
+                std::complex<double> AbsB = std::sqrt(B(i, 0)*B(i, 0) + B(i, 1)*B(i, 1) + B(i, 2)*B(i, 2));
                 GradAbsB(i, 0) = (B(i, 0) * GradB(i, 0, 0) + B(i, 1) * GradB(i, 0, 1) + B(i, 2) * GradB(i, 0, 2))/AbsB;
                 GradAbsB(i, 1) = (B(i, 0) * GradB(i, 1, 0) + B(i, 1) * GradB(i, 1, 1) + B(i, 2) * GradB(i, 1, 2))/AbsB;
                 GradAbsB(i, 2) = (B(i, 0) * GradB(i, 2, 0) + B(i, 1) * GradB(i, 2, 1) + B(i, 2) * GradB(i, 2, 2))/AbsB;
@@ -99,7 +99,7 @@ class MagneticField {
             Tensor2& rphiz = this->get_points_cyl_ref();
             int npoints = B.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                double phi = rphiz(i, 1);
+                std::complex<double> phi = rphiz(i, 1);
                 B_cyl(i, 0) = std::cos(phi)*B(i, 0) + std::sin(phi)*B(i, 1);
                 B_cyl(i, 1) = std::cos(phi)*B(i, 1) - std::sin(phi)*B(i, 0);
                 B_cyl(i, 2) = B(i, 2);
@@ -111,7 +111,7 @@ class MagneticField {
             Tensor2& rphiz = this->get_points_cyl_ref();
             int npoints = A.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                double phi = rphiz(i, 1);
+                std::complex<double> phi = rphiz(i, 1);
                 A_cyl(i, 0) = std::cos(phi)*A(i, 0) + std::sin(phi)*A(i, 1);
                 A_cyl(i, 1) = std::cos(phi)*A(i, 1) - std::sin(phi)*A(i, 0);
                 A_cyl(i, 2) = A(i, 2);
@@ -123,7 +123,7 @@ class MagneticField {
             Tensor2& rphiz = this->get_points_cyl_ref();
             int npoints = GradAbsB.shape(0);
             for (int i = 0; i < npoints; ++i) {
-                double phi = rphiz(i, 1);
+                std::complex<double> phi = rphiz(i, 1);
                 GradAbsB_cyl(i, 0) = std::cos(phi)*GradAbsB(i, 0) + std::sin(phi)*GradAbsB(i, 1);
                 GradAbsB_cyl(i, 1) = std::cos(phi)*GradAbsB(i, 1) - std::sin(phi)*GradAbsB(i, 0);
                 GradAbsB_cyl(i, 2) = GradAbsB(i, 2);
@@ -170,7 +170,7 @@ class MagneticField {
             this->points_cyl.invalidate_cache();
             npoints = p.shape(0);
             Tensor2& points = points_cyl.get_or_create({npoints, 3});
-            memcpy(points.data(), p.data(), 3*npoints*sizeof(double));
+            memcpy(points.data(), p.data(), 3*npoints*sizeof(std::complex<double>));
             for (int i = 0; i < npoints; ++i) {
                 points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
             }
@@ -184,7 +184,7 @@ class MagneticField {
             this->points_cyl.invalidate_cache();
             npoints = p.shape(0);
             Tensor2& points = points_cart.get_or_create({npoints, 3});
-            memcpy(points.data(), p.data(), 3*npoints*sizeof(double));
+            memcpy(points.data(), p.data(), 3*npoints*sizeof(std::complex<double>));
             this->_set_points_cb();
             return *this;
         }

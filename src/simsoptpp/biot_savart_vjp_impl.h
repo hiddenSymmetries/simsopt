@@ -34,13 +34,13 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
           throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
-    double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
-    double* res_gamma_ptr = &(res_gamma(0, 0));
-    double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
-    double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double>* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_gamma_ptr = &(res_gamma(0, 0));
+    std::complex<double>* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimd();
@@ -128,12 +128,12 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
         for (int j = 0; j < num_quad_points; ++j) {
             Vec3d diff = point_i - Vec3d{gamma_j_ptr[3*j+0], gamma_j_ptr[3*j+1], gamma_j_ptr[3*j+2]};
             Vec3d dgamma_j_by_dphi = Vec3d{dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]};
-            double norm_diff = norm(diff);
-            double norm_diff_inv = 1/norm_diff;
-            double norm_diff_2_inv = norm_diff_inv*norm_diff_inv;
-            double norm_diff_3_inv = norm_diff_2_inv*norm_diff_inv;
-            double norm_diff_5_inv = norm_diff_3_inv*norm_diff_2_inv;
-            double norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
+            std::complex<double> norm_diff = norm(diff);
+            std::complex<double> norm_diff_inv = 1/norm_diff;
+            std::complex<double> norm_diff_2_inv = norm_diff_inv*norm_diff_inv;
+            std::complex<double> norm_diff_3_inv = norm_diff_2_inv*norm_diff_inv;
+            std::complex<double> norm_diff_5_inv = norm_diff_3_inv*norm_diff_2_inv;
+            std::complex<double> norm_diff_5_inv_times_3 = 3.*norm_diff_5_inv;
 
             Vec3d res_dgamma_by_dphi_add = cross(diff, v_i) * norm_diff_3_inv;
             res_dgamma_by_dphi(j, 0) += res_dgamma_by_dphi_add.coeff(0);
@@ -148,7 +148,7 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
             res_gamma(j, 2) += res_gamma_add.coeff(2);
 
             MYIF(derivs>0) {
-                double norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
+                std::complex<double> norm_diff_7_inv = norm_diff_5_inv*norm_diff_2_inv;
                 Vec3d res_grad_dgamma_by_dphi_add = Vec3d::Zero();
                 Vec3d res_grad_gamma_add = Vec3d::Zero();
 
@@ -195,12 +195,12 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
           throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
-    double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
-    double* res_gamma_ptr = &(res_gamma(0, 0));
-    double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
-    double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double>* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_gamma_ptr = &(res_gamma(0, 0));
+    std::complex<double>* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points; i++) {
         Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dStd();
@@ -293,13 +293,13 @@ void biot_savart_vector_potential_vjp_kernel(
           throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    constexpr int simd_size = xsimd::simd_type<double>::size;
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
-    double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
-    double* res_gamma_ptr = &(res_gamma(0, 0));
-    double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
-    double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double>* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_gamma_ptr = &(res_gamma(0, 0));
+    std::complex<double>* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dSimd();
@@ -437,12 +437,12 @@ void biot_savart_vector_potential_vjp_kernel(
           throw std::runtime_error("res_grad_dgamma_by_dphi needs to be in row-major storage order");
     int num_points         = pointsx.size();
     int num_quad_points    = gamma.shape(0);
-    double* gamma_j_ptr = &(gamma(0, 0));
-    double* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
-    double* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
-    double* res_gamma_ptr = &(res_gamma(0, 0));
-    double* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
-    double* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
+    std::complex<double>* gamma_j_ptr = &(gamma(0, 0));
+    std::complex<double>* dgamma_j_by_dphi_ptr = &(dgamma_by_dphi(0, 0));
+    std::complex<double>* res_dgamma_by_dphi_ptr = &(res_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_gamma_ptr = &(res_gamma(0, 0));
+    std::complex<double>* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
+    std::complex<double>* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
     for(int i = 0; i < num_points; i++) {
         Vec3dStd point_i = Vec3dStd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
         auto v_i   = Vec3dStd();

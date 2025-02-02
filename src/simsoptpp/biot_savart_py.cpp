@@ -13,8 +13,8 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
     }
     int num_coils  = gammas.size();
 
-    Array dummyjac = xt::zeros<double>({1, 1, 1});
-    Array dummyhess = xt::zeros<double>({1, 1, 1, 1});
+    Array dummyjac = xt::zeros<std::complex<double>>({1, 1, 1});
+    Array dummyhess = xt::zeros<std::complex<double>>({1, 1, 1, 1});
 
     int nderivs = 0;
     if(dB_by_dX.size() == num_coils) {
@@ -37,16 +37,16 @@ void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_
     }
 }
 
-Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents){
+Array biot_savart_B(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<std::complex<double>>& currents){
     auto dB_by_dXs = vector<Array>();
     auto d2B_by_dXdXs = vector<Array>();
     int num_coils = currents.size();
     auto Bs = vector<Array>(num_coils, Array());
     for (int i = 0; i < num_coils; ++i) {
-        Bs[i] = xt::zeros<double>({points.shape(0), points.shape(1)});
+        Bs[i] = xt::zeros<std::complex<double>>({points.shape(0), points.shape(1)});
     }
     biot_savart(points, gammas, dgamma_by_dphis, Bs, dB_by_dXs, d2B_by_dXdXs);
-    Array B = xt::zeros<double>({points.shape(0), points.shape(1)});
+    Array B = xt::zeros<std::complex<double>>({points.shape(0), points.shape(1)});
     for (int i = 0; i < num_coils; ++i) {
         B += currents[i] * Bs[i];
     }

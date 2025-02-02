@@ -14,6 +14,7 @@ using std::logic_error;
 #include "cachedarray.h"
 #include "curve.h"
 #include <Eigen/Dense>
+#include "operators.h"
 
 template<class Array>
 Array surface_vjp_contraction(const Array& mat, const Array& v);
