@@ -114,7 +114,7 @@ def fun(dofs):
     outstr += f", Len=sum([{cl_string}])={sum(J.J().real for J in ls):.1f}"
     outstr += f", ║∇J║={np.linalg.norm(grad.real):.1e}"
     print(outstr)
-    return J.real, grad.real
+    return J, grad
 
 
 print("""
@@ -127,6 +127,16 @@ dofs = np.real(JF.x)
 np.random.seed(1)
 h = np.random.uniform(size=dofs.shape)
 J0, dJ0 = f(dofs)
+
+#eps = 1e-10
+#idx = 10
+#dJ_exact = dJ0[idx].real
+#x0 = dofs.copy().astype(complex)
+#x0[idx]+=eps*1j
+#J1, _ = f(x0)
+#print(dJ_exact, np.imag(J1)/eps, (dJ_exact-np.imag(J1)/eps)/dJ_exact)
+#import ipdb;ipdb.set_trace()
+
 
 dJh = sum(dJ0 * h)
 for eps in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9]:
