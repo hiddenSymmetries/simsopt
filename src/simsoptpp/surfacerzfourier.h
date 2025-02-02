@@ -38,16 +38,16 @@ class SurfaceRZFourier : public Surface<Array> {
         int ntor;
         bool stellsym;
 
-        SurfaceRZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<double> _quadpoints_phi, vector<double> _quadpoints_theta)
+        SurfaceRZFourier(int _mpol, int _ntor, int _nfp, bool _stellsym, vector<std::complex<double>> _quadpoints_phi, vector<std::complex<double>> _quadpoints_theta)
             : Surface<Array>(_quadpoints_phi, _quadpoints_theta), mpol(_mpol), ntor(_ntor), nfp(_nfp), stellsym(_stellsym) {
                 this->allocate();
             }
 
         void allocate() {
-            rc = xt::zeros<double>({mpol+1, 2*ntor+1});
-            rs = xt::zeros<double>({mpol+1, 2*ntor+1});
-            zc = xt::zeros<double>({mpol+1, 2*ntor+1});
-            zs = xt::zeros<double>({mpol+1, 2*ntor+1});
+            rc = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+            rs = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+            zc = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
+            zs = xt::zeros<std::complex<double>>({mpol+1, 2*ntor+1});
         }
 
         int num_dofs() override {
@@ -57,7 +57,7 @@ class SurfaceRZFourier : public Surface<Array> {
                 return 4*(mpol+1)*(2*ntor+1) - 2*ntor - 2*(ntor+1);
         }
 
-        void set_dofs_impl(const vector<double>& dofs) override {
+        void set_dofs_impl(const vector<std::complex<double>>& dofs) override {
             int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {
@@ -78,8 +78,8 @@ class SurfaceRZFourier : public Surface<Array> {
             }
         }
 
-        vector<double> get_dofs() override {
-            auto res = vector<double>(num_dofs(), 0.);
+        vector<std::complex<double>> get_dofs() override {
+            auto res = vector<std::complex<double>>(num_dofs(), 0.);
             int shift = (mpol+1)*(2*ntor+1);
             int counter = 0;
             if(stellsym) {

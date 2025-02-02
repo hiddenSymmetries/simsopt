@@ -12,8 +12,8 @@ typedef xt::pytensor<std::complex<double>, 2, xt::layout_type::row_major> PyTens
 #include <chrono>
 
 
-//#include "biot_savart_py.h"
-//#include "biot_savart_vjp_py.h"
+#include "biot_savart_py.h"
+#include "biot_savart_vjp_py.h"
 //#include "boozerradialinterpolant.h"
 //#include "dipole_field.h"
 //#include "dommaschk.h"
@@ -42,7 +42,7 @@ PYBIND11_MODULE(simsoptpp, m) {
 
     init_curves(m);
     init_surfaces(m);
-//    init_magneticfields(m);
+    init_magneticfields(m);
 //    init_boozermagneticfields(m);
 //    init_tracing(m);
 //    init_distance(m);
@@ -53,12 +53,12 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.attr("using_xsimd") = false;
 #endif
 
-//    m.def("biot_savart", &biot_savart);
-//    m.def("biot_savart_B", &biot_savart_B);
-//    m.def("biot_savart_vjp", &biot_savart_vjp);
-//    m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
-//    m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
-//
+    m.def("biot_savart", &biot_savart);
+    m.def("biot_savart_B", &biot_savart_B);
+    m.def("biot_savart_vjp", &biot_savart_vjp);
+    m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
+    m.def("biot_savart_vector_potential_vjp_graph", &biot_savart_vector_potential_vjp_graph);
+
 //    // Functions below are implemented for permanent magnet optimization
 //    m.def("dipole_field_B" , &dipole_field_B);
 //    m.def("dipole_field_A" , &dipole_field_A);
@@ -128,20 +128,20 @@ PYBIND11_MODULE(simsoptpp, m) {
 //    m.def("boozer_residual_ds", &boozer_residual_ds);
 //    m.def("boozer_residual_ds2", &boozer_residual_ds2);
 //
-//    m.def("matmult", [](PyArray& A, PyArray&B) {
-//            // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
-//            int l = A.shape(0);
-//            int m = A.shape(1);
-//            int n = B.shape(1);
-//            PyArray C = xt::zeros<double>({l, n});
-//
-//            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigA(const_cast<double*>(A.data()), l, m);
-//            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<double*>(B.data()), m, n);
-//            Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<double*>(C.data()), l, n);
-//            eigC = eigA*eigB;
-//            return C;
-//        });
-//
+    m.def("matmult", [](PyArray& A, PyArray&B) {
+            // Product of an lxm matrix with an mxn matrix, results in an l x n matrix
+            int l = A.shape(0);
+            int m = A.shape(1);
+            int n = B.shape(1);
+            PyArray C = xt::zeros<std::complex<double>>({l, n});
+
+            Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigA(const_cast<std::complex<double>*>(A.data()), l, m);
+            Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigB(const_cast<std::complex<double>*>(B.data()), m, n);
+            Eigen::Map<Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> eigC(const_cast<std::complex<double>*>(C.data()), l, n);
+            eigC = eigA*eigB;
+            return C;
+        });
+
 //    m.def("vjp", [](PyArray& v, PyArray&B) {
 //            // Product of v.T @ B
 //            int m = B.shape(0);

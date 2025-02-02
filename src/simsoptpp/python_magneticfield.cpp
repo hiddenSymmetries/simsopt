@@ -3,21 +3,21 @@
 #include "pybind11/functional.h"
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
-typedef xt::pyarray<double> PyArray;
-typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
+typedef xt::pyarray<std::complex<double>> PyArray;
+typedef xt::pytensor<std::complex<double>, 2, xt::layout_type::row_major> PyTensor;
 using std::shared_ptr;
 using std::vector;
 
 namespace py = pybind11;
 #include "magneticfield.h"
 #include "magneticfield_biotsavart.h"
-#include "magneticfield_interpolated.h"
+//#include "magneticfield_interpolated.h"
 #include "pymagneticfield.h"
-#include "regular_grid_interpolant_3d.h"
+//#include "regular_grid_interpolant_3d.h"
 #include "pycurrent.h"
 typedef MagneticField<xt::pytensor> PyMagneticField;
 typedef BiotSavart<xt::pytensor, PyArray> PyBiotSavart;
-typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
+//typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
 
 
 
@@ -56,34 +56,34 @@ template <typename T, typename S> void register_common_field_methods(S &c) {
 
 void init_magneticfields(py::module_ &m){
 
-    py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule", "Abstract class for interpolation rules on an interval.")
-        .def_readonly("degree", &InterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
+    //py::class_<InterpolationRule, shared_ptr<InterpolationRule>>(m, "InterpolationRule", "Abstract class for interpolation rules on an interval.")
+    //    .def_readonly("degree", &InterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
 
-    py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule", "Polynomial interpolation using equispaced points.")
-        .def(py::init<int>())
-        .def_readonly("degree", &UniformInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
-    py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule", "Polynomial interpolation using chebychev points.")
-        .def(py::init<int>())
-        .def_readonly("degree", &ChebyshevInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
+    //py::class_<UniformInterpolationRule, shared_ptr<UniformInterpolationRule>, InterpolationRule>(m, "UniformInterpolationRule", "Polynomial interpolation using equispaced points.")
+    //    .def(py::init<int>())
+    //    .def_readonly("degree", &UniformInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
+    //py::class_<ChebyshevInterpolationRule, shared_ptr<ChebyshevInterpolationRule>, InterpolationRule>(m, "ChebyshevInterpolationRule", "Polynomial interpolation using chebychev points.")
+    //    .def(py::init<int>())
+    //    .def_readonly("degree", &ChebyshevInterpolationRule::degree, "The degree of the polynomial. The number of interpolation points in `degree+1`.");
 
-    py::class_<RegularGridInterpolant3D<PyTensor>, shared_ptr<RegularGridInterpolant3D<PyTensor>>>(m, "RegularGridInterpolant3D",
-            R"pbdoc(
-            Interpolates a (vector valued) function on a uniform grid. 
-            This interpolant is optimized for fast function evaluation (at the cost of memory usage). The main purpose of this class is to be used to interpolate magnetic fields and then use the interpolant for tasks such as fieldline or particle tracing for which the field needs to be evaluated many many times.
-            )pbdoc")
-        .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
-        .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
-        .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch, "Interpolate a function by evaluating the function on all interpolation nodes simultanuously.")
-        .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate, "Evaluate the interpolant at a point.")
-        .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
+    //py::class_<RegularGridInterpolant3D<PyTensor>, shared_ptr<RegularGridInterpolant3D<PyTensor>>>(m, "RegularGridInterpolant3D",
+    //        R"pbdoc(
+    //        Interpolates a (vector valued) function on a uniform grid. 
+    //        This interpolant is optimized for fast function evaluation (at the cost of memory usage). The main purpose of this class is to be used to interpolate magnetic fields and then use the interpolant for tasks such as fieldline or particle tracing for which the field needs to be evaluated many many times.
+    //        )pbdoc")
+    //    .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+    //    .def(py::init<InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, int, bool>())
+    //    .def("interpolate_batch", &RegularGridInterpolant3D<PyTensor>::interpolate_batch, "Interpolate a function by evaluating the function on all interpolation nodes simultanuously.")
+    //    .def("evaluate", &RegularGridInterpolant3D<PyTensor>::evaluate, "Evaluate the interpolant at a point.")
+    //    .def("evaluate_batch", &RegularGridInterpolant3D<PyTensor>::evaluate_batch, "Evaluate the interpolant at multiple points (faster than `evaluate` as it uses prefetching).");
 
 
     py::class_<CurrentBase<PyArray>, shared_ptr<CurrentBase<PyArray>>, PyCurrentBaseTrampoline>(m, "CurrentBase")
         .def(py::init<>())
         .def("get_value", &CurrentBase<PyArray>::get_value, "Get the current.");
 
-    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>, CurrentBase<PyArray>>(m, "Current", "Simple class that wraps around a single double representing a coil current.")
-        .def(py::init<double>())
+    py::class_<Current<PyArray>, shared_ptr<Current<PyArray>>, CurrentBase<PyArray>>(m, "Current", "Simple class that wraps around a single std::complex<double> representing a coil current.")
+        .def(py::init<std::complex<double>>())
         .def("set_dofs", &Current<PyArray>::set_dofs, "Set the current.")
         .def("get_dofs", &Current<PyArray>::get_dofs, "Get the current.")
         .def("get_value", &Current<PyArray>::get_value, "Get the current.");
@@ -96,7 +96,6 @@ void init_magneticfields(py::module_ &m){
     auto mf = py::class_<PyMagneticField, PyMagneticFieldTrampoline<PyMagneticField>, shared_ptr<PyMagneticField>>(m, "MagneticField", "Abstract class representing magnetic fields.")
         .def(py::init<>());
     register_common_field_methods<PyMagneticField>(mf);
-        //.def("B", py::overload_cast<>(&PyMagneticField::B));
 
     auto bs = py::class_<PyBiotSavart, PyMagneticFieldTrampoline<PyBiotSavart>, shared_ptr<PyBiotSavart>, PyMagneticField>(m, "BiotSavart")
         .def(py::init<vector<shared_ptr<Coil<PyArray>>>>())
@@ -106,15 +105,14 @@ void init_magneticfields(py::module_ &m){
         .def_readonly("coils", &PyBiotSavart::coils);
     register_common_field_methods<PyBiotSavart>(bs);
 
-    auto ifield = py::class_<PyInterpolatedField, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
-        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
-        .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
-        .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
-        .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
-        .def_readonly("r_range", &PyInterpolatedField::r_range)
-        .def_readonly("phi_range", &PyInterpolatedField::phi_range)
-        .def_readonly("z_range", &PyInterpolatedField::z_range)
-        .def_readonly("rule", &PyInterpolatedField::rule);
-    //register_common_field_methods<PyInterpolatedField>(ifield);
+    //auto ifield = py::class_<PyInterpolatedField, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
+    //    .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+    //    .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+    //    .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
+    //    .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
+    //    .def_readonly("r_range", &PyInterpolatedField::r_range)
+    //    .def_readonly("phi_range", &PyInterpolatedField::phi_range)
+    //    .def_readonly("z_range", &PyInterpolatedField::z_range)
+    //    .def_readonly("rule", &PyInterpolatedField::rule);
  
 }

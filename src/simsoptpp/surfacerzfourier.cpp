@@ -24,10 +24,10 @@ template<class Array>
 void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Array& quadpoints_theta) {
     int numquadpoints_phi = quadpoints_phi.size();
     int numquadpoints_theta = quadpoints_theta.size();
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
             simd_t theta;
             for (int l = 0; l < simd_size; ++l) {
@@ -37,8 +37,8 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
             }
             simd_t r(0.);
             simd_t z(0.);
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
+            std::complex<double> sin_nfpphi = sin(-nfp*phi);
+            std::complex<double> cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
                 simd_t sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
@@ -86,12 +86,12 @@ void SurfaceRZFourier<Array>::gamma_impl(Array& data, Array& quadpoints_phi, Arr
         auto phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
             auto theta = 2*M_PI * quadpoints_theta[k2];
-            double r(0.);
-            double z(0.);
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
+            std::complex<double> r(0.);
+            std::complex<double> z(0.);
+            std::complex<double> sin_nfpphi = sin(-nfp*phi);
+            std::complex<double> cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
-                double sinterm, costerm;
+                std::complex<double> sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
                     // recompute the angle from scratch every so often, to
@@ -131,10 +131,10 @@ void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arra
 
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
-        double theta  = 2*M_PI*quadpoints_theta[k1];
-        double r = 0;
-        double z = 0;
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> theta  = 2*M_PI*quadpoints_theta[k1];
+        std::complex<double> r = 0;
+        std::complex<double> z = 0;
         for (int m = 0; m <= mpol; ++m) {
             for (int i = 0; i < 2*ntor+1; ++i) {
                 int n  = i - ntor;
@@ -156,10 +156,10 @@ void SurfaceRZFourier<Array>::gamma_lin(Array& data, Array& quadpoints_phi, Arra
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
             simd_t theta;
             for (int l = 0; l < simd_size; ++l) {
@@ -170,8 +170,8 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
             simd_t r(0.);
             simd_t rd(0.);
             simd_t zd(0.);
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
+            std::complex<double> sin_nfpphi = sin(-nfp*phi);
+            std::complex<double> cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
                 simd_t sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
@@ -217,16 +217,16 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
     constexpr int simd_size = 1;
     #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
-            double theta = 2*M_PI * quadpoints_theta[k2];
-            double r(0.);
-            double rd(0.);
-            double zd(0.);
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
+            std::complex<double> theta = 2*M_PI * quadpoints_theta[k2];
+            std::complex<double> r(0.);
+            std::complex<double> rd(0.);
+            std::complex<double> zd(0.);
+            std::complex<double> sin_nfpphi = sin(-nfp*phi);
+            std::complex<double> cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
-                double sinterm, costerm;
+                std::complex<double> sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
                      // recompute the angle from scratch every so often, to
@@ -266,13 +266,13 @@ void SurfaceRZFourier<Array>::gammadash1_impl(Array& data) {
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1dash1_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
-            double r = 0;
-            double rd = 0;
-            double rdd = 0;
-            double zdd = 0;
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> r = 0;
+            std::complex<double> rd = 0;
+            std::complex<double> rdd = 0;
+            std::complex<double> zdd = 0;
             for (int i = 0; i < 2*ntor+1; ++i) {
                 int n  = i - ntor;
                 for (int m = 0; m <= mpol; ++m) {
@@ -298,12 +298,12 @@ void SurfaceRZFourier<Array>::gammadash1dash1_impl(Array& data) {
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash1dash2_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
-            double rd2 = 0;
-            double rd1d2 = 0;
-            double zd1d2 = 0;
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> rd2 = 0;
+            std::complex<double> rd1d2 = 0;
+            std::complex<double> zd1d2 = 0;
             for (int i = 0; i < 2*ntor+1; ++i) {
                 int n  = i - ntor;
                 for (int m = 0; m <= mpol; ++m) {
@@ -327,13 +327,13 @@ void SurfaceRZFourier<Array>::gammadash1dash2_impl(Array& data) {
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash2dash2_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
-            double rd = 0;
-            double zd = 0;
-            double rdd = 0;
-            double zdd = 0;
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> rd = 0;
+            std::complex<double> zd = 0;
+            std::complex<double> rdd = 0;
+            std::complex<double> zdd = 0;
             for (int i = 0; i < 2*ntor+1; ++i) {
                 int n  = i - ntor;
                 for (int m = 0; m <= mpol; ++m) {
@@ -360,10 +360,10 @@ void SurfaceRZFourier<Array>::gammadash2dash2_impl(Array& data) {
 
 template<class Array>
 void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
             simd_t theta;
             for (int l = 0; l < simd_size; ++l) {
@@ -373,8 +373,8 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
             }
             simd_t rd(0.);
             simd_t zd(0.);
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
+            std::complex<double> sin_nfpphi = sin(-nfp*phi);
+            std::complex<double> cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
                 simd_t sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
@@ -418,15 +418,15 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
     constexpr int simd_size = 1;
     #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for(int k2 = 0; k2 < numquadpoints_theta; k2 += simd_size) {
-            double theta = 2*M_PI * quadpoints_theta[k2];
-            double rd(0.);
-            double zd(0.);
-            double sin_nfpphi = sin(-nfp*phi);
-            double cos_nfpphi = cos(-nfp*phi);
+            std::complex<double> theta = 2*M_PI * quadpoints_theta[k2];
+            std::complex<double> rd(0.);
+            std::complex<double> zd(0.);
+            std::complex<double> sin_nfpphi = sin(-nfp*phi);
+            std::complex<double> cos_nfpphi = cos(-nfp*phi);
             for (int m = 0; m <= mpol; ++m) {
-                double sinterm, costerm;
+                std::complex<double> sinterm, costerm;
                 for (int i = 0; i < 2*ntor+1; ++i) {
                     int n  = i - ntor;
                      // recompute the angle from scratch every so often, to
@@ -464,20 +464,20 @@ void SurfaceRZFourier<Array>::gammadash2_impl(Array& data) {
 #if defined(USE_XSIMD)
 template<class Array>
 Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
-    Array res = xt::zeros<double>({num_dofs()});
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    Array res = xt::zeros<std::complex<double>>({num_dofs()});
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
     auto resptr = &(res(0));
 #pragma omp parallel
     {
-        double* resptr_private = new double[num_dofs()];
+        std::complex<double>* resptr_private = new std::complex<double>[num_dofs()];
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
 #pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-            double phi  = 2*M_PI*quadpoints_phi[k1];
-            double sinphi = sin(phi);
-            double cosphi = cos(phi);
+            std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+            std::complex<double> sinphi = sin(phi);
+            std::complex<double> cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
                 simd_t theta(0.);
@@ -497,8 +497,8 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
                 int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
                 int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
                 int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
-                double sin_nfpphi = sin(-nfp*phi);
-                double cos_nfpphi = cos(-nfp*phi);
+                std::complex<double> sin_nfpphi = sin(-nfp*phi);
+                std::complex<double> cos_nfpphi = cos(-nfp*phi);
                 for (int m = 0; m <= mpol; ++m) {
                     simd_t sinterm, costerm;
                     for (int n = -ntor; n <= ntor; ++n) {
@@ -545,35 +545,35 @@ Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
 #else
 template<class Array>
 Array SurfaceRZFourier<Array>::dgamma_by_dcoeff_vjp(Array& v) {
-    Array res = xt::zeros<double>({num_dofs()});
+    Array res = xt::zeros<std::complex<double>>({num_dofs()});
     constexpr int simd_size = 1;
     auto resptr = &(res(0));
     #pragma omp parallel
     {
-        double* resptr_private = new double[num_dofs()];
+        std::complex<double>* resptr_private = new std::complex<double>[num_dofs()];
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
 #pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-            double phi  = 2*M_PI*quadpoints_phi[k1];
-            double sinphi = sin(phi);
-            double cosphi = cos(phi);
+            std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+            std::complex<double> sinphi = sin(phi);
+            std::complex<double> cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-                double theta = 2*M_PI * quadpoints_theta[i];
-                double v0 = v(k1, i, 0);
-                double v1 = v(k1, i, 1);
-                double v2 = v(k1, i, 2);
+                std::complex<double> theta = 2*M_PI * quadpoints_theta[i];
+                std::complex<double> v0 = v(k1, i, 0);
+                std::complex<double> v1 = v(k1, i, 1);
+                std::complex<double> v2 = v(k1, i, 2);
                 int counter = 0;
                 int shift0 = -ntor;
                 int shift1 = !stellsym ? shift0 + (mpol+1) * (2*ntor+1) - ntor - 1 : shift0;
                 int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
                 int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
-                double sin_nfpphi = sin(-nfp*phi);
-                double cos_nfpphi = cos(-nfp*phi);
+                std::complex<double> sin_nfpphi = sin(-nfp*phi);
+                std::complex<double> cos_nfpphi = cos(-nfp*phi);
                 for (int m = 0; m <= mpol; ++m) {
-                    double sinterm, costerm;
+                    std::complex<double> sinterm, costerm;
                     for (int n = -ntor; n <= ntor; ++n) {
                         int i = n + ntor;
                          // recompute the angle from scratch every so often, to
@@ -622,9 +622,9 @@ template<class Array>
 void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
             int counter = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
@@ -672,20 +672,20 @@ void SurfaceRZFourier<Array>::dgamma_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
-    Array res = xt::zeros<double>({num_dofs()});
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    Array res = xt::zeros<std::complex<double>>({num_dofs()});
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
     auto resptr = &(res(0));
 #pragma omp parallel
     {
-        double* resptr_private = new double[num_dofs()];
+        std::complex<double>* resptr_private = new std::complex<double>[num_dofs()];
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
 #pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-            double phi  = 2*M_PI*quadpoints_phi[k1];
-            double sinphi = sin(phi);
-            double cosphi = cos(phi);
+            std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+            std::complex<double> sinphi = sin(phi);
+            std::complex<double> cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
                 simd_t theta(0.);
@@ -706,8 +706,8 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                 int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
                 int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
 
-                double sin_nfpphi = sin(-nfp*phi);
-                double cos_nfpphi = cos(-nfp*phi);
+                std::complex<double> sin_nfpphi = sin(-nfp*phi);
+                std::complex<double> cos_nfpphi = cos(-nfp*phi);
                 for (int m = 0; m <= mpol; ++m) {
                     simd_t sinterm, costerm;
                     for (int n = -ntor; n <= ntor; ++n) {
@@ -756,26 +756,26 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
-    Array res = xt::zeros<double>({num_dofs()});
+    Array res = xt::zeros<std::complex<double>>({num_dofs()});
     constexpr int simd_size = 1;
     auto resptr = &(res(0));
     #pragma omp parallel
     {
-        double* resptr_private = new double[num_dofs()];
+        std::complex<double>* resptr_private = new std::complex<double>[num_dofs()];
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
         #pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-            double phi  = 2*M_PI*quadpoints_phi[k1];
-            double sinphi = sin(phi);
-            double cosphi = cos(phi);
+            std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+            std::complex<double> sinphi = sin(phi);
+            std::complex<double> cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-                double theta = 2*M_PI * quadpoints_theta[i];
-                double v0 = v(k1, i, 0);
-                double v1 = v(k1, i, 1);
-                double v2 = v(k1, i, 2);
+                std::complex<double> theta = 2*M_PI * quadpoints_theta[i];
+                std::complex<double> v0 = v(k1, i, 0);
+                std::complex<double> v1 = v(k1, i, 1);
+                std::complex<double> v2 = v(k1, i, 2);
 
                 int counter = 0;
                 int shift0 = -ntor;
@@ -783,10 +783,10 @@ Array SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_vjp(Array& v) {
                 int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
                 int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
 
-                double sin_nfpphi = sin(-nfp*phi);
-                double cos_nfpphi = cos(-nfp*phi);
+                std::complex<double> sin_nfpphi = sin(-nfp*phi);
+                std::complex<double> cos_nfpphi = cos(-nfp*phi);
                 for (int m = 0; m <= mpol; ++m) {
-                    double sinterm, costerm;
+                    std::complex<double> sinterm, costerm;
                     for (int n = -ntor; n <= ntor; ++n) {
                         int i = n + ntor;
                         // recompute the angle from scratch every so often, to
@@ -836,9 +836,9 @@ template<class Array>
 void SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data) {
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
             int counter = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
@@ -885,9 +885,9 @@ void SurfaceRZFourier<Array>::dgammadash1_by_dcoeff_impl(Array& data) {
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
             int counter = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
@@ -938,9 +938,9 @@ void SurfaceRZFourier<Array>::dgammadash1dash2_by_dcoeff_impl(Array& data) {
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
             int counter = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
@@ -996,20 +996,20 @@ void SurfaceRZFourier<Array>::dgammadash1dash1_by_dcoeff_impl(Array& data) {
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
-    Array res = xt::zeros<double>({num_dofs()});
-    constexpr int simd_size = xsimd::simd_type<double>::size;
+    Array res = xt::zeros<std::complex<double>>({num_dofs()});
+    constexpr int simd_size = xsimd::simd_type<std::complex<double>>::size;
     auto resptr = &(res(0));
 #pragma omp parallel
     {
-        double* resptr_private = new double[num_dofs()];
+        std::complex<double>* resptr_private = new std::complex<double>[num_dofs()];
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
 #pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-            double phi  = 2*M_PI*quadpoints_phi[k1];
-            double sinphi = sin(phi);
-            double cosphi = cos(phi);
+            std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+            std::complex<double> sinphi = sin(phi);
+            std::complex<double> cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
                 simd_t theta(0.);
@@ -1030,8 +1030,8 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                 int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
                 int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
 
-                double sin_nfpphi = sin(-nfp*phi);
-                double cos_nfpphi = cos(-nfp*phi);
+                std::complex<double> sin_nfpphi = sin(-nfp*phi);
+                std::complex<double> cos_nfpphi = cos(-nfp*phi);
                 for (int m = 0; m <= mpol; ++m) {
                     simd_t sinterm, costerm;
                     for (int n = -ntor; n <= ntor; ++n) {
@@ -1080,26 +1080,26 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
 
 template<class Array>
 Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
-    Array res = xt::zeros<double>({num_dofs()});
+    Array res = xt::zeros<std::complex<double>>({num_dofs()});
     constexpr int simd_size = 1;
     auto resptr = &(res(0));
     #pragma omp parallel
     {
-        double* resptr_private = new double[num_dofs()];
+        std::complex<double>* resptr_private = new std::complex<double>[num_dofs()];
         for (int i = 0; i < num_dofs(); ++i) {
             resptr_private[i] = 0.;
         }
         #pragma omp for
         for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-            double phi  = 2*M_PI*quadpoints_phi[k1];
-            double sinphi = sin(phi);
-            double cosphi = cos(phi);
+            std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
+            std::complex<double> sinphi = sin(phi);
+            std::complex<double> cosphi = cos(phi);
 
             for(int i = 0; i < numquadpoints_theta; i += simd_size) {
-                double theta = 2*M_PI * quadpoints_theta[i];
-                double v0 = v(k1, i, 0);
-                double v1 = v(k1, i, 1);
-                double v2 = v(k1, i, 2);
+                std::complex<double> theta = 2*M_PI * quadpoints_theta[i];
+                std::complex<double> v0 = v(k1, i, 0);
+                std::complex<double> v1 = v(k1, i, 1);
+                std::complex<double> v2 = v(k1, i, 2);
 
                 int counter = 0;
                 int shift0 = -ntor;
@@ -1107,10 +1107,10 @@ Array SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_vjp(Array& v) {
                 int shift2 = !stellsym ? shift1 + (mpol+1) * (2*ntor+1) - ntor : shift1;
                 int shift3 = shift2 + (mpol+1)*(2*ntor+1) - ntor - 1;
 
-                double sin_nfpphi = sin(-nfp*phi);
-                double cos_nfpphi = cos(-nfp*phi);
+                std::complex<double> sin_nfpphi = sin(-nfp*phi);
+                std::complex<double> cos_nfpphi = cos(-nfp*phi);
                 for (int m = 0; m <= mpol; ++m) {
-                    double sinterm, costerm;
+                    std::complex<double> sinterm, costerm;
                     for (int n = -ntor; n <= ntor; ++n) {
                         int i = n + ntor;
                         // recompute the angle from scratch every so often, to
@@ -1160,9 +1160,9 @@ template<class Array>
 void SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_impl(Array& data) {
 #pragma omp parallel for
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
             int counter = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
@@ -1209,9 +1209,9 @@ void SurfaceRZFourier<Array>::dgammadash2_by_dcoeff_impl(Array& data) {
 template<class Array>
 void SurfaceRZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
     for (int k1 = 0; k1 < numquadpoints_phi; ++k1) {
-        double phi  = 2*M_PI*quadpoints_phi[k1];
+        std::complex<double> phi  = 2*M_PI*quadpoints_phi[k1];
         for (int k2 = 0; k2 < numquadpoints_theta; ++k2) {
-            double theta  = 2*M_PI*quadpoints_theta[k2];
+            std::complex<double> theta  = 2*M_PI*quadpoints_theta[k2];
             int counter = 0;
             for (int m = 0; m <= mpol; ++m) {
                 for (int n = -ntor; n <= ntor; ++n) {
@@ -1256,5 +1256,5 @@ void SurfaceRZFourier<Array>::dgammadash2dash2_by_dcoeff_impl(Array& data) {
 }
 
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
-typedef xt::pyarray<double> Array;
+typedef xt::pyarray<std::complex<double>> Array;
 template class SurfaceRZFourier<Array>;

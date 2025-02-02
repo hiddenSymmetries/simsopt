@@ -1,5 +1,6 @@
 #include "biot_savart_impl.h"
 #include "biot_savart_py.h"
+#include "operators.h"
 
 void biot_savart(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<Array>& B, vector<Array>& dB_by_dX, vector<Array>& d2B_by_dXdX) {
     auto pointsx = AlignedPaddedVec(points.shape(0), 0);

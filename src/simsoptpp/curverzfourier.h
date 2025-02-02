@@ -35,24 +35,24 @@ class CurveRZFourier : public Curve<Array> {
         Array zs;
 
         CurveRZFourier(int _numquadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_numquadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
-            rc = xt::zeros<double>({order + 1});
-            rs = xt::zeros<double>({order});
-            zc = xt::zeros<double>({order + 1});
-            zs = xt::zeros<double>({order});
+            rc = xt::zeros<std::complex<double>>({order + 1});
+            rs = xt::zeros<std::complex<double>>({order});
+            zc = xt::zeros<std::complex<double>>({order + 1});
+            zs = xt::zeros<std::complex<double>>({order});
         }
 
-        CurveRZFourier(vector<double> _quadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
-            rc = xt::zeros<double>({order + 1});
-            rs = xt::zeros<double>({order});
-            zc = xt::zeros<double>({order + 1});
-            zs = xt::zeros<double>({order});
+        CurveRZFourier(vector<std::complex<double>> _quadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
+            rc = xt::zeros<std::complex<double>>({order + 1});
+            rs = xt::zeros<std::complex<double>>({order});
+            zc = xt::zeros<std::complex<double>>({order + 1});
+            zs = xt::zeros<std::complex<double>>({order});
         }
 
         CurveRZFourier(Array _quadpoints, int _order, int _nfp, bool _stellsym) : Curve<Array>(_quadpoints), order(_order), nfp(_nfp), stellsym(_stellsym) {
-            rc = xt::zeros<double>({order + 1});
-            rs = xt::zeros<double>({order});
-            zc = xt::zeros<double>({order + 1});
-            zs = xt::zeros<double>({order});
+            rc = xt::zeros<std::complex<double>>({order + 1});
+            rs = xt::zeros<std::complex<double>>({order});
+            zc = xt::zeros<std::complex<double>>({order + 1});
+            zs = xt::zeros<std::complex<double>>({order});
         }
 
         inline int num_dofs() override {
@@ -62,7 +62,7 @@ class CurveRZFourier : public Curve<Array> {
                 return 2*(2*order+1);
         }
 
-        void set_dofs_impl(const vector<double>& dofs) override {
+        void set_dofs_impl(const vector<std::complex<double>>& dofs) override {
             int counter = 0;
             if(stellsym) {
                 for (int i = 0; i < order + 1; ++i)
@@ -81,8 +81,8 @@ class CurveRZFourier : public Curve<Array> {
             }
         }
 
-        vector<double> get_dofs() override {
-            auto res = vector<double>(num_dofs(), 0.);
+        vector<std::complex<double>> get_dofs() override {
+            auto res = vector<std::complex<double>>(num_dofs(), 0.);
             int counter = 0;
             if(stellsym) {
                 for (int i = 0; i < order + 1; ++i)

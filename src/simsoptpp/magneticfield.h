@@ -3,7 +3,7 @@
 #include <xtensor/xnoalias.hpp>
 #include <stdexcept>
 
-
+#include "operators.h"
 #include "cachedarray.h"
 #include "cache.h"
 #include "cachedtensor.h"
@@ -50,10 +50,10 @@ class MagneticField {
                 std::complex<double> y = points_cart(i, 1);
                 std::complex<double> z = points_cart(i, 2);
                 points_cyl(i, 0) = std::sqrt(x*x + y*y);
-                std::complex<double> phi = std::atan2(y, x);
-                if(phi < 0)
-                    phi += 2*M_PI;
-                points_cyl(i, 1) = phi;
+                //std::complex<double> phi = std::atan2(y, x);
+                //if(phi < 0)
+                //    phi += 2*M_PI;
+                //points_cyl(i, 1) = phi;
                 points_cyl(i, 2) = z;
             }
         }
@@ -172,7 +172,7 @@ class MagneticField {
             Tensor2& points = points_cyl.get_or_create({npoints, 3});
             memcpy(points.data(), p.data(), 3*npoints*sizeof(std::complex<double>));
             for (int i = 0; i < npoints; ++i) {
-                points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
+                //points(i, 1) = std::fmod(points(i, 1), 2*M_PI);
             }
             this->_set_points_cb();
             return *this;

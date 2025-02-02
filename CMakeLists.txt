@@ -126,17 +126,20 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/surface.cpp 
     src/simsoptpp/surfacexyzfourier.cpp
     src/simsoptpp/operators.cpp
+    src/simsoptpp/biot_savart_py.cpp
+    src/simsoptpp/biot_savart_vjp_py.cpp
+    src/simsoptpp/magneticfield_biotsavart.cpp 
+    src/simsoptpp/python_magneticfield.cpp 
+    src/simsoptpp/curverzfourier.cpp  
+    src/simsoptpp/surfacerzfourier.cpp 
+    #src/simsoptpp/python_boozermagneticfield.cpp
     #src/simsoptpp/boozerresidual_py.cpp
-    #src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
-    #src/simsoptpp/biot_savart_py.cpp
-    #src/simsoptpp/biot_savart_vjp_py.cpp
+    #src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
     #src/simsoptpp/regular_grid_interpolant_3d_py.cpp
-    # src/simsoptpp/curverzfourier.cpp  src/simsoptpp/curveplanarfourier.cpp
-    #src/simsoptpp/surfacerzfourier.cpp 
+    # src/simsoptpp/curveplanarfourier.cpp
     #src/simsoptpp/integral_BdotN.cpp
     #src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
     #src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp
-    #src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
     #src/simsoptpp/boozerradialinterpolant.cpp
     )
 

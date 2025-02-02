@@ -2,6 +2,7 @@
 #include "vec3dsimd.h"
 #include <stdexcept>
 #include "xtensor/xlayout.hpp"
+#include "operators.h"
 
 // When compiled with C++17, then we use `if constexpr` to check for
 // derivatives that need to be computed.  These are actually evaluated at

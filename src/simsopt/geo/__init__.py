@@ -4,7 +4,7 @@ from .config import *
 
 from .curve import *
 #from .curvehelical import *
-#from .curverzfourier import *
+from .curverzfourier import *
 from .curvexyzfourier import *
 #from .curvexyzfouriersymmetries import *
 #from .curveperturbed import *
@@ -12,16 +12,16 @@ from .curveobjectives import *
 #from .curveplanarfourier import *
 #from .framedcurve import *
 #from .finitebuild import *
-#from .plotting import *
+from .plotting import *
 
-#from .boozersurface import *
+from .boozersurface import *
 #from .qfmsurface import *
 from .surface import *
 #from .surfacegarabedian import *
 #from .surfacehenneberg import *
-#from .surfaceobjectives import *
-#from .surfacerzfourier import *
-#from .surfacexyzfourier import *
+from .surfaceobjectives import *
+from .surfacerzfourier import *
+from .surfacexyzfourier import *
 from .surfacexyztensorfourier import *
 #from .strain_optimization import *
 #
@@ -41,4 +41,4 @@ from .surfacexyztensorfourier import *
 #           strain_optimization.__all__ + framedcurve.__all__ + 
 #           permanent_magnet_grid.__all__)
 
-__all__ = (curve.__all__ + curvexyzfourier.__all__ + surfacexyztensorfourier.__all__ )
+__all__ = (curve.__all__ + curvexyzfourier.__all__ + surfacexyztensorfourier.__all__ + curverzfourier.__all__+ surfacerzfourier.__all__  + plotting.__all__ + boozersurface.__all__+surfaceobjectives.__all__+ surfaceobjectives.__all__)

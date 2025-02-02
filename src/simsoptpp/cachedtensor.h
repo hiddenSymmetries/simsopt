@@ -10,7 +10,7 @@ using std::array;
 template<template<class, std::size_t, xt::layout_type> class Tensor, std::size_t rank>
 class CachedTensor {
     private:
-        using T = Tensor<double, rank, xt::layout_type::row_major>;
+        using T = Tensor<std::complex<double>, rank, xt::layout_type::row_major>;
         T data = {};
         bool status;
         array<int, rank> dims;
@@ -18,17 +18,17 @@ class CachedTensor {
         using Shape = std::array<int, rank>;
 
         CachedTensor(const Shape& dims) : status(true), dims(dims) {
-            data = xt::zeros<double>(dims);
+            data = xt::zeros<std::complex<double>>(dims);
         }
 
         CachedTensor() : status(false) {
             dims.fill(1);
-            data = xt::zeros<double>(dims);
+            data = xt::zeros<std::complex<double>>(dims);
         }
 
         inline T& get_or_create(const Shape& new_dims){
             if(dims != new_dims){
-                data = xt::zeros<double>(new_dims);
+                data = xt::zeros<std::complex<double>>(new_dims);
                 //fmt::print("Dims ({} != {}) don't match, create a new Tensor.\n", dims, new_dims);
                 dims = new_dims;
             }
@@ -44,7 +44,7 @@ class CachedTensor {
             if(status)
                 return data;
             if(dims != new_dims){
-                data = xt::zeros<double>(new_dims);
+                data = xt::zeros<std::complex<double>>(new_dims);
                 //fmt::print("Dims ({} != {}) don't match, create a new Tensor.\n", dims, new_dims);
                 dims = new_dims;
             }

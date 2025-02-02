@@ -2,6 +2,7 @@
 #include "vec3dsimd.h"
 #include <stdexcept>
 #include "xtensor/xlayout.hpp"
+#include "operators.h"
 
 using namespace std;
 // When compiled with C++17, then we use `if constexpr` to check for
@@ -68,9 +69,9 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
             auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
             auto dgamma_by_dphi_j_cross_diff = cross(dgamma_by_dphi_j_simd, diff);
 
-            B_i.x = xsimd::fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
-            B_i.y = xsimd::fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
-            B_i.z = xsimd::fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
+            B_i.x = fma(dgamma_by_dphi_j_cross_diff.x, norm_diff_3_inv, B_i.x);
+            B_i.y = fma(dgamma_by_dphi_j_cross_diff.y, norm_diff_3_inv, B_i.y);
+            B_i.z = fma(dgamma_by_dphi_j_cross_diff.z, norm_diff_3_inv, B_i.z);
 
             MYIF(derivs > 0) {
                 auto norm_diff_4_inv = norm_diff_3_inv*norm_diff_inv;
@@ -82,17 +83,17 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                     auto numerator1 = cross(dgamma_by_dphi_j_simd_norm_diff, k);
                     //auto numerator2 = three_dgamma_by_dphi_cross_diff_by_norm_diff * diff[k];
                     //auto temp = numerator2-numerator1;
-                    //dB_dX_i[k].x = xsimd::fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
-                    //dB_dX_i[k].y = xsimd::fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);
-                    //dB_dX_i[k].z = xsimd::fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
+                    //dB_dX_i[k].x = fma(temp.x, norm_diff_4_inv, dB_dX_i[k].x);
+                    //dB_dX_i[k].y = fma(temp.y, norm_diff_4_inv, dB_dX_i[k].y);
+                    //dB_dX_i[k].z = fma(temp.z, norm_diff_4_inv, dB_dX_i[k].z);
 
 
-                    auto tempx = xsimd::fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.x, diff[k], numerator1.x);
-                    auto tempy = xsimd::fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.y, diff[k], numerator1.y);
-                    auto tempz = xsimd::fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.z, diff[k], numerator1.z);
-                    dB_dX_i[k].x = xsimd::fma(tempx, norm_diff_4_inv, dB_dX_i[k].x);
-                    dB_dX_i[k].y = xsimd::fma(tempy, norm_diff_4_inv, dB_dX_i[k].y);
-                    dB_dX_i[k].z = xsimd::fma(tempz, norm_diff_4_inv, dB_dX_i[k].z);
+                    auto tempx = fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.x, diff[k], numerator1.x);
+                    auto tempy = fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.y, diff[k], numerator1.y);
+                    auto tempz = fnma(three_dgamma_by_dphi_cross_diff_by_norm_diff.z, diff[k], numerator1.z);
+                    dB_dX_i[k].x = fma(tempx, norm_diff_4_inv, dB_dX_i[k].x);
+                    dB_dX_i[k].y = fma(tempy, norm_diff_4_inv, dB_dX_i[k].y);
+                    dB_dX_i[k].z = fma(tempz, norm_diff_4_inv, dB_dX_i[k].z);
 
                 }
                 MYIF(derivs > 1) {
@@ -107,24 +108,24 @@ void biot_savart_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, Al
                             auto term12 = cross(dgamma_by_dphi_j_simd, k2)*diff[k1];
                             auto dgamma_by_dphi_j_simd_cross_k1 = cross(dgamma_by_dphi_j_simd, k1);
 
-                            term12.x = xsimd::fma(dgamma_by_dphi_j_simd_cross_k1.x, diff[k2], term12.x);
-                            term12.y = xsimd::fma(dgamma_by_dphi_j_simd_cross_k1.y, diff[k2], term12.y);
-                            term12.z = xsimd::fma(dgamma_by_dphi_j_simd_cross_k1.z, diff[k2], term12.z);
+                            term12.x = fma(dgamma_by_dphi_j_simd_cross_k1.x, diff[k2], term12.x);
+                            term12.y = fma(dgamma_by_dphi_j_simd_cross_k1.y, diff[k2], term12.y);
+                            term12.z = fma(dgamma_by_dphi_j_simd_cross_k1.z, diff[k2], term12.z);
                             //term12 += cross(dgamma_by_dphi_j_simd, k1)*diff[k2];
 
 
-                            d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term124fak, term12.x, d2B_dXdX_i[3*k1 + k2].x);
-                            d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term124fak, term12.y, d2B_dXdX_i[3*k1 + k2].y);
-                            d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term124fak, term12.z, d2B_dXdX_i[3*k1 + k2].z);
+                            d2B_dXdX_i[3*k1 + k2].x = fma(term124fak, term12.x, d2B_dXdX_i[3*k1 + k2].x);
+                            d2B_dXdX_i[3*k1 + k2].y = fma(term124fak, term12.y, d2B_dXdX_i[3*k1 + k2].y);
+                            d2B_dXdX_i[3*k1 + k2].z = fma(term124fak, term12.z, d2B_dXdX_i[3*k1 + k2].z);
 
 
                             auto term3fak = diff[k1] * diff[k2] * norm_diff_7_inv_15;
                             if(k1 == k2) {
                                 term3fak += term124fak;
                             }
-                            d2B_dXdX_i[3*k1 + k2].x = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.x, d2B_dXdX_i[3*k1 + k2].x);
-                            d2B_dXdX_i[3*k1 + k2].y = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.y, d2B_dXdX_i[3*k1 + k2].y);
-                            d2B_dXdX_i[3*k1 + k2].z = xsimd::fma(term3fak, dgamma_by_dphi_j_cross_diff.z, d2B_dXdX_i[3*k1 + k2].z);
+                            d2B_dXdX_i[3*k1 + k2].x = fma(term3fak, dgamma_by_dphi_j_cross_diff.x, d2B_dXdX_i[3*k1 + k2].x);
+                            d2B_dXdX_i[3*k1 + k2].y = fma(term3fak, dgamma_by_dphi_j_cross_diff.y, d2B_dXdX_i[3*k1 + k2].y);
+                            d2B_dXdX_i[3*k1 + k2].z = fma(term3fak, dgamma_by_dphi_j_cross_diff.z, d2B_dXdX_i[3*k1 + k2].z);
 
                         }
                     }
@@ -340,17 +341,17 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
             auto norm_diff_3_inv = norm_diff_inv*norm_diff_inv*norm_diff_inv;
 
             auto dgamma_by_dphi_j_simd = Vec3dSimd(dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2]);
-            A_i.x = xsimd::fma(dgamma_by_dphi_j_simd.x , norm_diff_inv, A_i.x) ;
-            A_i.y = xsimd::fma(dgamma_by_dphi_j_simd.y , norm_diff_inv, A_i.y) ;
-            A_i.z = xsimd::fma(dgamma_by_dphi_j_simd.z , norm_diff_inv, A_i.z) ;
+            A_i.x = fma(dgamma_by_dphi_j_simd.x , norm_diff_inv, A_i.x) ;
+            A_i.y = fma(dgamma_by_dphi_j_simd.y , norm_diff_inv, A_i.y) ;
+            A_i.z = fma(dgamma_by_dphi_j_simd.z , norm_diff_inv, A_i.z) ;
 
             MYIF(derivs > 0) {
 #pragma unroll
                 for(int k=0; k<3; k++) {
                     auto diffk_norm_diff_3_inv = norm_diff_3_inv * diff[k];
-                    dA_dX_i[k].x = xsimd::fnma(dgamma_by_dphi_j_simd.x, diffk_norm_diff_3_inv, dA_dX_i[k].x);
-                    dA_dX_i[k].y = xsimd::fnma(dgamma_by_dphi_j_simd.y, diffk_norm_diff_3_inv, dA_dX_i[k].y);
-                    dA_dX_i[k].z = xsimd::fnma(dgamma_by_dphi_j_simd.z, diffk_norm_diff_3_inv, dA_dX_i[k].z);
+                    dA_dX_i[k].x = fnma(dgamma_by_dphi_j_simd.x, diffk_norm_diff_3_inv, dA_dX_i[k].x);
+                    dA_dX_i[k].y = fnma(dgamma_by_dphi_j_simd.y, diffk_norm_diff_3_inv, dA_dX_i[k].y);
+                    dA_dX_i[k].z = fnma(dgamma_by_dphi_j_simd.z, diffk_norm_diff_3_inv, dA_dX_i[k].z);
                 }
                 MYIF(derivs > 1) {
                     auto term124fak = dgamma_by_dphi_j_simd;
@@ -363,14 +364,14 @@ void biot_savart_kernel_A(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy, 
 #pragma unroll
                         for(int k2=0; k2<=k1; k2++) {
                             auto term12 = diff[k1]*diff[k2];
-                            d2A_dXdX_i[3*k1 + k2].x = xsimd::fma(term124fak.x, term12, d2A_dXdX_i[3*k1 + k2].x);
-                            d2A_dXdX_i[3*k1 + k2].y = xsimd::fma(term124fak.y, term12, d2A_dXdX_i[3*k1 + k2].y);
-                            d2A_dXdX_i[3*k1 + k2].z = xsimd::fma(term124fak.z, term12, d2A_dXdX_i[3*k1 + k2].z);
+                            d2A_dXdX_i[3*k1 + k2].x = fma(term124fak.x, term12, d2A_dXdX_i[3*k1 + k2].x);
+                            d2A_dXdX_i[3*k1 + k2].y = fma(term124fak.y, term12, d2A_dXdX_i[3*k1 + k2].y);
+                            d2A_dXdX_i[3*k1 + k2].z = fma(term124fak.z, term12, d2A_dXdX_i[3*k1 + k2].z);
 
                             if(k1 == k2) {
-                                d2A_dXdX_i[3*k1 + k2].x = xsimd::fnma(norm_diff_3_inv, dgamma_by_dphi_j_simd.x, d2A_dXdX_i[3*k1 + k2].x);
-                                d2A_dXdX_i[3*k1 + k2].y = xsimd::fnma(norm_diff_3_inv, dgamma_by_dphi_j_simd.y, d2A_dXdX_i[3*k1 + k2].y);
-                                d2A_dXdX_i[3*k1 + k2].z = xsimd::fnma(norm_diff_3_inv, dgamma_by_dphi_j_simd.z, d2A_dXdX_i[3*k1 + k2].z);
+                                d2A_dXdX_i[3*k1 + k2].x = fnma(norm_diff_3_inv, dgamma_by_dphi_j_simd.x, d2A_dXdX_i[3*k1 + k2].x);
+                                d2A_dXdX_i[3*k1 + k2].y = fnma(norm_diff_3_inv, dgamma_by_dphi_j_simd.y, d2A_dXdX_i[3*k1 + k2].y);
+                                d2A_dXdX_i[3*k1 + k2].z = fnma(norm_diff_3_inv, dgamma_by_dphi_j_simd.z, d2A_dXdX_i[3*k1 + k2].z);
                             }
                         }
                     }

@@ -141,6 +141,10 @@ struct Vec3dSimd {
     }
 };
 
+inline simd_t fnma(const simd_t& a, const simd_t& b, const simd_t& c){
+    simd_t out = -a*b + c;
+    return out;
+}
 inline simd_t fma(const simd_t& a, const simd_t& b, const simd_t& c){
     simd_t out = a*b + c;
     return out;

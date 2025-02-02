@@ -1,5 +1,6 @@
 #include "biot_savart_vjp_impl.h"
 #include "biot_savart_vjp_py.h"
+#include "operators.h"
 
 void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<std::complex<double>>& currents, Array& v, Array& vgrad, vector<Array>& dgamma_by_dcoeffs, vector<Array>& d2gamma_by_dphidcoeffs, vector<Array>& res_B, vector<Array>& res_dB){
     auto pointsx = AlignedPaddedVec(points.shape(0), 0);
@@ -56,7 +57,7 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
                 }
             }
         }
-        std::complex<double> fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        std::complex<double> fak = (currents[i] * 1e-7/double(gammas[i].shape(0)));
         res_B[i] *= fak;
         if(compute_dB)
             res_dB[i] *= fak;
@@ -88,7 +89,7 @@ void biot_savart_vjp_graph(Array& points, vector<Array>& gammas, vector<Array>& 
                     v, res_gamma[i], res_dgamma_by_dphi[i],
                     dummy, dummy, dummy);
 
-        std::complex<double> fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        std::complex<double> fak = (currents[i] * 1e-7/double(gammas[i].shape(0)));
         res_gamma[i] *= fak;
         res_dgamma_by_dphi[i] *= fak;
         if(compute_dB) {
@@ -123,7 +124,7 @@ void biot_savart_vector_potential_vjp_graph(Array& points, vector<Array>& gammas
                     v, res_gamma[i], res_dgamma_by_dphi[i],
                     dummy, dummy, dummy);
 
-        std::complex<double> fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        std::complex<double> fak = (currents[i] * 1e-7/double(gammas[i].shape(0)));
         res_gamma[i] *= fak;
         res_dgamma_by_dphi[i] *= fak;
         if(compute_dA) {
