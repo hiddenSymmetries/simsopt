@@ -10,8 +10,8 @@ __all__ = ['read_focus_coils', 'coil_optimization',
            ]
 
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib.animation as animation
+#from matplotlib import pyplot as plt
+#import matplotlib.animation as animation
 from scipy.optimize import minimize
 from pathlib import Path
 

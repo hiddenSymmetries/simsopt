@@ -717,8 +717,8 @@ class NonQuasiSymmetricRatio(Optimizable):
         self.boozer_surface = boozer_surface
 
         surface = in_surface
-        phis = np.linspace(0, 1/in_surface.nfp, 2*sDIM, endpoint=False)
-        thetas = np.linspace(0, 1., 2*sDIM, endpoint=False)
+        phis = np.linspace(0, 1/in_surface.nfp, 2*(in_surface.ntor*2+1), endpoint=False)
+        thetas = np.linspace(0, 1., 2*(in_surface.mpol*2+1), endpoint=False)
         surface = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas, dofs=in_surface.dofs)
 
         self.axis = 1 if quasi_poloidal else 0
@@ -771,7 +771,7 @@ class NonQuasiSymmetricRatio(Optimizable):
 
         B_nonQS = modB - B_QS
         self._J = np.mean(dS * B_nonQS**2) / np.mean(dS * B_QS**2)
-
+        
         booz_surf = self.boozer_surface
         iota = booz_surf.res['iota']
         G = booz_surf.res['G']
@@ -780,7 +780,7 @@ class NonQuasiSymmetricRatio(Optimizable):
 
         dJ_by_dB = self.dJ_by_dB().reshape((-1, 3))
         dJ_by_dcoils = self.biotsavart.B_vjp(dJ_by_dB)
-    
+        
         # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
         dJ_ds = np.zeros(L.shape[0], dtype=complex)
         dj_ds = self.dJ_by_dsurfacecoefficients()
@@ -960,7 +960,7 @@ class BoozerResidual(Optimizable):
         s = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas)
         s.set_dofs(in_surface.get_dofs())
 
-        self.constraint_weight = boozer_surface.constraint_weight
+        self.constraint_weight = boozer_surface.constraint_weight if boozer_surface.constraint_weight is not None else 0.
         self.in_surface = in_surface
         self.surface = s
         self.biotsavart = bs
@@ -1005,7 +1005,7 @@ class BoozerResidual(Optimizable):
         surface = self.surface
         iota = self.boozer_surface.res['iota']
         G = self.boozer_surface.res['G']
-        r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1, weight_inv_modB=self.boozer_surface.res['weight_inv_modB'])
+        r, J = boozer_surface_residual(surface, iota, G, self.biotsavart, derivatives=1, weight_inv_modB=self.boozer_surface.res['weight_inv_modB'] if 'weight_inv_modB' in self.boozer_surface.res else False)
         rtil = np.concatenate((r/np.sqrt(num_points), [np.sqrt(self.constraint_weight)*(self.boozer_surface.label.J()-self.boozer_surface.targetlabel)]))
         self._J = 0.5*np.sum(rtil**2)
         
@@ -1038,7 +1038,7 @@ class BoozerResidual(Optimizable):
         nphi = self.surface.quadpoints_phi.size
         ntheta = self.surface.quadpoints_theta.size
         num_points = 3 * nphi * ntheta
-        r, r_dB = boozer_surface_residual_dB(surface, self.boozer_surface.res['iota'], self.boozer_surface.res['G'], self.biotsavart, derivatives=0, weight_inv_modB=res['weight_inv_modB'])
+        r, r_dB = boozer_surface_residual_dB(surface, self.boozer_surface.res['iota'], self.boozer_surface.res['G'], self.biotsavart, derivatives=0, weight_inv_modB=self.boozer_surface.res['weight_inv_modB'] if 'weight_inv_modB' in self.boozer_surface.res else False)
 
         r /= np.sqrt(num_points)
         r_dB /= np.sqrt(num_points)
@@ -1076,7 +1076,8 @@ def boozer_surface_dexactresidual_dcoils_dcurrents_vjp(lm, booz_surf, iota, G):
 
     lm_label = lm[-1]
     lmask = np.zeros(booz_surf.res["mask"].shape, dtype=complex)
-    lmask[booz_surf.res["mask"]] = lm[:-1]
+    lmask[booz_surf.res["mask"]] = lm[:-1 if surface.stellsym else -3]
+
     lm_cons = lmask.reshape((-1, 3))
 
     lm_times_dres_dB = np.sum(lm_cons[:, :, None] * dres_dB, axis=1).reshape((-1, 3))
