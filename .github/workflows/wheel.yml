@@ -26,7 +26,8 @@ jobs:
           #   # Supports only x86_64 arch for linux
           #   CIBW_ARCHS_LINUX: x86_64
           #   CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_SKIP: cp38-*
+          # Skip PyPy builds:
+          CIBW_SKIP: cp38-* pp*
           #   CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v4
