@@ -40,7 +40,8 @@ try:
 except ImportError:
     pygraphviz = None
 try:
-    import matplotlib.pyplot as plt
+    #import matplotlib.pyplot as plt
+    plt = None
 except ImportError:
     plt = None
 
