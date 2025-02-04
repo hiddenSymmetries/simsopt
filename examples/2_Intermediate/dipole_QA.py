@@ -166,6 +166,20 @@ b_comp = ExactField(
     m_maxima = pm_opt.m_maxima
 )
 
+assert all(pm_comp.m == pm_opt.m)
+assert all(pm_comp.pm_grid_xyz == pm_opt.dipole_grid_xyz)
+assert all(pm_comp.phiThetas == pm_opt.phiThetas)
+
+bcc = ExactField(
+    pm_comp.pm_grid_xyz,
+    pm_comp.m,
+    pm_comp.dims,
+    pm_comp.phiThetas,
+    nfp = s.nfp,
+    stellsym = s.stellsym,
+    m_maxima = pm_comp.m_maxima
+)
+
 assert pm_comp.dx == pm_opt.dx
 assert pm_comp.dy == pm_opt.dy
 assert pm_comp.dz == pm_opt.dz
@@ -174,10 +188,9 @@ b_comp.set_points(s_plot.gamma().reshape((-1, 3)))
 b_comp._toVTK(out_dir / "magnet_fields", pm_comp.dx, pm_comp.dy, pm_comp.dz)
 
 # Print optimized metrics
-print("comp fB = ",
-      0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_comp.b_obj) ** 2))
-
 assert all(pm_comp.b_obj == pm_opt.b_obj)
+print("comp fB = ",
+      0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bcnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
