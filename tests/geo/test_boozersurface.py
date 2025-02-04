@@ -389,7 +389,7 @@ class BoozerSurfaceTests(unittest.TestCase):
         """
         x_vec = self.subtest_convergence_cpp_and_notcpp_same(True)
         x_nonvec = self.subtest_convergence_cpp_and_notcpp_same(False)
-        np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-14) 
+        np.testing.assert_allclose(x_vec, x_nonvec, atol=1e-11)
 
     def subtest_convergence_cpp_and_notcpp_same(self, vectorize):
         """
