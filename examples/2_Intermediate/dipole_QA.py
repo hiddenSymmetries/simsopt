@@ -21,16 +21,17 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 32
+    Nx = 64
 
-coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.1  # PM grid end offset ~ 15 cm from the plasma surface
+coff = 0.14  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.04
+  # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-nIter_max = 5000
+nIter_max = 20000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -97,7 +98,8 @@ pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
 kwargs = initialize_default_kwargs('GPMO')
 # algorithm = 'baseline'
 algorithm = 'baseline'
-nHistory = 100
+nHistory = 5
+
 kwargs['K'] = nIter_max
 kwargs['nhistory'] = nHistory
 print('kwargs = ',kwargs)
@@ -122,9 +124,10 @@ b_dipole = DipoleField(
 b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
 b_dipole._toVTK(out_dir / "Dipole_Fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
 
+dipfB = 0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
 # Print optimized metrics
 print("Total fB = ",
-      0.5 * np.sum((pm_opt.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+      dipfB)
 # print("Total fB (sparse) = ",a
 #       0.5 * np.sum((pm_opt.A_obj @ pm_opt.m_proxy - pm_opt.b_obj) ** 2))
 
@@ -166,19 +169,9 @@ b_comp = ExactField(
     m_maxima = pm_opt.m_maxima
 )
 
-assert all(pm_comp.m == pm_opt.m)
-assert all(pm_comp.pm_grid_xyz == pm_opt.dipole_grid_xyz)
-assert all(pm_comp.phiThetas == pm_opt.phiThetas)
-
-bcc = ExactField(
-    pm_comp.pm_grid_xyz,
-    pm_comp.m,
-    pm_comp.dims,
-    pm_comp.phiThetas,
-    nfp = s.nfp,
-    stellsym = s.stellsym,
-    m_maxima = pm_comp.m_maxima
-)
+assert np.all(pm_comp.m == 0.0)
+assert np.all(pm_comp.pm_grid_xyz == pm_opt.dipole_grid_xyz)
+assert np.all(pm_comp.phiThetas == pm_opt.phiThetas)
 
 assert pm_comp.dx == pm_opt.dx
 assert pm_comp.dy == pm_opt.dy
@@ -189,8 +182,9 @@ b_comp._toVTK(out_dir / "magnet_fields", pm_comp.dx, pm_comp.dy, pm_comp.dz)
 
 # Print optimized metrics
 assert all(pm_comp.b_obj == pm_opt.b_obj)
+compfB = 0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2)
 print("comp fB = ",
-      0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+      compfB)
 
 bs.set_points(s_plot.gamma().reshape((-1, 3)))
 Bcnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
@@ -200,12 +194,15 @@ Bcnormal_total = Bcnormal + Bcnormal_magnets
 
 # For plotting Bn on the full torus surface at the end with just the magnet fields
 make_Bnormal_plots(b_comp, s_plot, out_dir, "only_m_comp_optimized")
-pointData = {"B_N": Bnormal_total[:, :, None]}
+pointData = {"B_N": Bcnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_comp_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
-f_B_sf = SquaredFlux(s_plot, b_comp, -Bnormal).J()
-print('f_B_comp = ', f_B_sf)
+f_Bc_sf = SquaredFlux(s_plot, b_comp, -Bnormal).J()
+print('f_Bc_comp = ', f_Bc_sf)
+
+print('fB diff = ',dipfB-compfB)
+print('f_B diff = ',f_B_sf-f_Bc_sf)
 
 t_end = time.time()
 print('Total time = ', t_end - t_start)
