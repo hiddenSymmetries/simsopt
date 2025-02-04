@@ -670,7 +670,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_rc(self, m, n, val):
         """
         Set a particular `rc` Parameter.
-        Modifyting the `rc` array directly is discouraged, since it doesn't trigger the recompute_bell(). 
+        Modifying the `rc` array directly is discouraged, since it doesn't trigger the recompute_bell(). 
         """
         self._validate_mn(m, n)
         self.rc[m, n + self.ntor] = val
@@ -679,7 +679,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_rs(self, m, n, val):
         """
         Set a particular `rs` Parameter.
-        Modifyting the `rs` array directly is discouraged, since it doesn't trigger the recompute_bell().
+        Modifying the `rs` array directly is discouraged, since it doesn't trigger the recompute_bell().
         """
         if self.stellsym:
             return ValueError(
@@ -691,7 +691,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_zc(self, m, n, val):
         """
         Set a particular `zc` Parameter.
-        Modifyting the `zc` array directly is discouraged, since it doesn't trigger the recompute_bell().
+        Modifying the `zc` array directly is discouraged, since it doesn't trigger the recompute_bell().
         """
         if self.stellsym:
             return ValueError(
@@ -703,7 +703,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
     def set_zs(self, m, n, val):
         """
         Set a particular `zs` Parameter.
-        Modifyting the `zs` array directly is discouraged, since it doesn't trigger the recompute_bell().
+        Modifying the `zs` array directly is discouraged, since it doesn't trigger the recompute_bell().
         """
         self._validate_mn(m, n)
         self.zs[m, n + self.ntor] = val
