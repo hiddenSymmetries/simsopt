@@ -282,6 +282,111 @@ class VirtualCasing:
             vc.save(filename)
 
         return vc
+    
+    @classmethod
+    def from_array(cls, gamma, Bxyz, unit_normal, nfp, trgt_nphi=None, trgt_ntheta=None, use_stellsym=True, digits=6, filename="auto"):
+        """
+        gamma (array): (src_nphi, src_ntheta, 3) array of quadrature points on a surface. Points should lie on a half field period when
+            use_stellsym is True, and on a full field period otherwise. The spacing should be uniform in phi, theta. The points should 
+            be located at 
+                np.linspace(0, 1 / nfp, src_nphi, endpoint=False)
+                np.linspace(0, 1, src_ntheta, endpoint=False)
+        Bxyz (array): (src_nphi, src_ntheta, 3) array of B-field vectors at the quadrature points on a surface. 
+        unit_normal (array): (trgt_nphi, trgt_ntheta, 3) array of unit normal vectors to a surface at the target quadrature points on a surface. 
+        """
+        import virtual_casing as vc_module
+
+        # TODO: does this work without stellsym?
+        stellsym = use_stellsym
+        # if not stellsym:
+        #     raise RuntimeError('virtual casing presently only works for stellarator symmetry')
+
+        src_nphi, src_ntheta, _ = np.shape(gamma)
+
+        # reshape to (3, src_nphi, src_ntheta)
+        Bxyz = np.rollaxis(Bxyz, -1)
+
+        if trgt_nphi is None:
+            trgt_nphi = src_nphi
+        if trgt_ntheta is None:
+            trgt_ntheta = src_ntheta
+
+        gamma1d = np.zeros(src_nphi * src_ntheta * 3)
+        B1d = np.zeros(src_nphi * src_ntheta * 3)
+        B3d = np.zeros((src_nphi, src_ntheta, 3))
+        for jxyz in range(3):
+            gamma1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = gamma[:, :, jxyz].flatten(order='C')
+            B1d[jxyz * src_nphi * src_ntheta: (jxyz + 1) * src_nphi * src_ntheta] = Bxyz[jxyz].flatten(order='C')
+            B3d[:, :, jxyz] = Bxyz[jxyz]
+
+        """
+        # Check order:
+        index = 0
+        for jxyz in range(3):
+            for jphi in range(src_nphi):
+                for jtheta in range(src_ntheta):
+                    np.testing.assert_allclose(gamma1d[index], gamma[jphi, jtheta, jxyz])
+                    np.testing.assert_allclose(B1d[index], Bxyz[jxyz][jphi, jtheta])
+                    index += 1
+        """
+
+        vcasing = vc_module.VirtualCasing()
+        vcasing.setup(
+            digits, nfp, stellsym,
+            src_nphi, src_ntheta, gamma1d,
+            src_nphi, src_ntheta,
+            trgt_nphi, trgt_ntheta)
+        # This next line launches the main computation:
+        Bexternal1d = np.array(vcasing.compute_external_B(B1d))
+
+        # Unpack 1D array results:
+        Bexternal3d = np.zeros((trgt_nphi, trgt_ntheta, 3))
+        for jxyz in range(3):
+            Bexternal3d[:, :, jxyz] = Bexternal1d[jxyz * trgt_nphi * trgt_ntheta: (jxyz + 1) * trgt_nphi * trgt_ntheta].reshape((trgt_nphi, trgt_ntheta), order='C')
+
+        """
+        # Check order:
+        index = 0
+        for jxyz in range(3):
+            for jphi in range(trgt_nphi):
+                for jtheta in range(trgt_ntheta):
+                    np.testing.assert_allclose(Bexternal1d[index], Bexternal3d[jphi, jtheta, jxyz])
+                    index += 1
+        """
+
+        Bexternal_normal = np.sum(Bexternal3d * unit_normal, axis=2)
+
+        vc = cls()
+        vc.src_ntheta = src_ntheta
+        vc.src_nphi = src_nphi
+        # vc.src_theta = surf.quadpoints_theta
+        # vc.src_phi = surf.quadpoints_phi
+
+        vc.trgt_ntheta = trgt_ntheta
+        vc.trgt_nphi = trgt_nphi
+        # vc.trgt_theta = 
+        # vc.trgt_phi = 
+
+        vc.nfp = nfp
+        vc.B_total = B3d
+        vc.gamma = gamma
+        vc.unit_normal = unit_normal
+        vc.B_external = Bexternal3d
+        vc.B_external_normal = Bexternal_normal
+
+        Bexternal_normal_with_last_point = np.hstack((Bexternal_normal, Bexternal_normal[:, [0]]))
+        Bexternal_normal_with_last_point = np.vstack((Bexternal_normal_with_last_point, -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)[0]))
+        flipped_B = -np.flip(np.flip(Bexternal_normal_with_last_point, axis=0), axis=1)
+        vc.B_external_normal_extended = np.concatenate([np.concatenate((Bexternal_normal, flipped_B[:-1, :-1])) for i in range(nfp)])
+
+        if filename is not None:
+            if filename == 'auto':
+                directory, basefile = os.path.split(vmec.output_file)
+                filename = os.path.join(directory, 'vcasing' + basefile[4:])
+                logger.debug(f'New filename: {filename}')
+            vc.save(filename)
+
+        return vc
 
     def save(self, filename="vcasing.nc"):
         """
