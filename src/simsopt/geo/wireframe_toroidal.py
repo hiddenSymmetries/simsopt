@@ -1465,8 +1465,9 @@ class ToroidalWireframe(object):
     
             return(ax)
 
-    def make_plot_2d(self, extent='half period', quantity='currents', \
-                     active_tol=1e-12, ax=None, add_colorbar=True, **kwargs):
+    def make_plot_2d(self, extent='half period', quantity='currents', 
+                     active_tol=1e-12, ax=None, add_colorbar=True,
+                     coordinates='indices',  **kwargs):
         """
         Make a 2d plot of the segments in the wireframe grid.
 
@@ -1489,6 +1490,12 @@ class ToroidalWireframe(object):
             add_colorbar: logical (optional)
                 If true, a colorbar will be added to accompany the 2d plot.
                 Default is True.
+            coordinates: string (optional)
+                Coordinates to plot for the nodes of each segment. If 'indices',
+                the coordinates will be the indices of the node in each 
+                dimension (toroidal and poloidal). If 'radians', the 
+                coordinates will be the angles in radians. If 'degrees', the 
+                coordinates will be the angles in degrees.
             kwargs: optional keyword arguments
                 Keyword arguments to be passed to the LineCollection instance
                 used to plot the segments
@@ -1569,7 +1576,47 @@ class ToroidalWireframe(object):
         else:
             inds_to_plot = np.arange(len(pl_quantity))
 
-        lc = LineCollection(pl_segments[inds_to_plot], **kwargs)
+
+        if coordinates=='indices':
+
+            lc = LineCollection(pl_segments[inds_to_plot], **kwargs)
+
+            delta_x = 1
+            delta_y = 1
+            label_x = 'Toroidal index'
+            label_y = 'Poloidal index'
+
+        elif coordinates=='radians' or coordinates=='degrees':
+
+            if coordinates=='radians':
+                angle_factor = 2.*np.pi
+                label_x = r'$\phi_{wf}$ [rad]'
+                label_y = r'$\theta_{wf}$ [rad]'
+            else:
+                angle_factor = 360.
+                label_x = r'$\phi_{wf}$ [deg]'
+                label_y = r'$\theta_{wf}$ [deg]'
+
+            qp_phi = self.surface.quadpoints_phi
+            qp_theta = self.surface.quadpoints_theta
+
+            phi_mod = qp_phi[(pl_segments[:,:,0] % self.nPhi).astype(int)]
+            theta_mod = qp_theta[(pl_segments[:,:,1] % self.nTheta).astype(int)]
+            phi_offs = (0.5/self.nfp)*np.floor(pl_segments[:,:,0]/self.nPhi)
+            theta_offs = np.floor(pl_segments[:,:,1]/self.nTheta)
+            pl_angles = np.zeros(pl_segments.shape)
+            pl_angles[:,:,0] = angle_factor * (phi_mod + phi_offs)
+            pl_angles[:,:,1] = angle_factor * (theta_mod + theta_offs)
+
+            lc = LineCollection(pl_angles[inds_to_plot], **kwargs)
+
+            delta_x = angle_factor * (qp_phi[1] - qp_phi[0])
+            delta_y = angle_factor * (qp_theta[1] - qp_theta[0])
+            
+        else:
+
+            raise ValueError('Unrecognized value for `dimensions` parameter')
+
         lc.set_array(pl_quantity[inds_to_plot])
         if quantity=='currents' or quantity=='nonzero currents':
             lc.set_clim(np.max(np.abs(self.currents*1e-6))*np.array([-1, 1]))
@@ -1581,11 +1628,11 @@ class ToroidalWireframe(object):
             fig = pl.figure()
             ax = fig.add_subplot()
 
-        ax.set_xlim((-1, nHalfPeriods*self.nPhi + 1))
-        ax.set_ylim((-1, self.nTheta + 1))
+        ax.set_xlim((-delta_x, delta_x*(nHalfPeriods*self.nPhi + 1)))
+        ax.set_ylim((-delta_y, delta_y*(self.nTheta + 1)))
 
-        ax.set_xlabel('Toroidal index')
-        ax.set_ylabel('Poloidal index')
+        ax.set_xlabel(label_x)
+        ax.set_ylabel(label_y)
         if add_colorbar:
             cb = pl.colorbar(lc)
             if quantity=='currents' or quantity=='nonzero currents':
