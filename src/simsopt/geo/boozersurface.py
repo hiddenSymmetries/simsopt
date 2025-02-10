@@ -934,7 +934,7 @@ class BoozerSurface(Optimizable):
             else:
                 b = np.concatenate((r[mask], [(label.J()-self.targetlabel), s.gamma()[0, 0, 1], s.gamma()[0, 0, 2]]))
             norm = np.linalg.norm(b, ord=np.inf)
-            if norm <= tol and i > 2:
+            if norm <= tol and i > 3:
                 break
             if s.stellsym:
                 J = np.vstack((
@@ -985,8 +985,8 @@ class BoozerSurface(Optimizable):
         }
 
 
-        #if verbose:
-        #    print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {norm:.3e}, cond(J) = {np.linalg.cond(J):.4e}", flush=True)
+        if verbose:
+            print(f"NEWTON solve - {res['success']}  iter={res['iter']}, iota={res['iota']:.16f}, ||residual||_inf = {norm:.3e}, cond(J) = {np.linalg.cond(J):.4e}", flush=True)
 
         self.res = res
         self.res_short = res_short

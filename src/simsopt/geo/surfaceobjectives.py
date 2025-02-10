@@ -708,7 +708,7 @@ class NonQuasiSymmetricRatio(Optimizable):
         quasi_poloidal: `False` for quasiaxisymmetry and `True` for quasipoloidal symmetry
     """
 
-    def __init__(self, boozer_surface, bs, sDIM=20, quasi_poloidal=False):
+    def __init__(self, boozer_surface, bs, sDIM=20, quasi_poloidal=False, sqrtC=None):
         # only SurfaceXYZTensorFourier for now
         assert type(boozer_surface.surface) is SurfaceXYZTensorFourier 
 
@@ -723,8 +723,10 @@ class NonQuasiSymmetricRatio(Optimizable):
 
         self.axis = 1 if quasi_poloidal else 0
         self.in_surface = in_surface
-        self.surface = surface
+        self.surface = in_surface
         self.biotsavart = bs
+
+        self.sqrtC = sqrtC
         self.recompute_bell()
 
     def recompute_bell(self, parent=None):
@@ -790,6 +792,87 @@ class NonQuasiSymmetricRatio(Optimizable):
         adj_times_dg_dcoil = dconstraint_dcoils_vjp(adj, booz_surf, iota, G)
         self._dJ = dJ_by_dcoils-adj_times_dg_dcoil
 
+    def dr_by_dB(self):
+        """
+        Return the partial derivative of the objective with respect to the magnetic field
+        """
+        surface = self.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
+        axis = self.axis
+
+        B = self.biotsavart.B()
+        B = B.reshape((nphi, ntheta, 3))
+
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        nor = surface.normal()
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
+
+        denom = np.mean(dS, axis=axis)
+        B_QS = np.mean(modB * dS, axis=axis) / denom
+
+        if axis == 0:
+            B_QS = B_QS[None, :]
+        else:
+            B_QS = B_QS[:, None]
+        
+        nphi = dS.shape[0]
+        ntheta = dS.shape[1]
+        Nr = dS.size
+        dmodB_dB = B / modB[..., None]
+        dB_QS_dB_mn = dmodB_dB * dS[..., None] / np.sum(dS, axis=axis, keepdims=True)[..., None]
+        dB_QS_dB = dB_QS_dB_mn[None, None, ..., :] * np.eye(nphi, nphi)[:, None, :, None, None] # when going to QA/QP/QH, make it so that rotation always makes the slope horizontal
+        dB_QS_dB = np.repeat(dB_QS_dB, ntheta, axis=1)
+        dB_QS_dB = dB_QS_dB.reshape((Nr, Nr, 3))
+        
+        num = np.sqrt(0.5*dS / (nphi * ntheta)) * (modB - B_QS)
+        denom = np.sqrt(0.5*np.mean(dS * B_QS**2))
+        
+        num = num.flatten()
+        dmodB_dB = dmodB_dB.reshape((-1, 3))
+        dnum_by_dB = np.sqrt(0.5*dS.flatten()[:, None, None] / (nphi * ntheta)) * (dmodB_dB[:, None, :] * np.eye(Nr, Nr)[..., None] - dB_QS_dB)
+        ddenom_by_dB = (0.5*((0.5*np.mean(dS * B_QS**2))**(-0.5)) * B_QS* dS / (nphi * ntheta)).flatten()[:, None, None]  * dB_QS_dB
+        dri_by_dB =  (denom * dnum_by_dB - num[:, None, None] * ddenom_by_dB) / denom**2
+        import ipdb;ipdb.set_trace()
+
+        return dri_by_dB
+    
+    def GN_trace(self):
+        sqrtC = self.sqrtC
+        tr = 0
+        surface = self.surface
+        boozer_surface = self.boozer_surface
+        iota = boozer_surface.res['iota']
+        G = boozer_surface.res['G']
+        biotsavart = boozer_surface.biotsavart
+        P, L, U = boozer_surface.res['PLU']
+        
+        g, dg_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0, weight_inv_modB=False)
+        r, dpr_by_ds = self.dr_by_dsurfacecoefficients()
+
+        dr_by_dxi = []
+        dr_by_dB = self.dr_by_dB()
+        Nr = dr_by_dB.shape[0]
+        for ii in range(Nr):
+            dpri_by_dxi = self.biotsavart.B_vjp_xi(dr_by_dB[ii])
+            
+            # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
+            dr_ds = np.zeros(L.shape[0], dtype=complex)
+            dr_ds[:dpr_by_ds[ii].size] = dpr_by_ds[ii] 
+            adj_i = forward_backward(P, L, U, dr_ds)
+            dpg_by_dxi = self.biotsavart.B_vjp_xi(adj_i[:-2]@dg_dB)
+
+            for res1_gamma, res2_gamma, res1_dgamma, res2_dgamma in zip(dpri_by_dxi[0], dpg_by_dxi[0], dpri_by_dxi[1], dpg_by_dxi[1]):
+                dr_by_dxi1 = res1_gamma - res2_gamma
+                dr_by_dxi2 = res1_dgamma - res2_dgamma
+                sqrtC_gradxi = sqrtC@np.concatenate( (dr_by_dxi1, dr_by_dxi2), axis=0)
+                tr += np.sum(sqrtC_gradxi**2)
+        
+        # because the sum of squares objective is missing a 0.5 multiplier
+        tr /= 2.
+        import ipdb;ipdb.set_trace()
+        return tr
+
     def dJ_by_dB(self):
         """
         Return the partial derivative of the objective with respect to the magnetic field
@@ -822,6 +905,96 @@ class NonQuasiSymmetricRatio(Optimizable):
         num = 0.5*np.mean(dS * B_nonQS**2)
         denom = 0.5*np.mean(dS * B_QS**2)
         return (denom * dnum_by_dB - num * ddenom_by_dB) / denom**2 
+
+    def dr_by_dsurfacecoefficients(self):
+        """
+        Return the partial derivative of the objective with respect to the surface coefficients
+        """
+        surface = self.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
+        axis = self.axis
+
+        B = self.biotsavart.B()
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+
+        nor = surface.normal()
+        dnor_dc = surface.dnormal_by_dcoeff()
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
+        dS_dc = (nor[:, :, 0, None]*dnor_dc[:, :, 0, :] + nor[:, :, 1, None]*dnor_dc[:, :, 1, :] + nor[:, :, 2, None]*dnor_dc[:, :, 2, :])/dS[:, :, None]
+
+        B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
+
+        if axis == 0:
+            B_QS = B_QS[None, :]
+        else:
+            B_QS = B_QS[:, None]
+
+        B_nonQS = modB - B_QS
+
+        dB_by_dX = self.biotsavart.dB_by_dX().reshape((nphi, ntheta, 3, 3))
+        dx_dc = surface.dgamma_by_dcoeff()
+        dB_dc = np.einsum('ijkl,ijkm->ijlm', dB_by_dX, dx_dc, optimize=True)
+
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+        dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
+
+        num = np.mean(modB * dS, axis=axis)
+        denom = np.mean(dS, axis=axis)
+        dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=axis) 
+        ddenom_dc = np.mean(dS_dc, axis=axis)
+        B_QS_dc = (dnum_dc * denom[:, None] - ddenom_dc * num[:, None])/denom[:, None]**2
+
+        if axis == 0:
+            B_QS_dc = B_QS_dc[None, :, :]
+        else:
+            B_QS_dc = B_QS_dc[:, None, :]
+
+        B_nonQS_dc = dmodB_dc - B_QS_dc
+        
+        num = np.sqrt(0.5*dS * B_nonQS**2/ (nphi * ntheta))
+        denom = np.sqrt(0.5*np.mean(dS * B_QS**2))
+        dnum_by_dc = 0.5*((0.5*dS * B_nonQS**2/ (nphi * ntheta))**(-0.5))[..., None] * (0.5*dS_dc * B_nonQS[..., None]**2 + dS[..., None] * B_nonQS[..., None] * B_nonQS_dc) / (nphi * ntheta)
+        ddenom_by_dc = 0.5*(np.mean(0.5*dS * B_QS**2)**(-0.5)) * np.mean(0.5*dS_dc * B_QS[..., None]**2 + dS[..., None] * B_QS[..., None] * B_QS_dc, axis=(0, 1)) 
+        dr_by_dc = (denom * dnum_by_dc - num[..., None] * ddenom_by_dc) / denom**2
+
+        return (num/denom).flatten(), dr_by_dc.reshape((-1, dx_dc.shape[-1]))
+
+#    def dr_by_dB(self):
+#        """
+#        Return the partial derivative of the objective with respect to the magnetic field
+#        """
+#        surface = self.surface
+#        nphi = surface.quadpoints_phi.size
+#        ntheta = surface.quadpoints_theta.size
+#        axis = self.axis
+#
+#        B = self.biotsavart.B()
+#        B = B.reshape((nphi, ntheta, 3))
+#
+#        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+#        nor = surface.normal()
+#        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
+#
+#        denom = np.mean(dS, axis=axis)
+#        B_QS = np.mean(modB * dS, axis=axis) / denom
+#
+#        if axis == 0:
+#            B_QS = B_QS[None, :]
+#        else:
+#            B_QS = B_QS[:, None]
+#
+#        B_nonQS = modB - B_QS
+#
+#        num = np.sqrt(0.5*dS * B_nonQS**2/ (nphi * ntheta))[..., None]
+#        denom = np.sqrt(0.5*np.mean(dS * B_QS**2))
+#        dmodB_dB = B / modB[..., None]
+#        dnum_by_dB = ((0.5*dS * B_nonQS**2/ (nphi * ntheta))**(-0.5))[..., None] * 0.5 * B_nonQS[..., None] * dmodB_dB * dS[:, :, None]/ (nphi * ntheta)  # d J_nonQS / dB_ijk
+#        ddenom_by_dB = ((0.5*np.mean(dS * B_QS**2))**(-0.5))[..., None] * 0.5 * B_QS[..., None] * dmodB_dB * dS[:, :, None] / (nphi * ntheta)  # dJ_QS/dB_ijk
+#        dri_by_dB =  (denom * dnum_by_dB - num * ddenom_by_dB) / denom**2 
+#        return dri_by_dB.reshape((-1, 3))
+ 
 
     def dJ_by_dsurfacecoefficients(self):
         """

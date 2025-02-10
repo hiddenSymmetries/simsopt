@@ -91,6 +91,31 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
 
         return res
 
+    def B_vjp_xi(self, v):
+        r"""
+        Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by
+        :math:`\{\mathbf{B}_i\}_{i=1}^n`.
+        These values depend on the shape of the coils, i.e. on the dofs :math:`\mathbf{c}_k` of each coil.
+        This function returns the vector Jacobian product of this dependency, i.e.
+
+        .. math::
+
+            \{ \sum_{i=1}^{n} \mathbf{v}_i \cdot \partial_{\mathbf{c}_k} \mathbf{B}_i \}_k.
+
+        """
+
+        coils = self._coils
+        gammas = [coil.curve.gamma() for coil in coils]
+        gammadashs = [coil.curve.gammadash() for coil in coils]
+        currents = [coil.current.get_value() for coil in coils]
+        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
+        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+
+        points = self.get_points_cart_ref()
+        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
+                                   res_gamma, res_gammadash, [], [], [])
+        return res_gamma, res_gammadash 
+
     def B_vjp(self, v):
         r"""
         Assume the field was evaluated at points :math:`\mathbf{x}_i, i\in \{1, \ldots, n\}` and denote the value of the field at those points by

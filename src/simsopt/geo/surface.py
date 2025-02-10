@@ -456,8 +456,8 @@ class Surface(Optimizable):
         """
 
         cs = self.cross_section(angle, thetas=thetas)
-        R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
-        Z = cs[:, 2]
+        R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2).real
+        Z = cs[:, 2].real
     
         context = get_context()
         Point, Contour = context.point_cls, context.contour_cls
@@ -562,7 +562,9 @@ class Surface(Optimizable):
         """
 
         R_minor = self.minor_radius()
-        R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
+        R_major = self.volume() / (2. * np.pi**2 * R_minor**2)
+        if R_major.real < 0:
+            R_major = -R_major
         return R_major
 
     def dmajor_radius_by_dcoeff(self):
@@ -574,7 +576,7 @@ class Surface(Optimizable):
         dmean_area_ds = self.dmean_cross_sectional_area_by_dcoeff()
 
         dR_major_ds = (-self.volume() * dmean_area_ds + self.dvolume_by_dcoeff() * mean_area) / mean_area**2
-        return dR_major_ds * np.sign(self.volume()) / (2. * np.pi)
+        return dR_major_ds * np.sign(self.volume().real) / (2. * np.pi)
 
     def d2major_radius_by_dcoeff_dcoeff(self):
         """
@@ -591,7 +593,7 @@ class Surface(Optimizable):
 
         return ((6*V*dr_dt*dr_ds)/r**4 - (2*dV_dt*dr_ds)/r**3 - \
                 (2*dr_dt*dV_ds)/r**3 - (2*V*d2r_dsdt)/r**3 + \
-                d2V_dsdt/r**2) * np.sign(V)/(2*np.pi**2)
+                d2V_dsdt/r**2) * np.sign(V.real)/(2*np.pi**2)
 
     def mean_cross_sectional_area(self):
         r"""
@@ -665,7 +667,10 @@ class Surface(Optimizable):
         Jinv = np.linalg.inv(J)
 
         dZ_dtheta = dgamma1[:, :, 2] * Jinv[:, :, 0, 1] + dgamma2[:, :, 2] * Jinv[:, :, 1, 1]
-        mean_cross_sectional_area = np.abs(np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ))/(2 * np.pi)
+        mean_cross_sectional_area = np.mean(np.sqrt(x2y2) * dZ_dtheta * detJ)/(2 * np.pi)
+
+        if mean_cross_sectional_area.real < 0.:
+            mean_cross_sectional_area = -mean_cross_sectional_area
         return mean_cross_sectional_area
 
     def dmean_cross_sectional_area_by_dcoeff(self):
@@ -708,7 +713,7 @@ class Surface(Optimizable):
 
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
         dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
-        return np.sign(mean_area) * dmean_area_ds/(2*np.pi)
+        return np.sign(mean_area.real) * dmean_area_ds/(2*np.pi)
 
     def d2mean_cross_sectional_area_by_dcoeff_dcoeff(self):
         """
@@ -762,7 +767,7 @@ class Surface(Optimizable):
         dztheta_dt = dg2_ds[:, :, 2, None, :]
 
         mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
-        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
+        d2mean_area_ds2 = np.sign(mean_area.real)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
                                                      ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta - \
                                                      ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt - \
                                                      xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt + \
