@@ -20,7 +20,7 @@ typedef xt::pytensor<std::complex<double>, 2, xt::layout_type::row_major> PyTens
 //#include "integral_BdotN.h"
 //#include "permanent_magnet_optimization.h"
 //#include "reiman.h"
-//#include "simdhelpers.h"
+#include "simdhelpers.h"
 #include "boozerresidual_py.h"
 
 namespace py = pybind11;
@@ -49,8 +49,10 @@ PYBIND11_MODULE(simsoptpp, m) {
 
 #if defined(USE_XSIMD)
     m.attr("using_xsimd") = true;
+    printf("USING XSIMD\n");
 #else
     m.attr("using_xsimd") = false;
+    printf("NOT USING XSIMD\n");
 #endif
 
     m.def("biot_savart", &biot_savart);

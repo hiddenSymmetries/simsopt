@@ -20,20 +20,20 @@ inline std::complex<double> norm(const Vec3d& a){
 
 inline Vec3d cross(int i, Vec3d& b){
     if(i==0)
-        return Vec3d{0., -b.coeff(2), b.coeff(1)};
+        return Vec3d{std::complex<double>(0.), -b.coeff(2), b.coeff(1)};
     else if(i == 1)
-        return Vec3d{b.coeff(2), 0., -b.coeff(0)};
+        return Vec3d{b.coeff(2), std::complex<double>(0.), -b.coeff(0)};
     else
-        return Vec3d{-b.coeff(1), b.coeff(0), 0.};
+        return Vec3d{-b.coeff(1), b.coeff(0), std::complex<double>(0.)};
 }
 
 inline Vec3d cross(Vec3d& a, int i){
     if(i==0)
-        return Vec3d{0., a.coeff(2), -a.coeff(1)};
+        return Vec3d{std::complex<double>(0.), a.coeff(2), -a.coeff(1)};
     else if(i == 1)
-        return Vec3d{-a.coeff(2), 0., a.coeff(0)};
+        return Vec3d{-a.coeff(2), std::complex<double>(0.), a.coeff(0)};
     else
-        return Vec3d{a.coeff(1), -a.coeff(0), 0.};
+        return Vec3d{a.coeff(1), -a.coeff(0), std::complex<double>(0.)};
 }
 
 
@@ -50,7 +50,7 @@ struct Vec3dSimd {
     simd_t y;
     simd_t z;
 
-    Vec3dSimd() : x(0.), y(0.), z(0.){
+    Vec3dSimd() : x(std::complex<double>(0.)), y(std::complex<double>(0.)), z(std::complex<double>(0.)){
     }
 
     Vec3dSimd(std::complex<double> x_, std::complex<double> y_, std::complex<double> z_) : x(x_), y(y_), z(z_){
@@ -200,20 +200,20 @@ inline Vec3dSimd cross(Vec3d& a, Vec3dSimd& b){
 
 inline Vec3dSimd cross(Vec3dSimd& a, int i){
     if(i==0)
-        return Vec3dSimd(simd_t(0.), a.z, -a.y);
+        return Vec3dSimd(simd_t(std::complex<double>(0.)), a.z, -a.y);
     else if(i == 1)
-        return Vec3dSimd(-a.z, simd_t(0.), a.x);
+        return Vec3dSimd(-a.z, simd_t(std::complex<double>(0.)), a.x);
     else
-        return Vec3dSimd(a.y, -a.x, simd_t(0.));
+        return Vec3dSimd(a.y, -a.x, simd_t(std::complex<double>(0.)));
 }
 
 inline Vec3dSimd cross(int i, Vec3dSimd& b){
     if(i==0)
-        return Vec3dSimd(simd_t(0.), -b.z, b.y);
+        return Vec3dSimd(simd_t(std::complex<double>(0.)), -b.z, b.y);
     else if(i == 1)
-        return Vec3dSimd(b.z, simd_t(0.), -b.x);
+        return Vec3dSimd(b.z, simd_t(std::complex<double>(0.)), -b.x);
     else
-        return Vec3dSimd(-b.y, b.x, simd_t(0.));
+        return Vec3dSimd(-b.y, b.x, simd_t(std::complex<double>(0.)));
 }
 
 inline simd_t normsq(Vec3dSimd& a){
@@ -234,7 +234,7 @@ struct alignas(ALIGN_BYTES) Vec3dStd {
     std::complex<double> y;
     std::complex<double> z;
 
-    Vec3dStd() : x(0.), y(0.), z(0.){
+    Vec3dStd() : x(std::complex<double>(0.)), y(std::complex<double>(0.)), z(std::complex<double>(0.)){
     }
 
     Vec3dStd(std::complex<double> x_, std::complex<double> y_, std::complex<double> z_) : x(x_), y(y_), z(z_){
@@ -372,17 +372,17 @@ inline Vec3dStd cross(Vec3d& a, Vec3dStd& b){
 
 inline Vec3dStd cross(Vec3dStd& a, int i){
     switch(i) {
-        case 0: return Vec3dStd(0., a.z, -a.y);
-        case 1: return Vec3dStd(-a.z, 0., a.x);
-        case 2: return Vec3dStd(a.y, -a.x, 0.);
+        case 0: return Vec3dStd(std::complex<double>(0.), a.z, -a.y);
+        case 1: return Vec3dStd(-a.z, std::complex<double>(0.), a.x);
+        case 2: return Vec3dStd(a.y, -a.x, std::complex<double>(0.));
     }
 }
 
 inline Vec3dStd cross(int i, Vec3dStd& b){
     switch(i){
-        case 0: return Vec3dStd(0., -b.z, b.y);
-        case 1: return Vec3dStd(b.z, 0., -b.x);
-        case 2: return Vec3dStd(-b.y, b.x, 0.);
+        case 0: return Vec3dStd(std::complex<double>(0.), -b.z, b.y);
+        case 1: return Vec3dStd(b.z, std::complex<double>(0.), -b.x);
+        case 2: return Vec3dStd(-b.y, b.x, std::complex<double>(0.));
     }
 }
 

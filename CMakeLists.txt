@@ -34,8 +34,10 @@ endif()
 # For XSIMD usage
 IF(DEFINED ENV{NO_XSIMD})
    set(NO_XSIMD ON)
+   message(STATUS "NOT USING XSIMD")
+ELSE()
+    message(STATUS "USING XSIMD")
 ENDIF()
-set(NO_XSIMD ON)
 
 set(_HAS_AUTO_PTR_ETC 1)
 configure_file(config.h.in config.h)
