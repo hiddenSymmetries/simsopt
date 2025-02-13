@@ -291,7 +291,8 @@ def B_cartesian(vmec,
                 quadpoints_theta=None,
                 range=Surface.RANGE_FULL_TORUS,
                 nphi=None,
-                ntheta=None):
+                ntheta=None,
+                return_surf=False):
     r"""
     Computes Cartesian vector components of the magnetic field on the
     Vmec boundary.  The results are returned on a grid in the Vmec
@@ -364,8 +365,10 @@ def B_cartesian(vmec,
     Bx = (Bsupv * dgamma1[:, :, 0] + Bsupu * dgamma2[:, :, 0])/(2*np.pi)
     By = (Bsupv * dgamma1[:, :, 1] + Bsupu * dgamma2[:, :, 1])/(2*np.pi)
     Bz = (Bsupv * dgamma1[:, :, 2] + Bsupu * dgamma2[:, :, 2])/(2*np.pi)
-
-    return Bx, By, Bz
+    if return_surf:
+        return Bx, By, Bz, surf
+    else:
+        return Bx, By, Bz
 
 
 class IotaTargetMetric(Optimizable):
