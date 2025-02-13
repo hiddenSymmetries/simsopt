@@ -907,7 +907,8 @@ class NonQuasiSymmetricRatio(Optimizable):
         Nr = dr_by_dB.shape[0]
         for ii in range(Nr):
             print(ii, Nr)
-            dpri_by_dxi = self.boozer_surface.biotsavart.B_vjp_xi(dr_by_dB[ii])
+            
+            dpri_by_dxi = self.biotsavart.B_vjp_xi(dr_by_dB[ii])
             
             # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
             dr_ds = np.zeros(L.shape[0], dtype=complex)
@@ -924,6 +925,37 @@ class NonQuasiSymmetricRatio(Optimizable):
         # because the sum of squares objective is missing a 0.5 multiplier
         tr *= 2.
         return tr
+
+    def noise_derivative(self, residual_idx=0):
+        boozer_surface = self.boozer_surface
+        iota = boozer_surface.res['iota']
+        G = boozer_surface.res['G']
+        P, L, U = boozer_surface.res['PLU']
+        
+        g, dg_dB = boozer_surface_residual_dB(self.boozer_surface.surface, iota, G, self.boozer_surface.biotsavart, derivatives=0, weight_inv_modB=False)
+        r, dpr_by_ds = self.dr_by_dsurfacecoefficients()
+
+        # residual dimensions - this is different from the number of equations in the constraint
+        nphi = self.surface.gamma().shape[0]
+        ntheta = self.surface.gamma().shape[1]
+
+        dr_by_dB = self.dr_by_dB().reshape((nphi*ntheta, nphi*ntheta, 3))
+        dpri_by_dxi = self.biotsavart.B_vjp_xi(dr_by_dB[residual_idx])
+        print("partial residual partial xi 1 ", dpri_by_dxi[0][0][0, 0])
+
+        # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds
+        dr_ds = np.zeros(L.shape[0], dtype=complex)
+        dr_ds[:dpr_by_ds[residual_idx].size] = dpr_by_ds[residual_idx] 
+        adj_i = forward_backward(P, L, U, dr_ds)
+        dpg_by_dxi = boozer_surface_dexactresidual_dxi_vjp(adj_i, boozer_surface, iota, G)
+        print("partial residual partial xi 2 ", dpg_by_dxi[0][0][0, 0])
+        
+        
+        for res1_gamma, res2_gamma, res1_dgamma, res2_dgamma in zip(dpri_by_dxi[0], dpg_by_dxi[0], dpri_by_dxi[1], dpg_by_dxi[1]):
+            dr_by_dxi1 = res1_gamma - res2_gamma
+            dr_by_dxi2 = res1_dgamma - res2_dgamma
+
+            return dr_by_dxi1
 
     def dJ_by_dB(self):
         """
@@ -957,6 +989,32 @@ class NonQuasiSymmetricRatio(Optimizable):
         num = 0.5*np.mean(dS * B_nonQS**2)
         denom = 0.5*np.mean(dS * B_QS**2)
         return (denom * dnum_by_dB - num * ddenom_by_dB) / denom**2 
+    
+    def r(self):
+        surface = self.surface
+        nphi = surface.quadpoints_phi.size
+        ntheta = surface.quadpoints_theta.size
+        axis = self.axis
+        
+        self.biotsavart.set_points(self.surface.gamma().reshape((-1, 3)))
+        B = self.biotsavart.B()
+        B = B.reshape((nphi, ntheta, 3))
+        modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
+
+        nor = surface.normal()
+        dS = np.sqrt(nor[:, :, 0]**2 + nor[:, :, 1]**2 + nor[:, :, 2]**2)
+        B_QS = np.mean(modB * dS, axis=axis) / np.mean(dS, axis=axis)
+
+        if axis == 0:
+            B_QS = B_QS[None, :]
+        else:
+            B_QS = B_QS[:, None]
+
+        B_nonQS = modB - B_QS
+
+        num = np.sqrt(0.5*dS / (nphi * ntheta)) * B_nonQS
+        denom = np.sqrt(0.5*np.mean(dS * B_QS**2))
+        return (num/denom).flatten()
 
     def dr_by_dsurfacecoefficients(self):
         """
@@ -991,7 +1049,7 @@ class NonQuasiSymmetricRatio(Optimizable):
 
         modB = np.sqrt(B[:, :, 0]**2 + B[:, :, 1]**2 + B[:, :, 2]**2)
         dmodB_dc = (B[:, :, 0, None] * dB_dc[:, :, 0, :] + B[:, :, 1, None] * dB_dc[:, :, 1, :] + B[:, :, 2, None] * dB_dc[:, :, 2, :])/modB[:, :, None]
-
+        
         num = np.mean(modB * dS, axis=axis)
         denom = np.mean(dS, axis=axis)
         dnum_dc = np.mean(dmodB_dc * dS[..., None] + modB[..., None] * dS_dc, axis=axis) 
@@ -1004,13 +1062,13 @@ class NonQuasiSymmetricRatio(Optimizable):
             B_QS_dc = B_QS_dc[:, None, :]
 
         B_nonQS_dc = dmodB_dc - B_QS_dc
-        
-        num = np.sqrt(0.5*dS * B_nonQS**2/ (nphi * ntheta))
+
+        # NUM AND DENOM DERIVATIVES ARE NOT CONSISTENT HERE
+        num = np.sqrt(0.5*dS/(nphi * ntheta)) * B_nonQS
         denom = np.sqrt(0.5*np.mean(dS * B_QS**2))
-        dnum_by_dc = 0.5*((0.5*dS * B_nonQS**2/ (nphi * ntheta))**(-0.5))[..., None] * (0.5*dS_dc * B_nonQS[..., None]**2 + dS[..., None] * B_nonQS[..., None] * B_nonQS_dc) / (nphi * ntheta)
+        dnum_by_dc = (0.5*(0.5*dS/(nphi * ntheta))**(-0.5))[..., None] * 0.5*dS_dc/(nphi * ntheta) * B_nonQS[..., None] + B_nonQS_dc * np.sqrt(0.5*dS[..., None]/(nphi * ntheta))
         ddenom_by_dc = 0.5*(np.mean(0.5*dS * B_QS**2)**(-0.5)) * np.mean(0.5*dS_dc * B_QS[..., None]**2 + dS[..., None] * B_QS[..., None] * B_QS_dc, axis=(0, 1)) 
         dr_by_dc = (denom * dnum_by_dc - num[..., None] * ddenom_by_dc) / denom**2
-
         return (num/denom).flatten(), dr_by_dc.reshape((-1, dx_dc.shape[-1]))
 
 #    def dr_by_dB(self):

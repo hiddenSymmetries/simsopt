@@ -30,6 +30,8 @@ except ImportError:
     rank = 0
 
 
+
+
 """
 This example optimizes the NCSX coils and currents for QA on a single surface.  The objective is
 

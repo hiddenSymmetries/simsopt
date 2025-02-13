@@ -9,7 +9,57 @@ from .._core.util import RealArray
 import simsoptpp as sopp
 from simsopt.geo.curve import Curve
 
-__all__ = ['GaussianSampler', 'PerturbationSample', 'CurvePerturbed']
+__all__ = ['GaussianSampler', 'PerturbationSample', 'CurvePerturbed', 'FiniteDifferenceSampler']
+
+@dataclass
+class FiniteDifferenceSampler(GSONable):
+    r"""
+    Generate a periodic gaussian process on the interval [0, 1] on a given list of quadrature points.
+    The process has standard deviation ``sigma`` a correlation length scale ``length_scale``.
+    Large values of ``length_scale`` correspond to smooth processes, small values result in highly oscillatory
+    functions.
+    Also has the ability to sample the derivatives of the function.
+
+    We consider the kernel
+
+    .. math::
+
+        \kappa(d) = \sigma^2 \exp(-d^2/l^2)
+
+    and then consider a Gaussian process with covariance
+
+    .. math::
+
+        Cov(X(s), X(t)) = \sum_{i=-\infty}^\infty \sigma^2 \exp(-(s-t+i)^2/l^2)
+
+    the sum is used to make the kernel periodic and in practice the infinite sum is truncated.
+
+    Args:
+        points: the quadrature points along which the perturbation should be computed.
+        sigma: standard deviation of the underlying gaussian process
+               (measure for the magnitude of the perturbation).
+        length_scale: length scale of the underlying gaussian process
+                      (measure for the smoothness of the perturbation).
+        n_derivs: number of derivatives of the gaussian process to sample.
+    """
+
+    points: RealArray
+    eps: float = 1e-200*1j
+    idx: int = 0
+    n_derivs: int = 1
+
+    def draw_sample(self, randomgen=None):
+        """
+        Returns a list of ``n_derivs+1`` arrays of size ``(len(points), 3)``, containing the
+        perturbation and the derivatives.
+        """
+        n = len(self.points)
+        n_derivs = self.n_derivs
+        z = np.zeros((n*(n_derivs+1), 3), dtype=complex)
+        z[self.idx, 0] = self.eps
+        curve_and_derivs = z
+        return [curve_and_derivs[(i*n):((i+1)*n), :] for i in range(n_derivs+1)]
+
 
 
 @dataclass

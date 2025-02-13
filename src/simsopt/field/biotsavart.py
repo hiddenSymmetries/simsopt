@@ -110,8 +110,13 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         currents = [coil.current.get_value() for coil in coils]
         res_gamma = [np.zeros_like(gamma) for gamma in gammas]
         res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+        
 
         points = self.get_points_cart_ref()
+        
+        assert v.shape == points.shape
+        
+        # I think that I've miunderstood something here...
         sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
                                    res_gamma, res_gammadash, [], [], [])
         return res_gamma, res_gammadash 
