@@ -380,13 +380,15 @@ protected:
   }
   
   void _dPhidtheta_impl(Array2& dPhidtheta) override {
+    const auto Phidot_values = xt::squeeze(this->Phidot_ref(), 1);
     xt::view(dPhidtheta, xt::all(), 0) =
-      this->Phidot_ref()(0) * (this->Phim / this->omega);
+      Phidot_values * (this->Phim / this->omega);
   }
 
   void _dPhidzeta_impl(Array2& dPhidzeta) override {
+    const auto Phidot_values = xt::squeeze(this->Phidot_ref(), 1);
     xt::view(dPhidzeta, xt::all(), 0) =
-      -this->Phidot_ref()(0) * (this->Phin / this->omega);
+      -Phidot_values * (this->Phin / this->omega);
   }
   
   void _Phidot_impl(Array2& Phidot) override {
@@ -404,62 +406,76 @@ protected:
   }
 
   void _alpha_impl(Array2& alpha) override {
+    const auto phi = xt::squeeze(this->Phi_ref(), 1);
+    const auto iota_ref = xt::squeeze(this->B0->iota_ref(), 1);
+    const auto G_ref = xt::squeeze(this->B0->G_ref(), 1);
+    const auto I_ref = xt::squeeze(this->B0->I_ref(), 1);
     xt::view(alpha, xt::all(), 0) =
-      -this->Phi_ref()(0) *
-      ((this->B0->iota_ref()(0) * this->Phim - this->Phin) /
-      (this->omega * (this->B0->G_ref()(0) +
-      this->B0->iota_ref()(0) * this->B0->I_ref()(0))));
+      -phi *
+      ((iota_ref * this->Phim - this->Phin) /
+      (this->omega * (G_ref + iota_ref * I_ref)));
   }
       
   void _alphadot_impl(Array2& alphadot) override {
+    const auto phidot = xt::squeeze(this->Phidot_ref(), 1);
+    const auto iota_ref = xt::squeeze(this->B0->iota_ref(), 1);
+    const auto G_ref = xt::squeeze(this->B0->G_ref(), 1);
+    const auto I_ref = xt::squeeze(this->B0->I_ref(), 1);
     xt::view(alphadot, xt::all(), 0) =
-      -this->Phidot_ref()(0) *
-      ((this->B0->iota_ref()(0) * this->Phim - this->Phin) /
-      (this->omega * (this->B0->G_ref()(0) +
-      this->B0->iota_ref()(0) * this->B0->I_ref()(0))));
+        -phidot * ((iota_ref * this->Phim - this->Phin)
+          / (this->omega * (G_ref + iota_ref * I_ref)));
   }
     
   void _dalphadpsi_impl(Array2& dalphadpsi) override {
-    const auto& diotadpsi_values = this->B0->diotads_ref()(0) / this->B0->psi0;
-    const auto& dGdpsi_values = this->B0->dGds_ref()(0) / this->B0->psi0;
-    const auto& dIdpsi_values = this->B0->dIds_ref()(0) / this->B0->psi0;
-    const auto& iota_values = this->B0->iota_ref()(0);
-    const auto& G_values = this->B0->G_ref()(0);
-    const auto& I_values = this->B0->I_ref()(0);
-    const auto& dPhidpsi_values = this->dPhidpsi_ref()(0);
-    const auto& Phi_values = this->Phi_ref()(0);
+      const auto diotadpsi_values = xt::squeeze(this->B0->diotads_ref(), 1)
+                              / this->B0->psi0;
+      const auto dGdpsi_values = xt::squeeze(this->B0->dGds_ref(), 1)
+                           / this->B0->psi0;
+      const auto dIdpsi_values = xt::squeeze(this->B0->dIds_ref(), 1)
+                           / this->B0->psi0;
+      const auto iota_values = xt::squeeze(this->B0->iota_ref(), 1);
+      const auto G_values = xt::squeeze(this->B0->G_ref(), 1);
+      const auto I_values = xt::squeeze(this->B0->I_ref(), 1);
+      const auto dPhidpsi_values = xt::squeeze(this->dPhidpsi_ref(), 1);
+      const auto Phi_values = xt::squeeze(this->Phi_ref(), 1);
   
-    xt::view(dalphadpsi, xt::all(), 0) =
-      -dPhidpsi_values * (iota_values * this->Phim - this->Phin) /
-      (this->omega * (G_values + iota_values * I_values)) -
-      (Phi_values / this->omega) *
-        (diotadpsi_values * this->Phim /
-          (G_values + iota_values * I_values) -
-         (iota_values * this->Phim - this->Phin) /
-          ((G_values + iota_values * I_values) *
-           (G_values + iota_values * I_values)) *
-          (dGdpsi_values + diotadpsi_values * I_values +
-            iota_values * dIdpsi_values));
+      xt::view(dalphadpsi, xt::all(), 0) =
+        - dPhidpsi_values * (iota_values * this->Phim - this->Phin)
+                          / (this->omega * (G_values + iota_values * I_values))
+        - (Phi_values / this->omega)
+        * ( diotadpsi_values * this->Phim / (G_values + iota_values * I_values)
+            - (iota_values * this->Phim - this->Phin)
+              / (
+                  (G_values + iota_values * I_values)
+                  * (G_values + iota_values * I_values)
+                )
+              * (
+                  dGdpsi_values + diotadpsi_values * I_values
+                  + iota_values * dIdpsi_values
+                )
+          );
   }
   
   void _dalphadtheta_impl(Array2& dalphadtheta) override {
-    const auto& iota_values = this->B0->iota_ref()(0);
-    const auto& G_values = this->B0->G_ref()(0);
-    const auto& I_values = this->B0->I_ref()(0);
-    const auto& dPhidtheta_values = this->dPhidtheta_ref()(0);
+    const auto iota_values = xt::squeeze(this->B0->iota_ref(), 1);
+    const auto G_values = xt::squeeze(this->B0->G_ref(), 1);
+    const auto I_values = xt::squeeze(this->B0->I_ref(), 1);
+    const auto dPhidtheta_values = xt::squeeze(this->dPhidtheta_ref(), 1);
+  
     xt::view(dalphadtheta, xt::all(), 0) =
-      -dPhidtheta_values * (iota_values * this->Phim - this->Phin) /
-      (this->omega * (G_values + iota_values * I_values));
+        - dPhidtheta_values * (iota_values * this->Phim - this->Phin)
+          / (this->omega * (G_values + iota_values * I_values));
   }
   
   void _dalphadzeta_impl(Array2& dalphadzeta) override {
-    const auto& iota_values = this->B0->iota_ref()(0);
-    const auto& G_values = this->B0->G_ref()(0);
-    const auto& I_values = this->B0->I_ref()(0);
-    const auto& dPhidzeta_values = this->dPhidzeta_ref()(0);
+    const auto iota_values = xt::squeeze(this->B0->iota_ref(), 1);
+    const auto G_values = xt::squeeze(this->B0->G_ref(), 1);
+    const auto I_values = xt::squeeze(this->B0->I_ref(), 1);
+    const auto dPhidzeta_values = xt::squeeze(this->dPhidzeta_ref(), 1);
+  
     xt::view(dalphadzeta, xt::all(), 0) =
-      -dPhidzeta_values * (iota_values * this->Phim - this->Phin) /
-      (this->omega * (G_values + iota_values * I_values));
+          - dPhidzeta_values * (iota_values * this->Phim - this->Phin)
+            / (this->omega * (G_values + iota_values * I_values));
   }
   
   public:
