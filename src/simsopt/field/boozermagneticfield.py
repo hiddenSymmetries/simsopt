@@ -5,6 +5,7 @@ import logging
 from booz_xform import Booz_xform
 from .._core.util import parallel_loop_bounds, align_and_pad, allocate_aligned_and_padded_array
 import os.path
+import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,271 @@ except ImportError as e:
     MPI = None
     logger.debug(str(e))
 
+class BoozerMetric:
+    r'''
+     A generic class representing the metric tensor in normalized Boozer coordinates
+     :math:`(s, \theta, \zeta)`, where:
+
+     - :math:`s` is the normalized toroidal flux, :math:`s = \psi / \psi_0`.
+     - :math:`\theta` is the poloidal Boozer angle.
+     - :math:`\zeta` is the toroidal Boozer angle.
+
+     The metric tensor defines the local geometry of the magnetic field in these coordinates.
+     Given the symmetry of the metric tensor, the components stored are:
+
+     .. math::
+         g_{ij} = \begin{pmatrix}
+         g_{ss} & g_{s\theta} & g_{s\zeta} \\
+         g_{s\theta} & g_{\theta\theta} & g_{\theta\zeta} \\
+         g_{s\zeta} & g_{\theta\zeta} & g_{\zeta\zeta}
+         \end{pmatrix},
+
+     where the metric components :math:`g_{ij}` are functions of :math:`(s, \theta, \zeta)`.
+
+     **Attributes:**
+
+     - `gss` : Co-(Counter-)variant metric component :math:`g_{ss}` (`g^{ss}`)).
+     - `gst` : Co-(Counter-)variant metric component :math:`g_{s\theta}` (`g^{s\theta}`).
+     - `gsz` : Co-(Counter-)variant metric component :math:`g_{s\zeta}` (`g^{s\zeta}`).
+     - `gtt` : Co-(Counter-)variant metric component :math:`g_{\theta\theta}` (`g^{\theta\theta}`).
+     - `gtz` : Co-(Counter-)variant metric component :math:`g_{\theta\zeta}` (`g^{\theta\theta}`).
+     - `gzz` : Co-(Counter-)variant metric component :math:`g_{\zeta\zeta}` (`g^{\zeta\zeta}`).
+
+     **Usage Example:**
+
+     .. code-block:: python
+
+         # Use BoozerMagneticField object (named `bfield` here)
+         # to obtain the covariant metric tensor
+         covariant_metric = bfield.get_covariant_metric()
+
+         # Convert covariant to contravariant metric tensor
+         contravariant_metric = covariant_metric.to_contravariant()
+
+         # Access specific metric components
+         gss_component = covariant_metric.ss
+         gst_component = covariant_metric.st
+
+         # Convert to matrix form for a single point
+         matrix_form = covariant_metric[0].as_matrix
+
+         # Compute determinant
+         determinant = covariant_metric.det
+    '''
+    
+    def __init__(self, gss, gst, gsz, gtt, gtz, gzz):
+        self.ss = np.asarray(gss)
+        self.st = np.asarray(gst)
+        self.sz = np.asarray(gsz)
+        self.tt = np.asarray(gtt)
+        self.tz = np.asarray(gtz)
+        self.zz = np.asarray(gzz)
+        
+        shape = self.ss.shape
+        for g in [self.st, self.sz, self.tt, self.tz, self.zz]:
+            if g.shape != shape:
+                raise ValueError(
+                    "All metric components must have the same shape"
+                )
+        for g in [self.ss, self.tt, self.zz]:
+            if not (g > 0).all():
+                raise ValueError(
+                    "All diagonal metric components must be positive"
+                )
+    
+    def as_matrix(self, idx=None):
+        """
+        Return the metric tensor as a 3x3 matrix for a given point.
+                
+        Parameters
+        ----------
+        idx : int, optional
+            Index of the point to get the matrix for.
+            If None and there's only one point, return that point's matrix.
+                    
+        Returns
+        -------
+            numpy.ndarray
+            3x3 matrix representing the metric tensor
+        """
+        if idx is None:
+            if self.ss.size == 1:
+                idx = 0
+            else:
+                raise ValueError("Must specify idx for multi-point metric")
+                        
+        return np.array([
+            [self.ss[idx], self.st[idx], self.sz[idx]],
+            [self.st[idx], self.tt[idx], self.tz[idx]],
+            [self.sz[idx], self.tz[idx], self.zz[idx]]
+        ])
+        
+    def det(self):
+        """
+        Compute the determinant of the metric tensor at each point.
+        
+        Returns
+        -------
+        numpy.ndarray
+            Array of determinant values
+        """
+        return (self.ss * (self.tt * self.zz - self.tz**2) -
+                self.st * (self.st * self.zz - self.tz * self.sz) +
+                self.sz * (self.st * self.tz - self.sz * self.tt))
+
+class CovariantBoozerMetric(BoozerMetric):
+    r"""
+    Represents the covariant metric tensor for normalized Boozer coordinates
+    :math:`(s, \theta, \zeta)` in a magnetic field. The covariant metric defines the
+    local geometry of the space with respect to the basis vectors
+    :math:`(\nabla s, \nabla \theta, \nabla \zeta)`.
+
+    The covariant metric tensor :math:`g_{ij}` in Boozer coordinates is given by:
+
+    .. math::
+        g_{ij} = \begin{pmatrix}
+        g_{ss} & g_{s\theta} & g_{s\zeta} \\
+        g_{s\theta} & g_{\theta\theta} & g_{\theta\zeta} \\
+        g_{s\zeta} & g_{\theta\zeta} & g_{\zeta\zeta}
+        \end{pmatrix},
+
+    where each component :math:`g_{ij}` is a function of the Boozer coordinates
+    :math:`(s, \theta, \zeta)`.
+
+    **Methods:**
+
+    - `to_contravariant()`: Converts the covariant metric to its contravariant form by inverting
+        the metric tensor. This operation is mathematically equivalent to computing the inverse
+        of the covariant metric matrix.
+
+    **Usage Example:**
+
+    .. code-block:: python
+
+        # Given a BoozerMagneticField instance named `bfield`
+        covariant_metric = bfield.get_covariant_metric()
+
+        # Convert to contravariant metric
+        contravariant_metric = covariant_metric.to_contravariant()
+
+        # Access specific metric components
+        gss_component = covariant_metric.ss
+
+        # Compute the determinant of the metric tensor
+        determinant = covariant_metric.det
+
+    **Returns:**
+
+    An instance of :class:`ContravariantBoozerMetric` representing the contravariant form of the metric.
+    
+    """
+    def to_contravariant(self):
+        """
+        Converts the covariant metric to its contravariant form by inverting
+        the metric tensor.
+        
+        Returns
+        -------
+        ContravariantBoozerMetric
+            The contravariant form of the metric.
+        
+        Raises
+        -------
+        `LinAlgError`: If the matrix inversion fails, due to the matrix being singular.
+        """
+        inv_matrices = np.zeros((len(self.ss), 6))
+        for k in range(len(self.ss)):
+            matrix = np.array([
+                [self.ss[k], self.st[k], self.sz[k]],
+                [self.st[k], self.tt[k], self.tz[k]],
+                [self.sz[k], self.tz[k], self.zz[k]]
+            ])
+            inv_matrix = np.linalg.inv(matrix)
+            inv_matrices[k] = [ # gss, gst, gsz, gtt, gtz, gzz
+                inv_matrix[0,0], inv_matrix[0,1], inv_matrix[0,2],
+                inv_matrix[1,1], inv_matrix[1,2], inv_matrix[2,2]
+            ]
+        return ContravariantBoozerMetric(
+                inv_matrices[:,0], inv_matrices[:,1], inv_matrices[:,2],
+                inv_matrices[:,3], inv_matrices[:,4], inv_matrices[:,5]
+            )
+        
+class ContravariantBoozerMetric(BoozerMetric):
+    r"""
+    Represents the contravariant metric tensor for normalized Boozer coordinates
+    :math:`(s, \theta, \zeta)` in a magnetic field. The contravariant metric is
+    associated with the basis vectors :math:`(\partial / \partial s, \partial / \partial \theta, \partial / \partial \zeta)`.
+
+    The contravariant metric tensor :math:`g^{ij}` in Boozer coordinates is given by:
+
+    .. math::
+        g^{ij} = \begin{pmatrix}
+        g^{ss} & g^{s\theta} & g^{s\zeta} \\
+        g^{s\theta} & g^{\theta\theta} & g^{\theta\zeta} \\
+        g^{s\zeta} & g^{\theta\zeta} & g^{\zeta\zeta}
+        \end{pmatrix},
+
+    where each component :math:`g^{ij}` is a function of the Boozer coordinates
+    :math:`(s, \theta, \zeta)`.
+
+    **Methods:**
+
+    - `to_covariant()`: Converts the contravariant metric to its covariant form by inverting
+        the metric tensor. This operation is mathematically equivalent to computing the inverse
+        of the contravariant metric matrix.
+
+    **Usage Example:**
+
+    .. code-block:: python
+
+        # Given a BoozerMagneticField instance named `bfield`
+        contravariant_metric = bfield.get_contravariant_metric()
+
+        # Convert to covariant metric
+        covariant_metric = contravariant_metric.to_covariant()
+
+        # Access specific metric components
+        gss_component = contravariant_metric.ss
+
+        # Compute the determinant of the metric tensor
+        determinant = contravariant_metric.det
+
+    **Returns:**
+
+    An instance of :class:`CovariantBoozerMetric` representing the covariant form of the metric.
+
+    """
+    def to_covariant(self):
+        """
+        Converts the contravariant metric to its covariant form by inverting
+        the metric tensor.
+                
+        Returns
+        -------
+        CovariantBoozerMetric
+            The covariant form of the metric.
+        
+        Raises
+        -------
+        `LinAlgError`: If the matrix inversion fails, due to the matrix being singular.
+        """
+        inv_matrices = np.zeros((len(self.ss), 6))
+        for k in range(len(self.ss)):
+            matrix = np.array([
+                [self.ss[k], self.st[k], self.sz[k]],
+                [self.st[k], self.tt[k], self.tz[k]],
+                [self.sz[k], self.tz[k], self.zz[k]]
+            ])
+            inv_matrix = np.linalg.inv(matrix)
+            inv_matrices[k] = [ # gss, gst, gsz, gtt, gtz, gzz
+                inv_matrix[0,0], inv_matrix[0,1], inv_matrix[0,2],
+                inv_matrix[1,1], inv_matrix[1,2], inv_matrix[2,2]
+            ]
+        return CovariantBoozerMetric(
+            inv_matrices[:,0], inv_matrices[:,1], inv_matrices[:,2],
+            inv_matrices[:,3], inv_matrices[:,4], inv_matrices[:,5]
+        )
+        
 class BoozerMagneticField(sopp.BoozerMagneticField):
     r"""
     Generic class that represents a magnetic field in Boozer coordinates
@@ -63,7 +329,6 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
         points = ... # points is a (n, 3) numpy array defining :math:`(s,\theta,\zeta)`
         booz.set_points(points)
         modB = bfield.modB() # returns the magnetic field strength at `points`
-
     """
 
     def __init__(self, psi0):
@@ -93,7 +358,175 @@ class BoozerMagneticField(sopp.BoozerMagneticField):
         self._dZds_impl(np.reshape(Z_derivs[:, 0], (len(Z_derivs[:, 0]), 1)))
         self._dZdtheta_impl(np.reshape(Z_derivs[:, 1], (len(Z_derivs[:, 0]), 1)))
         self._dZdzeta_impl(np.reshape(Z_derivs[:, 2], (len(Z_derivs[:, 0]), 1)))
+        
+    def get_covariant_metric(self):
+        r'''
+        Computes and returns the covariant metric tensor for normalized Boozer coordinates
+        :math:`(s, \theta, \zeta)`.
 
+        In normalized Boozer coordinates, the metric tensor defines the local geometry of space
+        with respect to the covariant basis vectors :math:`(\nabla s, \nabla \theta, \nabla \zeta)`.
+
+
+        The metric components are computed by evaluating the derivatives of the cylindrical coordinates
+        and the Boozer angle with respect to :math:`s`, :math:`\theta`, and :math:`\zeta`.
+        The determinant of the metric tensor is computed and compared to the inverse Jacobian
+        for consistency. If the discrepancy exceeds 0.1%, a warning is issued.
+
+        Returns
+        -------
+        CovariantBoozerMetric
+            The covariant metric tensor.
+    
+        Raises
+        ------
+        AssertionError
+            If the metric is singular on the magnetic axis s=0.
+        RuntimeWarning
+            If there is a large discrepancy (>0.1%) between the computed determinant
+            of the covariant metric and the inverse Jacobian.
+
+        **Usage Example:**
+
+        .. code-block:: python
+
+            # Given a BoozerMagneticField instance named `bfield`
+            covariant_metric = bfield.get_covariant_metric()
+
+            # Access specific metric components
+            gss_component = covariant_metric.ss
+            gst_component = covariant_metric.st
+
+            # Convert to matrix form for a single point
+            matrix_form = covariant_metric[0].as_matrix
+        '''
+        points = self.get_points_ref()
+        s = points[:, 0]
+        assert np.all(s>0), 'Metric is singular on magnetic axis s=0, can not compute. Choose different point.'
+        zetas = points[:, 2]
+        R = self.R()[:, 0]
+        dRdtheta = self.dRdtheta()[:, 0]
+        dRdzeta = self.dRdzeta()[:, 0]
+        dRds = self.dRds()[:, 0]
+        dZdtheta = self.dZdtheta()[:, 0]
+        dZdzeta = self.dZdzeta()[:, 0]
+        dZds = self.dZds()[:, 0]
+        nu = self.nu()[:, 0]
+        dnudtheta = self.dnudtheta()[:, 0]
+        dnudzeta = self.dnudzeta()[:, 0]
+        dnuds = self.dnuds()[:, 0]
+    
+        phi = zetas - nu
+        dphids = -dnuds
+        dphidtheta = -dnudtheta
+        dphidzeta = 1 - dnudzeta
+    
+        dXdtheta = dRdtheta * np.cos(phi) - R * np.sin(phi) * dphidtheta
+        dYdtheta = dRdtheta * np.sin(phi) + R * np.cos(phi) * dphidtheta
+        dXds = dRds * np.cos(phi) - R * np.sin(phi) * dphids
+        dYds = dRds * np.sin(phi) + R * np.cos(phi) * dphids
+        dXdzeta = dRdzeta * np.cos(phi) - R * np.sin(phi) * dphidzeta
+        dYdzeta = dRdzeta * np.sin(phi) + R * np.cos(phi) * dphidzeta
+    
+        gss = dXds**2 + dYds**2 + dZds**2
+        gstheta = dXds*dXdtheta + dYds*dYdtheta + dZds*dZdtheta
+        gszeta = dXds*dXdzeta + dYds*dYdzeta + dZds*dZdzeta
+        gthetatheta = dXdtheta**2 + dYdtheta**2 + dZdtheta**2
+        gthetazeta = dXdtheta*dXdzeta + dYdtheta*dYdzeta + dZdtheta*dZdzeta
+        gzetazeta = dXdzeta**2 + dYdzeta**2 + dZdzeta**2
+    
+        # Test that determinant of covariant Boozer metric matches inverse Jacobian
+        detg = (
+            gss * (gthetatheta*gzetazeta - gthetazeta**2)
+          - gstheta * (gstheta*gzetazeta - gthetazeta*gszeta)
+          + gszeta * (gstheta*gthetazeta - gszeta*gthetatheta)
+        )
+    
+        G = self.G()[:, 0]
+        I = self.I()[:, 0]
+        iota = self.iota()[:, 0]
+        B = self.modB()[:, 0]
+        sqrtg = (G + iota * I)*self.psi0/(B*B)
+        assert np.all(detg > 0), 'Metric determinant must be positive'
+        assert np.all(sqrtg > 0), 'Jacobian must be positive'
+        
+        relative_error = np.abs(np.sqrt(detg) - np.abs(sqrtg)) / np.abs(sqrtg)
+        max_relative_error_percent = np.max(relative_error) * 100
+        if max_relative_error_percent > 0.1:
+            # Find the location of maximum error
+            max_error_idx = np.argmax(relative_error)
+            s_error = s[max_error_idx]
+            theta_error = points[max_error_idx, 1]
+            zeta_error = points[max_error_idx, 2]
+            
+            # Get metric values at error location
+            metric_at_error = np.array([
+                [gss[max_error_idx], gstheta[max_error_idx], gszeta[max_error_idx]],
+                [gstheta[max_error_idx], gthetatheta[max_error_idx], gthetazeta[max_error_idx]],
+                [gszeta[max_error_idx], gthetazeta[max_error_idx], gzetazeta[max_error_idx]]
+            ])
+            
+            warnings.warn(
+                f"\nLarge maximum relative error ({max_relative_error_percent:.2f}%) between "
+                f"metric determinant and Jacobian at:\n"
+                f"  (s, theta, zeta) = ({s_error:.3f}, {theta_error:.3f}, {zeta_error:.3f})\n"
+                f"  sqrt(detg) = {np.sqrt(detg[max_error_idx]):.6e}\n"
+                f"  sqrtg     = {sqrtg[max_error_idx]:.6e}\n"
+                f"Metric tensor at this point:\n"
+                f"  [[ {metric_at_error[0,0]:.6e}  {metric_at_error[0,1]:.6e}  {metric_at_error[0,2]:.6e} ]\n"
+                f"   [ {metric_at_error[1,0]:.6e}  {metric_at_error[1,1]:.6e}  {metric_at_error[1,2]:.6e} ]\n"
+                f"   [ {metric_at_error[2,0]:.6e}  {metric_at_error[2,1]:.6e}  {metric_at_error[2,2]:.6e} ]]\n"
+                "exceeds 0.1% tolerance.",
+                RuntimeWarning
+            )
+
+        return CovariantBoozerMetric(
+            gss=gss,
+            gst=gstheta,
+            gsz=gszeta,
+            gtt=gthetatheta,
+            gtz=gthetazeta,
+            gzz=gzetazeta
+            )
+
+    def get_contravariant_metric(self):
+        r'''
+        Computes and returns the contravariant metric tensor for normalized Boozer coordinates
+        :math:`(s, \theta, \zeta)`.
+    
+        In normalized Boozer coordinates, the contravariant metric tensor defines the local geometry 
+        of space with respect to the contravariant basis vectors 
+        :math:`(\partial / \partial s, \partial / \partial \theta, \partial / \partial \zeta)`.
+        
+        The contravariant metric is computed by inverting the covariant metric tensor.
+    
+        Returns
+        -------
+        ContravariantBoozerMetric
+            The contravariant metric tensor.
+    
+        Raises
+        ------
+        AssertionError
+            If the metric is singular on the magnetic axis s=0.
+        LinAlgError
+            If the covariant metric tensor cannot be inverted.
+    
+        **Usage Example:**
+    
+        .. code-block:: python
+    
+            # Given a BoozerMagneticField instance named `bfield`
+            contravariant_metric = bfield.get_contravariant_metric()
+    
+            # Access specific metric components
+            gss_component = contravariant_metric.ss
+            gst_component = contravariant_metric.st
+    
+            # Convert to matrix form for a single point
+            matrix_form = contravariant_metric[0].as_matrix
+        '''
+        return self.get_covariant_metric().to_contravariant()
 
 class BoozerAnalytic(BoozerMagneticField):
     r"""
