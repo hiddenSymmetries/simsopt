@@ -27,7 +27,7 @@ from simsopt.geo import PortSet, CircularPort
 from simsopt.solve import optimize_wireframe
 
 # Set to True generate a 3d rendering with the mayavi package
-make_mayavi_plot = True
+make_mayavi_plot = False
 
 # Number of wireframe segments per half period in the toroidal dimension
 wf_nPhi = 12

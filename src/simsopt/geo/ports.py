@@ -14,7 +14,7 @@ try:
 except ImportError:
     unstructuredGridToVTK = None
 
-__all__ = ['PortSet', 'CircularPort', 'RectangularPort']
+__all__ = ['PortSet', 'Port', 'CircularPort', 'RectangularPort']
 
 contig = np.ascontiguousarray
 
