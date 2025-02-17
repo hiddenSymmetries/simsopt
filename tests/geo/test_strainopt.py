@@ -21,7 +21,7 @@ class CoilStrainTesting(unittest.TestCase):
             curve.set('xc(1)', 1e-4)
             curve.set('ys(1)', 1e-4)
             curve.fix_all()
-            order = 2 
+            order = 2
             np.random.seed(1)
             rotation = FrameRotation(quadpoints, order)
             rotation.x = np.random.standard_normal(size=(2*order+1,))
@@ -38,8 +38,8 @@ class CoilStrainTesting(unittest.TestCase):
                 grad = J.dJ()
                 return J.J(), grad
             minimize(fun, J.x, jac=True, method='L-BFGS-B',
-                           options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
-            assert Jt.J() < 1e-12 
+                     options={'maxiter': 100, 'maxcor': 10, 'gtol': 1e-20, 'ftol': 1e-20}, tol=1e-20)
+            assert Jt.J() < 1e-12
             assert Jb.J() < 1e-12
 
     def test_torsion(self):
@@ -133,4 +133,3 @@ class CoilStrainTesting(unittest.TestCase):
             errf = np.abs((f1-f2)/(2*eps) - df)
             assert errf < 0.3 * errf_old
             errf_old = errf
-

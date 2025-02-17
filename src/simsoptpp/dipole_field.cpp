@@ -748,6 +748,17 @@ Array define_a_uniform_cartesian_grid_between_two_toroidal_surfaces(Array& norma
     //           start of the ray, conclude point is outside the outer surface.
     //     8. If Step 4 was True but Step 5 was False, add the point to the final grid.
 
+    if(normal_inner.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("normal_inner needs to be in row-major storage order");
+    if(normal_outer.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("normal_outer needs to be in row-major storage order");
+    if(xyz_uniform.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("xyz_uniform needs to be in row-major storage order");
+    if(xyz_inner.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("xyz_inner needs to be in row-major storage order");
+    if(xyz_outer.layout() != xt::layout_type::row_major)
+          throw std::runtime_error("xyz_outer needs to be in row-major storage order");
+
     int num_inner = xyz_inner.shape(0);
     int num_outer = xyz_outer.shape(0);
     int ngrid = xyz_uniform.shape(0);

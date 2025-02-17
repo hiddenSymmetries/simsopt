@@ -22,5 +22,6 @@ class MagneticAxisHelpers(unittest.TestCase):
         iota = compute_on_axis_iota(ma, BiotSavart(coils))
         np.testing.assert_allclose(iota, target_iota, rtol=1e-10, atol=1e-10)
 
+
 if __name__ == "__main__":
     unittest.main()

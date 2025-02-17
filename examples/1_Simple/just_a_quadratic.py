@@ -42,7 +42,7 @@ prob = LeastSquaresProblem.from_tuples([term1, term2, term3])
 # Solve the minimization problem:
 least_squares_serial_solve(prob)
 
-print("An optimum was found at x=", iden1.x, ", y=", iden2.x, \
+print("An optimum was found at x=", iden1.x, ", y=", iden2.x,
       ", z=", iden3.x)
 print("The minimum value of the objective function is ", prob.objective())
 print("End of 1_Simple/just_a_quadratic.py")

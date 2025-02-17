@@ -1123,4 +1123,3 @@ class InterpolatedBoozerField(sopp.InterpolatedBoozerField, BoozerMagneticField)
             logger.warning(fr"Sure about zetarange=[{zetarange[0]},{zetarange[1]}]? When exploiting rotational symmetry, the interpolant is only evaluated for zeta in [0,2\pi/nfp].")
 
         sopp.InterpolatedBoozerField.__init__(self, field, degree, srange, thetarange, zetarange, extrapolate, nfp, stellsym)
-

@@ -18,7 +18,9 @@ the end, the initial and final profiles are plotted.
 
 
 # target profile of rotational transform, here just a constant:
-target_function = lambda s: 0.381966
+def target_function(s): return 0.381966
+
+
 adjoint_epsilon = 1.e-1  # perturbation amplitude for adjoint solve
 
 filename = os.path.join(os.path.dirname(__file__), 'inputs', 'input.rotating_ellipse')

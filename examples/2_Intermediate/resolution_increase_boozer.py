@@ -60,14 +60,14 @@ for step in range(3):
     boozer.mpol = 16 + step * 8
     boozer.ntor = boozer.mpol
 
-    proc0_print("Beginning optimization with max_mode =", max_mode, \
-                ", vmec mpol=ntor=", vmec.indata.mpol, \
-                ", boozer mpol=ntor=", boozer.mpol, \
+    proc0_print("Beginning optimization with max_mode =", max_mode,
+                ", vmec mpol=ntor=", vmec.indata.mpol,
+                ", boozer mpol=ntor=", boozer.mpol,
                 ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
     surf.fix_all()
-    surf.fixed_range(mmin=0, mmax=max_mode, 
+    surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)")  # Major radius
 

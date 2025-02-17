@@ -41,8 +41,8 @@ or arxiv:2210.03248.
 import os
 import numpy as np
 from scipy.optimize import minimize
-from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas,\
-        BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
+from simsopt.geo import curves_to_vtk, MajorRadius, CurveLength, CurveCurveDistance, NonQuasiSymmetricRatio, Iotas, \
+    BoozerResidual, LpCurveCurvature, MeanSquaredCurvature, ArclengthVariation
 from simsopt._core import load
 from simsopt.objectives import MPIObjective, MPIOptimizable
 from simsopt.field import BiotSavart
@@ -53,7 +53,7 @@ try:
     comm = MPI.COMM_WORLD
     rank = comm.rank
     size = comm.size
-    
+
 except ImportError:
     comm = None
     size = 1
@@ -134,6 +134,7 @@ for idx, surface in enumerate(mpi_surfaces):
 prevs = {'sdofs': [surface.x.copy() for surface in mpi_surfaces], 'iota': [boozer_surface.res['iota'] for boozer_surface in mpi_boozer_surfaces],
          'G': [boozer_surface.res['G'] for boozer_surface in mpi_boozer_surfaces], 'J': JF.J(), 'dJ': JF.dJ().copy(), 'it': 0}
 
+
 def fun(dofs):
     # initialize to last accepted surface values
     for idx, surface in enumerate(mpi_surfaces):
@@ -141,16 +142,16 @@ def fun(dofs):
     for idx, boozer_surface in enumerate(mpi_boozer_surfaces):
         boozer_surface.res['iota'] = prevs['iota'][idx]
         boozer_surface.res['G'] = prevs['G'][idx]
-    
+
     # this check makes sure that all ranks have exactly the same dofs
     if comm is not None:
         alldofs = comm.allgather(dofs)
         assert np.all(np.all(alldofs[0]-d == 0) for d in alldofs)
-    
+
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    
+
     # check to make sure that all the surface solves succeeded
     success1 = np.all([boozer_surface.res['success'] for boozer_surface in mpi_boozer_surfaces])
     # check to make sure that the surfaces are not self-intersecting
@@ -175,7 +176,7 @@ def callback(x):
         prevs['G'][idx] = boozer_surface.res['G']
     prevs['J'] = JF.J()
     prevs['dJ'] = JF.dJ().copy()
-    
+
     width = 35
     outstr = f"\nIteration {prevs['it']}\n"
     outstr += f"{'J':{width}} {JF.J():.6e} \n"

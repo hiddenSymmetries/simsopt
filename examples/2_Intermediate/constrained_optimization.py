@@ -62,13 +62,13 @@ for step in range(3):
     vmec.indata.mpol = 3 + step
     vmec.indata.ntor = vmec.indata.mpol
 
-    proc0_print("Beginning optimization with max_mode =", max_mode, \
-                ", vmec mpol=ntor=", vmec.indata.mpol, \
+    proc0_print("Beginning optimization with max_mode =", max_mode,
+                ", vmec mpol=ntor=", vmec.indata.mpol,
                 ". Previous vmec iteration = ", vmec.iter)
 
     # Define parameter space:
     surf.fix_all()
-    surf.fixed_range(mmin=0, mmax=max_mode, 
+    surf.fixed_range(mmin=0, mmax=max_mode,
                      nmin=-max_mode, nmax=max_mode, fixed=False)
     surf.fix("rc(0,0)")  # Major radius
 
@@ -102,4 +102,3 @@ for step in range(3):
 proc0_print("")
 proc0_print("End of 2_Intermediate/constrained_optimization.py")
 proc0_print("=================================================")
-

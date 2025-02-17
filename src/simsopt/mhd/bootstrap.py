@@ -115,7 +115,7 @@ def compute_trapped_fraction(modB, sqrtg):
 
             def integrand(lambd):
                 # This function gives lambda / <sqrt(1 - lambda B)>:
-                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, :, js]) * sqrtg[:, :, js]) \
+                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, :, js]) * sqrtg[:, :, js])
                                 / (fourpisq * dVds[js]))
 
             integral = quad(integrand, 0, 1 / modBmax)
@@ -156,7 +156,7 @@ def compute_trapped_fraction(modB, sqrtg):
 
             def integrand(lambd):
                 # This function gives lambda / <sqrt(1 - lambda B)>:
-                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js]) * sqrtg[:, js]) \
+                return lambd / (np.mean(np.sqrt(1 - lambd * modB[:, js]) * sqrtg[:, js])
                                 / (twopi * dVds[js]))
 
             integral = quad(integrand, 0, 1 / modBmax)
@@ -309,7 +309,7 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         logging.warning('nu_*i is surprisingly large. Check that the density and temperature are correct.')
 
     # Redl eq (11):
-    X31 = f_t / (1 + (0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e)) / (0.56 + 0.44 * Zeff_s) \
+    X31 = f_t / (1 + (0.67 * (1 - 0.7 * f_t) * np.sqrt(nu_e)) / (0.56 + 0.44 * Zeff_s)
                  + (0.52 + 0.086 * np.sqrt(nu_e)) * (1 + 0.87 * f_t) * nu_e / (1 + 1.13 * np.sqrt(Zeff_s - 1)))
 
     # Redl eq (10):
@@ -320,9 +320,9 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         + 0.06 / Zfac * (X31 ** 4)
 
     # Redl eq (14):
-    X32e = f_t / ((1 + 0.23 * (1 - 0.96 * f_t) * np.sqrt(nu_e) / np.sqrt(Zeff_s) \
-                   + 0.13 * (1 - 0.38 * f_t) * nu_e / (Zeff_s * Zeff_s) \
-                   * (np.sqrt(1 + 2 * np.sqrt(Zeff_s - 1)) \
+    X32e = f_t / ((1 + 0.23 * (1 - 0.96 * f_t) * np.sqrt(nu_e) / np.sqrt(Zeff_s)
+                   + 0.13 * (1 - 0.38 * f_t) * nu_e / (Zeff_s * Zeff_s)
+                   * (np.sqrt(1 + 2 * np.sqrt(Zeff_s - 1))
                       + f_t * f_t * np.sqrt((0.075 + 0.25 * (Zeff_s - 1) ** 2) * nu_e))))
 
     # Redl eq (13):
@@ -332,7 +332,7 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
         + 1.3 / (1 + 0.5 * Zeff_s) * (X32e ** 4)
 
     # Redl eq (16):
-    X32ei = f_t / (1 + 0.87 * (1 + 0.39 * f_t) * np.sqrt(nu_e) / (1 + 2.95 * (Zeff_s - 1) ** 2) \
+    X32ei = f_t / (1 + 0.87 * (1 + 0.39 * f_t) * np.sqrt(nu_e) / (1 + 2.95 * (Zeff_s - 1) ** 2)
                    + 1.53 * (1 - 0.37 * f_t) * nu_e * (2 + 0.375 * (Zeff_s - 1)))
 
     # Redl eq (15):
@@ -349,8 +349,8 @@ def j_dot_B_Redl(ne, Te, Ti, Zeff, helicity_n=None, s=None, G=None, R=None, iota
     # Redl eq (20):
     alpha0 = -(0.62 + 0.055 * (Zeff_s - 1)) * (1 - f_t) \
         / ((0.53 + 0.17 * (Zeff_s - 1)) * (1 - (0.31 - 0.065 * (Zeff_s - 1)) * f_t - 0.25 * f_t * f_t))
-    # Redl eq (21):    
-    alpha = ((alpha0 + 0.7 * Zeff_s * np.sqrt(f_t * nu_i)) / (1 + 0.18 * np.sqrt(nu_i)) \
+    # Redl eq (21):
+    alpha = ((alpha0 + 0.7 * Zeff_s * np.sqrt(f_t * nu_i)) / (1 + 0.18 * np.sqrt(nu_i))
              - 0.002 * nu_i * nu_i * (f_t ** 6)) \
         / (1 + 0.004 * nu_i * nu_i * (f_t ** 6))
 

@@ -115,11 +115,16 @@ class Derivative:
         x = self.data
         y = other.data
         z = copy_numpy_dict(x)
+        # for k, yk in y.items():
+        #     if k in z:
+        #         z[k] += yk
+        #     else:
+        #         z[k] = yk
         for k in y:
             if k in z:
                 z[k] += y[k]
             else:
-                z[k] = y[k].copy()
+                z[k] = y[k].copy()  # why copy here but not in subtract?
         return Derivative(z)
 
     def __sub__(self, other):
@@ -189,8 +194,8 @@ class Derivative:
 
             for k in optim.unique_dof_lineage:
                 for opt in k.dofs.dep_opts():
-                    # the next if-statament is there to avoid the dictionary from accumulating 
-                    # empty values e.g. if there are no local DOFs to opt, then self.data[opt] 
+                    # the next if-statament is there to avoid the dictionary from accumulating
+                    # empty values e.g. if there are no local DOFs to opt, then self.data[opt]
                     # returns np.array([]).
                     if opt.local_full_dof_size > 0:
                         derivs.append(self.data[opt])
