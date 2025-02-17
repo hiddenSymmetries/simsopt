@@ -1,5 +1,6 @@
 import os
 
+from .helper_coils import *
 from .mpi import *
 from .logger import *
 from .famus_helpers import *
@@ -15,5 +16,6 @@ __all__ = (
     + famus_helpers.__all__ 
     + polarization_project.__all__ 
     + permanent_magnet_helper_functions.__all__
+    + helper_coils.__all__
     + ['in_github_actions']
 )
