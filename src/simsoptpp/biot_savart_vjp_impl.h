@@ -42,24 +42,71 @@ void biot_savart_vjp_kernel(AlignedPaddedVec& pointsx, AlignedPaddedVec& pointsy
     std::complex<double>* res_gamma_ptr = &(res_gamma(0, 0));
     std::complex<double>* res_grad_dgamma_by_dphi_ptr = &(res_grad_dgamma_by_dphi(0, 0));
     std::complex<double>* res_grad_gamma_ptr = &(res_grad_gamma(0, 0));
+
+    auto v_ix = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto v_iy = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto v_iz = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+
+    auto vgrad_ixx = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_iyx = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_izx = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_ixy = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_iyy = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_izy = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_ixz = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_iyz = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+    auto vgrad_izz = AlignedPaddedVec(simd_size, std::complex<double>(0.));
+
+
     for(int i = 0; i < num_points-num_points%simd_size; i += simd_size) {
         Vec3dSimd point_i = Vec3dSimd(&(pointsx[i]), &(pointsy[i]), &(pointsz[i]));
-        auto v_i   = Vec3dSimd();
-        auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
-                Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
-            };
-#pragma unroll
-        for(int k=0; k<simd_size; k++){
-            for (int d = 0; d < 3; ++d) {
-                v_i[d][k] = v(i+k, d);
-                MYIF(derivs>0) {
-#pragma unroll
-                    for (int dd = 0; dd < 3; ++dd) {
-                        vgrad_i[dd][d][k] = vgrad(i+k, dd, d);
-                    }
-                }
+
+
+        for (int k = 0; k < simd_size; ++k) {
+            v_ix[k] = v(i + k, 0);
+            v_iy[k] = v(i + k, 1);
+            v_iz[k] = v(i + k, 2);
+
+            MYIF(derivs>0) {
+                vgrad_ixx[k] = vgrad(i + k, 0, 0);
+                vgrad_iyx[k] = vgrad(i + k, 1, 0);
+                vgrad_izx[k] = vgrad(i + k, 2, 0);
+                vgrad_ixy[k] = vgrad(i + k, 0, 1);
+                vgrad_iyy[k] = vgrad(i + k, 1, 1);
+                vgrad_izy[k] = vgrad(i + k, 2, 1);
+                vgrad_ixz[k] = vgrad(i + k, 0, 2);
+                vgrad_iyz[k] = vgrad(i + k, 1, 2);
+                vgrad_izz[k] = vgrad(i + k, 2, 2);
+
+                //for (int dd = 0; dd < 3; ++dd) {
+                //    vgrad_i[dd][d][k] = vgrad(i+k, dd, d);
+                //}
             }
         }
+        //auto v_i   = Vec3dSimd();
+        //auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+        //        Vec3dSimd(), Vec3dSimd(), Vec3dSimd()
+        //    };
+
+        auto v_i   = Vec3dSimd(&(v_ix[0]), &(v_iy[0]), &(v_iz[0]));
+        auto vgrad_i = vector<Vec3dSimd, xs::aligned_allocator<Vec3dSimd, XSIMD_DEFAULT_ALIGNMENT>>{
+                Vec3dSimd(&(vgrad_ixx[0]), &(vgrad_ixy[0]), &(vgrad_ixz[0])), 
+                Vec3dSimd(&(vgrad_iyx[0]), &(vgrad_iyy[0]), &(vgrad_iyz[0])), 
+                Vec3dSimd(&(vgrad_izx[0]), &(vgrad_izy[0]), &(vgrad_izz[0]))
+            };
+
+//#pragma unroll
+//        for(int k=0; k<simd_size; k++){
+//            for (int d = 0; d < 3; ++d) {
+//                v_i[d][k] = v(i+k, d);
+//                MYIF(derivs>0) {
+//#pragma unroll
+//                    for (int dd = 0; dd < 3; ++dd) {
+//                        vgrad_i[dd][d][k] = vgrad(i+k, dd, d);
+//                    }
+//                }
+//            }
+//        }
 
         for (int j = 0; j < num_quad_points; ++j) {
             auto dgamma_j_by_dphi = Vec3d{ dgamma_j_by_dphi_ptr[3*j+0], dgamma_j_by_dphi_ptr[3*j+1], dgamma_j_by_dphi_ptr[3*j+2] };

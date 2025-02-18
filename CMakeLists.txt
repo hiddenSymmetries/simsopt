@@ -31,8 +31,6 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     endif()
 endif()
 
-
-set(NO_XSIMD ON)
 # For XSIMD usage
 IF(DEFINED ENV{NO_XSIMD})
    set(NO_XSIMD ON)

@@ -743,8 +743,10 @@ class NonQuasiSymmetricRatio(Optimizable):
         self.boozer_surface = boozer_surface
 
         surface = in_surface
-        phis = np.linspace(0, 1/in_surface.nfp, 2*(in_surface.ntor*2+1), endpoint=False)
-        thetas = np.linspace(0, 1., 2*(in_surface.mpol*2+1), endpoint=False)
+        #phis = np.linspace(0, 1/in_surface.nfp, 2*(in_surface.ntor*2+1), endpoint=False)
+        #thetas = np.linspace(0, 1., 2*(in_surface.mpol*2+1), endpoint=False)
+        phis = np.linspace(0, 1/in_surface.nfp, (in_surface.ntor*2+1), endpoint=False)
+        thetas = np.linspace(0, 1., (in_surface.mpol*2+1), endpoint=False)
         surface = SurfaceXYZTensorFourier(mpol=in_surface.mpol, ntor=in_surface.ntor, stellsym=in_surface.stellsym, nfp=in_surface.nfp, quadpoints_phi=phis, quadpoints_theta=thetas, dofs=in_surface.dofs)
 
         self.axis = 1 if quasi_poloidal else 0

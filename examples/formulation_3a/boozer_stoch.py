@@ -50,6 +50,27 @@ too complex.  The BFGS optimizer is used, and quasisymmetry is improved substant
 More details on this work can be found at doi:10.1017/S0022377822000563 or arxiv:2203.03753.
 """
 
+#class MPIGradient(Optimizable):
+#
+#    def __init__(self, objective, comm):
+#        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[objective])
+#        self.objective = objective
+#        self.comm = comm
+#        self.unique_lineage = [obj for obj in objective.unique_dof_lineage if obj.dofs._x.size > 0 and obj.x.size > 0]
+#        r_unique_lineage = [[obj]*(obj.x.size) for obj in self.unique_lineage]
+#        self.r_unique_lineage = [item for sublist in r_unique_lineage for item in sublist]
+#        import ipdb;ipdb.set_trace()
+#
+#    def J(self):
+#        return self.objective.J()
+#
+#    @derivative_dec
+#    def dJ(self):
+#        return 0.
+
+
+
+
 # Directory for output
 OUT_DIR      = f"./Nsamples={comm.size}/"
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -68,6 +89,8 @@ G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 coils_orig = coils
 # let's fix the coil current
 base_currents[0].fix_all()
+
+
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
 # Resolution details of surface on which we optimize for qa
@@ -96,7 +119,6 @@ G = G0
 ## compute the surface
 boozer_surface = BoozerSurface(bs_orig, s_orig, vol, vol_target, options={'newton_tol':1e-12, 'newton_maxiter':10})
 
-
 # compute surface first using LBFGS, this will just be a rough initial guess
 res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-10, maxiter=300, constraint_weight=100., iota=iota, G=G)
 proc0_print(f"After LBFGS:   iota={res['iota']:.3f}, area={s_orig.area():.3f}, ||residual||={np.linalg.norm(boozer_surface_residual(s_orig, res['iota'], res['G'], bs_orig, derivatives=0)):.3e}", flush=True)
@@ -117,13 +139,13 @@ rg = np.random.Generator(PCG64(seed, inc=0))
 L = 0.4*np.pi
 sqrtC = GaussianSampler(base_curves[0].quadpoints, SIGMA, L, n_derivs=1).L
 
-surfaces = [s_orig]
-boozer_surfaces = [boozer_surface_orig]
-nonQSs = [NonQuasiSymmetricRatio(boozer_surface_orig, BiotSavart(coils), sqrtC=sqrtC)]
+surface = s_orig
+boozer_surface = boozer_surface_orig
+J_nonQSRatio = NonQuasiSymmetricRatio(boozer_surface_orig, BiotSavart(coils), sqrtC=sqrtC)
 
-
-J_nonQSRatio = nonQSs[0]
-print(nonQSs[0].J())
-print(nonQSs[0].GN_trace())
-
-import ipdb;ipdb.set_trace()
+x = J_nonQSRatio.x.copy()
+x[10] += 1e-200*1j
+J_nonQSRatio.x = x
+print(J_nonQSRatio.J())
+tr = J_nonQSRatio.GN_trace()
+print(tr.real, tr.imag/1e-200)
