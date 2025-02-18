@@ -16,7 +16,7 @@ __all__ = ['optimize_wireframe', 'bnorm_obj_matrices', \
 
 def optimize_wireframe(wframe, algorithm, params, \
                        surf_plas=None, ext_field=None, area_weighted=True, \
-                       bn_plas_curr=None, Amat=None, bvec=None, verbose=True):
+                       bnorm_target=None, Amat=None, bvec=None, verbose=True):
     """
     Optimizes the segment currents in a wireframe class instance.
 
@@ -28,12 +28,12 @@ def optimize_wireframe(wframe, algorithm, params, \
 
       (1) The user supplies a target plasma boundary and, if needed, a constant
           external magnetic field; in this case, the function calculates the
-          inductance matrix and required normal field at the test points
+          normal field matrix and required normal field at the test points
           in preparation for performing the least-squares solve. In this mode,
           the parameter `surf_plas` must be supplied and, if relevant, 
           `ext_field`.
 
-      (2) The user supplies a pre-computed inductance matrix and vector with
+      (2) The user supplies a pre-computed normal field matrix and vector with
           the required normal field on the plasma boundary, in which case it
           is not necessary to perform a field calculation before the least-
           squares solve. In this mode, the parameters `Amat` and `bvec` must
@@ -58,18 +58,21 @@ def optimize_wireframe(wframe, algorithm, params, \
         surf_plas: Surface class instance (optional)
             Surface of the target plasma, on which test points are placed for
             evaluation of the normal field. If supplied, a magnetic field
-            calculation will be performed to determine the inductance matrix
+            calculation will be performed to determine the normal field matrix
             and target normal field vector prior to performing the least-
             squares solve as described in mode (1) above.
         ext_field: MagneticField class instance (optional)
             Constant external field assumed to be present in addition to the
             field produced by the wireframe. Used to calculate the target
             normal field vector in mode (1) as described above.
-        bn_plas_curr: 1d double array (optional)
-            Contributions of internal plasma currents to the normal field on
-            the plasma boundary. Must have dimensions (nTestPoints, 1).   
+        bnorm_target: double array (optional)
+            Target value of the normal field on the plasma boundary to be
+            produced by the combination of the wireframe and `ext_field`.
+            Zero by default. Test points on the plasma boundary corresponding 
+            to the elements of `bnorm_target` must agree with the test points 
+            of `surf_plas`.   
         area_weighted: boolean (optional)
-            Determines whether the inductance matrix and target normal field
+            Determines whether the normal field matrix and target normal field
             vector elements are weighted by the square root of the area 
             ascribed to each test point on the plasma boundary. If true, the
             weightings will be applied and therefore the optimization will 
@@ -192,22 +195,23 @@ def optimize_wireframe(wframe, algorithm, params, \
             raise ValueError('Inputs `Amat` and `bvec` must not be supplied ' \
                              + 'if `surf_plas` is given')
 
-        # Calculate the inductance matrix (A) and target field vector (c)
+        # Calculate the normal field matrix (A) and target field vector (c)
         A, b = bnorm_obj_matrices(wframe, surf_plas, ext_field=ext_field, \
-                   area_weighted=area_weighted, bn_plas_curr=bn_plas_curr, \
+                   area_weighted=area_weighted, bnorm_target=bnorm_target, \
                    verbose=verbose)
 
     # Mode 2: Inductance matrix and target bnormal vector supplied
     elif Amat is not None and bvec is not None:
 
         if surf_plas is not None or ext_field is not None or \
-           bn_plas_curr is not None:
+           bnorm_target is not None:
             raise ValueError('If `Amat` and `bvec` are provided, the ' \
                 + 'following parameters must not be provided: \n' \
-                + '    `surf_plas`, `ext_field`, `bn_plas_curr`')
+                + '    `surf_plas`, `ext_field`, `bnorm_target`')
 
         if verbose:
-            print('    Using pre-calculated inductance and target field')
+            print('    Using pre-calculated normal field matrix '
+                  + 'and target field')
 
         # Check Amat and bvec inputs
         b = np.array(bvec).reshape((-1,1))
@@ -293,10 +297,10 @@ def optimize_wireframe(wframe, algorithm, params, \
     return results
    
 def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
-                       area_weighted=True, bn_plas_curr=None, verbose=True):
+                       area_weighted=True, bnorm_target=None, verbose=True):
     """
-    Computes the inductance matrix and target field vector used for determining
-    the squared-flux objective for wireframe current optimizations.
+    Computes the normal field matrix and target field vector used for 
+    determining the squared-flux objective for wireframe current optimizations.
 
     Parameters
     ----------
@@ -308,11 +312,14 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
         ext_field: MagneticField class instance (optional)
             Constant external field assumed to be present in addition to the
             field produced by the wireframe.
-        bn_plas_curr: 1d double array (optional)
-            Contributions of internal plasma currents to the normal field on
-            the plasma boundary. Must have dimensions (nTestPoints, 1).   
+        bnorm_target: 1d double array (optional)
+            Target value of the normal field on the plasma boundary to be
+            produced by the combination of the wireframe and `ext_field`.
+            Zero by default. Test points on the plasma boundary corresponding 
+            to the elements of bnorm_target must agree with the test points of 
+            `surf_plas`.   
         area_weighted: boolean (optional)
-            Determines whether the inductance matrix and target normal field
+            Determines whether the normal field matrix and target normal field
             vector elements are weighted by the square root of the area 
             ascribed to each test point on the plasma boundary. If true, the
             weightings will be applied and therefore the optimization 
@@ -349,9 +356,9 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
     else:
         area_weight = np.ones(sqrt_area.shape)
 
-    # Calculate the inductance matrix for the wireframe
+    # Calculate the normal field matrix for the wireframe
     if verbose:
-        print('    Calculating the wireframe field and inductance matrix')
+        print('    Calculating the wireframe field and normal field matrix')
     t0 = time.time()
     mf_wf = WireframeField(wframe)
     mf_wf.set_points(surf_plas.gamma().reshape((-1,3)))
@@ -359,7 +366,7 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
             area_weighted=area_weighted)
     t1 = time.time()
     if verbose:
-        print('        Field and inductance matrix calc took %.2f seconds' \
+        print('        Field and normal field matrix calc took %.2f seconds' \
               % (t1 - t0))
 
     # Calculate the target normal field to cancel contributions from the
@@ -377,36 +384,36 @@ def bnorm_obj_matrices(wframe, surf_plas, ext_field=None, \
 
         ext_field.set_points(surf_plas.gamma().reshape((-1,3)))
         B_ext = ext_field.B().reshape(n.shape)
-        B_ext_norm = np.sum(B_ext * unitn, axis=2)[:,:,None]
-        ext_norm_target = -B_ext_norm.reshape((-1,1))*area_weight
+        bnorm_ext = np.sum(B_ext * unitn, axis=2)[:,:,None]
+        bnorm_ext_weighted = bnorm_ext.reshape((-1,1))*area_weight
         
         # Restore the original test points
         ext_field.set_points(orig_points)
 
     else:
 
-        ext_norm_target = 0*area_weight
+        bnorm_ext_weighted = 0*area_weight
 
     # Calculate the target normal field to cancel contributions from 
     # plasma currents
-    if bn_plas_curr is not None:
+    if bnorm_target is not None:
 
-        if bn_plas_curr.shape != (np.size(area_weight), 1):
-            raise ValueError('Input `bn_plas_curr` must have shape ' \
-                + '(nTestPoints,1), where nTestPoints\n is the number of ' \
-                + 'test points on the plasma boundary')
+        if bnorm_target.size != area_weight.size:
+            raise ValueError('Input `bnorm_target` must have the same' 
+                + 'number of elements as the number of quadrature points'
+                + 'of `surf_plas`')
               
         if verbose:
             print('    Adding contribution from plasma current')
 
-        bn_plas_target = -bn_plas_curr*area_weight
+        bnorm_target_weighted = bnorm_target.reshape((-1,1))*area_weight
 
     else:
 
-        bn_plas_target = 0*area_weight
+        bnorm_target_weighted = 0*area_weight
 
     # Calculate the target bnormal on the plasma boundary
-    b = np.ascontiguousarray(ext_norm_target + bn_plas_target)
+    b = np.ascontiguousarray(bnorm_target_weighted - bnorm_ext_weighted)
 
     return A, b
 
