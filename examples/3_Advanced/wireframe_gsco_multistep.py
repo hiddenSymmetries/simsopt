@@ -15,7 +15,7 @@ from pathlib import Path
 import time
 import numpy as np
 import matplotlib.pyplot as pl
-from simsopt.geo import SurfaceRZFourier, ToroidalWireframe, CurveXYZFourier, \
+from simsopt.geo import SurfaceRZFourier, ToroidalWireframe, \
                         create_equally_spaced_curves
 from simsopt.solve import optimize_wireframe
 from simsopt.field import WireframeField, BiotSavart, Current, \
