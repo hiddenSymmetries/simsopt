@@ -24,7 +24,7 @@ import numpy as np
 from monty.io import zopen
 
 from .dev import SimsoptRequires
-from .types import RealArray, StrArray, BoolArray, Key
+from .types import RealArray, StrArray, BoolArray, Key, RealComplexArray
 from .util import ImmutableId, OptimizableMeta, WeakKeyDefaultDict, \
     DofLengthMismatchError
 from .derivative import derivative_dec
@@ -75,11 +75,11 @@ class DOFs(GSONable, Hashable):
     __slots__ = ["_x", "_free", "_lower_bounds", "_upper_bounds", "_names", "_dep_opts"]
 
     def __init__(self,
-                 x: RealArray = None,  # To enable empty DOFs object
+                 x: RealComplexArray = None,  # To enable empty DOFs object
                  names: StrArray = None,
                  free: BoolArray = None,
-                 lower_bounds: RealArray = None,
-                 upper_bounds: RealArray = None) -> None:
+                 lower_bounds: RealComplexArray = None,
+                 upper_bounds: RealComplexArray = None) -> None:
         """
         Args:
             x: Numeric values of the DOFs
@@ -91,10 +91,16 @@ class DOFs(GSONable, Hashable):
             upper_bounds: Upper bounds for the DOFs. Meaningful only if
                 DOF is not fixed. Default is np.inf
         """
+        # infer data type
+        if (np.any(np.iscomplexobj(x)) or np.any(np.iscomplexobj(lower_bounds)) or np.any(np.iscomplexobj(upper_bounds))):
+            dtype = np.complex128
+        else:
+            dtype = np.double
+
         if x is None:
             x = np.array([])
         else:
-            x = np.asarray(x, dtype=np.double)
+            x = np.asarray(x, dtype)
 
         if names is None:
             names = [f"x{i}" for i in range(len(x))]
@@ -108,12 +114,12 @@ class DOFs(GSONable, Hashable):
         if lower_bounds is None:
             lower_bounds = np.full(len(x), -np.inf)
         else:
-            lower_bounds = np.asarray(lower_bounds, np.double)
+            lower_bounds = np.asarray(lower_bounds, dtype)
 
         if upper_bounds is None:
             upper_bounds = np.full(len(x), np.inf)
         else:
-            upper_bounds = np.asarray(upper_bounds, np.double)
+            upper_bounds = np.asarray(upper_bounds, dtype)
 
         assert (len(x) == len(free) == len(lower_bounds) == len(upper_bounds) \
                 == len(names))
@@ -123,6 +129,7 @@ class DOFs(GSONable, Hashable):
         self._upper_bounds = upper_bounds
         self._names = list(names)
         self._dep_opts = []
+        self._dtype = dtype
         self._hash = id(self) % 10**32  # 32 digit int as hash
         self.name = str(id(self))   # For serialization
 
@@ -320,7 +327,7 @@ class DOFs(GSONable, Hashable):
         # And to prevent broadcasting of a single DOF
         if self.reduced_len != len(x):
             raise DofLengthMismatchError(len(x), self.reduced_len)
-        self._x[self._free] = np.asarray(x, dtype=np.double)
+        self._x[self._free] = np.asarray(x, dtype=self._dtype)
         self._flag_recompute_opt()
 
     @property
@@ -346,7 +353,7 @@ class DOFs(GSONable, Hashable):
         # To prevent broadcasting of a single DOF
         if len(self._x) != len(x):
             raise DofLengthMismatchError(len(x), len(self._x))
-        self._x = np.asarray(x, dtype=np.double)
+        self._x = np.asarray(x, dtype=self._dtype)
         self._flag_recompute_opt()
 
     @property
@@ -382,7 +389,7 @@ class DOFs(GSONable, Hashable):
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(lower_bounds):
             raise DofLengthMismatchError(len(lower_bounds), self.reduced_len)
-        self._lower_bounds[self._free] = np.asarray(lower_bounds, dtype=np.double)
+        self._lower_bounds[self._free] = np.asarray(lower_bounds, dtype=self._dtype)
 
     @property
     def full_lower_bounds(self) -> RealArray:
@@ -398,7 +405,7 @@ class DOFs(GSONable, Hashable):
         """
         if len(self.lower_bounds) != len(lower_bounds):
             raise DofLengthMismatchError(len(lower_bounds), len(self.lower_bounds))
-        self._lower_bounds = np.asarray(lower_bounds, dtype=np.double)
+        self._lower_bounds = np.asarray(lower_bounds, dtype=self._dtype)
 
     @property
     def free_upper_bounds(self) -> RealArray:
@@ -420,7 +427,7 @@ class DOFs(GSONable, Hashable):
         # and to prevent broadcasting of a single DOF
         if self.reduced_len != len(upper_bounds):
             raise DofLengthMismatchError(len(upper_bounds), self.reduced_len)
-        self._upper_bounds[self._free] = np.asarray(upper_bounds, dtype=np.double)
+        self._upper_bounds[self._free] = np.asarray(upper_bounds, dtype=self._dtype)
 
     @property
     def full_upper_bounds(self) -> RealArray:
@@ -436,7 +443,7 @@ class DOFs(GSONable, Hashable):
         """
         if len(self.upper_bounds) != len(upper_bounds):
             raise DofLengthMismatchError(len(upper_bounds), len(self.upper_bounds))
-        self._upper_bounds = np.asarray(upper_bounds, dtype=np.double)
+        self._upper_bounds = np.asarray(upper_bounds, dtype=self._dtype)
 
     @property
     def bounds(self) -> Tuple[RealArray, RealArray]:
