@@ -200,6 +200,12 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         logger.debug(f"residuals are {residuals}")
         return residuals
 
+    if "bounds" in kwargs:
+        import warnings
+        warnings.warn("The bounds argument has been deprecated and is being ignored, \
+                      please use prob.bounds instead.", DeprecationWarning, 2)
+        kwargs.pop("bounds", None)
+
     # For MPI finite difference gradient, get the worker and leader action from
     # MPIFiniteDifference
     if grad:
@@ -211,10 +217,10 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
                 try:
-                    result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
-                                           **kwargs)
+                    result = least_squares(_f_proc0, x0, bounds=prob.bounds, 
+                                           jac=fd.jac, verbose=2, **kwargs)
                 except:
-                    print("Failure on proc0_world")
+                    logger.error("Failure on proc0_world")
                     result = Struct()
                     result.x = x0
 
@@ -228,7 +234,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             # proc0_world does this block, running the optimization.
             x0 = np.copy(prob.x)
             logger.info("Using derivative-free method")
-            result = least_squares(_f_proc0, x0, verbose=2, **kwargs)
+            result = least_squares(_f_proc0, x0, bounds=prob.bounds,
+                                   verbose=2, **kwargs)
 
         # Stop loops for workers and group leaders:
         mpi.together()
