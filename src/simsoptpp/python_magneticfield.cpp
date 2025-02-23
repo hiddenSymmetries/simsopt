@@ -109,6 +109,8 @@ void init_magneticfields(py::module_ &m){
     auto ifield = py::class_<PyInterpolatedField, shared_ptr<PyInterpolatedField>, PyMagneticField>(m, "InterpolatedField")
         .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
         .def(py::init<shared_ptr<PyMagneticField>, int, RangeTriplet, RangeTriplet, RangeTriplet, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+        .def(py::init<shared_ptr<PyMagneticField>, InterpolationRule, RangeParams, RangeParams, RangeParams, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
+        .def(py::init<shared_ptr<PyMagneticField>, int, RangeParams, RangeParams, RangeParams, bool, int, bool, std::function<std::vector<bool>(Vec, Vec, Vec)>>())
         .def("estimate_error_B", &PyInterpolatedField::estimate_error_B)
         .def("estimate_error_GradAbsB", &PyInterpolatedField::estimate_error_GradAbsB)
         .def_readonly("r_range", &PyInterpolatedField::r_range)

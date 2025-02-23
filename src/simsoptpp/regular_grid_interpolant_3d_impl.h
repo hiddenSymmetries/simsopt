@@ -237,16 +237,16 @@ std::pair<double, double> RegularGridInterpolant3D<Array>::estimate_error(std::f
 
 
 
-Vec linspace(double min, double max, int n, bool endpoint) {
-    Vec res(n, 0.);
+double linspace(double min, double max, int n, bool endpoint, Vec& res) {
+    double h;
     if(endpoint) {
-        double h = (max-min)/(n-1);
+        h = (max-min)/(n-1);
         for (int i = 0; i < n; ++i)
             res[i] = min + i*h;
     } else {
-        double h = (max-min)/n;
+        h = (max-min)/n;
         for (int i = 0; i < n; ++i)
             res[i] = min + i*h;
     }
-    return res;
+    return h;
 }

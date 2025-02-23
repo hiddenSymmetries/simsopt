@@ -862,10 +862,14 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
         Args:
             field: the underlying :mod:`simsopt.field.magneticfield.MagneticField` to be interpolated.
             degree: the degree of the piecewise polynomial interpolant.
-            rrange: a 3-tuple of the form ``(rmin, rmax, nr)``. This mean that the interval :math:`[rmin, rmax]` is
-                    split into ``nr`` many subintervals.
-            phirange: a 3-tuple of the form ``(phimin, phimax, nphi)``.
-            zrange: a 3-tuple of the form ``(zmin, zmax, nz)``.
+            rrange: a 3-tuple of the form ``(rmin, rmax, nr)`` or a 4-tuple of the form ``(rmin, rmax, nr, include_endpoint)``.
+            The default for `include_endpoint` is True. This mean that the interval :math:`[rmin, rmax]` is
+            split into ``nr`` many subintervals. When `include_endpoint` is False, interval :math:`[rmin, rmax)` is
+            split into ``nr`` many subintervals.
+            phirange: a 3-tuple of the form ``(phimin, phimax, nphi)`` or a 4-tuple of the form
+            ``(phimin, phimax, nphi, include_endpoint)``.
+            zrange: a 3-tuple of the form ``(zmin, zmax, nz)`` or a 4-tuple of the form
+            ``(zmin, zmax, nz, include_endpoint)``.
             extrapolate: whether to extrapolate the field when evaluate outside
                          the integration domain or to throw an error.
             nfp: Whether to exploit rotational symmetry. In this case any angle
@@ -900,7 +904,7 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
                 return [False for _ in xs]
 
         sopp.InterpolatedField.__init__(self, field, degree, rrange, phirange, zrange, extrapolate, nfp, stellsym, skip)
-        self.__field = field
+        self._field = field
 
     def to_vtk(self, filename):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
