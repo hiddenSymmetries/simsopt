@@ -3,7 +3,8 @@ import numpy as np
 from pathlib import Path
 from simsopt.geo import SurfaceRZFourier, CurveXYZFourier, ToroidalWireframe
 from simsopt.field import WireframeField, enclosed_current, ToroidalField
-from simsopt.solve import optimize_wireframe, bnorm_obj_matrices
+from simsopt.solve import optimize_wireframe, bnorm_obj_matrices, \
+                          get_gsco_iteration
 from simsopt.objectives import SquaredFlux
 
 TEST_DIR = (Path(__file__).parent / ".." / "test_files").resolve()
@@ -190,8 +191,8 @@ class WireframeOptimizationTests(unittest.TestCase):
         std_params = {'lambda_S': 1e-10, 
                       'default_current': 0.02*cur_pol,        
                       'max_current': 0.1*cur_pol, 
-                      'nIter': 120, 
-                      'nHistory': 6}
+                      'max_iter': 120, 
+                      'print_interval': 20}
 
         # Verify that suitable errors are raised for faulty input
         with self.assertRaises(ValueError):
@@ -237,14 +238,14 @@ class WireframeOptimizationTests(unittest.TestCase):
 
         # Verify consistency of the history data
         currents_soln = np.array(wf.currents)
-        currents_0 = res0['x_hist'][:,0].reshape((-1))
+        currents_0 = get_gsco_iteration(0, res0, wf)
         self.assertTrue(np.allclose(currents_0, 0))
-        currents_final = res0['x_hist'][:,-1].reshape((-1))
-        self.assertTrue(np.allclose(currents_final, currents_soln))
+        currents_final = get_gsco_iteration(res0['iter_hist'][-1], res0, wf)
+        self.assertTrue(np.allclose(currents_final.ravel(), currents_soln))
         for i in range(len(res0['iter_hist'])):
             f_B_i = res0['f_B_hist'][i]
             f_S_i = res0['f_S_hist'][i]
-            currents_i = res0['x_hist'][:,i].reshape((-1))
+            currents_i = get_gsco_iteration(i, res0, wf).ravel()
             wf.currents[:] = currents_i[:]
             mf_i = WireframeField(wf) + mf_tor
             self.assertTrue(np.isclose(SquaredFlux(surf_plas, mf_i).J(), f_B_i))
@@ -257,7 +258,6 @@ class WireframeOptimizationTests(unittest.TestCase):
         res1 = optimize_wireframe(wf, 'gsco', params_0_curr, 
                    surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
         self.assertEqual(len(res1['iter_hist']), 1)
-        self.assertEqual(res1['x_hist'].shape[1], 1)
 
         # Verify that no iterations take place if no loops can be added
         wf.currents[:] = 0
@@ -265,14 +265,13 @@ class WireframeOptimizationTests(unittest.TestCase):
         res2 = optimize_wireframe(wf, 'gsco', std_params, surf_plas=surf_plas,
                                   ext_field=mf_tor, verbose=False)
         self.assertEqual(len(res2['iter_hist']), 1)
-        self.assertEqual(res2['x_hist'].shape[1], 1)
         wf.free_all_segments()
             
         # Redo optimization restricting current from forming loops
         params_no_xing = dict(std_params)
         params_no_xing['no_crossing'] = True
-        params_no_xing['nIter'] = 10
-        params_no_xing['nHistory'] = 2
+        params_no_xing['max_iter'] = 10
+        params_no_xing['print_interval'] = 5
         res3 = optimize_wireframe(wf, 'gsco', params_no_xing, 
             surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
 
@@ -288,8 +287,10 @@ class WireframeOptimizationTests(unittest.TestCase):
         params_no_xing_contd['loop_count_init'] = res3['loop_count']
         res4 = optimize_wireframe(wf, 'gsco', params_no_xing_contd, 
             surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
-        self.assertTrue(np.allclose(res3['x_hist'][:,-1], res4['x_hist'][:,0]))
-        self.assertTrue(np.allclose(res3['x'][:,0], res4['x_hist'][:,0]))
+        self.assertTrue(np.allclose(
+            get_gsco_iteration(res3['iter_hist'][-1], res3, wf),
+            get_gsco_iteration(0, res4, wf)))
+        self.assertTrue(np.allclose(res3['x'], get_gsco_iteration(0, res4, wf)))
         self.assertTrue(np.isclose(res3['f_B_hist'][-1], res4['f_B_hist'][0]))
         self.assertTrue(np.isclose(res3['f_S_hist'][-1], res4['f_S_hist'][0]))
         cellKey = wf.get_cell_key()
@@ -308,7 +309,9 @@ class WireframeOptimizationTests(unittest.TestCase):
         params_no_xing_x_init['x_init'] = res3['x']
         res5 = optimize_wireframe(wf, 'gsco', params_no_xing_x_init, 
             surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
-        self.assertTrue(np.allclose(res4['x_hist'], res5['x_hist']))
+        for i in res5['iter_hist']:
+            self.assertTrue(np.allclose(get_gsco_iteration(i, res4, wf),
+                                        get_gsco_iteration(i, res5, wf)))
 
         # Higher-resolution wireframe for additional testing
         nPhi2 = 8
@@ -320,8 +323,8 @@ class WireframeOptimizationTests(unittest.TestCase):
         seg_curr = 0.01*cur_pol
         params_no_xing_1_curr['default_current'] = seg_curr
         params_no_xing_1_curr['max_current'] = seg_curr
-        params_no_xing_1_curr['nIter'] = 100
-        params_no_xing_1_curr['nHistory'] = 10
+        params_no_xing_1_curr['max_iter'] = 100
+        params_no_xing_1_curr['print_interval'] = 10
         res6 = optimize_wireframe(wf2, 'gsco', params_no_xing_1_curr, 
             surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
         self.assertTrue(wf2.check_constraints())
@@ -344,7 +347,7 @@ class WireframeOptimizationTests(unittest.TestCase):
         params_no_new = dict(params_no_xing_1_curr)
         params_no_new['no_new_coils'] = True
         params_no_new['default_current'] = 0.01*cur_pol
-        params_no_new['x_init'] = res6['x_hist'][:,5]
+        params_no_new['x_init'] = get_gsco_iteration(40, res6, wf2)
         res8 = optimize_wireframe(wf2, 'gsco', params_no_new, 
             surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
 

@@ -37,8 +37,8 @@ if not in_github_actions:
     # Maximum number of GSCO iterations
     max_iter = 2500
 
-    # How often to save progress: every (max_iter/n_hist)^th iteration is saved
-    n_hist = 25       
+    # How often to print progress
+    print_interval = 100
 
     # Resolution of test points on plasma boundary (poloidal and toroidal)
     plas_n = 32       # 32 to match reference
@@ -49,7 +49,7 @@ else:
     wf_nPhi = 12
     wf_nTheta = 12
     max_iter = 100
-    n_hist = 10
+    print_interval = 10
     plas_n = 4
 
 # Number of planar TF coils in the solution per half period
@@ -262,8 +262,8 @@ while not final_step:
     # Set the optimization parameters
     if not final_step:
         opt_params = {'lambda_S': lambda_S, 
-                      'nIter': max_iter,
-                      'nHistory': n_hist,
+                      'max_iter': max_iter,
+                      'print_interval': print_interval,
                       'no_crossing': True,
                       'max_loop_count': 1, 
                       'loop_count_init': loop_count, 
@@ -272,8 +272,8 @@ while not final_step:
                      }
     else:
         opt_params = {'lambda_S': lambda_S, 
-                      'nIter': max_iter,
-                      'nHistory': n_hist,
+                      'max_iter': max_iter,
+                      'print_interval': print_interval,
                       'no_crossing': True,
                       'max_loop_count': 1, 
                       'loop_count_init': loop_count, 

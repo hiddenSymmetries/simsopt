@@ -32,8 +32,8 @@ if not in_github_actions:
     # Maximum number of GSCO iterations
     max_iter = 2000   # 20000 to match reference
 
-    # How often to save progress: every (max_iter/n_hist)^th iteration is saved
-    n_hist = 20       # every (max_iter/n_hist)^th iteration is saved
+    # How often print progress
+    print_interval = 100
 
     # Resolution of test points on plasma boundary (poloidal and toroidal)
     plas_n = 32       # 32 to match reference
@@ -41,10 +41,10 @@ if not in_github_actions:
 else:
 
     # For GitHub CI tests, run at very low resolution 
-    wf_nPhi = 12
-    wf_nTheta = 12
+    wf_nPhi = 18
+    wf_nTheta = 8
     max_iter = 100
-    n_hist = 10
+    print_interval = 10
     plas_n = 4
 
 # Number of modular coils in the solution per half period
@@ -113,8 +113,8 @@ if make_mayavi_plots:
 
 # Set the optimization parameters
 opt_params = {'lambda_S': lambda_S, 
-              'nIter': max_iter,
-              'nHistory': n_hist,
+              'max_iter': max_iter,
+              'print_interval': print_interval,
               'no_crossing': True,
               'default_current': np.abs(coil_current),
               'max_current': 1.1 * np.abs(coil_current)

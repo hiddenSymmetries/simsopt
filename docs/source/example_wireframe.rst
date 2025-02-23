@@ -541,22 +541,22 @@ default loop current. (It needs to be slightly higher to avoid loops being
 erroneously marked as ineligible due to floating point imprecision.) The
 regularization weighting factor, :math:`\lambda_S` is set through the parameter 
 ``lambda_S``. Finally, a cap on the number of iterations and the frequency with 
-which intermediate results should be saved are set with ``nIter`` and 
-``nHistory``, respectively. To summarize::
+which intermediate results should be saved are set with ``max_history`` and 
+``print_interval``, respectively. To summarize::
 
   # Maximum number of GSCO iterations
   max_iter = 2000
             
-  # How often to save progress: every (max_iter/n_hist)^th iteration is saved
-  n_hist = 20
+  # How often to print progress
+  print_interval = 100
 
   # Weighting factor for the sparsity objective
   lambda_S = 10**-6
 
   # Set the optimization parameters 
   opt_params = {'lambda_S': lambda_S, 
-                'nIter': max_iter,
-                'nHistory': n_hist,
+                'max_iter': max_iter,
+                'print_interval': print_interval,
                 'no_crossing': True,
                 'default_current': np.abs(coil_current),
                 'max_current': 1.1 * np.abs(coil_current)
@@ -653,8 +653,8 @@ eligibility rules::
 
   # Set the optimization parameters
   opt_params = {'lambda_S': lambda_S,
-                'nIter': max_iter,
-                'nHistory': n_hist,
+                'max_iter': max_iter,
+                'print_interval': print_interval,
                 'no_crossing': True,
                 'default_current': np.abs(gsco_cur_frac*pol_cur),
                 'max_current': 1.1 * np.abs(gsco_cur_frac*pol_cur)
@@ -852,8 +852,8 @@ the shape of coils carrying the initial (highest) current level::
   # Set the optimization parameters
   if not final_step:
       opt_params = {'lambda_S': lambda_S,
-                    'nIter': max_iter,
-                    'nHistory': n_hist,
+                    'max_iter': max_iter,
+                    'print_interval': print_interval,
                     'no_crossing': True,
                     'max_loop_count': 1,
                     'loop_count_init': loop_count,
@@ -862,8 +862,8 @@ the shape of coils carrying the initial (highest) current level::
                    }
   else:
       opt_params = {'lambda_S': lambda_S,
-                    'nIter': max_iter,
-                    'nHistory': n_hist,
+                    'max_iter': max_iter,
+                    'print_interval': print_interval,
                     'no_crossing': True,
                     'max_loop_count': 1,
                     'loop_count_init': loop_count,

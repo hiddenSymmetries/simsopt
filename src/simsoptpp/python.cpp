@@ -82,7 +82,7 @@ PYBIND11_MODULE(simsoptpp, m) {
           py::arg("current"), py::arg("max_current"), py::arg("max_loop_count"),
           py::arg("loops"), py::arg("free_loops"), py::arg("segments"), 
           py::arg("connections"), py::arg("lambda_P"), py::arg("nIter"), 
-          py::arg("x_init"), py::arg("cell_count_init"), py::arg("nHistory"));
+          py::arg("x_init"), py::arg("cell_count_init"), py::arg("print_freq"));
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);

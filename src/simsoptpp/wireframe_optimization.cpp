@@ -43,51 +43,47 @@ using std::vector;
  *    IntArray& connections: 4-column matrix giving the indices of the 
  *      segments connected to each node
  *    double lambda_P: the weighting factor lambda_P as defined above
- *    int nIter: number of iterations to perform
+ *    int nIter: maximum number of iterations to perform
  *    Array& x_init: initial values of `x`
  *    IntArray& loop_count_init: signed number of current increments added to
  *      each loop in the wireframe prior to the optimization (optimization will
  *      add to these numbers)
- *    int nHistory: number of intermediate solutions to record, evenly spaced
- *      among the iterations
+ *    int print_interval: how often to print iteration data to screen (i.e.
+ *      the number of iterations between subsequent prints)
  *      
  *  Returns (as a tuple):
  *    Array x: solution vector
  *    IntArray loop_count: signed number of current loops added to each loop
  *      in the wireframe
  *    IntArray iter_history: array with the iteration numbers of the data 
- *      recorded in the history arrays, spaced at intervals specified by the 
- *      `nHistory` input parameter. The first index is 0, corresponding to the
- *      initial guess `x_init`; the last is the final iteration. 
- *    Array x_history: matrix with columns corresponding to the solution at
- *      the iterations listed in `iter_history`
+ *      recorded in the history arrays
+ *    Array curr_history: array with the signed loop current added at each
+ *      iteration, taken to be zero for the initial guess (iteration zero)
+ *    Array loop_history: array with the index of the loop to which current
+ *      was added at each iteration; taken to be zero for the initial guess
+ *      (iteration zero)
  *    Array f_B_history: array with values of the f_B objective function at 
- *      iterations listed in `iter_history`
+ *      each iteration
  *    Array f_S_history: array with values of the f_S objective function at 
- *      the iterations listed in `iter_history`
+ *      each iteration
  *    Array f_history: array with values of the f_S objective function at 
- *      iterations listed in `iter_history`
+ *      each iteration
  */
-std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
+std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
     bool no_crossing, bool no_new_coils, bool match_current,
     Array& A_obj, Array& b_obj, double default_current, double max_current, 
     int max_loop_count, IntArray& loops, IntArray& free_loops, 
     IntArray& segments, IntArray& connections, double lambda_P, int nIter, 
-    Array& x_init, IntArray& loop_count_init, int nHistory){
+    Array& x_init, IntArray& loop_count_init, int print_interval){
 
     int nSegs = A_obj.shape(1);
     int nGrid = A_obj.shape(0);
     int nLoops = loops.shape(0);
 
-    // Adjustment to number of history entries to save
-    int extra = (nIter % nHistory == 0) ? 1 : 2;
-
     // Initialize the solution array
     Array x = xt::zeros<double>({nSegs,1});
-    Array x_history = xt::zeros<double>({nSegs,nHistory+extra});
     for (int i = 0; i < nSegs; ++i) {
         x(i,0) = x_init(i,0);
-        x_history(i,0) = x_init(i,0);
     }
     double* x_ptr = &(x(0,0));
 
@@ -140,10 +136,18 @@ std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
     }
     int* loop_count_ptr = &(loop_count(0));
 
-    IntArray iter_history = xt::zeros<int>({nHistory+extra});
-    Array f_B_history = xt::zeros<double>({nHistory+extra});
-    Array f_S_history = xt::zeros<double>({nHistory+extra});
-    Array f_history = xt::zeros<double>({nHistory+extra});
+    IntArray iter_history = xt::zeros<int>({nIter+1});
+    Array curr_history = xt::zeros<double>({nIter+1});
+    IntArray loop_history = xt::zeros<int>({nIter+1});
+    Array f_B_history = xt::zeros<double>({nIter+1});
+    Array f_S_history = xt::zeros<double>({nIter+1});
+    Array f_history = xt::zeros<double>({nIter+1});
+    int* iter_hist_ptr = &(iter_history[0]);
+    double* curr_hist_ptr = &(curr_history[0]);
+    int* loop_hist_ptr = &(loop_history[0]);
+    double* f_B_hist_ptr = &(f_B_history[0]);
+    double* f_S_hist_ptr = &(f_S_history[0]);
+    double* f_hist_ptr = &(f_history[0]);
 
     // Initial history values
     int hist_ind = 0;
@@ -159,9 +163,12 @@ std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
     printf("  Beginning GSCO iterations\n");
     printf("%11s %14s %14s %14s\n", "Iteration", "f_B", "f_S", "f");
     printf("  ---------   ------------   ------------   ------------\n");
-    record_history(hist_ind, 0, x, 0.5*f_B_latest, 0.5*f_S_latest, 
-                   0.5*f_B_latest + 0.5*lambda_P*f_S_latest, iter_history, 
-                   x_history, f_B_history, f_S_history, f_history);
+    print_iter(0, 0.5*f_B_latest, 0.5*f_S_latest, 
+               0.5*f_B_latest + 0.5*lambda_P*f_S_latest);
+    record_iter(0, 0.0, 0, 0.5*f_B_latest, 0.5*f_S_latest, 
+                0.5*f_B_latest + 0.5*lambda_P*f_S_latest, iter_hist_ptr, 
+                curr_hist_ptr, loop_hist_ptr, f_B_hist_ptr, f_S_hist_ptr, 
+                f_hist_ptr);
 
     vector<double> eligible_curr(2*nLoops, 0);
     double* eligible_curr_ptr = &(eligible_curr[0]);
@@ -173,6 +180,7 @@ std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
     bool stop_now = false; 
     bool stop_none_eligible = false; 
     bool stop_undone_loop = false;
+    bool stop_last_iter = false;
 
     // Greedy iterations
     for (int i = 0; i < nIter; ++i) {
@@ -268,7 +276,8 @@ std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
         else {
             opt_ind_prev = opt_ind;
         }
-        stop_now = (stop_none_eligible || stop_undone_loop);
+        stop_last_iter = i + 1 == nIter;
+        stop_now = (stop_none_eligible || stop_undone_loop || stop_last_iter);
 
         // Update the solution if deemed acceptable
         if (accept_current_loop) {
@@ -291,40 +300,23 @@ std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
             f_S_latest = f_Ss[opt_ind];
             f_B_latest = f_Bs[opt_ind];
             f_latest = fs[opt_ind];
+
+            hist_ind++;
+
+            // Record the loop in to history arrays
+            record_iter(hist_ind, current, loop_ind, 
+                        0.5*f_B_latest, 0.5*f_S_latest, 0.5*f_latest, 
+                        iter_hist_ptr, curr_hist_ptr, loop_hist_ptr, 
+                        f_B_hist_ptr, f_S_hist_ptr, f_hist_ptr);
         }
 
-        if ((i+1) % int(nIter/nHistory) == 0 || i == nIter - 1 || stop_now) {
+        // Print data if applicable
+        bool at_interval = hist_ind % print_interval == 0;
+        if ((accept_current_loop && (at_interval || stop_now)) || 
+            (stop_now && not at_interval)) {
 
-            // Verify that f_S is as expected
-            if (abs(f_S_latest - compute_chi2_P(x, tol)) > 0.00001) {
-                printf("ERROR in computing f_S\n");
-                printf("From function: %14.4e\n", compute_chi2_P(x, tol));
-                printf("From array: %14.4e\n", f_S_latest);
-                exit(-1);
-            }
+            print_iter(hist_ind, 0.5*f_B_latest, 0.5*f_S_latest, 0.5*f_latest);
 
-            // Print history unless the current update is unacceptable and 
-            // the solution from the previous iteration was already recorded 
-            if (accept_current_loop || iter_history(hist_ind) != i) {
-
-                hist_ind++;
-
-                int rec_iter;
-                if (accept_current_loop) {
-                    // The solution to be recorded was updated in the current
-                    // iteration
-                    rec_iter = i+1;
-                }
-                else {
-                    // The solution to be recorded was updated in the previous
-                    // iteration (and not already recorded)
-                    rec_iter = i;
-                }
-
-                record_history(hist_ind, rec_iter, x, 0.5*f_B_latest,
-                               0.5*f_S_latest, 0.5*f_latest, iter_history,
-                               x_history, f_B_history, f_S_history, f_history);
-            }
         }
 
         // Terminate the iterations if a stopping condition has been reached
@@ -335,32 +327,40 @@ std::tuple<Array,IntArray,IntArray,Array,Array,Array,Array> GSCO(
             else if (stop_undone_loop) {
                 printf("  Stopping iterations: minimum objective reached\n");
             }
+            else if (stop_last_iter) {
+                printf("  Stopping iterations: maximum iteration reached\n");
+            }
             break;
         }
 
     }
 
     auto iter_hist_out = xt::view(iter_history, xt::range(0, hist_ind+1));
-    auto x_hist_out = xt::view(x_history, xt::all(), xt::range(0, hist_ind+1));
+    auto curr_hist_out = xt::view(curr_history, xt::range(0, hist_ind+1));
+    auto loop_hist_out = xt::view(loop_history, xt::range(0, hist_ind+1));
     auto f_B_hist_out = xt::view(f_B_history, xt::range(0, hist_ind+1));
     auto f_S_hist_out = xt::view(f_S_history, xt::range(0, hist_ind+1));
     auto f_hist_out = xt::view(f_history, xt::range(0, hist_ind+1));
-    return std::make_tuple(x, loop_count, iter_hist_out, x_hist_out,
-                           f_B_hist_out, f_S_hist_out, f_hist_out);
+    return std::make_tuple(x, loop_count, iter_hist_out, curr_hist_out,
+                           loop_hist_out, f_B_hist_out, f_S_hist_out, 
+                           f_hist_out);
 }
 
-void record_history(int hist_ind, int iter, Array& x, double f_B, double f_S, 
-                    double f, IntArray& iter_history, Array& x_history, 
-                    Array& f_B_history, Array& f_S_history, Array& f_history) {
+void record_iter(int iter, double curr, int loop_ind, double f_B, double f_S, 
+                 double f, int* iter_hist_ptr, double* curr_hist_ptr, 
+                 int* loop_hist_ptr, double* f_B_hist_ptr, double* f_S_hist_ptr,
+                 double* f_hist_ptr) {
 
-    int nx = x.shape(0);
-    for (int i = 0; i < nx; ++i) {
-        x_history(i,hist_ind) = x(i,0);
-    }
-    iter_history(hist_ind) = iter;
-    f_B_history(hist_ind) = f_B;
-    f_S_history(hist_ind) = f_S;
-    f_history(hist_ind) = f;
+    iter_hist_ptr[iter] = iter;
+    curr_hist_ptr[iter] = curr;
+    loop_hist_ptr[iter] = loop_ind;
+    f_B_hist_ptr[iter] = f_B;
+    f_S_hist_ptr[iter] = f_S;
+    f_hist_ptr[iter] = f;
+
+}
+
+void print_iter(int iter, double f_B, double f_S, double f) {
 
     printf("%11d %14.4e %14.4e %14.4e\n", iter, f_B, f_S, f);
 
