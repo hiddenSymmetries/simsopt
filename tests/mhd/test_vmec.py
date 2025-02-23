@@ -230,8 +230,10 @@ class VmecTests(unittest.TestCase):
 
         def compare_surfaces_sym(s1, s2):
             logger.debug('compare_surfaces_sym called')
-            mpol = min(s1.mpol, s2.mpol)
-            ntor = min(s1.ntor, s2.ntor)
+            self.assertEqual(s1.mpol, s2.mpol)
+            self.assertEqual(s1.ntor, s2.ntor)
+            mpol = s1.mpol
+            ntor = s1.ntor
             places = 13
             for m in range(mpol + 1):
                 nmin = 0 if m == 0 else -ntor
@@ -243,8 +245,10 @@ class VmecTests(unittest.TestCase):
             logger.debug('compare_surfaces_asym called')
             self.assertAlmostEqual(np.abs(s1.volume()), np.abs(s2.volume()), places=13)
             self.assertAlmostEqual(s1.area(), s2.area(), places=7)
-            mpol = min(s1.mpol, s2.mpol)
-            ntor = min(s1.ntor, s2.ntor)
+            self.assertEqual(s1.mpol, s2.mpol)
+            self.assertEqual(s1.ntor, s2.ntor)
+            mpol = s1.mpol
+            ntor = s1.ntor
             for m in range(mpol + 1):
                 nmin = 0 if m == 0 else -ntor
                 for n in range(nmin, ntor + 1):
