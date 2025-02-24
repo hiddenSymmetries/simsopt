@@ -168,8 +168,8 @@ class Vmec(Optimizable):
     Vmec object with different parameters; changing the parameters of
     one would change the parameters of the other.
 
-    An instance of this class owns just a few optimizable degrees of
-    freedom, particularly ``phiedge`` and ``curtor``. The optimizable
+    An instance of this class owns three optimizable degrees of
+    freedom: ``phiedge``, ``curtor``, and ``pres_scale``. The optimizable
     degrees of freedom associated with the boundary surface are owned
     by that surface object.
 
@@ -203,7 +203,7 @@ class Vmec(Optimizable):
     ``indata.pmass_type`` is ``"power_series"`` or
     ``"cubic_spline"``. (The current profile is different in that
     either ``"cubic_spline_ip"`` or ``"cubic_spline_i"`` is specified
-    instead of ``"cubic_spline"``.) The number of terms in the power
+    instead of ``"cubic_spline"``, where ``cubic_spline_ip`` sets I'(s) while ``cubic_spline_i`` sets I(s).) The number of terms in the power
     series or number of spline nodes is determined by the attributes
     ``n_pressure``, ``n_current``, and ``n_iota``.  If a cubic spline
     is used, the spline nodes are uniformly spaced from :math:`s=0` to
@@ -226,6 +226,8 @@ class Vmec(Optimizable):
         vmec.pressure_profile = pressure_Pa
         vmec.indata.pmass_type = "cubic_spline"
         vmec.n_pressure = 8  # Use 8 spline nodes
+
+    When a current profile is used, the ``VMEC`` object automatically updates ``curtor`` so that the total toroidal current I(s=1) matches that of the specified profile.
 
     When VMEC is run multiple times, the default behavior is that all
     ``wout`` output files will be deleted except for the first and
@@ -373,7 +375,7 @@ class Vmec(Optimizable):
         # Handle a few variables that are not Parameters:
         x0 = self.get_dofs()
         fixed = np.full(len(x0), True)
-        names = ['delt', 'tcon0', 'phiedge', 'curtor', 'gamma']
+        names = ['phiedge', 'curtor', 'pres_scale']
         super().__init__(x0=x0, fixed=fixed, names=names,
                          depends_on=[self._boundary],
                          external_dof_setter=Vmec.set_dofs)
@@ -444,20 +446,17 @@ class Vmec(Optimizable):
     def get_dofs(self):
         if not self.runnable:
             # Use default values from vmec_input
-            return np.array([1, 1, 1, 0, 0])
+            return np.array([1.0, 0.0, 1.0])
         else:
-            return np.array([self.indata.delt, self.indata.tcon0,
-                             self.indata.phiedge, self.indata.curtor,
-                             self.indata.gamma])
+            return np.array([self.indata.phiedge, self.indata.curtor,
+                             self.indata.pres_scale])
 
     def set_dofs(self, x):
         if self.runnable:
             self.need_to_run_code = True
-            self.indata.delt = x[0]
-            self.indata.tcon0 = x[1]
-            self.indata.phiedge = x[2]
-            self.indata.curtor = x[3]
-            self.indata.gamma = x[4]
+            self.indata.phiedge = x[0]
+            self.indata.curtor = x[1]
+            self.indata.pres_scale = x[2]
 
     def recompute_bell(self, parent=None):
         self.need_to_run_code = True
@@ -549,8 +548,13 @@ class Vmec(Optimizable):
         if self.pressure_profile is not None:
             vi.pres_scale = 1.0
         if self.current_profile is not None:
-            integral, _ = quad(self.current_profile, 0, 1)
-            vi.curtor = integral
+            if vi.pcurr_type.decode().lower().strip() in ['power_series', 'gauss_trunc', 'two_power', 'cubic_spline_ip', 'akima_spline_ip']:
+                integral, _ = quad(self.current_profile, 0, 1)
+                vi.curtor = integral
+            else:
+                vi.curtor = self.current_profile(1.0)
+
+                
 
         return boundary_RZFourier
 
@@ -755,7 +759,11 @@ class Vmec(Optimizable):
 
             # Delete the previous output file, if desired:
             for filename in self.files_to_delete:
-                os.remove(filename)
+                try:
+                    os.remove(filename)
+                except FileNotFoundError:
+                    logger.debug(f"Tried to delete the file {filename} but it was not found")
+                    
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:

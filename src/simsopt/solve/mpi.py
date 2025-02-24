@@ -23,6 +23,7 @@ except ImportError:
     MPI = None
 
 from .._core.optimizable import Optimizable
+from .._core.util import Struct
 from ..util.mpi import MpiPartition
 from .._core.finite_difference import MPIFiniteDifference
 from ..objectives.least_squares import LeastSquaresProblem
@@ -79,6 +80,7 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                             abs_step: float = 1.0e-7,
                             rel_step: float = 0.0,
                             diff_method: str = "forward",
+                            save_residuals: bool = False,
                             **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -101,6 +103,8 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
              "forward". If ``centered``, centered finite differences will
              be used. If ``forward``, one-sided finite differences will
              be used. Else, error is raised.
+        save_residuals: Whether to save the residuals at each iteration.
+             This may be useful for debugging, although the file can become large.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -159,20 +163,21 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
             objective_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
             objective_file.write("function_evaluation,seconds")
 
-            residuals_file = open(f"residuals_{datestr}.dat", 'w')
-            residuals_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
-            residuals_file.write("function_evaluation,seconds")
-
             for j in range(prob.dof_size):
                 objective_file.write(f",x({j})")
             objective_file.write(",objective_function\n")
 
-            for j in range(prob.dof_size):
-                residuals_file.write(f",x({j})")
-            residuals_file.write(",objective_function")
-            for j in range(len(residuals)):
-                residuals_file.write(f",F({j})")
-            residuals_file.write("\n")
+            if save_residuals:
+                residuals_file = open(f"residuals_{datestr}.dat", 'w')
+                residuals_file.write(f"Problem type:\nleast_squares\nnparams:\n{prob.dof_size}\n")
+                residuals_file.write("function_evaluation,seconds")
+
+                for j in range(prob.dof_size):
+                    residuals_file.write(f",x({j})")
+                residuals_file.write(",objective_function")
+                for j in range(len(residuals)):
+                    residuals_file.write(f",F({j})")
+                residuals_file.write("\n")
 
         del_t = time() - start_time
         objective_file.write(f"{nevals:6d},{del_t:12.4e}")
@@ -181,14 +186,16 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
         objective_file.write(f",{objective_val:24.16e}\n")
         objective_file.flush()
 
-        residuals_file.write(f"{nevals:6d},{del_t:12.4e}")
-        for xj in x:
-            residuals_file.write(f",{xj:24.16e}")
-        residuals_file.write(f",{objective_val:24.16e}")
-        for fj in unweighted_residuals:
-            residuals_file.write(f",{fj:24.16e}")
-        residuals_file.write("\n")
-        residuals_file.flush()
+        if save_residuals:
+            residuals_file.write(f"{nevals:6d},{del_t:12.4e}")
+            for xj in x:
+                residuals_file.write(f",{xj:24.16e}")
+            residuals_file.write(f",{objective_val:24.16e}")
+            for fj in unweighted_residuals:
+                residuals_file.write(f",{fj:24.16e}")
+            residuals_file.write("\n")
+            residuals_file.flush()
+
         nevals += 1
         logger.debug(f"residuals are {residuals}")
         return residuals
@@ -203,8 +210,13 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
-                                       **kwargs)
+                try:
+                    result = least_squares(_f_proc0, x0, jac=fd.jac, verbose=2,
+                                           **kwargs)
+                except:
+                    print("Failure on proc0_world")
+                    result = Struct()
+                    result.x = x0
 
     else:
         leaders_action = lambda mpi, data: None
@@ -224,8 +236,10 @@ def least_squares_mpi_solve(prob: LeastSquaresProblem,
     if mpi.proc0_world:
         x = result.x
 
-        objective_file.close()
-        residuals_file.close()
+        if objective_file is not None:
+            objective_file.close()
+        if save_residuals and residuals_file is not None:
+            residuals_file.close()
 
     datalog_started = False
     logger.info("Completed solve.")

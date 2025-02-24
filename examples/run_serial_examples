@@ -24,3 +24,4 @@ set -ex
 ./2_Intermediate/permanent_magnet_QA.py
 ./2_Intermediate/permanent_magnet_PM4Stell.py
 ./3_Advanced/stage_two_optimization_finitebuild.py
+./3_Advanced/coil_forces.py
