@@ -21,17 +21,17 @@ if in_github_actions:
     ntheta = nphi
     dr = 0.05  # cylindrical bricks with radial extent 5 cm
 else:
-    nphi = 64  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 64
+    Nx = 32
 
-coff = 0.14  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.04
+coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.1
   # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-nIter_max = 20000
+nIter_max = 1000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -84,10 +84,21 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
 # kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}  
+Bnorm1 = Bnormal
+s_in1 = s_inner
+s_out1 = s_outer
+s1 = s
+
 kwargs_geo = {"Nx": Nx}  
 pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
+
+print(Bnorm1.shape)
+assert(np.all(Bnorm1 == Bnormal))
+assert(np.all(s_in1 == s_inner))
+assert(np.all(s_out1 == s_outer))
+assert(np.all(s1 == s))
 
 kwargs_geo = {"Nx": Nx}
 pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
