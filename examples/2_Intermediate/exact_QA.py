@@ -6,8 +6,8 @@ import time
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.field import BiotSavart, ExactField
-from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier
+from simsopt.field import BiotSavart, ExactField, DipoleField
+from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier, PermanentMagnetGrid
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import in_github_actions
@@ -84,6 +84,11 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 # Finally, initialize the permanent magnet class
 kwargs_geo = {"Nx": Nx} #, "Ny": Nx * 2, "Nz": Nx * 3}  
 pm_opt = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
+    s, Bnormal, s_inner, s_outer, **kwargs_geo
+)
+
+kwargs_geo = {"Nx":Nx}
+pm_comp = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
 
@@ -165,6 +170,51 @@ Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 f_B_sf = SquaredFlux(s, b_magnet, -Bnormal).J()
 
 print('f_B = ', f_B_sf)
+total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
+print('Total volume = ', total_volume)
+
+assert np.all(pm_comp.m == 0.0)
+assert np.all(pm_comp.pm_grid_xyz == pm_opt.dipole_grid_xyz)
+assert np.all(pm_comp.phiThetas == pm_opt.phiThetas)
+
+assert pm_comp.dx == pm_opt.dx
+assert pm_comp.dy == pm_opt.dy
+assert pm_comp.dz == pm_opt.dz
+
+assert all(pm_comp.b_obj == pm_opt.b_obj)
+
+b_dipole = DipoleField(
+    pm_comp.dipole_grid_xyz,
+    pm_opt.m,
+    nfp=s.nfp,
+    coordinate_flag=pm_opt.coordinate_flag,
+    m_maxima=pm_opt.m_maxima
+)
+b_dipole.set_points(s_plot.gamma().reshape((-1, 3)))
+b_dipole._toVTK(out_dir / "magnet_fields", pm_opt.dx, pm_opt.dy, pm_opt.dz)
+
+# Print optimized metrics
+print("Total fBc = ",
+      0.5 * np.sum((pm_comp.A_obj @ pm_opt.m - pm_opt.b_obj) ** 2))
+
+bs.set_points(s_plot.gamma().reshape((-1, 3)))
+Bcnormal = np.sum(bs.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=2)
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_optimized")
+Bcnormal_magnets = np.sum(b_magnet.B().reshape((qphi, ntheta, 3)) * s_plot.unitnormal(), axis=-1)
+Bcnormal_total = Bcnormal + Bcnormal_magnets
+
+# For plotting Bn on the full torus surface at the end with just the magnet fields
+make_Bnormal_plots(b_dipole, s_plot, out_dir, "only_m_optimized")
+pointData = {"B_N": Bcnormal_total[:, :, None]}
+s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
+
+# Print optimized f_B and other metrics
+b_dipole.set_points(s.gamma().reshape((-1, 3)))
+bs.set_points(s.gamma().reshape((-1, 3)))
+Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+f_Bc_sf = SquaredFlux(s, b_magnet, -Bcnormal).J()
+
+print('f_Bc = ', f_Bc_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
 print('Total volume = ', total_volume)
 

@@ -171,7 +171,7 @@ print('Total volume = ', total_volume)
 
 # field for cubic magents in dipole optimization positions
 b_comp = ExactField(
-    pm_opt.dipole_grid_xyz,
+    pm_comp.pm_grid_xyz,
     pm_opt.m,
     pm_opt.dims,
     pm_opt.phiThetas,
