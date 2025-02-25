@@ -209,6 +209,9 @@ pointData = {"B_N": Bcnormal_total[:, :, None]}
 s_plot.to_vtk(out_dir / "m_comp_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
+b_comp.set_points(s.gamma().reshape((-1, 3)))
+bs.set_points(s.gamma().reshape((-1, 3)))
+Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 f_Bc_sf = SquaredFlux(s_plot, b_comp, -Bnormal).J()
 print('f_Bc_comp = ', f_Bc_sf)
 
