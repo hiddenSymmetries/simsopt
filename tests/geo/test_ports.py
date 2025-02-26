@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+from monty.tempfile import ScratchDir
 from simsopt.geo import CircularPort, RectangularPort
 
 try:
@@ -320,13 +321,13 @@ class PortTests(unittest.TestCase):
 
         bothPorts = pCirc + pRect
 
-        filename = 'temp_port_vtk_test_file'
-        filepath = os.path.join(os.path.dirname(__file__), filename)
-        pCirc.to_vtk(filename)
-        pRect.to_vtk(filename)
-        bothPorts.to_vtk(filename)
-        os.remove(filepath + '.vtu')
- 
+        with ScratchDir("."):
+            pCirc.to_vtk("circular_ports")
+            pRect.to_vtk("rectangular_ports")
+            bothPorts.to_vtk("all_ports")
+            self.assertTrue(os.path.exists("circular_ports.vtu"))
+            self.assertTrue(os.path.exists("rectangular_ports.vtu"))
+            self.assertTrue(os.path.exists("all_ports.vtu"))
 
 
     def check_points(self, p, gap, X_in, Y_in, X_thk, Y_thk, X_gap, Y_gap, \
