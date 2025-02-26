@@ -21,7 +21,7 @@ from numpy.typing import NDArray
 from typing import Union
 from pyoculus import __version__ as pyoc_version
 
-if pyoc_version < '1.0.0':
+if pyoc_version >= '1.0.0':
     newpyoculus = True
 else:
     newpyoculus = False
