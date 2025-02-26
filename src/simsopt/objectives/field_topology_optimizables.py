@@ -2,12 +2,16 @@
 # simsopt-pyoculus interface to utilize pyoculus methods for locating fixed points
 # and using their properties (Residue, location, etc) in optimizations. 
 # Also provides methods for calculating turnstile areas (measure for stochastic transport)
+# Chris Smiet Feb 2025  christopher.smiet@epfl.ch
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from pyoculus.solvers import FixedPoint, Manifold
-from pyoculus.fields import SimsoptBfield
-from pyoculus.maps import CylindricalBfieldSection
+try : 
+    from pyoculus.solvers import FixedPoint, Manifold
+    from pyoculus.fields import SimsoptBfield
+    from pyoculus.maps import CylindricalBfieldSection
+except ImportError:
+    newpyoculus = False
 from ..field import MagneticField
 from .._core import Optimizable
 from .._core.dev import SimsoptRequires
@@ -143,6 +147,7 @@ class PyOculusFixedPoint(Optimizable):
         return np.trace(self.jacobian)
     
 
+@SimsoptRequires(newpyoculus, "This PyOculusFixedPoint class requres the additions by L. Rais in 1.0.0")
 class ClinicConnection(Optimizable): 
     """
     A ClinicConnection is a connection between two fixed points.
