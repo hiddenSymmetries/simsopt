@@ -908,8 +908,6 @@ class NonQuasiSymmetricRatio(Optimizable):
         dr_by_dB = self.dr_by_dB().reshape((nphi*ntheta, nphi*ntheta, 3))
         Nr = dr_by_dB.shape[0]
         for ii in range(Nr):
-            print(ii, Nr)
-            
             dpri_by_dxi = self.biotsavart.B_vjp_xi(dr_by_dB[ii])
             
             # tack on dJ_diota = dJ_dG = 0 to the end of dJ_ds

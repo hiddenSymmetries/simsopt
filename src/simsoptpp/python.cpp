@@ -49,10 +49,8 @@ PYBIND11_MODULE(simsoptpp, m) {
 
 #if defined(USE_XSIMD)
     m.attr("using_xsimd") = true;
-    printf("USING XSIMD\n");
 #else
     m.attr("using_xsimd") = false;
-    printf("NOT USING XSIMD\n");
 #endif
 
     m.def("biot_savart", &biot_savart);

@@ -69,6 +69,9 @@ coils_orig = coils
 # let's fix the coil current
 base_currents[0].fix_all()
 
+bs_orig.fix_all()
+base_currents[0].unfix_all()
+
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
 # Resolution details of surface on which we optimize for qa
 
@@ -94,7 +97,7 @@ iota = -0.406
 G = G0
 
 ## compute the surface
-boozer_surface = BoozerSurface(bs_orig, s_orig, vol, vol_target, options={'newton_tol':1e-12, 'newton_maxiter':10})
+boozer_surface = BoozerSurface(bs_orig, s_orig, vol, vol_target, options={'newton_tol':1e-12, 'newton_maxiter':10, 'verbose':rank==0})
 
 # compute surface first using LBFGS, this will just be a rough initial guess
 res = boozer_surface.minimize_boozer_penalty_constraints_LBFGS(tol=1e-10, maxiter=300, constraint_weight=100., iota=iota, G=G)
@@ -185,16 +188,21 @@ def fun(dofs):
     dofs_complex = dofs.copy().astype(complex)
     dofs_complex[rank] = dofs[rank] + eps*1j
     JF.x = dofs_complex
-    J = JF.J() + J_nonQSRatio.J() + J_nonQSRatio.GN_trace() * 0.01**2
-    grad = np.array(comm.allgather(J)).imag/eps
+    J_rank = JF.J() + J_nonQSRatio.J() + J_nonQSRatio.GN_trace() * 0.01**2
     
+    J = np.array(comm.allgather(J_rank)).real[0]
+    grad = np.array(comm.allgather(J_rank)).imag/eps
+    
+    prevs['Jtemp'] = J
+    prevs['dJtemp'] = grad.copy()
+
     # check to make sure that all the surface solves succeeded
     success1 = np.all([boozer_surface.res['success'] for boozer_surface in boozer_surfaces])
     # check to make sure that the surfaces are not self-intersecting
     success2 = np.all([not boozer_surface.res['is_self_intersecting'] for boozer_surface in boozer_surfaces])
     if not (success1 and success2):
         J = prevs['J']
-        #grad = -prevs['dJ']
+        grad = -prevs['dJ']
         for idx, boozer_surface in enumerate(boozer_surfaces):
             boozer_surface.surface.x = prevs['sdofs'][idx]
             boozer_surface.res['iota'] = prevs['iota'][idx]
@@ -210,7 +218,6 @@ def callback(x):
     for idx, boozer_surface in enumerate(boozer_surfaces):
         prevs['iota'][idx] = boozer_surface.res['iota']
         prevs['G'][idx] = boozer_surface.res['G']
-    prevs['J'] = JF.J() + J_nonQSRatio.J() + J_nonQSRatio.GN_trace() * 0.01**2
 
     
     mr_list    = [boozer_surface.res["minor_radius"] for boozer_surface in boozer_surfaces]
@@ -219,12 +226,13 @@ def callback(x):
     iota_list  = [boozer_surface.res['iota'] for boozer_surface in boozer_surfaces]
     width = 35
 
-#JF = J_nonQSRatio + IOTAS_WEIGHT*J_iotas + MR_WEIGHT*J_major_radius + LENGTH_WEIGHT*Jls\
-#        + MIN_DIST_WEIGHT * Jccdist + KAPPA_WEIGHT*Jcs + MSC_WEIGHT*Jmsc + ARCLENGTH_WEIGHT*Jals
+    prevs['J'] = prevs['Jtemp']
+    prevs['dJ'] = prevs['dJtemp']
 
 
     outstr = f"\nIteration {prevs['it']}\n"
-    outstr += f"{'J':{width}} {prevs['J'].real:.6e} \n"
+    outstr += f"{'J':{width}} {prevs['Jprev'].real:.6e} \n"
+    outstr += f"{'dJ':{width}} {np.linalg.norm(prevs['dJprev']):.6e} \n"
     outstr += f"{'ι on surfaces':{width}} ({IOTAS_WEIGHT*J_iotas.J().real:.6e}):  " + ", ".join([f"{iot.real:.6f}" for iot in [np.min(iota_list), np.mean(iota_list), np.max(iota_list)]]) + "\n"
     outstr += f"{'major radius on surfaces':{width}} ({MR_WEIGHT*J_major_radius.J().real:.6e}):  " + ', '.join([f'{Mr.real:.6f}' for Mr in [np.min(Mr_list), np.mean(Mr_list), np.max(Mr_list)]]) + "\n"
     #outstr += f"{'shortest coil to coil distance':{width}} ({MIN_DIST_WEIGHT * Jccdist.J():.6e}):  {Jccdist.shortest_distance():.3f} \n"
@@ -242,6 +250,8 @@ def callback(x):
 
 f = fun
 dofs = JF.x.copy().real
+import ipdb;ipdb.set_trace()
+out = fun(dofs)
 callback(dofs)
 
 #fval = [prevs['J']]
