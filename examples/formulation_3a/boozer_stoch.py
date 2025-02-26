@@ -68,7 +68,8 @@ G0 = 2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
 coils_orig = coils
 # let's fix the coil current
 base_currents[0].fix_all()
-
+print(bs_orig.x.size)
+quit()
 
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##

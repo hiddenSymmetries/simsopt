@@ -167,7 +167,10 @@ class QuadraticPenalty(Optimizable):
         diff = val - self.cons
 
         if self.f == 'max':
-            return 0.5*np.maximum(diff, 0)**2
+            if diff.real > 0:
+                return 0.5*diff**2
+            else:
+                return 0.
         elif self.f == 'min':
             return 0.5*np.minimum(diff, 0)**2
         elif self.f == 'identity':
@@ -182,7 +185,10 @@ class QuadraticPenalty(Optimizable):
         diff = val - self.cons
 
         if self.f == 'max':
-            return np.maximum(diff, 0)*dval
+            if diff.real > 0:
+                return diff*dval
+            else:
+                return 0.*dval
         elif self.f == 'min':
             return np.minimum(diff, 0)*dval
         elif self.f == 'identity':

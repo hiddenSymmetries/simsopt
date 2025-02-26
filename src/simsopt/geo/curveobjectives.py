@@ -80,8 +80,8 @@ class LpCurveCurvature(Optimizable):
         self.threshold = threshold
         super().__init__(depends_on=[curve])
         self.J_jax = jit(lambda kappa, gammadash: Lp_curvature_pure(kappa, gammadash, p, threshold))
-        self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0)(kappa, gammadash))
-        self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1)(kappa, gammadash))
+        self.thisgrad0 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=0, holomorphic=True)(kappa, gammadash))
+        self.thisgrad1 = jit(lambda kappa, gammadash: grad(self.J_jax, argnums=1, holomorphic=True)(kappa, gammadash))
 
     def J(self):
         """
@@ -459,11 +459,11 @@ class MeanSquaredCurvature(Optimizable):
         """
         super().__init__(depends_on=[curve])
         self.curve = curve
-        self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0)(kappa, gammadash))
-        self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1)(kappa, gammadash))
+        self.thisgrad0 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=0, holomorphic=True)(kappa, gammadash))
+        self.thisgrad1 = jit(lambda kappa, gammadash: grad(curve_msc_pure, argnums=1, holomorphic=True)(kappa, gammadash))
 
     def J(self):
-        return float(curve_msc_pure(self.curve.kappa(), self.curve.gammadash()))
+        return curve_msc_pure(self.curve.kappa(), self.curve.gammadash())
 
     @derivative_dec
     def dJ(self):
