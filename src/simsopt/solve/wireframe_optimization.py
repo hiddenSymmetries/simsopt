@@ -153,6 +153,15 @@ def optimize_wireframe(wframe, algorithm, params, \
                 area weighted if requested
             wframe_field: WireframeField class instance
                 Magnetic field produced by the wireframe
+            f_B: double
+                Values of the sub-objective function f_B
+            f: double
+                Values of the total objective function f
+
+            For RCLS optimizations only:
+
+            f_R: double
+                Value of the sub-objective function f_R
 
             For GSCO optimizations only:
 
@@ -181,6 +190,8 @@ def optimize_wireframe(wframe, algorithm, params, \
                 iteration
             x_init: 1d double array (column vector)
                 Copy of the initial guess provided to the optimizer
+            f_S: double
+                Values of the sub-objective function f_S
     """
 
     if not isinstance(wframe, ToroidalWireframe):
@@ -243,7 +254,10 @@ def optimize_wireframe(wframe, algorithm, params, \
         assume_no_crossings = False if 'assume_no_crossings' not in params \
             else params['assume_no_crossings']
 
-        x = rcls_wireframe(wframe, A, b, reg_W, assume_no_crossings, verbose)
+        x, f_B, f_R, f = \
+            rcls_wireframe(wframe, A, b, reg_W, assume_no_crossings, verbose)
+
+        results['f_R'] = f_R  # f_B and f will be recorded later
 
     elif algorithm.lower() == 'gsco':
 
@@ -280,6 +294,10 @@ def optimize_wireframe(wframe, algorithm, params, \
                              max_loop_count=max_loop_count, x_init=x_init, 
                              loop_count_init=loop_count_init, verbose=verbose)
 
+        f_B = f_B_hist[-1]
+        f_S = f_S_hist[-1]
+        f = f_hist[-1]
+
         results['loop_count'] = loop_count
         results['iter_hist'] = iter_hist
         results['curr_hist'] = curr_hist
@@ -288,6 +306,7 @@ def optimize_wireframe(wframe, algorithm, params, \
         results['f_S_hist'] = f_S_hist
         results['f_hist'] = f_hist
         results['x_init'] = x_init_out
+        results['f_S'] = f_S
 
     else:
 
@@ -299,6 +318,8 @@ def optimize_wireframe(wframe, algorithm, params, \
     results['Amat'] = A
     results['bvec'] = b
     results['wframe_field'] = mf_wf
+    results['f_B'] = f_B
+    results['f'] = f
 
     return results
    
@@ -456,6 +477,10 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
     -------
         x: double array (1d column vector)
             Solution (currents in each segment of the wirframe)
+        f_B, f_R, f: doubles
+            Values of the partial objective functions (f_B for field accuracy,
+            f_R for regularization) and the total objective function
+            (f = f_B + f_R)
     """
 
     # Obtain the constraint matrices
@@ -475,6 +500,7 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
     Afree = Amat[:,free_segs]
     if np.isscalar(reg_W):
         Wfree = reg_W
+        W = reg_W
     else:
         W = np.array(reg_W)
         if W.ndim == 1:
@@ -502,7 +528,17 @@ def rcls_wireframe(wframe, Amat, bvec, reg_W, assume_no_crossings, verbose):
     wframe.currents[:] = 0
     wframe.currents[free_segs] = xfree.reshape((-1))[:]
 
-    return x
+    # Calculate the objectives
+    f_B = 0.5 * np.sum((Amat @ x - bvec)**2)
+    if np.isscalar(W):
+        f_R = 0.5 * W**2 * np.sum(x**2)
+    elif W.ndim == 1:
+        f_R = 0.5 * np.sum((W.ravel()*x.ravel())**2)
+    else:
+        f_R = 0.5 * np.sum((W @ x)**2)
+    f = f_B + f_R
+
+    return x, f_B, f_R, f
 
 def gsco_wireframe(wframe, A, c, lambda_S, no_crossing, match_current, \
                    default_current, max_current, max_iter, print_interval, \

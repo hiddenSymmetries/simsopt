@@ -165,6 +165,14 @@ class WireframeOptimizationTests(unittest.TestCase):
         self.assertTrue(SquaredFlux(surf_plas, res['wframe_field'] + mf_tor).J()
                         < 0.01*SquaredFlux(surf_plas, res['wframe_field']).J())
 
+        # Check consistency of stored objective function values
+        self.assertTrue(np.isclose(
+            SquaredFlux(surf_plas, res['wframe_field'] + mf_tor).J(), 
+            res['f_B']))
+        self.assertTrue(np.isclose(res['f'], res['f_B'] + res['f_R']))
+        self.assertTrue(np.isclose(res['f_R'], 
+            0.5 * opt_params['reg_W']**2 * np.sum(res['x']**2)))
+
     def test_toroidal_wireframe_gsco(self):
         """
         Tests the Greedy Stellarator Coil Optimization algorithm for 
@@ -250,6 +258,15 @@ class WireframeOptimizationTests(unittest.TestCase):
             mf_i = WireframeField(wf) + mf_tor
             self.assertTrue(np.isclose(SquaredFlux(surf_plas, mf_i).J(), f_B_i))
             self.assertEqual(0.5*np.sum(currents_i != 0), f_S_i)
+
+        # Check consistency of stored objective function values
+        self.assertTrue(np.isclose(
+            SquaredFlux(surf_plas, res0['wframe_field'] + mf_tor).J(), 
+            res0['f_B']))
+        self.assertTrue(np.isclose(res0['f'], 
+            res0['f_B'] + std_params['lambda_S']*res0['f_S']))
+        self.assertTrue(np.isclose(res0['f_S'], 
+            0.5 * np.sum(np.abs(res0['x']) > wf.constraint_atol)))
 
         # Verify that no iterations take place if default current is 0
         wf.currents[:] = 0
@@ -359,6 +376,7 @@ class WireframeOptimizationTests(unittest.TestCase):
             surf_plas=surf_plas, ext_field=mf_tor, verbose=False)
 
         self.assertTrue(np.allclose(res8['x'], res9['x']))
+
 
 if __name__ == "__main__":
     unittest.main() 

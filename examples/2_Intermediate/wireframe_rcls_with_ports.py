@@ -122,8 +122,6 @@ deltaT = t1 - t0
 assert wf.check_constraints()
 
 # Post-processing
-f_B = 0.5 * np.sum((res['Amat'] @ res['x'])**2)
-f_R = 0.5 * regularization_w**2 * np.sum( res['x']**2 )
 res['wframe_field'].set_points(surf_plas.gamma().reshape((-1,3)))
 Bfield = res['wframe_field'].B().reshape((plas_nPhi, plas_nTheta, 3))
 Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
@@ -140,8 +138,8 @@ print('Post-processing')
 print('---------------')
 print('  # dof          %12d'   % (ndof))
 print('  opt time [s]   %12.3f' % (deltaT))
-print('  f_B [T^2m^2]   %12.4e' % (f_B))
-print('  f_R [T^2m^2]   %12.4e' % (f_R))
+print('  f_B [T^2m^2]   %12.4e' % (res['f_B']))
+print('  f_R [T^2m^2]   %12.4e' % (res['f_R']))
 print('  <|Bn|/|B|>     %12.4e' % (meanRelBn))
 print('  I_max [MA]     %12.4e' % (maxCur))
 

@@ -322,8 +322,8 @@ while not final_step:
 
     # Post-processing
     x_post = np.array(wf.currents).reshape((-1,1))
-    f_B = 0.5 * np.sum((res['Amat'] @ x_post - res['bvec'])**2)
-    f_S = 0.5 * np.linalg.norm(x_post.ravel(), ord=0)
+    f_B_post = 0.5 * np.sum((res['Amat'] @ x_post - res['bvec'])**2)
+    f_S_post = 0.5 * np.linalg.norm(x_post.ravel(), ord=0)
     Bfield = mf_post.B().reshape((plas_nPhi, plas_nTheta, 3))
     Bnormal = np.sum(Bfield * surf_plas.unitnormal(), axis=2)
     modB = np.sqrt(np.sum(Bfield**2, axis=2))
@@ -333,8 +333,8 @@ while not final_step:
     maxCur = np.max(np.abs(res['x']))
 
     # Print post-processing results
-    print('    f_B [T^2m^2]   %12.4e' % (f_B))
-    print('    f_S [T^2m^2]   %12.4e' % (f_S))
+    print('    f_B [T^2m^2]   %12.4e' % (f_B_post))
+    print('    f_S            %12.4e' % (f_S_post))
     print('    <|Bn|/|B|>     %12.4e' % (meanRelBn))
     print('    I_max [MA]     %12.4e' % (maxCur))
     print('')
