@@ -21,7 +21,7 @@ void record_iter(int iter, double curr, int loop_ind, double f_B, double f_S,
 
 void print_iter(int iter, double f_B, double f_S, double f);
 
-double compute_chi2_P(Array& x, double tol);
+double compute_f_S(Array& x, double tol);
 
 void check_eligibility(int nLoops, double default_current, double max_current, 
                        int max_loop_count, bool no_crossing, bool no_new_coils, 

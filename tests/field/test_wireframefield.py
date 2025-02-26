@@ -78,8 +78,8 @@ class WireframeFieldTests(unittest.TestCase):
         dBdX_analytic[:,1,0] =  modB/rtest * (np.sin(ptest)**2-np.cos(ptest)**2)
         dBdX_analytic[:,1,1] = -modB/rtest * np.sin(2*ptest)
 
-        err_B = np.Inf
-        err_dBdX = np.Inf
+        err_B = np.inf
+        err_dBdX = np.inf
         for i in range(10,15): 
 
             # Set up a wireframe on an ideal torus

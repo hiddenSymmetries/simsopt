@@ -122,12 +122,12 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
     }
 
     double inf = std::numeric_limits<double>::max();
-    vector<double> f_Bs(2*nLoops, inf);
-    vector<double> f_Ss(2*nLoops, inf);
-    vector<double> fs(2*nLoops, inf);
-    double* f_Bs_ptr = &(f_Bs[0]);
-    double* f_Ss_ptr = &(f_Ss[0]);
-    double* fs_ptr = &(fs[0]);
+    vector<double> two_f_Bs(twoNLoops, inf);
+    vector<double> two_f_Ss(twoNLoops, inf);
+    vector<double> two_fs(twoNLoops, inf);
+    double* two_f_Bs_ptr = &(two_f_Bs[0]);
+    double* two_f_Ss_ptr = &(two_f_Ss[0]);
+    double* two_fs_ptr = &(two_fs[0]);
 
     // Initialize the loop_count array
     IntArray loop_count = xt::zeros<int>({nLoops});
@@ -152,27 +152,27 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
     // Initial history values
     int hist_ind = 0;
     int opt_ind_prev;
-    double f_B_latest = 0.0;
+    double two_f_B_latest = 0.0;
     for (int i = 0; i < nGrid; ++i) {
-        f_B_latest += Ax_minus_b(i,0) * Ax_minus_b(i,0);
+        two_f_B_latest += Ax_minus_b(i,0) * Ax_minus_b(i,0);
     }
     double tol = 0.001*default_current;
-    double f_S_latest = compute_chi2_P(x, tol);
-    double f_latest = f_B_latest + lambda_P*f_S_latest;
+    double two_f_S_latest = 2*compute_f_S(x, tol);
+    double two_f_latest = two_f_B_latest + lambda_P*two_f_S_latest;
 
     printf("  Beginning GSCO iterations\n");
     printf("%11s %14s %14s %14s\n", "Iteration", "f_B", "f_S", "f");
     printf("  ---------   ------------   ------------   ------------\n");
-    print_iter(0, 0.5*f_B_latest, 0.5*f_S_latest, 
-               0.5*f_B_latest + 0.5*lambda_P*f_S_latest);
-    record_iter(0, 0.0, 0, 0.5*f_B_latest, 0.5*f_S_latest, 
-                0.5*f_B_latest + 0.5*lambda_P*f_S_latest, iter_hist_ptr, 
+    print_iter(0, 0.5*two_f_B_latest, 0.5*two_f_S_latest, 
+               0.5*two_f_B_latest + 0.5*lambda_P*two_f_S_latest);
+    record_iter(0, 0.0, 0, 0.5*two_f_B_latest, 0.5*two_f_S_latest, 
+                0.5*two_f_B_latest + 0.5*lambda_P*two_f_S_latest, iter_hist_ptr,
                 curr_hist_ptr, loop_hist_ptr, f_B_hist_ptr, f_S_hist_ptr, 
                 f_hist_ptr);
 
-    vector<double> eligible_curr(2*nLoops, 0);
+    vector<double> eligible_curr(twoNLoops, 0);
     double* eligible_curr_ptr = &(eligible_curr[0]);
-    vector<int> eligible_inds(2*nLoops, 0);
+    vector<int> eligible_inds(twoNLoops, 0);
     int* eligible_inds_ptr = &(eligible_inds[0]);
 
     // Initialize flags for stopping conditions
@@ -194,11 +194,11 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
 
         // Find the eligible currents; determine f values to exclude
         int nEligible = 0;
-        for (int jj = 0; jj < 2*nLoops; ++jj) {
+        for (int jj = 0; jj < twoNLoops; ++jj) {
             if (eligible_curr_ptr[jj] == 0.0) {
-                f_Bs_ptr[jj] = inf;
-                f_Ss_ptr[jj] = inf;
-                fs_ptr[jj] = inf;
+                two_f_Bs_ptr[jj] = inf;
+                two_f_Ss_ptr[jj] = inf;
+                two_fs_ptr[jj] = inf;
             }
             else{ 
                 eligible_inds_ptr[nEligible] = jj;
@@ -219,7 +219,7 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
             int ind_pol4 = loops_rep_ptr[j*4 + 3];
 
             // Calculuate contribution of loop to the squared objective
-            double f_B_pos = 0.0, f_S_pos = 0.0, f_pos = 0.0; 
+            double two_f_B_pos = 0.0, two_f_S_pos = 0.0, two_f_pos = 0.0; 
 
             // Determine impact of the loop on f_B
             for (int m = 0; m < nGrid; ++m) {
@@ -230,34 +230,34 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
                 bnorm -= A_ptr[nSegs*m + ind_tor3] * eligible_curr_ptr[j];
                 bnorm -= A_ptr[nSegs*m + ind_pol4] * eligible_curr_ptr[j];
 
-                f_B_pos +=  (Ax_minus_b_ptr[m] + bnorm) 
-                          * (Ax_minus_b_ptr[m] + bnorm);
+                two_f_B_pos +=  (Ax_minus_b_ptr[m] + bnorm) 
+                              * (Ax_minus_b_ptr[m] + bnorm);
             }
-            f_Bs_ptr[j] = f_B_pos;
+            two_f_Bs_ptr[j] = two_f_B_pos;
 
             // Determine the impact of the loop on f_S
-            double df_orig = 0.0;
-            double df = 0.0;
+            double two_df_orig = 0.0;
+            double two_df = 0.0;
             int inds[4] = {ind_tor1, ind_pol2, ind_tor3, ind_pol4};
             double signs[4] = {1.0, 1.0, -1.0, -1.0};
             for (int m = 0; m < 4; ++m) {
                 if (abs(x_ptr[inds[m]]) > tol) {
-                    df_orig += 1.0;
+                    two_df_orig += 1.0;
                 }
                 if (abs(x_ptr[inds[m]] + signs[m]*eligible_curr_ptr[j]) > tol) {
-                    df += 1.0;
+                    two_df += 1.0;
                 }
             }
-            f_Ss_ptr[j] = f_S_latest + df - df_orig;
+            two_f_Ss_ptr[j] = two_f_S_latest + two_df - two_df_orig;
 
             // Total impact
-            fs_ptr[j] = f_Bs_ptr[j] + lambda_P*f_Ss_ptr[j];
+            two_fs_ptr[j] = two_f_Bs_ptr[j] + lambda_P*two_f_Ss_ptr[j];
 
         }
 
         // Adopt the loop that reduced the squared objective the most
-        int opt_ind = int(std::distance(fs.begin(), 
-                               std::min_element(fs.begin(), fs.end())));
+        int opt_ind = int(std::distance(two_fs.begin(), 
+                               std::min_element(two_fs.begin(), two_fs.end())));
         double current = eligible_curr_ptr[opt_ind];
         double sign = (opt_ind < nLoops) ? 1.0 : -1.0;
         int loop_ind = (opt_ind < nLoops) ? opt_ind : opt_ind - nLoops;
@@ -269,7 +269,7 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
         }
         else if (i > 0 && (opt_ind + nLoops % (twoNLoops)) == opt_ind_prev) {
             stop_undone_loop = true;
-            if (fs[opt_ind] > f_latest) {
+            if (two_fs[opt_ind] > two_f_latest) {
                 accept_current_loop = false;
             }
         } 
@@ -297,15 +297,16 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
                 Ax_minus_b_ptr[m] -= A_ptr[nSegs*m + ind_tor3] * current;
                 Ax_minus_b_ptr[m] -= A_ptr[nSegs*m + ind_pol4] * current;
             }
-            f_S_latest = f_Ss[opt_ind];
-            f_B_latest = f_Bs[opt_ind];
-            f_latest = fs[opt_ind];
+            two_f_S_latest = two_f_Ss[opt_ind];
+            two_f_B_latest = two_f_Bs[opt_ind];
+            two_f_latest = two_fs[opt_ind];
 
             hist_ind++;
 
             // Record the loop in to history arrays
             record_iter(hist_ind, current, loop_ind, 
-                        0.5*f_B_latest, 0.5*f_S_latest, 0.5*f_latest, 
+                        0.5*two_f_B_latest, 0.5*two_f_S_latest, 
+                        0.5*two_f_latest, 
                         iter_hist_ptr, curr_hist_ptr, loop_hist_ptr, 
                         f_B_hist_ptr, f_S_hist_ptr, f_hist_ptr);
         }
@@ -315,7 +316,8 @@ std::tuple<Array,IntArray,IntArray,Array,IntArray,Array,Array,Array> GSCO(
         if ((accept_current_loop && (at_interval || stop_now)) || 
             (stop_now && not at_interval)) {
 
-            print_iter(hist_ind, 0.5*f_B_latest, 0.5*f_S_latest, 0.5*f_latest);
+            print_iter(hist_ind, 0.5*two_f_B_latest, 0.5*two_f_S_latest, 
+                       0.5*two_f_latest);
 
         }
 
@@ -366,18 +368,18 @@ void print_iter(int iter, double f_B, double f_S, double f) {
 
 }
 
-double compute_chi2_P(Array& x, double tol) {
+double compute_f_S(Array& x, double tol) {
 
-    double chi2_P = 0.0;
+    double f_S = 0.0;
     int nSegs = x.shape(0);
 
     for (int i = 0; i < nSegs; ++i) {
         if (abs(x(i,0)) > tol) {
-            chi2_P += 1.0;
+            f_S += 0.5;
         }
     }
 
-    return chi2_P;
+    return f_S;
 
 }
 

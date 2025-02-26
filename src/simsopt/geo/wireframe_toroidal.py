@@ -1634,7 +1634,7 @@ class ToroidalWireframe(object):
         ax.set_xlabel(label_x)
         ax.set_ylabel(label_y)
         if add_colorbar:
-            cb = pl.colorbar(lc)
+            cb = pl.colorbar(lc, ax=ax)
             if quantity=='currents' or quantity=='nonzero currents':
                 cb.set_label('Current [MA]')
             elif quantity=='constrained segments':

@@ -23,7 +23,7 @@ from simsopt.field import WireframeField, BiotSavart, Current, \
 from simsopt.util import in_github_actions
 
 # Set to True generate a 3d rendering with the mayavi package
-make_mayavi_plots = True
+make_mayavi_plots = False
 
 # Wireframe resolution
 if not in_github_actions:
