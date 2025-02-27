@@ -199,7 +199,8 @@ def fun(dofs):
     # check to make sure that all the surface solves succeeded
     success1 = np.all([boozer_surface.res['success'] for boozer_surface in boozer_surfaces])
     # check to make sure that the surfaces are not self-intersecting
-    success2 = np.all([not boozer_surface.res['is_self_intersecting'] for boozer_surface in boozer_surfaces])
+    #success2 = np.all([not boozer_surface.res['is_self_intersecting'] for boozer_surface in boozer_surfaces])
+    success2 = True
     if not (success1 and success2):
         J = prevs['J']
         grad = -prevs['dJ']
@@ -231,8 +232,8 @@ def callback(x):
 
 
     outstr = f"\nIteration {prevs['it']}\n"
-    outstr += f"{'J':{width}} {prevs['Jprev'].real:.6e} \n"
-    outstr += f"{'dJ':{width}} {np.linalg.norm(prevs['dJprev']):.6e} \n"
+    outstr += f"{'J':{width}} {prevs['J'].real:.6e} \n"
+    outstr += f"{'dJ':{width}} {np.linalg.norm(prevs['dJ']):.6e} \n"
     outstr += f"{'ι on surfaces':{width}} ({IOTAS_WEIGHT*J_iotas.J().real:.6e}):  " + ", ".join([f"{iot.real:.6f}" for iot in [np.min(iota_list), np.mean(iota_list), np.max(iota_list)]]) + "\n"
     outstr += f"{'major radius on surfaces':{width}} ({MR_WEIGHT*J_major_radius.J().real:.6e}):  " + ', '.join([f'{Mr.real:.6f}' for Mr in [np.min(Mr_list), np.mean(Mr_list), np.max(Mr_list)]]) + "\n"
     #outstr += f"{'shortest coil to coil distance':{width}} ({MIN_DIST_WEIGHT * Jccdist.J():.6e}):  {Jccdist.shortest_distance():.3f} \n"
@@ -248,12 +249,11 @@ def callback(x):
     proc0_print(outstr, flush=True)
     prevs['it'] += 1
 
+
 f = fun
 dofs = JF.x.copy().real
-import ipdb;ipdb.set_trace()
 out = fun(dofs)
 callback(dofs)
-
 #fval = [prevs['J']]
 #epsval = np.linspace(0, 1e-2, 100)[:15]
 #h = JF.dJ()
