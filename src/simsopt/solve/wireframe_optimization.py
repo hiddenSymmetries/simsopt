@@ -777,8 +777,8 @@ def regularized_constrained_least_squares(A, b, W, C, d):
         else:
             raise ValueError('W must be a scalar, 1d array, or 2d array')
             
-    # Compute the QR factorization of the transpose of the constraint matrix
-    Qfull, Rtall = scipy.linalg.qr(Ctra)
+    # Compute the QR factorization of the transpose of the constraint matrix;
+    Qfull, Rtall = _qr_factorization_wrapper(Ctra)
     Q1mat = Qfull[:,:p]  # Orthonormal vectors in the constrained subspace
     Q2mat = Qfull[:,p:]  # Orthonormal vectors in the free subspace
     Rmat = Rtall[:p,:]
@@ -807,4 +807,42 @@ def regularized_constrained_least_squares(A, b, W, C, d):
     # Transform from "Q" basis back to the basis of individual segment currents
     return Qfull @ np.concatenate((uvec, vvec), axis=0)
 
+
+def _qr_factorization_wrapper(M):
+    """
+    Wrapper for the function scipy.linalg.qr that handles a bug that has 
+    been observed in some installations of simsopt. If the bug is present, 
+    performing certain actions (e.g. a magnetic field calculation) can
+    inexplicably cause a subsequent (and possibly unrelated) call to 
+    scipy.linalg.qr to return matrices with nan values. This issue can 
+    often be resolved by simply calling the function a second time.
+
+    For some discussions that are possibly relevant to this issue:
+        https://github.com/scipy/scipy/issues/5586
+        https://github.com/numpy/numpy/issues/20356
+
+    Parameters
+    ----------
+        M: 2d double array
+            matrix to factorize
+
+    Returns
+    -------
+        Q, R: 2d double arrays
+            matrices returned by scipy.linalg.qr
+    """
+
+    try:
+
+        Q, R = scipy.linalg.qr(M)
+        assert np.all(np.isfinite(R))
+
+    except:
+
+        Q, R = scipy.linalg.qr(M)
+
+        if not np.all(np.isfinite(R)):
+            raise RuntimeError('Error in calculating QR factorization.')
+
+    return Q, R
 
