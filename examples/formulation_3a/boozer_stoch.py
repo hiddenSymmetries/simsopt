@@ -69,8 +69,8 @@ coils_orig = coils
 # let's fix the coil current
 base_currents[0].fix_all()
 
-bs_orig.fix_all()
-base_currents[0].unfix_all()
+#bs_orig.fix_all()
+#base_currents[0].unfix_all()
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
 # Resolution details of surface on which we optimize for qa
@@ -188,20 +188,22 @@ def fun(dofs):
     dofs_complex = dofs.copy().astype(complex)
     dofs_complex[rank] = dofs[rank] + eps*1j
     JF.x = dofs_complex
-    J_rank = JF.J() + J_nonQSRatio.J() + J_nonQSRatio.GN_trace() * 0.01**2
-    
-    J = np.array(comm.allgather(J_rank)).real[0]
-    grad = np.array(comm.allgather(J_rank)).imag/eps
-    
-    prevs['Jtemp'] = J
-    prevs['dJtemp'] = grad.copy()
-
+    J_rank = JF.J() + J_nonQSRatio.J()
     # check to make sure that all the surface solves succeeded
     success1 = np.all([boozer_surface.res['success'] for boozer_surface in boozer_surfaces])
     # check to make sure that the surfaces are not self-intersecting
     #success2 = np.all([not boozer_surface.res['is_self_intersecting'] for boozer_surface in boozer_surfaces])
     success2 = True
-    if not (success1 and success2):
+    
+    if (success1 and success2):
+        J_rank += J_nonQSRatio.GN_trace() * 0.01**2
+
+        J = np.array(comm.allgather(J_rank)).real[0]
+        grad = np.array(comm.allgather(J_rank)).imag/eps
+        
+        prevs['Jtemp'] = J
+        prevs['dJtemp'] = grad.copy()
+    else:
         J = prevs['J']
         grad = -prevs['dJ']
         for idx, boozer_surface in enumerate(boozer_surfaces):
