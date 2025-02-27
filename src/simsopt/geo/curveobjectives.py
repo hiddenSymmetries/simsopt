@@ -59,7 +59,7 @@ def Lp_curvature_pure(kappa, gammadash, p, desired_kappa):
     """
     This function is used in a Python+Jax implementation of the curvature penalty term.
     """
-    arc_length = jnp.linalg.norm(gammadash, axis=1)
+    arc_length = jnp.sqrt(jnp.sum(gammadash**2, axis=1))
     return (1./p)*jnp.mean(jnp.maximum(kappa-desired_kappa, 0)**p * arc_length)
 
 
@@ -438,7 +438,7 @@ def curve_msc_pure(kappa, gammadash):
     """
     This function is used in a Python+Jax implementation of the mean squared curvature objective.
     """
-    arc_length = jnp.linalg.norm(gammadash, axis=1)
+    arc_length = jnp.sqrt(jnp.sum(gammadash**2, axis=1))
     return jnp.mean(kappa**2 * arc_length)/jnp.mean(arc_length)
 
 

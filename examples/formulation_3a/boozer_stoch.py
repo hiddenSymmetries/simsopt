@@ -69,8 +69,9 @@ coils_orig = coils
 # let's fix the coil current
 base_currents[0].fix_all()
 
-#bs_orig.fix_all()
-#base_currents[0].unfix_all()
+bs_orig.fix_all()
+base_currents[0].unfix_all()
+
 
 ## COMPUTE THE INITIAL SURFACE ON WHICH WE WANT TO OPTIMIZE FOR QA##
 # Resolution details of surface on which we optimize for qa
@@ -161,8 +162,7 @@ Jals = sum([ArclengthVariation(c) for c in base_curves])
 # sum the objectives together
 #JF = J_nonQSRatio + IOTAS_WEIGHT*J_iotas + MR_WEIGHT*J_major_radius + LENGTH_WEIGHT*Jls\
 #        + MIN_DIST_WEIGHT * Jccdist + KAPPA_WEIGHT*Jcs + MSC_WEIGHT*Jmsc + ARCLENGTH_WEIGHT*Jals
-JF = IOTAS_WEIGHT*J_iotas + MR_WEIGHT*J_major_radius + LENGTH_WEIGHT*Jls + ARCLENGTH_WEIGHT*Jals
-
+JF = IOTAS_WEIGHT*J_iotas + MR_WEIGHT*J_major_radius + LENGTH_WEIGHT*Jls + ARCLENGTH_WEIGHT*Jals+ KAPPA_WEIGHT*Jcs + MSC_WEIGHT*Jmsc
 
 #curves_to_vtk(curves, OUT_DIR + "curves_init")
 #boozer_surface.surface.to_vtk(OUT_DIR + "surf_init")

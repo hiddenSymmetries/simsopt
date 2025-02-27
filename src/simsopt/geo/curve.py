@@ -32,7 +32,7 @@ def kappa_pure(d1gamma, d2gamma):
     This function is used in a Python+Jax implementation of formula for curvature.
     """
 
-    return jnp.sum(jnp.cross(d1gamma, d2gamma)**2, axis=1)/jnp.sum(d1gamma**2, axis=1)**3
+    return jnp.sqrt(jnp.sum(jnp.cross(d1gamma, d2gamma)**2, axis=1))/jnp.sqrt(jnp.sum(d1gamma**2, axis=1))**3
 
 
 kappavjp0 = jit(lambda d1gamma, d2gamma, v: vjp(lambda d1g: kappa_pure(d1g, d2gamma), d1gamma)[1](v)[0])
