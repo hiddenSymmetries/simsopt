@@ -166,5 +166,5 @@ def enclosed_current(curve, field, n_quadpoints, preserve_points=True):
     delta_arclength = np.diff(_curve.quadpoints)*midpoint_inc_arc
     arclength = np.concatenate(([0], np.cumsum(delta_arclength)))
     
-    return sp.integrate.simpson(B_dot_unit_tangent, arclength)/mu0
+    return sp.integrate.simpson(B_dot_unit_tangent, x=arclength)/mu0
 
