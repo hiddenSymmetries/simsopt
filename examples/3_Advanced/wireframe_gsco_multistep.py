@@ -46,8 +46,8 @@ if not in_github_actions:
 else:
 
     # For GitHub CI tests, run at very low resolution 
-    wf_nPhi = 12
-    wf_nTheta = 12
+    wf_nPhi = 24
+    wf_nTheta = 8
     max_iter = 100
     print_interval = 10
     plas_n = 4
