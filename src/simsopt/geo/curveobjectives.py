@@ -360,7 +360,9 @@ def curve_arclengthvariation_pure(l, mat):
     """
     This function is used in a Python+Jax implementation of the curve arclength variation.
     """
-    return jnp.var(mat @ l)
+    mean = jnp.mean(mat @ l)
+    var = jnp.mean( (mat @ l - mean) ** 2)
+    return var
 
 
 class ArclengthVariation(Optimizable):
