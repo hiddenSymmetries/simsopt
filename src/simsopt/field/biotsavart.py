@@ -108,10 +108,9 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         gammas = [coil.curve.gamma() for coil in coils]
         gammadashs = [coil.curve.gammadash() for coil in coils]
         currents = [coil.current.get_value() for coil in coils]
-        res_gamma = [np.zeros_like(gamma) for gamma in gammas]
-        res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
+        res_gamma = [np.zeros_like(gamma, dtype=complex) for gamma in gammas]
+        res_gammadash = [np.zeros_like(gammadash, dtype=complex) for gammadash in gammadashs]
         
-
         points = self.get_points_cart_ref()
         
         assert v.shape == points.shape

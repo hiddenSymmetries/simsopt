@@ -901,12 +901,14 @@ class NonQuasiSymmetricRatio(Optimizable):
         g, dg_dB = boozer_surface_residual_dB(self.boozer_surface.surface, iota, G, self.boozer_surface.biotsavart, derivatives=0, weight_inv_modB=False)
         r, dpr_by_ds = self.dr_by_dsurfacecoefficients()
         
+
         # residual dimensions - this is different from the number of equations in the constraint
         nphi = self.surface.gamma().shape[0]
         ntheta = self.surface.gamma().shape[1]
 
         dr_by_dB = self.dr_by_dB().reshape((nphi*ntheta, nphi*ntheta, 3))
         Nr = dr_by_dB.shape[0]
+        
         for ii in range(Nr):
             dpri_by_dxi = self.biotsavart.B_vjp_xi(dr_by_dB[ii])
             
@@ -1357,6 +1359,7 @@ def boozer_surface_dexactresidual_dxi_vjp(lm, booz_surf, iota, G):
     res, dres_dB = boozer_surface_residual_dB(surface, iota, G, biotsavart)
     dres_dB = dres_dB.reshape((-1, 3, 3))
     
+
     lm_label = lm[-1]
     lmask = np.zeros(booz_surf.res["mask"].shape, dtype=complex)
     lmask[booz_surf.res["mask"]] = lm[:-1 if surface.stellsym else -3]
@@ -1471,7 +1474,7 @@ def boozer_surface_residual_dB(surface, iota, G, biotsavart, derivatives=0, weig
     tang = xphi + iota * xtheta
     residual = G*B - np.sum(B**2, axis=2)[..., None] * tang
 
-    GI = np.eye(3, 3) * G
+    GI = np.eye(3, 3, dtype=complex) * G
     dresidual_dB = GI[None, None, :, :] - 2. * tang[:, :, :, None] * B[:, :, None, :]
     
     if weight_inv_modB:

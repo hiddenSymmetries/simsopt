@@ -15,7 +15,7 @@ inline Vec3d cross(const Vec3d& a, const Vec3d& b){
 }
 
 inline std::complex<double> norm(const Vec3d& a){
-    return a.norm();
+    return std::sqrt(a.coeff(0)*a.coeff(0) + a.coeff(1)*a.coeff(1) + a.coeff(2)*a.coeff(2));
 }
 
 inline Vec3d cross(int i, Vec3d& b){
