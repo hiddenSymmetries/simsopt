@@ -422,7 +422,7 @@ class ArclengthVariation(Optimizable):
         self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat), holomorphic=True)(l))
 
     def J(self):
-        return float(curve_arclengthvariation_pure(self.curve.incremental_arclength(), self.mat))
+        return complex(curve_arclengthvariation_pure(self.curve.incremental_arclength(), self.mat))
 
     @derivative_dec
     def dJ(self):
