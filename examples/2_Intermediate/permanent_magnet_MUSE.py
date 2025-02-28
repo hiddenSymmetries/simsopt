@@ -141,7 +141,8 @@ pm_opt = PermanentMagnetGrid.geo_setup_from_famus(s, Bnormal, famus_filename, **
 print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
-algorithm = 'ArbVec_backtracking'  # Algorithm to use
+#algorithm = 'ArbVec_backtracking'  # Algorithm to use
+algorithm = 'baseline'  # Algorithm to use
 nAdjacent = 1  # How many magnets to consider "adjacent" to one another
 nHistory = 1  # How often to save the algorithm progress
 thresh_angle = np.pi  # The angle between two "adjacent" dipoles such that they should be removed
@@ -163,7 +164,7 @@ t2 = time.time()
 print('GPMO took t = ', t2 - t1, ' s')
 
 # plot the MSE history
-iterations = np.linspace(0, kwargs['max_nMagnets'], len(R2_history), endpoint=False)
+iterations = np.linspace(0, kwargs['K'], len(R2_history), endpoint=False)
 plt.figure()
 plt.semilogy(iterations, R2_history, label=r'$f_B$')
 plt.semilogy(iterations, Bn_history, label=r'$<|Bn|>$')

@@ -84,8 +84,8 @@ def pointData_forces_torques(coils, allcoils, aprimes, bprimes, nturns_list):
                   "Pointwise_Torques": (contig(torques[:, 0]), contig(torques[:, 1]), contig(torques[:, 2]))}
     return point_data
 
-
-btot = Optimizable.from_file("QA_henneberg_TForder16_n16_p1.50e+00_c1.50e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
+btot = Optimizable.from_file("./QA_henneberg_shape_TForder16_DCorder_0_n18_p1.50e+00_c1.50e+00_lw1.00e-03_lt8.50e+01_lkw1.00e+04_cct1.00e+00_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw0.00e+00_fww0.000000e+00_tw0.00e+00_tww0.000000e+00/biot_savart_optimized_QA.json")
+# btot = Optimizable.from_file("QA_henneberg_TForder16_n16_p1.50e+00_c1.50e+00_lw1.00e-02_lt8.50e+01_lkw1.00e+04_cct8.00e-01_ccw1.00e+02_cst1.50e+00_csw1.00e+01_fw1.00e-33_fww0.000000e+00_tw0.00e+00_tww1.000000e-22/biot_savart_optimized_QA.json")
 bs = btot.Bfields[0]
 bs_TF = btot.Bfields[1]
 coils = bs.coils

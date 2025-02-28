@@ -28,7 +28,8 @@ order = 0
 
 # File for the desired boundary magnetic surface:
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_henneberg.nc'
+# input_name = 'wout_henneberg.nc'
+input_name = 'input.henneberg_nfp2'
 filename = TEST_DIR / input_name
 
 # Initialize the boundary magnetic surface:
@@ -37,9 +38,12 @@ nphi = 32
 ntheta = 32
 poff = 1.5
 coff = 1.5
-s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
-s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+s_outer = SurfaceRZFourier.from_vmec_input(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+# s = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi, ntheta=ntheta)
+# s_inner = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
+# s_outer = SurfaceRZFourier.from_wout(filename, range=range_param, nphi=nphi * 4, ntheta=ntheta * 4)
 
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_normal(poff)
@@ -51,11 +55,17 @@ quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, qtheta, endpoint=True)
 
 # Make high resolution, full torus version of the plasma boundary for plotting
-s_plot = SurfaceRZFourier.from_wout(
+# s_plot = SurfaceRZFourier.from_wout(
+#     filename,
+#     quadpoints_phi=quadpoints_phi,
+#     quadpoints_theta=quadpoints_theta
+# )
+s_plot = SurfaceRZFourier.from_vmec_input(
     filename,
     quadpoints_phi=quadpoints_phi,
     quadpoints_theta=quadpoints_theta
 )
+
 
 ### Initialize some TF coils
 

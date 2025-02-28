@@ -66,6 +66,8 @@ equil = Vmec(vmec_input, mpi)
 equil.boundary = qfm_surf
 equil.run()
 
+print(equil.iota_profile)
+
 # Configure quasisymmetry objective:
 qs = QuasisymmetryRatioResidual(equil,
                                 np.arange(0, 1.01, 0.1),  # Radii to target

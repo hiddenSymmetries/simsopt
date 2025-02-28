@@ -20,8 +20,8 @@ ntheta = 64
 quadpoints_phi = np.linspace(0, 1, nphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
 TEST_DIR = (Path(__file__).parent / ".." / ".." / ".." / "tests" / "test_files").resolve()
-input_name = 'wout_henneberg.nc'
-filename = TEST_DIR / input_name
+input_name = 'wout_hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000.nc'
+filename = input_name
 s = SurfaceRZFourier.from_wout(filename, quadpoints_phi=quadpoints_phi, quadpoints_theta=quadpoints_theta)
 Bfield = Optimizable.from_file(str(sys.argv[1]))
 Bfield.set_points(s.gamma().reshape((-1, 3)))
@@ -41,14 +41,42 @@ qfm_surf = qfm_surf.surface
 # qfm_surf.to_vtk('qfm_surf', extra_data=pointData)
 # qfm_surf.plot()
 
+vmec_input = "input.hybrid.nfp2.newProfiles.T0.14.n0.3e20.BandVscaled_000_001670_000_000000"
+equil2 = Vmec(vmec_input, mpi)
+# equil2.boundary = s
+equil2.run()
+
+qs = QuasisymmetryRatioResidual(equil2,
+                                np.arange(0, 1.01, 0.1),  # Radii to target
+                                helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
+
+proc0_print("Quasisymmetry objective before optimization:", qs.total())
+
+from matplotlib import pyplot as plt
+plt.figure()
+plt.grid()
+psi_s2 = np.linspace(0, len(equil2.wout.iotas[1::]) * equil2.ds, len(equil2.wout.iotas[1::]))
+plt.plot(psi_s2, equil2.wout.iotas[1::], 'rx')
+plt.ylabel(r'rotational transform $\iota$')
+plt.xlabel('Normalized toroidal flux s')
+# plt.show()
+print(equil2.wout.iotas[1::])
+
 # Run VMEC with new QFM surface
-vmec_input = "../../../tests/test_files/input.LandremanPaul2021_QA_reactorScale_lowres"
-equil = Vmec(vmec_input, mpi)
-equil.boundary = qfm_surf
-equil.run()
+equil2.boundary = qfm_surf
+equil2.run()
+psi_s = np.linspace(0, len(equil2.wout.iotas[1::]) * equil2.ds, len(equil2.wout.iotas[1::]))
+plt.plot(psi_s, equil2.wout.iotas[1::], 'bo')
+print(equil2.wout.iotas[1::])
+plt.show()
+
+# print(equil.iota_profile())
+
+# print(equil2.wout.iotas[1::])
+# exit()
 
 # Configure quasisymmetry objective:
-qs = QuasisymmetryRatioResidual(equil,
+qs = QuasisymmetryRatioResidual(equil2,
                                 np.arange(0, 1.01, 0.1),  # Radii to target
                                 helicity_m=1, helicity_n=0)  # (M, N) you want in |B|
 
