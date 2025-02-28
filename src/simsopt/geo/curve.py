@@ -205,7 +205,7 @@ class Curve(Optimizable):
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         dgamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        norm = lambda a: np.sum(a**2, axis=1)**0.5
         numerator = np.cross(dgamma_by_dphi, dgamma_by_dphidphi)
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
@@ -277,7 +277,7 @@ class Curve(Optimizable):
         gammadash = self.gammadash()
         gammadashdash = self.gammadashdash()
         l = self.incremental_arclength()
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        norm = lambda a: np.sum(a**2, axis=1)**0.5
         inner = lambda a, b: np.sum(a*b, axis=1)
         N = len(self.quadpoints)
         t, n, b = (np.zeros((N, 3)), np.zeros((N, 3)), np.zeros((N, 3)))
@@ -298,7 +298,7 @@ class Curve(Optimizable):
         dgamma = self.gammadash()
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        norm = lambda a: np.sum(a**2, axis=1)**0.5
         inner = lambda a, b: np.sum(a*b, axis=1)
         cross = lambda a, b: np.cross(a, b, axis=1)
         dkappa_by_dphi[:] = inner(cross(dgamma, d2gamma), cross(dgamma, d3gamma))/(norm(cross(dgamma, d2gamma)) * norm(dgamma)**3) \
@@ -322,7 +322,7 @@ class Curve(Optimizable):
         l = self.incremental_arclength()
         dl_by_dcoeff = self.dincremental_arclength_by_dcoeff()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        norm = lambda a: np.sum(a**2, axis=1)**0.5
         inner = lambda a, b: np.sum(a*b, axis=1)
 
         N = len(self.quadpoints)
@@ -366,7 +366,7 @@ class Curve(Optimizable):
         d2gamma = self.gammadashdash()
         d3gamma = self.gammadashdashdash()
 
-        norm = lambda a: np.linalg.norm(a, axis=1)
+        norm = lambda a: np.sum(a**2, axis=1)**0.5
         inner = lambda a, b: np.sum(a*b, axis=1)
         cross = lambda a, b: np.cross(a, b, axis=1)
         d1_dot_d2 = inner(dgamma, d2gamma)
