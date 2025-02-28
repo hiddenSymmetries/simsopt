@@ -192,8 +192,7 @@ def fun(dofs):
     # check to make sure that all the surface solves succeeded
     success1 = np.all([boozer_surface.res['success'] for boozer_surface in boozer_surfaces])
     # check to make sure that the surfaces are not self-intersecting
-    #success2 = np.all([not boozer_surface.res['is_self_intersecting'] for boozer_surface in boozer_surfaces])
-    success2 = True
+    success2 = np.all([not boozer_surface.res['is_self_intersecting'] for boozer_surface in boozer_surfaces])
     
     if (success1 and success2):
         f0 = J_nonQSRatio.J() 

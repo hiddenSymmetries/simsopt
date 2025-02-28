@@ -335,7 +335,7 @@ class Surface(Optimizable):
         This function assumes that the surface intersection with the plane is a
         single curve.
         """
-
+        
         # phi is assumed to be between [-pi, pi], so if it does not lie on that interval
         # we shift it by multiples of 2pi until it does
         phi = phi - np.sign(phi) * np.floor(np.abs(phi) / (2 * np.pi)) * (2. * np.pi)
@@ -361,13 +361,13 @@ class Surface(Optimizable):
         varphigrid, thetagrid = np.meshgrid(varphi, theta)
         varphigrid = varphigrid.T
         thetagrid = thetagrid.T
-
+        
         # sample the surface at the varphi and theta points
-        gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3))
+        gamma = np.zeros((varphigrid.shape[0], varphigrid.shape[1], 3), dtype=complex)
         self.gamma_lin(gamma, varphigrid.flatten(), thetagrid.flatten())
 
         # compute the cylindrical phi coordinate of each sampled point on the surface
-        cyl_phi = np.arctan2(gamma[:, :, 1], gamma[:, :, 0])
+        cyl_phi = np.arctan2(gamma[:, :, 1].real, gamma[:, :, 0].real)
 
         # reorder varphi, theta with respect to increasing cylindrical phi
         idx = np.argsort(cyl_phi, axis=0)
@@ -383,7 +383,7 @@ class Surface(Optimizable):
                                     axis=0)
 
         # ensure that varphi does not have massive jumps.
-        diff = varphigrid[1:] - varphigrid[:-1]
+        diff = varphigrid[1:].real - varphigrid[:-1].real
         pinc = np.abs(diff + 1) < np.abs(diff)
         minc = np.abs(diff - 1) < np.abs(diff)
         inc = pinc.astype(int) - minc.astype(int)
@@ -404,9 +404,9 @@ class Surface(Optimizable):
         # this function converts varphi to cylindrical phi, ensuring that the returned angle
         # lies between left_bound and right_bound.
         def varphi2phi(varphi_in, left_bound, right_bound):
-            gamma = np.zeros((varphi_in.size, 3))
+            gamma = np.zeros((varphi_in.size, 3), dtype=complex)
             self.gamma_lin(gamma, varphi_in, theta)
-            phi = np.arctan2(gamma[:, 1], gamma[:, 0])
+            phi = np.arctan2(gamma[:, 1].real, gamma[:, 0].real)
             pinc = (phi < left_bound).astype(int)
             minc = (phi > right_bound).astype(int)
             phi = phi + 2. * np.pi * (pinc - minc)
@@ -431,7 +431,7 @@ class Surface(Optimizable):
 
         # bisect cyl_phi to compute the cross section
         sol = bisection(cyl_phi_left, varphi_left, cyl_phi_right, varphi_right)
-        cross_section = np.zeros((sol.size, 3))
+        cross_section = np.zeros((sol.size, 3), dtype=complex)
         self.gamma_lin(cross_section, sol, theta)
         return cross_section
     
