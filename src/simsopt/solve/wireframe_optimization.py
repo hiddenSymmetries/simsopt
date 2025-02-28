@@ -20,7 +20,7 @@ def optimize_wireframe(wframe, algorithm, params, \
     """
     Optimizes the segment currents in a wireframe class instance.
 
-    The `currents` field of the wireframe class instance will be updated with
+    The ``currents`` field of the wireframe class instance will be updated with
     the solution.
 
     There are two different modes of operation depending on which optional
@@ -30,31 +30,31 @@ def optimize_wireframe(wframe, algorithm, params, \
           external magnetic field; in this case, the function calculates the
           normal field matrix and required normal field at the test points
           in preparation for performing the least-squares solve. In this mode,
-          the parameter `surf_plas` must be supplied and, if relevant, 
-          `ext_field`.
+          the parameter ``surf_plas`` must be supplied and, if relevant, 
+          ``ext_field``.
 
       (2) The user supplies a pre-computed normal field matrix and vector with
           the required normal field on the plasma boundary, in which case it
           is not necessary to perform a field calculation before the least-
-          squares solve. In this mode, the parameters `Amat` and `bvec` must
+          squares solve. In this mode, the parameters ``Amat`` and ``bvec`` must
           be supplied.
 
     IMPORTANT: for Regularized Constrained Least Squares ('rcls') optimizations,
-    the parameter `assume_no_crossings` MUST be set to True if the wireframe is 
-    constrained to allow no crossing currents; otherwise, the optimization will 
-    not work properly!
+    the parameter ``assume_no_crossings`` MUST be set to True if the wireframe 
+    is constrained to allow no crossing currents; otherwise, the optimization 
+    will not work properly!
 
     Parameters
     ----------
         wframe: instance of the ToroidalWireframe class
             Wireframe whose segment currents are to be optimized
         algorithm: string
-            Optimization algorithm to use. Options are:
-                'rcls': Regularized Constrained Least Squares
-                'gsco': Greedy Stellarator Coil Optimization
+            Optimization algorithm to use. Options are
+                * 'rcls': Regularized Constrained Least Squares
+                * 'gsco': Greedy Stellarator Coil Optimization
         params: dictionary
-            Parameters for the optimization. See more detailed descriptions
-            below.
+            As specified in the lists below under `Parameters for RCLS 
+            optimizations` or `Parameters for GSCO optimizations`
         surf_plas: Surface class instance (optional)
             Surface of the target plasma, on which test points are placed for
             evaluation of the normal field. If supplied, a magnetic field
@@ -67,10 +67,10 @@ def optimize_wireframe(wframe, algorithm, params, \
             normal field vector in mode (1) as described above.
         bnorm_target: double array (optional)
             Target value of the normal field on the plasma boundary to be
-            produced by the combination of the wireframe and `ext_field`.
+            produced by the combination of the wireframe and ``ext_field``.
             Zero by default. Test points on the plasma boundary corresponding 
-            to the elements of `bnorm_target` must agree with the test points 
-            of `surf_plas`.   
+            to the elements of ``bnorm_target`` must agree with the test points 
+            of ``surf_plas``.   
         area_weighted: boolean (optional)
             Determines whether the normal field matrix and target normal field
             vector elements are weighted by the square root of the area 
@@ -83,21 +83,25 @@ def optimize_wireframe(wframe, algorithm, params, \
         Amat: 2d double array (optional)
             Inductance matrix relating normal field at test points on the
             plasma boundary to currents in each segment. This can be supplied
-            along with `bvec` to skip the field calculation as describe in mode
-            (2) above. Must have dimensions (nTestPoints, wFrame.nSegments), 
-            where nTestPoints is the number of test points on the plasma 
-            boundary. 
+            along with ``bvec`` to skip the field calculation as describe in 
+            mode (2) above. Must have dimensions (nTestPoints, 
+            wFrame.nSegments), where nTestPoints is the number of test points 
+            on the plasma boundary. 
         bvec: double array (optional)
             Vector giving the target values of the normal field at each test
-            point on the plasma boundary. This can be supplied along with `Amat`
-            to skip the field calculation. Must have dimensions
+            point on the plasma boundary. This can be supplied along with 
+            ``Amat`` to skip the field calculation. Must have dimensions
             (nTestPoints, 1).
         verbose: boolean (optional)
             If true, will print progress to screen with durations of certain
             steps
 
-    Parameters for RCLS optimizations
-    ---------------------------------
+    Returns
+    -------
+        results: dictionary
+            As specified below under `Results dictionary`
+
+    Parameters for RCLS optimizations:
         reg_W: scalar, 1d array, or 2d array
             Scalar, array, or matrix for regularization. If a 1d array, must
             have the same number of elements as wframe.nSegments. If a 2d 
@@ -107,8 +111,7 @@ def optimize_wireframe(wframe, algorithm, params, \
             its free segments form single-track loops with no forks or 
             crossings.  Default is False. 
 
-    Parameters for GSCO optimizations
-    ---------------------------------
+    Parameters for GSCO optimizations:
         lambda_S: double
             Weighting factor for the objective function proportional to the
             number of active segments
@@ -139,59 +142,57 @@ def optimize_wireframe(wframe, algorithm, params, \
             wireframe prior to the optimization (optimization will
             add to these numbers); zero by default
 
-    Returns
-    -------
-        results: dictionary with the following entries:
-            x: 1d double array 
-                Array of currents in each segment according to the solution.
-                The elements of wframe.currents will be set to these values.
-            Amat: 2d double array
-                Inductance matrix used for optimization, area weighted if
-                requested
-            bvec: 1d double array (column vector)
-                Target values of the normal field on the plasma boundary,
-                area weighted if requested
-            wframe_field: WireframeField class instance
-                Magnetic field produced by the wireframe
-            f_B: double
-                Values of the sub-objective function f_B
-            f: double
-                Values of the total objective function f
+    Results dictionary:
+        x: 1d double array 
+            Array of currents in each segment according to the solution.
+            The elements of wframe.currents will be set to these values.
+        Amat: 2d double array
+            Inductance matrix used for optimization, area weighted if
+            requested
+        bvec: 1d double array (column vector)
+            Target values of the normal field on the plasma boundary,
+            area weighted if requested
+        wframe_field: WireframeField class instance
+            Magnetic field produced by the wireframe
+        f_B: double
+            Values of the sub-objective function f_B
+        f: double
+            Values of the total objective function f
 
-            For RCLS optimizations only:
+        For RCLS optimizations only:
 
-            f_R: double
-                Value of the sub-objective function f_R
+        f_R: double
+            Value of the sub-objective function f_R
 
-            For GSCO optimizations only:
+        For GSCO optimizations only:
 
-            loop_count: integer array (1d columnn vector)
-                Signed number of current loops added to each loop in the 
-                wireframe
-            iter_hist: integer array 
-                Array with the iteration numbers of the data recorded in the 
-                history arrays. The first index is 0, corresponding to the 
-                initial guess `x_init`; the last is the final iteration. 
-            curr_hist: double array
-                Array with the signed loop current added at each iteration, 
-                taken to be zero for the initial guess (iteration zero)
-            loop_hist: integer array
-                Array with the index of the loop to which current was added
-                at each iteration, taken to be zero for the initial guess
-                (iteration zero)
-            f_B_hist: 1d double array (column vector)
-                Array with values of the f_B objective function at each 
-                iteration
-            f_S_hist: 1d double array (column vector)
-                Array with values of the f_S objective function at each 
-                iteration
-            f_hist: 1d double array (column vector)
-                Array with values of the f_S objective function at each
-                iteration
-            x_init: 1d double array (column vector)
-                Copy of the initial guess provided to the optimizer
-            f_S: double
-                Values of the sub-objective function f_S
+        loop_count: integer array (1d columnn vector)
+            Signed number of current loops added to each loop in the 
+            wireframe
+        iter_hist: integer array 
+            Array with the iteration numbers of the data recorded in the 
+            history arrays. The first index is 0, corresponding to the 
+            initial guess `x_init`; the last is the final iteration. 
+        curr_hist: double array
+            Array with the signed loop current added at each iteration, 
+            taken to be zero for the initial guess (iteration zero)
+        loop_hist: integer array
+            Array with the index of the loop to which current was added
+            at each iteration, taken to be zero for the initial guess
+            (iteration zero)
+        f_B_hist: 1d double array (column vector)
+            Array with values of the f_B objective function at each 
+            iteration
+        f_S_hist: 1d double array (column vector)
+            Array with values of the f_S objective function at each 
+            iteration
+        f_hist: 1d double array (column vector)
+            Array with values of the f_S objective function at each
+            iteration
+        x_init: 1d double array (column vector)
+            Copy of the initial guess provided to the optimizer
+        f_S: double
+            Values of the sub-objective function f_S
     """
 
     if not isinstance(wframe, ToroidalWireframe):
@@ -777,7 +778,7 @@ def regularized_constrained_least_squares(A, b, W, C, d):
         else:
             raise ValueError('W must be a scalar, 1d array, or 2d array')
             
-    # Compute the QR factorization of the transpose of the constraint matrix;
+    # Compute the QR factorization of the transpose of the constraint matrix
     Qfull, Rtall = _qr_factorization_wrapper(Ctra)
     Q1mat = Qfull[:,:p]  # Orthonormal vectors in the constrained subspace
     Q2mat = Qfull[:,p:]  # Orthonormal vectors in the free subspace
