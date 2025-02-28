@@ -417,7 +417,7 @@ class ArclengthVariation(Optimizable):
         for i in range(nintervals):
             mat[i, indices[i]:indices[i+1]] = 1/(indices[i+1]-indices[i])
         self.mat = mat
-        self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat))(l))
+        self.thisgrad = jit(lambda l: grad(lambda x: curve_arclengthvariation_pure(x, mat), holomorphic=True)(l))
 
     def J(self):
         return float(curve_arclengthvariation_pure(self.curve.incremental_arclength(), self.mat))
