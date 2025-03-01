@@ -163,7 +163,8 @@ s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 print('B_field shape = ',b_dipole.B().shape)
-f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+# f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+f_B_sf = SquaredFlux(s, b_dipole, -Bnormal).J()
 
 print('f_B = ', f_B_sf)
 total_volume = np.sum(np.sqrt(np.sum(pm_opt.m.reshape(pm_opt.ndipoles, 3) ** 2, axis=-1))) * s.nfp * 2 * mu0 / B_max
@@ -211,8 +212,9 @@ s_plot.to_vtk(out_dir / "m_comp_optimized", extra_data=pointData)
 # Print optimized f_B and other metrics
 b_comp.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-f_Bc_sf = SquaredFlux(s_plot, b_comp, -Bnormal).J()
+Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+# f_Bc_sf = SquaredFlux(s_plot, b_comp, -Bcnormal).J()
+f_Bc_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
 print('f_Bc_comp = ', f_Bc_sf)
 
 print('fB diff = ',dipfB-compfB)
