@@ -84,7 +84,7 @@ optimizing toroidal wireframes::
   from simsopt.solve import optimize_wireframe
 
 To construct a :obj:`~simsopt.geo.ToroidalWireframe` class instance, one must 
-specify its geometry and resolution. The geometry is defined accourding to a 
+specify its geometry and resolution. The geometry is defined according to a 
 toroidal surface, represented by an instance of 
 :obj:`~simsopt.geo.SurfaceRZFourier`,  on which the 
 wireframe's nodes are to be placed. In this example, the toroidal surface

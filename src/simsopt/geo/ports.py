@@ -132,7 +132,7 @@ class PortSet(object):
 
         The columns must have the following parameters in order (see docstring 
         for CircularPort for definitions):
-            ox, oy, oz, ax, ay, az, ir, thick, l0, l1
+        ox, oy, oz, ax, ay, az, ir, thick, l0, l1
 
         Parameters
         ----------
@@ -166,7 +166,7 @@ class PortSet(object):
 
         The columns must have the following parameters in order (see docstring 
         for RectangularPort for definitions):
-          ox, oy, oz, ax, ay, az, wx, wy, wz, iw, ih, thick, l0, l1
+        ox, oy, oz, ax, ay, az, wx, wy, wz, iw, ih, thick, l0, l1
 
         Parameters
         ----------
@@ -528,7 +528,7 @@ class CircularPort(Port):
         -------
             ports: PortSet class instance
                 A set of all the symmetric ports, including the one represented
-                by the calling Port class instance if `include_self`==True.
+                by the calling Port class instance if ``include_self==True``.
         """
 
         dphi = 2.*np.pi/nfp

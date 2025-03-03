@@ -590,8 +590,8 @@ class ToroidalWireframe(object):
         ----------
             coll_func: function
                 Function with the following interface:
-                    colliding = coll_func(x, y, z, **kwargs)
-                x, y, and z are arrays the Cartesian x, y, and z coordinates
+                ``colliding = coll_func(x, y, z, **kwargs)``.
+                Here, x, y, and z are arrays the Cartesian x, y, and z coordinates
                 of a set of test points. The function returns a logical array
                 (colliding) with the same dimensions of x, y, and z in which
                 elements are True if the corresponding input point violates
@@ -776,8 +776,7 @@ class ToroidalWireframe(object):
         Parameters
         ----------
             include: string (optional)
-                'all':      (default) returns IDs of both explicitly and 
-                            implicitly constrained segments.
+                'all':      (default) returns IDs of both explicitly and implicitly constrained segments.
                 'explicit': returns IDs only of explicitly constrained segments.
                 'implicit': returns IDs only of implicitly constrained segments.
             update: boolean (optional)
@@ -874,7 +873,7 @@ class ToroidalWireframe(object):
         Return the matrices for the system of equations that define the linear
         equality constraints for the wireframe segment currents. The equations
         have the form
-            C*x = d,
+        ``C * x = d``,
         where x is a column vector with the segment currents, C is a matrix of
         coefficients for the segment currents in each equation, and d is a
         column vector of constant terms in each equation.
@@ -1111,7 +1110,9 @@ class ToroidalWireframe(object):
         the segment currents. Specifically, for each constraint equation,
         confirm that:
 
-            |B*x - d| < atol + mean(|x|)*rtol,
+        .. math::
+
+            |B * x - d| < atol + mean(|x|) * rtol,
 
         where B is a vector of coefficients, x is the array of currents in
         each segment, d is a constant, and atol is an absolute tolerance, and
