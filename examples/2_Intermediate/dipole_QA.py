@@ -26,12 +26,12 @@ else:
     # dr = 0.02  # cylindrical bricks with radial extent 2 cm
     Nx = 32
 
-coff = 0.2  # PM grid starts offset ~ 10 cm from the plasma surface
+coff = 0.5  # PM grid starts offset ~ 10 cm from the plasma surface
 poff = 0.1
   # PM grid end offset ~ 15 cm from the plasma surface
 input_name = 'input.LandremanPaul2021_QA_lowres'
 
-nIter_max = 1000
+nIter_max = 10000
 
 # Read in the plas/ma equilibrium file
 TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
@@ -163,7 +163,10 @@ s_plot.to_vtk(out_dir / "m_optimized", extra_data=pointData)
 
 # Print optimized f_B and other metrics
 print('B_field shape = ',b_dipole.B().shape)
-f_B_sf = SquaredFlux(s_plot, b_dipole, -Bnormal).J()
+bs.set_points(s.gamma().reshape(-1, 3))
+b_dipole.set_points(s.gamma().reshape(-1, 3))
+Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+f_B_sf = SquaredFlux(s, b_dipole, -Bnormal).J()
 # f_B_sf = SquaredFlux(s, b_dipole, -Bnormal).J()
 
 print('f_B = ', f_B_sf)
@@ -213,7 +216,7 @@ s_plot.to_vtk(out_dir / "m_comp_optimized", extra_data=pointData)
 b_comp.set_points(s.gamma().reshape((-1, 3)))
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bcnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
-f_Bc_sf = SquaredFlux(s_plot, b_comp, -Bcnormal).J()
+f_Bc_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
 # f_Bc_sf = SquaredFlux(s, b_comp, -Bcnormal).J()
 print('f_Bc_comp = ', f_Bc_sf)
 

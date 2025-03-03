@@ -424,6 +424,8 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
     #         **kwargs
     #     )
     elif algorithm == 'ArbVec':  # GPMO with arbitrary polarization vectors
+        if pm_opt.pol_vectors is None:
+            raise ValueError("ArbVec algorithm used without specifying the polarization vectors (pol_vectors)!")
         algorithm_history, Bn_history, m_history, m = sopp.GPMO_ArbVec(
             A_obj=contig(A_obj.T),
             b_obj=contig(pm_opt.b_obj),
@@ -442,6 +444,8 @@ def GPMO(pm_opt, algorithm='baseline', **kwargs):
         )
         pm_opt.num_nonzeros = num_nonzeros[num_nonzeros != 0]
     elif algorithm == 'ArbVec_backtracking':  # GPMOb with arbitrary vectors
+        if pm_opt.pol_vectors is None:
+            raise ValueError("ArbVec backtracking algorithm used without specifying the polarization vectors (pol_vectors)!")
         if pm_opt.coordinate_flag != 'cartesian':
             raise ValueError('ArbVec_backtracking algorithm currently '
                              'only supports dipole grids with \n'

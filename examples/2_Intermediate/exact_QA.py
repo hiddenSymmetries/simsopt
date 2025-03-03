@@ -96,15 +96,15 @@ print(pm_opt.phiThetas)
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-# nIter_max = 50000
+nIter_max = 5000
 # max_nMagnets = 5000
 algorithm = 'baseline'
 # algorithm = 'ArbVec_backtracking'
 # nBacktracking = 200 
-# nAdjacent = 10
+# nAdjacent = 1
 # thresh_angle = np.pi  # / np.sqrt(2)
 # angle = int(thresh_angle * 180 / np.pi)
-kwargs['K'] = max_nMagnets
+# kwargs['K'] = max_nMagnets
 # if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
 #     kwargs['backtracking'] = nBacktracking
 #     kwargs['Nadjacent'] = nAdjacent
