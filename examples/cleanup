@@ -15,3 +15,4 @@ rm -f *.sp.end
 rm -f *.sp.h5
 rm -f threed*
 rm -f parvmecinfo.txt
+rm -rf gvec_*
