@@ -70,7 +70,8 @@ html_static_path = ['_static']
 
 html_css_files = [
     'css/parameter_linebreak.css',
-    'css/equation_numbers.css'
+    'css/equation_numbers.css',
+    'css/tight_table.css'
 ]
 
 

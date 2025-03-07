@@ -124,6 +124,14 @@ simsopt.geo.plotting module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.ports module
+------------------------
+
+.. automodule:: simsopt.geo.ports
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.qfmsurface module
 -----------------------------
 
@@ -192,6 +200,14 @@ simsopt.geo.surfacexyztensorfourier module
 ------------------------------------------
 
 .. automodule:: simsopt.geo.surfacexyztensorfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.wireframe_toroidal module
+-------------------------------------
+
+.. automodule:: simsopt.geo.wireframe_toroidal
    :members:
    :undoc-members:
    :show-inheritance:

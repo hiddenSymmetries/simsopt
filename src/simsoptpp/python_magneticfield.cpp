@@ -4,6 +4,7 @@
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 #include "xtensor-python/pytensor.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
+typedef xt::pyarray<int> PyIntArray;
 typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 using std::shared_ptr;
 using std::vector;
@@ -11,12 +12,14 @@ using std::vector;
 namespace py = pybind11;
 #include "magneticfield.h"
 #include "magneticfield_biotsavart.h"
+#include "magneticfield_wireframe.h"
 #include "magneticfield_interpolated.h"
 #include "pymagneticfield.h"
 #include "regular_grid_interpolant_3d.h"
 #include "pycurrent.h"
 typedef MagneticField<xt::pytensor> PyMagneticField;
 typedef BiotSavart<xt::pytensor, PyArray> PyBiotSavart;
+typedef WireframeField<xt::pytensor, PyArray, PyIntArray> PyWireframeField;
 typedef InterpolatedField<xt::pytensor> PyInterpolatedField;
 
 
@@ -117,4 +120,11 @@ void init_magneticfields(py::module_ &m){
         .def_readonly("rule", &PyInterpolatedField::rule);
     //register_common_field_methods<PyInterpolatedField>(ifield);
  
+    auto wf = py::class_<PyWireframeField, PyMagneticFieldTrampoline<PyWireframeField>, shared_ptr<PyWireframeField>, PyMagneticField>(m, "WireframeField")
+        .def(py::init<vector<PyArray>, PyIntArray&, vector<double>, PyArray&>())
+        .def("compute", &PyWireframeField::compute)
+        .def("fieldcache_get_or_create", &PyWireframeField::fieldcache_get_or_create)
+        .def("fieldcache_get_status", &PyWireframeField::fieldcache_get_status);
+    register_common_field_methods<PyWireframeField>(wf);
+
 }
