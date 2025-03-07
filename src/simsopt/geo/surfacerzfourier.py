@@ -397,7 +397,7 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         Args:
             filename: Name of the ``nescin.*`` file to read.
-            which_surf: either `plasma` or `current`, will select whether
+            which_surf: either ``plasma`` or ``current``, will select whether
                 to import the plasma boundary or the ``current surface`` 
                 (i.e. winding surface) from the file
             kwargs: Any other arguments to pass to the ``SurfaceRZFourier`` 

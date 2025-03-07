@@ -124,6 +124,14 @@ simsopt.geo.plotting module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.ports module
+------------------------
+
+.. automodule:: simsopt.geo.ports
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.qfmsurface module
 -----------------------------
 

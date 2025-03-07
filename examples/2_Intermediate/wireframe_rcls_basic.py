@@ -5,7 +5,7 @@ to generate a specific target normal field on a user-provided plasma boundary.
 
 For this example, the wireframe is constructed such that its nodes lie on a 
 toroidal surface a certain fixed distance from the target plasma boundary. 
-However, in principal the user may specify any toroidal geometry for the
+However, in principle the user may specify any toroidal geometry for the
 construction of the wireframe using the `SurfaceRZFourier` class.
 """
 

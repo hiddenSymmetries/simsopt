@@ -9,7 +9,7 @@ the toroidal sectors such that new coils cannot be formed there.
 To provide the toroidal field, planar TF coils are initialized within the 
 restricted regions between the sectors. Due to the constraints placed on
 the segments that cross the TF coils, their shapes will not be modified during
-the GSCO procedure, in contrast too the modular coil example.
+the GSCO procedure, in contrast to the modular coil example.
 """
 
 import os

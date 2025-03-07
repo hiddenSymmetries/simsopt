@@ -1,6 +1,4 @@
 """
-ports.py
-
 Functions for checking for collisions with ports and other obstacles.
 """
 
