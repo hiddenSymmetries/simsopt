@@ -50,8 +50,10 @@ def optimize_wireframe(wframe, algorithm, params, \
             Wireframe whose segment currents are to be optimized
         algorithm: string
             Optimization algorithm to use. Options are
-                * 'rcls': Regularized Constrained Least Squares
-                * 'gsco': Greedy Stellarator Coil Optimization
+
+            * ``"rcls"``: Regularized Constrained Least Squares
+
+            * ``"gsco"``: Greedy Stellarator Coil Optimization
         params: dictionary
             As specified in the lists below under `Parameters for RCLS 
             optimizations` or `Parameters for GSCO optimizations`
@@ -102,97 +104,100 @@ def optimize_wireframe(wframe, algorithm, params, \
             As specified below under `Results dictionary`
 
     Parameters for RCLS optimizations:
-        reg_W: scalar, 1d array, or 2d array
-            Scalar, array, or matrix for regularization. If a 1d array, must
-            have the same number of elements as wframe.nSegments. If a 2d 
-            array, both dimensions must be equal to wframe.nSegments.
-        assume_no_crossings: boolean (optional)
-            If true, will assume that the wireframe is constrained such that
-            its free segments form single-track loops with no forks or 
-            crossings.  Default is False. 
+
+    *   ``reg_W``: (*scalar, 1d array, or 2d array*) -
+        Scalar, array, or matrix for regularization. If a 1d array, must
+        have the same number of elements as wframe.nSegments. If a 2d 
+        array, both dimensions must be equal to wframe.nSegments.
+    *   ``assume_no_crossings``: (*boolean (optional)*) -
+        If true, will assume that the wireframe is constrained such that
+        its free segments form single-track loops with no forks or 
+        crossings.  Default is False. 
 
     Parameters for GSCO optimizations:
-        lambda_S: double
-            Weighting factor for the objective function proportional to the
-            number of active segments
-        max_iter: integer
-            Maximum number of iterations to perform
-        print_inteval: integer
-            Number of iterations between subsequent prints of progress to screen
-        no_crossing: boolean (optional)
-            If true, the solution will forbid currents from crossing within
-            the wireframe; default is false
-        match_current: boolean (optional)
-            If true, added loops of current will match the current of the 
-            loop(s) adjacent to where they are added; default is false
-        default_current: double (optional)
-            Loop current to add during each iteration to empty loops or to any
-            loop if not matching existing current; default is 0
-        max_current: double (optional)
-            Maximum magnitude for the current in each segment; default is 
-            infinity
-        max_loop_count: integer (optional)
-            If nonzero, sets the maximum number of current increments to add
-            to a given loop in the wireframe (default is zero)
-        x_init: double array (optional)
-            Initial current values to impose on the wireframe segments; will
-            overwrite wframe.currents if used
-        loop_count_init: integer array (optional)
-            Signed number of loops of current added to each loop in the 
-            wireframe prior to the optimization (optimization will
-            add to these numbers); zero by default
+
+    *   ``lambda_S``: (*double*) -
+        Weighting factor for the objective function proportional to the
+        number of active segments
+    *   ``max_iter``: (*integer*) -
+        Maximum number of iterations to perform
+    *   ``print_inteval``: (*integer*) -
+        Number of iterations between subsequent prints of progress to screen
+    *   ``no_crossing``: (*boolean (optional)*) -
+        If true, the solution will forbid currents from crossing within
+        the wireframe; default is false
+    *   ``match_current``: (*boolean (optional)*) -
+        If true, added loops of current will match the current of the 
+        loop(s) adjacent to where they are added; default is false
+    *   ``default_current``: (*double (optional)*) -
+        Loop current to add during each iteration to empty loops or to any
+        loop if not matching existing current; default is 0
+    *   ``max_current``: (*double (optional)*) -
+        Maximum magnitude for the current in each segment; default is 
+        infinity
+    *   ``max_loop_count``: (*integer (optional)*) -
+        If nonzero, sets the maximum number of current increments to add
+        to a given loop in the wireframe (default is zero)
+    *   ``x_init``: (*double array (optional)*) -
+        Initial current values to impose on the wireframe segments; will
+        overwrite wframe.currents if used
+    *   ``loop_count_init``: (*integer array (optional)*) -
+        Signed number of loops of current added to each loop in the 
+        wireframe prior to the optimization (optimization will
+        add to these numbers); zero by default
 
     Results dictionary:
-        x: 1d double array 
-            Array of currents in each segment according to the solution.
-            The elements of wframe.currents will be set to these values.
-        Amat: 2d double array
-            Inductance matrix used for optimization, area weighted if
-            requested
-        bvec: 1d double array (column vector)
-            Target values of the normal field on the plasma boundary,
-            area weighted if requested
-        wframe_field: WireframeField class instance
-            Magnetic field produced by the wireframe
-        f_B: double
-            Values of the sub-objective function f_B
-        f: double
-            Values of the total objective function f
 
-        For RCLS optimizations only:
+    *   ``x``: (*1d double array*) -
+        Array of currents in each segment according to the solution.
+        The elements of wframe.currents will be set to these values.
+    *   ``Amat``: (*2d double array*) -
+        Inductance matrix used for optimization, area weighted if
+        requested
+    *   ``bvec``: (*1d double array (column vector)*) -
+        Target values of the normal field on the plasma boundary,
+        area weighted if requested
+    *   ``wframe_field``: (*WireframeField class instance*) -
+        Magnetic field produced by the wireframe
+    *   ``f_B``: (*double*) -
+        Values of the sub-objective function f_B
+    *   ``f``: (*double*) -
+        Values of the total objective function f
 
-        f_R: double
-            Value of the sub-objective function f_R
+    For RCLS optimizations only:
 
-        For GSCO optimizations only:
+    *   ``f_R``: (*double*) -
+        Value of the sub-objective function f_R
 
-        loop_count: integer array (1d columnn vector)
-            Signed number of current loops added to each loop in the 
-            wireframe
-        iter_hist: integer array 
-            Array with the iteration numbers of the data recorded in the 
-            history arrays. The first index is 0, corresponding to the 
-            initial guess `x_init`; the last is the final iteration. 
-        curr_hist: double array
-            Array with the signed loop current added at each iteration, 
-            taken to be zero for the initial guess (iteration zero)
-        loop_hist: integer array
-            Array with the index of the loop to which current was added
-            at each iteration, taken to be zero for the initial guess
-            (iteration zero)
-        f_B_hist: 1d double array (column vector)
-            Array with values of the f_B objective function at each 
-            iteration
-        f_S_hist: 1d double array (column vector)
-            Array with values of the f_S objective function at each 
-            iteration
-        f_hist: 1d double array (column vector)
-            Array with values of the f_S objective function at each
-            iteration
-        x_init: 1d double array (column vector)
-            Copy of the initial guess provided to the optimizer
-        f_S: double
-            Values of the sub-objective function f_S
+    For GSCO optimizations only:
+
+    *   ``loop_count``: (*integer array (1d columnn vector)*) -
+        Signed number of current loops added to each loop in the 
+        wireframe
+    *   ``iter_hist``: (*integer array*) -
+        Array with the iteration numbers of the data recorded in the 
+        history arrays. The first index is 0, corresponding to the 
+        initial guess `x_init`; the last is the final iteration. 
+    *   ``curr_hist``: (*double array*) -
+        Array with the signed loop current added at each iteration, 
+        taken to be zero for the initial guess (iteration zero)
+    *   ``loop_hist``: (*integer array*) -
+        Array with the index of the loop to which current was added
+        at each iteration, taken to be zero for the initial guess
+        (iteration zero)
+    *   ``f_B_hist``: (*1d double array (column vector)*) -
+        Array with values of the f_B objective function at each 
+        iteration
+    *   ``f_S_hist``: (*1d double array (column vector)*) -
+        Array with values of the f_S objective function at each 
+        iteration
+    *   ``f_hist``: (*1d double array (column vector)*) -
+        Array with values of the f_S objective function at each
+        iteration
+    *   ``x_init``: (*1d double array (column vector)*) -
+        Copy of the initial guess provided to the optimizer
+    *   ``f_S``: (*double*) -
+        Values of the sub-objective function f_S
     """
 
     if not isinstance(wframe, ToroidalWireframe):
@@ -716,10 +721,12 @@ def regularized_constrained_least_squares(A, b, W, C, d):
     subject to linear equality constraints on the variables.
 
     In other words, minimizes:
-        0.5 * ((A*x - b)**2 + (W*x)**2
 
-    such that: 
-        C*x = d
+    0.5 * ((A * x - b)**2 + (W * x)**2
+
+    such that:
+
+    C * x = d
 
     Here, A is the design matrix, b is the target vector, W is the 
     regularization matrix (normally diagonal), and C and d contain the 
@@ -811,16 +818,18 @@ def regularized_constrained_least_squares(A, b, W, C, d):
 
 def _qr_factorization_wrapper(M):
     """
-    Wrapper for the function scipy.linalg.qr that handles a bug that has 
+    Wrapper for the function ``scipy.linalg.qr`` that handles a bug that has 
     been observed in some installations of simsopt. If the bug is present, 
     performing certain actions (e.g. a magnetic field calculation) can
     inexplicably cause a subsequent (and possibly unrelated) call to 
-    scipy.linalg.qr to return matrices with nan values. This issue can 
+    ``scipy.linalg.qr`` to return matrices with nan values. This issue can 
     often be resolved by simply calling the function a second time.
 
     For some discussions that are possibly relevant to this issue:
-        https://github.com/scipy/scipy/issues/5586
-        https://github.com/numpy/numpy/issues/20356
+
+    https://github.com/scipy/scipy/issues/5586
+
+    https://github.com/numpy/numpy/issues/20356
 
     Parameters
     ----------

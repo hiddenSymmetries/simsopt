@@ -1,6 +1,4 @@
 """
-wireframe_toroidal.py
-
 Implementation of the ToroidalWireframe class and associated functions
 """
 import numpy as np
@@ -316,12 +314,11 @@ class ToroidalWireframe(object):
         Add a linear equality constraint on the currents in the segments
         in the wireframe of the form 
 
-            matrix_row * x = constant, 
+            ``matrix_row * x = constant``,
 
-            where:
-                x is the array of currents in each segment
-                matrix_row is a 1d array of coefficients for each segment
-                constant is the constant appearing on the right-hand side
+        where ``x`` is the array of currents in each segment,
+        ``matrix_row`` is a 1d array of coefficients for each segment, and
+        ``constant`` is the constant appearing on the right-hand side
 
         Parameters
         ----------
@@ -1048,13 +1045,15 @@ class ToroidalWireframe(object):
         the wireframe. There is one row for every cell. The columns are defined
         as follows:
 
-        Column  Short name  Description
-        ------  ----------  ----------------------------------------------------
-        1       ind_tor1    ID of toroidal segment with lower poloidal angle
-        2       ind_pol2    ID of poloidal segment with higher toroidal angle
-        3       ind_tor3    ID of toroidal segment with higher poloidal angle
-        4       ind_pol4    ID of poloidal segment with lower toroidal angle
+        .. code-block:: text
 
+            Column  Short name  Description
+            ------  ----------  ----------------------------------------------------
+            1       ind_tor1    ID of toroidal segment with lower poloidal angle
+            2       ind_pol2    ID of poloidal segment with higher toroidal angle
+            3       ind_tor3    ID of toroidal segment with higher poloidal angle
+            4       ind_pol4    ID of poloidal segment with lower toroidal angle
+        
         """
 
         return np.ascontiguousarray(self.cell_key)
@@ -1065,12 +1064,14 @@ class ToroidalWireframe(object):
         in the wireframe. There is one row for every cell. The columns are 
         defined as follows:
 
-        Column  Short name  Description
-        ------  ----------  ----------------------------------------------------
-        1       nbr_npol    ID of neighboring cell, negative poloidal direction
-        2       nbr_ptor    ID of neighboring cell, positive toroidal direction
-        3       nbr_ppol    ID of neighboring cell, positive poloidal direction
-        4       nbr_ntor    ID of neighboring cell, negative toroidal direction
+        .. code-block:: text
+
+            Column  Short name  Description
+            ------  ----------  ----------------------------------------------------
+            1       nbr_npol    ID of neighboring cell, negative poloidal direction
+            2       nbr_ptor    ID of neighboring cell, positive toroidal direction
+            3       nbr_ppol    ID of neighboring cell, positive poloidal direction
+            4       nbr_ntor    ID of neighboring cell, negative toroidal direction
 
         """
 
@@ -1115,7 +1116,7 @@ class ToroidalWireframe(object):
             |B * x - d| < atol + mean(|x|) * rtol,
 
         where B is a vector of coefficients, x is the array of currents in
-        each segment, d is a constant, and atol is an absolute tolerance, and
+        each segment, d is a constant, atol is an absolute tolerance, and
         rtol is a relative tolerance.
 
         Parameters
@@ -1245,15 +1246,19 @@ class ToroidalWireframe(object):
         be installed using ``pip install pyevtk``.
 
         The following datasets will be stored in the file:
-            current: Current [A] in each segment. Positive currents flow in
-                the positive toroidal/poloidal direction.
-            constrained: 1 if the segment is constrained to carry no current;
-                0 otherwise
-            constrained_exp: 1 if the segment is explicitly constrained, 
-                i.e. set by the user to carry no current.
-            constrained_imp: 1 if the segment is implicitly constrained, 
-                i.e. it can carry no current due to neighboring segments
-                being constrained.
+
+        ``current``: Current [A] in each segment. Positive currents flow in
+        the positive toroidal/poloidal direction.
+
+        ``constrained``: 1 if the segment is constrained to carry no current;
+        0 otherwise
+
+        ``constrained_exp``: 1 if the segment is explicitly constrained, 
+        i.e. set by the user to carry no current.
+
+        ``constrained_imp``: 1 if the segment is implicitly constrained, 
+        i.e. it can carry no current due to neighboring segments
+        being constrained.
 
         Parameters
         ----------
