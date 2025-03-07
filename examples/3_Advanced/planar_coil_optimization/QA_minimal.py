@@ -347,7 +347,7 @@ for i in range(1, n_saves + 1):
     #     + LINK_WEIGHT2 * linkNum2 \
     #     + LENGTH_WEIGHT * sum(Jls_TF)
 
-
+print(np.sum([c.current.get_value() for c in bs_TF.coils[:3]]))
 t2 = time.time()
 print('Total time = ', t2 - t1)
 btot.save(OUT_DIR + "biot_savart_optimized_QA.json")

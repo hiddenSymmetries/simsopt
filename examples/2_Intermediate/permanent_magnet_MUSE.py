@@ -44,11 +44,11 @@ if in_github_actions:
     max_nMagnets = 20
     downsample = 100  # downsample the FAMUS grid of magnets by this factor
 else:
-    nphi = 8  # >= 64 for high-resolution runs
+    nphi = 32  # >= 64 for high-resolution runs
     nIter_max = 2000
     nBacktracking = 200
-    max_nMagnets = 1000
-    downsample = 20
+    max_nMagnets = 2000
+    downsample = 5
 
 ntheta = nphi  # same as above
 dr = 0.01  # Radial extent in meters of the cylindrical permanent magnet bricks
@@ -64,8 +64,11 @@ s_outer = SurfaceRZFourier.from_focus(surface_filename, range="half period", nph
 
 # Make the output directory -- warning, saved data can get big!
 # On NERSC, recommended to change this directory to point to SCRATCH!
+import os, shutil
 out_dir = Path("output_permanent_magnet_GPMO_MUSE")
-out_dir.mkdir(parents=True, exist_ok=True)
+if os.path.exists(out_dir):
+    shutil.rmtree(out_dir)
+os.makedirs(out_dir, exist_ok=True)
 
 # initialize the coils
 base_curves, curves, coils = initialize_coils('muse_famus', TEST_DIR, s, out_dir)
@@ -185,7 +188,6 @@ B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0
 print(pm_opt.m_maxima)
-exit()
 dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
 print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
 print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
