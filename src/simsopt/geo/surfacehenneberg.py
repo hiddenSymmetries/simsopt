@@ -230,7 +230,7 @@ class SurfaceHenneberg(sopp.Surface, Surface):
 
         n = self.num_dofs()
         if len(v) != n:
-            raise ValueError('Input vector should have ' + str(n) + \
+            raise ValueError('Input vector should have ' + str(n) +
                              ' elements but instead has ' + str(len(v)))
 
         index = 0
@@ -466,8 +466,8 @@ class SurfaceHenneberg(sopp.Surface, Surface):
             sign_flips = d_Z_rot_d_theta_circ[1:] * d_Z_rot_d_theta_circ[:-1]
             sign_flip_indices = [j for j in range(ntheta) if sign_flips[j] < 0]
             if len(sign_flip_indices) != 2:
-                logger.warning(f'A number of sign flips other than 2 detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}.' \
-                               ' This may mean the surface cannot be represented in Henneberg form.' \
+                logger.warning(f'A number of sign flips other than 2 detected for jphi={jphi}: sign_flip_indices={sign_flip_indices}.'
+                               ' This may mean the surface cannot be represented in Henneberg form.'
                                f' sign_flips={sign_flips}')
 
             temp = (Z * cosaphi - R * sinaphi - Q) / b

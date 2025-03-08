@@ -554,8 +554,6 @@ class Vmec(Optimizable):
             else:
                 vi.curtor = self.current_profile(1.0)
 
-                
-
         return boundary_RZFourier
 
     def get_input(self):
@@ -763,7 +761,7 @@ class Vmec(Optimizable):
                     os.remove(filename)
                 except FileNotFoundError:
                     logger.debug(f"Tried to delete the file {filename} but it was not found")
-                    
+
             self.files_to_delete = []
 
             # Record the latest output file to delete if we run again:

@@ -9,6 +9,7 @@ import simsoptpp as sopp
 
 __all__ = ["CurrentPotentialSolve"]
 
+
 class CurrentPotentialSolve:
     """
     Current Potential Solve object is designed for performing
@@ -37,7 +38,7 @@ class CurrentPotentialSolve:
             cp.winding_surface, mpol=cp.mpol, ntor=cp.ntor,
             net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
             net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
-            quadpoints_phi=cp.quadpoints_phi, 
+            quadpoints_phi=cp.quadpoints_phi,
             quadpoints_theta=cp.quadpoints_theta,
             stellsym=cp.stellsym
         )
@@ -51,9 +52,9 @@ class CurrentPotentialSolve:
         if np.isscalar(Bnormal_plasma):
             Bnormal_plasma = Bnormal_plasma * np.ones(normal.shape[0])
         else:
-            # If Bnormal is not a scalar, try reshaping it into 
+            # If Bnormal is not a scalar, try reshaping it into
             # the proper shape
-            try: 
+            try:
                 Bnormal_plasma = Bnormal_plasma.reshape(normal.shape[0])
             except:
                 raise ValueError('The shape of Bnormal_plasma does not match with the quadrature points of plasma_surface.')
@@ -146,11 +147,11 @@ class CurrentPotentialSolve:
             quadpoints_theta = quadpoints_theta[:-1]
             quadpoints_phi, quadpoints_theta = np.meshgrid(quadpoints_phi, quadpoints_theta, indexing='ij')
             Bnormal_from_plasma_current = interp2d(
-                quadpoints_phi, quadpoints_theta, Bnormal_from_plasma_current, 
+                quadpoints_phi, quadpoints_theta, Bnormal_from_plasma_current,
                 kind='cubic'
             )
             Bnormal_from_plasma_current = Bnormal_from_plasma_current(
-                s_plasma.quadpoints_phi, 
+                s_plasma.quadpoints_phi,
                 s_plasma.quadpoints_theta
             )
         f.close()
@@ -179,7 +180,7 @@ class CurrentPotentialSolve:
         w = self.winding_surface
         G = self.current_potential.net_poloidal_current_amperes
         I = self.current_potential.net_toroidal_current_amperes
-        scalar_variables = [s.nfp, s.mpol, s.ntor, w.mpol, w.ntor, s.stellsym + 1, G, I, self.ntheta_plasma, self.nzeta_plasma, self.ntheta_coil, self.nzeta_coil / s.nfp]  
+        scalar_variables = [s.nfp, s.mpol, s.ntor, w.mpol, w.ntor, s.stellsym + 1, G, I, self.ntheta_plasma, self.nzeta_plasma, self.ntheta_coil, self.nzeta_coil / s.nfp]
         for i_scalar, scalar_name in enumerate(scalars):
             f.createDimension(scalar_name, 1)
             if 'amperes' not in scalar_name:
@@ -188,7 +189,7 @@ class CurrentPotentialSolve:
             else:
                 var = f.createVariable(scalar_name, 'f', (scalar_name,))
                 var.units = 'Amperes'
-            var[:] = scalar_variables[i_scalar] 
+            var[:] = scalar_variables[i_scalar]
 
         # go through and compute all the rmnc, rmns for the plasma surface
         nfp = s.nfp
@@ -255,12 +256,12 @@ class CurrentPotentialSolve:
                    'xm_potential', 'xn_potential',
                    'r_plasma', 'r_coil',
                    'theta_coil', 'zeta_coil',
-                   'RHS_B', 'RHS_regularization', 
-                   'norm_normal_plasma', 'norm_normal_coil', 
+                   'RHS_B', 'RHS_regularization',
+                   'norm_normal_plasma', 'norm_normal_coil',
                    'single_valued_current_potential_mn', 'single_valued_current_potential_thetazeta',
                    'current_potential',
                    'K2', 'lambda', 'chi2_B', 'chi2_K', 'Bnormal_total',
-                   'single_valued_current_potential_mn_l1', 'single_valued_current_potential_thetazeta_l1', 
+                   'single_valued_current_potential_mn_l1', 'single_valued_current_potential_thetazeta_l1',
                    'K2_l1', 'lambda_l1', 'chi2_B_l1', 'chi2_K_l1', 'Bnormal_total_l1'
                    ]
 
@@ -297,16 +298,16 @@ class CurrentPotentialSolve:
             current_potential_l1.append(self.current_potential_l1[i] + self.current_potential.current_potential_secular[:self.nzeta_coil // nfp, :])
 
         # Define all the vectors we need to save
-        vector_variables = [self.Bnormal_plasma.reshape(self.ntheta_plasma, self.nzeta_plasma), 
-                            self.B_GI.reshape(self.ntheta_plasma, self.nzeta_plasma), 
+        vector_variables = [self.Bnormal_plasma.reshape(self.ntheta_plasma, self.nzeta_plasma),
+                            self.B_GI.reshape(self.ntheta_plasma, self.nzeta_plasma),
                             rmnc_plasma, rmns_plasma, zmns_plasma, zmnc_plasma,
                             rmnc, rmns, zmns, zmnc,
-                            xm_plasma[:(len(xm_plasma)) // 2 + 1], xn_plasma[:(len(xm_plasma)) // 2 + 1], 
+                            xm_plasma[:(len(xm_plasma)) // 2 + 1], xn_plasma[:(len(xm_plasma)) // 2 + 1],
                             xm_coil[:(len(xm_coil)) // 2 + 1], xn_coil[:(len(xm_coil)) // 2 + 1],
                             xm_potential, xn_potential,
                             sf.gamma(),
                             w.gamma(),
-                            w.quadpoints_theta * 2 * np.pi, 
+                            w.quadpoints_theta * 2 * np.pi,
                             w.quadpoints_phi[:self.nzeta_coil // w.nfp] * 2 * np.pi,
                             RHS_B, self.K_rhs(), norm_normal_plasma, norm_normal_coil,
                             np.array(self.dofs_l2), np.array(self.current_potential_l2),
@@ -342,7 +343,7 @@ class CurrentPotentialSolve:
                 var.units = 'Tesla^2 * m^4 / Ampere^2'
             else:
                 var.units = 'dimensionless'
-            var[:] = vector_variables[i_vector] 
+            var[:] = vector_variables[i_vector]
 
         f.close()
 
@@ -453,11 +454,11 @@ class CurrentPotentialSolve:
         b_e = self.b_e
         Ak_times_phi = self.fj @ phi_mn_opt
         f_B = 0.5 * np.linalg.norm(A_times_phi - b_e) ** 2 * nfp
-        # extra normN factor needed here because fj and d don't have it 
+        # extra normN factor needed here because fj and d don't have it
         # K^2 has 1/normn^2 factor, the sum over the winding surface has factor of normn,
         # for total factor of 1/normn
         normN = np.linalg.norm(self.winding_surface.normal().reshape(-1, 3), axis=-1)
-        f_K = 0.5 * np.linalg.norm((Ak_times_phi - self.d) / np.sqrt(normN[:, None])) ** 2 
+        f_K = 0.5 * np.linalg.norm((Ak_times_phi - self.d) / np.sqrt(normN[:, None])) ** 2
 
         if record_history:
             self.ilambdas_l2.append(lam)
@@ -523,7 +524,7 @@ class CurrentPotentialSolve:
         # which is exact since it comes from a matrix inverse.
         phi0, _, _, = self.solve_tikhonov(lam=lam, record_history=False)
 
-        # L1 norm here should already include the contributions from the winding surface discretization 
+        # L1 norm here should already include the contributions from the winding surface discretization
         # and factor of 1 / ws_normN from the K, cancelling the factor of ws_normN from the surface
         z0 = np.ravel((Ak_matrix @ phi0 - d).reshape(-1, 3) * np.sqrt(ws_normN)[:, None])
         z_opt, z_history = self._FISTA(A=A_new, b=b_new, alpha=l1_reg, max_iter=max_iter, acceleration=acceleration, xi0=z0)
@@ -544,7 +545,7 @@ class CurrentPotentialSolve:
         phi_mn_opt = Ak_inv @ (z_opt + d)
         self.current_potential.set_dofs(phi_mn_opt)
         f_B = 0.5 * np.linalg.norm(A_matrix @ phi_mn_opt - b_e) ** 2 * nfp
-        f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1) 
+        f_K = np.linalg.norm(Ak_matrix @ phi_mn_opt - d, ord=1)
         self.ilambdas_l1.append(lam)
         self.dofs_l1.append(phi_mn_opt)
         # REGCOIL only uses 1 / 2 nfp of the winding surface

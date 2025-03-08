@@ -16,7 +16,7 @@ __all__ = (
     biotsavart.__all__
     + boozermagneticfield.__all__
     + coil.__all__
-    + currentpotential.__all__ 
+    + currentpotential.__all__
     + currentpotentialsolve.__all__
     + coilset.__all__
     + magneticfield.__all__

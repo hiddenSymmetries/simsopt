@@ -70,7 +70,7 @@ class Testing(unittest.TestCase):
             g = netcdf_file('simsopt_' + fname, 'r')
             f = netcdf_file(filename, 'r')
             for ilambda in range(2):
-                print(filename, ilambda) 
+                print(filename, ilambda)
                 Bnormal_regcoil_total = f.variables['Bnormal_total'][()][ilambda + 1, :, :]
                 Bnormal_from_plasma_current = f.variables['Bnormal_from_plasma_current'][()]
                 Bnormal_from_net_coil_currents = f.variables['Bnormal_from_net_coil_currents'][()]

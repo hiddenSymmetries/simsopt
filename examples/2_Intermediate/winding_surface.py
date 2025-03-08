@@ -71,7 +71,7 @@ def run_scan():
         cp = CurrentPotentialFourier.from_netcdf(filename)
 
         # Overwrite low-resolution NCSX config with higher-resolution
-        # current potential now with mpol = 16, ntor = 16. 
+        # current potential now with mpol = 16, ntor = 16.
         cp = CurrentPotentialFourier(
             cpst.winding_surface, mpol=mpol, ntor=ntor,
             net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
@@ -130,14 +130,14 @@ def run_scan():
             Bfield_opt = WindingSurfaceField(cp_opt)
             Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
 
-            # For agreement at low regularization, 
+            # For agreement at low regularization,
             # Bnormal MUST be computed with the function below
             # Since using Biot Savart will be discretized differently
             Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(
-                points, 
-                ws_points, 
-                normal_coil, 
-                cp_opt.Phi(), 
+                points,
+                ws_points,
+                normal_coil,
+                cp_opt.Phi(),
                 normal
             ) * dtheta_coil * dzeta_coil
             Bnormal_REGCOIL += cpst.B_GI
@@ -151,8 +151,8 @@ def run_scan():
             print('f_B from least squares = ', f_B)
             print('f_B direct = ', f_B_manual)
             f_B_sf = SquaredFlux(
-                s_plasma, 
-                Bfield_opt, 
+                s_plasma,
+                Bfield_opt,
                 -contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
@@ -173,7 +173,7 @@ def run_scan():
 
             # repeat computing the metrics we defined
             fB_lasso[i] = f_B
-            fK_l1_lasso[i] = f_K 
+            fK_l1_lasso[i] = f_K
             K = cp_opt.K()
             K2 = np.sum(K ** 2, axis=2)
             f_K_direct = 0.5 * np.sum(np.ravel(K2) * normN) / (normal_coil.shape[0])
@@ -185,10 +185,10 @@ def run_scan():
             Bfield_opt = WindingSurfaceField(cp_opt)
             Bfield_opt.set_points(s_plasma.gamma().reshape((-1, 3)))
             Bnormal_REGCOIL = WindingSurfaceBn_REGCOIL(
-                points, 
-                ws_points, 
-                normal_coil, 
-                cp_opt.Phi(), 
+                points,
+                ws_points,
+                normal_coil,
+                cp_opt.Phi(),
                 normal
             ) * dtheta_coil * dzeta_coil
             Bnormal_REGCOIL += cpst.B_GI
@@ -202,8 +202,8 @@ def run_scan():
             print('f_B from least squares = ', f_B)
             print('f_B direct = ', f_B_manual)
             f_B_sf = SquaredFlux(
-                s_plasma, 
-                Bfield_opt, 
+                s_plasma,
+                Bfield_opt,
                 -contig(cpst.Bnormal_plasma.reshape(nphi, ntheta))
             ).J()
             print('f_B from plasma surface = ', f_B_sf)
@@ -272,7 +272,7 @@ def run_scan():
 
         # Save results, useful if the run was intensive
         np.savetxt(
-            OUT_DIR + file + '_metrics.txt', 
+            OUT_DIR + file + '_metrics.txt',
             np.array(
                 [lambdas,
                  fB_tikhonov, fK_tikhonov,
@@ -350,10 +350,10 @@ def run_target():
                 print('f_B from least squares = ', f_B)
                 print('lambda = ', lambda_reg)
                 make_Bnormal_plots(
-                    cpst, 
-                    OUT_DIR, 
+                    cpst,
+                    OUT_DIR,
                     file + "_tikhonov_fBtarget_Bnormal_lambda{0:.2e}".format(lambda_reg)
-                ) 
+                )
                 Phi = cp_opt.Phi()
                 Phi = np.hstack((Phi, Phi[:, 0:1]))
                 Phi = np.vstack((Phi, Phi[0, :])) + Phi_secular
@@ -369,7 +369,7 @@ def run_target():
                 break
         print('Now repeating for Lasso: ')
         for i, lambda_reg in enumerate(lambdas):
-            # Solve the REGCOIL problem with the Lasso 
+            # Solve the REGCOIL problem with the Lasso
             optimized_phi_mn, f_B, _, fB_history, _ = cpst.solve_lasso(lam=lambda_reg, max_iter=5000, acceleration=True)
             print(i, lambda_reg, f_B)
             cp_opt = cpst.current_potential
@@ -385,10 +385,10 @@ def run_target():
                 print('f_B from Lasso = ', f_B)
                 print('lambda = ', lambda_reg)
                 make_Bnormal_plots(
-                    cpst, 
-                    OUT_DIR, 
+                    cpst,
+                    OUT_DIR,
                     file + "_lasso_fBtarget_Bnormal_lambda{0:.2e}".format(lambda_reg)
-                ) 
+                )
                 Phi = cp_opt.Phi()
                 Phi = np.hstack((Phi, Phi[:, 0:1]))
                 Phi = np.vstack((Phi, Phi[0, :]))

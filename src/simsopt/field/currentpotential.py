@@ -94,8 +94,8 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
 
         self._make_mn()
         phi_secular, theta_secular = np.meshgrid(
-            self.winding_surface.quadpoints_phi, 
-            self.winding_surface.quadpoints_theta, 
+            self.winding_surface.quadpoints_phi,
+            self.winding_surface.quadpoints_theta,
             indexing='ij'
         )
         self.current_potential_secular = (
@@ -334,15 +334,14 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         mpol_coil = int(np.max(xm_coil))
         ntor_coil = int(np.max(xn_coil)/nfp)
 
-
         # quadpoints_phi, quadpoints_theta = Surface.get_quadpoints(
         #                 ntheta=ntheta_coil, nphi=nzeta_coil, nfp=nfp, range='full torus')
-        
+
         s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf)
         s_coil = s_coil.from_nphi_ntheta(nfp=nfp, ntheta=ntheta_coil, nphi=nzeta_coil * nfp,
                                          mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, range='full torus')
 
-        # s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf, 
+        # s_coil = SurfaceRZFourier(nfp=nfp, mpol=mpol_coil, ntor=ntor_coil, stellsym=stellsym_surf,
         #         quadpoints_phi=quadpoints_phi,quadpoints_theta=quadpoints_theta)
         s_coil.set_dofs(0*s_coil.get_dofs())
 
@@ -354,7 +353,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
             m = int(xm_coil[im])
             n = int(xn_coil[im] / nfp)
             # if (m == 0 and n<0):
-            #     s_coil.set_rc(m, -n, rmnc_coil[im]) 
+            #     s_coil.set_rc(m, -n, rmnc_coil[im])
             #     s_coil.set_zs(m, -n, -zmns_coil[im])
             # else:
             #     s_coil.set_rc(m, n, rmnc_coil[im])
@@ -369,12 +368,12 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
                 #     s_coil.set_rs(m, n, rmns_coil[im])
                 #     s_coil.set_zc(m, n, zmnc_coil[im])
 
-        s_coil.local_full_x = s_coil.get_dofs() 
+        s_coil.local_full_x = s_coil.get_dofs()
         # for im in range(len(xm_coil)):
         #     m = int(xm_coil[im])
         #     n = int(xn_coil[im] / nfp)
         #     if (m == 0 and n<0):
-        #         s_coil.set_rc(m, -n, rmnc_coil[im]) 
+        #         s_coil.set_rc(m, -n, rmnc_coil[im])
         #         s_coil.set_zs(m, -n, -zmns_coil[im])
         #     else:
         #         s_coil.set_rc(m, n, rmnc_coil[im])
@@ -387,7 +386,7 @@ class CurrentPotentialFourier(sopp.CurrentPotentialFourier, CurrentPotential):
         #             s_coil.set_rs(m, n, rmns_coil[im])
         #             s_coil.set_zc(m, n, zmnc_coil[im])
 
-        # s_coil.local_full_x = s_coil.get_dofs() 
+        # s_coil.local_full_x = s_coil.get_dofs()
 
         cp = cls(s_coil, mpol=mpol_potential, ntor=ntor_potential,
                  net_poloidal_current_amperes=net_poloidal_current_amperes,
