@@ -11,7 +11,7 @@ from .._core.derivative import Derivative
 from .jit import jit
 from .plotting import fix_matplotlib_3d
 
-__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves']
+__all__ = ['Curve', 'RotatedCurve', 'curves_to_vtk', 'create_equally_spaced_curves', 'create_equally_spaced_planar_curves']
 
 
 @jit
@@ -204,10 +204,8 @@ class Curve(Optimizable):
         dgamma_by_dphidphi = self.gammadashdash()
         dgamma_by_dphidcoeff = self.dgammadash_by_dcoeff()
         dgamma_by_dphidphidcoeff = self.dgammadashdash_by_dcoeff()
-        num_coeff = dgamma_by_dphidcoeff.shape[2]
 
         norm = lambda a: np.linalg.norm(a, axis=1)
-        inner = lambda a, b: np.sum(a*b, axis=1)
         numerator = np.cross(dgamma_by_dphi, dgamma_by_dphidphi)
         denominator = self.incremental_arclength()
         dkappa_by_dcoeff[:, :] = (1 / (denominator**3*norm(numerator)))[:, None] * np.sum(numerator[:, :, None] * (
@@ -288,7 +286,6 @@ class Curve(Optimizable):
         tdash = (1./l[:, None])**2 * (l[:, None] * gammadashdash
                                       - (inner(gammadash, gammadashdash)/l)[:, None] * gammadash
                                       )
-        kappa = self.kappa
         n[:, :] = (1./norm(tdash))[:, None] * tdash
         b[:, :] = np.cross(t, n, axis=1)
         return t, n, b
@@ -327,7 +324,6 @@ class Curve(Optimizable):
 
         norm = lambda a: np.linalg.norm(a, axis=1)
         inner = lambda a, b: np.sum(a*b, axis=1)
-        inner2 = lambda a, b: np.sum(a*b, axis=2)
 
         N = len(self.quadpoints)
         dt_by_dcoeff, dn_by_dcoeff, db_by_dcoeff = (np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())), np.zeros((N, 3, self.num_dofs())))
@@ -817,7 +813,7 @@ class RotatedCurve(sopp.Curve, Curve):
         return True if self.rotmat[2][2] == -1 else False
 
 
-def curves_to_vtk(curves, filename, close=False):
+def curves_to_vtk(curves, filename, close=False, extra_data=None):
     """
     Export a list of Curve objects in VTK format, so they can be
     viewed using Paraview. This function requires the python package ``pyevtk``,
@@ -844,7 +840,12 @@ def curves_to_vtk(curves, filename, close=False):
         z = np.concatenate([c.gamma()[:, 2] for c in curves])
         ppl = np.asarray([c.gamma().shape[0] for c in curves])
     data = np.concatenate([i*np.ones((ppl[i], )) for i in range(len(curves))])
-    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData={'idx': data})
+    pointData = {'idx': data}
+
+    if extra_data is not None:
+        pointData = {**pointData, **extra_data}
+
+    polyLinesToVTK(str(filename), x, y, z, pointsPerLine=ppl, pointData=pointData)
 
 
 def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
@@ -880,5 +881,48 @@ def create_equally_spaced_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6
         # proper sign and free-boundary equilibrium works following stage-2 optimization.
         curve.set("zs(1)", -R1)
         curve.x = curve.x  # need to do this to transfer data to C++
+        curves.append(curve)
+    return curves
+
+
+def create_equally_spaced_planar_curves(ncurves, nfp, stellsym, R0=1.0, R1=0.5, order=6, numquadpoints=None):
+    """
+    Create ``ncurves`` curves of type
+    :obj:`~simsopt.geo.curveplanarfourier.CurvePlanarFourier` of order
+    ``order`` that will result in circular equally spaced coils (major
+    radius ``R0`` and minor radius ``R1``) after applying
+    :obj:`~simsopt.field.coil.coils_via_symmetries`.
+    """
+
+    if numquadpoints is None:
+        numquadpoints = 15 * order
+    curves = []
+    from simsopt.geo.curveplanarfourier import CurvePlanarFourier
+    for k in range(ncurves):
+        angle = (k+0.5)*(2*np.pi) / ((1+int(stellsym))*nfp*ncurves)
+        curve = CurvePlanarFourier(numquadpoints, order, nfp, stellsym)
+
+        rcCoeffs = np.zeros(order+1)
+        rcCoeffs[0] = R1
+        rsCoeffs = np.zeros(order)
+        center = [R0 * cos(angle), R0 * sin(angle), 0]
+        rotation = [1, -cos(angle), -sin(angle), 0]
+        dofs = np.zeros(len(curve.get_dofs()))
+
+        j = 0
+        for i in rcCoeffs:
+            dofs[j] = i
+            j += 1
+        for i in rsCoeffs:
+            dofs[j] = i
+            j += 1
+        for i in rotation:
+            dofs[j] = i
+            j += 1
+        for i in center:
+            dofs[j] = i
+            j += 1
+
+        curve.set_dofs(dofs)
         curves.append(curve)
     return curves

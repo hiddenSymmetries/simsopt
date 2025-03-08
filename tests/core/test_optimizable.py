@@ -2,14 +2,26 @@ import unittest
 import re
 import json
 
+try:
+    import matplotlib
+except ImportError:
+    matplotlib = None
+try:
+    import networkx
+except ImportError:
+    networkx = None
+try:
+    import pygraphviz
+except ImportError:
+    pygraphviz = None
+
 import numpy as np
 from simsopt._core.json import GSONDecoder, GSONEncoder, SIMSON
-from monty.serialization import loadfn, dumpfn
 
 from simsopt._core.optimizable import Optimizable, make_optimizable, \
     ScaledOptimizable, OptimizableSum, load, save
 from simsopt.objectives.functions import Identity, Rosenbrock, TestObject1, \
-    TestObject2, Beale
+    Beale
 from simsopt.objectives.functions import Adder as FAdder
 
 
@@ -85,7 +97,7 @@ class N_No(Optimizable):
         return np.sum(self.local_full_x)
 
     def product(self):
-        return np.product(self.local_full_x)
+        return np.prod(self.local_full_x)
 
     return_fn_map = {'sum': sum, 'prod': product}
 
@@ -1115,6 +1127,8 @@ class OptimizableTests(unittest.TestCase):
         ancestors = test_obj2._get_ancestors()
         self.assertEqual(len(ancestors), 4)
 
+    @unittest.skipIf(matplotlib is None or pygraphviz is None or networkx is None,
+                     "Plotting libraries are missing")
     def test_plot(self):
         """
         Verify that a DAG can be plotted.
@@ -1125,19 +1139,6 @@ class OptimizableTests(unittest.TestCase):
         function.
         """
         show = False
-
-        try:
-            import matplotlib
-        except ImportError:
-            return
-        try:
-            import networkx
-        except ImportError:
-            return
-        try:
-            import pygraphviz
-        except ImportError:
-            return
 
         # optimizable with no parents
         adder = Adder(n=3, x0=[1.0, 2.0, 3.0])
@@ -1392,17 +1393,17 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertEqual(adder_orig.J(), adder_shared_dofs.J())
 
         adder_orig.fix("x")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11, 12]
         adder_shared_dofs.x = [11]
 
         adder_orig.unfix("z")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11]
         adder_shared_dofs.x = [11, 12]
 
         adder_shared_dofs.unfix_all()
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             adder_shared_dofs.x = [11, 12]
         adder_orig.x = [11, 12, 13]
 
@@ -1420,6 +1421,35 @@ class TestOptimizableSharedDOFs(unittest.TestCase):
         self.assertTrue((adder_orig.dJ()*2 == sum_obj.dJ()).all())
         self.assertTrue((sum_obj.dJ(partials=True)(adder_orig) == sum_obj.dJ()).all())
         self.assertTrue((sum_obj.dJ(partials=True)(adder_shared_dofs) == sum_obj.dJ()).all())
+
+    def test_as_derivative1(self):
+        # this test checks that you can restrict the Derivative dictionary
+        # to the proper subset of Optimizables when as_derivative=True
+
+        optA = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        optA_shared_dofs = OptClassSharedDOFs(dofs=optA.dofs)
+        
+        optB = OptClassSharedDOFs(x0=[np.pi, 1, 1.21], names=["xx", "yy", "zz"],
+                                        fixed=[False, False, True])
+        sum_opt = optA + optA_shared_dofs + optB
+        deriv = sum_opt.dJ(partials=True)(sum_opt, as_derivative=True)
+        
+        # restrict to optA 
+        np.testing.assert_allclose(deriv(optA), optA.dJ()*2, atol=1e-14)
+        # restrict to optA_shared_dofs
+        np.testing.assert_allclose(deriv(optA_shared_dofs), optA.dJ()*2, atol=1e-14)
+        # restrict to sum_opt
+        np.testing.assert_allclose(deriv(sum_opt), np.concatenate((optA.dJ()*2, optB.dJ())), atol=1e-14)
+
+    def test_as_derivative2(self):
+        # this test checks that when you sum a Derivative dictionary generated using as_derivative=True,
+        # to another that things work as expected when some DOFs are fixed.
+
+        opt = OptClassSharedDOFs(x0=[1, 2, 3], names=["x", "y", "z"],
+                                        fixed=[False, False, True])
+        deriv = opt.dJ(partials=True)(opt, as_derivative=True) + opt.dJ(partials=True)
+        np.testing.assert_allclose(deriv(opt), opt.dJ()*2, atol=1e-14)
 
     def test_load_save(self):
         import tempfile

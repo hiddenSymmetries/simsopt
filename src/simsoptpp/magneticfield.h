@@ -106,6 +106,18 @@ class MagneticField {
             }
         }
 
+        virtual void _A_cyl_impl(Tensor2& A_cyl) {
+            Tensor2& A = this->A_ref();
+            Tensor2& rphiz = this->get_points_cyl_ref();
+            int npoints = A.shape(0);
+            for (int i = 0; i < npoints; ++i) {
+                double phi = rphiz(i, 1);
+                A_cyl(i, 0) = std::cos(phi)*A(i, 0) + std::sin(phi)*A(i, 1);
+                A_cyl(i, 1) = std::cos(phi)*A(i, 1) - std::sin(phi)*A(i, 0);
+                A_cyl(i, 2) = A(i, 2);
+            }
+        }
+
         virtual void _GradAbsB_cyl_impl(Tensor2& GradAbsB_cyl) {
             Tensor2& GradAbsB = this->GradAbsB_ref();
             Tensor2& rphiz = this->get_points_cyl_ref();
@@ -127,7 +139,7 @@ class MagneticField {
 
         CachedTensor<T, 2> points_cart;
         CachedTensor<T, 2> points_cyl;
-        CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl, data_GradAbsBcyl;
+        CachedTensor<T, 2> data_B, data_A, data_GradAbsB, data_AbsB, data_Bcyl, data_Acyl, data_GradAbsBcyl;
         CachedTensor<T, 3> data_dB, data_dA;
         CachedTensor<T, 4> data_ddB, data_ddA;
         int npoints;
@@ -148,6 +160,7 @@ class MagneticField {
             data_AbsB.invalidate_cache();
             data_GradAbsB.invalidate_cache();
             data_Bcyl.invalidate_cache();
+            data_Acyl.invalidate_cache();
             data_GradAbsBcyl.invalidate_cache();
         }
 
@@ -231,6 +244,13 @@ class MagneticField {
             return data_Bcyl.get_or_create_and_fill({npoints, 3}, [this](Tensor2& B) { return _B_cyl_impl(B);});
         }
 
+        Tensor2 A_cyl() {
+            return A_cyl_ref();
+        }
+
+        Tensor2& A_cyl_ref() {
+            return data_Acyl.get_or_create_and_fill({npoints, 3}, [this](Tensor2& A) { return _A_cyl_impl(A);});
+        }
 
         Tensor2 AbsB() {
             return AbsB_ref();

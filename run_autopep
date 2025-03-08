@@ -2,7 +2,8 @@
 # https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
 set -ex
 
-EXCLUDE="E226,E265,E266,E4,E5,E7,W,F"
+# EXCLUDE="E226,E265,E266,E4,E5,E7,W,F"
+EXCLUDE="E226,E265,E266,E4,E501,E722,F403,F405,F406,W5"
 flake8  --ignore $EXCLUDE src/ || (exit 0)
 flake8  --ignore $EXCLUDE tests/ || (exit 0)
 flake8  --ignore $EXCLUDE examples/ || (exit 0)

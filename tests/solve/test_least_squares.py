@@ -9,7 +9,7 @@ except ImportError:
 
 from simsopt.objectives.functions import Identity, Rosenbrock
 from simsopt.objectives.least_squares import LeastSquaresProblem
-from simsopt.solve.serial import least_squares_serial_solve, serial_solve
+from simsopt.solve.serial import least_squares_serial_solve
 if MPI is not None:
     from simsopt.util.mpi import MpiPartition
     from simsopt.solve.mpi import least_squares_mpi_solve
@@ -72,11 +72,12 @@ class LeastSquaresProblemTests(unittest.TestCase):
         """
         with ScratchDir("."):
             for solver in solvers:
-                #for grad in [True, False]:
-                r = Rosenbrock()
-                prob = LeastSquaresProblem(0, 1, depends_on=r)
-                solver(prob)  # , grad=grad)
-                self.assertAlmostEqual(prob.objective(), 0)
+                for save_residuals in [True, False]:
+                    #for grad in [True, False]:
+                    r = Rosenbrock()
+                    prob = LeastSquaresProblem(0, 1, depends_on=r)
+                    solver(prob, save_residuals=save_residuals)  # , grad=grad)
+                    self.assertAlmostEqual(prob.objective(), 0)
 
 
 if __name__ == "__main__":

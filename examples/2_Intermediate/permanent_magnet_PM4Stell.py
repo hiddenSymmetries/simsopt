@@ -15,7 +15,6 @@
     Ken Hammond and the PM4Stell + MAGPIE teams. 
 '''
 
-import os
 from pathlib import Path
 import time
 

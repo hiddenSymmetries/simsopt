@@ -1,5 +1,4 @@
 import unittest
-import logging
 
 import numpy as np
 from monty.tempfile import ScratchDir

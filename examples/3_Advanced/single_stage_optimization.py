@@ -8,7 +8,6 @@ Rogerio Jorge, April 2023
 """
 import os
 import numpy as np
-from mpi4py import MPI
 from pathlib import Path
 from scipy.optimize import minimize
 from simsopt.util import MpiPartition, proc0_print, comm_world
@@ -57,7 +56,7 @@ MSC_WEIGHT = 1e-3  # Weight for the mean squared curvature penalty in the object
 ARCLENGTH_WEIGHT = 1e-9  # Weight for the arclength variation penalty in the objective function
 ##########################################################################################
 ##########################################################################################
-directory = f'optimization_QH'
+directory = 'optimization_QH'
 vmec_verbose = False
 # Create output directories
 this_path = os.path.join(parent_path, directory)
@@ -109,7 +108,7 @@ J_ALS = ARCLENGTH_WEIGHT * sum(Jals)
 J_LENGTH_PENALTY = LENGTH_CON_WEIGHT * sum([QuadraticPenalty(Jls[i], LENGTH_THRESHOLD) for i in range(len(base_curves))])
 JF = Jf + J_CC + J_LENGTH + J_LENGTH_PENALTY + J_CURVATURE + J_MSC
 ##########################################################################################
-proc0_print(f'  Starting optimization')
+proc0_print('  Starting optimization')
 ##########################################################################################
 # Initial stage 2 optimization
 ##########################################################################################
@@ -229,7 +228,7 @@ if comm_world.rank == 0:
     pointData = {"B_N": BdotN_surf[:, :, None]}
     surf.to_vtk(os.path.join(coils_results_path, "surf_opt"), extra_data=pointData)
 bs.save(os.path.join(coils_results_path, "biot_savart_opt.json"))
-vmec.write_input(os.path.join(this_path, f'input.final'))
+vmec.write_input(os.path.join(this_path, 'input.final'))
 proc0_print(f"Aspect ratio after optimization: {vmec.aspect()}")
 proc0_print(f"Mean iota after optimization: {vmec.mean_iota()}")
 proc0_print(f"Quasisymmetry objective after optimization: {qs.total()}")

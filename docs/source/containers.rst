@@ -130,7 +130,7 @@ issues associated with Docker containers. Shifter allows to you use
 the simsopt Docker image files hosted on Docker Hub.  Detailed
 instructions for using Shifter can be found at the `NERSC page on the
 simsopt wiki
-<https://github.com/hiddenSymmetries/simsopt/wiki/NERSC-Cori>`_.
+<https://github.com/hiddenSymmetries/simsopt/wiki/NERSC-Perlmutter>`_.
 
 
 .. _singularity_doc:

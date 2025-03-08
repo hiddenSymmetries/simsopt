@@ -21,8 +21,6 @@ For high-resolution and more realistic designs, please see the script files at
 https://github.com/akaptano/simsopt_permanent_magnet_advanced_scripts.git
 """
 
-import os
-import pickle
 import time
 from pathlib import Path
 
@@ -257,7 +255,6 @@ print('Total volume = ', total_volume)
 # surface is at least 64 x 64 resolution.
 vmec_flag = False 
 if vmec_flag:
-    from mpi4py import MPI
     from simsopt.mhd.vmec import Vmec
     from simsopt.util.mpi import MpiPartition
     mpi = MpiPartition(ngroups=1)

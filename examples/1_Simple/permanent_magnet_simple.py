@@ -26,7 +26,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from simsopt.field import DipoleField, ToroidalField
 from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier
-from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util.permanent_magnet_helper_functions import *
 

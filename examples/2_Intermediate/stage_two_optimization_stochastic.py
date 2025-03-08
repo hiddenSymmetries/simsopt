@@ -163,10 +163,7 @@ def fun(dofs):
     JF.x = dofs
     J = JF.J()
     grad = JF.dJ()
-    cl_string = ", ".join([f"{J.J():.3f}" for J in Jls])
-    mean_AbsB = np.mean(bs.AbsB())
     jf = Jmpi.J()
-    BdotN = np.mean(np.abs(np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)))
     outstr = f"J={J:.1e}, ⟨Jf⟩={jf:.1e}"
     cl_string = ", ".join([f"{J.J():.1f}" for J in Jls])
     kap_string = ", ".join(f"{np.max(c.kappa()):.1f}" for c in base_curves)

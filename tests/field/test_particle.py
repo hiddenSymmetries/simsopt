@@ -19,25 +19,17 @@ from simsopt.field.boozermagneticfield import BoozerAnalytic
 from simsopt.field.magneticfieldclasses import InterpolatedField, UniformInterpolationRule, ToroidalField, PoloidalField
 from simsopt.util.constants import PROTON_MASS, ELEMENTARY_CHARGE, ONE_EV
 from simsopt.geo.curverzfourier import CurveRZFourier
-import simsoptpp as sopp
 
 
 try:
     import pyevtk
-    with_evtk = True
 except ImportError:
-    with_evtk = False
+    pevtk = None
 
 try:
     from mpi4py import MPI
 except:
     MPI = None
-
-try:
-    from simsopt.mhd.vmec import Vmec
-    vmec_found = True
-except ImportError:
-    vmec_found = False
 
 
 def validate_phi_hits(phi_hits, bfield, nphis):
@@ -96,7 +88,7 @@ class ParticleTracingTesting(unittest.TestCase):
         bs.set_points(np.asarray([[0., 0., 0.]])).GradAbsB()
         self.bsh = bsh
         self.ma = ma
-        if with_evtk:
+        if pyevtk is not None:
             bsh.to_vtk('/tmp/bfield')
 
     def test_guidingcenter_vs_fullorbit(self):
@@ -124,7 +116,7 @@ class ParticleTracingTesting(unittest.TestCase):
             ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=umin, umax=umax,
             phis=[], mode='full')
-        if with_evtk:
+        if pyevtk is not None:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
             particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
@@ -168,7 +160,7 @@ class ParticleTracingTesting(unittest.TestCase):
             quadpoints_theta=np.linspace(0, 1, 2*mpol+1, endpoint=False))
         s.fit_to_curve(ma, 0.10, flip_theta=False)
         sc = SurfaceClassifier(s, h=0.1, p=2)
-        if with_evtk:
+        if pyevtk is not None:
             sc.to_vtk('/tmp/classifier')
         # check that the axis is classified as inside the domain
         assert sc.evaluate_xyz(ma.gamma()[:1, :]) > 0
@@ -233,7 +225,7 @@ class ParticleTracingTesting(unittest.TestCase):
             ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.5, umax=-0.25,
             phis=[], mode='full', tol=1e-11)
-        if with_evtk:
+        if pyevtk is not None:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
             particles_to_vtk(fo_tys, '/tmp/particles_fo')
 
@@ -312,7 +304,7 @@ class ParticleTracingTesting(unittest.TestCase):
             ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.5, umax=-0.25,  # pitch angle so that we have both par and perp contribution
             phis=[], mode='gc_vac', tol=1e-11)
-        if with_evtk:
+        if pyevtk is not None:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
 
         # pick 100 random points on each trace
@@ -382,7 +374,7 @@ class ParticleTracingTesting(unittest.TestCase):
             ma, bsh, nparticles, tmax=tmax, seed=1, mass=m, charge=q,
             Ekin=Ekin, umin=-0.01, umax=+0.01,
             phis=[], mode='gc_vac', tol=1e-11, stopping_criteria=[LevelsetStoppingCriterion(sc)])
-        if with_evtk:
+        if pyevtk is not None:
             particles_to_vtk(gc_tys, '/tmp/particles_gc')
         assert gc_phi_hits[0][-1][1] == -1
         assert np.all(sc.evaluate_xyz(gc_tys[0][:, 1:4]) > 0)
@@ -425,7 +417,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         # First, test energy and momentum conservation in a QA vacuum field
         etabar = 1.2
         B0 = 1.0
-        Bbar = 1.0
         G0 = 1.1
         psi0 = 0.8
         iota0 = 0.4
@@ -483,7 +474,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             energy_gc = np.array([])
             mu_gc = np.array([])
             p_gc = np.array([])
-            vParInitial = gc_ty[0, 4]
             muInitial = mu_inits[i]
             pInitial = p_inits[i]
             for j in range(N):
@@ -545,7 +535,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             energy_gc = np.array([])
             mu_gc = np.array([])
             p_gc = np.array([])
-            vParInitial = gc_ty[0, 4]
             muInitial = mu_inits[i]
             pInitial = p_inits[i]
             for j in range(N):
@@ -598,7 +587,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
             energy_gc = np.array([])
             mu_gc = np.array([])
             p_gc = np.array([])
-            vParInitial = gc_ty[0, 4]
             muInitial = mu_inits[i]
             pInitial = p_inits[i]
             for j in range(N):
@@ -638,7 +626,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         # First test for BoozerAnalytic field
         etabar = 1.2
         B0 = 1.0
-        Bbar = 1.0
         G0 = 1.1
         psi0 = 0.8
         iota0 = 1.0
@@ -712,7 +699,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         """
         etabar = 1.2
         B0 = 1.0
-        Bbar = 1.0
         G0 = 1.1
         psi0 = 0.8
         iota0 = 1.0
@@ -756,7 +742,6 @@ class BoozerGuidingCenterTracingTesting(unittest.TestCase):
         """
         etabar = 1.2
         B0 = 1.0
-        Bbar = 1.0
         R0 = 1.0
         G0 = R0*B0
         psi0 = B0*(0.1)**2/2

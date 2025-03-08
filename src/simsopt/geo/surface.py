@@ -7,11 +7,21 @@ try:
 except ImportError:
     gridToVTK = None
 
+try:
+    from ground.base import get_context
+except ImportError:
+    get_context = None
+
+try:
+    from bentley_ottmann.planar import contour_self_intersects
+except ImportError:
+    contour_self_intersects = None
+
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
 from .._core.dev import SimsoptRequires
 from .plotting import fix_matplotlib_3d
-from .._core.json import GSONable, GSONDecoder
+from .._core.json import GSONable
 
 __all__ = ['Surface', 'signed_distance_from_surface', 'SurfaceClassifier', 'SurfaceScaled', 'best_nphi_over_ntheta']
 
@@ -65,7 +75,8 @@ class Surface(Optimizable):
             nphi, ntheta, nfp=nfp, range=range)
         return cls(quadpoints_phi=quadpoints_phi,
                    quadpoints_theta=quadpoints_theta, nfp=nfp, **kwargs)
-
+    
+    @staticmethod
     def get_quadpoints(nphi=None,
                        ntheta=None,
                        range=None,
@@ -99,7 +110,8 @@ class Surface(Optimizable):
         """
         return (Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=nfp),
                 Surface.get_theta_quadpoints(ntheta=ntheta))
-
+    
+    @staticmethod
     def get_theta_quadpoints(ntheta=None):
         r"""
         Sets the theta grid points for Surface subclasses.
@@ -114,7 +126,8 @@ class Surface(Optimizable):
         if ntheta is None:
             ntheta = 62
         return list(np.linspace(0.0, 1.0, ntheta, endpoint=False))
-
+    
+    @staticmethod
     def get_phi_quadpoints(nphi=None, range=None, nfp=1):
         r"""
         Sets the phi grid points for Surface subclasses.
@@ -309,7 +322,7 @@ class Surface(Optimizable):
         implement this abstract method.
         """
         raise NotImplementedError
-
+    
     def cross_section(self, phi, thetas=None):
         """
         This function takes in a cylindrical angle :math:`\phi` and returns the cross
@@ -421,6 +434,35 @@ class Surface(Optimizable):
         cross_section = np.zeros((sol.size, 3))
         self.gamma_lin(cross_section, sol, theta)
         return cross_section
+    
+    @SimsoptRequires(get_context is not None, "is_self_intersecting requires ground package")
+    @SimsoptRequires(contour_self_intersects is not None, "is_self_intersecting requires the bentley_ottmann package")
+    def is_self_intersecting(self, angle=0., thetas=None):
+        r"""
+        This function computes a cross section of self at the input cylindrical angle.  Then,
+        approximating the cross section as a piecewise linear polyline, the Bentley-Ottmann algorithm
+        is used to check for self-intersecting segments of the cross section.  NOTE: if this function returns False,
+        the surface may still be self-intersecting away from angle.
+
+        Args:
+            angle: the cylindrical angle at which we would like to check whether the surface is self-intersecting.  Note that a
+                   surface might not be self-intersecting at a given angle, but may be self-intersecting elsewhere.  To be certain
+                   that the surface is not self-intersecting, it is recommended to run this check at multiple angles.  Also note
+                   that angle is assumed to be in radians, and not divided by 2*pi.
+            thetas: the number of uniformly spaced points to compute poloidally in a cross section.  If None, then there will be
+                    surface.quadpoints_theta.size uniformly space points in the cross section.
+        Returns:
+            True if surface is self-intersecting at angle, else False.
+        """
+
+        cs = self.cross_section(angle, thetas=thetas)
+        R = np.sqrt(cs[:, 0]**2 + cs[:, 1]**2)
+        Z = cs[:, 2]
+    
+        context = get_context()
+        Point, Contour = context.point_cls, context.contour_cls
+        contour = Contour([Point(R[i], Z[i]) for i in range(cs.shape[0])])
+        return contour_self_intersects(contour)
 
     def aspect_ratio(self):
         r"""
@@ -445,7 +487,7 @@ class Surface(Optimizable):
         """
 
         R_minor = self.minor_radius()
-        R_major = np.abs(self.volume()) / (2. * np.pi**2 * R_minor**2)
+        R_major = self.major_radius()
         AR = R_major/R_minor
         return AR
 
@@ -459,12 +501,27 @@ class Surface(Optimizable):
         dAR_ds = (self.dmajor_radius_by_dcoeff()*R_minor - self.dminor_radius_by_dcoeff() * R_major)/R_minor**2
         return dAR_ds
 
+    def d2aspect_ratio_by_dcoeff_dcoeff(self):
+        """
+        Return the derivative of the aspect ratio with respect to the surface coefficients
+        """
+        r = self.minor_radius()
+        dr_ds = self.dminor_radius_by_dcoeff()[:, None]
+        dr_dt = self.dminor_radius_by_dcoeff()[None, :]
+        d2r_dsdt = self.d2minor_radius_by_dcoeff_dcoeff()
+        R = self.major_radius()
+        dR_ds = self.dmajor_radius_by_dcoeff()[:, None]
+        dR_dt = self.dmajor_radius_by_dcoeff()[None, :]
+        d2R_dsdt = self.d2major_radius_by_dcoeff_dcoeff()
+
+        return (2*R*dr_dt*dr_ds)/r**3 - (dR_dt*dr_ds)/r**2 - (dr_dt*dR_ds)/r**2 - (R*d2r_dsdt)/r**2 + d2R_dsdt/r
+
     def minor_radius(self):
         r"""
         Return the minor radius of the surface using the formula
 
         .. math::
-            R_{\text{minor}} &= \sqrt{ \overline{A} / \pi }
+            R_{\text{minor}} = \sqrt{ \overline{A} / \pi }
 
         where :math:`\overline{A}` is the average cross sectional area.
 
@@ -480,6 +537,17 @@ class Surface(Optimizable):
         """
 
         return (0.5/np.pi)*self.dmean_cross_sectional_area_by_dcoeff()/np.sqrt(self.mean_cross_sectional_area() / np.pi)
+
+    def d2minor_radius_by_dcoeff_dcoeff(self):
+        """
+        Return the second derivative of the minor radius wrt surface coefficients
+
+        """
+        A = self.mean_cross_sectional_area()
+        dA_ds = self.dmean_cross_sectional_area_by_dcoeff()[:, None]
+        dA_dt = self.dmean_cross_sectional_area_by_dcoeff()[None, :]
+        d2A_ds2 = self.d2mean_cross_sectional_area_by_dcoeff_dcoeff()
+        return (-(dA_dt*dA_ds) + 2*A*d2A_ds2)/(4*np.sqrt(np.pi)*A**(3/2))
 
     def major_radius(self):
         r"""
@@ -507,6 +575,23 @@ class Surface(Optimizable):
 
         dR_major_ds = (-self.volume() * dmean_area_ds + self.dvolume_by_dcoeff() * mean_area) / mean_area**2
         return dR_major_ds * np.sign(self.volume()) / (2. * np.pi)
+
+    def d2major_radius_by_dcoeff_dcoeff(self):
+        """
+        Return the second derivative of the major radius wrt surface coefficients
+        """
+        V = self.volume()
+        dV_ds = self.dvolume_by_dcoeff()[:, None]
+        dV_dt = self.dvolume_by_dcoeff()[None, :]
+        d2V_dsdt = self.d2volume_by_dcoeffdcoeff()
+        r = self.minor_radius()
+        dr_ds = self.dminor_radius_by_dcoeff()[:, None]
+        dr_dt = self.dminor_radius_by_dcoeff()[None, :]
+        d2r_dsdt = self.d2minor_radius_by_dcoeff_dcoeff()
+
+        return ((6*V*dr_dt*dr_ds)/r**4 - (2*dV_dt*dr_ds)/r**3 - \
+                (2*dr_dt*dV_ds)/r**3 - (2*V*d2r_dsdt)/r**3 + \
+                d2V_dsdt/r**2) * np.sign(V)/(2*np.pi**2)
 
     def mean_cross_sectional_area(self):
         r"""
@@ -625,6 +710,84 @@ class Surface(Optimizable):
         dmean_area_ds = np.mean((1/(r**2))*((xvarphi * y * ztheta - xtheta * y * zvarphi + x * (-yvarphi * ztheta + ytheta * zvarphi)) * dr_ds + r * (-zvarphi * (ytheta * dx_ds - y * dxtheta_ds - xtheta * dy_ds + x * dytheta_ds) + ztheta * (yvarphi * dx_ds - y * dxvarphi_ds - xvarphi * dy_ds + x * dyvarphi_ds) + (-xvarphi * y + x * yvarphi) * dztheta_ds + (xtheta * y - x * ytheta) * dzvarphi_ds)), axis=(0, 1))
         return np.sign(mean_area) * dmean_area_ds/(2*np.pi)
 
+    def d2mean_cross_sectional_area_by_dcoeff_dcoeff(self):
+        """
+        Return the second derivative of the mean cross sectional area wrt surface coefficients
+        """
+
+        g = self.gamma()
+        g1 = self.gammadash1()
+        g2 = self.gammadash2()
+
+        dg_ds = self.dgamma_by_dcoeff()
+        dg1_ds = self.dgammadash1_by_dcoeff()
+        dg2_ds = self.dgammadash2_by_dcoeff()
+
+        x = g[:, :, 0, None, None]
+        y = g[:, :, 1, None, None]
+
+        dx_ds = dg_ds[:, :, 0, :, None]
+        dy_ds = dg_ds[:, :, 1, :, None]
+
+        dx_dt = dg_ds[:, :, 0, None, :]
+        dy_dt = dg_ds[:, :, 1, None, :]
+
+        r = np.sqrt(x**2+y**2)
+        dr_ds = (x*dx_ds+y*dy_ds)/r
+        dr_dt = (x*dx_dt+y*dy_dt)/r
+        dr2_dsdt = -((2*x*dx_dt + 2*y*dy_dt)*(2*x*dx_ds + 2*y*dy_ds))/(4*(x**2 + y**2)**(3/2)) + (2*dx_dt*dx_ds + 2*dy_dt*dy_ds)/(2*r)
+        
+        xvarphi = g1[:, :, 0, None, None]
+        yvarphi = g1[:, :, 1, None, None]
+        zvarphi = g1[:, :, 2, None, None]
+
+        xtheta = g2[:, :, 0, None, None]
+        ytheta = g2[:, :, 1, None, None]
+        ztheta = g2[:, :, 2, None, None]
+
+        dxvarphi_ds = dg1_ds[:, :, 0, :, None]
+        dyvarphi_ds = dg1_ds[:, :, 1, :, None]
+        dzvarphi_ds = dg1_ds[:, :, 2, :, None]
+
+        dxtheta_ds = dg2_ds[:, :, 0, :, None]
+        dytheta_ds = dg2_ds[:, :, 1, :, None]
+        dztheta_ds = dg2_ds[:, :, 2, :, None]
+
+        dxvarphi_dt = dg1_ds[:, :, 0, None, :]
+        dyvarphi_dt = dg1_ds[:, :, 1, None, :]
+        dzvarphi_dt = dg1_ds[:, :, 2, None, :]
+
+        dxtheta_dt = dg2_ds[:, :, 0, None, :]
+        dytheta_dt = dg2_ds[:, :, 1, None, :]
+        dztheta_dt = dg2_ds[:, :, 2, None, :]
+
+        mean_area = np.mean((1/r) * (ztheta*(x*yvarphi-y*xvarphi)-zvarphi*(x*ytheta-y*xtheta)))/(2.*np.pi)
+        d2mean_area_ds2 = np.sign(mean_area)*np.mean((2*(-(xvarphi*y*ztheta) + xtheta*y*zvarphi + x*(yvarphi*ztheta - \
+                                                     ytheta*zvarphi))*dr_dt*dr_ds - r*((yvarphi*ztheta - \
+                                                     ytheta*zvarphi)*dx_dt + y*zvarphi*dxtheta_dt - y*ztheta*dxvarphi_dt - \
+                                                     xvarphi*ztheta*dy_dt + xtheta*zvarphi*dy_dt - xvarphi*y*dztheta_dt + \
+                                                     xtheta*y*dzvarphi_dt + x*(-(zvarphi*dytheta_dt) + ztheta*dyvarphi_dt \
+                                                     + yvarphi*dztheta_dt - ytheta*dzvarphi_dt))*dr_ds - \
+                                                     r*dr_dt*((yvarphi*ztheta - ytheta*zvarphi)*dx_ds + \
+                                                     y*zvarphi*dxtheta_ds - y*ztheta*dxvarphi_ds - xvarphi*ztheta*dy_ds + \
+                                                     xtheta*zvarphi*dy_ds - xvarphi*y*dztheta_ds + xtheta*y*dzvarphi_ds + \
+                                                     x*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + yvarphi*dztheta_ds - \
+                                                     ytheta*dzvarphi_ds)) + r**2*((-(zvarphi*dytheta_dt) + \
+                                                     ztheta*dyvarphi_dt + yvarphi*dztheta_dt - ytheta*dzvarphi_dt)*dx_ds + \
+                                                     zvarphi*dy_dt*dxtheta_ds + y*dzvarphi_dt*dxtheta_ds - \
+                                                     ztheta*dy_dt*dxvarphi_ds - y*dztheta_dt*dxvarphi_ds + \
+                                                     zvarphi*dxtheta_dt*dy_ds - ztheta*dxvarphi_dt*dy_ds - \
+                                                     xvarphi*dztheta_dt*dy_ds + xtheta*dzvarphi_dt*dy_ds - \
+                                                     y*dxvarphi_dt*dztheta_ds - xvarphi*dy_dt*dztheta_ds + \
+                                                     y*dxtheta_dt*dzvarphi_ds + xtheta*dy_dt*dzvarphi_ds + \
+                                                     dx_dt*(-(zvarphi*dytheta_ds) + ztheta*dyvarphi_ds + \
+                                                     yvarphi*dztheta_ds - ytheta*dzvarphi_ds) + \
+                                                     x*(-(dzvarphi_dt*dytheta_ds) + dztheta_dt*dyvarphi_ds + \
+                                                     dyvarphi_dt*dztheta_ds - dytheta_dt*dzvarphi_ds)) + \
+                                                     r*(xvarphi*y*ztheta - xtheta*y*zvarphi + x*(-(yvarphi*ztheta) + \
+                                                     ytheta*zvarphi))*dr2_dsdt)/r**3, axis=(0, 1))/(2*np.pi) # noqa
+        return d2mean_area_ds2
+
     def arclength_poloidal_angle(self):
         """
         Computes poloidal angle based on arclenth along magnetic surface at
@@ -678,6 +841,23 @@ class Surface(Optimizable):
             function_interpolated[iphi, :] = f(theta_evaluate[iphi, :])
 
         return function_interpolated
+    
+    @property
+    def deduced_range(self):
+        """
+        The quadpoints of a surface can be anything, but are often set to 
+        'full torus', 'field period' or 'half period'. 
+        Since this is not stored in the object, but often useful to know
+        this function deduces the range from the quadpoints
+        """
+        if np.isclose(self.quadpoints_phi[-1], 1-1/len(self.quadpoints_phi), atol=1e-10):
+            return Surface.RANGE_FULL_TORUS
+        elif self.quadpoints_phi[0] == 0:
+            return Surface.RANGE_FIELD_PERIOD
+        else:
+            return Surface.RANGE_HALF_PERIOD
+
+
 
 
 def signed_distance_from_surface(xyz, surface):

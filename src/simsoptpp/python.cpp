@@ -22,6 +22,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 #include "reiman.h"
 #include "simdhelpers.h"
 #include "winding_surface.h"
+#include "boozerresidual_py.h"
 
 namespace py = pybind11;
 
@@ -132,6 +133,10 @@ PYBIND11_MODULE(simsoptpp, m) {
             delete[] B_dB_dc;
             return res;
         });
+
+    m.def("boozer_residual", &boozer_residual);
+    m.def("boozer_residual_ds", &boozer_residual_ds);
+    m.def("boozer_residual_ds2", &boozer_residual_ds2);
 
     m.def("matmult", [](PyArray& A, PyArray&B) {
             // Product of an lxm matrix with an mxn matrix, results in an l x n matrix

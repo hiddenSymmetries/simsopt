@@ -423,6 +423,76 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         surf.local_full_x = surf.get_dofs()
         return surf
+    
+    def copy(self, **kwargs): 
+        """
+        return a copy of the surfaceRZFourier object, but with the specified
+        attributes changed. 
+        key-worded arguments accepted: 
+            - ntheta: number of quadrature points in the theta direction
+            - nphi: number of quadrature points in the phi direction
+            - mpol: number of poloidal Fourier modes for the surface
+            - ntor: number of toroidal Fourier modes for the surface
+            - nfp: number of field periods
+            - stellsym: whether the surface is stellarator-symmetric
+            - quadpoints_theta: theta grid points
+            - quadpoints_phi: phi grid points
+        
+        
+        """
+        otherntheta = self.quadpoints_theta.size
+        othernphi = self.quadpoints_phi.size
+        
+        ntheta = kwargs.pop("ntheta", otherntheta)
+        nphi = kwargs.pop("nphi", othernphi)
+        grid_range = kwargs.pop("range", None)
+        mpol = kwargs.pop("mpol", self.mpol)
+        ntor = kwargs.pop("ntor", self.ntor)
+        nfp = kwargs.pop("nfp", self.nfp)
+        stellsym = kwargs.pop("stellsym", self.stellsym)
+        quadpoints_theta = kwargs.pop("quadpoints_theta", None)
+        quadpoints_phi = kwargs.pop("quadpoints_phi", None)
+
+        # recalculate the quadpoints if necessary (grid_range is not stored in the
+        # surface object, so assume that if it is given, the gridpoints should be
+        # recalculated to the specified size)
+        if quadpoints_theta is None and quadpoints_phi is None:
+            if ntheta is not otherntheta or nphi is not othernphi or grid_range is not None:
+                kwargs["quadpoints_phi"], kwargs["quadpoints_theta"] = Surface.get_quadpoints(
+                    ntheta=ntheta, nphi=nphi, nfp=self.nfp, range=grid_range)
+            else:
+                kwargs["quadpoints_phi"] = self.quadpoints_phi
+                kwargs["quadpoints_theta"] = self.quadpoints_theta
+        else:
+            if quadpoints_theta is None:
+                if ntheta is not otherntheta or grid_range is not None:
+                    kwargs["quadpoints_theta"] = Surface.get_theta_quadpoints(ntheta)
+                else:
+                    kwargs["quadpoints_theta"] = self.quadpoints_theta
+            else:
+                kwargs["quadpoints_theta"] = quadpoints_theta
+            if quadpoints_phi is None:
+                if nphi is not othernphi or grid_range is not None:
+                    kwargs["quadpoints_phi"] = Surface.get_phi_quadpoints(nphi, range=grid_range, nfp=nfp)
+                else:
+                    kwargs["quadpoints_phi"] = self.quadpoints_phi
+            else:
+                kwargs["quadpoints_phi"] = quadpoints_phi
+        # create new surface in old resolution
+        surf = SurfaceRZFourier(mpol=self.mpol, ntor=self.ntor, nfp=nfp, stellsym=stellsym,
+                   **kwargs)
+        surf.rc[:, :] = self.rc
+        surf.zs[:, :] = self.zs
+        if not self.stellsym:
+            surf.rs[:, :] = self.rs
+            surf.zc[:, :] = self.zc
+        # set to the requested resolution
+        surf.change_resolution(mpol, ntor)
+        surf.local_full_x = surf.get_dofs()
+        return surf
+
+
+
 
     def change_resolution(self, mpol, ntor):
         """
@@ -638,6 +708,167 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
         """
         with open(filename, 'w') as f:
             f.write(self.get_nml())
+
+    def fourier_transform_scalar(self, scalar, mpol=None, ntor=None, normalization=None, **kwargs):
+        r"""
+        Compute the Fourier components of a scalar on the surface. The scalar
+        is evaluated at the quadrature points on the surface. 
+        The Fourier uses the conventions of the FourierRZSurface series, 
+        with `npol` going from `-ntor` to `ntor` and `mpol` from 0 to `mpol`
+        i.e.: 
+        :math:`f(\theta, \phi) = \Sum_{m=0}^{mpol} \Sum_{n=-npol}^{npol} A^{mn}_s \sin(m\theta - n*Nfp*\phi)\\
+            + A^{mn}_c \cos(m\theta - n*Nfp*\phi)`
+        Where the cosine series is only evaluated if the surface is not stellarator
+        symmetric (if the scalar does not adhere to the symmetry of the surface, 
+        request the cosine series by setting the kwarg stellsym=False)
+        By default, the poloidal and toroidal resolution are the same as those of the surface, but different quantities can be specified in the kwargs. 
+        *Arguments*:
+            - scalar: 2D array of shape (numquadpoints_phi, numquadpoints_theta).
+            - mpol: maximum poloidal mode number of the transform, if None,
+                the mpol attribute of the surface is used.
+            - ntor: maximum toroidal mode number of the transform if None, 
+                the ntor attribute of the surface is used.
+        *Optional keyword arguments*:
+            - normalization: Fourier transform normalization. Can be: 
+              None: forward and back transform are not normalized
+              float: forward transform is divided by this number
+            - stellsym: boolean to override the stellsym attribute 
+                of the surface if you want to force the calculation of the cosine series
+        *Returns*:
+            - A_mns: 2D array of shape (mpol+1, 2*ntor+1) containing the sine coefficients
+            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
+                (these are zero if the surface is stellarator symmetric)
+        """
+        assert scalar.shape[0] == self.quadpoints_phi.size, "scalar must be evaluated at the quadrature points on the surface.\n the scalar you passed in has shape {}".format(scalar.shape)
+        assert scalar.shape[1] == self.quadpoints_theta.size, "scalar must be evaluated at the quadrature points on the surface.\n the scalar you passed in has shape {}".format(scalar.shape)
+        stellsym = kwargs.pop('stellsym', self.stellsym)
+        if mpol is None:
+            try: mpol = self.mpol
+            except AttributeError: raise ValueError("mpol must be specified")
+        if ntor is None:
+            try: ntor = self.ntor
+            except AttributeError: raise ValueError("ntor must be specified")
+        A_mns = np.zeros((int(mpol + 1), int(2 * ntor + 1)))  # sine coefficients
+        A_mnc = np.zeros((int(mpol + 1), int(2 * ntor + 1)))  # cosine coefficients
+        ntheta_grid = len(self.quadpoints_theta)
+        nphi_grid = len(self.quadpoints_phi)
+
+        factor = 2.0 / (ntheta_grid * nphi_grid)
+
+        phi2d, theta2d = np.meshgrid(2 * np.pi * self.quadpoints_phi,
+                                     2 * np.pi * self.quadpoints_theta, 
+                                     indexing="ij")
+        
+        for m in range(mpol + 1):
+            nmin = -ntor
+            if m == 0: nmin = 1
+            for n in range(nmin, ntor+1):
+                angle = m * theta2d - n * self.nfp * phi2d
+                sinangle = np.sin(angle)
+                factor2 = factor
+                # The next 2 lines ensure inverse Fourier transform(Fourier transform) = identity
+                if np.mod(ntheta_grid, 2) == 0 and m == (ntheta_grid/2): factor2 = factor2 / 2
+                if np.mod(nphi_grid, 2) == 0 and abs(n) == (nphi_grid/2): factor2 = factor2 / 2
+                A_mns[m, n + ntor] = np.sum(scalar * sinangle * factor2)
+                if not stellsym:
+                    cosangle = np.cos(angle)
+                    A_mnc[m, n + ntor] = np.sum(scalar * cosangle * factor2)
+        
+        if not stellsym:
+            A_mnc[0, ntor] = np.sum(scalar) / (ntheta_grid * nphi_grid)
+        if normalization is not None:
+            if not isinstance(normalization, float):
+                raise ValueError("normalization must be a float")
+            A_mns = A_mns / normalization
+            A_mnc = A_mnc / normalization
+
+        return A_mns, A_mnc
+
+    def inverse_fourier_transform_scalar(self, A_mns, A_mnc, normalization=None, **kwargs):
+        r"""
+        Compute the inverse Fourier transform of a scalar on the surface, specified by the Fourier coefficients. The quantity must be
+        is evaluated at the quadrature points on the surface. The Fourier
+        transform is defined as
+        :math:`f(\theta, \phi) = \Sum_{m=0}^{mpol} \Sum_{n=-npol}^{npol} A^{mn}_s \sin(m\theta - n*Nfp*\phi)\\
+            + A^{mn}_c \cos(m\theta - n*Nfp*\phi)`
+        Where the cosine series is only evaluated if the surface is not stellarator
+        symmetric.
+        *Arguments*:
+            - A_mns: 2D array of shape (mpol+1, 2*ntor+1) containing the sine coefficients
+            - A_mnc: 2D array of shape (mpol+1, 2*ntor+1) containing the cosine coefficients 
+                (these are zero if the surface is stellarator symmetric)
+        *Optional keyword arguments*:
+            - normalization: Fourier transform normalization. Can be:
+                None: forward and back transform are not normalized
+                float: inverse transform is multiplied by this number
+            - stellsym: boolean to override the stellsym attribute of the surface
+        """
+        mpol = A_mns.shape[0] - 1
+        ntor = int((A_mns.shape[1] - 1) / 2)
+        stellsym = kwargs.pop('stellsym', self.stellsym)
+        ntheta_grid = len(self.quadpoints_theta)
+        nphi_grid = len(self.quadpoints_phi)
+
+        phi2d, theta2d = np.meshgrid(2 * np.pi * self.quadpoints_phi,
+                                     2 * np.pi * self.quadpoints_theta,
+                                     indexing="ij")
+
+        scalars = np.zeros((nphi_grid, ntheta_grid))
+        for m in range(mpol + 1):
+            nmin = -ntor
+            if m == 0: nmin = 1
+            for n in range(nmin, ntor+1):
+                angle = m * theta2d - n * self.nfp * phi2d
+                sinangle = np.sin(angle)
+                scalars = scalars + A_mns[m, n + ntor] * sinangle
+                if not stellsym:
+                    cosangle = np.cos(angle)
+                    scalars = scalars + A_mnc[m, n + ntor] * cosangle
+        
+        if not stellsym:
+            scalars = scalars + A_mnc[0, ntor]
+        if normalization is not None: 
+            if not isinstance(normalization, float):
+                raise ValueError("normalization must be a float")
+            scalars = scalars * normalization
+        return scalars
+
+    def make_rotating_ellipse(self, major_radius, minor_radius, elongation, torsion=0):
+        """
+        Set the surface shape to be a rotating ellipse with the given
+        parameters.
+
+        Values of ``elongation`` larger than 1 will result in the elliptical
+        cross-section at :math:`\phi=0` being taller than it is wide.
+        Values of ``elongation`` less than 1 will result in the elliptical
+        cross-section at :math:`\phi=0` being wider than it is tall.
+
+        The sign convention is such that both the rotating elongation and
+        positive ``torsion`` will contribute positively to iota according to
+        VMEC's sign convention.
+
+        Args:
+            major_radius: Average major radius of the surface.
+            minor_radius: Average minor radius of the surface.
+            elongation: Elongation of the elliptical cross-section.
+            torsion: Value to use for the (m,n)=(0,1) mode of RC and -ZS, which
+                controls the torsion of the magnetic axis.
+        """
+
+        self.local_full_x = np.zeros_like(self.local_full_x)
+        self.set_rc(0, 0, major_radius)
+        self.set_rc(0, 1, torsion)
+        self.set_zs(0, 1, -torsion)
+
+        sqrt_elong = np.sqrt(elongation)
+        amplitude = 0.5 * minor_radius * (1 / sqrt_elong - sqrt_elong)
+        self.set_rc(1, 1, amplitude)
+        self.set_zs(1, 1, -amplitude)
+
+        amplitude = 0.5 * minor_radius * (1 / sqrt_elong + sqrt_elong)
+        self.set_rc(1, 0, amplitude)
+        self.set_zs(1, 0, amplitude)
+
 
     return_fn_map = {'area': sopp.SurfaceRZFourier.area,
                      'volume': sopp.SurfaceRZFourier.volume,

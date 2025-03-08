@@ -1,6 +1,5 @@
 import unittest
 import json
-import os
 
 import numpy as np
 from monty.tempfile import ScratchDir
@@ -8,12 +7,15 @@ from monty.tempfile import ScratchDir
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
-from simsopt.geo.curve import RotatedCurve
-from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum
+from simsopt.geo.curve import RotatedCurve, create_equally_spaced_curves, create_equally_spaced_planar_curves
+from simsopt.field.coil import Coil, Current, ScaledCurrent, CurrentSum, coils_via_symmetries
 from simsopt.field.coil import coils_to_makegrid, coils_to_focus, load_coils_from_makegrid_file
 from simsopt.field.biotsavart import BiotSavart
 from simsopt._core.json import GSONEncoder, GSONDecoder, SIMSON
 from simsopt.configs import get_ncsx_data
+
+import os
+from . import TEST_DIR
 
 
 def get_curve(curvetype, rotated, x=np.asarray([0.5])):
@@ -187,6 +189,61 @@ class CoilFormatConvertTesting(unittest.TestCase):
 
         np.testing.assert_allclose(B, loaded_B)
         np.testing.assert_allclose(gamma, loaded_gamma)
+
+    def test_load_coils_from_makegrid_file_group(self):
+        order = 25
+        ppp = 10
+
+        # Coil group_names is a list of strings
+        filecoils = os.path.join(TEST_DIR, "coils.M16N08")   
+        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names = ["245th-coil","100th-coil"])
+        all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
+        #     NOTE: coils will be returned in order they appear in the file, not in order of listed groups.
+        #     So group_names = ["245th-coil","100th-coil"] gives the array [<coil nr 100>, <coil nr 245>]
+        compare_coils = [all_coils[99],all_coils[244]]
+        gamma = [coil.curve.gamma() for coil in coils]
+        compare_gamma = [coil.curve.gamma() for coil in compare_coils]
+        np.testing.assert_allclose(gamma, compare_gamma)
+
+        # Coil group_names is a single string
+        coils = load_coils_from_makegrid_file(filecoils, order, ppp, group_names = "256th-coil")
+        all_coils = load_coils_from_makegrid_file(filecoils, order, ppp)
+        compare_coils = [all_coils[255]]
+        gamma = [coil.curve.gamma() for coil in coils]
+        compare_gamma = [coil.curve.gamma() for coil in compare_coils]
+        np.testing.assert_allclose(gamma, compare_gamma)
+
+        
+        
+    def test_equally_spaced_planar_curves(self):
+        ncoils = 4
+        nfp = 4
+        stellsym = False
+        R0 = 2.3
+        R1 = 0.9
+
+        curves = create_equally_spaced_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
+        currents = [Current(1e5) for i in range(ncoils)]
+
+        curves_planar = create_equally_spaced_planar_curves(ncoils, nfp, stellsym, R0=R0, R1=R1)
+        currents_planar = [Current(1e5) for i in range(ncoils)]
+
+        coils = coils_via_symmetries(curves, currents, nfp, stellsym)
+        coils_planar = coils_via_symmetries(curves_planar, currents_planar, nfp, stellsym)
+        bs = BiotSavart(coils)
+        bs_planar = BiotSavart(coils_planar)
+
+        x1d = np.linspace(R0, R0 + 0.3, 4)
+        y1d = np.linspace(0, 0.2, 3)
+        z1d = np.linspace(-0.2, 0.4, 5)
+        x, y, z = np.meshgrid(x1d, y1d, z1d)
+        points = np.ascontiguousarray(np.array([x.ravel(), y.ravel(), z.ravel()]).T)
+
+        bs.set_points(points)
+        bs_planar.set_points(points)
+
+        np.testing.assert_allclose(bs.B(), bs_planar.B(), atol=1e-16)
+
 
 
 if __name__ == "__main__":

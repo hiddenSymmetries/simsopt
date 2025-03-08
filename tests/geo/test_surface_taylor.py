@@ -10,7 +10,6 @@ parameters['jit'] = False
 
 def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
     np.random.seed(1)
-    f0 = f(x)
     if direction is None:
         direction = np.random.rand(*(x.shape))-0.5
     dfx = df(x)@direction
@@ -25,12 +24,10 @@ def taylor_test(f, df, x, epsilons=None, direction=None, order=2):
         fpluseps = f(x + eps * direction)
         fminuseps = f(x - eps * direction)
         if order == 2:
-            fak = 0.3
             dfest = (fpluseps-fminuseps)/(2*eps)
         elif order == 4:
             fplus2eps = f(x + 2*eps * direction)
             fminus2eps = f(x - 2*eps * direction)
-            fak = 0.13
             dfest = ((1/12) * fminus2eps - (2/3) * fminuseps + (2/3)*fpluseps
                      - (1/12)*fplus2eps)/eps
         else:
@@ -97,7 +94,6 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
     if direction2 is None:
         direction2 = np.random.rand(*(x.shape))-0.5
 
-    f0 = f(x)
     df0 = df(x) @ direction1
     d2fval = direction2.T @ d2f(x) @ direction1
     if epsilons is None:
@@ -109,8 +105,10 @@ def taylor_test2(f, df, d2f, x, epsilons=None, direction1=None,
         d2fest = (fpluseps-df0)/eps
         err = np.abs(d2fest - d2fval)
 
-        print(err/err_old)
+        print(err, err/err_old)
         assert err < 0.6 * err_old
+        if err < 1e-9:
+            break
         err_old = err
     print("###################################################################")
 
@@ -216,9 +214,14 @@ class SurfaceTaylorTests(unittest.TestCase):
     def test_surface_coefficient_derivative(self):
         for surfacetype in self.surfacetypes:
             for stellsym in [True, False]:
-                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
-                    s = get_surface(surfacetype, stellsym)
-                    self.subtest_surface_coefficient_derivative(s)
+
+                # mean cross sectional area should always be positive since minor radius = sqrt(mean_cross_sectional_area/pi),
+                # flipping the sign of the dofs should still give the correct derivatives
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_surface_coefficient_derivative(s)
 
     def subtest_surface_normal_coefficient_derivative(self, s):
         coeffs = s.x
@@ -369,6 +372,40 @@ class SurfaceTaylorTests(unittest.TestCase):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_volume_coefficient_second_derivative(s)
 
+    def test_volume_coefficient_second_derivative2(self):
+        """
+        Taylor test for the second derivative of the volume w.r.t. the dofs
+        """
+        
+        # defining a local function get_random_surface because it let's me control number of quadpoints, and modes
+        def get_random_surface(surfacetype, stellsym, mpol, ntor, nphi, ntheta):
+            from .surface_test_helpers import get_surface as get_surface_ext
+            s = get_surface_ext(surfacetype, stellsym, mpol=mpol, ntor=ntor, nphi=nphi, ntheta=ntheta)
+            dofs = s.get_dofs()
+            np.random.seed(2)
+            rand_scale = 0.01
+            s.x = dofs + rand_scale * np.random.rand(len(dofs))
+            print(surfacetype, stellsym, mpol, ntor, nphi, ntheta)
+            return s
+
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
+                    s1 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=1)
+                    self.subtest_volume_coefficient_second_derivative(s1)
+
+                    s2 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=1)
+                    self.subtest_volume_coefficient_second_derivative(s2)
+
+                    s3 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=2, ntheta=1)
+                    self.subtest_volume_coefficient_second_derivative(s3)
+                    
+                    s4 = get_random_surface(surfacetype, stellsym, mpol=1, ntor=1, nphi=1, ntheta=2)
+                    self.subtest_volume_coefficient_second_derivative(s4)
+
+                    s5 = get_random_surface(surfacetype, stellsym, mpol=4, ntor=4, nphi=31, ntheta=30)
+                    self.subtest_volume_coefficient_second_derivative(s5)
+
     def subtest_volume_coefficient_second_derivative(self, s):
         coeffs = s.x
         s.invalidate_cache()
@@ -409,6 +446,133 @@ class SurfaceTaylorTests(unittest.TestCase):
                 with self.subTest(surfacetype=surfacetype, stellsym=stellsym):
                     s = get_surface(surfacetype, stellsym)
                     self.subtest_surface_volume_coefficient_derivative(s)
+
+    def test_minor_radius_second_derivative(self):
+        """
+        Taylor test for the second derivative of the minor radius w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_minor_radius_second_derivative(s)
+
+    def subtest_minor_radius_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.minor_radius()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dminor_radius_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2minor_radius_by_dcoeff_dcoeff()
+        
+        taylor_test2(f, df, d2f, coeffs,
+             epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+    def test_major_radius_second_derivative(self):
+        """
+        Taylor test for the second derivative of the major radius w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_major_radius_second_derivative(s)
+
+    def subtest_major_radius_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.major_radius()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dmajor_radius_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2major_radius_by_dcoeff_dcoeff()
+        
+        taylor_test2(f, df, d2f, coeffs,
+             epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+    def test_mean_area_second_derivative(self):
+        """
+        Taylor test for the second derivative of the mean cross sectional area w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_mean_area_second_derivative(s)
+
+    def subtest_mean_area_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.mean_cross_sectional_area()
+
+        def df(dofs):
+            s.x = dofs
+            return s.dmean_cross_sectional_area_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2mean_cross_sectional_area_by_dcoeff_dcoeff()
+        
+        taylor_test2(f, df, d2f, coeffs,
+             epsilons=np.power(2., -np.asarray(range(13, 20))))
+
+    def test_AR_second_derivative(self):
+        """
+        Taylor test for the second derivative of the aspect ratio w.r.t. the dofs
+        """
+        for surfacetype in self.surfacetypes:
+            for stellsym in [True, False]:
+                
+                # mean cross sectional area should always be positive since minor radius = sqrt(mean_cross_sectional_area/pi), which
+                # the aspect ratio depends on
+                # flipping the sign of the dofs should still give the correct derivatives
+                for sign in [1, -1]:
+                    with self.subTest(surfacetype=surfacetype, stellsym=stellsym, sign=sign):
+                        s = get_surface(surfacetype, stellsym)
+                        s.x = sign * s.x
+                        self.subtest_AR_second_derivative(s)
+
+    def subtest_AR_second_derivative(self, s):
+        coeffs = s.x
+        s.invalidate_cache()
+
+        def f(dofs):
+            s.x = dofs
+            return s.aspect_ratio()
+
+        def df(dofs):
+            s.x = dofs
+            return s.daspect_ratio_by_dcoeff()
+
+        def d2f(dofs):
+            s.x = dofs
+            return s.d2aspect_ratio_by_dcoeff_dcoeff()
+        taylor_test2(f, df, d2f, coeffs,
+                     epsilons=np.power(2., -np.asarray(range(13, 20))))
 
     def subtest_surface_phi_derivative(self, surfacetype, stellsym):
         epss = [0.5**i for i in range(10, 15)]

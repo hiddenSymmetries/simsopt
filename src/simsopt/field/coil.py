@@ -4,13 +4,14 @@ import numpy as np
 from simsopt._core.optimizable import Optimizable
 from simsopt._core.derivative import Derivative
 from simsopt.geo.curvexyzfourier import CurveXYZFourier
-from simsopt.geo.curve import RotatedCurve, Curve
+from simsopt.geo.curve import RotatedCurve
 import simsoptpp as sopp
 
 
 __all__ = ['Coil', 'Current', 'coils_via_symmetries', 'load_coils_from_makegrid_file',
            'apply_symmetries_to_currents', 'apply_symmetries_to_curves',
-           'coils_to_makegrid', 'coils_to_focus']
+           'coils_to_makegrid', 'coils_to_focus'
+           ]
 
 
 class Coil(sopp.Coil, Optimizable):
@@ -93,7 +94,6 @@ class Current(sopp.Current, CurrentBase):
 
     def vjp(self, v_current):
         return Derivative({self: v_current})
-
     @property
     def current(self):
         return self.get_value()
@@ -186,7 +186,7 @@ def coils_via_symmetries(curves, currents, nfp, stellsym):
     return coils
 
 
-def load_coils_from_makegrid_file(filename, order, ppp=20):
+def load_coils_from_makegrid_file(filename, order, ppp=20, group_names=None):
     """
     This function loads a file in MAKEGRID input format containing the Cartesian coordinates 
     and the currents for several coils and returns an array with the corresponding coils. 
@@ -197,10 +197,16 @@ def load_coils_from_makegrid_file(filename, order, ppp=20):
         filename: file to load.
         order: maximum mode number in the Fourier expansion.
         ppp: points-per-period: number of quadrature points per period.
+        group_names: List of coil group names (str). Only get coils in coil groups that are in the list.
 
     Returns:
         A list of ``Coil`` objects with the Fourier coefficients and currents given by the file.
     """
+
+    if isinstance(group_names,str):
+        # Handle case of a single string
+        group_names = [group_names]
+    
     with open(filename, 'r') as f:
         all_coils_values = f.read().splitlines()[3:] 
 
@@ -209,12 +215,19 @@ def load_coils_from_makegrid_file(filename, order, ppp=20):
     for j in range(len(all_coils_values)-1):
         vals = all_coils_values[j].split()
         if flag:
-            currents.append(float(vals[3]))
+            curr = float(vals[3])
             flag = False
         if len(vals) > 4:
             flag = True
-
-    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp)
+            if group_names is None:
+                currents.append(curr)
+            else:
+                this_group_name = vals[5]
+                if this_group_name in group_names:
+                    currents.append(curr)  
+            
+            
+    curves = CurveXYZFourier.load_curves_from_makegrid_file(filename, order=order, ppp=ppp, group_names=group_names)    
     coils = [Coil(curves[i], Current(currents[i])) for i in range(len(curves))]
 
     return coils

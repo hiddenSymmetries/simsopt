@@ -1,5 +1,117 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "oldest-supported-numpy", "cmake", "ninja", "setuptools_scm[toml]>=6.0"]
-build-backend = "setuptools.build_meta"
+requires = [
+  "scikit-build-core",
+  "pybind11",
+  "numpy >= 2.0.0",
+  "setuptools_scm>=8.0",
+  'tomli; python_version < "3.11"',]
+build-backend = "scikit_build_core.build"
 
-[tools.setuptools_scm]
+[project]
+name = "simsopt"
+license = {text = "MIT License"}
+description="Framework for optimizing stellarators"
+readme = "README.md"
+# long_description = file: README.md
+# long_description_content_type = text/markdown
+requires-python = ">=3.8"
+authors = [
+  {name = "Matt Landreman", email = "mattland@umd.edu"},
+  {name = "Bharat Medasani", email = "mbkumar@gmail.com"},
+  {name = "Florian Wechsung", email = "wechsung@nyu.edu"}
+]
+maintainers = [
+  {name = "Bharat Medasani", email = "mbkumar@gmail.com"},
+  {name = "Matt Landreman", email = "mattland@umd.edu"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10"
+]
+keywords = [
+    "plasma physics",
+    "plasma",
+    "magnetohydrodynamics",
+    "mhd",
+    "nuclear fusion reactor",
+    "fusion",
+    "stellarator",
+    "vmec",
+    "spec",
+    "optimization",
+    "Biot-Savart",
+    "magnetostatics"
+]
+dependencies = [
+    "numpy>=1.21",
+    "jax>=0.2.5",
+    "jaxlib>=0.1.56",
+    "scipy>=1.5.4",
+    "Deprecated>=1.2.10",
+    "monty>=2021.6.10",
+    "ruamel.yaml",
+    "sympy",
+    "f90nml",
+    "randomgen",
+    "pyevtk",
+    "matplotlib"
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+SPEC = ["py_spec>=3.0.1", "pyoculus>=0.1.1", "h5py>=3.1.0"]
+MPI = ["mpi4py>=3.0.3"]
+VIS = ["vtk >= 8.1.2", "PyQt5", "plotly", "networkx"]
+DOCS = ["sphinx", "sphinx-rtd-theme"]
+
+[project.urls]
+Homepage = "https://github.com/hiddenSymmetries/simsopt"
+Download = "https://pypi.org/project/simsopt"
+Issues = "https://github.com/hiddenSymmetries/simsopt/issues"
+Documentation = "https://simsopt.readthedocs.io"
+Repository = "https://github.com/hiddenSymmetries/simsopt"
+
+[tool.setuptools_scm]
+write_to = "src/simsopt/_version.py"
+# local_scheme = "dirty"
+
+[tool.scikit-build]
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+sdist.include = ["src/simsopt/_version.py"]
+build-dir = "build/{wheel_tag}"
+
+
+[tool.ruff]
+src = ["src/simsopt"] 
+ignore = ["E226","E265","E266","E4","E501","E701","E702","E712","E722","E731","E741","F403","F405","F406","W5"]
+extend-exclude = ["thirdparty"]
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["E402","F401"]
+"src/simsopt/field/magneticfieldclasses.py" = ["E743"]
+"src/simsopt/mhd/bootstrap.py" = ["F841"]
+"src/simsopt/mhd/vmec_diagnostics.py" = ["F841"]
+"tests/verify_MPI_not_initialized.py" = ["F401"]
+"tests/geo/test_plot.py" = ["F401"]
+"tests/geo/test_curve.py" = ["F401"]
+"tests/geo/test_surface.py" = ["F401"]
+"tests/mhd/test_virtual_casing.py" = ["F841"]
+
+[tool.coverage.run]
+parallel = true
+relative_files = true
+source = ["simsopt"]
+
+[tool.coverage.paths]
+source = [
+    "src",
+    "/**/lib*/python*/site-packages"
+]

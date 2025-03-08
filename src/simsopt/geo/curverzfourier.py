@@ -1,7 +1,6 @@
 import numpy as np
 
 import simsoptpp as sopp
-from .._core.json import GSONDecoder
 from .curve import Curve
 
 __all__ = ['CurveRZFourier']

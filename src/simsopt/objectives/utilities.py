@@ -5,7 +5,7 @@ import scipy
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 
-__all__ = ['MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
+__all__ = ['MPIOptimizable', 'MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
 
 
 def forward_backward(P, L, U, rhs, iterative_refinement=False):
@@ -47,6 +47,59 @@ def sum_across_comm(derivative, comm):
             alldata = np.asarray([alldata])
         newdict[k] = alldata
     return Derivative(newdict)
+
+
+class MPIOptimizable(Optimizable):
+
+    def __init__(self, optimizables, attributes, comm):
+        r"""
+        Ensures that a list of Optimizables on separate ranks have a consistent set of attributes on all ranks.
+        For example, say that all ranks have the list ``optimizables``.  Rank ``i`` modifies attributes
+        of ``optimizable[i]``. The value attribute ``attr``, i.e., ``optimizables[i].attr`` potentially
+        will be different on ranks ``i`` and ``j``, for ``i`` not equal to ``j``.  This class ensures that
+        if the cache is invalidated on the ``Optimizables`` in the list ``optimizables``, then when the list
+        is accessed, the attributes in ``attributes`` will be communicated accross all ranks.
+
+        Args:
+            objectives: A python list of ``Optimizables`` with attributes in ``attributes`` that can be
+                        communicated using ``mpi4py``.
+            attributes: A python list of strings corresponding to the list of attributes that is to be
+                        maintained consistent across all ranks.
+            comm: The MPI communicator to use.
+        """
+
+        from simsopt._core.util import parallel_loop_bounds
+        startidx, endidx = parallel_loop_bounds(comm, len(optimizables))
+        self.local_optimizables = optimizables[startidx:endidx]
+        self.global_optimizables = optimizables
+        
+        self.comm = comm
+        self.attributes = attributes
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=optimizables)
+
+        for opt in optimizables:
+            for attr in self.attributes:
+                if not hasattr(opt, attr):
+                    raise Exception(f'All Optimizables in the optimizable list must contain the attribute {attr}')
+    
+    def __getitem__(self, key):
+        if self.need_to_communicate:
+            self.communicate()
+        return self.global_optimizables[key]
+
+    def communicate(self):
+        if self.need_to_communicate:
+            for attr in self.attributes:
+                local_vals = [getattr(J, attr) for J in self.local_optimizables]
+                global_vals = local_vals if self.comm is None else [i for o in self.comm.allgather(local_vals) for i in o]
+                for val, J in zip(global_vals, self.global_optimizables):
+                    if J in self.local_optimizables:
+                        continue
+                    setattr(J, attr, val)
+            self.need_to_communicate = False
+
+    def recompute_bell(self, parent=None):
+        self.need_to_communicate = True
 
 
 class MPIObjective(Optimizable):
@@ -141,12 +194,15 @@ class QuadraticPenalty(Optimizable):
 
 
 class Weight(object):
-
     def __init__(self, value):
         self.value = float(value)
 
     def __float__(self):
         return float(self.value)
+
+    def __iadd__(self, alpha):
+        self.value += alpha
+        return self
 
     def __imul__(self, alpha):
         self.value *= alpha

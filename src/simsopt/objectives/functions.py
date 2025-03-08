@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) HiddenSymmetries Development Team.
-# Distributed under the terms of the LGPL License
+# Distributed under the terms of the MIT License
 
 """
 This module provides a few minimal optimizable objects, each
@@ -275,13 +275,12 @@ class TestObject2(Optimizable):
 
     def dJ(self):
         x = self.local_full_x
-        v1 = x[0]
         v2 = x[1]
         t = self.parents[0]()
         a = self.parents[1]()
         cosat = np.cos(v2 + t)
         sinat = np.sin(v2 + t)
-        # Order of terms in the gradient: v1, v2, t, a
+        # Order of terms in the gradient: x[0], v2, t, a
         return np.concatenate((np.array([1.0, -a * sinat]),
                                -a * sinat * self.parents[0].dJ(),
                                cosat * self.parents[1].dJ()))

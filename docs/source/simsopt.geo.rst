@@ -60,10 +60,26 @@ simsopt.geo.curverzfourier module
    :undoc-members:
    :show-inheritance:
 
+simsopt.geo.curveplanarfourier module
+-------------------------------------
+
+.. automodule:: simsopt.geo.curveplanarfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 simsopt.geo.curvexyzfourier module
 ----------------------------------
 
 .. automodule:: simsopt.geo.curvexyzfourier
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+simsopt.geo.curvexyzfouriersymmetries module
+--------------------------------------------
+
+.. automodule:: simsopt.geo.curvexyzfouriersymmetries
    :members:
    :undoc-members:
    :show-inheritance:
