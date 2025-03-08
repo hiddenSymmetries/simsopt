@@ -3,15 +3,17 @@ r"""
 """
 
 import time
+import os
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-from simsopt.field import BiotSavart, DipoleField, ExactField
-from simsopt.geo import PermanentMagnetGrid, SurfaceRZFourier, ExactMagnetGrid
+from simsopt.field import BiotSavart, ExactField, DipoleField
+from simsopt.geo import ExactMagnetGrid, SurfaceRZFourier, CurveLength, curves_to_vtk, PermanentMagnetGrid  #, NonQuasiSymmetricRatio
 from simsopt.objectives import SquaredFlux
 from simsopt.solve import GPMO
 from simsopt.util import in_github_actions
 from simsopt.util.permanent_magnet_helper_functions import *
+from simsopt._core import load
 
 t_start = time.time()
 
@@ -19,101 +21,145 @@ t_start = time.time()
 if in_github_actions:
     nphi = 4  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    dr = 0.05  # cylindrical bricks with radial extent 5 cm
+    dx = 0.05  # bricks with radial extent 5 cm
 else:
-    nphi = 16  # nphi = ntheta >= 64 needed for accurate full-resolution runs
+    nphi = 32  # nphi = ntheta >= 64 needed for accurate full-resolution runs
     ntheta = nphi
-    # dr = 0.02  # cylindrical bricks with radial extent 2 cm
-    Nx = 16
+    Nx = 32 # bricks with radial extent ??? cm
 
-coff = 0.5  # PM grid starts offset ~ 10 cm from the plasma surface
-poff = 0.1
-  # PM grid end offset ~ 15 cm from the plasma surface
-input_name = 'input.LandremanPaul2021_QA_lowres'
+coff = 0.1  # PM grid starts offset ~ 10 cm from the plasma surface
+poff = 0.12  # PM grid end offset ~ 15 cm from the plasma surface
 
-nIter_max = 100
+max_nMagnets = 1000
 
-# Read in the plas/ma equilibrium file
-TEST_DIR = (Path(__file__).parent / ".." / ".." / "tests" / "test_files").resolve()
-surface_filename = TEST_DIR / input_name
-s = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_inner = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
-s_outer = SurfaceRZFourier.from_vmec_input(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+TEST_DIR = "../../tests/test_files/"
+# configuration_name = "CSX_5.0_WPs"
+bsurf = load(os.path.join(TEST_DIR + "boozer_surface_CSX5_WPs.json"))
+bs = bsurf.biotsavart
+coils = bs._coils
+input_name = 'wout_csx_wps_5.0.nc'
+surface_filename = TEST_DIR + input_name
+s = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi, ntheta=ntheta)
+s_inner = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi * 4, ntheta=ntheta * 4)
+s_outer = SurfaceRZFourier.from_wout(surface_filename, range="half period", nphi=nphi * 4, ntheta=ntheta * 4)
 
 # Make the inner and outer surfaces by extending the plasma surface
 s_inner.extend_via_projected_normal(poff)
 s_outer.extend_via_projected_normal(poff + coff)
+print([c.curve for c in coils])
+
+# Plot original coils
+# iota = -0.3
+current_sum = sum(abs(c.current.get_value()) for c in bsurf.biotsavart.coils[0:2])
+G0 = -2. * np.pi * current_sum * (4 * np.pi * 10**(-7) / (2 * np.pi))
+# res = bsurf.run_code(iota, G0)
+volume = bsurf.surface.volume()
+aspect = bsurf.surface.aspect_ratio()
+rmaj = bsurf.surface.major_radius()
+rmin = bsurf.surface.minor_radius()
+L = float(CurveLength(bsurf.biotsavart.coils[0].curve).J())
+# QS = float(NonQuasiSymmetricRatio(bsurf, bsurf.biotsavart).J())
+il_current = bsurf.biotsavart.coils[0].current.get_value()
+pf_current = bsurf.biotsavart.coils[2].current.get_value()
+# iota = res['iota']
+
+ax = plt.figure().add_subplot(projection='3d')
+s.plot(ax=ax, show=False, close=True)
+for c in bs.coils:
+    c.curve.plot(ax=ax, show=False)
+ax.set_xlim(-1,1)
+ax.set_ylim(-1,1)
+ax.set_xlabel('x [m]')
+ax.set_ylabel('y [m]')
+ax.set_zlabel('z [m]')
+ax.set_aspect('equal')
+
+# Plot Bn / B errors
+theta = s.quadpoints_theta
+phi = s.quadpoints_phi
+ntheta = theta.size
+nphi = phi.size
+bs.set_points(s.gamma().reshape((-1, 3)))
+Bdotn = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+modB = bs.AbsB().reshape((nphi, ntheta))
+fig, ax = plt.subplots()
+c = ax.contourf(theta, phi, Bdotn / modB)
+plt.colorbar(c)
+ax.set_title(r'$\mathbf{B}\cdot\hat{n} / |B|$ ')
+ax.set_ylabel(r'$\phi$')
+ax.set_xlabel(r'$\theta$')
+plt.tight_layout()
+plt.show()
 
 # Make the output directory
-out_dir = Path("dipole_QA")
+out_str = "exact_CSX"
+out_dir = Path(out_str)
 out_dir.mkdir(parents=True, exist_ok=True)
-
-# initialize the coils
-base_curves, curves, coils = initialize_coils('qa', TEST_DIR, s, out_dir)
-
-# Set up BiotSavart fields
-bs = BiotSavart(coils)
-
-# Calculate average, approximate on-axis B field strength
-calculate_on_axis_B(bs, s)
 
 # Make higher resolution surface for plotting Bnormal
 qphi = 2 * nphi
 quadpoints_phi = np.linspace(0, 1, qphi, endpoint=True)
 quadpoints_theta = np.linspace(0, 1, ntheta, endpoint=True)
-s_plot = SurfaceRZFourier.from_vmec_input(
+s_plot = SurfaceRZFourier.from_wout(
     surface_filename, 
     quadpoints_phi=quadpoints_phi, 
     quadpoints_theta=quadpoints_theta
 )
 
-# Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
-make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_initial")
+# Plot the original coils that Antoine used
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_with_original_window_panes")
+curves_to_vtk([c.curve for c in coils], out_dir / "curves_with_original_window_panes")
 
-# optimize the currents in the TF coils
-bs = coil_optimization(s, bs, base_curves, curves, out_dir)
-bs.set_points(s.gamma().reshape((-1, 3)))
-Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
+# Subtract out the window-pane coils used in Antoines paper
+coils = coils[:4]
 
-# check after-optimization average on-axis magnetic field strength
+# Set up BiotSavart fields
+bs = BiotSavart(coils)
+curves_to_vtk([c.curve for c in coils], out_dir / "curves_without_window_panes")
+
+# Calculate average, approximate on-axis B field strength
 calculate_on_axis_B(bs, s)
 
-# Set up correct Bnormal from TF coils 
+# Plot initial Bnormal on plasma surface from un-optimized BiotSavart coils
+make_Bnormal_plots(bs, s_plot, out_dir, "biot_savart_without_window_panes")
+
+# Set up correct Bnormal from coils 
 bs.set_points(s.gamma().reshape((-1, 3)))
 Bnormal = np.sum(bs.B().reshape((nphi, ntheta, 3)) * s.unitnormal(), axis=2)
 
 # Finally, initialize the permanent magnet class
-# kwargs_geo = {"dr": dr, "coordinate_flag": "cylindrical"}  
-Bnorm1 = Bnormal
-s_in1 = s_inner
-s_out1 = s_outer
-s1 = s
-
-kwargs_geo = {"Nx": Nx}  
-pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
+kwargs_geo = {"Nx": Nx} #, "Ny": Nx * 2, "Nz": Nx * 3}  
+pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
 
-print(Bnorm1.shape)
-assert(np.all(Bnorm1 == Bnormal))
-assert(np.all(s_in1 == s_inner))
-assert(np.all(s_out1 == s_outer))
-assert(np.all(s1 == s))
-
-kwargs_geo = {"Nx": Nx}
-pm_comp = ExactMagnetGrid.geo_setup_between_toroidal_surfaces(
+pm_opt = PermanentMagnetGrid.geo_setup_between_toroidal_surfaces(
     s, Bnormal, s_inner, s_outer, **kwargs_geo
 )
 
 # Optimize the permanent magnets. This actually solves
 kwargs = initialize_default_kwargs('GPMO')
-# algorithm = 'baseline'
+# nIter_max = 50000
+# max_nMagnets = 5000
 algorithm = 'baseline'
-nHistory = 5
-
-kwargs['K'] = nIter_max
+# algorithm = 'ArbVec_backtracking'
+# nBacktracking = 50
+# nAdjacent = 10
+# thresh_angle = np.pi  # / np.sqrt(2)
+# angle = int(thresh_angle * 180 / np.pi)
+kwargs['K'] = max_nMagnets
+# if algorithm == 'backtracking' or algorithm == 'ArbVec_backtracking':
+#     kwargs['backtracking'] = nBacktracking
+#     kwargs['Nadjacent'] = nAdjacent
+#     kwargs['dipole_grid_xyz'] = np.ascontiguousarray(pm_opt.pm_grid_xyz)
+#     if algorithm == 'ArbVec_backtracking':
+#         kwargs['thresh_angle'] = thresh_angle
+#         kwargs['max_nMagnets'] = max_nMagnets
+#     # Below line required for the backtracking to be backwards 
+#     # compatible with the PermanentMagnetGrid class
+#     pm_opt.coordinate_flag = 'cartesian'  
+nHistory = 100
 kwargs['nhistory'] = nHistory
-print('kwargs = ',kwargs)
 t1 = time.time()
 R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 
@@ -121,9 +167,9 @@ R2_history, Bn_history, m_history = GPMO(pm_opt, algorithm, **kwargs)
 B_max = 1.465
 mu0 = 4 * np.pi * 1e-7
 M_max = B_max / mu0 
-dipoles = pm_opt.m.reshape(pm_opt.ndipoles, 3)
-print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))) / M_max)
-print('sum(|m_i|)', np.sum(np.sqrt(np.sum(dipoles ** 2, axis=-1))))
+magnets = pm_opt.m.reshape(pm_opt.ndipoles, 3)
+print('Volume of permanent magnets is = ', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))) / M_max)
+print('sum(|m_i|)', np.sum(np.sqrt(np.sum(magnets ** 2, axis=-1))))
 
 b_dipole = DipoleField(
     pm_opt.dipole_grid_xyz,
