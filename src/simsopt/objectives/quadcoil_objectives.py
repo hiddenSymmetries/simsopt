@@ -6,8 +6,7 @@ from utils import sin_or_cos
 
 # Import packages.
 import numpy as np
-from simsopt.field import CurrentPotentialFourier  # , CurrentPotentialSolve
-from operator_helper import norm_helper, Kdash_helper, diff_helper
+from simsopt.field import CurrentPotentialFourier, CurrentPotentialSolve
 
 __all__ = ['norm_helper', 'Kdash_helper', 'diff_helper',
            'grid_curvature_operator', 'grid_curvature_operator_cylindrical',
