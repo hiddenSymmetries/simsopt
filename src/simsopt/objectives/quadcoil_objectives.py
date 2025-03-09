@@ -1,8 +1,6 @@
 import sys
 sys.path.insert(1, '..')
-import utils
-from utils import avg_order_of_magnitude
-from utils import sin_or_cos
+from utils import avg_order_of_magnitude, sin_or_cos, project_arr_cylindrical
 
 # Import packages.
 import numpy as np
@@ -184,7 +182,7 @@ def grid_curvature_operator_cylindrical(
         current_scale=current_scale,
         L2_unit=False
     )
-    out = utils.project_arr_cylindrical(
+    out = project_arr_cylindrical(
         gamma=cp.winding_surface.gamma(),
         operator=K_dot_grad_K,
     )
@@ -444,9 +442,9 @@ def grid_curvature_cylindrical(
     cp_n=cp_n,
     stellsym=stellsym,
 )
-A_KK_cyl = utils.project_arr_cylindrical(gamma=gamma, operator=A_KK)
-b_KK_cyl = utils.project_arr_cylindrical(gamma=gamma, operator=b_KK)
-c_KK_cyl = utils.project_arr_cylindrical(gamma=gamma, operator=c_KK)
+A_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=A_KK)
+b_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=b_KK)
+c_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=c_KK)
 return (
     A_KK_cyl,
     b_KK_cyl,
@@ -535,7 +533,7 @@ def K_operator_cylindrical(cp: CurrentPotentialFourier, current_scale, normalize
         normalize=False
     )
     # Keep only 1 fp
-    AK_operator_cylindrical = utils.project_arr_cylindrical(
+    AK_operator_cylindrical = project_arr_cylindrical(
         gamma=cp.winding_surface.gamma(),
         operator=AK_operator
     )
