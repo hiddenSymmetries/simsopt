@@ -134,6 +134,9 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/boozerradialinterpolant.cpp src/simsoptpp/python_currentpotential.cpp
     src/simsoptpp/currentpotential.cpp src/simsoptpp/currentpotentialfourier.cpp
     )
+if(OpenMP_CXX_FOUND)
+    pybind11_add_module(${PROJECT_NAME} src/simsoptpp/biest_call.cpp)
+endif()
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
@@ -141,6 +144,9 @@ set_target_properties(${PROJECT_NAME}
     CXX_STANDARD_REQUIRED ON)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/xtensor/include" "thirdparty/xtensor-python/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" ${Python_NumPy_INCLUDE_DIRS} "src/simsoptpp/")
+if(OpenMP_CXX_FOUND)
+    target_include_directories(${PROJECT_NAME} PRIVATE "thirdparty/BIEST/include" "thirdparty/BIEST/extern/SCTL/include/")
+endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt-header-only)
 
 if(NOT Boost_FOUND)
@@ -159,6 +165,10 @@ set_target_properties(profiling
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 target_include_directories(profiling PRIVATE  "thirdparty/xtensor/include" "thirdparty/xsimd/include" "thirdparty/xtl/include" "thirdparty/eigen" "src/simsoptpp/")
+if(OpenMP_CXX_FOUND)
+    target_include_directories(profiling PRIVATE  "thirdparty/BIEST/include" "thirdparty/BIEST/extern/SCTL/include/")
+endif()
+##### BIEST and SCTL requires openmp
 target_link_libraries(profiling PRIVATE fmt::fmt-header-only)
 
 
