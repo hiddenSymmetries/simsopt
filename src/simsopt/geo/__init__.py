@@ -6,6 +6,7 @@ from .curve import *
 from .curvehelical import *
 from .curverzfourier import *
 from .curvexyzfourier import *
+from .curvealongz import *
 from .curvexyzfouriersymmetries import *
 from .curveperturbed import *
 from .curveobjectives import *
