@@ -1,10 +1,9 @@
 import sys
 sys.path.insert(1, '..')
-from utils import avg_order_of_magnitude, sin_or_cos, project_arr_cylindrical
-
-# Import packages.
 import numpy as np
-from simsopt.field import CurrentPotentialFourier, CurrentPotentialSolve
+from simsopt.util import avg_order_of_magnitude, sin_or_cos, project_arr_cylindrical
+from functools import partial
+from jax import jit
 
 __all__ = ['norm_helper', 'Kdash_helper', 'diff_helper',
            'grid_curvature_operator', 'grid_curvature_operator_cylindrical',
@@ -16,7 +15,7 @@ __all__ = ['norm_helper', 'Kdash_helper', 'diff_helper',
 
 
 def grid_curvature_operator(
-        cp: CurrentPotentialFourier,
+        cp,
         single_value_only: bool = True,
         L2_unit=False,
         current_scale=1):
@@ -157,7 +156,7 @@ def grid_curvature_operator(
 
 
 def grid_curvature_operator_cylindrical(
-    cp: CurrentPotentialFourier,
+    cp,
     current_scale,
     single_value_only: bool = False,
     normalize=True
@@ -379,9 +378,7 @@ def grid_curvature_cylindrical(
         nfp, cp_m, cp_n,
         stellsym,
 ):
-
-
-"""
+    """
     Main difference with grid_curvature_cylindrical_operator is that this
     function uses jit and does not rely on the simsopt winding
     surface object.
@@ -421,38 +418,38 @@ def grid_curvature_cylindrical(
             over the winding surface.
             When L2_unit=False, the resulting matrices calculates
             the actual components of K.
-"""
-(
-    A_KK,
-    b_KK,
-    c_KK,
-) = grid_curvature(
-    normal=normal,
-    gammadash1=gammadash1,
-    gammadash2=gammadash2,
-    gammadash1dash1=gammadash1dash1,
-    gammadash1dash2=gammadash1dash2,
-    gammadash2dash2=gammadash2dash2,
-    net_poloidal_current_amperes=net_poloidal_current_amperes,
-    net_toroidal_current_amperes=net_toroidal_current_amperes,
-    quadpoints_phi=quadpoints_phi,
-    quadpoints_theta=quadpoints_theta,
-    nfp=nfp,
-    cp_m=cp_m,
-    cp_n=cp_n,
-    stellsym=stellsym,
-)
-A_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=A_KK)
-b_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=b_KK)
-c_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=c_KK)
-return (
-    A_KK_cyl,
-    b_KK_cyl,
-    c_KK_cyl,
-)
+    """
+    (
+        A_KK,
+        b_KK,
+        c_KK,
+    ) = grid_curvature(
+        normal=normal,
+        gammadash1=gammadash1,
+        gammadash2=gammadash2,
+        gammadash1dash1=gammadash1dash1,
+        gammadash1dash2=gammadash1dash2,
+        gammadash2dash2=gammadash2dash2,
+        net_poloidal_current_amperes=net_poloidal_current_amperes,
+        net_toroidal_current_amperes=net_toroidal_current_amperes,
+        quadpoints_phi=quadpoints_phi,
+        quadpoints_theta=quadpoints_theta,
+        nfp=nfp,
+        cp_m=cp_m,
+        cp_n=cp_n,
+        stellsym=stellsym,
+    )
+    A_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=A_KK)
+    b_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=b_KK)
+    c_KK_cyl = project_arr_cylindrical(gamma=gamma, operator=c_KK)
+    return (
+        A_KK_cyl,
+        b_KK_cyl,
+        c_KK_cyl,
+    )
 
 
-def f_B_operator_and_current_scale(cpst: CurrentPotentialSolve, normalize=True, current_scale=None):
+def f_B_operator_and_current_scale(cpst, normalize=True, current_scale=None):
     """
     Produces a dimensionless f_B and K operator that act on X by 
     tr(AX). Also produces a scaling factor current_scale that is an 
@@ -505,7 +502,7 @@ def f_B_operator_and_current_scale(cpst: CurrentPotentialSolve, normalize=True, 
     return (f_B_x_operator, B_normal, current_scale, f_B_scale)
 
 
-def K_operator_cylindrical(cp: CurrentPotentialFourier, current_scale, normalize=True):
+def K_operator_cylindrical(cp, current_scale, normalize=True):
     """
     Produces a dimensionless K operator that act on X by 
     tr(AX). Note that this operator is linear in Phi, rather
@@ -544,7 +541,7 @@ def K_operator_cylindrical(cp: CurrentPotentialFourier, current_scale, normalize
     return (AK_operator_cylindrical, AK_scale)
 
 
-def AK_helper(cp: CurrentPotentialFourier):
+def AK_helper(cp):
     """
     We take advantage of the fj matrix already 
     implemented in CurrentPotentialSolve to calculate K.
@@ -594,7 +591,7 @@ def AK_helper(cp: CurrentPotentialFourier):
     return (AK, bK)
 
 
-def K_operator(cp: CurrentPotentialFourier, current_scale, normalize=True):
+def K_operator(cp, current_scale, normalize=True):
     """
     Produces a dimensionless K operator that act on X by 
     tr(AX). Note that this operator is linear in Phi, rather
@@ -634,7 +631,7 @@ def K_operator(cp: CurrentPotentialFourier, current_scale, normalize=True):
     return (AK_operator, AK_scale)
 
 
-def K_l2_operator(cp: CurrentPotentialFourier, current_scale, normalize=True):
+def K_l2_operator(cp, current_scale, normalize=True):
     """
     An operator that calculates the L2 norm of K.
     Shape: (n_phi (1 field period) x n_theta, n_dof+1, n_dof+1)
@@ -1288,7 +1285,7 @@ def self_force_integrands_xyz(
     )
 
 
-def self_force_cylindrical(cp: CurrentPotentialFourier, current_scale, normalize=True, skip_integral=False):
+def self_force_cylindrical(cp, current_scale, normalize=True, skip_integral=False):
     """
     Calculates the self-force operator in cylindrical coordinates.
 

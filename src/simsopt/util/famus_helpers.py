@@ -8,7 +8,6 @@ and work with the permanent magnet branch of SIMSOPT.
 """
 __all__ = ['FocusData', 'FocusPlasmaBnormal', 'stell_point_transform', 'stell_vector_transform']
 import numpy as np
-from simsopt.geo import Surface
 
 FOCUS_PLASMAFILE_NHEADER_TOP = 1
 FOCUS_PLASMAFILE_NHEADER_BDRY = 2
@@ -75,6 +74,7 @@ class FocusPlasmaBnormal(object):
             Normal component of the magnetic field evaluated at each of the
             grid points.
         '''
+        from simsopt.geo import Surface
         # Determine the theta and phi points using Simsopt Surface class methods
         phi = Surface.get_phi_quadpoints(nphi=nphi, range=range, nfp=self.nfp)
         theta = Surface.get_theta_quadpoints(ntheta=ntheta)

@@ -5,7 +5,8 @@ import json
 import numpy as np
 from monty.json import MontyDecoder, MontyEncoder
 
-from simsopt.field.currentpotential import CurrentPotential, CurrentPotentialFourier
+from simsopt.field import CurrentPotential, CurrentPotentialFourier
+from simsopt.field import CurrentPotentialSolve
 from simsopt.geo import SurfaceRZFourier
 from scipy.io import netcdf_file
 
@@ -294,6 +295,88 @@ class CurrentPotentialFourierTests(unittest.TestCase):
         names = [name[4:] for name in cp.local_dof_names]
         names2 = [f'({m},{n})' for m, n in zip(cp.m, cp.n)]
         self.assertEqual(names, names2)
+
+    def test_target(self):
+        """
+        """
+        from matplotlib import pyplot as plt
+        def run_target_test(
+            filename='regcoil_out.hsx.nc', 
+            lambda_reg=0.0,
+        ):
+            """
+            Run REGCOIL (L2 regularization) and Lasso (L1 regularization)
+            starting from high regularization to low. When fB < fB_target
+            is achieved, the algorithms quit. This allows one to compare
+            L2 and L1 results at comparable levels of fB, which seems
+            like the fairest way to compare them.
+
+            Args:
+                filename (str): Path to the REGCOIL netcdf file
+                lambda_reg (float): Regularization parameter
+            """
+            fB_target = 1e-2
+            mpol = 4
+            ntor = 4
+            coil_ntheta_res = 1
+            coil_nzeta_res = coil_ntheta_res
+            plasma_ntheta_res = coil_ntheta_res
+            plasma_nzeta_res = coil_ntheta_res
+
+            # Load in low-resolution NCSX file from REGCOIL
+            cpst = CurrentPotentialSolve.from_netcdf(
+                TEST_DIR / filename, plasma_ntheta_res, plasma_nzeta_res, coil_ntheta_res, coil_nzeta_res
+            )
+            cp = CurrentPotentialFourier.from_netcdf(TEST_DIR / filename, coil_ntheta_res, coil_nzeta_res)
+
+            # Overwrite low-resolution file with more mpol and ntor modes
+            cp = CurrentPotentialFourier(
+                cpst.winding_surface, mpol=mpol, ntor=ntor,
+                net_poloidal_current_amperes=cp.net_poloidal_current_amperes,
+                net_toroidal_current_amperes=cp.net_toroidal_current_amperes,
+                stellsym=True)
+            cpst = CurrentPotentialSolve(cp, cpst.plasma_surface, cpst.Bnormal_plasma)  #, cpst.B_GI)
+
+            optimized_phi_mn, f_B, _ = cpst.solve_tikhonov(lam=lambda_reg)
+            cp_opt = cpst.current_potential
+            return(cp_opt, cp, cpst, optimized_phi_mn, f_B)
+
+
+        cp_opt, cp, cpst, optimized_phi_mn, f_B = run_target_test(lambda_reg=0.1)
+
+        theta_study1d, phi_study1d = cp_opt.quadpoints_theta, cp_opt.quadpoints_phi
+        theta_study2d, phi_study2d = np.meshgrid(theta_study1d, phi_study1d)
+
+        # Plotting K
+        K_mag_study = np.sum(cp_opt.K()**2, axis=2)
+        plt.figure()
+        plt.pcolor(phi_study1d, theta_study1d, K_mag_study.T, shading='nearest')
+        plt.colorbar()
+        plt.title('|K|')
+        plt.figure()
+        plt.pcolor(phi_study2d.T, theta_study2d.T, K_mag_study.T, shading='nearest')
+        plt.ylabel(r'$\theta$')
+        plt.xlabel(r'$\phi$')
+        plt.colorbar()
+        plt.title('|K|')
+
+        # Contours for Phi
+        Phi_study = cp_opt.Phi()
+        plt.figure()
+        plt.pcolor(phi_study1d, theta_study1d, Phi_study.T, shading='nearest')
+        plt.colorbar()
+        plt.ylabel(r'$\theta$')
+        plt.xlabel(r'$\phi$')
+        plt.title(r'$\Phi$')
+
+        # Contours for normal component
+        plt.figure()
+        plt.pcolor(cp_opt.winding_surface.normal()[:,:,0].T)
+        plt.colorbar()
+        plt.ylabel(r'$\theta$')
+        plt.xlabel(r'$\phi$')
+        plt.title(r'$\Phi_{normal}$')
+        plt.show()
 
 
 if __name__ == "__main__":
