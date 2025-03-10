@@ -4,11 +4,11 @@
     // #include <gperftools/profiler.h> // Profiler
 
 
-double sum_of_sines(Array &m)
-{
-    auto sines = xt::sin(m); // sines does not actually hold values.
-    return std::accumulate(sines.cbegin(), sines.cend(), 0.0);
-}
+// double sum_of_sines(Array &m)
+// {
+//     auto sines = xt::sin(m); // sines does not actually hold values.
+//     return std::accumulate(sines.cbegin(), sines.cend(), 0.0);
+// }
 
 void test_single(double a, double b, Array &gamma, Array &f_arr, Array &result)
 {

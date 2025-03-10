@@ -57,7 +57,7 @@ print('Number of available dipoles = ', pm_opt.ndipoles)
 
 # Set some hyperparameters for the optimization
 kwargs = initialize_default_kwargs('GPMO')
-kwargs['K'] = 40000
+kwargs['K'] = 10000
 kwargs['nhistory'] = 100
 
 # Optimize the permanent magnets greedily

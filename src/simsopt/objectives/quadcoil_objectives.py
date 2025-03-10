@@ -5,6 +5,12 @@ from simsopt.util import avg_order_of_magnitude, sin_or_cos, project_arr_cylindr
 from functools import partial
 from jax import jit
 
+try:
+    # biest function -- biest requires openmp to run
+    from simsoptpp import integrate_multi
+except ImportError:
+    integrate_multi = None
+
 __all__ = ['norm_helper', 'Kdash_helper', 'diff_helper',
            'grid_curvature_operator', 'grid_curvature_operator_cylindrical',
            'grid_curvature', 'grid_curvature_cylindrical',
@@ -1381,7 +1387,9 @@ def self_force_cylindrical(cp, current_scale, normalize=True, skip_integral=Fals
     ))
     result_single = np.zeros_like(integrand_single_cylindrical_reshaped)
     result_double = np.zeros_like(integrand_double_cylindrical_reshaped)
-    biest_call.integrate_multi(
+    if integrate_multi == None:
+        raise ImportError("BIEST not found. Please install BIEST (requires openmp).")
+    integrate_multi(
         gamma_1fp,  # xt::pyarray<double> &gamma,
         integrand_single_cylindrical_reshaped,  # xt::pyarray<double> &func_in_single,
         result_single,  # xt::pyarray<double> &result,
@@ -1389,7 +1397,7 @@ def self_force_cylindrical(cp, current_scale, normalize=True, skip_integral=Fals
         10,  # int digits,
         nfp,  # int nfp
     )
-    biest_call.integrate_multi(
+    integrate_multi(
         gamma_1fp,  # xt::pyarray<double> &gamma,
         integrand_double_cylindrical_reshaped,  # xt::pyarray<double> &func_in_single,
         result_double,  # xt::pyarray<double> &result,
@@ -1784,7 +1792,9 @@ def self_force_cylindrical_BIEST(
     ))
     result_single_concat = jnp.zeros_like(integrand_single_concat_cylindrical_reshaped)
     result_double_concat = jnp.zeros_like(integrand_double_concat_cylindrical_reshaped)
-    biest_call.integrate_multi(
+    if integrate_multi == None:
+        raise ImportError("BIEST not found. Please install BIEST (requires openmp).")
+    integrate_multi(
         gamma_1fp,  # xt::pyarray<double> &gamma,
         integrand_single_concat_cylindrical_reshaped,  # xt::pyarray<double> &func_in_single,
         result_single_concat,  # xt::pyarray<double> &result,
@@ -1792,7 +1802,7 @@ def self_force_cylindrical_BIEST(
         10,  # int digits,
         nfp,  # int nfp
     )
-    biest_call.integrate_multi(
+    integrate_multi(
         gamma_1fp,  # xt::pyarray<double> &gamma,
         integrand_double_concat_cylindrical_reshaped,  # xt::pyarray<double> &func_in_single,
         result_double_concat,  # xt::pyarray<double> &result,

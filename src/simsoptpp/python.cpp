@@ -69,7 +69,7 @@ PYBIND11_MODULE(simsoptpp, m) {
 #if defined(_OPENMP)
     // Functions below are implemented for BIEST calculations in QUADCOIL
     // m.doc() = "Test module for xtensor python bindings";
-    m.def("sum_of_sines", &sum_of_sines, "Sum the sines of the input values");
+    // m.def("sum_of_sines", &sum_of_sines, "Sum the sines of the input values");
     m.def("test_single", &test_single, "Testing 100 BIEST calls.");
     m.def("test_double", &test_double, "Testing 100 BIEST calls.");
     m.def("integrate_multi", &integrate_multi, "Integrating multiple scalar functions using BIEST");

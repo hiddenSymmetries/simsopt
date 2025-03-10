@@ -1,8 +1,13 @@
+import unittest
 import numpy as np
 import sys
 sys.path.insert(1,'./build')
-import biest_call
 import time
+try:
+    from simsoptpp import test_double, test_single, integrate_multi
+except ImportError:
+    print('Could not import BIEST package (requires openmp built with simsopt), exiting.')
+    exit()
 
 class CurrentPotentialTests(unittest.TestCase):
     def test_run_biest(self):
@@ -17,7 +22,7 @@ class CurrentPotentialTests(unittest.TestCase):
             func_in = np.zeros((70, 20), dtype=np.float64)
             gamma_example = np.zeros((70, 20, 3), dtype=np.float64)
             out = np.zeros((70, 20), dtype=np.float64)
-            biest_call.test_single(a, b_single[i], gamma_example, func_in, out)
+            test_single(a, b_single[i], gamma_example, func_in, out)
             test_example_single.append(out)
             func_in_single_control.append(func_in)
 
@@ -27,7 +32,7 @@ class CurrentPotentialTests(unittest.TestCase):
             func_in = np.zeros((70, 20), dtype=np.float64)
             gamma_example = np.zeros((70, 20, 3), dtype=np.float64)
             out = np.zeros((70, 20), dtype=np.float64)
-            biest_call.test_double(a, b_double[i], gamma_example, func_in, out)
+            test_double(a, b_double[i], gamma_example, func_in, out)
             test_example_double.append(out)
             func_in_double_control.append(func_in)
         print('The BIEST single-layer example evaluates to', test_example_single)
@@ -75,7 +80,7 @@ class CurrentPotentialTests(unittest.TestCase):
         test_single = np.zeros_like(func_in_single, dtype=np.float64)
         test_double = np.zeros_like(func_in_double, dtype=np.float64)
         time1 = time.time()
-        biest_call.integrate_multi(
+        integrate_multi(
             gamma, # xt::pyarray<double> &gamma,
             func_in_single, # xt::pyarray<double> &func_in_single,
             test_single, # xt::pyarray<double> &result,
@@ -88,7 +93,7 @@ class CurrentPotentialTests(unittest.TestCase):
         print('Both eval time:', time2 - time1)
 
         time1 = time.time()
-        biest_call.integrate_multi(
+        integrate_multi(
             gamma, # xt::pyarray<double> &gamma,
             func_in_double, # xt::pyarray<double> &func_in_single,
             test_double, # xt::pyarray<double> &result,
@@ -113,7 +118,7 @@ class CurrentPotentialTests(unittest.TestCase):
 
         print('gamma', gamma.shape)
         print('test_single[:, :, 0]', test_single[:, :, 0].shape)
-        biest_call.integrate_single(
+        integrate_single(
             gamma, # xt::pyarray<double> &gamma,
             test_single[:, :, 0], # xt::pyarray<double> &func_in_single,
             10, # int digits,
