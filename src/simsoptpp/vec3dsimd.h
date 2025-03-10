@@ -7,11 +7,15 @@ typedef Eigen::Vector3cd Vec3d;
 
 
 inline std::complex<double> inner(const Vec3d& a, const Vec3d& b){
-    return a.dot(b);
+    //return a.dot(b);
+    return a.coeff(0) * b.coeff(0) + a.coeff(1) * b.coeff(1) + a.coeff(2) * b.coeff(2);
 }
 
 inline Vec3d cross(const Vec3d& a, const Vec3d& b){
-    return a.cross(b);
+     return Vec3d{(a.coeff(1) * b.coeff(2) - a.coeff(2) * b.coeff(1)),
+                  (a.coeff(2) * b.coeff(0) - a.coeff(0) * b.coeff(2)),
+                  (a.coeff(0) * b.coeff(1) - a.coeff(1) * b.coeff(0))};
+    //return a.cross(b);
 }
 
 inline std::complex<double> norm(const Vec3d& a){
@@ -223,7 +227,7 @@ inline simd_t normsq(Vec3dSimd& a){
 #else
 
 
-constexpr size_t ALIGN_BYTES = 32;
+constexpr size_t ALIGN_BYTES = 16;
 
 /*
 Vec3dStd implements a standard 3d vector.  Unlike Vec3dSimd, Vec3dStd  stores a single point
