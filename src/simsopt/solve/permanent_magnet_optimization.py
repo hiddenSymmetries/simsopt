@@ -200,9 +200,10 @@ def relax_and_split(pm_opt, m0=None, **kwargs):
 
     # set the nonconvex step in the algorithm
     reg_rs = 0.0
-    nu = kwargs.pop("nu", 1e100)
-    reg_l0 = kwargs.pop("reg_l0", 0.0)
-    reg_l1 = kwargs.pop("reg_l1", 0.0)
+    nu = kwargs.get("nu", 1e100)
+    reg_l0 = kwargs.get("reg_l0", 0.0)
+    reg_l1 = kwargs.get("reg_l1", 0.0)
+
     max_iter_RS = kwargs.pop('max_iter_RS', 1)
     epsilon_RS = kwargs.pop('epsilon_RS', 1e-3)
 
